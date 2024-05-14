@@ -20,6 +20,6 @@ MODEL_FILE=./ImageSegmenter/deeplab_v3.tflite
 if test -f "$MODEL_FILE"; then
     echo "INFO: deeplab_v3.tflite existed. Skip downloading and use the local task."
 else
-    curl -o ${MODEL_FILE} https://storage.googleapis.com/mediapipe-models/image_segmenter/deeplab_v3/float32/latest/deeplab_v3.tflite
+    curl -o ${MODEL_FILE} https://storage.googleapis.com/ai-edge/interpreter-samples/image_segmentation/ios/deeplab_v3.tflite
     echo "INFO: Downloaded deeplab_v3.tflite to $MODEL_FILE ."
 fi
