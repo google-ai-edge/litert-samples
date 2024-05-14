@@ -1,0 +1,16 @@
+PODS:
+  - TensorFlowLiteTaskAudio (0.4.3)
+
+DEPENDENCIES:
+  - TensorFlowLiteTaskAudio
+
+SPEC REPOS:
+  trunk:
+    - TensorFlowLiteTaskAudio
+
+SPEC CHECKSUMS:
+  TensorFlowLiteTaskAudio: c712928d24d194fc6a461d7894aff29392eb0872
+
+PODFILE CHECKSUM: 2ecd6662f8a823de238d8b4c64732929ab380398
+
+COCOAPODS: 1.14.3
