@@ -19,7 +19,7 @@ TFLITE_FILE=./ImageClassifier/efficientnet_lite0.tflite
 if test -f "$TFLITE_FILE"; then
     echo "INFO: efficientnet_lite0.tflite existed. Skip downloading and use the local model."
 else
-    curl -o ${TFLITE_FILE} https://storage.googleapis.com/mediapipe-models/image_classifier/efficientnet_lite0/float32/1/efficientnet_lite0.tflite
+    curl -o ${TFLITE_FILE} https://storage.googleapis.com/ai-edge/interpreter-samples/image_classification/ios/efficientnet_lite0.tflite
     echo "INFO: Downloaded efficientnet_lite0.tflite to $TFLITE_FILE ."
 fi
 
@@ -28,6 +28,6 @@ TFLITE_FILE=./ImageClassifier/efficientnet_lite2.tflite
 if test -f "$TFLITE_FILE"; then
     echo "INFO: efficientnet_lite2.tflite existed. Skip downloading and use the local model."
 else
-    curl -o ${TFLITE_FILE} https://storage.googleapis.com/mediapipe-models/image_classifier/efficientnet_lite2/float32/1/efficientnet_lite2.tflite
+    curl -o ${TFLITE_FILE} https://storage.googleapis.com/ai-edge/interpreter-samples/image_classification/ios/efficientnet_lite2.tflite
     echo "INFO: Downloaded efficientnet_lite2.tflite to $TFLITE_FILE ."
 fi
