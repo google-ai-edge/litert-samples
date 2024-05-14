@@ -1,5 +1,5 @@
 tasks.register('downloadMobileBertModel', Download) {
-    src 'https://storage.googleapis.com/mediapipe-models/text_classifier/bert_classifier/float32/1/bert_classifier.tflite'
+    src 'https://storage.googleapis.com/ai-edge/interpreter-samples/text_classification/android/bert_classifier.tflite'
     dest project.ext.ASSET_DIR + '/mobile_bert.tflite'
     overwrite false
 }
@@ -7,7 +7,7 @@ tasks.register('downloadMobileBertModel', Download) {
 tasks.register('downloadWordVecModel', Download) {
     // This model is custom made using Model Maker. A detailed guide can be found here:
     // https://www.tensorflow.org/lite/models/modify/model_maker/speech_recognition
-    src 'https://storage.googleapis.com/mediapipe-models/text_classifier/average_word_classifier/float32/1/average_word_classifier.tflite'
+    src 'https://storage.googleapis.com/ai-edge/interpreter-samples/text_classification/android/average_word_classifier.tflite'
     dest project.ext.ASSET_DIR + '/word_vec.tflite'
     overwrite false
 }
