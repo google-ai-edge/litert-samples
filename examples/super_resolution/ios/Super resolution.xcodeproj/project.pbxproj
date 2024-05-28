@@ -17,6 +17,7 @@
 		BF72C0BB2C0479AB0056A049 /* CVPixelBufferExtension.swift in Sources */ = {isa = PBXBuildFile; fileRef = BF72C0B72C0479AB0056A049 /* CVPixelBufferExtension.swift */; };
 		BF72C0BD2C047A740056A049 /* InterpreterHelper.swift in Sources */ = {isa = PBXBuildFile; fileRef = BF72C0BC2C047A740056A049 /* InterpreterHelper.swift */; };
 		BF72C0C02C0482140056A049 /* ESRGAN.tflite in Resources */ = {isa = PBXBuildFile; fileRef = BF72C0BE2C0482140056A049 /* ESRGAN.tflite */; };
+		BFE653CB2C05B4D000C55628 /* UIImageExtension.swift in Sources */ = {isa = PBXBuildFile; fileRef = BFE653CA2C05B4D000C55628 /* UIImageExtension.swift */; };
 		D50314660D5088A3FD0703FD /* Pods_Super_resolution.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 67C43E0D7DA7E2E7EAC258E8 /* Pods_Super_resolution.framework */; };
 /* End PBXBuildFile section */
 
@@ -36,6 +37,7 @@
 		BF72C0B72C0479AB0056A049 /* CVPixelBufferExtension.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = CVPixelBufferExtension.swift; sourceTree = "<group>"; };
 		BF72C0BC2C047A740056A049 /* InterpreterHelper.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InterpreterHelper.swift; sourceTree = "<group>"; };
 		BF72C0BE2C0482140056A049 /* ESRGAN.tflite */ = {isa = PBXFileReference; lastKnownFileType = file; path = ESRGAN.tflite; sourceTree = "<group>"; };
+		BFE653CA2C05B4D000C55628 /* UIImageExtension.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UIImageExtension.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -115,6 +117,7 @@
 			isa = PBXGroup;
 			children = (
 				BF72C0B72C0479AB0056A049 /* CVPixelBufferExtension.swift */,
+				BFE653CA2C05B4D000C55628 /* UIImageExtension.swift */,
 			);
 			path = Extensions;
 			sourceTree = "<group>";
@@ -227,6 +230,7 @@
 			files = (
 				BF72C0A52C0474ED0056A049 /* ViewController.swift in Sources */,
 				BF72C0A12C0474ED0056A049 /* AppDelegate.swift in Sources */,
+				BFE653CB2C05B4D000C55628 /* UIImageExtension.swift in Sources */,
 				BF72C0BD2C047A740056A049 /* InterpreterHelper.swift in Sources */,
 				BF72C0A32C0474ED0056A049 /* SceneDelegate.swift in Sources */,
 				BF72C0B92C0479AB0056A049 /* DefaultConstants.swift in Sources */,

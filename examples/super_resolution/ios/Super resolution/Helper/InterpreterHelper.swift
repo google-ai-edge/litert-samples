@@ -130,7 +130,8 @@ class InterpreterHelper: NSObject {
     }
 
     // Return the inference time and new image.
-    return Result(inferenceTime: interval, image: UIImage.fromData(data: outputTensor.data, size: CGSize(width: 200, height: 200)))
+    return Result(inferenceTime: interval,
+                  image: UIImage(data: outputTensor.data, size: CGSize(width: 200, height: 200)))
   }
 
   /// Returns the RGB data representation of the given image buffer with the specified `byteCount`.
@@ -231,74 +232,4 @@ extension Array {
 struct Result {
   let inferenceTime: Double
   let image: UIImage?
-}
-
-extension UIImage {
-  static func fromData(data: Data, size: CGSize) -> UIImage? {
-    let width = Int(size.width)
-    let height = Int(size.height)
-
-    let floats = [Float32](unsafeData: data) ?? []
-
-    let bufferCapacity = width * height * 4
-    let unsafePointer = UnsafeMutablePointer<UInt8>.allocate(capacity: bufferCapacity)
-    let unsafeBuffer = UnsafeMutableBufferPointer<UInt8>(start: unsafePointer,
-                                                         count: bufferCapacity)
-    defer {
-      unsafePointer.deallocate()
-    }
-    
-    for x in 0 ..< width {
-      for y in 0 ..< height {
-        let floatIndex = (y * width + x) * 3
-        let index = (y * width + x) * 4
-        var fred = floats[floatIndex]
-        var fgreen = floats[floatIndex + 1]
-        var fblue = floats[floatIndex + 2]
-        if fred < Float(UInt8.min) { fred = Float(UInt8.min) }
-        if fgreen < Float(UInt8.min) { fgreen = Float(UInt8.min) }
-        if fblue < Float(UInt8.min) { fblue = Float(UInt8.min) }
-
-        if fred > 255 { fred = 255 }
-        if fgreen > 255 { fgreen = 255 }
-        if fblue > 255 { fblue = 255 }
-
-        let red = UInt8(fred)
-        let green = UInt8(fgreen)
-        let blue = UInt8(fblue)
-
-        unsafeBuffer[index] = UInt8(red)
-        unsafeBuffer[index + 1] = UInt8(green)
-        unsafeBuffer[index + 2] = UInt8(blue)
-        unsafeBuffer[index + 3] = 0
-      }
-    }
-
-    let outData = Data(buffer: unsafeBuffer)
-
-    // Construct image from output tensor data
-    let alphaInfo = CGImageAlphaInfo.noneSkipLast
-    let bitmapInfo = CGBitmapInfo(rawValue: alphaInfo.rawValue)
-      .union(.byteOrder32Big)
-    let colorSpace = CGColorSpaceCreateDeviceRGB()
-    guard
-      let imageDataProvider = CGDataProvider(data: outData as CFData),
-      let cgImage = CGImage(
-        width: width,
-        height: height,
-        bitsPerComponent: 8,
-        bitsPerPixel: 32,
-        bytesPerRow: MemoryLayout<UInt8>.size * 4 * Int(size.width),
-        space: colorSpace,
-        bitmapInfo: bitmapInfo,
-        provider: imageDataProvider,
-        decode: nil,
-        shouldInterpolate: false,
-        intent: .defaultIntent
-      )
-    else {
-      return nil
-    }
-    return UIImage(cgImage: cgImage)
-  }
 }
