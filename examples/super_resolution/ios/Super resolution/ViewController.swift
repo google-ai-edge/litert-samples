@@ -25,6 +25,7 @@ class ViewController: UIViewController {
     static let mediaEmptyText = "Click + to add an image to begin running recovering a high resolution"
   }
 
+  // MARK: Storyboards Connections
   @IBOutlet weak var regionView: UIView!
   @IBOutlet weak var imageEmptyLabel: UILabel!
   @IBOutlet weak var inferenceTimeLabel: UILabel!
@@ -33,8 +34,8 @@ class ViewController: UIViewController {
   @IBOutlet weak var pickFromGalleryButton: UIButton!
   @IBOutlet weak var switchShowImageButton: UIButton!
 
+  // MARK: Private properties
   private var interprenterHelper: InterpreterHelper?
-
   private var pickedImage: UIImage?
   private var cropedImage: UIImage?
   private var highResolutionImage: UIImage?
@@ -95,6 +96,9 @@ class ViewController: UIViewController {
     pickerController.allowsEditing = false
   }
 
+  /**
+   This method return new image with size 50 x 50 receive an image and point in image view
+   **/
   private func getCropedImage(image: UIImage, centerInView: CGPoint) -> UIImage? {
     var origin: CGPoint!
     let imageSize = image.size
@@ -121,6 +125,9 @@ class ViewController: UIViewController {
     return image.croppedFixedOrientation(boundingBox: CGRect(x: origin.x, y: origin.y, width: 50, height: 50))
   }
 
+  /**
+   This method moves the region view (focus view) to the point in the center cropped image.
+   **/
   private func focusToCroppedImage(point: CGPoint) {
     guard let image = pickedImage else { return }
     regionView.isHidden = false
@@ -183,6 +190,7 @@ class ViewController: UIViewController {
       DispatchQueue.main.async {
         self.cropedImageView.image = self.highResolutionImage
         self.switchShowImageButton.isSelected = true
+        self.inferenceTimeLabel.text = String(format: "%.2fms", result.inferenceTime)
       }
     }
   }
