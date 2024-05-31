@@ -255,6 +255,7 @@ class ObjectDetectorHelper(
 
     enum class Model(val fileName: String) {
         EfficientDetLite0("efficientdet-lite0.tflite"),
+        EfficientDetLite1("efficientdet-lite1.tflite"),
         EfficientDetLite2("efficientdet-lite2.tflite"),
         MobileNetV1("mobilenet-v1.tflite"),
     }
