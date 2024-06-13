@@ -5,7 +5,6 @@
 
 # TensorFlow Lite model
 *.tflite
-!ESRGAN.tflite
 
 # MediaPipe Task files
 *.tasks
