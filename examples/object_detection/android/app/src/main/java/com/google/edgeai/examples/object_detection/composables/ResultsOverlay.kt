@@ -97,7 +97,7 @@ fun ResultsOverlay(
                         Text(
                             text = "${
                                 detection.label
-                            } ${detection.score}",
+                            } ${String.format("%.1f", detection.score)}",
                             modifier = Modifier
                                 .background(Color.Black)
                                 .padding(5.dp, 0.dp),
