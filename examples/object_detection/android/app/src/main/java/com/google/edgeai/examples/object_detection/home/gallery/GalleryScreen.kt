@@ -53,20 +53,22 @@ import com.google.edgeai.examples.object_detection.ui.theme.Turquoise
 @RequiresApi(Build.VERSION_CODES.P)
 @Composable
 fun GalleryScreen(
-    uiState: UiState, modifier: Modifier = Modifier, onImageAnalyzed: (Bitmap) -> Unit
+    uiState: UiState,
+    modifier: Modifier = Modifier,
+    onMediaPicked: () -> Unit,
+    onImageAnalyzed: (Bitmap) -> Unit
 ) {
-
     // We need a state to hold the Uri of the currently chosen media (image or video) if any
     var selectedMediaUri by rememberSaveable {
         mutableStateOf<Uri?>(null)
     }
-
 
     // We use this launcher later to launch a new activity to select a media file from
     val galleryLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.OpenDocument(),
         // On selecting an image or a video, we update the selected media uri
         onResult = { uri ->
+            onMediaPicked()
             selectedMediaUri = uri
         },
     )
@@ -89,7 +91,6 @@ fun GalleryScreen(
         }
 
         // Now that we know the selected media type, we display the appropriate composable
-
         when (selectedMediaType) {
             "Image" -> ImageDetectionView(
                 uiState = uiState,

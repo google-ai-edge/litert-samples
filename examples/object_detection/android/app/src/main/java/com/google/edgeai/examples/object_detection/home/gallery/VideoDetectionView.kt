@@ -18,7 +18,6 @@ package com.google.edgeai.examples.object_detection.home.gallery
 import android.graphics.Bitmap
 import android.media.MediaMetadataRetriever
 import android.net.Uri
-import android.util.Log
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -82,21 +81,23 @@ fun VideoDetectionView(
     }
 
     val scope = rememberCoroutineScope()
+    val context = LocalContext.current
 
     // We use ExoPlayer to play our video from the uri with no sounds
-    val exoPlayer = ExoPlayer.Builder(LocalContext.current)
-        .build()
-        .also { exoPlayer ->
-            val mediaItem = MediaItem.Builder()
-                .setUri(videoUri)
-                .build()
-            exoPlayer.setMediaItem(mediaItem)
-            exoPlayer.prepare()
-            exoPlayer.volume = 0f
-        }
+    val exoPlayer = remember {
+        ExoPlayer.Builder(context)
+            .build()
+            .also { exoPlayer ->
+                val mediaItem = MediaItem.Builder()
+                    .setUri(videoUri)
+                    .build()
+                exoPlayer.setMediaItem(mediaItem)
+                exoPlayer.prepare()
+                exoPlayer.volume = 0f
+            }
+    }
 
     // Now we run object detection on our video. For a better performance, we run it in background
-    val context = LocalContext.current
 
     // On disposal of this composable, we release the exo player
     DisposableEffect(videoUri) {
@@ -192,6 +193,9 @@ fun VideoDetectionView(
             )
             uiState.detectionResult?.let {
                 ResultsOverlay(
+                    modifier = Modifier
+                        .width(boxSize.width.dp)
+                        .height(boxSize.height.dp),
                     result = it,
                 )
             }

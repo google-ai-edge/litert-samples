@@ -112,6 +112,9 @@ class MainActivity : ComponentActivity() {
                             tabState = it
                             viewModel.stopDetect()
                         },
+                        onMediaPicked = {
+                            viewModel.stopDetect()
+                        },
                         onImageProxyAnalyzed = { imageProxy ->
                             viewModel.detectImageObject(imageProxy)
                         },
@@ -264,6 +267,7 @@ class MainActivity : ComponentActivity() {
         tab: Tab,
         modifier: Modifier = Modifier,
         onTabChanged: (Tab) -> Unit,
+        onMediaPicked: () -> Unit,
         onImageProxyAnalyzed: (ImageProxy) -> Unit,
         onImageBitMapAnalyzed: (Bitmap, Int) -> Unit,
     ) {
@@ -290,6 +294,7 @@ class MainActivity : ComponentActivity() {
                 Tab.Gallery -> GalleryScreen(
                     modifier = Modifier.fillMaxSize(),
                     uiState = uiState,
+                    onMediaPicked = onMediaPicked,
                     onImageAnalyzed = {
                         onImageBitMapAnalyzed(it, 0)
                     },

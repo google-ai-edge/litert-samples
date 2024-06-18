@@ -27,14 +27,15 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.width
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import com.google.edgeai.examples.object_detection.UiState
@@ -54,17 +55,16 @@ fun ImageDetectionView(
     modifier: Modifier = Modifier,
     onImageAnalyzed: (Bitmap) -> Unit,
 ) {
-    // We first define some states to hold the results and the image information after being loaded
-    var loadedImage by remember {
-        mutableStateOf<Bitmap?>(null)
-    }
-
-    // Here we load the image from the uri
     val context = LocalContext.current
-    val source = ImageDecoder.createSource(context.contentResolver, imageUri)
-    loadedImage = ImageDecoder.decodeBitmap(source)
-    onImageAnalyzed(loadedImage!!)
 
+    // We first define some states to hold the results and the image information after being loaded
+    val loadedImage by remember {
+        val source = ImageDecoder.createSource(context.contentResolver, imageUri)
+        mutableStateOf(ImageDecoder.decodeBitmap(source))
+    }
+    LaunchedEffect(loadedImage) {
+        onImageAnalyzed(loadedImage)
+    }
 
     BoxWithConstraints(
         modifier = modifier
@@ -72,44 +72,42 @@ fun ImageDetectionView(
         contentAlignment = Alignment.TopCenter,
     ) {
         // We check if the image is loaded, then we display it
-        loadedImage?.let { _loadedImage ->
-            val imageBitmap = _loadedImage.asImageBitmap()
+        val imageBitmap = loadedImage.asImageBitmap()
 
-            // When displaying the image, we want to scale it to fit in the available space, filling as
-            // much space as it can with being cropped. While this behavior is easily achieved out of
-            // the box with composables, we need the results overlay layer to have the exact same size
-            // of the rendered image so that the results are drawn correctly on top of it. So we'll have
-            // to calculate the size of the image after being scaled to fit in the available space
-            // manually. To do that, we use the "getFittedBoxSize" function. Go to its implementation
-            // for an explanation of how it works.
+        // When displaying the image, we want to scale it to fit in the available space, filling as
+        // much space as it can with being cropped. While this behavior is easily achieved out of
+        // the box with composables, we need the results overlay layer to have the exact same size
+        // of the rendered image so that the results are drawn correctly on top of it. So we'll have
+        // to calculate the size of the image after being scaled to fit in the available space
+        // manually. To do that, we use the "getFittedBoxSize" function. Go to its implementation
+        // for an explanation of how it works.
 
-            val boxSize = getFittedBoxSize(
-                containerSize = Size(
-                    width = this.maxWidth.value,
-                    height = this.maxHeight.value,
-                ),
-                boxSize = Size(
-                    width = _loadedImage.width.toFloat(),
-                    height = _loadedImage.height.toFloat()
-                )
+        val boxSize = getFittedBoxSize(
+            containerSize = Size(
+                width = this.maxWidth.value,
+                height = this.maxHeight.value,
+            ),
+            boxSize = Size(
+                width = loadedImage.width.toFloat(),
+                height = loadedImage.height.toFloat()
             )
+        )
 
-            // Now that we have the exact UI size, we display the image and the results
-            Box(
-                modifier = Modifier
-                    .width(boxSize.width.dp)
-                    .height(boxSize.height.dp)
-            ) {
-                Image(
-                    bitmap = imageBitmap,
-                    contentDescription = null,
-                    modifier = Modifier.fillMaxSize(),
+        // Now that we have the exact UI size, we display the image and the results
+        Box(
+            modifier = Modifier
+                .width(boxSize.width.dp)
+                .height(boxSize.height.dp)
+        ) {
+            Image(
+                bitmap = imageBitmap,
+                contentDescription = null,
+                modifier = Modifier.fillMaxSize(),
+            )
+            uiState.detectionResult?.let {
+                ResultsOverlay(
+                    result = it
                 )
-                uiState.detectionResult?.let {
-                    ResultsOverlay(
-                        result = it
-                    )
-                }
             }
         }
     }
