@@ -64,12 +64,15 @@ class PlayView: UIView {
     }
   }
 
+  // -1: miss, 1: hit, 2: hidenBoard, default(0): none
   func setLocation(_ location: Int, state: Int) {
     switch state {
     case -1:
       buttons[location].backgroundColor = .yellow
     case 1:
       buttons[location].backgroundColor = .red
+    case 2:
+      buttons[location].backgroundColor = .green
     default:
       buttons[location].backgroundColor = .white
     }

@@ -34,8 +34,8 @@ class ViewController: UIViewController {
 
   private var agent: Agent!
 
-  @IBOutlet weak var agentPlayView: PlayView!
-  @IBOutlet weak var playerPlayView: PlayView!
+  @IBOutlet weak var agentBoardView: PlayView!
+  @IBOutlet weak var playerBoardView: PlayView!
   @IBOutlet weak var playerHitsLabel: UILabel!
   @IBOutlet weak var agentHitsLabel: UILabel!
 
@@ -46,15 +46,15 @@ class ViewController: UIViewController {
       fatalError("can not load model")
     }
     agent = Agent(modelPath: modelPath)
-    agentPlayView.boardSize = agent.boardSize
-    playerPlayView.boardSize = agent.boardSize
+    agentBoardView.boardSize = agent.boardSize
+    playerBoardView.boardSize = agent.boardSize
 
-    agentPlayView.layer.borderColor = UIColor.gray.cgColor
-    agentPlayView.layer.borderWidth = 2
-    playerPlayView.layer.borderColor = UIColor.gray.cgColor
-    playerPlayView.layer.borderWidth = 2
+    agentBoardView.layer.borderColor = UIColor.gray.cgColor
+    agentBoardView.layer.borderWidth = 2
+    playerBoardView.layer.borderColor = UIColor.gray.cgColor
+    playerBoardView.layer.borderWidth = 2
 
-    agentPlayView.delegate = self
+    agentBoardView.delegate = self
 
     restartGame()
   }
@@ -68,14 +68,20 @@ class ViewController: UIViewController {
     playerBoadHits = 0
     agentBoadHits = 0
 
+    agentBoardView.reset()
+    playerBoardView.reset()
+
     let defaultBoardState = [Int](repeating: 0, count: agent.boardSize * agent.boardSize)
     agentBoardState = [Int](repeating: 0, count: agent.boardSize * agent.boardSize)
     playerBoardState = [Int](repeating: 0, count: agent.boardSize * agent.boardSize)
     agentHiddenBoardState = setRandomBoardState(state: defaultBoardState)
     playerHiddenBoardState = setRandomBoardState(state: defaultBoardState)
 
-    agentPlayView.reset()
-    playerPlayView.reset()
+    for i in 0..<playerHiddenBoardState.count {
+      if playerHiddenBoardState[i] == 1 {
+        playerBoardView.setLocation(i, state: 2)
+      }
+    }
   }
 
   private func setRandomBoardState(state: [Int]) -> [Int] {
@@ -152,7 +158,7 @@ extension ViewController: PlayViewDelegate {
     default:
       agentBoardState[location] = -1
     }
-    agentPlayView.setLocation(location, state: agentBoardState[location])
+    agentBoardView.setLocation(location, state: agentBoardState[location])
     if agentBoadHits == 8 {
       stopGame(isPlayerWin: true)
       return
@@ -167,7 +173,7 @@ extension ViewController: PlayViewDelegate {
     default:
       playerBoardState[agentChooseLocation] = -1
     }
-    playerPlayView.setLocation(agentChooseLocation, state: playerBoardState[agentChooseLocation])
+    playerBoardView.setLocation(agentChooseLocation, state: playerBoardState[agentChooseLocation])
     if playerBoadHits == 8 {
       stopGame(isPlayerWin: false)
       return

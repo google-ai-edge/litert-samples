@@ -109,10 +109,10 @@
                     </view>
                     <navigationItem key="navigationItem" id="mB9-fj-Ott"/>
                     <connections>
+                        <outlet property="agentBoardView" destination="jmu-XO-o6N" id="nKu-Jl-eaq"/>
                         <outlet property="agentHitsLabel" destination="YfU-sx-NU4" id="ewi-MF-Fee"/>
-                        <outlet property="agentPlayView" destination="jmu-XO-o6N" id="nKu-Jl-eaq"/>
+                        <outlet property="playerBoardView" destination="NmS-F0-bNl" id="nAk-hx-vIx"/>
                         <outlet property="playerHitsLabel" destination="ar0-Z6-kkt" id="BfO-DD-abQ"/>
-                        <outlet property="playerPlayView" destination="NmS-F0-bNl" id="nAk-hx-vIx"/>
                     </connections>
                 </viewController>
                 <placeholder placeholderIdentifier="IBFirstResponder" id="dkx-z0-nzr" sceneMemberID="firstResponder"/>
