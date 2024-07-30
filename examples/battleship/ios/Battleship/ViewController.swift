@@ -63,6 +63,7 @@ class ViewController: UIViewController {
     restartGame()
   }
   
+/// Reset the game by setting player and agent hits to 0, resetting the board views, and generating random board states for both player and agent. Set player board view locations based on the hidden board state.
   private func restartGame() {
 
     playerBoadHits = 0
@@ -84,6 +85,11 @@ class ViewController: UIViewController {
     }
   }
 
+/// This function sets a random board state for a game with a plane represented by '*' in a 2D array.
+///
+/// - Parameters:
+///   - state: The initial state of the board represented as a 1D array
+/// - Returns: The updated board state with the plane added in a random orientation
   private func setRandomBoardState(state: [Int]) -> [Int] {
     let planeOrientation = Int.random(in: 0..<4)
 
@@ -136,6 +142,11 @@ class ViewController: UIViewController {
     return newState
   }
 
+/// This function is used to stop the game and display an alert with the result (player win or agent win)
+///
+/// - Parameters:
+///   - isPlayerWin: A boolean value indicating whether the player has won the game
+/// - Returns: None
   private func stopGame(isPlayerWin: Bool) {
     let title = isPlayerWin ? "You win!" : "Agent win!"
     let alertController = UIAlertController(title: title, message: nil, preferredStyle: .alert)
@@ -148,8 +159,13 @@ class ViewController: UIViewController {
 
 // MARK: PlayViewDelegate
 extension ViewController: PlayViewDelegate {
-  func playViewChosseLocation(_ location: Int) {
 
+/// This function is used to handle the logic of choosing a location on the game board for both the agent and the player.
+///
+/// - Parameters:
+///   - location: The location on the game board to be chosen.
+/// - Returns: None.
+  func playViewChosseLocation(_ location: Int) {
     guard agentBoardState[location] == 0 else { return }
     switch agentHiddenBoardState[location] {
     case 1:

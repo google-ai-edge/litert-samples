@@ -23,6 +23,15 @@ class PlayView: UIView {
   
   private var buttons: [UIButton] = []
 
+/// This function is used to create a grid of buttons for a play view.
+///
+/// - Parameters: None
+/// - Returns: None
+
+/// Loop through the boardSize to create buttons and add them to the view.
+/// Set button properties such as border, tag, and target action.
+/// Add constraints to position the buttons in a grid layout.
+/// Activate the constraints to apply them to the buttons.
   private func createPlayView() {
     subviews.forEach({ $0.removeFromSuperview() })
     buttons = []
@@ -58,13 +67,18 @@ class PlayView: UIView {
     }
   }
 
+/// Resets the background color of all buttons in the array to white.
   func reset() {
     for button in buttons {
       button.backgroundColor = .white
     }
   }
 
-  // -1: miss, 1: hit, 2: hidenBoard, default(0): none
+/// Sets the background color of a button at a specific location based on the state provided.
+
+/// - Parameters:
+///   - location: The index of the button whose background color needs to be set.
+///   - state: The state value that determines the color to be set ( -1 for yellow, 1 for red, 2 for green, any other value for white).
   func setLocation(_ location: Int, state: Int) {
     switch state {
     case -1:
@@ -78,6 +92,11 @@ class PlayView: UIView {
     }
   }
 
+/// Handles the touch up inside event of a button.
+///
+/// - Parameters:
+///   - sender: The button that triggered the event
+/// - Returns: None
   @objc private func buttonTouchupInside(_ sender: UIButton) {
     delegate?.playViewChosseLocation(sender.tag)
   }

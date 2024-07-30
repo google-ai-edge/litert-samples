@@ -17,6 +17,12 @@ import UIKit
 
 extension UIImage {
 
+/// This convenience initializer creates an image from the provided data and size.
+///
+/// - Parameters:
+///   - data: The data containing pixel values in Float32 format.
+///   - size: The size of the image to be created.
+/// - Returns: An optional UIImage object created from the input data and size. Returns nil if image creation fails.
   convenience init?(data: Data, size: CGSize) {
     let width = Int(size.width)
     let height = Int(size.height)

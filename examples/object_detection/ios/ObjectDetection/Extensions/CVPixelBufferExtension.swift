@@ -97,6 +97,11 @@ extension CVPixelBuffer {
     return thumbnailPixelBuffer
   }
 
+/// This function takes an UIImage and converts it into a CVPixelBuffer
+///
+/// - Parameters:
+///   - image: The UIImage to convert into a CVPixelBuffer
+/// - Returns: The CVPixelBuffer created from the UIImage, or nil if unsuccessful
   static func buffer(from image: UIImage) -> CVPixelBuffer? {
     let attrs = [
       kCVPixelBufferCGImageCompatibilityKey: kCFBooleanTrue,
@@ -139,6 +144,9 @@ extension CVPixelBuffer {
     return pixelBuffer
   }
 
+/// This function is used to create a dictionary of attributes for Metal compatibility with pixel buffers.
+///
+/// - Returns: A dictionary containing Metal compatibility attributes for pixel buffers.
   fileprivate func metalCompatiblityAttributes() -> [String: Any] {
     let attributes: [String: Any] = [
       String(kCVPixelBufferMetalCompatibilityKey): true,

@@ -34,6 +34,10 @@ class InterpreterHelper: NSObject {
     createInterpreter()
   }
 
+/// This function is used to create an interpreter for a given model path.
+///
+/// - Throws: An error if there is an issue creating the interpreter or allocating memory for the model's input `Tensor`s.
+/// - Returns: None.
   private func createInterpreter() {
     do {
       // Create the `Interpreter`.
@@ -53,6 +57,11 @@ class InterpreterHelper: NSObject {
     }
   }
 
+/// This function runs a machine learning model using the given input states and returns the index of the maximum output value.
+///
+/// - Parameters:
+///   - states: An array of integers representing the input states for the model
+/// - Returns: The index of the maximum output value from the model
   func runModel(states: [Int]) -> Int {
     let float32Data = states.compactMap({Float32($0)})
     let inputData = float32Data.withUnsafeBytes {Data($0)}
