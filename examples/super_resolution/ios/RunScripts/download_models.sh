@@ -19,6 +19,6 @@ TFLITE_FILE=./SuperResolution/ESRGAN.tflite
 if test -f "$TFLITE_FILE"; then
     echo "INFO: ESRGAN.tflite existed. Skip downloading and use the local model."
 else
-    curl -o ${TFLITE_FILE} -L https://tfhub.dev/captain-pool/lite-model/esrgan-tf2/1?lite-format=tflite
+    curl -o ${TFLITE_FILE} -L https://storage.googleapis.com/ai-edge/interpreter-samples/super_resolution/ios/ESRGAN.tflite
     echo "INFO: Downloaded ESRGAN.tflite to $TFLITE_FILE ."
 fi
