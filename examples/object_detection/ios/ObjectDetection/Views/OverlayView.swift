@@ -102,43 +102,40 @@ class OverlayView: UIView {
     guard !detections.isEmpty else {
       return
     }
-
     var offSetx: CGFloat = 0
     var offSety: CGFloat = 0
-    var transformWidth = bounds.size.width
-    var transformHeight = bounds.size.height
-    switch scale {
-    case .scaleAspectFill:
-      if imageSize.width / imageSize.height > bounds.width / bounds.height {
-        transformWidth = bounds.height * imageSize.width / imageSize.height
-        offSetx = (transformWidth - bounds.width) / 2
+    var transform: CGFloat = 0
+
+    if imageSize.width / imageSize.height > bounds.width / bounds.height {
+      if imageSize.width > imageSize.height {
+        transform = bounds.width
       } else {
-        transformHeight = bounds.width * imageSize.height / imageSize.width
-        offSety = (transformHeight - bounds.height) / 2
+        transform = bounds.width * imageSize.height / imageSize.width
       }
-    case .scaleAspectFit:
-      if imageSize.width / imageSize.height > bounds.width / bounds.height {
-        transformHeight = bounds.width * imageSize.height / imageSize.width
-        offSety = (transformHeight - bounds.height) / 2
+    } else {
+      if imageSize.width > imageSize.height {
+        transform = bounds.height * imageSize.width / imageSize.height
       } else {
-        transformWidth = bounds.height * imageSize.width / imageSize.height
-        offSetx = (transformWidth - bounds.width) / 2
+        transform = bounds.height
       }
-    default:
-      // Do not use now
-      break
     }
+
+    offSetx = (bounds.width - transform) / 2
+    offSety = (bounds.height - transform) / 2
 
     var objectOverlays: [ObjectOverlay] = []
     for detection in detections {
       // Translates bounding box rect to current view.
       var convertedRect = detection.boundingBox.applying(
         CGAffineTransform(
-          scaleX: transformWidth,
-          y: transformHeight))
+          scaleX: transform,
+          y: transform))
 
-      convertedRect.origin.x -= offSetx
-      convertedRect.origin.y -= offSety
+      offSetx = (bounds.width - transform)/2
+      offSety = (bounds.height - transform)/2
+
+      convertedRect.origin.x += offSetx
+      convertedRect.origin.y += offSety
 
       if convertedRect.origin.x < 0 {
         convertedRect.size.width = max(1, convertedRect.size.width - convertedRect.origin.x)

@@ -120,6 +120,7 @@ class ObjectDetectorService: NSObject {
    This method return ObjectDetectorResult and infrenceTime when receive an image
    **/
   func detect(image: UIImage) -> Result? {
+
     guard let buffer = CVPixelBuffer.buffer(from: image) else { return nil }
     let result = runModel(onFrame: buffer)
     return result
@@ -200,15 +201,7 @@ class ObjectDetectorService: NSObject {
     let imageChannels = 4
     assert(imageChannels >= inputChannels)
 
-    guard let thumbnailPixelBuffer = pixelBuffer.resizePixelBuffer(
-      cropX: 0,
-      cropY: 0,
-      cropWidth: CVPixelBufferGetWidth(pixelBuffer),
-      cropHeight: CVPixelBufferGetHeight(pixelBuffer),
-      scaleWidth: inputWidth,
-      scaleHeight: inputHeight) else {
-      return nil
-    }
+    guard let thumbnailPixelBuffer = pixelBuffer.convertToSquarePixelBuffer(outputSize: inputWidth) else { return nil }
 
     let interval: TimeInterval
     let boxsOutputTensor: Tensor
@@ -234,7 +227,6 @@ class ObjectDetectorService: NSObject {
       let startDate = Date()
       try interpreter.invoke()
       interval = Date().timeIntervalSince(startDate) * 1000
-
       // Get the output `Tensor` to process the inference results.
       boxsOutputTensor = try interpreter.output(at: 0)
       categoriesOutputTensor = try interpreter.output(at: 1)
@@ -285,7 +277,7 @@ class ObjectDetectorService: NSObject {
     for i in 0 ..< categories.count {
       if scores[i] > scoreThreshold {
         let box = CGRect(origin: CGPoint(x: CGFloat(boxs[i * 4 + 1]), y: CGFloat(boxs[i * 4])),
-                       size: CGSize(width: CGFloat(boxs[i * 4 + 2] - boxs[i * 4]), height: CGFloat(boxs[i * 4 + 3] - boxs[i * 4 + 1])))
+                       size: CGSize(width: CGFloat(boxs[i * 4 + 3] - boxs[i * 4 + 1]), height: CGFloat(boxs[i * 4 + 2] - boxs[i * 4])))
         let displayColor = colors[Int(categories[i]) % colors.count]
         let object = DetectionObject(color: displayColor,
                                      boundingBox: box,

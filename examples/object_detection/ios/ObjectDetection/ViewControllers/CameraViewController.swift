@@ -63,6 +63,7 @@ class CameraViewController: UIViewController {
   override func viewWillAppear(_ animated: Bool) {
     super.viewWillAppear(animated)
     initializeObjectDetectorServiceOnSessionResumption()
+    isClassify = false
     cameraFeedService.startLiveCameraSession {[weak self] cameraConfiguration in
       DispatchQueue.main.async {
         switch cameraConfiguration {
@@ -193,7 +194,7 @@ extension CameraViewController: CameraFeedServiceDelegate {
               onDetections: result.objects,
               withImageSize: CGSize(width: CGFloat(width), 
                                     height: CGFloat(height)),
-              scale: .scaleAspectFill
+              scale: .scaleAspectFit
             )
             self.inferenceResultDeliveryDelegate?.didPerformInference(result: result)
           }

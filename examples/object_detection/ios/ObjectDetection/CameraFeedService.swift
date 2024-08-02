@@ -75,7 +75,7 @@ class CameraFeedService: NSObject {
     }
   }
 
-  let videoGravity = AVLayerVideoGravity.resizeAspectFill
+  let videoGravity = AVLayerVideoGravity.resizeAspect
 
   // MARK: Instance Variables
   private let session: AVCaptureSession = AVCaptureSession()
@@ -122,10 +122,13 @@ class CameraFeedService: NSObject {
     switch UIImage.Orientation.from(deviceOrientation: UIDevice.current.orientation) {
     case .up:
       videoPreviewLayer.connection?.videoOrientation = .portrait
+      videoDataOutput.connection(with: .video)?.videoOrientation = .portrait
     case .left:
       videoPreviewLayer.connection?.videoOrientation = .landscapeRight
+      videoDataOutput.connection(with: .video)?.videoOrientation = .landscapeRight
     case .right:
       videoPreviewLayer.connection?.videoOrientation = .landscapeLeft
+      videoDataOutput.connection(with: .video)?.videoOrientation = .landscapeLeft
     default:
       break
     }

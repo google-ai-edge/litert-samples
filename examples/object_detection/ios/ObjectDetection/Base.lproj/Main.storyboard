@@ -487,7 +487,7 @@
                                     <action selector="onClickResume:" destination="PPd-yI-Woo" eventType="touchUpInside" id="LeZ-rU-QyW"/>
                                 </connections>
                             </button>
-                            <view contentMode="scaleToFill" translatesAutoresizingMaskIntoConstraints="NO" id="RP1-7q-s0e" userLabel="PreviewView">
+                            <view contentMode="scaleAspectFit" translatesAutoresizingMaskIntoConstraints="NO" id="RP1-7q-s0e" userLabel="PreviewView">
                                 <rect key="frame" x="0.0" y="0.0" width="393" height="852"/>
                                 <color key="backgroundColor" white="0.0" alpha="0.0" colorSpace="custom" customColorSpace="genericGamma22GrayColorSpace"/>
                             </view>
