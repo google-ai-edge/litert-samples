@@ -24,12 +24,14 @@ import kotlinx.coroutines.channels.BufferOverflow
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.withContext
+import org.tensorflow.lite.DataType
 import org.tensorflow.lite.Interpreter
 import org.tensorflow.lite.support.common.FileUtil
 import org.tensorflow.lite.support.common.ops.NormalizeOp
 import org.tensorflow.lite.support.image.ImageProcessor
 import org.tensorflow.lite.support.image.TensorImage
 import org.tensorflow.lite.support.image.ops.ResizeOp
+import org.tensorflow.lite.support.tensorbuffer.TensorBuffer
 import java.nio.FloatBuffer
 
 class DigitClassificationHelper(private val context: Context) {
@@ -66,13 +68,16 @@ class DigitClassificationHelper(private val context: Context) {
     suspend fun classify(bitmap: Bitmap) {
         withContext(Dispatchers.IO) {
             if (interpreter == null) return@withContext
+
+            // Get the input tensor shape from the interpreter.
             val (_, h, w, _) = interpreter?.getInputTensor(0)?.shape() ?: return@withContext
 
+            // Build an image processor for pre-processing the input image.
             val imageProcessor =
                 ImageProcessor
                     .Builder()
                     .add(ResizeOp(h, w, ResizeOp.ResizeMethod.BILINEAR))
-                    .add(NormalizeOp(127.5f, 127.5f))
+                    .add(NormalizeOp(0f, 1f))
                     .build()
 
             // Preprocess the image and convert it into a TensorImage for classification.
@@ -86,7 +91,7 @@ class DigitClassificationHelper(private val context: Context) {
     private fun classifyWithTFLite(tensorImage: TensorImage): FloatArray {
         val outputShape = interpreter!!.getOutputTensor(0).shape()
         val outputBuffer = FloatBuffer.allocate(outputShape[1])
-        val inputBuffer = tensorImage.tensorBuffer.buffer
+        val inputBuffer = TensorBuffer.createFrom(tensorImage.tensorBuffer, DataType.FLOAT32).buffer
 
         inputBuffer.rewind()
         outputBuffer.rewind()
@@ -97,9 +102,16 @@ class DigitClassificationHelper(private val context: Context) {
         return output
     }
 
+    /**
+     * Finds the index and value of the maximum element in a non-empty float array.
+     *
+     * @param array The input float array.
+     * @return A pair containing the index and value of the maximum element.
+     * @throws AssertionError If the input array is empty.
+     */
     private fun findResult(array: FloatArray): Pair<Int, Float> {
         assert(array.isNotEmpty()) {
-            "array is empty"
+            "Input array must not be empty"
         }
 
         var maxIndex = 0

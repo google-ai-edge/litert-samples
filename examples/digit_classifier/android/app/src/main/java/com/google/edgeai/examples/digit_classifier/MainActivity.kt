@@ -1,6 +1,24 @@
+/*
+ * Copyright 2024 The TensorFlow Authors. All Rights Reserved.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *       http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+
 package com.google.edgeai.examples.digit_classifier
 
 import android.graphics.Bitmap
+import android.graphics.PorterDuff
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -26,6 +44,7 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -46,14 +65,28 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 
+
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         val viewModel: MainViewModel by viewModels { MainViewModel.getFactory(this) }
 
-
         setContent {
             val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+            val screenWidth = LocalConfiguration.current.screenWidthDp.dp
+            val localDensity = LocalDensity.current
+            val bitmap by remember {
+                mutableStateOf(
+                    Bitmap.createBitmap(
+                        with(localDensity) { screenWidth.toPx() }.toInt(),
+                        with(localDensity) { screenWidth.toPx() }.toInt(),
+                        Bitmap.Config.ARGB_8888
+                    )
+                )
+            }
+            val path by remember {
+                mutableStateOf(Path())
+            }
             Scaffold(
                 topBar = {
                     Header()
@@ -63,8 +96,11 @@ class MainActivity : ComponentActivity() {
                     modifier = Modifier.padding(paddingValue),
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
+                    // Board composable for drawing and interaction
                     Board(
                         modifier = Modifier.fillMaxWidth(),
+                        bitmap = bitmap,
+                        path = path,
                         drawOffsets = uiState.drawOffsets,
                         onDragStart = {
                             viewModel.draw(it)
@@ -84,6 +120,9 @@ class MainActivity : ComponentActivity() {
                     Text("Confidence: ${uiState.score}")
                     Spacer(Modifier.weight(1f))
                     Button(onClick = {
+                        val canvas = android.graphics.Canvas(bitmap)
+                        canvas.drawColor(android.graphics.Color.TRANSPARENT, PorterDuff.Mode.CLEAR)
+                        path.reset()
                         viewModel.cleanBoard()
                     }) {
                         Text("Clear")
@@ -97,6 +136,8 @@ class MainActivity : ComponentActivity() {
     @Composable
     fun Board(
         modifier: Modifier = Modifier,
+        bitmap: Bitmap,
+        path: Path,
         drawOffsets: List<DrawOffset>,
         onDrag: (DrawOffset) -> Unit,
         onDragStart: (DrawOffset) -> Unit,
@@ -104,13 +145,12 @@ class MainActivity : ComponentActivity() {
         onDraw: (Bitmap) -> Unit,
     ) {
         val screenWidth = LocalConfiguration.current.screenWidthDp.dp
-        val localDensity = LocalDensity.current
 
         val paint = remember {
             Paint().apply {
-                color = Color.White
+                color = Color.Gray
                 style = PaintingStyle.Stroke
-                strokeWidth = 50f
+                strokeWidth = 70f
                 strokeCap = StrokeCap.Round
             }
         }
@@ -133,14 +173,6 @@ class MainActivity : ComponentActivity() {
                 )
         ) {
             if (drawOffsets.isNotEmpty()) {
-                val path = Path()
-
-                val bitmap = Bitmap.createBitmap(
-                    with(localDensity) { maxWidth.toPx() }.toInt(),
-                    with(localDensity) { maxWidth.toPx() }.toInt(),
-                    Bitmap.Config.ARGB_8888
-                )
-
                 Canvas(
                     modifier = Modifier
                         .width(this.maxWidth)
@@ -149,17 +181,24 @@ class MainActivity : ComponentActivity() {
                     val bitmapCanvas = androidx.compose.ui.graphics.Canvas(bitmap.asImageBitmap())
 
                     if (drawOffsets.isNotEmpty()) {
-                        drawOffsets.forEach {
-                            if (it is Start) {
-                                path.moveTo(it.x, it.y)
-                            }
-                            if (it is Point) {
-                                path.lineTo(it.x, it.y)
+                        drawOffsets.forEach { offset ->
+                            when (offset) {
+                                // Move the path to the start point
+                                is Start -> path.moveTo(
+                                    offset.x,
+                                    offset.y
+                                )
+                                // Draw a line to the target point
+                                is Point -> path.lineTo(
+                                    offset.x,
+                                    offset.y
+                                )
                             }
                         }
                         bitmapCanvas.drawPath(
                             paint = paint, path = path
                         )
+                        // Draw a bitmap to native canvas
                         drawIntoCanvas {
                             it.nativeCanvas.drawBitmap(bitmap, 0f, 0f, null)
                         }
@@ -188,6 +227,14 @@ class MainActivity : ComponentActivity() {
 }
 
 
+/**
+ * Detects drag gestures on a composable element.
+ *
+ * @param onDragStart Callback invoked when a drag gesture starts.
+ * @param onDragEnd Callback invoked when a drag gesture ends.
+ * @param onDrag Callback invoked during a drag gesture.
+ * @return A modifier that applies drag gesture detection to the composable.
+ */
 fun Modifier.detectDrag(
     onDragStart: (Offset) -> Unit, onDragEnd: () -> Unit, onDrag: (Offset) -> Unit
 ): Modifier = composed {
