@@ -18,6 +18,6 @@ MODEL_FILE=./Battleship/planestrike.tflite
 if test -f "$MODEL_FILE"; then
     echo "INFO: planestrike.tflite existed. Skip downloading and use the local task."
 else
-    curl -o ${MODEL_FILE} https://storage.googleapis.com/download.tensorflow.org/models/tflite/flutter-plugin/reinforcement_learning/planestrike_tf.tflite -L
+    curl -o ${MODEL_FILE} https://storage.googleapis.com/ai-edge/interpreter-samples/reinforcement_learning/ios/planestrike_tf.tflite -L
     echo "INFO: Downloaded planestrike.tflite to $MODEL_FILE ."
 fi
