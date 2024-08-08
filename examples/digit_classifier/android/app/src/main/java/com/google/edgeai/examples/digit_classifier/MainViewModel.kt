@@ -45,18 +45,20 @@ class MainViewModel(private val digitClassificationHelper: DigitClassificationHe
     private val drawFlow = MutableStateFlow<List<DrawOffset>>(emptyList())
 
     val uiState: StateFlow<UiState> = combine(
-        digitClassificationHelper.classification.stateIn(
-            viewModelScope,
-            SharingStarted.WhileSubscribed(5_000),
-            Pair("-", 0f)
-        ), drawFlow
+        digitClassificationHelper.classification
+            .stateIn(
+                viewModelScope,
+                SharingStarted.WhileSubscribed(5_000),
+                Pair("-", 0f)
+            ),
+        drawFlow,
     ) { pair, drawOffsets ->
         UiState(
-            digit = pair.first,
-            score = pair.second,
+            digit = if (drawOffsets.isEmpty()) "-" else pair.first,
+            score = if (drawOffsets.isEmpty()) 0f else pair.second,
             drawOffsets = drawOffsets
         )
-    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), UiState())
+    }.stateIn(viewModelScope, SharingStarted.Lazily, UiState())
 
     fun classify(bitmap: Bitmap) {
         viewModelScope.launch {
@@ -72,8 +74,6 @@ class MainViewModel(private val digitClassificationHelper: DigitClassificationHe
 
     /* Clean the board*/
     fun cleanBoard() {
-        viewModelScope.launch {
-            drawFlow.emit(emptyList())
-        }
+        drawFlow.update { emptyList() }
     }
 }

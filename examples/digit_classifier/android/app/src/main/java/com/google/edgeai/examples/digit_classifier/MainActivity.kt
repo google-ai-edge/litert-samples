@@ -18,7 +18,6 @@
 package com.google.edgeai.examples.digit_classifier
 
 import android.graphics.Bitmap
-import android.graphics.PorterDuff
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -43,6 +42,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -56,8 +56,7 @@ import androidx.compose.ui.graphics.PaintingStyle
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.asImageBitmap
-import androidx.compose.ui.graphics.drawscope.drawIntoCanvas
-import androidx.compose.ui.graphics.nativeCanvas
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalDensity
@@ -73,20 +72,7 @@ class MainActivity : ComponentActivity() {
 
         setContent {
             val uiState by viewModel.uiState.collectAsStateWithLifecycle()
-            val screenWidth = LocalConfiguration.current.screenWidthDp.dp
-            val localDensity = LocalDensity.current
-            val bitmap by remember {
-                mutableStateOf(
-                    Bitmap.createBitmap(
-                        with(localDensity) { screenWidth.toPx() }.toInt(),
-                        with(localDensity) { screenWidth.toPx() }.toInt(),
-                        Bitmap.Config.ARGB_8888
-                    )
-                )
-            }
-            val path by remember {
-                mutableStateOf(Path())
-            }
+
             Scaffold(
                 topBar = {
                     Header()
@@ -99,8 +85,6 @@ class MainActivity : ComponentActivity() {
                     // Board composable for drawing and interaction
                     Board(
                         modifier = Modifier.fillMaxWidth(),
-                        bitmap = bitmap,
-                        path = path,
                         drawOffsets = uiState.drawOffsets,
                         onDragStart = {
                             viewModel.draw(it)
@@ -110,7 +94,9 @@ class MainActivity : ComponentActivity() {
                         },
                         onDragEnd = {},
                         onDraw = {
-                            viewModel.classify(it)
+                            if (uiState.drawOffsets.isNotEmpty()) {
+                                viewModel.classify(it)
+                            }
                         },
                     )
 
@@ -120,9 +106,6 @@ class MainActivity : ComponentActivity() {
                     Text("Confidence: ${uiState.score}")
                     Spacer(Modifier.weight(1f))
                     Button(onClick = {
-                        val canvas = android.graphics.Canvas(bitmap)
-                        canvas.drawColor(android.graphics.Color.TRANSPARENT, PorterDuff.Mode.CLEAR)
-                        path.reset()
                         viewModel.cleanBoard()
                     }) {
                         Text("Clear")
@@ -136,8 +119,6 @@ class MainActivity : ComponentActivity() {
     @Composable
     fun Board(
         modifier: Modifier = Modifier,
-        bitmap: Bitmap,
-        path: Path,
         drawOffsets: List<DrawOffset>,
         onDrag: (DrawOffset) -> Unit,
         onDragStart: (DrawOffset) -> Unit,
@@ -145,10 +126,27 @@ class MainActivity : ComponentActivity() {
         onDraw: (Bitmap) -> Unit,
     ) {
         val screenWidth = LocalConfiguration.current.screenWidthDp.dp
+        val localDensity = LocalDensity.current
+
+        val path by remember { mutableStateOf(Path()) }  // Use mutablePathOf for updates
+
+        val bitmap = remember {
+            val width = with(localDensity) { screenWidth.toPx() }.toInt()
+            Bitmap.createBitmap(width, width, Bitmap.Config.ARGB_8888)
+        }
+
+        val bitmapCanvas = remember {
+            androidx.compose.ui.graphics.Canvas(bitmap.asImageBitmap())
+        }
+
+        LaunchedEffect(key1 = drawOffsets) {
+            path.reset()  // Reset path directly instead of creating a new one
+            bitmap.eraseColor(android.graphics.Color.TRANSPARENT)
+        }
 
         val paint = remember {
             Paint().apply {
-                color = Color.Gray
+                color = Color.White
                 style = PaintingStyle.Stroke
                 strokeWidth = 70f
                 strokeCap = StrokeCap.Round
@@ -172,42 +170,29 @@ class MainActivity : ComponentActivity() {
                     },
                 )
         ) {
-            if (drawOffsets.isNotEmpty()) {
-                Canvas(
-                    modifier = Modifier
-                        .width(this.maxWidth)
-                        .height(this.maxWidth)
-                ) {
-                    val bitmapCanvas = androidx.compose.ui.graphics.Canvas(bitmap.asImageBitmap())
-
-                    if (drawOffsets.isNotEmpty()) {
-                        drawOffsets.forEach { offset ->
-                            when (offset) {
-                                // Move the path to the start point
-                                is Start -> path.moveTo(
-                                    offset.x,
-                                    offset.y
-                                )
-                                // Draw a line to the target point
-                                is Point -> path.lineTo(
-                                    offset.x,
-                                    offset.y
-                                )
-                            }
-                        }
-                        bitmapCanvas.drawPath(
-                            paint = paint, path = path
-                        )
-                        // Draw a bitmap to native canvas
-                        drawIntoCanvas {
-                            it.nativeCanvas.drawBitmap(bitmap, 0f, 0f, null)
-                        }
-                        onDraw(bitmap)
+            Canvas(
+                modifier = Modifier
+                    .width(this.maxWidth)
+                    .height(this.maxWidth)
+            ) {
+                drawOffsets.forEach { offset ->
+                    when (offset) {
+                        is Start -> path.moveTo(offset.x, offset.y)
+                        is Point -> path.lineTo(offset.x, offset.y)
                     }
                 }
+                bitmapCanvas.drawPath(paint = paint, path = path)
+                this.drawPath(
+                    path = path,
+                    color = Color.White,
+                    style = Stroke(width = 70f, cap = StrokeCap.Round)
+                )
+
+                onDraw(bitmap)
             }
         }
     }
+
 
     @OptIn(ExperimentalMaterial3Api::class)
     @Composable

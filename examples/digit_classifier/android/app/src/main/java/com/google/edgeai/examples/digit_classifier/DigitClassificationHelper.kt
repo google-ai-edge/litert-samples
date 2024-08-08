@@ -74,11 +74,8 @@ class DigitClassificationHelper(private val context: Context) {
 
             // Build an image processor for pre-processing the input image.
             val imageProcessor =
-                ImageProcessor
-                    .Builder()
-                    .add(ResizeOp(h, w, ResizeOp.ResizeMethod.BILINEAR))
-                    .add(NormalizeOp(0f, 1f))
-                    .build()
+                ImageProcessor.Builder().add(ResizeOp(h, w, ResizeOp.ResizeMethod.BILINEAR))
+                    .add(NormalizeOp(0f, 1f)).build()
 
             // Preprocess the image and convert it into a TensorImage for classification.
             val tensorImage = imageProcessor.process(TensorImage.fromBitmap(bitmap))
