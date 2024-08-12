@@ -14,9 +14,9 @@
 # =============================================================================
 
 # Download planestrike.tflite from the internet if it's not exist.
-MODEL_FILE=./Battleship/planestrike.tflite
+MODEL_FILE=./Battleship/planestrike_tf.tflite
 if test -f "$MODEL_FILE"; then
-    echo "INFO: planestrike.tflite existed. Skip downloading and use the local task."
+    echo "INFO: planestrike_tf.tflite existed. Skip downloading and use the local task."
 else
     curl -o ${MODEL_FILE} https://storage.googleapis.com/ai-edge/interpreter-samples/reinforcement_learning/ios/planestrike_tf.tflite -L
     echo "INFO: Downloaded planestrike.tflite to $MODEL_FILE ."

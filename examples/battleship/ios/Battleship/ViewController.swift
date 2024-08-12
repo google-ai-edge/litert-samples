@@ -42,7 +42,7 @@ class ViewController: UIViewController {
   override func viewDidLoad() {
     super.viewDidLoad()
 
-    guard let modelPath = Bundle.main.path(forResource: "planestrike", ofType: "tflite") else {
+    guard let modelPath = Bundle.main.path(forResource: "planestrike_tf", ofType: "tflite") else {
       fatalError("can not load model")
     }
     agent = Agent(modelPath: modelPath)

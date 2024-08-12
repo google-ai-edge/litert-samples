@@ -16,7 +16,7 @@
 		BFDF947F2C29203400BB3661 /* Base in Resources */ = {isa = PBXBuildFile; fileRef = BFDF947E2C29203400BB3661 /* Base */; };
 		BFDF94882C29217700BB3661 /* InterpreterHelper.swift in Sources */ = {isa = PBXBuildFile; fileRef = BFDF94872C29217700BB3661 /* InterpreterHelper.swift */; };
 		BFDF948A2C29218100BB3661 /* Agent.swift in Sources */ = {isa = PBXBuildFile; fileRef = BFDF94892C29218100BB3661 /* Agent.swift */; };
-		BFDF948D2C2927F400BB3661 /* planestrike.tflite in Resources */ = {isa = PBXBuildFile; fileRef = BFDF948C2C2927F400BB3661 /* planestrike.tflite */; };
+		BFDF948D2C2927F400BB3661 /* planestrike_tf.tflite in Resources */ = {isa = PBXBuildFile; fileRef = BFDF948C2C2927F400BB3661 /* planestrike_tf.tflite */; };
 		BFDF948F2C297C9700BB3661 /* PlayView.swift in Sources */ = {isa = PBXBuildFile; fileRef = BFDF948E2C297C9700BB3661 /* PlayView.swift */; };
 /* End PBXBuildFile section */
 
@@ -33,7 +33,7 @@
 		BFDF94802C29203400BB3661 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		BFDF94872C29217700BB3661 /* InterpreterHelper.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InterpreterHelper.swift; sourceTree = "<group>"; };
 		BFDF94892C29218100BB3661 /* Agent.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Agent.swift; sourceTree = "<group>"; };
-		BFDF948C2C2927F400BB3661 /* planestrike.tflite */ = {isa = PBXFileReference; lastKnownFileType = file; name = planestrike.tflite; path = Battleship/planestrike.tflite; sourceTree = SOURCE_ROOT; };
+		BFDF948C2C2927F400BB3661 /* planestrike_tf.tflite */ = {isa = PBXFileReference; lastKnownFileType = file; name = planestrike_tf.tflite; path = Battleship/planestrike_tf.tflite; sourceTree = SOURCE_ROOT; };
 		BFDF948E2C297C9700BB3661 /* PlayView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlayView.swift; sourceTree = "<group>"; };
 		DED7F5B2407A41E5CC3A5821 /* Pods-Battleship.debug.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-Battleship.debug.xcconfig"; path = "Target Support Files/Pods-Battleship/Pods-Battleship.debug.xcconfig"; sourceTree = "<group>"; };
 /* End PBXFileReference section */
@@ -104,7 +104,7 @@
 		BFDF94862C29214D00BB3661 /* Agent */ = {
 			isa = PBXGroup;
 			children = (
-				BFDF948C2C2927F400BB3661 /* planestrike.tflite */,
+				BFDF948C2C2927F400BB3661 /* planestrike_tf.tflite */,
 				BFDF94872C29217700BB3661 /* InterpreterHelper.swift */,
 				BFDF94892C29218100BB3661 /* Agent.swift */,
 			);
@@ -173,7 +173,7 @@
 			files = (
 				BFDF947C2C29203400BB3661 /* Assets.xcassets in Resources */,
 				BFDF947F2C29203400BB3661 /* Base in Resources */,
-				BFDF948D2C2927F400BB3661 /* planestrike.tflite in Resources */,
+				BFDF948D2C2927F400BB3661 /* planestrike_tf.tflite in Resources */,
 				BFDF947A2C29203100BB3661 /* Base in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
