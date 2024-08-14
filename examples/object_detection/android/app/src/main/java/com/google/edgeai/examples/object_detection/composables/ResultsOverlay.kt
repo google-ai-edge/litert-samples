@@ -31,7 +31,6 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import com.google.edgeai.examples.object_detection.objectdetector.ObjectDetectorHelper
 import com.google.edgeai.examples.object_detection.ui.theme.Turquoise
-import kotlin.math.min
 
 // This composable is used to display the results of the object detection
 
@@ -56,54 +55,43 @@ fun ResultsOverlay(
     modifier: Modifier = Modifier,
     result: ObjectDetectorHelper.DetectionResult,
 ) {
-    val detections = result.detections
-    val frameWidth = result.inputImageWidth
-    val frameHeight = result.inputImageHeight
-    if (detections.isNotEmpty()) {
+    BoxWithConstraints(
+        modifier
+            .fillMaxSize()
+    ) {
+        val detections = result.detections
         for (detection in detections) {
-            BoxWithConstraints(
-                modifier
+            val ratioBox = detection.boundingBox
+            val boxWidth = ratioBox.width() * maxWidth.value
+            val boxHeight = ratioBox.height() * maxHeight.value
+            val boxLeftOffset = ratioBox.left * maxWidth.value
+            val boxTopOffset = ratioBox.top * maxHeight.value
+            Box(
+                Modifier
                     .fillMaxSize()
+                    .offset(
+                        boxLeftOffset.dp,
+                        boxTopOffset.dp,
+                    )
+                    .width(boxWidth.dp)
+                    .height(boxHeight.dp)
             ) {
-                // calculating the UI dimensions of the detection bounds
-                val box = detection.boundingBox
-
-                val ratioWidth = maxWidth.value / frameWidth
-                val ratioHeight = maxHeight.value / frameHeight
-                val ratio = min(ratioWidth, ratioHeight)
-
-                val boxWidth = (box.width() * ratio) * maxWidth.value
-                val boxHeight = (box.height() * ratio) * maxHeight.value
-                val boxLeftOffset = (box.left * ratio) * maxWidth.value
-                val boxTopOffset = (box.top * ratio) * maxHeight.value
-
                 Box(
-                    Modifier
-                        .fillMaxSize()
-                        .offset(
-                            boxLeftOffset.dp,
-                            boxTopOffset.dp,
-                        )
+                    modifier = Modifier
+                        .border(3.dp, Turquoise)
                         .width(boxWidth.dp)
                         .height(boxHeight.dp)
-                ) {
-                    Box(
+                )
+                Box(modifier = Modifier.padding(3.dp)) {
+                    Text(
+                        text = "${
+                            detection.label
+                        } ${String.format("%.1f", detection.score)}",
                         modifier = Modifier
-                            .border(3.dp, Turquoise)
-                            .width(boxWidth.dp)
-                            .height(boxHeight.dp)
+                            .background(Color.Black)
+                            .padding(5.dp, 0.dp),
+                        color = Color.White,
                     )
-                    Box(modifier = Modifier.padding(3.dp)) {
-                        Text(
-                            text = "${
-                                detection.label
-                            } ${String.format("%.1f", detection.score)}",
-                            modifier = Modifier
-                                .background(Color.Black)
-                                .padding(5.dp, 0.dp),
-                            color = Color.White,
-                        )
-                    }
                 }
             }
         }

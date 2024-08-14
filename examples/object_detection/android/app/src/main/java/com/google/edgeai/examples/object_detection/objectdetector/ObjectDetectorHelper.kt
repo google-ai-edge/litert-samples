@@ -17,6 +17,9 @@ package com.google.edgeai.examples.object_detection.objectdetector
 
 import android.content.Context
 import android.graphics.Bitmap
+import android.graphics.Canvas
+import android.graphics.Color
+import android.graphics.Paint
 import android.graphics.RectF
 import android.os.SystemClock
 import android.util.Log
@@ -29,7 +32,6 @@ import org.tensorflow.lite.Interpreter
 import org.tensorflow.lite.support.common.FileUtil
 import org.tensorflow.lite.support.image.ImageProcessor
 import org.tensorflow.lite.support.image.TensorImage
-import org.tensorflow.lite.support.image.ops.ResizeOp
 import org.tensorflow.lite.support.image.ops.Rot90Op
 import org.tensorflow.lite.support.metadata.MetadataExtractor
 import java.io.BufferedReader
@@ -63,7 +65,10 @@ class ObjectDetectorHelper(
         try {
             val tfliteBuffer = FileUtil.loadMappedFile(context, model.fileName)
             labels = getModelMetadata(tfliteBuffer)
-            interpreter = Interpreter(tfliteBuffer, Interpreter.Options())
+            interpreter = Interpreter(tfliteBuffer, Interpreter.Options().apply {
+                numThreads = 5
+                useNNAPI = delegate == Delegate.NNAPI
+            })
             Log.i(TAG, "Successfully init Interpreter!")
         } catch (e: Exception) {
             _error.emit(e)
@@ -77,11 +82,11 @@ class ObjectDetectorHelper(
         if (interpreter == null) return
         withContext(Dispatchers.IO) {
             val startTime = SystemClock.uptimeMillis()
+            val (_, h, w, _) = interpreter!!.getInputTensor(0).shape()
 
             // Preprocess the image and convert it into a TensorImage for classification.
             val tensorImage = createTensorImage(
-                bitmap = bitmap,
-                rotationDegrees = rotationDegrees
+                bitmap = bitmap, width = w, height = h, rotationDegrees = rotationDegrees
             )
 
             val output = detectImage(tensorImage)
@@ -89,9 +94,14 @@ class ObjectDetectorHelper(
             val locationOutput = output[0]
             val categoryOutput = output[1]
             val scoreOutput = output[2]
-            val detections = getDetections(locationOutput, categoryOutput, scoreOutput)
+            val detections = getDetections(
+                locations = locationOutput,
+                categories = categoryOutput,
+                scores = scoreOutput,
+                width = w,
+                scaleRatio = h.toFloat() / tensorImage.height
+            )
             val inferenceTime = SystemClock.uptimeMillis() - startTime
-            val (_, h, w, _) = interpreter!!.getInputTensor(0).shape()
 
             val detectionResult = DetectionResult(
                 detections = detections,
@@ -105,8 +115,7 @@ class ObjectDetectorHelper(
 
     suspend fun detect(imageProxy: ImageProxy) {
         detect(
-            bitmap = imageProxy.toBitmap(),
-            rotationDegrees = imageProxy.imageInfo.rotationDegrees
+            bitmap = imageProxy.toBitmap(), rotationDegrees = imageProxy.imageInfo.rotationDegrees
         )
     }
 
@@ -124,8 +133,7 @@ class ObjectDetectorHelper(
         scoreOutputBuffer.rewind()
         categoryOutputBuffer.rewind()
         interpreter?.runForMultipleInputsOutputs(
-            arrayOf(tensorImage.tensorBuffer.buffer),
-            mapOf(
+            arrayOf(tensorImage.tensorBuffer.buffer), mapOf(
                 Pair(0, locationOutputBuffer),
                 Pair(1, categoryOutputBuffer),
                 Pair(2, scoreOutputBuffer),
@@ -146,23 +154,40 @@ class ObjectDetectorHelper(
         return listOf(locationOutput, categoryOutput, scoreOutput)
     }
 
-    private fun createTensorImage(bitmap: Bitmap, rotationDegrees: Int): TensorImage {
+    private fun createTensorImage(
+        bitmap: Bitmap, width: Int, height: Int, rotationDegrees: Int
+    ): TensorImage {
         val rotation = -rotationDegrees / 90
-        val (_, h, w, _) = interpreter!!.getInputTensor(0).shape()
-        val imageProcessor =
-            ImageProcessor.Builder()
-                .add(ResizeOp(h, w, ResizeOp.ResizeMethod.BILINEAR))
-                .add(Rot90Op(rotation))
-                .build()
+        val scaledBitmap = fitCenterBitmap(bitmap, width, height)
 
-        // Make sure input is ARGB bitmap
-        val argbBitmap =
-            if (bitmap.config == Bitmap.Config.ARGB_8888) bitmap
-            else bitmap.copy(Bitmap.Config.ARGB_8888, false)
+        val imageProcessor = ImageProcessor.Builder().add(Rot90Op(rotation)).build()
+
         // Preprocess the image and convert it into a TensorImage for classification.
-        return imageProcessor.process(TensorImage.fromBitmap(argbBitmap))
+        return imageProcessor.process(TensorImage.fromBitmap(scaledBitmap))
     }
 
+    private fun fitCenterBitmap(
+        originalBitmap: Bitmap,
+        width: Int,
+        height: Int
+    ): Bitmap {
+        val bitmapWithBackground = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
+        val canvas = Canvas(bitmapWithBackground)
+        canvas.drawColor(Color.TRANSPARENT)
+
+        val scale: Float = height.toFloat() / originalBitmap.height
+        val dstWidth = width * scale
+        val processBitmap = originalBitmap.copy(Bitmap.Config.ARGB_8888, true)
+
+        val scaledBitmap = Bitmap.createScaledBitmap(
+            processBitmap, dstWidth.toInt(), height, true
+        )
+
+        val paint = Paint(Paint.FILTER_BITMAP_FLAG)
+        val left = (width - dstWidth) / 2
+        canvas.drawBitmap(scaledBitmap, left, 0f, paint)
+        return bitmapWithBackground
+    }
 
     /** Load metadata from model*/
     private fun getModelMetadata(tfliteBuffer: ByteBuffer): List<String> {
@@ -194,14 +219,14 @@ class ObjectDetectorHelper(
         return list
     }
 
-
-    /** */
     private fun getDetections(
         locations: FloatArray,
         categories: FloatArray,
-        scores: FloatArray
+        scores: FloatArray,
+        width: Int,
+        scaleRatio: Float
     ): List<Detection> {
-        val boundingBoxList = getBoundingBoxList(locations)
+        val boundingBoxList = getBoundingBoxList(locations, width, scaleRatio)
 
         val detections = mutableListOf<Detection>()
         for (i in 0..<maxResults) {
@@ -216,8 +241,7 @@ class ObjectDetectorHelper(
         }
 
         return detections
-            .filterNot { it.boundingBox.isEmpty }
-            .filter { it.score >= THRESHOLD_DEFAULT }
+            .filter { !it.boundingBox.isEmpty && it.score >= THRESHOLD_DEFAULT }
             .sortedByDescending { it.score }
     }
 
@@ -225,17 +249,25 @@ class ObjectDetectorHelper(
      * A tf.float32 tensor of shape [N, 4] containing bounding box coordinates
      * in the following order: [ymin, xmin, ymax, xmax]
      */
-    private fun getBoundingBoxList(locations: FloatArray): Array<RectF> {
+    private fun getBoundingBoxList(
+        locations: FloatArray, width: Int, scaleRatio: Float
+    ): Array<RectF> {
         val boundingBoxList = Array(locations.size / 4) { RectF() }
+        val actualWidth = width * scaleRatio
+        val padding = (width - width * scaleRatio) / 2
+
         for (i in boundingBoxList.indices) {
-            val top = locations[i * 4]
-                .coerceAtLeast(0f).coerceAtMost(1f)
-            val left = locations[i * 4 + 1]
-                .coerceAtLeast(0f).coerceAtMost(1f)
-            val bottom = locations[i * 4 + 2]
-                .coerceAtLeast(top).coerceAtMost(1f)
-            val right = locations[i * 4 + 3]
-                .coerceAtLeast(left).coerceAtMost(1f)
+            val topRatio = locations[i * 4]
+            val leftRatio = locations[i * 4 + 1]
+            val bottomRatio = locations[i * 4 + 2]
+            val rightRatio = locations[i * 4 + 3]
+
+            val top = topRatio.coerceAtLeast(0f).coerceAtMost(1f)
+            val left =
+                ((leftRatio * width - padding) / actualWidth).coerceAtLeast(0f).coerceAtMost(1f)
+            val bottom = bottomRatio.coerceAtLeast(top).coerceAtMost(1f)
+            val right =
+                ((rightRatio * width - padding) / actualWidth).coerceAtLeast(left).coerceAtMost(1f)
 
             val rectF = RectF(left, top, right, bottom)
             boundingBoxList[i] = rectF
@@ -257,12 +289,10 @@ class ObjectDetectorHelper(
         EfficientDetLite0("efficientdet-lite0.tflite"),
         EfficientDetLite1("efficientdet-lite1.tflite"),
         EfficientDetLite2("efficientdet-lite2.tflite"),
-        MobileNetV1("mobilenet-v1.tflite"),
     }
 
     enum class Delegate(val value: Int) {
-        CPU(0),
-        GPU(1)
+        CPU(0), NNAPI(1)
     }
 
 
@@ -276,8 +306,6 @@ class ObjectDetectorHelper(
     )
 
     data class Detection(
-        val label: String,
-        val boundingBox: RectF,
-        val score: Float
+        val label: String, val boundingBox: RectF, val score: Float
     )
 }
