@@ -278,7 +278,7 @@ class ObjectDetectorHelper(
 
 
     companion object {
-        val MODEL_DEFAULT = Model.EfficientDetLite0
+        val MODEL_DEFAULT = Model.EfficientDetLite2
         const val MAX_RESULTS_DEFAULT = 5
         const val THRESHOLD_DEFAULT = 0.5F
 
@@ -286,8 +286,6 @@ class ObjectDetectorHelper(
     }
 
     enum class Model(val fileName: String) {
-        EfficientDetLite0("efficientdet-lite0.tflite"),
-        EfficientDetLite1("efficientdet-lite1.tflite"),
         EfficientDetLite2("efficientdet-lite2.tflite"),
     }
 

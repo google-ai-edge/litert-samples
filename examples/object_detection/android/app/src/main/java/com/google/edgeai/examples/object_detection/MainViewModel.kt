@@ -97,13 +97,6 @@ class MainViewModel(private val objectDetectorHelper: ObjectDetectorHelper) : Vi
         }
     }
 
-    /** Set [ObjectDetectorHelper.Model] for ObjectDetectorHelper*/
-    fun setModel(model: ObjectDetectorHelper.Model) {
-        viewModelScope.launch {
-            setting.update { it.copy(model = model) }
-        }
-    }
-
     /** Set Number of output classes of the ObjectDetectorHelper.  */
     fun setNumberOfResult(numResult: Int) {
         viewModelScope.launch {

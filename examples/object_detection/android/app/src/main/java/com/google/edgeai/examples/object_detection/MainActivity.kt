@@ -94,9 +94,6 @@ class MainActivity : ComponentActivity() {
                         onDelegateSelected = {
                             viewModel.setDelegate(it)
                         },
-                        onModelSelected = {
-                            viewModel.setModel(it)
-                        },
                         onThresholdSet = {
                             viewModel.setThreshold(it)
                         },
@@ -132,7 +129,6 @@ class MainActivity : ComponentActivity() {
         uiState: UiState,
         modifier: Modifier = Modifier,
         onDelegateSelected: (ObjectDetectorHelper.Delegate) -> Unit,
-        onModelSelected: (ObjectDetectorHelper.Model) -> Unit,
         onThresholdSet: (value: Float) -> Unit,
         onMaxResultSet: (value: Int) -> Unit,
     ) {
@@ -190,12 +186,6 @@ class MainActivity : ComponentActivity() {
             }
 
             Spacer(modifier = Modifier.height(20.dp))
-
-            OptionMenu(
-                label = "Model",
-                options = ObjectDetectorHelper.Model.entries.map { it.name }) {
-                onModelSelected(ObjectDetectorHelper.Model.valueOf(it))
-            }
         }
     }
 
