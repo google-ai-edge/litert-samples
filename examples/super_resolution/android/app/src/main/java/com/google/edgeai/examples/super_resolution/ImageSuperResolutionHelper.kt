@@ -37,7 +37,7 @@ class ImageSuperResolutionHelper(private val context: Context) {
     }
 
     /** Init a Interpreter from ESRGAN.tflite.*/
-    private fun initClassifier(delegate: Delegate = Delegate.CPU) {
+    fun initClassifier(delegate: Delegate = Delegate.CPU) {
         interpreter = try {
             val tfliteBuffer = FileUtil.loadMappedFile(context, "ESRGAN.tflite")
             Log.i(TAG, "Done creating TFLite buffer from ESRGAN.tflite")
@@ -52,6 +52,9 @@ class ImageSuperResolutionHelper(private val context: Context) {
         }
     }
 
+    /*
+     *Performs super-resolution processing on a provided bitmap.
+     */
     suspend fun makeSuperResolution(bitmap: Bitmap) {
         if (interpreter == null) return
 
@@ -74,6 +77,9 @@ class ImageSuperResolutionHelper(private val context: Context) {
         }
     }
 
+    /*
+     * Convert the output from the interpreter float array to a Bitmap
+     */
     private fun floatArrayToBitmap(floatArray: FloatArray, width: Int, height: Int): Bitmap {
         val bitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
         val pixels = IntArray(width * height)
@@ -112,6 +118,6 @@ class ImageSuperResolutionHelper(private val context: Context) {
     )
 
     enum class Delegate {
-        CPU, GPU
+        CPU, NNAPI
     }
 }
