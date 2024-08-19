@@ -102,48 +102,65 @@ class OverlayView: UIView {
     guard !detections.isEmpty else {
       return
     }
-    var offSetx: CGFloat = 0
-    var offSety: CGFloat = 0
-    var transform: CGFloat = 0
 
-    if imageSize.width / imageSize.height > bounds.width / bounds.height {
-      if imageSize.width > imageSize.height {
-        transform = bounds.width
-      } else {
-        transform = bounds.width * imageSize.height / imageSize.width
-      }
-    } else {
-      if imageSize.width > imageSize.height {
-        transform = bounds.height * imageSize.width / imageSize.height
-      } else {
-        transform = bounds.height
-      }
-    }
+    // Calculate the offsets and scale factor for the bounding boxes to correctly scale and
+    // translate them into the overlay view based on its content mode.
+    let offsetsAndScaleFactor = OverlayView.offsetsAndScaleFactor(
+      forImageOfSize: imageSize,
+      tobeDrawnInViewOfSize: self.bounds.size,
+      withContentMode: scale)
 
-    offSetx = (bounds.width - transform) / 2
-    offSety = (bounds.height - transform) / 2
+    // All models used in this example expect a square image (width = height) of certain dimension
+    // as the input. To satisfy this requirement, we scaled the input image down, preserving its
+    // aspect ratio to fit the model dimensions and centred its pixels within the pixels sent to
+    // the model for inference.
+    // The following code calculates the offsets by which the image was translated w.r.t the
+    // original image size. These values will be used to reverse this translation in the transforms
+    // applied later.
+    //
+    // The calculations are considered within the largest square that can fit the entire input image
+    // i.e, side of square = `max(imageSize.width, imageSize.Height)` since the bounding box
+    // coordinates output by the model are normalized. The offsets are later scaled to the bounds
+    // of the overlay view.
+    let maxImageDimension = max(imageSize.width, imageSize.height)
+
+    let offsetToReverseModelInputTranslationX =
+      (maxImageDimension - imageSize.width) * offsetsAndScaleFactor.scaleFactor / 2
+    let offsetToReverseModelInputTranslationY =
+      (maxImageDimension - imageSize.height) * offsetsAndScaleFactor.scaleFactor / 2
 
     var objectOverlays: [ObjectOverlay] = []
     for detection in detections {
-      // Translates bounding box rect to current view.
-      var convertedRect = detection.boundingBox.applying(
-        CGAffineTransform(
-          scaleX: transform,
-          y: transform))
+      // The bounding boxes are first scaled to the smallest square that can completely fit the
+      // image. Bounding boxes need not be scaled down to the original image size since the valid
+      // pixels are of size `imageSize` and centered within the smallest square that can completely
+      // fit the imag.
+      // They are then scaled to the overlay view's bounds.
+      //
+      // The scaled bounding boxes are then translated to the correct origin within the bounds of
+      // the overlay view. Note that, the translation done while processing the image for the model
+      // is also reversed.
+      var convertedRect = detection.boundingBox
+        .applying(
+          CGAffineTransform(
+            scaleX: maxImageDimension * offsetsAndScaleFactor.scaleFactor,
+            y: maxImageDimension * offsetsAndScaleFactor.scaleFactor)
+        )
+        .applying(
+          CGAffineTransform(
+            translationX: offsetsAndScaleFactor.xOffset - offsetToReverseModelInputTranslationX,
+            y: offsetsAndScaleFactor.yOffset - offsetToReverseModelInputTranslationY)
+        )
 
-      offSetx = (bounds.width - transform)/2
-      offSety = (bounds.height - transform)/2
-
-      convertedRect.origin.x += offSetx
-      convertedRect.origin.y += offSety
-
+      // Adjust the bouding boxes that extend beyond the bounds of the overlay view to fall within
+      // the overlay view.
       if convertedRect.origin.x < 0 {
-        convertedRect.size.width = max(1, convertedRect.size.width - convertedRect.origin.x)
+        convertedRect.size.width = max(0, convertedRect.size.width + convertedRect.origin.x)
         convertedRect.origin.x = 0
       }
 
       if convertedRect.origin.y < 0 {
-        convertedRect.size.height = max(1, convertedRect.size.height - convertedRect.origin.y)
+        convertedRect.size.height = max(0, convertedRect.size.height + convertedRect.origin.y)
         convertedRect.origin.y = 0
       }
 
@@ -174,6 +191,38 @@ class OverlayView: UIView {
     // Hands off drawing to the OverlayView
     self.draw(objectOverlays: objectOverlays)
   }
+
+  // MARK: Helper Functions
+    static func offsetsAndScaleFactor(
+      forImageOfSize imageSize: CGSize,
+      tobeDrawnInViewOfSize viewSize: CGSize,
+      withContentMode contentMode: UIView.ContentMode
+    )
+      -> (xOffset: CGFloat, yOffset: CGFloat, scaleFactor: Double)
+    {
+
+      let widthScale = viewSize.width / imageSize.width
+      let heightScale = viewSize.height / imageSize.height
+
+      var scaleFactor = 0.0
+
+      switch contentMode {
+      case .scaleAspectFill:
+        scaleFactor = max(widthScale, heightScale)
+      case .scaleAspectFit:
+        scaleFactor = min(widthScale, heightScale)
+      default:
+        scaleFactor = 1.0
+      }
+
+      let scaledSize = CGSize(
+        width: imageSize.width * scaleFactor,
+        height: imageSize.height * scaleFactor)
+      let xOffset = (viewSize.width - scaledSize.width) / 2
+      let yOffset = (viewSize.height - scaledSize.height) / 2
+
+      return (xOffset, yOffset, scaleFactor)
+    }
 
   /** Calls methods to update overlay view with detected bounding boxes and class names.
    */

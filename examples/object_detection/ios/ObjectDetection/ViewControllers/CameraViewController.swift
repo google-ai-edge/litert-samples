@@ -194,7 +194,7 @@ extension CameraViewController: CameraFeedServiceDelegate {
               onDetections: result.objects,
               withImageSize: CGSize(width: CGFloat(width), 
                                     height: CGFloat(height)),
-              scale: .scaleAspectFit
+              scale: .scaleAspectFill
             )
             self.inferenceResultDeliveryDelegate?.didPerformInference(result: result)
           }

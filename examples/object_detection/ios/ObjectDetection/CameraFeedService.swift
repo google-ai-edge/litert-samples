@@ -75,7 +75,7 @@ class CameraFeedService: NSObject {
     }
   }
 
-  let videoGravity = AVLayerVideoGravity.resizeAspect
+  let videoGravity = AVLayerVideoGravity.resizeAspectFill
 
   // MARK: Instance Variables
   private let session: AVCaptureSession = AVCaptureSession()
