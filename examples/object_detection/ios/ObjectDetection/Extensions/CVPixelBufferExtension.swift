@@ -121,12 +121,8 @@ extension CVPixelBuffer {
       memset(dstData, 0, dstBytesPerRow * outputSize)
 
       // Calculate the scaling factor to fit the source image within the destination square
-      let scaleFactor: Float
-      if srcWidth > srcHeight {
-          scaleFactor = Float(outputSize) / Float(srcWidth)
-      } else {
-          scaleFactor = Float(outputSize) / Float(srcHeight)
-      }
+      let maxDimension = Float(max(srcWidth, srcHeight))
+      let scaleFactor = Float(outputSize) / maxDimension
 
       // Calculate the size of the scaled image
       let scaledWidth = Int(Float(srcWidth) * scaleFactor)
