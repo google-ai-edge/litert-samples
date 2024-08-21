@@ -7,7 +7,6 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
-		487242DB81E2D1C9A2D07EF7 /* Pods_Battleship.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 20219C6C1368D1F854FF2FC2 /* Pods_Battleship.framework */; };
 		BFDF94732C29203100BB3661 /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = BFDF94722C29203100BB3661 /* AppDelegate.swift */; };
 		BFDF94752C29203100BB3661 /* SceneDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = BFDF94742C29203100BB3661 /* SceneDelegate.swift */; };
 		BFDF94772C29203100BB3661 /* ViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = BFDF94762C29203100BB3661 /* ViewController.swift */; };
@@ -16,14 +15,16 @@
 		BFDF947F2C29203400BB3661 /* Base in Resources */ = {isa = PBXBuildFile; fileRef = BFDF947E2C29203400BB3661 /* Base */; };
 		BFDF94882C29217700BB3661 /* InterpreterHelper.swift in Sources */ = {isa = PBXBuildFile; fileRef = BFDF94872C29217700BB3661 /* InterpreterHelper.swift */; };
 		BFDF948A2C29218100BB3661 /* Agent.swift in Sources */ = {isa = PBXBuildFile; fileRef = BFDF94892C29218100BB3661 /* Agent.swift */; };
-		BFDF948D2C2927F400BB3661 /* planestrike_tf.tflite in Resources */ = {isa = PBXBuildFile; fileRef = BFDF948C2C2927F400BB3661 /* planestrike_tf.tflite */; };
 		BFDF948F2C297C9700BB3661 /* PlayView.swift in Sources */ = {isa = PBXBuildFile; fileRef = BFDF948E2C297C9700BB3661 /* PlayView.swift */; };
+		BFFFA5B82C75C97C00EC4292 /* planestrike_tf.tflite in Resources */ = {isa = PBXBuildFile; fileRef = BFFFA5B72C75C97C00EC4292 /* planestrike_tf.tflite */; };
+		F1AA85AFC954AE323A12D440 /* Pods_ReinforcementLearning.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = D27717E2488D8B47B5F3E1F6 /* Pods_ReinforcementLearning.framework */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
-		20219C6C1368D1F854FF2FC2 /* Pods_Battleship.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; includeInIndex = 0; path = Pods_Battleship.framework; sourceTree = BUILT_PRODUCTS_DIR; };
+		275B4417CA84B7F7B659B4F8 /* Pods-ReinforcementLearning.debug.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-ReinforcementLearning.debug.xcconfig"; path = "Target Support Files/Pods-ReinforcementLearning/Pods-ReinforcementLearning.debug.xcconfig"; sourceTree = "<group>"; };
+		319DC8E87D55A69F3E1A4A77 /* Pods-ReinforcementLearning.release.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-ReinforcementLearning.release.xcconfig"; path = "Target Support Files/Pods-ReinforcementLearning/Pods-ReinforcementLearning.release.xcconfig"; sourceTree = "<group>"; };
 		624808C490C1EFD596A6289E /* Pods-Battleship.release.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-Battleship.release.xcconfig"; path = "Target Support Files/Pods-Battleship/Pods-Battleship.release.xcconfig"; sourceTree = "<group>"; };
-		BFDF946F2C29203100BB3661 /* Battleship.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Battleship.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		BFDF946F2C29203100BB3661 /* ReinforcementLearning.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = ReinforcementLearning.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		BFDF94722C29203100BB3661 /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDelegate.swift; sourceTree = "<group>"; };
 		BFDF94742C29203100BB3661 /* SceneDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SceneDelegate.swift; sourceTree = "<group>"; };
 		BFDF94762C29203100BB3661 /* ViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ViewController.swift; sourceTree = "<group>"; };
@@ -33,8 +34,9 @@
 		BFDF94802C29203400BB3661 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		BFDF94872C29217700BB3661 /* InterpreterHelper.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InterpreterHelper.swift; sourceTree = "<group>"; };
 		BFDF94892C29218100BB3661 /* Agent.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Agent.swift; sourceTree = "<group>"; };
-		BFDF948C2C2927F400BB3661 /* planestrike_tf.tflite */ = {isa = PBXFileReference; lastKnownFileType = file; name = planestrike_tf.tflite; path = Battleship/planestrike_tf.tflite; sourceTree = SOURCE_ROOT; };
 		BFDF948E2C297C9700BB3661 /* PlayView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlayView.swift; sourceTree = "<group>"; };
+		BFFFA5B72C75C97C00EC4292 /* planestrike_tf.tflite */ = {isa = PBXFileReference; lastKnownFileType = file; path = planestrike_tf.tflite; sourceTree = "<group>"; };
+		D27717E2488D8B47B5F3E1F6 /* Pods_ReinforcementLearning.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; includeInIndex = 0; path = Pods_ReinforcementLearning.framework; sourceTree = BUILT_PRODUCTS_DIR; };
 		DED7F5B2407A41E5CC3A5821 /* Pods-Battleship.debug.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-Battleship.debug.xcconfig"; path = "Target Support Files/Pods-Battleship/Pods-Battleship.debug.xcconfig"; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
@@ -43,7 +45,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				487242DB81E2D1C9A2D07EF7 /* Pods_Battleship.framework in Frameworks */,
+				F1AA85AFC954AE323A12D440 /* Pods_ReinforcementLearning.framework in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -55,6 +57,8 @@
 			children = (
 				DED7F5B2407A41E5CC3A5821 /* Pods-Battleship.debug.xcconfig */,
 				624808C490C1EFD596A6289E /* Pods-Battleship.release.xcconfig */,
+				275B4417CA84B7F7B659B4F8 /* Pods-ReinforcementLearning.debug.xcconfig */,
+				319DC8E87D55A69F3E1A4A77 /* Pods-ReinforcementLearning.release.xcconfig */,
 			);
 			path = Pods;
 			sourceTree = "<group>";
@@ -62,7 +66,7 @@
 		947BCE04F75D97E971DB81D1 /* Frameworks */ = {
 			isa = PBXGroup;
 			children = (
-				20219C6C1368D1F854FF2FC2 /* Pods_Battleship.framework */,
+				D27717E2488D8B47B5F3E1F6 /* Pods_ReinforcementLearning.framework */,
 			);
 			name = Frameworks;
 			sourceTree = "<group>";
@@ -70,7 +74,7 @@
 		BFDF94662C29203100BB3661 = {
 			isa = PBXGroup;
 			children = (
-				BFDF94712C29203100BB3661 /* Battleship */,
+				BFDF94712C29203100BB3661 /* ReinforcementLearning */,
 				BFDF94702C29203100BB3661 /* Products */,
 				3192E0A402EF13EB041623E9 /* Pods */,
 				947BCE04F75D97E971DB81D1 /* Frameworks */,
@@ -80,12 +84,12 @@
 		BFDF94702C29203100BB3661 /* Products */ = {
 			isa = PBXGroup;
 			children = (
-				BFDF946F2C29203100BB3661 /* Battleship.app */,
+				BFDF946F2C29203100BB3661 /* ReinforcementLearning.app */,
 			);
 			name = Products;
 			sourceTree = "<group>";
 		};
-		BFDF94712C29203100BB3661 /* Battleship */ = {
+		BFDF94712C29203100BB3661 /* ReinforcementLearning */ = {
 			isa = PBXGroup;
 			children = (
 				BFDF94862C29214D00BB3661 /* Agent */,
@@ -98,13 +102,13 @@
 				BFDF947D2C29203400BB3661 /* LaunchScreen.storyboard */,
 				BFDF94802C29203400BB3661 /* Info.plist */,
 			);
-			path = Battleship;
+			path = ReinforcementLearning;
 			sourceTree = "<group>";
 		};
 		BFDF94862C29214D00BB3661 /* Agent */ = {
 			isa = PBXGroup;
 			children = (
-				BFDF948C2C2927F400BB3661 /* planestrike_tf.tflite */,
+				BFFFA5B72C75C97C00EC4292 /* planestrike_tf.tflite */,
 				BFDF94872C29217700BB3661 /* InterpreterHelper.swift */,
 				BFDF94892C29218100BB3661 /* Agent.swift */,
 			);
@@ -114,23 +118,24 @@
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
-		BFDF946E2C29203100BB3661 /* Battleship */ = {
+		BFDF946E2C29203100BB3661 /* ReinforcementLearning */ = {
 			isa = PBXNativeTarget;
-			buildConfigurationList = BFDF94832C29203400BB3661 /* Build configuration list for PBXNativeTarget "Battleship" */;
+			buildConfigurationList = BFDF94832C29203400BB3661 /* Build configuration list for PBXNativeTarget "ReinforcementLearning" */;
 			buildPhases = (
-				BFDF948B2C29279200BB3661 /* Download model */,
 				286C4AC6D07BA7EFB4EAC182 /* [CP] Check Pods Manifest.lock */,
+				BFDF948B2C29279200BB3661 /* Download model */,
 				BFDF946B2C29203100BB3661 /* Sources */,
 				BFDF946C2C29203100BB3661 /* Frameworks */,
 				BFDF946D2C29203100BB3661 /* Resources */,
+				F6E1841BFF4DA45E08161D34 /* [CP] Copy Pods Resources */,
 			);
 			buildRules = (
 			);
 			dependencies = (
 			);
-			name = Battleship;
+			name = ReinforcementLearning;
 			productName = Battleship;
-			productReference = BFDF946F2C29203100BB3661 /* Battleship.app */;
+			productReference = BFDF946F2C29203100BB3661 /* ReinforcementLearning.app */;
 			productType = "com.apple.product-type.application";
 		};
 /* End PBXNativeTarget section */
@@ -148,7 +153,7 @@
 					};
 				};
 			};
-			buildConfigurationList = BFDF946A2C29203100BB3661 /* Build configuration list for PBXProject "Battleship" */;
+			buildConfigurationList = BFDF946A2C29203100BB3661 /* Build configuration list for PBXProject "ReinforcementLearning" */;
 			compatibilityVersion = "Xcode 14.0";
 			developmentRegion = en;
 			hasScannedForEncodings = 0;
@@ -161,7 +166,7 @@
 			projectDirPath = "";
 			projectRoot = "";
 			targets = (
-				BFDF946E2C29203100BB3661 /* Battleship */,
+				BFDF946E2C29203100BB3661 /* ReinforcementLearning */,
 			);
 		};
 /* End PBXProject section */
@@ -173,7 +178,7 @@
 			files = (
 				BFDF947C2C29203400BB3661 /* Assets.xcassets in Resources */,
 				BFDF947F2C29203400BB3661 /* Base in Resources */,
-				BFDF948D2C2927F400BB3661 /* planestrike_tf.tflite in Resources */,
+				BFFFA5B82C75C97C00EC4292 /* planestrike_tf.tflite in Resources */,
 				BFDF947A2C29203100BB3661 /* Base in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -196,7 +201,7 @@
 			outputFileListPaths = (
 			);
 			outputPaths = (
-				"$(DERIVED_FILE_DIR)/Pods-Battleship-checkManifestLockResult.txt",
+				"$(DERIVED_FILE_DIR)/Pods-ReinforcementLearning-checkManifestLockResult.txt",
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
@@ -220,6 +225,23 @@
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
 			shellScript = "# Type a script or drag a script file from your workspace to insert its path.\n\"$SRCROOT/RunScripts/download_models.sh\"\n";
+		};
+		F6E1841BFF4DA45E08161D34 /* [CP] Copy Pods Resources */ = {
+			isa = PBXShellScriptBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputFileListPaths = (
+				"${PODS_ROOT}/Target Support Files/Pods-ReinforcementLearning/Pods-ReinforcementLearning-resources-${CONFIGURATION}-input-files.xcfilelist",
+			);
+			name = "[CP] Copy Pods Resources";
+			outputFileListPaths = (
+				"${PODS_ROOT}/Target Support Files/Pods-ReinforcementLearning/Pods-ReinforcementLearning-resources-${CONFIGURATION}-output-files.xcfilelist",
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "\"${PODS_ROOT}/Target Support Files/Pods-ReinforcementLearning/Pods-ReinforcementLearning-resources.sh\"\n";
+			showEnvVarsInLog = 0;
 		};
 /* End PBXShellScriptBuildPhase section */
 
@@ -380,7 +402,7 @@
 		};
 		BFDF94842C29203400BB3661 /* Debug */ = {
 			isa = XCBuildConfiguration;
-			baseConfigurationReference = DED7F5B2407A41E5CC3A5821 /* Pods-Battleship.debug.xcconfig */;
+			baseConfigurationReference = 275B4417CA84B7F7B659B4F8 /* Pods-ReinforcementLearning.debug.xcconfig */;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
@@ -389,7 +411,7 @@
 				DEVELOPMENT_TEAM = "";
 				ENABLE_USER_SCRIPT_SANDBOXING = NO;
 				GENERATE_INFOPLIST_FILE = YES;
-				INFOPLIST_FILE = Battleship/Info.plist;
+				INFOPLIST_FILE = ReinforcementLearning/Info.plist;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchStoryboardName = LaunchScreen;
 				INFOPLIST_KEY_UIMainStoryboardFile = Main;
@@ -400,7 +422,7 @@
 					"@executable_path/Frameworks",
 				);
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = com.google.tflite.examples.Battleship;
+				PRODUCT_BUNDLE_IDENTIFIER = com.google.tflite.examples.ReinforcementLearning;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_VERSION = 5.0;
@@ -410,7 +432,7 @@
 		};
 		BFDF94852C29203400BB3661 /* Release */ = {
 			isa = XCBuildConfiguration;
-			baseConfigurationReference = 624808C490C1EFD596A6289E /* Pods-Battleship.release.xcconfig */;
+			baseConfigurationReference = 319DC8E87D55A69F3E1A4A77 /* Pods-ReinforcementLearning.release.xcconfig */;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
@@ -419,7 +441,7 @@
 				DEVELOPMENT_TEAM = "";
 				ENABLE_USER_SCRIPT_SANDBOXING = NO;
 				GENERATE_INFOPLIST_FILE = YES;
-				INFOPLIST_FILE = Battleship/Info.plist;
+				INFOPLIST_FILE = ReinforcementLearning/Info.plist;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchStoryboardName = LaunchScreen;
 				INFOPLIST_KEY_UIMainStoryboardFile = Main;
@@ -430,7 +452,7 @@
 					"@executable_path/Frameworks",
 				);
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = com.google.tflite.examples.Battleship;
+				PRODUCT_BUNDLE_IDENTIFIER = com.google.tflite.examples.ReinforcementLearning;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_VERSION = 5.0;
@@ -441,7 +463,7 @@
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
-		BFDF946A2C29203100BB3661 /* Build configuration list for PBXProject "Battleship" */ = {
+		BFDF946A2C29203100BB3661 /* Build configuration list for PBXProject "ReinforcementLearning" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
 				BFDF94812C29203400BB3661 /* Debug */,
@@ -450,7 +472,7 @@
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
-		BFDF94832C29203400BB3661 /* Build configuration list for PBXNativeTarget "Battleship" */ = {
+		BFDF94832C29203400BB3661 /* Build configuration list for PBXNativeTarget "ReinforcementLearning" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
 				BFDF94842C29203400BB3661 /* Debug */,

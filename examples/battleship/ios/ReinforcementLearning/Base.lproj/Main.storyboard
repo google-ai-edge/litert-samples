@@ -12,7 +12,7 @@
         <!--View Controller-->
         <scene sceneID="tne-QT-ifu">
             <objects>
-                <viewController id="BYZ-38-t0r" customClass="ViewController" customModule="Battleship" customModuleProvider="target" sceneMemberID="viewController">
+                <viewController id="BYZ-38-t0r" customClass="ViewController" customModule="ReinforcementLearning" customModuleProvider="target" sceneMemberID="viewController">
                     <view key="view" contentMode="scaleToFill" id="8bC-Xf-vdC">
                         <rect key="frame" x="0.0" y="0.0" width="393" height="852"/>
                         <autoresizingMask key="autoresizingMask" widthSizable="YES" heightSizable="YES"/>
@@ -33,14 +33,14 @@
                                     <constraint firstItem="LZC-yn-uxE" firstAttribute="centerX" secondItem="8fy-Rf-H1u" secondAttribute="centerX" id="YDs-Np-eI5"/>
                                 </constraints>
                             </view>
-                            <view contentMode="scaleToFill" translatesAutoresizingMaskIntoConstraints="NO" id="jmu-XO-o6N" customClass="PlayView" customModule="Battleship" customModuleProvider="target">
+                            <view contentMode="scaleToFill" translatesAutoresizingMaskIntoConstraints="NO" id="jmu-XO-o6N" customClass="PlayView" customModule="ReinforcementLearning" customModuleProvider="target">
                                 <rect key="frame" x="53.666666666666657" y="107" width="286" height="286"/>
                                 <color key="backgroundColor" systemColor="systemBackgroundColor"/>
                                 <constraints>
                                     <constraint firstAttribute="width" secondItem="jmu-XO-o6N" secondAttribute="height" id="rpo-Z6-o5v"/>
                                 </constraints>
                             </view>
-                            <view contentMode="scaleToFill" translatesAutoresizingMaskIntoConstraints="NO" id="NmS-F0-bNl" customClass="PlayView" customModule="Battleship" customModuleProvider="target">
+                            <view contentMode="scaleToFill" translatesAutoresizingMaskIntoConstraints="NO" id="NmS-F0-bNl" customClass="PlayView" customModule="ReinforcementLearning" customModuleProvider="target">
                                 <rect key="frame" x="53.666666666666657" y="477" width="286" height="286"/>
                                 <color key="backgroundColor" systemColor="systemBackgroundColor"/>
                                 <constraints>
