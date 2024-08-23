@@ -63,9 +63,9 @@ class ObjectDetectorHelper(
     // the GPU delegate needs to be used on the thread that initialized the detector
     suspend fun setupObjectDetector() {
         try {
-            val tfliteBuffer = FileUtil.loadMappedFile(context, model.fileName)
-            labels = getModelMetadata(tfliteBuffer)
-            interpreter = Interpreter(tfliteBuffer, Interpreter.Options().apply {
+            val litertBuffer = FileUtil.loadMappedFile(context, model.fileName)
+            labels = getModelMetadata(litertBuffer)
+            interpreter = Interpreter(litertBuffer, Interpreter.Options().apply {
                 numThreads = 5
                 useNNAPI = delegate == Delegate.NNAPI
             })
@@ -190,8 +190,8 @@ class ObjectDetectorHelper(
     }
 
     /** Load metadata from model*/
-    private fun getModelMetadata(tfliteBuffer: ByteBuffer): List<String> {
-        val metadataExtractor = MetadataExtractor(tfliteBuffer)
+    private fun getModelMetadata(litertBuffer: ByteBuffer): List<String> {
+        val metadataExtractor = MetadataExtractor(litertBuffer)
         val labels = mutableListOf<String>()
         if (metadataExtractor.hasMetadata()) {
             val inputStream = metadataExtractor.getAssociatedFile("labelmap.txt")

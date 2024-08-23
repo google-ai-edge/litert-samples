@@ -34,6 +34,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowDropDown
@@ -57,7 +58,9 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.painter.ColorPainter
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -241,11 +244,19 @@ class MainActivity : ComponentActivity() {
             modifier = modifier,
             colors = TopAppBarDefaults.topAppBarColors().copy(containerColor = Color.LightGray),
             title = {
-                Image(
+                Row(
                     modifier = Modifier.fillMaxSize(),
-                    painter = painterResource(id = R.drawable.tfl_logo),
-                    contentDescription = null,
-                )
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Image(
+                        modifier = Modifier.size(50.dp),
+                        painter = ColorPainter(color = Color.White),
+                        contentDescription = null,
+                    )
+
+                    Spacer(modifier = modifier.width(10.dp))
+                    Text(text = "LiteRT", color = Color.Blue, fontWeight = FontWeight.SemiBold)
+                }
             },
         )
     }
