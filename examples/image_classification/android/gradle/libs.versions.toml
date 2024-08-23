@@ -9,8 +9,7 @@ lifecycleRuntimeKtx = "2.7.0"
 activityCompose = "1.9.0"
 composeBom = "2023.08.00"
 undercouchDownload = "5.6.0"
-tensorflow-lite = "2.11.0"
-tensorflow-lite-rc1 = "0.4.3"
+litert = "0.1.0"
 cameraCore = "1.3.3"
 compose = "1.3.0"
 coilCompose = "2.6.0"
@@ -34,10 +33,9 @@ androidx-ui-test-junit4 = { group = "androidx.compose.ui", name = "ui-test-junit
 androidx-material2 = { group = "androidx.compose.material", name = "material", version.ref = "compose" }
 androidx-camera-core = { group = "androidx.camera", name = "camera-core", version.ref = "cameraCore" }
 
-tensorflow-lite = { group = "org.tensorflow", name = "tensorflow-lite", version.ref = "tensorflow-lite" }
-tensorflow-lite-support = { group = "org.tensorflow", name = "tensorflow-lite-support", version.ref = "tensorflow-lite-rc1" }
-tensorflow-lite-task-vision = { group = "org.tensorflow", name = "tensorflow-lite-task-vision", version.ref = "tensorflow-lite-rc1" }
-tensorflow-lite-metadata = { group = "org.tensorflow", name = "tensorflow-lite-metadata", version.ref = "tensorflow-lite-rc1" }
+litert = { group = "io.github.google-ai-edge", name = "litert", version.ref = "litert" }
+litert-support = { group = "io.github.google-ai-edge", name = "litert-support", version.ref = "litert" }
+litert-metadata = { group = "io.github.google-ai-edge", name = "litert-metadata", version.ref = "litert" }
 androidx-camera-lifecycle = { group = "androidx.camera", name = "camera-lifecycle", version.ref = "cameraCore" }
 androidx-camera-view = { group = "androidx.camera", name = "camera-view", version.ref = "cameraCore" }
 androidx-camera-camera2 = { group = "androidx.camera", name = "camera-camera2", version.ref = "cameraCore" }
