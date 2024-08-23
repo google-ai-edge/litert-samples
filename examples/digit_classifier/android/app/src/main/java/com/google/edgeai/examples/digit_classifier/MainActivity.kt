@@ -29,11 +29,13 @@ import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.material3.Button
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -57,10 +59,12 @@ import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.painter.ColorPainter
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 
@@ -201,11 +205,19 @@ class MainActivity : ComponentActivity() {
             modifier = modifier,
             colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.LightGray),
             title = {
-                Image(
+                Row(
                     modifier = Modifier.fillMaxSize(),
-                    painter = painterResource(id = R.drawable.tfl_logo),
-                    contentDescription = null,
-                )
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Image(
+                        modifier = Modifier.size(50.dp),
+                        painter = ColorPainter(color = Color.White),
+                        contentDescription = null,
+                    )
+
+                    Spacer(modifier = modifier.width(10.dp))
+                    Text(text = "LiteRT", color = Color.Blue, fontWeight = FontWeight.SemiBold)
+                }
             },
         )
     }

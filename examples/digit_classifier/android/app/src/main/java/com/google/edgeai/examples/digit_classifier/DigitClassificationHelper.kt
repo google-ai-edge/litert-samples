@@ -56,9 +56,9 @@ class DigitClassificationHelper(private val context: Context) {
     /** Init a Interpreter from asset*/
     private fun initHelper() {
         interpreter = try {
-            val tfliteBuffer = FileUtil.loadMappedFile(context, "digit_classifier.tflite")
+            val litertBuffer = FileUtil.loadMappedFile(context, "digit_classifier.tflite")
             Log.i(TAG, "Done creating TFLite buffer from asset")
-            Interpreter(tfliteBuffer, Interpreter.Options())
+            Interpreter(litertBuffer, Interpreter.Options())
         } catch (e: Exception) {
             Log.e(TAG, "Initializing TensorFlow Lite has failed with error: ${e.message}")
             return
