@@ -40,6 +40,7 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
@@ -123,13 +124,14 @@ class MainActivity : ComponentActivity() {
 fun Header(modifier: Modifier = Modifier) {
     TopAppBar(
         modifier = modifier.height(40.dp),
+        colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.LightGray),
         title = {
             Row(
                 modifier = Modifier.fillMaxSize(),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Image(
-                    modifier = Modifier.size(50.dp),
+                    modifier = Modifier.size(30.dp),
                     painter = ColorPainter(color = Color.White),
                     contentDescription = null,
                 )
