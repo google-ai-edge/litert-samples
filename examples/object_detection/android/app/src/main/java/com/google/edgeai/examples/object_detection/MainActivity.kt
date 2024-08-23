@@ -59,7 +59,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.painter.ColorPainter
-import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -242,7 +241,7 @@ class MainActivity : ComponentActivity() {
     fun Header(modifier: Modifier = Modifier) {
         TopAppBar(
             modifier = modifier,
-            colors = TopAppBarDefaults.topAppBarColors().copy(containerColor = Color.LightGray),
+            colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.LightGray),
             title = {
                 Row(
                     modifier = Modifier.fillMaxSize(),
