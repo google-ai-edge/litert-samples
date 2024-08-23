@@ -50,7 +50,7 @@ class AudioClassificationHelper(private val context: Context, val options: Optio
         var overlapFactor: Float = DEFAULT_OVERLAP,
         /** Probability value above which a class is labeled as active (i.e., detected) the display.  */
         var probabilityThreshold: Float = DEFAULT_PROBABILITY_THRESHOLD,
-        /** The enum contains the .tflite file name, relative to the assets/ directory */
+        /** The enum contains the model file name, relative to the assets/ directory */
         var currentModel: TFLiteModel = DEFAULT_MODEL,
         /** The delegate for running computationally intensive operations*/
         var delegate: Delegate = DEFAULT_DELEGATE,
@@ -95,10 +95,10 @@ class AudioClassificationHelper(private val context: Context, val options: Optio
 
     suspend fun setupInterpreter() {
         interpreter = try {
-            val tfliteBuffer = FileUtil.loadMappedFile(context, options.currentModel.fileName)
+            val litertBuffer = FileUtil.loadMappedFile(context, options.currentModel.fileName)
             Log.i(TAG, "Done creating TFLite buffer from ${options.currentModel}")
-            labels = getModelMetadata(tfliteBuffer)
-            Interpreter(tfliteBuffer, Interpreter.Options().apply {
+            labels = getModelMetadata(litertBuffer)
+            Interpreter(litertBuffer, Interpreter.Options().apply {
                 numThreads = options.threadCount
                 useNNAPI = options.delegate == Delegate.NNAPI
             })
@@ -207,8 +207,8 @@ class AudioClassificationHelper(private val context: Context, val options: Optio
     }
 
     /** Load metadata from model*/
-    private suspend fun getModelMetadata(tfliteBuffer: ByteBuffer): List<String> {
-        val metadataExtractor = MetadataExtractor(tfliteBuffer)
+    private suspend fun getModelMetadata(litertBuffer: ByteBuffer): List<String> {
+        val metadataExtractor = MetadataExtractor(litertBuffer)
         val labels = mutableListOf<String>()
         if (metadataExtractor.hasMetadata()) {
             val inputStream = metadataExtractor.getAssociatedFile(options.currentModel.labelFile)
@@ -265,14 +265,12 @@ class AudioClassificationHelper(private val context: Context, val options: Optio
     }
 
     enum class TFLiteModel(val fileName: String, val labelFile: String, val sampleRate: Int) {
-        /** Yamnet labels: https://github.com/tensorflow/models/blob/master/research/audioset/yamnet/yamnet_class_map.csv*/
         YAMNET(
             "yamnet.tflite",
             "yamnet_label_list.txt",
             16000
         ),
 
-        /** Speech command labels: https://www.tensorflow.org/lite/models/modify/model_maker/speech_recognition */
         SpeechCommand(
             "speech.tflite",
             "probability_labels.txt",
