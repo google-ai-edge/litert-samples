@@ -1,3 +1,19 @@
+/*
+ * Copyright 2024 The Google AI Edge Authors. All Rights Reserved.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *       http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 package com.google.edgeai.examples.super_resolution
 
 import android.content.Context
@@ -9,7 +25,6 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.channels.BufferOverflow
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.SharedFlow
-import kotlinx.coroutines.isActive
 import kotlinx.coroutines.withContext
 import org.tensorflow.lite.DataType
 import org.tensorflow.lite.Interpreter
@@ -37,16 +52,16 @@ class ImageSuperResolutionHelper(private val context: Context) {
         initClassifier()
     }
 
-    /** Init a Interpreter from ESRGAN.tflite.*/
+    /** Init a Interpreter from ESRGAN model.*/
     fun initClassifier(delegate: Delegate = Delegate.CPU) {
         interpreter = try {
-            val tfliteBuffer = FileUtil.loadMappedFile(context, "ESRGAN.tflite")
-            Log.i(TAG, "Done creating TFLite buffer from ESRGAN.tflite")
+            val litertBuffer = FileUtil.loadMappedFile(context, "ESRGAN.tflite")
+            Log.i(TAG, "Done creating TFLite buffer from ESRGAN model")
             val options = Interpreter.Options().apply {
                 numThreads = 4
                 useNNAPI = delegate == Delegate.CPU
             }
-            Interpreter(tfliteBuffer, options)
+            Interpreter(litertBuffer, options)
         } catch (e: Exception) {
             Log.e(TAG, "Initializing TensorFlow Lite has failed with error: ${e.message}")
             return
