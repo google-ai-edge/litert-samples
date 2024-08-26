@@ -55,7 +55,7 @@ class MainActivity : ComponentActivity() {
 
             BottomSheetScaffold(
                 sheetShape = RoundedCornerShape(topStart = 15.dp, topEnd = 15.dp),
-                sheetPeekHeight = 70.dp,
+                sheetPeekHeight = 0.dp,
                 sheetContent = {
                     BottomSheet(inferenceTime = inferenceTimeState, onDelegateSelected = {
                         delegateState = it

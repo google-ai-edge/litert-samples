@@ -1,7 +1,6 @@
 package com.google.edgeai.examples.super_resolution.quicksample
 
 import android.graphics.BitmapFactory
-import androidx.compose.foundation.Image
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -16,7 +15,6 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -37,6 +35,7 @@ fun QuickSampleScreen(
 
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val selectBitmap = uiState.selectBitmap
+    val sharpenBitmap = uiState.sharpenBitmap
 
     LaunchedEffect(key1 = uiState.inferenceTime) {
         onInferenceTimeCallback(uiState.inferenceTime)
@@ -79,16 +78,17 @@ fun QuickSampleScreen(
                 AsyncImage(
                     modifier = Modifier.size(150.dp),
                     model = selectBitmap,
-                    contentDescription = "",
+                    contentDescription = null,
                 )
             }
 
             Spacer(modifier = Modifier.width(10.dp))
 
-            if (uiState.sharpenBitmap != null) {
-                Image(
+            if (sharpenBitmap != null) {
+                AsyncImage(
                     modifier = Modifier.size(150.dp),
-                    bitmap = uiState.sharpenBitmap!!.asImageBitmap(), contentDescription = null
+                    model = sharpenBitmap,
+                    contentDescription = null,
                 )
             }
         }

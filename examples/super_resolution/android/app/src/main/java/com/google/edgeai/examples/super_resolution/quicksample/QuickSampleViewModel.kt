@@ -65,7 +65,7 @@ class QuickSampleViewModel(private val imageSuperResolutionHelper: ImageSuperRes
      * Starts the process of sharpening the provided bitmap.
      */
     fun makeSharpen() {
-        if (sharpenJob?.isActive == true) return
+        if (sharpenJob?.isCompleted == false) return
         val bitmap = selectBitmapFlow.value ?: return
         sharpenJob = viewModelScope.launch(Dispatchers.IO) {
             if (bitmap.config != Bitmap.Config.ARGB_8888) {

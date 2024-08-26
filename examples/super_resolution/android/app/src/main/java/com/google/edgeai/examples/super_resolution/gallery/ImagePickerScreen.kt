@@ -1,49 +1,51 @@
 package com.google.edgeai.examples.super_resolution.gallery
 
-import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Image
-import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.border
+import androidx.compose.foundation.gestures.detectDragGestures
+import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.lazy.grid.GridCells
-import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.Button
-import androidx.compose.material.Card
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.FloatingActionButton
 import androidx.compose.material.Icon
-import androidx.compose.material.Text
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.composed
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.window.Dialog
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.google.edgeai.examples.super_resolution.ImageSuperResolutionHelper
 import java.io.InputStream
+import kotlin.math.roundToInt
 
 @Composable
 fun ImagePickerScreen(
@@ -52,12 +54,12 @@ fun ImagePickerScreen(
     onInferenceTimeCallback: (Int) -> Unit,
 ) {
     val context = LocalContext.current
+    val density = LocalDensity.current
 
     val viewModel: ImagePickerViewModel =
         viewModel(factory = ImagePickerViewModel.getFactory(context))
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
-    var selectedBitmap by remember { mutableStateOf<Bitmap?>(null) }
-
+    val scrollState = rememberScrollState()
 
     LaunchedEffect(key1 = uiState.inferenceTime) {
         onInferenceTimeCallback(uiState.inferenceTime)
@@ -78,23 +80,66 @@ fun ImagePickerScreen(
             }
         }
 
-    BoxWithConstraints(modifier = modifier.fillMaxSize()) {
+    BoxWithConstraints(
+        modifier = modifier
+            .fillMaxSize(),
+    ) {
         if (uiState.originalBitmap != null) {
-            LazyVerticalGrid(
-                modifier = Modifier.fillMaxSize(),
-                columns = GridCells.Fixed(uiState.originalBitmap!!.height / maxWidth.value.toInt()),
-                verticalArrangement = Arrangement.spacedBy(1.dp),
-                horizontalArrangement = Arrangement.spacedBy(1.dp)
-            ) {
-                val gridBitmap = uiState.bitmapList
-                items(gridBitmap.size) { index ->
-                    Image(
-                        modifier = Modifier.clickable {
-                            selectedBitmap = gridBitmap[index]
-                            viewModel.selectSubBitmap(index)
-                        }, bitmap = gridBitmap[index].asImageBitmap(), contentDescription = null
-                    )
-                }
+            Image(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .verticalScroll(scrollState)
+                    .pointerInput(Unit) {
+                        detectTapGestures { offset ->
+                            with(density) {
+                                viewModel.selectOffset(
+                                    offset,
+                                    Size(maxWidth.toPx(), maxHeight.toPx())
+                                )
+                            }
+                        }
+                    }
+                    .detectDrag(
+                        onDrag = {
+                            with(density) {
+                                viewModel.selectOffset(
+                                    it,
+                                    Size(maxWidth.toPx(), maxHeight.toPx())
+                                )
+                            }
+                        },
+                    ),
+                bitmap = uiState.originalBitmap!!.asImageBitmap(),
+                contentDescription = null,
+                contentScale = ContentScale.FillWidth
+            )
+
+            val selectPoint = uiState.selectPoint
+            if (selectPoint.offset != null) {
+                Box(
+                    modifier = Modifier
+                        .size(
+                            (selectPoint.boxSize / density.density).dp,
+                            (selectPoint.boxSize / density.density).dp
+                        )
+                        .offset {
+                            IntOffset(
+                                selectPoint.offset.x.roundToInt(),
+                                selectPoint.offset.y.roundToInt(),
+                            )
+                        }
+                        .border(border = BorderStroke(width = 3.dp, color = Color.Green))
+                )
+            }
+
+            if (uiState.sharpenBitmap != null) {
+                Image(
+                    modifier = Modifier
+                        .size(120.dp, 120.dp)
+                        .align(Alignment.TopEnd),
+                    bitmap = uiState.sharpenBitmap!!.asImageBitmap(),
+                    contentDescription = null,
+                )
             }
         }
 
@@ -110,78 +155,27 @@ fun ImagePickerScreen(
             Icon(Icons.Filled.Add, contentDescription = null)
         }
     }
-
-    if (selectedBitmap != null) {
-        DialogWithImage(
-            onDismiss = {
-                selectedBitmap = null
-                viewModel.resetSelectedBitmap()
-            },
-            onConfirmation = { viewModel.makeSharpen(selectedBitmap!!) },
-            srcBitmap = selectedBitmap!!,
-            dstBitmap = uiState.sharpenBitmap
-        )
-    }
 }
 
-@Composable
-fun DialogWithImage(
-    onDismiss: () -> Unit,
-    onConfirmation: () -> Unit,
-    srcBitmap: Bitmap,
-    dstBitmap: Bitmap?,
-) {
-    Dialog(onDismissRequest = { onDismiss() }) {
-        Card(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(bottom = 80.dp),
-            shape = RoundedCornerShape(16.dp),
-        ) {
-            Column(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(16.dp),
-                horizontalAlignment = Alignment.CenterHorizontally,
-            ) {
-                Image(
-                    modifier = Modifier.size(200.dp),
-                    bitmap = srcBitmap.asImageBitmap(),
-                    contentDescription = null,
-                    contentScale = ContentScale.FillWidth,
-                )
-
-                Spacer(modifier = Modifier.height(10.dp))
-
-                if (dstBitmap != null) {
-                    Image(
-                        modifier = Modifier.size(200.dp),
-                        bitmap = dstBitmap.asImageBitmap(),
-                        contentDescription = null,
-                        contentScale = ContentScale.FillWidth,
-                    )
-                }
-
-                Spacer(modifier = Modifier.weight(1f))
-
-                Row(
-                    horizontalArrangement = Arrangement.Center,
-                ) {
-                    Button(
-                        onClick = { onDismiss() },
-                        modifier = Modifier.padding(8.dp),
-                    ) {
-                        Text("Close")
-                    }
-                    Button(
-                        onClick = { onConfirmation() },
-                        modifier = Modifier.padding(8.dp),
-                    ) {
-                        Text("Sharpen")
-                    }
-                }
-            }
-
+/**
+ * Detects drag gestures on a composable element.
+ *
+ * @param onDrag Callback invoked during a drag gesture.
+ * @return A modifier that applies drag gesture detection to the composable.
+ */
+fun Modifier.detectDrag(
+    onDrag: (Offset) -> Unit
+): Modifier = composed {
+    val interactionSource = remember {
+        MutableInteractionSource()
+    }
+    this.pointerInput(interactionSource) {
+        detectDragGestures(
+            onDragStart = { },
+            onDragEnd = { },
+        ) { change, _ ->
+            change.consume()
+            onDrag(change.position)
         }
     }
 }
