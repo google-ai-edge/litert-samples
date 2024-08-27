@@ -1,0 +1,7 @@
+tasks.register('downloadPlaneStrikeModel', Download) {
+    src 'https://storage.googleapis.com/ai-edge/interpreter-samples/reinforcement_learning/android/planestrike_tf.tflite'
+    dest project.ext.ASSET_DIR + '/planestrike.tflite'
+    overwrite false
+}
+
+preBuild.dependsOn downloadPlaneStrikeModel
