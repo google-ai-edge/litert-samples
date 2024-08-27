@@ -1,4 +1,4 @@
-// Copyright 2024 The TensorFlow Authors. All Rights Reserved.
+// 2024 The Google AI Edge Authors. All Rights Reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -20,7 +20,7 @@ class InterpreterHelper: NSObject {
 
   private var modelPath: String
 
-  /// TensorFlow Lite `Interpreter` object for performing inference on a given model.
+  /// `Interpreter` object for performing inference on a given model.
   private var interpreter: Interpreter!
 
   var sizeWidth = 8
