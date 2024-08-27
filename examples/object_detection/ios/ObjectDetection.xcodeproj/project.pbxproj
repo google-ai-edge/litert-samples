@@ -13,12 +13,12 @@
 		AA9AC5A4212D39FC000B4E9D /* Main.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = AA9AC5A2212D39FC000B4E9D /* Main.storyboard */; };
 		AA9AC5A6212D39FD000B4E9D /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = AA9AC5A5212D39FD000B4E9D /* Assets.xcassets */; };
 		AA9AC5A9212D39FD000B4E9D /* LaunchScreen.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = AA9AC5A7212D39FD000B4E9D /* LaunchScreen.storyboard */; };
+		BF17853B2C7C6B73005A6530 /* ObjectDetectorService.swift in Sources */ = {isa = PBXBuildFile; fileRef = BF17853A2C7C6B73005A6530 /* ObjectDetectorService.swift */; };
 		BF43FFBA2845ABFD00D8FB74 /* efficientdet_lite0.tflite in Resources */ = {isa = PBXBuildFile; fileRef = BF1FBCA92844A35100E05940 /* efficientdet_lite0.tflite */; };
 		BF43FFBB2845ABFD00D8FB74 /* efficientdet_lite1.tflite in Resources */ = {isa = PBXBuildFile; fileRef = BF1FBCAB2844A35100E05940 /* efficientdet_lite1.tflite */; };
 		BF43FFBC2845ABFD00D8FB74 /* efficientdet_lite2.tflite in Resources */ = {isa = PBXBuildFile; fileRef = BF1FBCAA2844A35100E05940 /* efficientdet_lite2.tflite */; };
 		BF43FFBD2845ABFD00D8FB74 /* ssd_mobilenet_v1.tflite in Resources */ = {isa = PBXBuildFile; fileRef = BF1FBCAC2844A35100E05940 /* ssd_mobilenet_v1.tflite */; };
 		BFE653CE2C08163100C55628 /* CameraFeedService.swift in Sources */ = {isa = PBXBuildFile; fileRef = BFE653CC2C08163100C55628 /* CameraFeedService.swift */; };
-		BFE653CF2C08163100C55628 /* ObjectDetectorService.swift in Sources */ = {isa = PBXBuildFile; fileRef = BFE653CD2C08163100C55628 /* ObjectDetectorService.swift */; };
 		BFE653D42C0816EE00C55628 /* RootViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = BFE653D02C0816EE00C55628 /* RootViewController.swift */; };
 		BFE653D52C0816EE00C55628 /* CameraViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = BFE653D12C0816EE00C55628 /* CameraViewController.swift */; };
 		BFE653D62C0816EE00C55628 /* BottomSheetViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = BFE653D22C0816EE00C55628 /* BottomSheetViewController.swift */; };
@@ -44,12 +44,12 @@
 		AA9AC5A5212D39FD000B4E9D /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		AA9AC5A8212D39FD000B4E9D /* Base */ = {isa = PBXFileReference; lastKnownFileType = file.storyboard; name = Base; path = Base.lproj/LaunchScreen.storyboard; sourceTree = "<group>"; };
 		AA9AC5AA212D39FD000B4E9D /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
+		BF17853A2C7C6B73005A6530 /* ObjectDetectorService.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = ObjectDetectorService.swift; sourceTree = "<group>"; };
 		BF1FBCA92844A35100E05940 /* efficientdet_lite0.tflite */ = {isa = PBXFileReference; lastKnownFileType = file; path = efficientdet_lite0.tflite; sourceTree = "<group>"; };
 		BF1FBCAA2844A35100E05940 /* efficientdet_lite2.tflite */ = {isa = PBXFileReference; lastKnownFileType = file; path = efficientdet_lite2.tflite; sourceTree = "<group>"; };
 		BF1FBCAB2844A35100E05940 /* efficientdet_lite1.tflite */ = {isa = PBXFileReference; lastKnownFileType = file; path = efficientdet_lite1.tflite; sourceTree = "<group>"; };
 		BF1FBCAC2844A35100E05940 /* ssd_mobilenet_v1.tflite */ = {isa = PBXFileReference; lastKnownFileType = file; path = ssd_mobilenet_v1.tflite; sourceTree = "<group>"; };
 		BFE653CC2C08163100C55628 /* CameraFeedService.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; name = CameraFeedService.swift; path = ObjectDetection/CameraFeedService.swift; sourceTree = SOURCE_ROOT; };
-		BFE653CD2C08163100C55628 /* ObjectDetectorService.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; name = ObjectDetectorService.swift; path = ObjectDetection/TFLite/ObjectDetectorService.swift; sourceTree = SOURCE_ROOT; };
 		BFE653D02C0816EE00C55628 /* RootViewController.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = RootViewController.swift; sourceTree = "<group>"; };
 		BFE653D12C0816EE00C55628 /* CameraViewController.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = CameraViewController.swift; sourceTree = "<group>"; };
 		BFE653D22C0816EE00C55628 /* BottomSheetViewController.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = BottomSheetViewController.swift; sourceTree = "<group>"; };
@@ -84,10 +84,10 @@
 			name = Frameworks;
 			sourceTree = "<group>";
 		};
-		AA09263B212D730700D5890F /* TFLite */ = {
+		AA09263B212D730700D5890F /* LiteRT */ = {
 			isa = PBXGroup;
 			children = (
-				BFE653CD2C08163100C55628 /* ObjectDetectorService.swift */,
+				BF17853A2C7C6B73005A6530 /* ObjectDetectorService.swift */,
 				BF1FBCA92844A35100E05940 /* efficientdet_lite0.tflite */,
 				BF1FBCAB2844A35100E05940 /* efficientdet_lite1.tflite */,
 				BF1FBCAA2844A35100E05940 /* efficientdet_lite2.tflite */,
@@ -97,7 +97,7 @@
 				BFE653DE2C081ED300C55628 /* efficientdet_lite2.txt */,
 				BFE653DD2C081ED300C55628 /* ssd_mobilenet_v1.txt */,
 			);
-			path = TFLite;
+			path = LiteRT;
 			sourceTree = "<group>";
 		};
 		AA756E682150CE88004BB0BC /* Views */ = {
@@ -134,7 +134,7 @@
 				AA9AC5D4212D43E0000B4E9D /* Camera Feed */,
 				AA9AC5D1212D43BD000B4E9D /* ViewControllers */,
 				AA756E682150CE88004BB0BC /* Views */,
-				AA09263B212D730700D5890F /* TFLite */,
+				AA09263B212D730700D5890F /* LiteRT */,
 				AA9AC59E212D39FC000B4E9D /* AppDelegate.swift */,
 				AA9AC5A2212D39FC000B4E9D /* Main.storyboard */,
 				AA9AC5A5212D39FD000B4E9D /* Assets.xcassets */,
@@ -319,9 +319,9 @@
 				AA756E6A2150CE89004BB0BC /* OverlayView.swift in Sources */,
 				BFE653D62C0816EE00C55628 /* BottomSheetViewController.swift in Sources */,
 				BFE653E82C081F3C00C55628 /* CVPixelBufferExtension.swift in Sources */,
-				BFE653CF2C08163100C55628 /* ObjectDetectorService.swift in Sources */,
 				AA9AC59F212D39FC000B4E9D /* AppDelegate.swift in Sources */,
 				BFE653D72C0816EE00C55628 /* MediaLibraryViewController.swift in Sources */,
+				BF17853B2C7C6B73005A6530 /* ObjectDetectorService.swift in Sources */,
 				BFE653E92C081F3C00C55628 /* UIImageExtension.swift in Sources */,
 				BFE653DB2C08189800C55628 /* DefaultConstants.swift in Sources */,
 				BFE653D42C0816EE00C55628 /* RootViewController.swift in Sources */,
@@ -473,7 +473,6 @@
 			isa = XCBuildConfiguration;
 			baseConfigurationReference = 5461A9602A0A3561DB9D597D /* Pods-ObjectDetection.debug.xcconfig */;
 			buildSettings = {
-				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CLANG_ENABLE_MODULES = YES;
 				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
@@ -502,7 +501,6 @@
 			isa = XCBuildConfiguration;
 			baseConfigurationReference = 661EBCB319BEACFB38192437 /* Pods-ObjectDetection.release.xcconfig */;
 			buildSettings = {
-				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CLANG_ENABLE_MODULES = YES;
 				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
