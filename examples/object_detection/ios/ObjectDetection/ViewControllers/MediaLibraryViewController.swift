@@ -29,7 +29,7 @@ class MediaLibraryViewController: UIViewController {
     static let milliSeconds = 1000.0
     static let savedPhotosNotAvailableText = "Saved photos album is not available."
     static let mediaEmptyText =
-    "Click + to add an image or a video to begin running the classification."
+    "Click + to add an image or a video to begin running the object detection."
     static let pickFromGalleryButtonInset: CGFloat = 10.0
   }
 

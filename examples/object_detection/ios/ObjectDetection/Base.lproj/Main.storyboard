@@ -298,10 +298,10 @@
                                 <rect key="frame" x="0.0" y="103" width="393" height="49"/>
                                 <color key="backgroundColor" white="0.0" alpha="0.0" colorSpace="custom" customColorSpace="genericGamma22GrayColorSpace"/>
                                 <items>
-                                    <tabBarItem title="" image="ic_camera" id="RkL-gF-iAS"/>
-                                    <tabBarItem title="" image="ic_gallery" id="r0s-AF-R54"/>
+                                    <tabBarItem title="" image="camera" catalog="system" id="RkL-gF-iAS"/>
+                                    <tabBarItem title="" image="photo.artframe" catalog="system" id="r0s-AF-R54"/>
                                 </items>
-                                <color key="selectedImageTintColor" red="1" green="0.53725490200000003" blue="0.0" alpha="1" colorSpace="custom" customColorSpace="sRGB"/>
+                                <color key="selectedImageTintColor" systemColor="systemBlueColor"/>
                             </tabBar>
                             <view opaque="NO" contentMode="scaleToFill" translatesAutoresizingMaskIntoConstraints="NO" id="h8u-i3-h7L">
                                 <rect key="frame" x="0.0" y="566" width="393" height="400"/>
@@ -531,10 +531,10 @@
         </scene>
     </scenes>
     <resources>
-        <image name="ic_camera" width="33.333332061767578" height="33.333332061767578"/>
-        <image name="ic_gallery" width="33.333332061767578" height="33.333332061767578"/>
+        <image name="camera" catalog="system" width="128" height="93"/>
         <image name="icn_chevron_down" width="48" height="48"/>
         <image name="icn_chevron_up" width="48" height="48"/>
+        <image name="photo.artframe" catalog="system" width="128" height="93"/>
         <image name="plus" catalog="system" width="128" height="113"/>
         <systemColor name="systemBackgroundColor">
             <color white="1" alpha="1" colorSpace="custom" customColorSpace="genericGamma22GrayColorSpace"/>
