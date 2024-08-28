@@ -39,9 +39,9 @@ androidx-camera-camera2 = { group = "androidx.camera", name = "camera-camera2", 
 androidx-camera-lifecycle = { group = "androidx.camera", name = "camera-lifecycle", version.ref = "cameraCore" }
 androidx-camera-view = { group = "androidx.camera", name = "camera-view", version.ref = "cameraCore" }
 
-litert = { group = "io.github.google-ai-edge", name = "litert", version.ref = "litert" }
-litert-support = { group = "io.github.google-ai-edge", name = "litert-support", version.ref = "litert" }
-litert-metadata = { group = "io.github.google-ai-edge", name = "litert-metadata", version.ref = "litert" }
+litert = { group = "com.google.ai.edge.litert", name = "litert", version.ref = "litert" }
+litert-support = { group = "com.google.ai.edge.litert", name = "litert-support", version.ref = "litert" }
+litert-metadata = { group = "com.google.ai.edge.litert", name = "litert-metadata", version.ref = "litert" }
 
 [plugins]
 androidApplication = { id = "com.android.application", version.ref = "agp" }
