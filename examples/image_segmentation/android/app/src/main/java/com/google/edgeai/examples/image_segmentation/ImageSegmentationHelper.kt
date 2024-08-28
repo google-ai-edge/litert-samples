@@ -1,3 +1,19 @@
+/*
+ * Copyright 2024 The Google AI Edge Authors. All Rights Reserved.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *       http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 package com.google.edgeai.examples.image_segmentation
 
 import android.content.Context
@@ -20,9 +36,6 @@ import org.tensorflow.lite.support.image.ImageProperties
 import org.tensorflow.lite.support.image.TensorImage
 import org.tensorflow.lite.support.image.ops.ResizeOp
 import org.tensorflow.lite.support.image.ops.Rot90Op
-import org.tensorflow.lite.task.vision.segmenter.ColoredLabel
-import org.tensorflow.lite.task.vision.segmenter.OutputType
-import org.tensorflow.lite.task.vision.segmenter.Segmentation
 import java.nio.ByteBuffer
 import java.nio.FloatBuffer
 import java.util.Random
@@ -44,20 +57,20 @@ class ImageSegmentationHelper(private val context: Context) {
     private val _error = MutableSharedFlow<Throwable?>()
 
     private var interpreter: Interpreter? = null
-    private val coloredLabels: List<ColoredLabel> = generateColoredLables()
+    private val coloredLabels: List<ColoredLabel> = coloredLabels()
 
-    /** Init a Interpreter from deeplap_v3.tflite.*/
+    /** Init a Interpreter from deeplap_v3.*/
     suspend fun initClassifier(delegate: Delegate = Delegate.CPU) {
         interpreter = try {
-            val tfliteBuffer = FileUtil.loadMappedFile(context, "deeplab_v3.tflite")
-            Log.i(TAG, "Done creating TFLite buffer from deeplab_v3.tflite")
+            val litertBuffer = FileUtil.loadMappedFile(context, "deeplab_v3.tflite")
+            Log.i(TAG, "Done creating LiteRT buffer from deeplab_v3")
             val options = Interpreter.Options().apply {
                 numThreads = 4
                 useNNAPI = delegate == Delegate.NNAPI
             }
-            Interpreter(tfliteBuffer, options)
+            Interpreter(litertBuffer, options)
         } catch (e: Exception) {
-            Log.i(TAG, "Create TFLite from deeplab_v3.tflite is failed ${e.message}")
+            Log.i(TAG, "Create LiteRT from deeplab_v3 is failed ${e.message}")
             _error.emit(e)
             null
         }
@@ -81,7 +94,7 @@ class ImageSegmentationHelper(private val context: Context) {
 
                 // Preprocess the image and convert it into a TensorImage for segmentation.
                 val tensorImage = imageProcessor.process(TensorImage.fromBitmap(bitmap))
-                val segmentResult = segmentWithTFLite(tensorImage)
+                val segmentResult = segment(tensorImage)
                 val inferenceTime = SystemClock.uptimeMillis() - startTime
                 if (isActive) {
                     _segmentation.emit(SegmentationResult(segmentResult, inferenceTime))
@@ -93,7 +106,7 @@ class ImageSegmentationHelper(private val context: Context) {
         }
     }
 
-    private fun segmentWithTFLite(tensorImage: TensorImage): SegmentationTflite {
+    private fun segment(tensorImage: TensorImage): Segmentation {
         val (_, h, w, c) = interpreter!!.getOutputTensor(0).shape()
         val outputBuffer = FloatBuffer.allocate(h * w * c)
 
@@ -114,8 +127,8 @@ class ImageSegmentationHelper(private val context: Context) {
                 .build()
         val maskImage = TensorImage()
         maskImage.load(mask, imageProperties)
-        return SegmentationTflite(
-            OutputType.CATEGORY_MASK, listOf(maskImage), coloredLabels
+        return Segmentation(
+            listOf(maskImage), coloredLabels
         )
     }
 
@@ -142,86 +155,7 @@ class ImageSegmentationHelper(private val context: Context) {
         return mask
     }
 
-    class SegmentationTflite(
-        outputType: OutputType?, masks: List<TensorImage>?, coloredLabels: List<ColoredLabel>?
-    ) : Segmentation() {
-        private var outputType: OutputType? = null
-        private var masks: List<TensorImage>? = null
-        private var coloredLabels: List<ColoredLabel>? = null
-
-        init {
-            if (outputType == null) {
-                throw NullPointerException("Null outputType")
-            } else {
-                this.outputType = outputType
-                if (masks == null) {
-                    throw NullPointerException("Null masks")
-                } else {
-                    this.masks = masks
-                    if (coloredLabels == null) {
-                        throw NullPointerException("Null coloredLabels")
-                    } else {
-                        this.coloredLabels = coloredLabels
-                    }
-                }
-            }
-        }
-
-        override fun getOutputType(): OutputType {
-            return outputType!!
-        }
-
-        override fun getMasks(): List<TensorImage> {
-            return masks!!
-        }
-
-        override fun getColoredLabels(): List<ColoredLabel> {
-            return coloredLabels!!
-        }
-
-        override fun toString(): String {
-            return "Segmentation{outputType=$outputType, masks=$masks, coloredLabels=$coloredLabels}"
-        }
-    }
-
-    internal class ColoredLabelTflite(label: String?, displayName: String?, argb: Int) :
-        ColoredLabel() {
-        private var label: String? = null
-        private var displayName: String? = null
-        private var argb = 0
-
-        init {
-            if (label == null) {
-                throw java.lang.NullPointerException("Null label")
-            } else {
-                this.label = label
-                if (displayName == null) {
-                    throw java.lang.NullPointerException("Null displayName")
-                } else {
-                    this.displayName = displayName
-                    this.argb = argb
-                }
-            }
-        }
-
-        override fun getlabel(): String {
-            return label!!
-        }
-
-        override fun getDisplayName(): String {
-            return displayName!!
-        }
-
-        override fun getArgb(): Int {
-            return argb
-        }
-
-        override fun toString(): String {
-            return "ColoredLabel{label=$label, displayName=$displayName, argb=$argb}"
-        }
-    }
-
-    private fun generateColoredLables(): List<ColoredLabel> {
+    private fun coloredLabels(): List<ColoredLabel> {
         val labels = listOf(
             "background",
             "aeroplane",
@@ -247,7 +181,7 @@ class ImageSegmentationHelper(private val context: Context) {
             "------"
         )
         val colors = MutableList(labels.size) {
-            ColoredLabelTflite(
+            ColoredLabel(
                 labels[0], "", Color.BLACK
             )
         }
@@ -262,12 +196,18 @@ class ImageSegmentationHelper(private val context: Context) {
             hue %= 1.0
             // Adjust saturation & lightness as needed
             val color = Color.HSVToColor(floatArrayOf(hue.toFloat() * 360, 0.7f, 0.8f))
-            colors[idx] = ColoredLabelTflite(labels[idx], "", color)
+            colors[idx] = ColoredLabel(labels[idx], "", color)
         }
 
         return colors
     }
 
+    data class Segmentation(
+        val masks: List<TensorImage>,
+        val coloredLabels: List<ColoredLabel>,
+    )
+
+    data class ColoredLabel(val label: String, val displayName: String, val argb: Int)
 
     enum class Delegate {
         CPU, NNAPI
