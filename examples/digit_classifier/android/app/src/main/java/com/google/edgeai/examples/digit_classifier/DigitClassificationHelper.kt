@@ -1,5 +1,5 @@
 /*
- * Copyright 2024 The TensorFlow Authors. All Rights Reserved.
+ * Copyright 2024 The Google AI Edge Authors. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -56,9 +56,9 @@ class DigitClassificationHelper(private val context: Context) {
     /** Init a Interpreter from asset*/
     private fun initHelper() {
         interpreter = try {
-            val tfliteBuffer = FileUtil.loadMappedFile(context, "digit_classifier.tflite")
+            val litertBuffer = FileUtil.loadMappedFile(context, "digit_classifier.tflite")
             Log.i(TAG, "Done creating TFLite buffer from asset")
-            Interpreter(tfliteBuffer, Interpreter.Options())
+            Interpreter(litertBuffer, Interpreter.Options())
         } catch (e: Exception) {
             Log.e(TAG, "Initializing TensorFlow Lite has failed with error: ${e.message}")
             return
