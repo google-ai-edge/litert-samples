@@ -1,5 +1,5 @@
 /*
- * Copyright 2024 The TensorFlow Authors. All Rights Reserved.
+ * Copyright 2024 The Google AI Edge Authors. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -19,8 +19,6 @@ package com.google.edgeai.examples.reinforcement_learning
 import android.content.Context
 import android.util.Log
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.flow.MutableSharedFlow
-import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.withContext
 import org.tensorflow.lite.Interpreter
 import org.tensorflow.lite.support.common.FileUtil
@@ -38,9 +36,9 @@ class ReinforcementLearningHelper(private val context: Context) {
     /** Init a Interpreter from asset*/
     private fun initHelper() {
         interpreter = try {
-            val tfliteBuffer = FileUtil.loadMappedFile(context, "planestrike.tflite")
+            val litertBuffer = FileUtil.loadMappedFile(context, "planestrike.tflite")
             Log.i(TAG, "Done creating TFLite buffer from asset")
-            Interpreter(tfliteBuffer, Interpreter.Options())
+            Interpreter(litertBuffer, Interpreter.Options())
         } catch (e: Exception) {
             Log.i(TAG, "Initializing TensorFlow Lite has failed with error: ${e.message}")
             return
