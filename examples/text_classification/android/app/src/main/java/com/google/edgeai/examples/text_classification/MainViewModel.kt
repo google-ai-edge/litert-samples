@@ -1,5 +1,5 @@
 /*
- * Copyright 2024 The TensorFlow Authors. All Rights Reserved.
+ * Copyright 2024 The Google AI Edge Authors. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -30,7 +30,6 @@ import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.runBlocking
 
 class MainViewModel(private val textClassificationHelper: TextClassificationHelper) : ViewModel() {
     companion object {
@@ -88,7 +87,7 @@ class MainViewModel(private val textClassificationHelper: TextClassificationHelp
     /*
      * Stop classification and setup Interpreter with new model
      */
-    fun setModel(model: TextClassificationHelper.TFLiteModel) {
+    fun setModel(model: TextClassificationHelper.Model) {
         viewModelScope.launch {
             textClassificationHelper.stopClassify()
             textClassificationHelper.initClassifier(model)
