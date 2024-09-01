@@ -46,16 +46,8 @@ class BottomSheetViewController: UIViewController {
 
   @IBOutlet weak var toggleBottomSheetButton: UIButton!
 
-  @IBOutlet weak var tableView: UITableView!
-
-  // MARK: Constants
-  private let normalCellHeight: CGFloat = 27.0
-  private var objectDetectorResult: Result?
 
   // MARK: Computed properties
-  var collapsedHeight: CGFloat {
-    return normalCellHeight * CGFloat(InferenceConfigManager.sharedInstance.maxResults)
-  }
   var isUIEnabled: Bool = false {
     didSet {
       enableOrDisableClicks()
@@ -75,8 +67,6 @@ class BottomSheetViewController: UIViewController {
     } else {
       inferenceTimeLabel.text = ""
     }
-    objectDetectorResult = result
-    tableView.reloadData()
   }
 
   // MARK: - Private function
@@ -102,9 +92,6 @@ class BottomSheetViewController: UIViewController {
     choseModelButton.menu = UIMenu(children: actions)
     choseModelButton.showsMenuAsPrimaryAction = true
     choseModelButton.changesSelectionAsPrimaryAction = true
-
-    // Setup table view cell height
-    tableView.rowHeight = normalCellHeight
   }
 
   private func enableOrDisableClicks() {
@@ -135,38 +122,4 @@ class BottomSheetViewController: UIViewController {
     InferenceConfigManager.sharedInstance.maxResults = maxResults
     maxResultLabel.text = "\(maxResults)"
   }
-}
-
-extension BottomSheetViewController: UITableViewDataSource {
-  func tableView(_ tableView: UITableView, numberOfRowsInSection section: Int) -> Int {
-    return InferenceConfigManager.sharedInstance.maxResults
-  }
-
-  func tableView(_ tableView: UITableView, cellForRowAt indexPath: IndexPath) -> UITableViewCell {
-    let cell = tableView.dequeueReusableCell(withIdentifier: "INFO_CELL") as! InfoCell
-    guard let objectDetectorResult = objectDetectorResult else {
-      cell.fieldNameLabel.text = "--"
-      cell.infoLabel.text = "--"
-      return cell
-    }
-    if indexPath.row < objectDetectorResult.objects.count {
-      let object = objectDetectorResult.objects[indexPath.row]
-      
-      cell.fieldNameLabel.textColor = object.color
-      cell.infoLabel.textColor = object.color
-
-      cell.fieldNameLabel.text = object.categoryLabel
-      cell.infoLabel.text = String(format: "%.2f", object.score)
-    } else {
-      cell.fieldNameLabel.text = "--"
-      cell.infoLabel.text = "--"
-    }
-    return cell
-  }
-}
-
-// MARK: Info cell
-class InfoCell: UITableViewCell {
-  @IBOutlet weak var fieldNameLabel: UILabel!
-  @IBOutlet weak var infoLabel: UILabel!
 }

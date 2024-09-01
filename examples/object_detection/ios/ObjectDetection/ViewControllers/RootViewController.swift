@@ -60,8 +60,8 @@ class RootViewController: UIViewController {
     }
 
     return bottomSheetViewController.toggleBottomSheetButton.isSelected ?
-      Constants.inferenceBottomHeight - self.view.safeAreaInsets.bottom + bottomSheetViewController.collapsedHeight :
-    Constants.expandButtonHeight + Constants.expandButtonTopSpace + bottomSheetViewController.collapsedHeight
+      Constants.inferenceBottomHeight - self.view.safeAreaInsets.bottom:
+    Constants.expandButtonHeight + Constants.expandButtonTopSpace
   }
 
   // MARK: View Handling Methods
@@ -78,7 +78,7 @@ class RootViewController: UIViewController {
   override func viewWillLayoutSubviews() {
     super.viewWillLayoutSubviews()
     guard let bottomSheetViewController = bottomSheetViewController else { return }
-    bottomViewHeightConstraint.constant = bottomSheetViewController.collapsedHeight + Constants.inferenceBottomHeight
+    bottomViewHeightConstraint.constant = Constants.inferenceBottomHeight
     if bottomSheetViewController.toggleBottomSheetButton.isSelected == false {
       bottomSheetViewBottomSpace.constant = -Constants.inferenceBottomHeight
       + Constants.expandButtonHeight
@@ -144,7 +144,7 @@ class RootViewController: UIViewController {
 
   @objc private func changebottomViewHeightConstraint() {
     guard let bottomSheetViewController = bottomSheetViewController else { return }
-    bottomViewHeightConstraint.constant = bottomSheetViewController.collapsedHeight + Constants.inferenceBottomHeight
+    bottomViewHeightConstraint.constant = Constants.inferenceBottomHeight
   }
 
   private func instantiateMediaLibraryViewController() {
