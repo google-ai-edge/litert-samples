@@ -84,7 +84,7 @@ fun QuickSampleScreen(
         }
 
         Text(
-            text = "Click UPSAMPLE button below will we use TFLite to generate a corresponding " +
+            text = "Click UPSAMPLE button below will we use LiteRT to generate a corresponding " +
                     "high resolution image based n your chosen image"
         )
         Spacer(modifier = Modifier.height(5.dp))
