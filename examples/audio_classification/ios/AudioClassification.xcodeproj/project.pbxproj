@@ -426,7 +426,7 @@
 				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_TEAM = H83UK2M7VU;
+				DEVELOPMENT_TEAM = "";
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = AudioClassification/Info.plist;
 				INFOPLIST_KEY_NSMicrophoneUsageDescription = "This app will use the microphone to get audio input in order to classify the sound made by user.";
@@ -458,7 +458,7 @@
 				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_TEAM = H83UK2M7VU;
+				DEVELOPMENT_TEAM = "";
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = AudioClassification/Info.plist;
 				INFOPLIST_KEY_NSMicrophoneUsageDescription = "This app will use the microphone to get audio input in order to classify the sound made by user.";
