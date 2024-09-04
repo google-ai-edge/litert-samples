@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-package com.google.edgeai.examples.reinforcement_learning
+package com.google.aiedge.examples.reinforcement_learning
 
 import android.content.Context
 import android.graphics.Point

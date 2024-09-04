@@ -5,11 +5,11 @@ plugins {
 }
 
 android {
-    namespace = "com.google.edgeai.examples.reinforcement_learning"
+    namespace = "com.google.aiedge.examples.reinforcement_learning"
     compileSdk = 34
 
     defaultConfig {
-        applicationId = "com.google.edgeai.examples.reinforcement_learning"
+        applicationId = "com.google.aiedge.examples.reinforcement_learning"
         minSdk = 24
         targetSdk = 34
         versionCode = 1
