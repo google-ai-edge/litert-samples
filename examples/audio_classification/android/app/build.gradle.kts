@@ -5,11 +5,11 @@ plugins {
 }
 
 android {
-    namespace = "com.google.edgeai.examples.audio_classification"
+    namespace = "com.google.aiedge.examples.audio_classification"
     compileSdk = 34
 
     defaultConfig {
-        applicationId = "com.google.edgeai.examples.audio_classification"
+        applicationId = "com.google.aiedge.examples.audio_classification"
         minSdk = 24
         targetSdk = 34
         versionCode = 1

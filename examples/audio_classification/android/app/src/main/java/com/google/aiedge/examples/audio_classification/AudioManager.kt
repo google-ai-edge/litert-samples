@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-package com.google.edgeai.examples.audio_classification
+package com.google.aiedge.examples.audio_classification
 
 import android.annotation.SuppressLint
 import android.media.AudioFormat

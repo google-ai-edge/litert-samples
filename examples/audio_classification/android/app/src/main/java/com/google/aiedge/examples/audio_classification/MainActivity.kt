@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-package com.google.edgeai.examples.audio_classification
+package com.google.aiedge.examples.audio_classification
 
 import android.content.pm.PackageManager
 import android.os.Bundle
@@ -74,6 +74,7 @@ import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.google.aiedge.examples.audio_classification.R
 import java.util.Locale
 
 class MainActivity : ComponentActivity() {
