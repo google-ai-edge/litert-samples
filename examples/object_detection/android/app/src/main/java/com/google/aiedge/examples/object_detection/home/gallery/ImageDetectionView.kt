@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-package com.google.edgeai.examples.object_detection.home.gallery
+package com.google.aiedge.examples.object_detection.home.gallery
 
 import android.graphics.Bitmap
 import android.graphics.ImageDecoder
@@ -38,9 +38,9 @@ import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
-import com.google.edgeai.examples.object_detection.UiState
-import com.google.edgeai.examples.object_detection.composables.ResultsOverlay
-import com.google.edgeai.examples.object_detection.utils.getFittedBoxSize
+import com.google.aiedge.examples.object_detection.UiState
+import com.google.aiedge.examples.object_detection.composables.ResultsOverlay
+import com.google.aiedge.examples.object_detection.utils.getFittedBoxSize
 
 // ImageDetectionView detects objects in an image and then displays that image with a results
 // overlay on top of it

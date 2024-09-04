@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-package com.google.edgeai.examples.object_detection
+package com.google.aiedge.examples.object_detection
 
 import android.graphics.Bitmap
 import android.os.Build
@@ -65,9 +65,9 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import com.google.edgeai.examples.object_detection.home.camera.CameraScreen
-import com.google.edgeai.examples.object_detection.home.gallery.GalleryScreen
-import com.google.edgeai.examples.object_detection.objectdetector.ObjectDetectorHelper
+import com.google.aiedge.examples.object_detection.home.camera.CameraScreen
+import com.google.aiedge.examples.object_detection.home.gallery.GalleryScreen
+import com.google.aiedge.examples.object_detection.objectdetector.ObjectDetectorHelper
 import java.util.Locale
 
 class MainActivity : ComponentActivity() {

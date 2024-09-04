@@ -14,10 +14,10 @@
  * limitations under the License.
  */
 
-package com.google.edgeai.examples.object_detection
+package com.google.aiedge.examples.object_detection
 
 import androidx.compose.runtime.Immutable
-import com.google.edgeai.examples.object_detection.objectdetector.ObjectDetectorHelper
+import com.google.aiedge.examples.object_detection.objectdetector.ObjectDetectorHelper
 
 @Immutable
 class UiState(

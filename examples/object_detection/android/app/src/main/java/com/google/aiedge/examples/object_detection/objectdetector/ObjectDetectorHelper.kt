@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-package com.google.edgeai.examples.object_detection.objectdetector
+package com.google.aiedge.examples.object_detection.objectdetector
 
 import android.content.Context
 import android.graphics.Bitmap

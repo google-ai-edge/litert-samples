@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-package com.google.edgeai.examples.object_detection.utils
+package com.google.aiedge.examples.object_detection.utils
 
 import androidx.compose.ui.geometry.Size
 
