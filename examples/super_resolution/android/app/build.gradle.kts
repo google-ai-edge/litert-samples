@@ -5,11 +5,11 @@ plugins {
 }
 
 android {
-    namespace = "com.google.edgeai.examples.super_resolution"
+    namespace = "com.google.aiedge.examples.super_resolution"
     compileSdk = 34
 
     defaultConfig {
-        applicationId = "com.google.edgeai.examples.super_resolution"
+        applicationId = "com.google.aiedge.examples.super_resolution"
         minSdk = 24
         targetSdk = 34
         versionCode = 1
@@ -75,6 +75,8 @@ dependencies {
     implementation(libs.androidx.camera.view)
     implementation(libs.androidx.camera.camera2)
     implementation(libs.coil.compose)
+    implementation(libs.litert.api)
+    implementation(libs.google.litert)
 
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.junit)

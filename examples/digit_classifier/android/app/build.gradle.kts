@@ -5,11 +5,11 @@ plugins {
 }
 
 android {
-    namespace = "com.google.edgeai.examples.digit_classifier"
+    namespace = "com.google.aiedge.examples.digit_classifier"
     compileSdk = 34
 
     defaultConfig {
-        applicationId = "com.google.edgeai.examples.digit_classifier"
+        applicationId = "com.google.aiedge.examples.digit_classifier"
         minSdk = 24
         targetSdk = 34
         versionCode = 1
