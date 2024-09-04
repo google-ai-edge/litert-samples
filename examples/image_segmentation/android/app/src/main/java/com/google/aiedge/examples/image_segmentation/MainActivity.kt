@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-package com.google.edgeai.examples.image_segmentation
+package com.google.aiedge.examples.image_segmentation
 
 import android.graphics.Bitmap
 import android.os.Bundle
@@ -67,8 +67,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import com.google.edgeai.examples.image_segmentation.view.CameraScreen
-import com.google.edgeai.examples.image_segmentation.view.GalleryScreen
+import com.google.aiedge.examples.image_segmentation.view.CameraScreen
+import com.google.aiedge.examples.image_segmentation.view.GalleryScreen
 
 class MainActivity : ComponentActivity() {
     @OptIn(ExperimentalMaterialApi::class)

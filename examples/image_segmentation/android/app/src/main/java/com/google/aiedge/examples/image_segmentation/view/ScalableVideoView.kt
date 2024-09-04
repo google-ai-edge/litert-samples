@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-package com.google.edgeai.examples.image_segmentation.view
+package com.google.aiedge.examples.image_segmentation.view
 
 import android.content.Context
 import android.util.AttributeSet

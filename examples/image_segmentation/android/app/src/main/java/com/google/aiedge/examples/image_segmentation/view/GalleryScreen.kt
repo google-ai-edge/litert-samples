@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-package com.google.edgeai.examples.image_segmentation.view
+package com.google.aiedge.examples.image_segmentation.view
 
 import android.content.Context
 import android.graphics.Bitmap
@@ -31,7 +31,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.graphics.drawable.toBitmap
 import coil.compose.AsyncImage
-import com.google.edgeai.examples.image_segmentation.UiState
+import com.google.aiedge.examples.image_segmentation.UiState
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.isActive

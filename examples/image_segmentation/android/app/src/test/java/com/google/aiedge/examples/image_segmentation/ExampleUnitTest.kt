@@ -1,4 +1,4 @@
-package com.google.edgeai.examples.image_segmentation
+package com.google.aiedge.examples.image_segmentation
 
 import org.junit.Test
 

@@ -14,14 +14,14 @@
  * limitations under the License.
  */
 
-package com.google.edgeai.examples.image_segmentation.view
+package com.google.aiedge.examples.image_segmentation.view
 
 import android.graphics.Bitmap
 import androidx.compose.foundation.Canvas
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.asImageBitmap
-import com.google.edgeai.examples.image_segmentation.OverlayInfo
+import com.google.aiedge.examples.image_segmentation.OverlayInfo
 
 @Composable
 fun SegmentationOverlay(modifier: Modifier = Modifier, overlayInfo: OverlayInfo) {

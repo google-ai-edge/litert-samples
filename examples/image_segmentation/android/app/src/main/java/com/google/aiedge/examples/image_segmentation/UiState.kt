@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-package com.google.edgeai.examples.image_segmentation
+package com.google.aiedge.examples.image_segmentation
 
 import android.graphics.Color
 import android.net.Uri
