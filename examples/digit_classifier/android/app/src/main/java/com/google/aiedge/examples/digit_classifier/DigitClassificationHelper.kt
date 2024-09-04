@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-package com.google.edgeai.examples.digit_classifier
+package com.google.aiedge.examples.digit_classifier
 
 import android.content.Context
 import android.graphics.Bitmap
