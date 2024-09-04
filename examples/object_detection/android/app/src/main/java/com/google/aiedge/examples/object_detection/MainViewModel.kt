@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-package com.google.edgeai.examples.object_detection
+package com.google.aiedge.examples.object_detection
 
 import android.content.Context
 import android.graphics.Bitmap
@@ -23,7 +23,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.CreationExtras
-import com.google.edgeai.examples.object_detection.objectdetector.ObjectDetectorHelper
+import com.google.aiedge.examples.object_detection.objectdetector.ObjectDetectorHelper
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted

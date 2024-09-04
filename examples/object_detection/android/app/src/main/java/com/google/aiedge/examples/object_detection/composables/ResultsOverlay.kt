@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-package com.google.edgeai.examples.object_detection.composables
+package com.google.aiedge.examples.object_detection.composables
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -30,8 +30,8 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
-import com.google.edgeai.examples.object_detection.objectdetector.ObjectDetectorHelper
-import com.google.edgeai.examples.object_detection.ui.theme.Turquoise
+import com.google.aiedge.examples.object_detection.objectdetector.ObjectDetectorHelper
+import com.google.aiedge.examples.object_detection.ui.theme.Turquoise
 
 // This composable is used to display the results of the object detection
 

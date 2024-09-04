@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-package com.google.edgeai.examples.object_detection.home.gallery
+package com.google.aiedge.examples.object_detection.home.gallery
 
 import android.graphics.Bitmap
 import android.media.MediaMetadataRetriever
@@ -44,9 +44,9 @@ import androidx.compose.ui.viewinterop.AndroidView
 import com.google.android.exoplayer2.ExoPlayer
 import com.google.android.exoplayer2.MediaItem
 import com.google.android.exoplayer2.ui.StyledPlayerView
-import com.google.edgeai.examples.object_detection.UiState
-import com.google.edgeai.examples.object_detection.composables.ResultsOverlay
-import com.google.edgeai.examples.object_detection.utils.getFittedBoxSize
+import com.google.aiedge.examples.object_detection.UiState
+import com.google.aiedge.examples.object_detection.composables.ResultsOverlay
+import com.google.aiedge.examples.object_detection.utils.getFittedBoxSize
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.isActive

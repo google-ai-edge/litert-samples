@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-package com.google.edgeai.examples.object_detection.ui.theme
+package com.google.aiedge.examples.object_detection.ui.theme
 
 import androidx.compose.ui.graphics.Color
 

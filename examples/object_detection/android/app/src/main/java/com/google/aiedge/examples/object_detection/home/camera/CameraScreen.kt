@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-package com.google.edgeai.examples.object_detection.home.camera
+package com.google.aiedge.examples.object_detection.home.camera
 
 import android.content.pm.PackageManager
 import android.view.ViewGroup.LayoutParams.MATCH_PARENT
@@ -47,8 +47,8 @@ import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.LifecycleOwner
 import com.google.common.util.concurrent.ListenableFuture
-import com.google.edgeai.examples.object_detection.UiState
-import com.google.edgeai.examples.object_detection.composables.ResultsOverlay
+import com.google.aiedge.examples.object_detection.UiState
+import com.google.aiedge.examples.object_detection.composables.ResultsOverlay
 import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
 

@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-package com.google.edgeai.examples.object_detection.home.gallery
+package com.google.aiedge.examples.object_detection.home.gallery
 
 import android.graphics.Bitmap
 import android.net.Uri
@@ -43,8 +43,8 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.google.edgeai.examples.object_detection.UiState
-import com.google.edgeai.examples.object_detection.ui.theme.Turquoise
+import com.google.aiedge.examples.object_detection.UiState
+import com.google.aiedge.examples.object_detection.ui.theme.Turquoise
 
 // Here we have the gallery view which is displayed in Home screen
 

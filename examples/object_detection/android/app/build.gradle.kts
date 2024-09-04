@@ -5,11 +5,11 @@ plugins {
 }
 
 android {
-    namespace = "com.google.edgeai.examples.object_detection"
+    namespace = "com.google.aiedge.examples.object_detection"
     compileSdk = 34
 
     defaultConfig {
-        applicationId = "com.google.edgeai.examples.object_detection"
+        applicationId = "com.google.aiedge.examples.object_detection"
         minSdk = 24
         targetSdk = 34
         versionCode = 1
