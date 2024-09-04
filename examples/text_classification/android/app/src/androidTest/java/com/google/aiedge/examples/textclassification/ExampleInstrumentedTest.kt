@@ -1,4 +1,4 @@
-package com.example.textclassification
+package com.google.aiedge.examples.textclassification
 
 import androidx.test.platform.app.InstrumentationRegistry
 import androidx.test.ext.junit.runners.AndroidJUnit4
@@ -19,6 +19,6 @@ class ExampleInstrumentedTest {
     fun useAppContext() {
         // Context of the app under test.
         val appContext = InstrumentationRegistry.getInstrumentation().targetContext
-        assertEquals("com.example.textclassification", appContext.packageName)
+        assertEquals("com.google.aiedge.examples.textclassification", appContext.packageName)
     }
 }

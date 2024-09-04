@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-package com.google.edgeai.examples.text_classification
+package com.google.aiedge.examples.textclassification
 
 import androidx.compose.runtime.Immutable
 
