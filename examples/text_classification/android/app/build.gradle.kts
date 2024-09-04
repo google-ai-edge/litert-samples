@@ -5,11 +5,11 @@ plugins {
 }
 
 android {
-    namespace = "com.google.edgeai.examples.text_classification"
+    namespace = "com.google.aiedge.examples.textclassification"
     compileSdk = 34
 
     defaultConfig {
-        applicationId = "com.google.edgeai.examples.text_classification"
+        applicationId = "com.google.aiedge.examples.textclassification"
         minSdk = 24
         targetSdk = 34
         versionCode = 1
