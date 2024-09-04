@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-package com.google.edgeai.examples.super_resolution
+package com.google.aiedge.examples.super_resolution
 
 import android.os.Bundle
 import androidx.activity.ComponentActivity
@@ -55,8 +55,9 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.google.edgeai.examples.super_resolution.gallery.ImagePickerScreen
-import com.google.edgeai.examples.super_resolution.quicksample.QuickSampleScreen
+import com.google.aiedge.examples.super_resolution.gallery.ImagePickerScreen
+import com.google.aiedge.examples.super_resolution.quicksample.QuickSampleScreen
+import com.google.aiedge.examples.super_resolution.R
 
 class MainActivity : ComponentActivity() {
     @OptIn(ExperimentalMaterialApi::class)

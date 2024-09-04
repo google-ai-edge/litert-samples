@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-package com.google.edgeai.examples.super_resolution.gallery
+package com.google.aiedge.examples.super_resolution.gallery
 
 import android.content.Context
 import android.graphics.Bitmap
@@ -24,7 +24,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.CreationExtras
-import com.google.edgeai.examples.super_resolution.ImageSuperResolutionHelper
+import com.google.aiedge.examples.super_resolution.ImageSuperResolutionHelper
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.Job

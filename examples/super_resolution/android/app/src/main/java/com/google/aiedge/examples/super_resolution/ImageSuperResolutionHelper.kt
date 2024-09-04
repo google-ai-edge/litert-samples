@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-package com.google.edgeai.examples.super_resolution
+package com.google.aiedge.examples.super_resolution
 
 import android.content.Context
 import android.graphics.Bitmap

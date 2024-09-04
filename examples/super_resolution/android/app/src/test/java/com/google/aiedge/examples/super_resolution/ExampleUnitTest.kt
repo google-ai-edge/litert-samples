@@ -1,4 +1,4 @@
-package com.google.edgeai.examples.super_resolution
+package com.google.aiedge.examples.super_resolution
 
 import org.junit.Test
 

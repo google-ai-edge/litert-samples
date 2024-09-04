@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-package com.google.edgeai.examples.super_resolution.quicksample
+package com.google.aiedge.examples.super_resolution.quicksample
 
 import android.graphics.BitmapFactory
 import androidx.compose.foundation.clickable
@@ -36,7 +36,7 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import coil.compose.AsyncImage
-import com.google.edgeai.examples.super_resolution.ImageSuperResolutionHelper
+import com.google.aiedge.examples.super_resolution.ImageSuperResolutionHelper
 import java.io.InputStream
 
 @Composable
