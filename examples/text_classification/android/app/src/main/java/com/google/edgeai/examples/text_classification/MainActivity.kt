@@ -1,5 +1,5 @@
 /*
- * Copyright 2024 The TensorFlow Authors. All Rights Reserved.
+ * Copyright 2024 The Google AI Edge Authors. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -29,6 +29,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.material3.BottomSheetScaffold
 import androidx.compose.material3.Button
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -46,6 +47,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.painter.ColorPainter
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.res.painterResource
@@ -123,17 +125,22 @@ fun AudioClassificationScreen(
 @Composable
 fun Header(modifier: Modifier = Modifier) {
     TopAppBar(
-        modifier = modifier,
         colors = TopAppBarDefaults.topAppBarColors(
-            containerColor = Color.LightGray
+            containerColor = Color.LightGray,
         ),
         title = {
-            Image(
+            Row(
                 modifier = Modifier.fillMaxSize(),
-                painter = painterResource(id = R.drawable.tfl_logo),
-                contentDescription = null,
-            )
-
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Image(
+                    modifier = Modifier.size(50.dp),
+                    painter = ColorPainter(color = Color.White),
+                    contentDescription = null,
+                )
+                Spacer(modifier = modifier.width(10.dp))
+                Text(text = "LiteRT", color = Color.Blue, fontWeight = FontWeight.SemiBold)
+            }
         },
     )
 }
@@ -142,7 +149,7 @@ fun Header(modifier: Modifier = Modifier) {
 fun BottomSheetContent(
     inferenceTime: Long,
     modifier: Modifier = Modifier,
-    onModelSelected: (TextClassificationHelper.TFLiteModel) -> Unit,
+    onModelSelected: (TextClassificationHelper.Model) -> Unit,
 ) {
     Column(modifier = modifier.padding(horizontal = 20.dp, vertical = 5.dp)) {
         Row {
@@ -195,9 +202,9 @@ fun ClassificationBody(
 @Composable
 fun ModelSelection(
     modifier: Modifier = Modifier,
-    onModelSelected: (TextClassificationHelper.TFLiteModel) -> Unit,
+    onModelSelected: (TextClassificationHelper.Model) -> Unit,
 ) {
-    val radioOptions = TextClassificationHelper.TFLiteModel.entries.map { it.name }.toList()
+    val radioOptions = TextClassificationHelper.Model.entries.map { it.name }.toList()
     var selectedOption by remember { mutableStateOf(radioOptions.first()) }
 
     Column(modifier = modifier) {
@@ -210,7 +217,7 @@ fun ModelSelection(
                     selected = (option == selectedOption),
                     onClick = {
                         if (selectedOption == option) return@RadioButton
-                        onModelSelected(TextClassificationHelper.TFLiteModel.valueOf(option))
+                        onModelSelected(TextClassificationHelper.Model.valueOf(option))
                         selectedOption = option
                     }, // Recommended for accessibility with screen readers
                 )

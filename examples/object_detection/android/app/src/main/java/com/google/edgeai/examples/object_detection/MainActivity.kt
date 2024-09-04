@@ -1,11 +1,11 @@
 /*
- * Copyright 2024 The TensorFlow Authors. All Rights Reserved.
+ * Copyright 2024 The Google AI Edge Authors. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *             http://www.apache.org/licenses/LICENSE-2.0
+ *       http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -13,6 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+
 package com.google.edgeai.examples.object_detection
 
 import android.graphics.Bitmap
@@ -34,6 +35,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowDropDown
@@ -57,7 +59,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.graphics.painter.ColorPainter
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -239,13 +242,21 @@ class MainActivity : ComponentActivity() {
     fun Header(modifier: Modifier = Modifier) {
         TopAppBar(
             modifier = modifier,
-            colors = TopAppBarDefaults.topAppBarColors().copy(containerColor = Color.LightGray),
+            colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.LightGray),
             title = {
-                Image(
+                Row(
                     modifier = Modifier.fillMaxSize(),
-                    painter = painterResource(id = R.drawable.tfl_logo),
-                    contentDescription = null,
-                )
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Image(
+                        modifier = Modifier.size(50.dp),
+                        painter = ColorPainter(color = Color.White),
+                        contentDescription = null,
+                    )
+
+                    Spacer(modifier = modifier.width(10.dp))
+                    Text(text = "LiteRT", color = Color.Blue, fontWeight = FontWeight.SemiBold)
+                }
             },
         )
     }

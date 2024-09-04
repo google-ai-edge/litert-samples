@@ -1,5 +1,5 @@
 /*
- * Copyright 2024 The TensorFlow Authors. All Rights Reserved.
+ * Copyright 2024 The Google AI Edge Authors. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -51,6 +51,7 @@ import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -62,6 +63,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.painter.ColorPainter
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.integerArrayResource
 import androidx.compose.ui.res.painterResource
@@ -107,9 +109,7 @@ fun AudioClassificationScreen(
     LaunchedEffect(key1 = uiState.errorMessage) {
         if (uiState.errorMessage != null) {
             Toast.makeText(
-                context,
-                "${uiState.errorMessage}",
-                Toast.LENGTH_SHORT
+                context, "${uiState.errorMessage}", Toast.LENGTH_SHORT
             ).show()
             viewModel.errorMessageShown()
         }
@@ -173,14 +173,22 @@ fun AudioClassificationScreen(
 @Composable
 fun Header(modifier: Modifier = Modifier) {
     TopAppBar(
-        modifier = modifier,
+        colors = TopAppBarDefaults.topAppBarColors(
+            containerColor = Color.LightGray,
+        ),
         title = {
-            Image(
+            Row(
                 modifier = Modifier.fillMaxSize(),
-                painter = painterResource(id = R.drawable.tfl_logo),
-                contentDescription = null,
-            )
-
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Image(
+                    modifier = Modifier.size(50.dp),
+                    painter = ColorPainter(color = Color.White),
+                    contentDescription = null,
+                )
+                Spacer(modifier = modifier.width(10.dp))
+                Text(text = "LiteRT", color = Color.Blue, fontWeight = FontWeight.SemiBold)
+            }
         },
     )
 }
@@ -271,8 +279,7 @@ fun BottomSheet(
 @Composable
 fun ClassificationBody(uiState: UiState, modifier: Modifier = Modifier) {
     val primaryProgressColorList = integerArrayResource(id = R.array.colors_progress_primary)
-    val backgroundProgressColorList =
-        integerArrayResource(id = R.array.colors_progress_background)
+    val backgroundProgressColorList = integerArrayResource(id = R.array.colors_progress_background)
     Column(modifier = modifier) {
         Header()
         LazyColumn(
@@ -324,11 +331,9 @@ fun OptionMenu(
         Text(modifier = Modifier.weight(0.5f), text = label, fontSize = 15.sp)
         Box {
             Row(
-                modifier = Modifier
-                    .clickable {
-                        expanded = true
-                    },
-                verticalAlignment = Alignment.CenterVertically
+                modifier = Modifier.clickable {
+                    expanded = true
+                }, verticalAlignment = Alignment.CenterVertically
             ) {
                 Text(text = currentOption, fontSize = 15.sp)
                 Spacer(modifier = Modifier.width(5.dp))
@@ -375,9 +380,7 @@ fun ModelSelection(
                     }, // Recommended for accessibility with screen readers
                 )
                 Text(
-                    modifier = Modifier.padding(start = 16.dp),
-                    text = option.name,
-                    fontSize = 15.sp
+                    modifier = Modifier.padding(start = 16.dp), text = option.name, fontSize = 15.sp
                 )
             }
         }

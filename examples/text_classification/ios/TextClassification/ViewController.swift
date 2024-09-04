@@ -1,4 +1,4 @@
-// Copyright 2024 The TensorFlow Authors. All Rights Reserved.
+// Copyright 2024 The Google AI Edge Authors. All Rights Reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -42,7 +42,7 @@ class ViewController: UIViewController {
   private func setupUI() {
     inputTextView.text = Constants.defaultText
     inputTextView.layer.cornerRadius = 5
-    inputTextView.layer.borderColor = UIColor(displayP3Red: 1, green: 137/255.0, blue: 0, alpha: 1).cgColor
+    inputTextView.layer.borderColor = UIColor.systemBlue.cgColor
     inputTextView.layer.borderWidth = 1
 
 

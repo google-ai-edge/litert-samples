@@ -1,11 +1,11 @@
 /*
- * Copyright 2024 The TensorFlow Authors. All Rights Reserved.
+ * Copyright 2024 The Google AI Edge Authors. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *             http://www.apache.org/licenses/LICENSE-2.0
+ *       http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -13,6 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+
 package com.google.edgeai.examples.object_detection.objectdetector
 
 import android.content.Context
@@ -63,9 +64,9 @@ class ObjectDetectorHelper(
     // the GPU delegate needs to be used on the thread that initialized the detector
     suspend fun setupObjectDetector() {
         try {
-            val tfliteBuffer = FileUtil.loadMappedFile(context, model.fileName)
-            labels = getModelMetadata(tfliteBuffer)
-            interpreter = Interpreter(tfliteBuffer, Interpreter.Options().apply {
+            val litertBuffer = FileUtil.loadMappedFile(context, model.fileName)
+            labels = getModelMetadata(litertBuffer)
+            interpreter = Interpreter(litertBuffer, Interpreter.Options().apply {
                 numThreads = 5
                 useNNAPI = delegate == Delegate.NNAPI
             })
@@ -190,8 +191,8 @@ class ObjectDetectorHelper(
     }
 
     /** Load metadata from model*/
-    private fun getModelMetadata(tfliteBuffer: ByteBuffer): List<String> {
-        val metadataExtractor = MetadataExtractor(tfliteBuffer)
+    private fun getModelMetadata(litertBuffer: ByteBuffer): List<String> {
+        val metadataExtractor = MetadataExtractor(litertBuffer)
         val labels = mutableListOf<String>()
         if (metadataExtractor.hasMetadata()) {
             val inputStream = metadataExtractor.getAssociatedFile("labelmap.txt")

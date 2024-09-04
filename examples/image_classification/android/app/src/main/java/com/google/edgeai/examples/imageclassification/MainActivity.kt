@@ -1,5 +1,5 @@
 /*
- * Copyright 2024 The TensorFlow Authors. All Rights Reserved.
+ * Copyright 2024 The Google AI Edge Authors. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -65,6 +65,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.painter.ColorPainter
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -193,11 +194,19 @@ class MainActivity : ComponentActivity() {
             modifier = modifier,
             backgroundColor = Color.LightGray,
             title = {
-                Image(
+                Row(
                     modifier = Modifier.fillMaxSize(),
-                    painter = painterResource(id = R.drawable.tfl_logo),
-                    contentDescription = null,
-                )
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Image(
+                        modifier = Modifier.size(50.dp),
+                        painter = ColorPainter(color = Color.White),
+                        contentDescription = null,
+                    )
+
+                    Spacer(modifier = modifier.width(10.dp))
+                    Text(text = "LiteRT", color = Color.Blue, fontWeight = FontWeight.SemiBold)
+                }
             },
         )
     }

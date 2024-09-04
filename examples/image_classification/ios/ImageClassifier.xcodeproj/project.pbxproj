@@ -537,12 +537,11 @@
 			isa = XCBuildConfiguration;
 			baseConfigurationReference = ADCFF7BF41F9A043C2773BB0 /* Pods-ImageClassifier.debug.xcconfig */;
 			buildSettings = {
-				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_TEAM = H83UK2M7VU;
+				DEVELOPMENT_TEAM = "";
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = ImageClassifier/Info.plist;
 				INFOPLIST_KEY_NSCameraUsageDescription = "This app uses camera to classify the objects that appear in the camera feed.";
@@ -558,7 +557,7 @@
 					"@executable_path/Frameworks",
 				);
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = com.google.tflite.examples.imageclassification;
+				PRODUCT_BUNDLE_IDENTIFIER = com.google.litert.examples.imageclassification;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				PROVISIONING_PROFILE_SPECIFIER = "";
 				SWIFT_EMIT_LOC_STRINGS = YES;
@@ -571,12 +570,11 @@
 			isa = XCBuildConfiguration;
 			baseConfigurationReference = 8F21AD4BF9E89E22FCDB2855 /* Pods-ImageClassifier.release.xcconfig */;
 			buildSettings = {
-				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_TEAM = H83UK2M7VU;
+				DEVELOPMENT_TEAM = "";
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = ImageClassifier/Info.plist;
 				INFOPLIST_KEY_NSCameraUsageDescription = "This app uses camera to classify the objects that appear in the camera feed.";
@@ -592,7 +590,7 @@
 					"@executable_path/Frameworks",
 				);
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = com.google.tflite.examples.imageclassification;
+				PRODUCT_BUNDLE_IDENTIFIER = com.google.litert.examples.imageclassification;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				PROVISIONING_PROFILE_SPECIFIER = "";
 				SWIFT_EMIT_LOC_STRINGS = YES;

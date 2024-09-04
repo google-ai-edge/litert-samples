@@ -1,3 +1,19 @@
+/*
+ * Copyright 2024 The Google AI Edge Authors. All Rights Reserved.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *       http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 package com.google.edgeai.examples.imageclassification
 
 import android.content.Context
@@ -29,7 +45,7 @@ class ImageClassificationHelper(
     private var options: Options = Options(),
 ) {
     class Options(
-        /** The enum contains the .tflite file name, relative to the assets/ directory */
+        /** The enum contains the model file name, relative to the assets/ directory */
         var model: Model = DEFAULT_MODEL,
         /** The delegate for running computationally intensive operations*/
         var delegate: Delegate = DEFAULT_DELEGATE,
@@ -73,14 +89,14 @@ class ImageClassificationHelper(
     /** Init a Interpreter from [Model] with [Delegate]*/
     suspend fun initClassifier() {
         interpreter = try {
-            val tfliteBuffer = FileUtil.loadMappedFile(context, options.model.fileName)
+            val litertBuffer = FileUtil.loadMappedFile(context, options.model.fileName)
             Log.i(TAG, "Done creating TFLite buffer from ${options.model.fileName}")
             val options = Interpreter.Options().apply {
                 numThreads = options.threadCount
                 useNNAPI = options.delegate == Delegate.NNAPI
             }
-            labels = getModelMetadata(tfliteBuffer)
-            Interpreter(tfliteBuffer, options)
+            labels = getModelMetadata(litertBuffer)
+            Interpreter(litertBuffer, options)
         } catch (e: Exception) {
             Log.i(TAG, "Create TFLite from ${options.model.fileName} is failed ${e.message}")
             _error.emit(e)
@@ -142,8 +158,8 @@ class ImageClassificationHelper(
 
 
     /** Load metadata from model*/
-    private fun getModelMetadata(tfliteBuffer: ByteBuffer): List<String> {
-        val metadataExtractor = MetadataExtractor(tfliteBuffer)
+    private fun getModelMetadata(litertBuffer: ByteBuffer): List<String> {
+        val metadataExtractor = MetadataExtractor(litertBuffer)
         val labels = mutableListOf<String>()
         if (metadataExtractor.hasMetadata()) {
             val inputStream = metadataExtractor.getAssociatedFile("labels_without_background.txt")

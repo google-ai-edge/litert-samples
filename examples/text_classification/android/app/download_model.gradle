@@ -5,8 +5,6 @@ tasks.register('downloadMobileBertModel', Download) {
 }
 
 tasks.register('downloadWordVecModel', Download) {
-    // This model is custom made using Model Maker. A detailed guide can be found here:
-    // https://www.tensorflow.org/lite/models/modify/model_maker/speech_recognition
     src 'https://storage.googleapis.com/ai-edge/interpreter-samples/text_classification/android/average_word_classifier.tflite'
     dest project.ext.ASSET_DIR + '/word_vec.tflite'
     overwrite false

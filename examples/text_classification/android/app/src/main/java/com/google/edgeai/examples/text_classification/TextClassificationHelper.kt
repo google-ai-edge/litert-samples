@@ -1,5 +1,5 @@
 /*
- * Copyright 2024 The TensorFlow Authors. All Rights Reserved.
+ * Copyright 2024 The Google AI Edge Authors. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -37,7 +37,7 @@ import java.nio.FloatBuffer
 import java.nio.IntBuffer
 
 class TextClassificationHelper(private val context: Context) {
-    /** The TFLite interpreter instance.  */
+    /** The LiteRT Interpreter instance.  */
     private var interpreter: Interpreter? = null
     private val vocabularyMap = mutableMapOf<String, Int>()
 
@@ -58,15 +58,15 @@ class TextClassificationHelper(private val context: Context) {
 
     var completableDeferred: CompletableDeferred<Unit>? = null
 
-    /** Init a Interpreter from [model]. View Model enum here [TFLiteModel]*/
-    fun initClassifier(model: TFLiteModel = TFLiteModel.MobileBERT) {
+    /** Init a Interpreter from [model]. View Model enum here [Model]*/
+    fun initClassifier(model: Model = Model.MobileBERT) {
         interpreter = try {
-            val tfliteBuffer = FileUtil.loadMappedFile(context, model.fileName)
-            Log.i(TAG, "Done creating TFLite buffer from ${model.fileName}")
-            loadModelMetadata(tfliteBuffer)
-            Interpreter(tfliteBuffer, Interpreter.Options())
+            val litertBuffer = FileUtil.loadMappedFile(context, model.fileName)
+            Log.i(TAG, "Done creating LiteRT buffer from ${model.fileName}")
+            loadModelMetadata(litertBuffer)
+            Interpreter(litertBuffer, Interpreter.Options())
         } catch (e: Exception) {
-            Log.i(TAG, "Create TFLite from ${model.fileName} is failed ${e.message}")
+            Log.i(TAG, "Create LiteRT from ${model.fileName} is failed ${e.message}")
             return
         }
     }
@@ -80,7 +80,7 @@ class TextClassificationHelper(private val context: Context) {
     }
 
 
-    /** Run classify [inputText] using TFLite Interpreter*/
+    /** Run classify [inputText] using LiteRT Interpreter*/
     suspend fun classify(inputText: String) {
         withContext(Dispatchers.IO) {
             if (interpreter == null) return@withContext
@@ -119,8 +119,8 @@ class TextClassificationHelper(private val context: Context) {
     }
 
     /** Load metadata from model*/
-    private fun loadModelMetadata(tfliteBuffer: ByteBuffer) {
-        val metadataExtractor = MetadataExtractor(tfliteBuffer)
+    private fun loadModelMetadata(litertBuffer: ByteBuffer) {
+        val metadataExtractor = MetadataExtractor(litertBuffer)
         if (metadataExtractor.hasMetadata()) {
             val vocalBuffer = metadataExtractor.getAssociatedFile("vocab.txt")
             vocabularyMap.putAll(getVocabulary(vocalBuffer))
@@ -175,7 +175,7 @@ class TextClassificationHelper(private val context: Context) {
         private const val TAG = "TextClassifier"
     }
 
-    enum class TFLiteModel(val fileName: String) {
+    enum class Model(val fileName: String) {
         MobileBERT("mobile_bert.tflite"),
         AverageWordVec("word_vec.tflite")
     }
