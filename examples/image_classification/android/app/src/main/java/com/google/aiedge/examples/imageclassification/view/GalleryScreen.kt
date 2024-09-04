@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-package com.google.edgeai.examples.imageclassification.view
+package com.google.aiedge.examples.imageclassification.view
 
 import android.content.Context
 import android.graphics.Bitmap

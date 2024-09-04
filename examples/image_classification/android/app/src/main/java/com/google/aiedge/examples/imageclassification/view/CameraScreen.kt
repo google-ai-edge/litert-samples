@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-package com.google.edgeai.examples.imageclassification.view
+package com.google.aiedge.examples.imageclassification.view
 
 import android.content.pm.PackageManager
 import android.view.ViewGroup.LayoutParams.MATCH_PARENT
@@ -43,7 +43,7 @@ import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.LifecycleOwner
 import com.google.common.util.concurrent.ListenableFuture
-import com.google.edgeai.examples.imageclassification.UiState
+import com.google.aiedge.examples.imageclassification.UiState
 import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
 

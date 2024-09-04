@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-package com.google.edgeai.examples.imageclassification
+package com.google.aiedge.examples.imageclassification
 
 import android.graphics.Bitmap
 import android.net.Uri
@@ -72,8 +72,8 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import com.google.edgeai.examples.imageclassification.view.CameraScreen
-import com.google.edgeai.examples.imageclassification.view.GalleryScreen
+import com.google.aiedge.examples.imageclassification.view.CameraScreen
+import com.google.aiedge.examples.imageclassification.view.GalleryScreen
 import java.util.Locale
 
 
