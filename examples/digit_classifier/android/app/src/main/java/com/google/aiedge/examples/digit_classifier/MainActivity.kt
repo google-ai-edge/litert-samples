@@ -28,15 +28,14 @@ import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
@@ -58,13 +57,14 @@ import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.drawscope.Stroke
-import androidx.compose.ui.graphics.painter.ColorPainter
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalDensity
-import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.google.aiedge.examples.digit_classifier.ui.darkBlue
+import com.google.aiedge.examples.digit_classifier.ui.teal
 
 
 class MainActivity : ComponentActivity() {
@@ -107,9 +107,11 @@ class MainActivity : ComponentActivity() {
                     Spacer(modifier = Modifier.height(5.dp))
                     Text("Confidence: ${uiState.score}")
                     Spacer(Modifier.weight(1f))
-                    Button(onClick = {
-                        viewModel.cleanBoard()
-                    }) {
+                    Button(
+                        colors = ButtonDefaults.buttonColors(containerColor = darkBlue),
+                        onClick = {
+                            viewModel.cleanBoard()
+                        }) {
                         Text("Clear")
                     }
                 }
@@ -159,7 +161,7 @@ class MainActivity : ComponentActivity() {
             modifier = modifier
                 .fillMaxWidth()
                 .height(screenWidth)
-                .background(Color.Black)
+                .background(darkBlue)
                 .detectDrag(
                     onDragStart = {
                         onDragStart(Start(it.x, it.y))
@@ -198,24 +200,18 @@ class MainActivity : ComponentActivity() {
 
     @OptIn(ExperimentalMaterial3Api::class)
     @Composable
-    fun Header(modifier: Modifier = Modifier) {
+    fun Header() {
         TopAppBar(
-            modifier = modifier,
-            colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.LightGray),
+            colors = TopAppBarDefaults.topAppBarColors(
+                containerColor = teal,
+            ),
             title = {
-                Row(
-                    modifier = Modifier.fillMaxSize(),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Image(
-                        modifier = Modifier.size(50.dp),
-                        painter = ColorPainter(color = Color.White),
-                        contentDescription = null,
-                    )
-
-                    Spacer(modifier = modifier.width(10.dp))
-                    Text(text = "LiteRT", color = Color.Blue, fontWeight = FontWeight.SemiBold)
-                }
+                Image(
+                    modifier = Modifier.size(120.dp),
+                    alignment = Alignment.CenterStart,
+                    painter = painterResource(id = R.drawable.logo),
+                    contentDescription = null,
+                )
             },
         )
     }
