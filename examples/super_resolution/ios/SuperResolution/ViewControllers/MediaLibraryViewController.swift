@@ -60,9 +60,9 @@ class MediaLibraryViewController: UIViewController {
 
   private func setupUI() {
     cropedImageView.layer.borderWidth = 1.0
-    cropedImageView.layer.borderColor = DefaultConstants.orangeColor.cgColor
+    cropedImageView.layer.borderColor = DefaultConstants.blueColor.cgColor
     regionView.layer.borderWidth = 1.0
-    regionView.layer.borderColor = DefaultConstants.orangeColor.cgColor
+    regionView.layer.borderColor = DefaultConstants.blueColor.cgColor
     regionView.isHidden = true
     switchShowImageButton.isHidden = true
     cropedImageView.isHidden = true
