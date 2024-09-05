@@ -61,14 +61,13 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.painter.ColorPainter
 import androidx.compose.ui.res.painterResource
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.google.aiedge.examples.image_segmentation.view.CameraScreen
 import com.google.aiedge.examples.image_segmentation.view.GalleryScreen
+import com.google.aiedge.examples.image_segmentation.view.teal
 
 class MainActivity : ComponentActivity() {
     @OptIn(ExperimentalMaterialApi::class)
@@ -106,10 +105,12 @@ class MainActivity : ComponentActivity() {
                 },
                 floatingActionButton = {
                     if (tabState == Tab.Gallery) {
-                        FloatingActionButton(shape = CircleShape, onClick = {
-                            val request = PickVisualMediaRequest()
-                            galleryLauncher.launch(request)
-                        }) {
+                        FloatingActionButton(
+                            backgroundColor = teal,
+                            shape = CircleShape, onClick = {
+                                val request = PickVisualMediaRequest()
+                                galleryLauncher.launch(request)
+                            }) {
                             Icon(Icons.Filled.Add, contentDescription = null)
                         }
                     }
@@ -175,24 +176,16 @@ class MainActivity : ComponentActivity() {
     }
 
     @Composable
-    fun Header(modifier: Modifier = Modifier) {
+    fun Header() {
         TopAppBar(
-            modifier = modifier,
-            backgroundColor = Color.LightGray,
+            backgroundColor = teal,
             title = {
-                Row(
-                    modifier = Modifier.fillMaxSize(),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Image(
-                        modifier = Modifier.size(50.dp),
-                        painter = ColorPainter(color = Color.White),
-                        contentDescription = null,
-                    )
-
-                    Spacer(modifier = modifier.width(10.dp))
-                    Text(text = "LiteRT", color = Color.Blue, fontWeight = FontWeight.SemiBold)
-                }
+                Image(
+                    modifier = Modifier.size(120.dp),
+                    alignment = Alignment.CenterStart,
+                    painter = painterResource(id = R.drawable.logo),
+                    contentDescription = null,
+                )
             },
         )
     }

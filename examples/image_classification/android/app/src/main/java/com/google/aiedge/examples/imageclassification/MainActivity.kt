@@ -43,6 +43,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.BottomSheetScaffold
 import androidx.compose.material.Button
+import androidx.compose.material.ButtonDefaults
 import androidx.compose.material.DropdownMenu
 import androidx.compose.material.DropdownMenuItem
 import androidx.compose.material.ExperimentalMaterialApi
@@ -74,6 +75,8 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.google.aiedge.examples.imageclassification.view.CameraScreen
 import com.google.aiedge.examples.imageclassification.view.GalleryScreen
+import com.google.aiedge.examples.imageclassification.view.darkBlue
+import com.google.aiedge.examples.imageclassification.view.teal
 import java.util.Locale
 
 
@@ -119,7 +122,9 @@ class MainActivity : ComponentActivity() {
                 },
                 floatingActionButton = {
                     if (tabState == Tab.Gallery) {
-                        FloatingActionButton(shape = CircleShape, onClick = {
+                        FloatingActionButton(
+                            backgroundColor = teal,
+                            shape = CircleShape, onClick = {
                             val request = PickVisualMediaRequest()
                             galleryLauncher.launch(request)
                         }) {
@@ -189,24 +194,16 @@ class MainActivity : ComponentActivity() {
     }
 
     @Composable
-    fun Header(modifier: Modifier = Modifier) {
+    fun Header() {
         TopAppBar(
-            modifier = modifier,
-            backgroundColor = Color.LightGray,
+            backgroundColor = teal,
             title = {
-                Row(
-                    modifier = Modifier.fillMaxSize(),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Image(
-                        modifier = Modifier.size(50.dp),
-                        painter = ColorPainter(color = Color.White),
-                        contentDescription = null,
-                    )
-
-                    Spacer(modifier = modifier.width(10.dp))
-                    Text(text = "LiteRT", color = Color.Blue, fontWeight = FontWeight.SemiBold)
-                }
+                Image(
+                    modifier = Modifier.size(120.dp),
+                    alignment = Alignment.CenterStart,
+                    painter = painterResource(id = R.drawable.logo),
+                    contentDescription = null,
+                )
             },
         )
     }
@@ -400,7 +397,9 @@ class MainActivity : ComponentActivity() {
             Row(
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                Button(onClick = {
+                Button(
+                    colors = ButtonDefaults.buttonColors(backgroundColor = darkBlue),
+                    onClick = {
                     onMinusClicked()
                 }) {
                     Text(text = "-", fontSize = 15.sp)
@@ -415,7 +414,9 @@ class MainActivity : ComponentActivity() {
                     fontSize = 15.sp,
                 )
                 Spacer(modifier = Modifier.width(10.dp))
-                Button(onClick = {
+                Button(
+                    colors = ButtonDefaults.buttonColors(backgroundColor = darkBlue),
+                    onClick = {
                     onPlusClicked()
                 }) {
                     Text(text = "+", fontSize = 15.sp)

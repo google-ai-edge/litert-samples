@@ -41,6 +41,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.material3.BottomSheetScaffold
 import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -59,8 +60,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.painter.ColorPainter
-import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -68,6 +68,8 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.google.aiedge.examples.object_detection.home.camera.CameraScreen
 import com.google.aiedge.examples.object_detection.home.gallery.GalleryScreen
 import com.google.aiedge.examples.object_detection.objectdetector.ObjectDetectorHelper
+import com.google.aiedge.examples.object_detection.ui.darkBlue
+import com.google.aiedge.examples.object_detection.ui.teal
 import java.util.Locale
 
 class MainActivity : ComponentActivity() {
@@ -239,24 +241,18 @@ class MainActivity : ComponentActivity() {
 
     @OptIn(ExperimentalMaterial3Api::class)
     @Composable
-    fun Header(modifier: Modifier = Modifier) {
+    fun Header() {
         TopAppBar(
-            modifier = modifier,
-            colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.LightGray),
+            colors = TopAppBarDefaults.topAppBarColors(
+                containerColor = teal,
+            ),
             title = {
-                Row(
-                    modifier = Modifier.fillMaxSize(),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Image(
-                        modifier = Modifier.size(50.dp),
-                        painter = ColorPainter(color = Color.White),
-                        contentDescription = null,
-                    )
-
-                    Spacer(modifier = modifier.width(10.dp))
-                    Text(text = "LiteRT", color = Color.Blue, fontWeight = FontWeight.SemiBold)
-                }
+                Image(
+                    modifier = Modifier.size(120.dp),
+                    alignment = Alignment.CenterStart,
+                    painter = painterResource(id = R.drawable.logo),
+                    contentDescription = null,
+                )
             },
         )
     }
@@ -324,7 +320,9 @@ class MainActivity : ComponentActivity() {
             Row(
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                Button(onClick = {
+                Button(
+                    colors = ButtonDefaults.buttonColors(containerColor = darkBlue),
+                    onClick = {
                     onMinusClicked()
                 }) {
                     Text(text = "-", fontSize = 15.sp)
@@ -339,7 +337,9 @@ class MainActivity : ComponentActivity() {
                     fontSize = 15.sp,
                 )
                 Spacer(modifier = Modifier.width(10.dp))
-                Button(onClick = {
+                Button(
+                    colors = ButtonDefaults.buttonColors(containerColor = darkBlue),
+                    onClick = {
                     onPlusClicked()
                 }) {
                     Text(text = "+", fontSize = 15.sp)
