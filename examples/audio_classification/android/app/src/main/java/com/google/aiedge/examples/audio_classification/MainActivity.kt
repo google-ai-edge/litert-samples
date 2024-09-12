@@ -49,6 +49,8 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.RadioButton
+import androidx.compose.material3.RadioButtonColors
+import androidx.compose.material3.RadioButtonDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
@@ -63,6 +65,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.integerArrayResource
 import androidx.compose.ui.res.painterResource
@@ -137,6 +140,7 @@ fun AudioClassificationScreen(
                     .size(40.dp)
                     .padding(top = 2.dp, bottom = 5.dp),
                 painter = painterResource(id = R.drawable.ic_chevron_up),
+                colorFilter = ColorFilter.tint(teal),
                 contentDescription = ""
             )
         },
@@ -369,6 +373,7 @@ fun ModelSelection(
             ) {
                 RadioButton(
                     selected = (option == model),
+                    colors = RadioButtonDefaults.colors(selectedColor = darkBlue),
                     onClick = {
                         if (option == model) return@RadioButton
                         onModelSelected(option)
