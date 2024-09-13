@@ -59,8 +59,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.painter.ColorPainter
-import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -68,6 +67,9 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.google.aiedge.examples.object_detection.home.camera.CameraScreen
 import com.google.aiedge.examples.object_detection.home.gallery.GalleryScreen
 import com.google.aiedge.examples.object_detection.objectdetector.ObjectDetectorHelper
+import com.google.aiedge.examples.object_detection.ui.ApplicationTheme
+import com.google.aiedge.examples.object_detection.ui.darkBlue
+import com.google.aiedge.examples.object_detection.ui.teal
 import java.util.Locale
 
 class MainActivity : ComponentActivity() {
@@ -90,38 +92,40 @@ class MainActivity : ComponentActivity() {
                 }
             }
 
-            BottomSheetScaffold(
-                sheetPeekHeight = 70.dp,
-                sheetContent = {
-                    BottomSheet(uiState = uiState,
-                        onDelegateSelected = {
-                            viewModel.setDelegate(it)
-                        },
-                        onThresholdSet = {
-                            viewModel.setThreshold(it)
-                        },
-                        onMaxResultSet = {
-                            viewModel.setNumberOfResult(it)
-                        })
-                }) {
-                Column {
-                    Header()
-                    Content(
-                        uiState = uiState, tab = tabState,
-                        onTabChanged = {
-                            tabState = it
-                            viewModel.stopDetect()
-                        },
-                        onMediaPicked = {
-                            viewModel.stopDetect()
-                        },
-                        onImageProxyAnalyzed = { imageProxy ->
-                            viewModel.detectImageObject(imageProxy)
-                        },
-                        onImageBitMapAnalyzed = { bitmap, degrees ->
-                            viewModel.detectImageObject(bitmap, degrees)
-                        },
-                    )
+            ApplicationTheme {
+                BottomSheetScaffold(
+                    sheetPeekHeight = 70.dp,
+                    sheetContent = {
+                        BottomSheet(uiState = uiState,
+                            onDelegateSelected = {
+                                viewModel.setDelegate(it)
+                            },
+                            onThresholdSet = {
+                                viewModel.setThreshold(it)
+                            },
+                            onMaxResultSet = {
+                                viewModel.setNumberOfResult(it)
+                            })
+                    }) {
+                    Column {
+                        Header()
+                        Content(
+                            uiState = uiState, tab = tabState,
+                            onTabChanged = {
+                                tabState = it
+                                viewModel.stopDetect()
+                            },
+                            onMediaPicked = {
+                                viewModel.stopDetect()
+                            },
+                            onImageProxyAnalyzed = { imageProxy ->
+                                viewModel.detectImageObject(imageProxy)
+                            },
+                            onImageBitMapAnalyzed = { bitmap, degrees ->
+                                viewModel.detectImageObject(bitmap, degrees)
+                            },
+                        )
+                    }
                 }
             }
         }
@@ -239,24 +243,18 @@ class MainActivity : ComponentActivity() {
 
     @OptIn(ExperimentalMaterial3Api::class)
     @Composable
-    fun Header(modifier: Modifier = Modifier) {
+    fun Header() {
         TopAppBar(
-            modifier = modifier,
-            colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.LightGray),
+            colors = TopAppBarDefaults.topAppBarColors(
+                containerColor = teal,
+            ),
             title = {
-                Row(
-                    modifier = Modifier.fillMaxSize(),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Image(
-                        modifier = Modifier.size(50.dp),
-                        painter = ColorPainter(color = Color.White),
-                        contentDescription = null,
-                    )
-
-                    Spacer(modifier = modifier.width(10.dp))
-                    Text(text = "LiteRT", color = Color.Blue, fontWeight = FontWeight.SemiBold)
-                }
+                Image(
+                    modifier = Modifier.size(120.dp),
+                    alignment = Alignment.CenterStart,
+                    painter = painterResource(id = R.drawable.logo),
+                    contentDescription = null,
+                )
             },
         )
     }
@@ -274,10 +272,10 @@ class MainActivity : ComponentActivity() {
     ) {
         val tabs = Tab.entries
         Column(modifier) {
-            TabRow(containerColor = Color.LightGray, selectedTabIndex = tab.ordinal) {
+            TabRow(containerColor = darkBlue, selectedTabIndex = tab.ordinal) {
                 tabs.forEach { t ->
                     Tab(
-                        text = { Text(t.name) },
+                        text = { Text(t.name, color = Color.White) },
                         selected = tab == t,
                         onClick = { onTabChanged(t) },
                     )
@@ -324,9 +322,10 @@ class MainActivity : ComponentActivity() {
             Row(
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                Button(onClick = {
-                    onMinusClicked()
-                }) {
+                Button(
+                    onClick = {
+                        onMinusClicked()
+                    }) {
                     Text(text = "-", fontSize = 15.sp)
                 }
                 Spacer(modifier = Modifier.width(10.dp))
@@ -339,9 +338,10 @@ class MainActivity : ComponentActivity() {
                     fontSize = 15.sp,
                 )
                 Spacer(modifier = Modifier.width(10.dp))
-                Button(onClick = {
-                    onPlusClicked()
-                }) {
+                Button(
+                    onClick = {
+                        onPlusClicked()
+                    }) {
                     Text(text = "+", fontSize = 15.sp)
                 }
             }
