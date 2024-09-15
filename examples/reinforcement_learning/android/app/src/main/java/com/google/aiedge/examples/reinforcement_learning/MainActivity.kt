@@ -29,12 +29,12 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Divider
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Scaffold
@@ -46,10 +46,12 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.painter.ColorPainter
-import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.google.aiedge.examples.reinforcement_learning.ui.ApplicationTheme
+import com.google.aiedge.examples.reinforcement_learning.ui.darkBlue
+import com.google.aiedge.examples.reinforcement_learning.ui.teal
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -58,86 +60,82 @@ class MainActivity : ComponentActivity() {
 
         setContent {
             val uiState by viewModel.uiState.collectAsStateWithLifecycle()
-            Scaffold(
-                topBar = {
-                    Header()
-                },
-                content = { paddingValue ->
-                    Column(
-                        modifier = Modifier.padding(
-                            top = paddingValue.calculateTopPadding(),
-                            start = 10.dp,
-                            end = 10.dp
-                        )
-                    ) {
-                        val agentBoard = uiState.displayAgentBoard
-                        val playerBoard = uiState.displayPlayerBoard
-                        val theEnd = uiState.theEnd
-
-                        Text(
-                            modifier = Modifier.align(Alignment.CenterHorizontally),
-                            text = "Tap any cell in the agent board as your strike.\nRed-hit, Yellow-miss"
-                        )
-                        Spacer(modifier = Modifier.height(5.dp))
-                        Row {
-                            Board(user = User.Agent, board = agentBoard) { row, col ->
-                                if (theEnd) return@Board
-                                viewModel.hitAgent(
-                                    hitPoint = Point(row, col)
-                                )
-                            }
-                            Spacer(modifier = Modifier.width(10.dp))
-                            Text(text = "Agent board:\n${uiState.agentHits} hits")
-                        }
-
-                        Divider(modifier = Modifier.padding(vertical = 5.dp))
-
-                        Row {
-                            Board(user = User.Player, board = playerBoard) { _, _ -> }
-                            Spacer(modifier = Modifier.width(10.dp))
-                            Text(text = "Your board:\n${uiState.playerHits} hits")
-                        }
-                        if (theEnd) {
-                            Spacer(modifier = Modifier.height(10.dp))
-                            val youWin = uiState.agentHits == 8
+            ApplicationTheme {
+                Scaffold(
+                    topBar = {
+                        Header()
+                    },
+                    content = { paddingValue ->
+                        Column(
+                            modifier = Modifier.padding(
+                                top = paddingValue.calculateTopPadding(),
+                                start = 10.dp,
+                                end = 10.dp
+                            )
+                        ) {
+                            val agentBoard = uiState.displayAgentBoard
+                            val playerBoard = uiState.displayPlayerBoard
+                            val theEnd = uiState.theEnd
 
                             Text(
                                 modifier = Modifier.align(Alignment.CenterHorizontally),
-                                text = if (youWin) "You win!!!" else "Agent win!!!"
+                                text = "Tap any cell in the agent board as your strike. Red-hit, Yellow-miss"
                             )
-                            Button(
-                                modifier = Modifier.align(Alignment.CenterHorizontally),
-                                onClick = { viewModel.reset() }) {
-                                Text(text = "Reset")
+                            Spacer(modifier = Modifier.height(5.dp))
+                            Row {
+                                Board(user = User.Agent, board = agentBoard) { row, col ->
+                                    if (theEnd) return@Board
+                                    viewModel.hitAgent(
+                                        hitPoint = Point(row, col)
+                                    )
+                                }
+                                Spacer(modifier = Modifier.width(10.dp))
+                                Text(text = "Agent board:\n${uiState.agentHits} hits")
+                            }
+
+                            Divider(modifier = Modifier.padding(vertical = 5.dp))
+
+                            Row {
+                                Board(user = User.Player, board = playerBoard) { _, _ -> }
+                                Spacer(modifier = Modifier.width(10.dp))
+                                Text(text = "Your board:\n${uiState.playerHits} hits")
+                            }
+                            if (theEnd) {
+                                Spacer(modifier = Modifier.height(10.dp))
+                                val youWin = uiState.agentHits == 8
+
+                                Text(
+                                    modifier = Modifier.align(Alignment.CenterHorizontally),
+                                    text = if (youWin) "You win!!!" else "Agent win!!!"
+                                )
+                                Button(
+                                    modifier = Modifier.align(Alignment.CenterHorizontally),
+                                    onClick = { viewModel.reset() }) {
+                                    Text(text = "Reset")
+                                }
                             }
                         }
-                    }
-                },
-            )
+                    },
+                )
+            }
         }
     }
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun Header(modifier: Modifier = Modifier) {
+fun Header() {
     TopAppBar(
-        modifier = modifier.height(40.dp),
-        colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.LightGray),
+        modifier = Modifier.height(40.dp),
+        colors = TopAppBarDefaults.topAppBarColors(
+            containerColor = teal,
+        ),
         title = {
-            Row(
-                modifier = Modifier.fillMaxSize(),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Image(
-                    modifier = Modifier.size(30.dp),
-                    painter = ColorPainter(color = Color.White),
-                    contentDescription = null,
-                )
-
-                Spacer(modifier = modifier.width(10.dp))
-                Text(text = "LiteRT", color = Color.Blue, fontWeight = FontWeight.SemiBold)
-            }
+            Image(
+                alignment = Alignment.CenterStart,
+                painter = painterResource(id = R.drawable.logo),
+                contentDescription = null,
+            )
         },
     )
 }
@@ -158,7 +156,7 @@ fun Board(
                     val color = when (cellValue) {
                         Cell.EMPTY -> Color.White
                         Cell.HIT -> Color.Red
-                        Cell.PLANE -> if (user == User.Agent) Color.White else Color.Blue
+                        Cell.PLANE -> if (user == User.Agent) Color.White else darkBlue
                         Cell.MISS -> Color.Yellow
                         else -> Color.White
                     }
