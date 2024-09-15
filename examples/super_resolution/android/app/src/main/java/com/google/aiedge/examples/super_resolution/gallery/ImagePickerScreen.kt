@@ -60,7 +60,6 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.google.aiedge.examples.super_resolution.ImageSuperResolutionHelper
-import com.google.aiedge.examples.super_resolution.ui.teal
 import java.io.InputStream
 import kotlin.math.roundToInt
 
@@ -163,7 +162,6 @@ fun ImagePickerScreen(
         FloatingActionButton(modifier = Modifier
             .align(Alignment.BottomEnd)
             .padding(bottom = 80.dp, end = 16.dp),
-            backgroundColor = teal,
             shape = CircleShape,
             onClick = {
                 val request =

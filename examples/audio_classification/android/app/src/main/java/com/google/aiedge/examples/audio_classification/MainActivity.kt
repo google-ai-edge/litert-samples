@@ -31,6 +31,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
@@ -42,7 +43,6 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.material3.BottomSheetScaffold
 import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -63,6 +63,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.painter.ColorPainter
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.integerArrayResource
 import androidx.compose.ui.res.painterResource
@@ -73,8 +74,7 @@ import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
-import com.google.aiedge.examples.audio_classification.ui.darkBlue
-import com.google.aiedge.examples.audio_classification.ui.teal
+import com.google.aiedge.examples.audio_classification.R
 import java.util.Locale
 
 class MainActivity : ComponentActivity() {
@@ -172,18 +172,24 @@ fun AudioClassificationScreen(
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun Header() {
+fun Header(modifier: Modifier = Modifier) {
     TopAppBar(
         colors = TopAppBarDefaults.topAppBarColors(
-            containerColor = teal,
+            containerColor = Color.LightGray,
         ),
         title = {
-            Image(
-                modifier = Modifier.size(120.dp),
-                alignment = Alignment.CenterStart,
-                painter = painterResource(id = R.drawable.logo),
-                contentDescription = null,
-            )
+            Row(
+                modifier = Modifier.fillMaxSize(),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Image(
+                    modifier = Modifier.size(50.dp),
+                    painter = ColorPainter(color = Color.White),
+                    contentDescription = null,
+                )
+                Spacer(modifier = modifier.width(10.dp))
+                Text(text = "LiteRT", color = Color.Blue, fontWeight = FontWeight.SemiBold)
+            }
         },
     )
 }
@@ -402,9 +408,7 @@ fun AdjustItem(
         Row(
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            Button(
-                colors = ButtonDefaults.buttonColors(containerColor = darkBlue),
-                onClick = {
+            Button(onClick = {
                 onMinusClicked()
             }) {
                 Text(text = "-", fontSize = 15.sp)
@@ -419,9 +423,7 @@ fun AdjustItem(
                 fontSize = 15.sp,
             )
             Spacer(modifier = Modifier.width(10.dp))
-            Button(
-                colors = ButtonDefaults.buttonColors(containerColor = darkBlue),
-                onClick = {
+            Button(onClick = {
                 onPlusClicked()
             }) {
                 Text(text = "+", fontSize = 15.sp)
