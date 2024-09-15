@@ -32,15 +32,17 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import coil.compose.AsyncImage
 import com.google.aiedge.examples.super_resolution.ImageSuperResolutionHelper
+import com.google.aiedge.examples.super_resolution.R
 import java.io.InputStream
 
 @Composable
-fun QuickSampleScreen(
+fun ImageSampleScreen(
     modifier: Modifier = Modifier,
     delegate: ImageSuperResolutionHelper.Delegate,
     onInferenceTimeCallback: (Int) -> Unit,
@@ -62,7 +64,7 @@ fun QuickSampleScreen(
     }
 
     Column(modifier.padding(8.dp)) {
-        Text(text = "Choose a low resolution image below:")
+        Text(text = stringResource(id = R.string.image_sample_choose_image_description))
         Spacer(modifier = Modifier.height(5.dp))
 
         Row(modifier) {
@@ -72,20 +74,16 @@ fun QuickSampleScreen(
                         .size(70.dp)
                         .clickable {
                             val assetManager = context.assets
-                            val inputStream: InputStream =
-                                assetManager.open(it)
+                            val inputStream: InputStream = assetManager.open(it)
                             val bitmap = BitmapFactory.decodeStream(inputStream)
                             viewModel.selectImage(bitmap)
-                        },
-                    model = "file:///android_asset/$it",
-                    contentDescription = null
+                        }, model = "file:///android_asset/$it", contentDescription = null
                 )
             }
         }
 
         Text(
-            text = "Click UPSAMPLE button below will we use LiteRT to generate a corresponding " +
-                    "high resolution image based n your chosen image"
+            text = stringResource(id = R.string.image_sample_guide)
         )
         Spacer(modifier = Modifier.height(5.dp))
 
@@ -112,7 +110,7 @@ fun QuickSampleScreen(
             Button(onClick = {
                 viewModel.makeSharpen()
             }) {
-                Text(text = "UPSAMPLE")
+                Text(text = stringResource(id = R.string.image_sample_up_sample))
             }
         }
     }

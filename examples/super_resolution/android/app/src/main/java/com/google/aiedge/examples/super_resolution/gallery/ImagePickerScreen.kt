@@ -38,6 +38,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.FloatingActionButton
 import androidx.compose.material.Icon
+import androidx.compose.material.MaterialTheme
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.runtime.Composable
@@ -97,34 +98,30 @@ fun ImagePickerScreen(
         }
 
     BoxWithConstraints(
-        modifier = modifier
-            .fillMaxSize(),
+        modifier = modifier.fillMaxSize(),
     ) {
         if (uiState.originalBitmap != null) {
-            Image(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .verticalScroll(scrollState)
-                    .pointerInput(Unit) {
-                        detectTapGestures { offset ->
-                            with(density) {
-                                viewModel.selectOffset(
-                                    offset,
-                                    Size(maxWidth.toPx(), maxHeight.toPx())
-                                )
-                            }
+            Image(modifier = Modifier
+                .fillMaxWidth()
+                .verticalScroll(scrollState)
+                .pointerInput(Unit) {
+                    detectTapGestures { offset ->
+                        with(density) {
+                            viewModel.selectOffset(
+                                offset, Size(maxWidth.toPx(), maxHeight.toPx())
+                            )
                         }
                     }
-                    .detectDrag(
-                        onDrag = {
-                            with(density) {
-                                viewModel.selectOffset(
-                                    it,
-                                    Size(maxWidth.toPx(), maxHeight.toPx())
-                                )
-                            }
-                        },
-                    ),
+                }
+                .detectDrag(
+                    onDrag = {
+                        with(density) {
+                            viewModel.selectOffset(
+                                it, Size(maxWidth.toPx(), maxHeight.toPx())
+                            )
+                        }
+                    },
+                ),
                 bitmap = uiState.originalBitmap!!.asImageBitmap(),
                 contentDescription = null,
                 contentScale = ContentScale.FillWidth
@@ -132,20 +129,18 @@ fun ImagePickerScreen(
 
             val selectPoint = uiState.selectPoint
             if (selectPoint.offset != null) {
-                Box(
-                    modifier = Modifier
-                        .size(
-                            (selectPoint.boxSize / density.density).dp,
-                            (selectPoint.boxSize / density.density).dp
+                Box(modifier = Modifier
+                    .size(
+                        (selectPoint.boxSize / density.density).dp,
+                        (selectPoint.boxSize / density.density).dp
+                    )
+                    .offset {
+                        IntOffset(
+                            selectPoint.offset.x.roundToInt(),
+                            selectPoint.offset.y.roundToInt(),
                         )
-                        .offset {
-                            IntOffset(
-                                selectPoint.offset.x.roundToInt(),
-                                selectPoint.offset.y.roundToInt(),
-                            )
-                        }
-                        .border(border = BorderStroke(width = 3.dp, color = Color.Green))
-                )
+                    }
+                    .border(border = BorderStroke(width = 3.dp, color = Color.Green)))
             }
 
             if (uiState.sharpenBitmap != null) {
@@ -162,6 +157,7 @@ fun ImagePickerScreen(
         FloatingActionButton(modifier = Modifier
             .align(Alignment.BottomEnd)
             .padding(bottom = 80.dp, end = 16.dp),
+            backgroundColor = MaterialTheme.colors.secondary,
             shape = CircleShape,
             onClick = {
                 val request =
