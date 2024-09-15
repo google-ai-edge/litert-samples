@@ -42,15 +42,13 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.material3.BottomSheetScaffold
 import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.LinearProgressIndicator
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.RadioButton
-import androidx.compose.material3.RadioButtonColors
-import androidx.compose.material3.RadioButtonDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
@@ -69,6 +67,7 @@ import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.integerArrayResource
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -76,8 +75,7 @@ import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
-import com.google.aiedge.examples.audio_classification.ui.darkBlue
-import com.google.aiedge.examples.audio_classification.ui.teal
+import com.google.aiedge.examples.audio_classification.ui.ApplicationTheme
 import java.util.Locale
 
 class MainActivity : ComponentActivity() {
@@ -133,43 +131,46 @@ fun AudioClassificationScreen(
             viewModel.stopClassifier()
         }
     }
-    BottomSheetScaffold(
-        sheetDragHandle = {
-            Image(
-                modifier = Modifier
-                    .size(40.dp)
-                    .padding(top = 2.dp, bottom = 5.dp),
-                painter = painterResource(id = R.drawable.ic_chevron_up),
-                colorFilter = ColorFilter.tint(teal),
-                contentDescription = ""
-            )
-        },
-        sheetPeekHeight = 70.dp,
-        sheetContent = {
-            BottomSheet(
-                uiState = uiState,
-                onModelSelected = {
-                    viewModel.setModel(it)
-                },
-                onDelegateSelected = {
-                    if (it == AudioClassificationHelper.Delegate.NNAPI) {
-                        viewModel.throwError(IllegalArgumentException("Cannot use NNAPI"))
-                    } else {
-                        viewModel.setDelegate(it)
-                    }
-                },
-                onMaxResultSet = {
-                    viewModel.setMaxResults(it)
-                },
-                onThresholdSet = {
-                    viewModel.setThreshold(it)
-                },
-                onThreadsCountSet = {
-                    viewModel.setThreadCount(it)
-                },
-            )
-        }) {
-        ClassificationBody(uiState = uiState)
+
+    ApplicationTheme {
+        BottomSheetScaffold(
+            sheetDragHandle = {
+                Image(
+                    modifier = Modifier
+                        .size(40.dp)
+                        .padding(top = 2.dp, bottom = 5.dp),
+                    painter = painterResource(id = R.drawable.ic_chevron_up),
+                    colorFilter = ColorFilter.tint(MaterialTheme.colorScheme.secondary),
+                    contentDescription = ""
+                )
+            },
+            sheetPeekHeight = 70.dp,
+            sheetContent = {
+                BottomSheet(
+                    uiState = uiState,
+                    onModelSelected = {
+                        viewModel.setModel(it)
+                    },
+                    onDelegateSelected = {
+                        if (it == AudioClassificationHelper.Delegate.NNAPI) {
+                            viewModel.throwError(IllegalArgumentException("Cannot use NNAPI"))
+                        } else {
+                            viewModel.setDelegate(it)
+                        }
+                    },
+                    onMaxResultSet = {
+                        viewModel.setMaxResults(it)
+                    },
+                    onThresholdSet = {
+                        viewModel.setThreshold(it)
+                    },
+                    onThreadsCountSet = {
+                        viewModel.setThreadCount(it)
+                    },
+                )
+            }) {
+            ClassificationBody(uiState = uiState)
+        }
     }
 }
 
@@ -179,7 +180,7 @@ fun AudioClassificationScreen(
 fun Header() {
     TopAppBar(
         colors = TopAppBarDefaults.topAppBarColors(
-            containerColor = teal,
+            containerColor = MaterialTheme.colorScheme.secondary,
         ),
         title = {
             Image(
@@ -209,15 +210,23 @@ fun BottomSheet(
     val delegate = uiState.setting.delegate
     Column(modifier = modifier.padding(horizontal = 20.dp, vertical = 5.dp)) {
         Row {
-            Text(modifier = Modifier.weight(0.5f), text = "Inference Time")
-            Text(text = uiState.setting.inferenceTime.toString())
+            Text(
+                modifier = Modifier.weight(0.5f),
+                text = stringResource(id = R.string.inference_title)
+            )
+            Text(
+                text = stringResource(
+                    id = R.string.inference_value,
+                    uiState.setting.inferenceTime
+                )
+            )
         }
         Spacer(modifier = Modifier.height(20.dp))
         ModelSelection(
             model = model,
             onModelSelected = onModelSelected,
         )
-        OptionMenu(label = "Delegate",
+        OptionMenu(label = stringResource(id = R.string.delegate),
             options = AudioClassificationHelper.Delegate.entries.map { it.name }.toList(),
             currentOption = delegate.name,
             onOptionSelected = {
@@ -228,7 +237,8 @@ fun BottomSheet(
         Spacer(modifier = Modifier.height(10.dp))
 
         AdjustItem(
-            name = "Max result", value = maxResults,
+            name = stringResource(id = R.string.max_result_),
+            value = maxResults,
             onMinusClicked = {
                 if (maxResults > 1) {
                     val max = maxResults - 1
@@ -243,7 +253,8 @@ fun BottomSheet(
             },
         )
         AdjustItem(
-            name = "Threshold", value = threshold,
+            name = stringResource(id = R.string.thresh_hold),
+            value = threshold,
             onMinusClicked = {
                 if (threshold > 0.3f) {
                     val newThreshold = (threshold - 0.1f).coerceAtLeast(0.3f)
@@ -258,7 +269,8 @@ fun BottomSheet(
             },
         )
         AdjustItem(
-            name = "Threads", value = threadCount,
+            name = stringResource(id = R.string.threads),
+            value = threadCount,
             onMinusClicked = {
                 if (threadCount >= 2) {
                     val count = threadCount - 1
@@ -373,7 +385,6 @@ fun ModelSelection(
             ) {
                 RadioButton(
                     selected = (option == model),
-                    colors = RadioButtonDefaults.colors(selectedColor = darkBlue),
                     onClick = {
                         if (option == model) return@RadioButton
                         onModelSelected(option)
@@ -408,10 +419,9 @@ fun AdjustItem(
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Button(
-                colors = ButtonDefaults.buttonColors(containerColor = darkBlue),
                 onClick = {
-                onMinusClicked()
-            }) {
+                    onMinusClicked()
+                }) {
                 Text(text = "-", fontSize = 15.sp)
             }
             Spacer(modifier = Modifier.width(10.dp))
@@ -425,10 +435,9 @@ fun AdjustItem(
             )
             Spacer(modifier = Modifier.width(10.dp))
             Button(
-                colors = ButtonDefaults.buttonColors(containerColor = darkBlue),
                 onClick = {
-                onPlusClicked()
-            }) {
+                    onPlusClicked()
+                }) {
                 Text(text = "+", fontSize = 15.sp)
             }
         }

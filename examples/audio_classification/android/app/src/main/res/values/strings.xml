@@ -1,3 +1,9 @@
 <resources>
     <string name="app_name">audio_classification</string>
+    <string name="inference_title">Inference Time</string>
+    <string name="inference_value">%d ms</string>
+    <string name="delegate">Delegate</string>
+    <string name="max_result_">Max result</string>
+    <string name="thresh_hold">Threshold</string>
+    <string name="threads">Threads</string>
 </resources>
