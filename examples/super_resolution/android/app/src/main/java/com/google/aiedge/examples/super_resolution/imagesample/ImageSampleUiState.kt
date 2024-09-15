@@ -14,13 +14,13 @@
  * limitations under the License.
  */
 
-package com.google.aiedge.examples.super_resolution.quicksample
+package com.google.aiedge.examples.super_resolution.imagesample
 
 import android.graphics.Bitmap
 import androidx.compose.runtime.Immutable
 
 @Immutable
-data class QuickSampleUiState(
+data class ImageSampleUiState(
     val sampleUriList: List<String> = listOf(
         "lr-1.jpg", "lr-2.jpg", "lr-3.jpg"
     ),

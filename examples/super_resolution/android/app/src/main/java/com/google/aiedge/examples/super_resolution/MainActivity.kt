@@ -56,8 +56,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.google.aiedge.examples.super_resolution.gallery.ImagePickerScreen
-import com.google.aiedge.examples.super_resolution.quicksample.QuickSampleScreen
-import com.google.aiedge.examples.super_resolution.R
+import com.google.aiedge.examples.super_resolution.imagesample.QuickSampleScreen
 
 class MainActivity : ComponentActivity() {
     @OptIn(ExperimentalMaterialApi::class)

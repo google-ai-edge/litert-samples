@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-package com.google.aiedge.examples.super_resolution.quicksample
+package com.google.aiedge.examples.super_resolution.imagesample
 
 import android.graphics.BitmapFactory
 import androidx.compose.foundation.clickable
@@ -46,8 +46,8 @@ fun QuickSampleScreen(
     onInferenceTimeCallback: (Int) -> Unit,
 ) {
     val context = LocalContext.current
-    val viewModel: QuickSampleViewModel =
-        viewModel(factory = QuickSampleViewModel.getFactory(context))
+    val viewModel: ImageSampleViewModel =
+        viewModel(factory = ImageSampleViewModel.getFactory(context))
 
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val selectBitmap = uiState.selectBitmap

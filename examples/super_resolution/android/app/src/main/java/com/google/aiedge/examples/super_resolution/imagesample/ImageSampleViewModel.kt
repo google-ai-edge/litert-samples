@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-package com.google.aiedge.examples.super_resolution.quicksample
+package com.google.aiedge.examples.super_resolution.imagesample
 
 import android.content.Context
 import android.graphics.Bitmap
@@ -33,13 +33,13 @@ import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
-class QuickSampleViewModel(private val imageSuperResolutionHelper: ImageSuperResolutionHelper) :
+class ImageSampleViewModel(private val imageSuperResolutionHelper: ImageSuperResolutionHelper) :
     ViewModel() {
     companion object {
         fun getFactory(context: Context) = object : ViewModelProvider.Factory {
             override fun <T : ViewModel> create(modelClass: Class<T>, extras: CreationExtras): T {
                 val imageSuperResolutionHelper = ImageSuperResolutionHelper(context)
-                return QuickSampleViewModel(imageSuperResolutionHelper) as T
+                return ImageSampleViewModel(imageSuperResolutionHelper) as T
             }
         }
     }
@@ -55,16 +55,16 @@ class QuickSampleViewModel(private val imageSuperResolutionHelper: ImageSuperRes
         }
     }
 
-    val uiState: StateFlow<QuickSampleUiState> = combine(
+    val uiState: StateFlow<ImageSampleUiState> = combine(
         selectBitmapFlow,
         superResolutionFlow,
     ) { bitmap, result ->
-        QuickSampleUiState(
+        ImageSampleUiState(
             selectBitmap = bitmap,
             sharpenBitmap = result.bitmap,
             inferenceTime = result.inferenceTime.toInt()
         )
-    }.stateIn(viewModelScope, SharingStarted.Lazily, QuickSampleUiState())
+    }.stateIn(viewModelScope, SharingStarted.Lazily, ImageSampleUiState())
 
     /*
      * Updates the selected image and resets the super-resolution process.
