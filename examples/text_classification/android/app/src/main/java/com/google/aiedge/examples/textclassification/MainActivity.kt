@@ -30,7 +30,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.material3.BottomSheetScaffold
 import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.RadioButton
@@ -50,6 +49,7 @@ import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -150,8 +150,15 @@ fun BottomSheetContent(
 ) {
     Column(modifier = modifier.padding(horizontal = 20.dp, vertical = 5.dp)) {
         Row {
-            Text(modifier = Modifier.weight(0.5f), text = "Inference Time", fontSize = 16.sp)
-            Text(text = "$inferenceTime ms", fontSize = 16.sp)
+            Text(
+                modifier = Modifier.weight(0.5f),
+                text = stringResource(id = R.string.inference_title),
+                fontSize = 16.sp
+            )
+            Text(
+                text = stringResource(id = R.string.inference_value, inferenceTime),
+                fontSize = 16.sp
+            )
         }
         Spacer(modifier = Modifier.height(20.dp))
         ModelSelection(
@@ -180,7 +187,7 @@ fun ClassificationBody(
             onValueChange = {
                 text = it
             }, placeholder = {
-                Text(text = "Enter text to classify")
+                Text(text = stringResource(id = R.string.text_field_place_holder))
             })
         Spacer(modifier = Modifier.height(10.dp))
         Button(
@@ -188,11 +195,17 @@ fun ClassificationBody(
                 focusManager.clearFocus()
                 onSubmitted(text)
             }) {
-            Text(text = "Classify")
+            Text(text = stringResource(id = R.string.classify))
         }
         Spacer(modifier = Modifier.height(20.dp))
-        Text(text = "Positive: ($positivePercentage)", fontWeight = FontWeight.Bold)
-        Text(text = "Negative: ($negativePercentage)", fontWeight = FontWeight.Bold)
+        Text(
+            text = stringResource(id = R.string.positive, positivePercentage),
+            fontWeight = FontWeight.Bold
+        )
+        Text(
+            text = stringResource(id = R.string.negative, negativePercentage),
+            fontWeight = FontWeight.Bold
+        )
     }
 }
 
