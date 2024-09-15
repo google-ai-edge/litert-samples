@@ -58,6 +58,7 @@ import androidx.compose.ui.unit.sp
 import com.google.aiedge.examples.super_resolution.gallery.ImagePickerScreen
 import com.google.aiedge.examples.super_resolution.quicksample.QuickSampleScreen
 import com.google.aiedge.examples.super_resolution.R
+import com.google.aiedge.examples.super_resolution.ui.teal
 
 class MainActivity : ComponentActivity() {
     @OptIn(ExperimentalMaterialApi::class)
@@ -133,22 +134,16 @@ class MainActivity : ComponentActivity() {
     }
 
     @Composable
-    fun Header(modifier: Modifier = Modifier) {
+    fun Header() {
         TopAppBar(
-            backgroundColor = Color.LightGray,
+            backgroundColor = teal,
             title = {
-                Row(
-                    modifier = Modifier.fillMaxSize(),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Image(
-                        modifier = Modifier.size(50.dp),
-                        painter = ColorPainter(color = Color.White),
-                        contentDescription = null,
-                    )
-                    Spacer(modifier = modifier.width(10.dp))
-                    Text(text = "LiteRT", color = Color.Blue, fontWeight = FontWeight.SemiBold)
-                }
+                Image(
+                    modifier = Modifier.size(120.dp),
+                    alignment = Alignment.CenterStart,
+                    painter = painterResource(id = R.drawable.logo),
+                    contentDescription = null,
+                )
             },
         )
     }
