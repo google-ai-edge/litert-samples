@@ -45,6 +45,7 @@ import androidx.compose.material.DropdownMenuItem
 import androidx.compose.material.ExperimentalMaterialApi
 import androidx.compose.material.FloatingActionButton
 import androidx.compose.material.Icon
+import androidx.compose.material.MaterialTheme
 import androidx.compose.material.Tab
 import androidx.compose.material.TabRow
 import androidx.compose.material.Text
@@ -63,13 +64,13 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.google.aiedge.examples.image_segmentation.view.ApplicationTheme
 import com.google.aiedge.examples.image_segmentation.view.CameraScreen
 import com.google.aiedge.examples.image_segmentation.view.GalleryScreen
-import com.google.aiedge.examples.image_segmentation.view.darkBlue
-import com.google.aiedge.examples.image_segmentation.view.teal
 
 class MainActivity : ComponentActivity() {
     @OptIn(ExperimentalMaterialApi::class)
@@ -98,40 +99,45 @@ class MainActivity : ComponentActivity() {
                 }
             }
 
-            BottomSheetScaffold(sheetShape = RoundedCornerShape(topStart = 15.dp, topEnd = 15.dp),
-                sheetPeekHeight = 70.dp,
-                sheetContent = {
-                    BottomSheet(inferenceTime = uiState.inferenceTime, onDelegateSelected = {
-                        viewModel.setDelegate(it)
-                    })
-                },
-                floatingActionButton = {
-                    if (tabState == Tab.Gallery) {
-                        FloatingActionButton(
-                            backgroundColor = teal,
-                            shape = CircleShape, onClick = {
-                                val request = PickVisualMediaRequest()
-                                galleryLauncher.launch(request)
-                            }) {
-                            Icon(Icons.Filled.Add, contentDescription = null)
-                        }
-                    }
-                }) {
-                Column {
-                    Header()
-                    Content(
-                        uiState = uiState,
-                        tab = tabState,
-                        onTabChanged = {
-                            tabState = it
-                            viewModel.stopSegment()
-                        },
-                        onImageProxyAnalyzed = { imageProxy ->
-                            viewModel.segment(imageProxy)
-                        },
-                        onImageBitMapAnalyzed = { bitmap, degrees ->
-                            viewModel.segment(bitmap, degrees)
+            ApplicationTheme {
+                BottomSheetScaffold(sheetShape = RoundedCornerShape(
+                    topStart = 15.dp,
+                    topEnd = 15.dp
+                ),
+                    sheetPeekHeight = 70.dp,
+                    sheetContent = {
+                        BottomSheet(inferenceTime = uiState.inferenceTime, onDelegateSelected = {
+                            viewModel.setDelegate(it)
                         })
+                    },
+                    floatingActionButton = {
+                        if (tabState == Tab.Gallery) {
+                            FloatingActionButton(
+                                backgroundColor = MaterialTheme.colors.secondary,
+                                shape = CircleShape, onClick = {
+                                    val request = PickVisualMediaRequest()
+                                    galleryLauncher.launch(request)
+                                }) {
+                                Icon(Icons.Filled.Add, contentDescription = null)
+                            }
+                        }
+                    }) {
+                    Column {
+                        Header()
+                        Content(
+                            uiState = uiState,
+                            tab = tabState,
+                            onTabChanged = {
+                                tabState = it
+                                viewModel.stopSegment()
+                            },
+                            onImageProxyAnalyzed = { imageProxy ->
+                                viewModel.segment(imageProxy)
+                            },
+                            onImageBitMapAnalyzed = { bitmap, degrees ->
+                                viewModel.segment(bitmap, degrees)
+                            })
+                    }
                 }
             }
         }
@@ -148,7 +154,7 @@ class MainActivity : ComponentActivity() {
     ) {
         val tabs = Tab.entries
         Column(modifier) {
-            TabRow(backgroundColor = darkBlue, selectedTabIndex = tab.ordinal) {
+            TabRow(selectedTabIndex = tab.ordinal) {
                 tabs.forEach { t ->
                     Tab(
                         text = { Text(t.name, color = Color.White) },
@@ -180,7 +186,7 @@ class MainActivity : ComponentActivity() {
     @Composable
     fun Header() {
         TopAppBar(
-            backgroundColor = teal,
+            backgroundColor = MaterialTheme.colors.secondary,
             title = {
                 Image(
                     modifier = Modifier.size(120.dp),
@@ -205,15 +211,18 @@ class MainActivity : ComponentActivity() {
                     .padding(top = 2.dp, bottom = 5.dp)
                     .align(Alignment.CenterHorizontally),
                 painter = painterResource(id = R.drawable.ic_chevron_up),
-                colorFilter = ColorFilter.tint(teal),
+                colorFilter = ColorFilter.tint(MaterialTheme.colors.secondary),
                 contentDescription = ""
             )
             Row {
-                Text(modifier = Modifier.weight(0.5f), text = "Inference Time")
-                Text(text = inferenceTime.toString())
+                Text(
+                    modifier = Modifier.weight(0.5f),
+                    text = stringResource(id = R.string.inference_title)
+                )
+                Text(text = stringResource(id = R.string.inference_value, inferenceTime))
             }
             Spacer(modifier = Modifier.height(20.dp))
-            OptionMenu(label = "Delegate",
+            OptionMenu(label = stringResource(id = R.string.delegate),
                 options = ImageSegmentationHelper.Delegate.entries.map { it.name }) {
                 onDelegateSelected(ImageSegmentationHelper.Delegate.valueOf(it))
             }
