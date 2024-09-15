@@ -35,8 +35,8 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
@@ -61,10 +61,10 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import com.google.aiedge.examples.digit_classifier.ui.darkBlue
-import com.google.aiedge.examples.digit_classifier.ui.teal
+import com.google.aiedge.examples.digit_classifier.ui.ApplicationTheme
 
 
 class MainActivity : ComponentActivity() {
@@ -75,47 +75,47 @@ class MainActivity : ComponentActivity() {
         setContent {
             val uiState by viewModel.uiState.collectAsStateWithLifecycle()
 
-            Scaffold(
-                topBar = {
-                    Header()
-                },
-            ) { paddingValue ->
-                Column(
-                    modifier = Modifier.padding(paddingValue),
-                    horizontalAlignment = Alignment.CenterHorizontally
-                ) {
-                    // Board composable for drawing and interaction
-                    Board(
-                        modifier = Modifier.fillMaxWidth(),
-                        drawOffsets = uiState.drawOffsets,
-                        onDragStart = {
-                            viewModel.draw(it)
-                        },
-                        onDrag = {
-                            viewModel.draw(it)
-                        },
-                        onDragEnd = {},
-                        onDraw = {
-                            if (uiState.drawOffsets.isNotEmpty()) {
-                                viewModel.classify(it)
-                            }
-                        },
-                    )
+            ApplicationTheme {
+                Scaffold(
+                    topBar = {
+                        Header()
+                    },
+                ) { paddingValue ->
+                    Column(
+                        modifier = Modifier.padding(paddingValue),
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        // Board composable for drawing and interaction
+                        Board(
+                            modifier = Modifier.fillMaxWidth(),
+                            drawOffsets = uiState.drawOffsets,
+                            onDragStart = {
+                                viewModel.draw(it)
+                            },
+                            onDrag = {
+                                viewModel.draw(it)
+                            },
+                            onDragEnd = {},
+                            onDraw = {
+                                if (uiState.drawOffsets.isNotEmpty()) {
+                                    viewModel.classify(it)
+                                }
+                            },
+                        )
 
-                    Spacer(modifier = Modifier.height(30.dp))
-                    Text("Prediction result: ${uiState.digit}")
-                    Spacer(modifier = Modifier.height(5.dp))
-                    Text("Confidence: ${uiState.score}")
-                    Spacer(Modifier.weight(1f))
-                    Button(
-                        colors = ButtonDefaults.buttonColors(containerColor = darkBlue),
-                        onClick = {
+                        Spacer(modifier = Modifier.height(30.dp))
+                        Text(stringResource(id = R.string.result, uiState.digit))
+                        Spacer(modifier = Modifier.height(5.dp))
+                        Text(stringResource(id = R.string.confidence, uiState.score))
+                        Spacer(Modifier.weight(1f))
+                        Button(onClick = {
                             viewModel.cleanBoard()
                         }) {
-                        Text("Clear")
+                            Text(stringResource(id = R.string.clear))
+                        }
                     }
-                }
 
+                }
             }
         }
     }
@@ -161,7 +161,7 @@ class MainActivity : ComponentActivity() {
             modifier = modifier
                 .fillMaxWidth()
                 .height(screenWidth)
-                .background(darkBlue)
+                .background(MaterialTheme.colorScheme.primary)
                 .detectDrag(
                     onDragStart = {
                         onDragStart(Start(it.x, it.y))
@@ -203,7 +203,7 @@ class MainActivity : ComponentActivity() {
     fun Header() {
         TopAppBar(
             colors = TopAppBarDefaults.topAppBarColors(
-                containerColor = teal,
+                containerColor = MaterialTheme.colorScheme.secondary,
             ),
             title = {
                 Image(
