@@ -15,7 +15,6 @@
 
 import UIKit
 import AVFoundation
-import TensorFlowLiteTaskAudio
 
 class ViewController: UIViewController {
 
@@ -23,7 +22,10 @@ class ViewController: UIViewController {
   @IBOutlet weak var tableView: UITableView!
   @IBOutlet weak var inferenceView: InferenceView!
 
-  private var audioClassificationHelper: AudioClassificationHelper?
+  private var audioInputManager: AudioInputManager?
+  private var audioClassificationHelper: AudioClassificationHelper!
+
+  private var bufferSize: Int = 0
 
   private var model: Model = DefaultConstants.model
   private var overLap: Double = DefaultConstants.overLap
@@ -37,50 +39,37 @@ class ViewController: UIViewController {
     super.viewDidLoad()
     inferenceView.delegate = self
     inferenceView.setDefault()
-    startAudioClassification()
+    restartClassifier()
   }
 
   // MARK: - Private Methods
-  /// Request permission and start audio classification if granted.
-  private func startAudioClassification() {
-    AVAudioSession.sharedInstance().requestRecordPermission { granted in
-      if granted {
-        DispatchQueue.main.async {
-          self.restartClassifier()
-        }
-      } else {
-        self.checkPermissions()
-      }
-    }
+
+  /// Initializes the AudioInputManager and starts recognizing on the output buffers.
+  private func startAudioRecognition() {
+    audioInputManager?.stop()
+    audioInputManager = AudioInputManager(bufferSize: audioClassificationHelper.sampleRate, overlap: Float(overLap))
+    audioInputManager?.delegate = self
+
+    bufferSize = audioInputManager?.bufferSize ?? 0
+
+    audioInputManager?.checkPermissionsAndStartTappingMicrophone()
   }
 
-  /// Check permission and show error if user denied permission.
-  private func checkPermissions() {
-    switch AVAudioSession.sharedInstance().recordPermission {
-    case .granted, .undetermined:
-      startAudioClassification()
-    case .denied:
-      showPermissionsErrorAlert()
-    @unknown default:
-      fatalError()
-    }
+  private func runModel(inputBuffer: [Int16]) {
+    audioClassificationHelper.start(inputBuffer: inputBuffer)
   }
 
   /// Start a new audio classification routine.
   private func restartClassifier() {
-    // Stop the existing classifier if one is running.
-    audioClassificationHelper?.stopClassifier()
-
     // Create a new classifier instance.
-    audioClassificationHelper = AudioClassificationHelper(
+    guard let audioClassificationHelper = AudioClassificationHelper(
       model: model,
-      threadCount: threadCount,
       scoreThreshold: threshold,
-      maxResults: maxResults)
+      maxResults: maxResults) else { fatalError("can not init AudioClassificationHelper") }
+    audioClassificationHelper.delegate = self
+    self.audioClassificationHelper = audioClassificationHelper
 
-    // Start the new classification routine.
-    audioClassificationHelper?.delegate = self
-    audioClassificationHelper?.startClassifier(overlap: overLap)
+    startAudioRecognition()
   }
 }
 
@@ -111,30 +100,25 @@ extension ViewController {
 // MARK: UITableViewDataSource, UITableViewDelegate
 extension ViewController: UITableViewDataSource, UITableViewDelegate {
 
+  func tableView(_ tableView: UITableView, numberOfRowsInSection section: Int) -> Int {
+    return datas.count
+  }
+
   func tableView(_ tableView: UITableView, cellForRowAt indexPath: IndexPath) -> UITableViewCell {
     guard let cell = tableView.dequeueReusableCell(withIdentifier: "ResultCell") as? ResultTableViewCell else { fatalError() }
     cell.setData(datas[indexPath.row])
     return cell
   }
-
-  func tableView(_ tableView: UITableView, numberOfRowsInSection section: Int) -> Int {
-    return datas.count
-  }
 }
 
 // MARK: AudioClassificationHelperDelegate
 extension ViewController: AudioClassificationHelperDelegate {
-  func onResultReceived(_ result: Result) {
+  func audioClassificationHelper(_ audioClassificationHelper: AudioClassificationHelper, didfinishClassfification result: Result) {
     datas = result.categories
-    tableView.reloadData()
-    inferenceView.inferenceTimeLabel.text = "\(Int(result.inferenceTime * 1000)) ms"
-  }
-
-  func onError(_ error: Error) {
-    let errorMessage = "An error occured while running audio classification: \(error.localizedDescription)"
-    let alert = UIAlertController(title: "Error", message: errorMessage, preferredStyle: UIAlertController.Style.alert)
-    alert.addAction(UIAlertAction(title: "OK", style: UIAlertAction.Style.default, handler: nil))
-    self.present(alert, animated: true, completion: nil)
+    DispatchQueue.main.async {
+      self.tableView.reloadData()
+      self.inferenceView.inferenceTimeLabel.text = "\(Int(result.inferenceTime * 1000)) ms"
+    }
   }
 }
 
@@ -156,5 +140,38 @@ extension ViewController: InferenceViewDelegate {
 
     // Restart the audio classifier as the config as changed.
     restartClassifier()
+  }
+}
+
+// MARK: - AudioInputManagerDelegate
+extension ViewController: AudioInputManagerDelegate {
+  func audioInputManagerDidFailToAchievePermission(_ audioInputManager: AudioInputManager) {
+    let alertController = UIAlertController(
+      title: "Microphone Permissions Denied",
+      message: "Microphone permissions have been denied for this app. You can change this by going to Settings",
+      preferredStyle: .alert
+    )
+
+    let cancelAction = UIAlertAction(title: "Cancel", style: .cancel, handler: nil)
+    let settingsAction = UIAlertAction(title: "Settings", style: .default) { _ in
+      UIApplication.shared.open(
+        URL(string: UIApplication.openSettingsURLString)!,
+        options: [:],
+        completionHandler: nil
+      )
+    }
+    alertController.addAction(cancelAction)
+    alertController.addAction(settingsAction)
+
+    present(alertController, animated: true, completion: nil)
+  }
+
+  func audioInputManager(
+    _ audioInputManager: AudioInputManager,
+    didCaptureChannelData channelData: [Int16]
+  ) {
+    let sampleRate = audioClassificationHelper.sampleRate
+    guard channelData.count >= sampleRate else { return }
+    self.runModel(inputBuffer: Array(channelData[0..<sampleRate]))
   }
 }
