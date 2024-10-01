@@ -206,6 +206,7 @@
 				BF2B2CD32A316CB000589A11 /* Sources */,
 				BF2B2CD42A316CB000589A11 /* Frameworks */,
 				BF2B2CD52A316CB000589A11 /* Resources */,
+				58793CC1CCA2C7DE0095215C /* [CP] Copy Pods Resources */,
 			);
 			buildRules = (
 			);
@@ -298,6 +299,23 @@
 /* End PBXResourcesBuildPhase section */
 
 /* Begin PBXShellScriptBuildPhase section */
+		58793CC1CCA2C7DE0095215C /* [CP] Copy Pods Resources */ = {
+			isa = PBXShellScriptBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputFileListPaths = (
+				"${PODS_ROOT}/Target Support Files/Pods-ImageClassifier/Pods-ImageClassifier-resources-${CONFIGURATION}-input-files.xcfilelist",
+			);
+			name = "[CP] Copy Pods Resources";
+			outputFileListPaths = (
+				"${PODS_ROOT}/Target Support Files/Pods-ImageClassifier/Pods-ImageClassifier-resources-${CONFIGURATION}-output-files.xcfilelist",
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "\"${PODS_ROOT}/Target Support Files/Pods-ImageClassifier/Pods-ImageClassifier-resources.sh\"\n";
+			showEnvVarsInLog = 0;
+		};
 		7F7641AA2A74BBCF00DDCE4E /* Download models */ = {
 			isa = PBXShellScriptBuildPhase;
 			alwaysOutOfDate = 1;
@@ -541,7 +559,7 @@
 				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_TEAM = "";
+				DEVELOPMENT_TEAM = C9MWYPX772;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = ImageClassifier/Info.plist;
 				INFOPLIST_KEY_NSCameraUsageDescription = "This app uses camera to classify the objects that appear in the camera feed.";
@@ -574,7 +592,7 @@
 				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_TEAM = "";
+				DEVELOPMENT_TEAM = C9MWYPX772;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = ImageClassifier/Info.plist;
 				INFOPLIST_KEY_NSCameraUsageDescription = "This app uses camera to classify the objects that appear in the camera feed.";
