@@ -20,14 +20,25 @@ enum Model: String, CaseIterable {
   case speechCommand = "Speech Command"
 
   var modelPath: String? {
-      switch self {
-      case .Yamnet:
-          return Bundle.main.path(
-              forResource: "yamnet", ofType: "tflite")
-      case .speechCommand:
-          return Bundle.main.path(
-              forResource: "speech_commands", ofType: "tflite")
-      }
+    switch self {
+    case .Yamnet:
+      return Bundle.main.path(
+        forResource: "yamnet", ofType: "tflite")
+    case .speechCommand:
+      return Bundle.main.path(
+        forResource: "speech_commands", ofType: "tflite")
+    }
+  }
+
+  var labelPath: String? {
+    switch self {
+    case .Yamnet:
+      return Bundle.main.path(
+        forResource: "yamnet_label_list", ofType: "txt")
+    case .speechCommand:
+      return Bundle.main.path(
+        forResource: "probability_labels", ofType: "txt")
+    }
   }
 }
 

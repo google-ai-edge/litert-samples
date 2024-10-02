@@ -17,6 +17,9 @@
 		BF5A2B2B2BC3D17A00A0ABAC /* InferenceView.swift in Sources */ = {isa = PBXBuildFile; fileRef = BF5A2B2A2BC3D17A00A0ABAC /* InferenceView.swift */; };
 		BF5A2B2D2BC3D20F00A0ABAC /* ResultTableViewCell.swift in Sources */ = {isa = PBXBuildFile; fileRef = BF5A2B2C2BC3D20F00A0ABAC /* ResultTableViewCell.swift */; };
 		BF5A2B322BC3D40C00A0ABAC /* DefaultConstants.swift in Sources */ = {isa = PBXBuildFile; fileRef = BF5A2B312BC3D40C00A0ABAC /* DefaultConstants.swift */; };
+		BF871AE42C9D306000299B0E /* AudioInputManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = BF871AE32C9D306000299B0E /* AudioInputManager.swift */; };
+		BF871AE72C9D327500299B0E /* yamnet_label_list.txt in Resources */ = {isa = PBXBuildFile; fileRef = BF871AE52C9D327500299B0E /* yamnet_label_list.txt */; };
+		BF871AE82C9D327500299B0E /* probability_labels.txt in Resources */ = {isa = PBXBuildFile; fileRef = BF871AE62C9D327500299B0E /* probability_labels.txt */; };
 		BFB819572BD755B200C71A36 /* yamnet.tflite in Resources */ = {isa = PBXBuildFile; fileRef = BFB819552BD755B200C71A36 /* yamnet.tflite */; };
 		BFB819582BD755B200C71A36 /* speech_commands.tflite in Resources */ = {isa = PBXBuildFile; fileRef = BFB819562BD755B200C71A36 /* speech_commands.tflite */; };
 		DC1E75C4F2AD273C59E6B96C /* Pods_AudioClassification.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = D7EFDE0C16196D1BDC31A015 /* Pods_AudioClassification.framework */; };
@@ -37,6 +40,9 @@
 		BF5A2B2A2BC3D17A00A0ABAC /* InferenceView.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = InferenceView.swift; sourceTree = "<group>"; };
 		BF5A2B2C2BC3D20F00A0ABAC /* ResultTableViewCell.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = ResultTableViewCell.swift; sourceTree = "<group>"; };
 		BF5A2B312BC3D40C00A0ABAC /* DefaultConstants.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DefaultConstants.swift; sourceTree = "<group>"; };
+		BF871AE32C9D306000299B0E /* AudioInputManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AudioInputManager.swift; sourceTree = "<group>"; };
+		BF871AE52C9D327500299B0E /* yamnet_label_list.txt */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text; path = yamnet_label_list.txt; sourceTree = "<group>"; };
+		BF871AE62C9D327500299B0E /* probability_labels.txt */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text; path = probability_labels.txt; sourceTree = "<group>"; };
 		BFB819552BD755B200C71A36 /* yamnet.tflite */ = {isa = PBXFileReference; lastKnownFileType = file; path = yamnet.tflite; sourceTree = "<group>"; };
 		BFB819562BD755B200C71A36 /* speech_commands.tflite */ = {isa = PBXFileReference; lastKnownFileType = file; path = speech_commands.tflite; sourceTree = "<group>"; };
 		D0B6F76E4B8425E1C75565D4 /* Pods_AudioClassificationTests.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; includeInIndex = 0; path = Pods_AudioClassificationTests.framework; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -106,9 +112,12 @@
 		BF5A2B262BC3CFD800A0ABAC /* Services */ = {
 			isa = PBXGroup;
 			children = (
+				BF871AE62C9D327500299B0E /* probability_labels.txt */,
+				BF871AE52C9D327500299B0E /* yamnet_label_list.txt */,
 				BFB819562BD755B200C71A36 /* speech_commands.tflite */,
 				BFB819552BD755B200C71A36 /* yamnet.tflite */,
 				BF5A2B232BC3CFD800A0ABAC /* AudioClassificationHelper.swift */,
+				BF871AE32C9D306000299B0E /* AudioInputManager.swift */,
 			);
 			path = Services;
 			sourceTree = "<group>";
@@ -159,6 +168,7 @@
 				BF5A2AEC2BC3CDFF00A0ABAC /* Sources */,
 				BF5A2AED2BC3CDFF00A0ABAC /* Frameworks */,
 				BF5A2AEE2BC3CDFF00A0ABAC /* Resources */,
+				8C25DF1FFF2FA17C8AA2E098 /* [CP] Copy Pods Resources */,
 			);
 			buildRules = (
 			);
@@ -208,8 +218,10 @@
 			buildActionMask = 2147483647;
 			files = (
 				BF5A2AFD2BC3CE0200A0ABAC /* Assets.xcassets in Resources */,
+				BF871AE82C9D327500299B0E /* probability_labels.txt in Resources */,
 				BFB819582BD755B200C71A36 /* speech_commands.tflite in Resources */,
 				BFB819572BD755B200C71A36 /* yamnet.tflite in Resources */,
+				BF871AE72C9D327500299B0E /* yamnet_label_list.txt in Resources */,
 				BF5A2B002BC3CE0200A0ABAC /* Base in Resources */,
 				BF5A2AFB2BC3CDFF00A0ABAC /* Base in Resources */,
 			);
@@ -238,6 +250,23 @@
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
 			shellScript = "diff \"${PODS_PODFILE_DIR_PATH}/Podfile.lock\" \"${PODS_ROOT}/Manifest.lock\" > /dev/null\nif [ $? != 0 ] ; then\n    # print error to STDERR\n    echo \"error: The sandbox is not in sync with the Podfile.lock. Run 'pod install' or update your CocoaPods installation.\" >&2\n    exit 1\nfi\n# This output is used by Xcode 'outputs' to avoid re-running this script phase.\necho \"SUCCESS\" > \"${SCRIPT_OUTPUT_FILE_0}\"\n";
+			showEnvVarsInLog = 0;
+		};
+		8C25DF1FFF2FA17C8AA2E098 /* [CP] Copy Pods Resources */ = {
+			isa = PBXShellScriptBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputFileListPaths = (
+				"${PODS_ROOT}/Target Support Files/Pods-AudioClassification/Pods-AudioClassification-resources-${CONFIGURATION}-input-files.xcfilelist",
+			);
+			name = "[CP] Copy Pods Resources";
+			outputFileListPaths = (
+				"${PODS_ROOT}/Target Support Files/Pods-AudioClassification/Pods-AudioClassification-resources-${CONFIGURATION}-output-files.xcfilelist",
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "\"${PODS_ROOT}/Target Support Files/Pods-AudioClassification/Pods-AudioClassification-resources.sh\"\n";
 			showEnvVarsInLog = 0;
 		};
 		BFE921C02BD2086700372D5F /* Download models */ = {
@@ -273,6 +302,7 @@
 				BF5A2B2D2BC3D20F00A0ABAC /* ResultTableViewCell.swift in Sources */,
 				BF5A2B322BC3D40C00A0ABAC /* DefaultConstants.swift in Sources */,
 				BF5A2AF62BC3CDFF00A0ABAC /* SceneDelegate.swift in Sources */,
+				BF871AE42C9D306000299B0E /* AudioInputManager.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
