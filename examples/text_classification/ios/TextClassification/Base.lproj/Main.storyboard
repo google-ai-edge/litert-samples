@@ -22,19 +22,19 @@
                                 <rect key="frame" x="0.0" y="48" width="414" height="44"/>
                                 <subviews>
                                     <view contentMode="scaleToFill" translatesAutoresizingMaskIntoConstraints="NO" id="u5H-vC-col">
-                                        <rect key="frame" x="112.5" y="0.0" width="189.5" height="44"/>
+                                        <rect key="frame" x="115" y="0.0" width="184" height="44"/>
                                         <subviews>
                                             <label opaque="NO" userInteractionEnabled="NO" contentMode="left" horizontalHuggingPriority="251" verticalHuggingPriority="251" text="Text Classification" textAlignment="natural" lineBreakMode="tailTruncation" baselineAdjustment="alignBaselines" adjustsFontSizeToFit="NO" translatesAutoresizingMaskIntoConstraints="NO" id="CKb-8L-gWt">
-                                                <rect key="frame" x="40" y="11.5" width="149.5" height="21"/>
+                                                <rect key="frame" x="34" y="11.5" width="150" height="21"/>
                                                 <fontDescription key="fontDescription" type="boldSystem" pointSize="17"/>
                                                 <nil key="textColor"/>
                                                 <nil key="highlightedColor"/>
                                             </label>
-                                            <imageView clipsSubviews="YES" userInteractionEnabled="NO" contentMode="scaleAspectFit" horizontalHuggingPriority="251" verticalHuggingPriority="251" image="LiteRT_Logo" translatesAutoresizingMaskIntoConstraints="NO" id="lEB-FK-5YF">
-                                                <rect key="frame" x="0.0" y="2" width="40" height="40"/>
+                                            <imageView clipsSubviews="YES" userInteractionEnabled="NO" contentMode="scaleAspectFit" horizontalHuggingPriority="251" verticalHuggingPriority="251" image="logo" translatesAutoresizingMaskIntoConstraints="NO" id="lEB-FK-5YF">
+                                                <rect key="frame" x="0.0" y="7" width="30" height="30"/>
                                                 <constraints>
-                                                    <constraint firstAttribute="width" constant="40" id="HiG-jj-v2F"/>
-                                                    <constraint firstAttribute="height" constant="40" id="fQh-v2-uNr"/>
+                                                    <constraint firstAttribute="width" constant="30" id="HiG-jj-v2F"/>
+                                                    <constraint firstAttribute="height" constant="30" id="fQh-v2-uNr"/>
                                                 </constraints>
                                             </imageView>
                                         </subviews>
@@ -43,7 +43,7 @@
                                             <constraint firstItem="lEB-FK-5YF" firstAttribute="centerY" secondItem="u5H-vC-col" secondAttribute="centerY" id="D6h-Fa-iQg"/>
                                             <constraint firstItem="CKb-8L-gWt" firstAttribute="centerY" secondItem="u5H-vC-col" secondAttribute="centerY" id="Kgp-zc-rCe"/>
                                             <constraint firstAttribute="height" constant="44" id="qFj-nL-GDv"/>
-                                            <constraint firstItem="CKb-8L-gWt" firstAttribute="leading" secondItem="lEB-FK-5YF" secondAttribute="trailing" id="qhA-LV-MKf"/>
+                                            <constraint firstItem="CKb-8L-gWt" firstAttribute="leading" secondItem="lEB-FK-5YF" secondAttribute="trailing" constant="4" id="qhA-LV-MKf"/>
                                             <constraint firstAttribute="trailing" secondItem="CKb-8L-gWt" secondAttribute="trailing" id="vza-mb-Ppr"/>
                                             <constraint firstItem="lEB-FK-5YF" firstAttribute="leading" secondItem="u5H-vC-col" secondAttribute="leading" id="yXE-Vf-j45"/>
                                         </constraints>
@@ -210,9 +210,9 @@
     </scenes>
     <color key="tintColor" red="0.93044394249999995" green="0.47058212760000001" blue="0.18419533969999999" alpha="1" colorSpace="custom" customColorSpace="displayP3"/>
     <resources>
-        <image name="LiteRT_Logo" width="1333.3333740234375" height="555.66668701171875"/>
         <image name="icn_chevron_down" width="48" height="48"/>
         <image name="icn_chevron_up" width="48" height="48"/>
+        <image name="logo" width="100" height="100"/>
         <systemColor name="labelColor">
             <color white="0.0" alpha="1" colorSpace="custom" customColorSpace="genericGamma22GrayColorSpace"/>
         </systemColor>
