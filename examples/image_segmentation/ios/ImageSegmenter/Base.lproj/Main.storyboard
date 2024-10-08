@@ -22,27 +22,27 @@
                                 <color key="backgroundColor" white="0.0" alpha="1" colorSpace="custom" customColorSpace="genericGamma22GrayColorSpace"/>
                             </containerView>
                             <view contentMode="scaleToFill" translatesAutoresizingMaskIntoConstraints="NO" id="z7m-k8-X4L">
-                                <rect key="frame" x="0.0" y="59" width="106.33333333333333" height="45"/>
+                                <rect key="frame" x="0.0" y="59" width="109.33333333333333" height="45"/>
                                 <color key="backgroundColor" systemColor="systemBackgroundColor"/>
                             </view>
                             <view contentMode="scaleToFill" translatesAutoresizingMaskIntoConstraints="NO" id="XfM-80-TTX">
-                                <rect key="frame" x="287" y="59" width="106" height="44"/>
+                                <rect key="frame" x="284" y="59" width="109" height="44"/>
                                 <color key="backgroundColor" systemColor="systemBackgroundColor"/>
                             </view>
                             <view contentMode="scaleToFill" translatesAutoresizingMaskIntoConstraints="NO" id="FVR-Cx-oSb">
-                                <rect key="frame" x="106.33333333333333" y="59" width="180.66666666666669" height="44"/>
+                                <rect key="frame" x="109.33333333333333" y="59" width="174.66666666666669" height="44"/>
                                 <subviews>
                                     <label opaque="NO" userInteractionEnabled="NO" contentMode="left" horizontalHuggingPriority="251" verticalHuggingPriority="251" text="ImageSegmenter" textAlignment="natural" lineBreakMode="tailTruncation" baselineAdjustment="alignBaselines" adjustsFontSizeToFit="NO" translatesAutoresizingMaskIntoConstraints="NO" id="42E-Ov-MEY">
-                                        <rect key="frame" x="40.000000000000014" y="11.666666666666671" width="140.66666666666669" height="21"/>
+                                        <rect key="frame" x="34.000000000000014" y="11.666666666666671" width="140.66666666666669" height="21"/>
                                         <fontDescription key="fontDescription" type="boldSystem" pointSize="17"/>
                                         <nil key="textColor"/>
                                         <nil key="highlightedColor"/>
                                     </label>
-                                    <imageView clipsSubviews="YES" userInteractionEnabled="NO" contentMode="scaleAspectFit" horizontalHuggingPriority="251" verticalHuggingPriority="251" image="LiteRT_Logo" translatesAutoresizingMaskIntoConstraints="NO" id="jA5-8l-gmu">
-                                        <rect key="frame" x="0.0" y="2" width="40" height="40"/>
+                                    <imageView clipsSubviews="YES" userInteractionEnabled="NO" contentMode="scaleAspectFit" horizontalHuggingPriority="251" verticalHuggingPriority="251" image="logo" translatesAutoresizingMaskIntoConstraints="NO" id="jA5-8l-gmu">
+                                        <rect key="frame" x="0.0" y="7" width="30" height="30"/>
                                         <constraints>
-                                            <constraint firstAttribute="height" constant="40" id="3O3-ci-rV6"/>
-                                            <constraint firstAttribute="width" constant="40" id="bEj-0x-Qpq"/>
+                                            <constraint firstAttribute="height" constant="30" id="3O3-ci-rV6"/>
+                                            <constraint firstAttribute="width" constant="30" id="bEj-0x-Qpq"/>
                                         </constraints>
                                     </imageView>
                                 </subviews>
@@ -50,7 +50,7 @@
                                 <constraints>
                                     <constraint firstItem="42E-Ov-MEY" firstAttribute="centerY" secondItem="FVR-Cx-oSb" secondAttribute="centerY" id="7Zt-kp-Wja"/>
                                     <constraint firstAttribute="height" constant="44" id="Bhj-A9-AYK"/>
-                                    <constraint firstItem="42E-Ov-MEY" firstAttribute="leading" secondItem="jA5-8l-gmu" secondAttribute="trailing" id="JKh-Ah-upM"/>
+                                    <constraint firstItem="42E-Ov-MEY" firstAttribute="leading" secondItem="jA5-8l-gmu" secondAttribute="trailing" constant="4" id="JKh-Ah-upM"/>
                                     <constraint firstItem="jA5-8l-gmu" firstAttribute="leading" secondItem="FVR-Cx-oSb" secondAttribute="leading" id="YIV-zH-YYg"/>
                                     <constraint firstAttribute="trailing" secondItem="42E-Ov-MEY" secondAttribute="trailing" id="YcK-5V-JKb"/>
                                     <constraint firstItem="jA5-8l-gmu" firstAttribute="centerY" secondItem="FVR-Cx-oSb" secondAttribute="centerY" id="qez-bd-CvQ"/>
@@ -310,9 +310,9 @@
         </scene>
     </scenes>
     <resources>
-        <image name="LiteRT_Logo" width="1333.3333740234375" height="555.66668701171875"/>
         <image name="camera" catalog="system" width="128" height="93"/>
         <image name="ic_add" width="33.333332061767578" height="33.333332061767578"/>
+        <image name="logo" width="33.333332061767578" height="33.333332061767578"/>
         <image name="photo.artframe" catalog="system" width="128" height="93"/>
         <image name="plus" catalog="system" width="128" height="113"/>
         <systemColor name="systemBackgroundColor">
