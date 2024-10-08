@@ -21,30 +21,30 @@
                                 <rect key="frame" x="0.0" y="0.0" width="393" height="99"/>
                                 <subviews>
                                     <view contentMode="scaleToFill" translatesAutoresizingMaskIntoConstraints="NO" id="rEZ-GA-bgA">
-                                        <rect key="frame" x="76.000000000000014" y="53" width="241.33333333333337" height="46"/>
+                                        <rect key="frame" x="82.000000000000014" y="53" width="229.33333333333337" height="46"/>
                                         <subviews>
                                             <label opaque="NO" userInteractionEnabled="NO" contentMode="left" horizontalHuggingPriority="251" verticalHuggingPriority="251" text="Reinforcement Learning" textAlignment="natural" lineBreakMode="tailTruncation" baselineAdjustment="alignBaselines" adjustsFontSizeToFit="NO" translatesAutoresizingMaskIntoConstraints="NO" id="LZC-yn-uxE">
-                                                <rect key="frame" x="46.000000000000014" y="12.666666666666671" width="195.33333333333337" height="21"/>
+                                                <rect key="frame" x="34.000000000000014" y="0.0" width="195.33333333333337" height="46"/>
                                                 <fontDescription key="fontDescription" type="boldSystem" pointSize="17"/>
                                                 <color key="textColor" white="0.0" alpha="1" colorSpace="custom" customColorSpace="genericGamma22GrayColorSpace"/>
                                                 <nil key="highlightedColor"/>
                                             </label>
-                                            <imageView clipsSubviews="YES" userInteractionEnabled="NO" contentMode="scaleAspectFit" horizontalHuggingPriority="251" verticalHuggingPriority="251" image="LiteRT_Logo" translatesAutoresizingMaskIntoConstraints="NO" id="bD7-9L-YQc">
-                                                <rect key="frame" x="0.0" y="0.0" width="46" height="46"/>
+                                            <imageView clipsSubviews="YES" userInteractionEnabled="NO" contentMode="scaleAspectFit" horizontalHuggingPriority="251" verticalHuggingPriority="251" image="logo" translatesAutoresizingMaskIntoConstraints="NO" id="bD7-9L-YQc">
+                                                <rect key="frame" x="0.0" y="8" width="30" height="30"/>
                                                 <constraints>
-                                                    <constraint firstAttribute="width" constant="46" id="2s9-Pa-EW9"/>
-                                                    <constraint firstAttribute="height" constant="46" id="ES2-VS-JDB"/>
+                                                    <constraint firstAttribute="width" constant="30" id="2s9-Pa-EW9"/>
+                                                    <constraint firstAttribute="height" constant="30" id="ES2-VS-JDB"/>
                                                 </constraints>
                                             </imageView>
                                         </subviews>
                                         <color key="backgroundColor" systemColor="systemBackgroundColor"/>
                                         <constraints>
-                                            <constraint firstItem="LZC-yn-uxE" firstAttribute="leading" secondItem="bD7-9L-YQc" secondAttribute="trailing" id="7Ke-fC-eqG"/>
+                                            <constraint firstItem="LZC-yn-uxE" firstAttribute="top" secondItem="rEZ-GA-bgA" secondAttribute="top" id="1s2-n5-OKT"/>
+                                            <constraint firstItem="LZC-yn-uxE" firstAttribute="leading" secondItem="bD7-9L-YQc" secondAttribute="trailing" constant="4" id="7Ke-fC-eqG"/>
                                             <constraint firstAttribute="trailing" secondItem="LZC-yn-uxE" secondAttribute="trailing" id="7f6-C0-mEE"/>
-                                            <constraint firstItem="bD7-9L-YQc" firstAttribute="top" secondItem="rEZ-GA-bgA" secondAttribute="top" id="Q9c-mb-3Ij"/>
                                             <constraint firstItem="bD7-9L-YQc" firstAttribute="leading" secondItem="rEZ-GA-bgA" secondAttribute="leading" id="QRp-t1-59W"/>
-                                            <constraint firstAttribute="bottom" secondItem="bD7-9L-YQc" secondAttribute="bottom" id="SIs-T6-vHD"/>
                                             <constraint firstItem="LZC-yn-uxE" firstAttribute="centerY" secondItem="bD7-9L-YQc" secondAttribute="centerY" id="YTw-t8-b4l"/>
+                                            <constraint firstAttribute="bottom" secondItem="LZC-yn-uxE" secondAttribute="bottom" id="odW-UW-KaM"/>
                                         </constraints>
                                     </view>
                                 </subviews>
@@ -143,7 +143,7 @@
         </scene>
     </scenes>
     <resources>
-        <image name="LiteRT_Logo" width="1333.3333740234375" height="555.66668701171875"/>
+        <image name="logo" width="100" height="100"/>
         <systemColor name="systemBackgroundColor">
             <color white="1" alpha="1" colorSpace="custom" customColorSpace="genericGamma22GrayColorSpace"/>
         </systemColor>
