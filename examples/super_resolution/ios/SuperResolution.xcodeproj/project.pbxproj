@@ -418,6 +418,7 @@
 			isa = XCBuildConfiguration;
 			baseConfigurationReference = D8BD14FC965D28503356CB0E /* Pods-SuperResolution.debug.xcconfig */;
 			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
@@ -450,6 +451,7 @@
 			isa = XCBuildConfiguration;
 			baseConfigurationReference = ABE81BC1B05C33A3550767AD /* Pods-SuperResolution.release.xcconfig */;
 			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
