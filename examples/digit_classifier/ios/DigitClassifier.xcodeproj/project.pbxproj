@@ -438,6 +438,7 @@
 			isa = XCBuildConfiguration;
 			baseConfigurationReference = D8DB0F00551CD9E9C3B068BD /* Pods-DigitClassifier.debug.xcconfig */;
 			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
@@ -470,6 +471,7 @@
 			isa = XCBuildConfiguration;
 			baseConfigurationReference = 4CC1E368FC864C92BCD37C32 /* Pods-DigitClassifier.release.xcconfig */;
 			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
