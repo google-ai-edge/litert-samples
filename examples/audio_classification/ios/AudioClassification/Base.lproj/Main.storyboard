@@ -261,25 +261,47 @@
                                     <outlet property="thresholdStepper" destination="0aJ-B4-Rqn" id="aYc-iY-l3I"/>
                                 </connections>
                             </view>
-                            <imageView clipsSubviews="YES" userInteractionEnabled="NO" contentMode="scaleAspectFit" horizontalHuggingPriority="251" verticalHuggingPriority="251" image="LiteRT_Logo" translatesAutoresizingMaskIntoConstraints="NO" id="7K0-XB-7ff">
-                                <rect key="frame" x="0.0" y="50" width="375" height="44"/>
-                                <color key="backgroundColor" red="0.59999999999999998" green="0.59999999999999998" blue="0.59999999999999998" alpha="0.47696109693877553" colorSpace="custom" customColorSpace="calibratedRGB"/>
-                            </imageView>
+                            <view contentMode="scaleToFill" translatesAutoresizingMaskIntoConstraints="NO" id="AWd-2C-IAg">
+                                <rect key="frame" x="89.666666666666671" y="50" width="195.66666666666663" height="44"/>
+                                <subviews>
+                                    <imageView clipsSubviews="YES" userInteractionEnabled="NO" contentMode="scaleAspectFit" horizontalHuggingPriority="251" verticalHuggingPriority="251" image="logo" translatesAutoresizingMaskIntoConstraints="NO" id="eYN-BH-JkL">
+                                        <rect key="frame" x="0.0" y="7" width="30" height="30"/>
+                                        <constraints>
+                                            <constraint firstAttribute="height" constant="30" id="AEz-jU-C2r"/>
+                                            <constraint firstAttribute="width" constant="30" id="K1K-eR-IyX"/>
+                                        </constraints>
+                                    </imageView>
+                                    <label opaque="NO" userInteractionEnabled="NO" contentMode="left" horizontalHuggingPriority="251" verticalHuggingPriority="251" text="Audio Classification" textAlignment="natural" lineBreakMode="tailTruncation" baselineAdjustment="alignBaselines" adjustsFontSizeToFit="NO" translatesAutoresizingMaskIntoConstraints="NO" id="PKG-nt-rOz">
+                                        <rect key="frame" x="34" y="0.0" width="161.66666666666666" height="44"/>
+                                        <fontDescription key="fontDescription" type="boldSystem" pointSize="17"/>
+                                        <color key="textColor" white="0.0" alpha="1" colorSpace="custom" customColorSpace="genericGamma22GrayColorSpace"/>
+                                        <nil key="highlightedColor"/>
+                                    </label>
+                                </subviews>
+                                <color key="backgroundColor" systemColor="systemBackgroundColor"/>
+                                <constraints>
+                                    <constraint firstItem="PKG-nt-rOz" firstAttribute="top" secondItem="AWd-2C-IAg" secondAttribute="top" id="AGQ-HB-Jsv"/>
+                                    <constraint firstAttribute="bottom" secondItem="PKG-nt-rOz" secondAttribute="bottom" id="IAh-NK-SD6"/>
+                                    <constraint firstAttribute="trailing" secondItem="PKG-nt-rOz" secondAttribute="trailing" id="O2j-Eq-a1P"/>
+                                    <constraint firstItem="eYN-BH-JkL" firstAttribute="leading" secondItem="AWd-2C-IAg" secondAttribute="leading" id="kDO-ak-KCL"/>
+                                    <constraint firstItem="eYN-BH-JkL" firstAttribute="centerY" secondItem="AWd-2C-IAg" secondAttribute="centerY" id="mJE-UA-UW7"/>
+                                    <constraint firstItem="PKG-nt-rOz" firstAttribute="leading" secondItem="eYN-BH-JkL" secondAttribute="trailing" constant="4" id="rbe-Fq-gBB"/>
+                                </constraints>
+                            </view>
                         </subviews>
                         <viewLayoutGuide key="safeArea" id="6Tk-OE-BBY"/>
                         <color key="backgroundColor" systemColor="systemBackgroundColor"/>
                         <constraints>
                             <constraint firstItem="iph-Fi-onr" firstAttribute="trailing" secondItem="6Tk-OE-BBY" secondAttribute="trailing" id="9TG-hq-iy2"/>
+                            <constraint firstItem="AWd-2C-IAg" firstAttribute="centerX" secondItem="6Tk-OE-BBY" secondAttribute="centerX" id="Alf-Ls-TEW"/>
                             <constraint firstItem="6Tk-OE-BBY" firstAttribute="bottom" secondItem="MEL-oY-YWf" secondAttribute="bottom" id="K0l-3h-XqO"/>
-                            <constraint firstItem="7K0-XB-7ff" firstAttribute="top" secondItem="6Tk-OE-BBY" secondAttribute="top" id="Ozd-1O-mDX"/>
-                            <constraint firstItem="6Tk-OE-BBY" firstAttribute="trailing" secondItem="7K0-XB-7ff" secondAttribute="trailing" id="TeZ-ak-i36"/>
                             <constraint firstItem="MEL-oY-YWf" firstAttribute="leading" secondItem="6Tk-OE-BBY" secondAttribute="leading" id="Ysz-tc-eCZ"/>
-                            <constraint firstItem="7K0-XB-7ff" firstAttribute="leading" secondItem="6Tk-OE-BBY" secondAttribute="leading" id="ab3-mA-0MS"/>
-                            <constraint firstItem="MEL-oY-YWf" firstAttribute="top" secondItem="7K0-XB-7ff" secondAttribute="bottom" id="gqd-2U-IzF"/>
+                            <constraint firstItem="AWd-2C-IAg" firstAttribute="top" secondItem="6Tk-OE-BBY" secondAttribute="top" id="a6C-35-Nat"/>
                             <constraint firstItem="iph-Fi-onr" firstAttribute="leading" secondItem="6Tk-OE-BBY" secondAttribute="leading" id="hbf-z3-Acp"/>
                             <constraint firstItem="6Tk-OE-BBY" firstAttribute="trailing" secondItem="MEL-oY-YWf" secondAttribute="trailing" id="hxW-Ew-mqA"/>
                             <constraint firstItem="MEL-oY-YWf" firstAttribute="top" secondItem="6Tk-OE-BBY" secondAttribute="top" constant="44" id="wHm-6a-m6s"/>
                             <constraint firstItem="6Tk-OE-BBY" firstAttribute="bottom" secondItem="iph-Fi-onr" secondAttribute="bottom" id="wIl-Ag-dMb"/>
+                            <constraint firstItem="MEL-oY-YWf" firstAttribute="top" secondItem="AWd-2C-IAg" secondAttribute="bottom" id="wac-If-CqV"/>
                         </constraints>
                     </view>
                     <extendedEdge key="edgesForExtendedLayout" bottom="YES"/>
@@ -294,9 +316,9 @@
         </scene>
     </scenes>
     <resources>
-        <image name="LiteRT_Logo" width="1333.3333740234375" height="555.66668701171875"/>
         <image name="icn_chevron_down" width="48" height="48"/>
         <image name="icn_chevron_up" width="48" height="48"/>
+        <image name="logo" width="33.333332061767578" height="33.333332061767578"/>
         <systemColor name="systemBackgroundColor">
             <color white="1" alpha="1" colorSpace="custom" customColorSpace="genericGamma22GrayColorSpace"/>
         </systemColor>
