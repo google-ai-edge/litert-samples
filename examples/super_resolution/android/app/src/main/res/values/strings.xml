@@ -1,3 +1,10 @@
 <resources>
     <string name="app_name">super_resolution</string>
+    <string name="inference_title">Inference Time</string>
+    <string name="inference_value">%s ms</string>
+    <string name="delegate_label">Delegate</string>
+    <string name="image_sample_choose_image_description">Choose a low resolution image below:</string>
+    <string name="image_sample_guide">Click UPSAMPLE button below will we use LiteRT to generate
+        a corresponding high resolution image based n your chosen image"</string>
+    <string name="image_sample_up_sample">UPSAMPLE</string>
 </resources>
