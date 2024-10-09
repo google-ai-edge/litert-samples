@@ -19,5 +19,5 @@ import UIKit
 // MARK: Define default constants
 struct DefaultConstants {
   static let modelPath = Bundle.main.path(forResource: "ESRGAN", ofType: "tflite")
-  static let orangeColor = UIColor(_colorLiteralRed: 1, green: 137/255.0, blue: 0, alpha: 1)
+  static let blueColor = UIColor(_colorLiteralRed: 2/255.0, green: 15/255.0, blue: 89/255.0, alpha: 1)
 }

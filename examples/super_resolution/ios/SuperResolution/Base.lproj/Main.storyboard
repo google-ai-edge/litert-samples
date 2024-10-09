@@ -1,9 +1,9 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<document type="com.apple.InterfaceBuilder3.CocoaTouch.Storyboard.XIB" version="3.0" toolsVersion="22155" targetRuntime="iOS.CocoaTouch" propertyAccessControl="none" useAutolayout="YES" useTraitCollections="YES" useSafeAreas="YES" colorMatched="YES" initialViewController="i0d-ya-MBF">
+<document type="com.apple.InterfaceBuilder3.CocoaTouch.Storyboard.XIB" version="3.0" toolsVersion="32700.99.1234" targetRuntime="iOS.CocoaTouch" propertyAccessControl="none" useAutolayout="YES" useTraitCollections="YES" useSafeAreas="YES" colorMatched="YES" initialViewController="i0d-ya-MBF">
     <device id="retina6_12" orientation="portrait" appearance="light"/>
     <dependencies>
         <deployment identifier="iOS"/>
-        <plugIn identifier="com.apple.InterfaceBuilder.IBCocoaTouchPlugin" version="22131"/>
+        <plugIn identifier="com.apple.InterfaceBuilder.IBCocoaTouchPlugin" version="22684"/>
         <capability name="Image references" minToolsVersion="12.0"/>
         <capability name="Safe area layout guides" minToolsVersion="9.0"/>
         <capability name="System colors in document resources" minToolsVersion="11.0"/>
@@ -24,7 +24,7 @@
                             </imageView>
                             <button opaque="NO" contentMode="scaleToFill" contentHorizontalAlignment="center" contentVerticalAlignment="center" buttonType="system" lineBreakMode="middleTruncation" translatesAutoresizingMaskIntoConstraints="NO" id="gSR-af-RmV">
                                 <rect key="frame" x="326" y="723.66666666666663" width="47" height="34.333333333333371"/>
-                                <color key="tintColor" systemColor="systemBlueColor"/>
+                                <color key="tintColor" red="0.0" green="0.78823529410000004" blue="0.61960784310000006" alpha="1" colorSpace="custom" customColorSpace="sRGB"/>
                                 <state key="normal" title="Button"/>
                                 <buttonConfiguration key="configuration" style="plain">
                                     <imageReference key="image" image="plus" catalog="system" symbolScale="large"/>
@@ -53,11 +53,11 @@
                             </view>
                             <button opaque="NO" contentMode="scaleToFill" contentHorizontalAlignment="center" contentVerticalAlignment="center" buttonType="system" lineBreakMode="middleTruncation" translatesAutoresizingMaskIntoConstraints="NO" id="1rl-BM-AOp">
                                 <rect key="frame" x="228" y="267" width="130" height="30"/>
-                                <color key="backgroundColor" systemColor="systemBlueColor"/>
+                                <color key="backgroundColor" red="0.0" green="0.78823529410000004" blue="0.61960784310000006" alpha="1" colorSpace="custom" customColorSpace="sRGB"/>
                                 <constraints>
                                     <constraint firstAttribute="width" constant="130" id="4KJ-Pu-vCM"/>
                                 </constraints>
-                                <color key="tintColor" systemColor="tableCellBlueTextColor"/>
+                                <color key="tintColor" red="0.0" green="0.78823529410000004" blue="0.61960784310000006" alpha="1" colorSpace="custom" customColorSpace="sRGB"/>
                                 <inset key="imageEdgeInsets" minX="0.0" minY="0.0" maxX="2.2250738585072014e-308" maxY="0.0"/>
                                 <state key="normal" title="Croped Image">
                                     <color key="titleColor" white="1" alpha="1" colorSpace="custom" customColorSpace="genericGamma22GrayColorSpace"/>
@@ -157,7 +157,7 @@
                             </label>
                             <button opaque="NO" contentMode="scaleToFill" contentHorizontalAlignment="center" contentVerticalAlignment="center" buttonType="system" lineBreakMode="middleTruncation" translatesAutoresizingMaskIntoConstraints="NO" id="isG-Mt-QCK">
                                 <rect key="frame" x="126.66666666666669" y="210.33333333333334" width="140" height="40"/>
-                                <color key="backgroundColor" systemColor="systemBlueColor"/>
+                                <color key="backgroundColor" red="0.0" green="0.058823529409999999" blue="0.34901960780000002" alpha="1" colorSpace="custom" customColorSpace="sRGB"/>
                                 <constraints>
                                     <constraint firstAttribute="width" relation="greaterThanOrEqual" constant="140" id="I3t-A0-HCH"/>
                                     <constraint firstAttribute="height" constant="40" id="RgM-G1-com"/>
@@ -274,33 +274,33 @@
                                 <color key="backgroundColor" white="0.0" alpha="1" colorSpace="custom" customColorSpace="genericGamma22GrayColorSpace"/>
                             </containerView>
                             <view contentMode="scaleToFill" translatesAutoresizingMaskIntoConstraints="NO" id="HFt-Gr-elE">
-                                <rect key="frame" x="0.0" y="59" width="109" height="45"/>
+                                <rect key="frame" x="0.0" y="59" width="112" height="45"/>
                                 <color key="backgroundColor" systemColor="systemBackgroundColor"/>
                             </view>
                             <view contentMode="scaleToFill" translatesAutoresizingMaskIntoConstraints="NO" id="ppL-tn-OAf">
-                                <rect key="frame" x="284" y="59" width="109" height="44"/>
+                                <rect key="frame" x="281" y="59" width="112" height="44"/>
                                 <color key="backgroundColor" systemColor="systemBackgroundColor"/>
                             </view>
                             <view contentMode="scaleToFill" translatesAutoresizingMaskIntoConstraints="NO" id="rhI-KT-m0G">
-                                <rect key="frame" x="109" y="59" width="175" height="44"/>
+                                <rect key="frame" x="112" y="59" width="169" height="44"/>
                                 <subviews>
                                     <label opaque="NO" userInteractionEnabled="NO" contentMode="left" horizontalHuggingPriority="251" verticalHuggingPriority="251" text="SuperResolution" textAlignment="natural" lineBreakMode="tailTruncation" baselineAdjustment="alignBaselines" adjustsFontSizeToFit="NO" translatesAutoresizingMaskIntoConstraints="NO" id="4VG-g2-H3x">
-                                        <rect key="frame" x="40" y="11.666666666666671" width="135" height="21"/>
+                                        <rect key="frame" x="34" y="11.666666666666671" width="135" height="21"/>
                                         <fontDescription key="fontDescription" type="boldSystem" pointSize="17"/>
                                         <nil key="textColor"/>
                                         <nil key="highlightedColor"/>
                                     </label>
-                                    <imageView clipsSubviews="YES" userInteractionEnabled="NO" contentMode="scaleAspectFit" horizontalHuggingPriority="251" verticalHuggingPriority="251" translatesAutoresizingMaskIntoConstraints="NO" id="eWj-yb-nfX">
-                                        <rect key="frame" x="0.0" y="2" width="40" height="40"/>
+                                    <imageView clipsSubviews="YES" userInteractionEnabled="NO" contentMode="scaleAspectFit" horizontalHuggingPriority="251" verticalHuggingPriority="251" image="logo" translatesAutoresizingMaskIntoConstraints="NO" id="eWj-yb-nfX">
+                                        <rect key="frame" x="0.0" y="7" width="30" height="30"/>
                                         <constraints>
-                                            <constraint firstAttribute="width" constant="40" id="F23-5j-Cb8"/>
-                                            <constraint firstAttribute="height" constant="40" id="Npf-8J-0hR"/>
+                                            <constraint firstAttribute="width" constant="30" id="F23-5j-Cb8"/>
+                                            <constraint firstAttribute="height" constant="30" id="Npf-8J-0hR"/>
                                         </constraints>
                                     </imageView>
                                 </subviews>
                                 <color key="backgroundColor" systemColor="systemBackgroundColor"/>
                                 <constraints>
-                                    <constraint firstItem="4VG-g2-H3x" firstAttribute="leading" secondItem="eWj-yb-nfX" secondAttribute="trailing" id="1Cd-jb-h5Z"/>
+                                    <constraint firstItem="4VG-g2-H3x" firstAttribute="leading" secondItem="eWj-yb-nfX" secondAttribute="trailing" constant="4" id="1Cd-jb-h5Z"/>
                                     <constraint firstAttribute="height" constant="44" id="CCy-zQ-f49"/>
                                     <constraint firstItem="eWj-yb-nfX" firstAttribute="leading" secondItem="rhI-KT-m0G" secondAttribute="leading" id="QwG-NZ-MeL"/>
                                     <constraint firstAttribute="trailing" secondItem="4VG-g2-H3x" secondAttribute="trailing" id="aXi-9W-jNf"/>
@@ -318,7 +318,7 @@
                                     <tabBarItem title="" image="photo.on.rectangle.angled" catalog="system" id="PIG-Ja-r23"/>
                                     <tabBarItem title="" image="photo.artframe" catalog="system" id="Fxm-vn-e6Y"/>
                                 </items>
-                                <color key="selectedImageTintColor" systemColor="systemBlueColor"/>
+                                <color key="selectedImageTintColor" red="0.0" green="0.058823529409999999" blue="0.34901960780000002" alpha="1" colorSpace="custom" customColorSpace="sRGB"/>
                             </tabBar>
                             <view contentMode="scaleToFill" translatesAutoresizingMaskIntoConstraints="NO" id="Acb-20-NMg">
                                 <rect key="frame" x="0.0" y="788" width="393" height="30"/>
@@ -385,6 +385,7 @@
         </scene>
     </scenes>
     <resources>
+        <image name="logo" width="33.333332061767578" height="33.333332061767578"/>
         <image name="lr-1" width="50" height="50"/>
         <image name="lr-2" width="50" height="50"/>
         <image name="lr-3" width="50" height="50"/>
@@ -393,12 +394,6 @@
         <image name="plus" catalog="system" width="128" height="113"/>
         <systemColor name="systemBackgroundColor">
             <color white="1" alpha="1" colorSpace="custom" customColorSpace="genericGamma22GrayColorSpace"/>
-        </systemColor>
-        <systemColor name="systemBlueColor">
-            <color red="0.0" green="0.47843137254901963" blue="1" alpha="1" colorSpace="custom" customColorSpace="sRGB"/>
-        </systemColor>
-        <systemColor name="tableCellBlueTextColor">
-            <color red="0.0" green="0.47843137254901963" blue="1" alpha="1" colorSpace="custom" customColorSpace="sRGB"/>
         </systemColor>
     </resources>
 </document>
