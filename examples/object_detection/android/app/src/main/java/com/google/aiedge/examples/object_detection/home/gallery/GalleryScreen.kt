@@ -44,7 +44,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.google.aiedge.examples.object_detection.UiState
-import com.google.aiedge.examples.object_detection.ui.theme.Turquoise
+import com.google.aiedge.examples.object_detection.ui.teal
 
 // Here we have the gallery view which is displayed in Home screen
 
@@ -135,7 +135,7 @@ fun GalleryScreen(
                 selectedMediaUri = null
                 galleryLauncher.launch(arrayOf("image/*", "video/*"))
             },
-            containerColor = Turquoise,
+            containerColor = teal,
             contentColor = Color.White,
             modifier = Modifier
                 .align(Alignment.BottomEnd)

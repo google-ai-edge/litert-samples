@@ -31,7 +31,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import com.google.aiedge.examples.object_detection.objectdetector.ObjectDetectorHelper
-import com.google.aiedge.examples.object_detection.ui.theme.Turquoise
+import com.google.aiedge.examples.object_detection.ui.Turquoise
 
 // This composable is used to display the results of the object detection
 
