@@ -1,3 +1,9 @@
 <resources>
     <string name="app_name">Text Classification</string>
+    <string name="text_field_place_holder">Enter text to classify</string>
+    <string name="positive">Positive: %.2f</string>
+    <string name="negative">Negative: %.2f</string>
+    <string name="classify">Classify</string>
+    <string name="inference_title">Inference Time</string>
+    <string name="inference_value">%d ms</string>
 </resources>
