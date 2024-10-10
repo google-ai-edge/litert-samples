@@ -188,9 +188,7 @@ extension CameraViewController: CameraFeedServiceDelegate {
         guard let self else { return }
         self.isRunning = false
         guard let result = result,
-              let imageSegmenterResult = result.imageSegmenterResults.first,
-              let segmentation = imageSegmenterResult?.segmentations.first,
-              let categoryMask = segmentation.categoryMask else { return }
+              let categoryMask = result.imageSegmenterResults.first else { return }
 //        let a = UnsafeMutableBufferPointer(start: categoryMask.mask, count: 257 * 257)
 //        print(a.filter({$0 == 15}).count)
 //        print(a.filter({$0 == 0}).count)

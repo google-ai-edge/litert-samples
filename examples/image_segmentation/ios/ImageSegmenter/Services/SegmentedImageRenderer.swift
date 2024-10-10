@@ -19,7 +19,7 @@ import Metal
 import UIKit
 import MetalPerformanceShaders
 import MetalKit
-import TensorFlowLiteTaskVision
+import TensorFlowLite
 
 class SegmentedImageRenderer {
 

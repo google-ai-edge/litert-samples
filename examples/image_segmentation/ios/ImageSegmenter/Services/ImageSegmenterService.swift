@@ -14,13 +14,13 @@
 // =============================================================================
 
 import UIKit
-import TensorFlowLiteTaskVision
+import TensorFlowLite
 import AVFoundation
 
 // Initializes and calls the Tflite APIs for segmention.
 class ImageSegmenterService: NSObject {
 
-  var imageSegmenter: ImageSegmenter?
+//  var imageSegmenter: ImageSegmenter?
   var modelPath: String
 
   // MARK: - Custom Initializer
@@ -33,15 +33,15 @@ class ImageSegmenterService: NSObject {
   }
 
   private func createImageSegmenter() {
-    let imageSegmenterOptions = ImageSegmenterOptions(modelPath: modelPath)
-
-    imageSegmenterOptions.outputType = .categoryMask
-    do {
-      imageSegmenter = try ImageSegmenter.segmenter(options: imageSegmenterOptions)
-    }
-    catch {
-      print(error)
-    }
+//    let imageSegmenterOptions = ImageSegmenterOptions(modelPath: modelPath)
+//
+//    imageSegmenterOptions.outputType = .categoryMask
+//    do {
+//      imageSegmenter = try ImageSegmenter.segmenter(options: imageSegmenterOptions)
+//    }
+//    catch {
+//      print(error)
+//    }
   }
 
   // MARK: - Segmention Methods for Different Modes
@@ -49,34 +49,35 @@ class ImageSegmenterService: NSObject {
    This method return ImageSegmenterResult and infrenceTime when receive an image
    **/
   func segment(image: UIImage) -> ResultBundle? {
-    guard let cgImage = image.fixedOrientation() else { return nil }
-    let fixImage = UIImage(cgImage: cgImage, scale: 1.0, orientation: .up)
-    guard let mlImage = MLImage(image: fixImage) else {
-      return nil
-    }
-    do {
-      let startDate = Date()
-      let result = try imageSegmenter?.segment(mlImage: mlImage)
-      let inferenceTime = Date().timeIntervalSince(startDate) * 1000
-      return ResultBundle(inferenceTime: inferenceTime, imageSegmenterResults: [result])
-    } catch {
-      print(error)
-      return nil
-    }
+//    guard let cgImage = image.fixedOrientation() else { return nil }
+//    let fixImage = UIImage(cgImage: cgImage, scale: 1.0, orientation: .up)
+//    guard let mlImage = MLImage(image: fixImage) else {
+//      return nil
+//    }
+//    do {
+//      let startDate = Date()
+//      let result = try imageSegmenter?.segment(mlImage: mlImage)
+//      let inferenceTime = Date().timeIntervalSince(startDate) * 1000
+//      return ResultBundle(inferenceTime: inferenceTime, imageSegmenterResults: [result])
+//    } catch {
+//      print(error)
+//      return nil
+//    }
+    return nil
   }
 
   func segmentAsync(
     sampleBuffer: CMSampleBuffer, completion: (ResultBundle?) -> Void) {
-      guard let mlImage = MLImage(sampleBuffer: sampleBuffer) else {
-        completion(nil)
-        return
-      }
+//      guard let mlImage = MLImage(sampleBuffer: sampleBuffer) else {
+//        completion(nil)
+//        return
+//      }
       do {
         let startDate = Date()
-        let result = try imageSegmenter?.segment(mlImage: mlImage)
-        let inferenceTime = Date().timeIntervalSince(startDate) * 1000
-        let resultBundle = ResultBundle(inferenceTime: inferenceTime, imageSegmenterResults: [result])
-        completion(resultBundle)
+//        let result = try imageSegmenter?.segment(mlImage: mlImage)
+//        let inferenceTime = Date().timeIntervalSince(startDate) * 1000
+//        let resultBundle = ResultBundle(inferenceTime: inferenceTime, imageSegmenterResults: [result])
+        completion(nil)
       } catch {
         print(error)
         completion(nil)
@@ -94,8 +95,14 @@ class ImageSegmenterService: NSObject {
 /// A result from the `ImageSegmenterService`.
 struct ResultBundle {
   let inferenceTime: Double
-  let imageSegmenterResults: [SegmentationResult?]
+  let imageSegmenterResults: [CategoryMask]
   var size: CGSize = .zero
+}
+
+struct CategoryMask {
+  let width: Int
+  let height: Int
+  let mask: UnsafeRawPointer
 }
 
 struct VideoFrame {

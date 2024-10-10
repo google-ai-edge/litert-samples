@@ -25,7 +25,6 @@
 		BF6EBB9C2B200D9400CD13FB /* PreviewMetalView.swift in Sources */ = {isa = PBXBuildFile; fileRef = BF6EBB9B2B200D9400CD13FB /* PreviewMetalView.swift */; };
 		BF6EBBA22B20531800CD13FB /* SegmentedImageRenderer.swift in Sources */ = {isa = PBXBuildFile; fileRef = BF6EBBA12B20531800CD13FB /* SegmentedImageRenderer.swift */; };
 		BF6EBBA62B2070F000CD13FB /* RenderToMtlViewShaders.metal in Sources */ = {isa = PBXBuildFile; fileRef = BF6EBBA52B2070F000CD13FB /* RenderToMtlViewShaders.metal */; };
-		BF6EBBA82B20712600CD13FB /* selfie_segmenter.tflite in Resources */ = {isa = PBXBuildFile; fileRef = BF6EBBA72B20712600CD13FB /* selfie_segmenter.tflite */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -54,7 +53,6 @@
 		BF6EBB9B2B200D9400CD13FB /* PreviewMetalView.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = PreviewMetalView.swift; sourceTree = "<group>"; };
 		BF6EBBA12B20531800CD13FB /* SegmentedImageRenderer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SegmentedImageRenderer.swift; sourceTree = "<group>"; };
 		BF6EBBA52B2070F000CD13FB /* RenderToMtlViewShaders.metal */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.metal; path = RenderToMtlViewShaders.metal; sourceTree = "<group>"; };
-		BF6EBBA72B20712600CD13FB /* selfie_segmenter.tflite */ = {isa = PBXFileReference; lastKnownFileType = file; path = selfie_segmenter.tflite; sourceTree = "<group>"; };
 		CB81BA1A32936BF6829D8CD6 /* Pods_ImageSegmenter.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; includeInIndex = 0; path = Pods_ImageSegmenter.framework; sourceTree = BUILT_PRODUCTS_DIR; };
 		D95B4C9DB808B140005D1F61 /* libPods-ImageSegmenterUITests.a */ = {isa = PBXFileReference; explicitFileType = archive.ar; includeInIndex = 0; path = "libPods-ImageSegmenterUITests.a"; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
@@ -113,7 +111,6 @@
 				BF6EBB4E2B1EB5BE00CD13FB /* AppDelegate.swift */,
 				BF6EBB502B1EB5BE00CD13FB /* SceneDelegate.swift */,
 				BF6EBB542B1EB5BE00CD13FB /* Main.storyboard */,
-				BF6EBBA72B20712600CD13FB /* selfie_segmenter.tflite */,
 				BF2D8E642B830C7A0050C3B6 /* deeplab_v3.tflite */,
 				BF6EBB572B1EB5BF00CD13FB /* Assets.xcassets */,
 				BF6EBB592B1EB5BF00CD13FB /* LaunchScreen.storyboard */,
@@ -189,6 +186,7 @@
 				BF6EBB472B1EB5BE00CD13FB /* Sources */,
 				BF6EBB482B1EB5BE00CD13FB /* Frameworks */,
 				BF6EBB492B1EB5BE00CD13FB /* Resources */,
+				4138A79716CF908D935700C0 /* [CP] Copy Pods Resources */,
 			);
 			buildRules = (
 			);
@@ -240,7 +238,6 @@
 				BF6EBB5B2B1EB5BF00CD13FB /* LaunchScreen.storyboard in Resources */,
 				BF6EBB582B1EB5BF00CD13FB /* Assets.xcassets in Resources */,
 				BF2D8E652B830C7B0050C3B6 /* deeplab_v3.tflite in Resources */,
-				BF6EBBA82B20712600CD13FB /* selfie_segmenter.tflite in Resources */,
 				BF6EBB562B1EB5BE00CD13FB /* Main.storyboard in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -268,6 +265,23 @@
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
 			shellScript = "diff \"${PODS_PODFILE_DIR_PATH}/Podfile.lock\" \"${PODS_ROOT}/Manifest.lock\" > /dev/null\nif [ $? != 0 ] ; then\n    # print error to STDERR\n    echo \"error: The sandbox is not in sync with the Podfile.lock. Run 'pod install' or update your CocoaPods installation.\" >&2\n    exit 1\nfi\n# This output is used by Xcode 'outputs' to avoid re-running this script phase.\necho \"SUCCESS\" > \"${SCRIPT_OUTPUT_FILE_0}\"\n";
+			showEnvVarsInLog = 0;
+		};
+		4138A79716CF908D935700C0 /* [CP] Copy Pods Resources */ = {
+			isa = PBXShellScriptBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputFileListPaths = (
+				"${PODS_ROOT}/Target Support Files/Pods-ImageSegmenter/Pods-ImageSegmenter-resources-${CONFIGURATION}-input-files.xcfilelist",
+			);
+			name = "[CP] Copy Pods Resources";
+			outputFileListPaths = (
+				"${PODS_ROOT}/Target Support Files/Pods-ImageSegmenter/Pods-ImageSegmenter-resources-${CONFIGURATION}-output-files.xcfilelist",
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "\"${PODS_ROOT}/Target Support Files/Pods-ImageSegmenter/Pods-ImageSegmenter-resources.sh\"\n";
 			showEnvVarsInLog = 0;
 		};
 		BF6EBBAB2B20749E00CD13FB /* Download model */ = {

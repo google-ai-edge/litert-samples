@@ -18,7 +18,7 @@ import UIKit
 import Metal
 import MetalKit
 import MetalPerformanceShaders
-import TensorFlowLiteTaskVision
+import TensorFlowLite
 
 /**
  * The view controller is responsible for performing segmention on videos or images selected by the user from the device media library and
@@ -206,9 +206,7 @@ extension MediaLibraryViewController: UIImagePickerControllerDelegate, UINavigat
           return
         }
         self.inferenceResultDeliveryDelegate?.didPerformInference(result: resultBundle)
-        guard let result = resultBundle.imageSegmenterResults.first, let result = result,
-              let categoryMask = result.segmentations.first?.categoryMask,
-              let outputPixelBuffer = self.render.render(ciImage: sourceImage, categoryMask: categoryMask) else {
+        guard let categoryMask = resultBundle.imageSegmenterResults.first, let outputPixelBuffer = self.render.render(ciImage: sourceImage, categoryMask: categoryMask) else {
           request.finish(with: sourceImage, context: nil)
           return
         }
@@ -258,20 +256,19 @@ extension MediaLibraryViewController: UIImagePickerControllerDelegate, UINavigat
 
         DispatchQueue.global(qos: .userInteractive).async { [weak self] in
           guard let self = self,
-                let resultBundle = self.imageSegmenterService?.segment(image: image),
-                let imageSegmenterResult = resultBundle.imageSegmenterResults.first,
-                let imageSegmenterResult = imageSegmenterResult else {
+                let resultBundle = self.imageSegmenterService?.segment(image: image)
+                else {
             DispatchQueue.main.async {
               self?.hideProgressView()
             }
             return
           }
-
+          let imageSegmenterResult = resultBundle.imageSegmenterResults
           DispatchQueue.main.async {
             self.hideProgressView()
             self.render.prepare(with: image.size, outputRetainedBufferCountHint: 3)
             self.inferenceResultDeliveryDelegate?.didPerformInference(result: resultBundle)
-            guard let categoryMask = imageSegmenterResult.segmentations.first?.categoryMask else { return }
+            guard let categoryMask = imageSegmenterResult.first else { return }
             let newImage = self.render.render(image: image, categoryMask: categoryMask)
             self.pickedImageView.image = newImage
           }
