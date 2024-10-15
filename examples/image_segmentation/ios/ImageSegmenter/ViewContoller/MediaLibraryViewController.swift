@@ -206,7 +206,7 @@ extension MediaLibraryViewController: UIImagePickerControllerDelegate, UINavigat
           return
         }
         self.inferenceResultDeliveryDelegate?.didPerformInference(result: resultBundle)
-        guard let categoryMask = resultBundle.imageSegmenterResults.first, let outputPixelBuffer = self.render.render(ciImage: sourceImage, categoryMask: categoryMask) else {
+        guard let categoryMask = resultBundle.categoryMasks.first, let outputPixelBuffer = self.render.render(ciImage: sourceImage, categoryMask: categoryMask) else {
           request.finish(with: sourceImage, context: nil)
           return
         }
@@ -263,7 +263,7 @@ extension MediaLibraryViewController: UIImagePickerControllerDelegate, UINavigat
             }
             return
           }
-          let imageSegmenterResult = resultBundle.imageSegmenterResults
+          let imageSegmenterResult = resultBundle.categoryMasks
           DispatchQueue.main.async {
             self.hideProgressView()
             self.render.prepare(with: image.size, outputRetainedBufferCountHint: 3)

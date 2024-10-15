@@ -210,7 +210,7 @@ class SegmentedImageRenderer {
     let buffer = metalDevice.makeBuffer(bytes: categoryMask.mask, length: categoryMask.width * categoryMask.height * MemoryLayout<UInt8>.size)!
     commandEncoder.setBuffer(buffer, offset: 0, index: 0)
     var markWidth: Int = categoryMask.width
-    var markHeight: Int = categoryMask.width
+    var markHeight: Int = categoryMask.height
     commandEncoder.setBytes(&markWidth, length: MemoryLayout<Int>.size, index: 1)
     commandEncoder.setBytes(&markHeight, length: MemoryLayout<Int>.size, index: 2)
 
@@ -265,7 +265,7 @@ class SegmentedImageRenderer {
     let buffer = metalDevice.makeBuffer(bytes: categoryMask.mask, length: categoryMask.width * categoryMask.height * MemoryLayout<UInt8>.size)!
     commandEncoder.setBuffer(buffer, offset: 0, index: 0)
     var markWidth: Int = categoryMask.width
-    var markHeight: Int = categoryMask.width
+    var markHeight: Int = categoryMask.height
     commandEncoder.setBytes(&markWidth, length: MemoryLayout<Int>.size, index: 1)
     commandEncoder.setBytes(&markHeight, length: MemoryLayout<Int>.size, index: 2)
 
