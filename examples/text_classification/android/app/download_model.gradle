@@ -1,11 +1,11 @@
 tasks.register('downloadMobileBertModel', Download) {
-    src 'https://storage.googleapis.com/ai-edge/interpreter-samples/textclassification/android/bert_classifier.tflite'
+    src 'https://storage.googleapis.com/ai-edge/interpreter-samples/text_classification/android/bert_classifier.tflite'
     dest project.ext.ASSET_DIR + '/mobile_bert.tflite'
     overwrite false
 }
 
 tasks.register('downloadWordVecModel', Download) {
-    src 'https://storage.googleapis.com/ai-edge/interpreter-samples/textclassification/android/average_word_classifier.tflite'
+    src 'https://storage.googleapis.com/ai-edge/interpreter-samples/text_classification/android/average_word_classifier.tflite'
     dest project.ext.ASSET_DIR + '/word_vec.tflite'
     overwrite false
 }
