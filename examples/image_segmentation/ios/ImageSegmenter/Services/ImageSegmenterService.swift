@@ -27,16 +27,16 @@ class ImageSegmenterService: NSObject {
 
   var interpreter: Interpreter!
   var modelPath: String
-
+  
   // MARK: - Custom Initializer
   init?(model: Model) {
     guard let modelPath = model.modelPath else { return nil }
     self.modelPath = modelPath
     super.init()
-
+    
     createInterpreter()
   }
-
+  
   private func createInterpreter() {
     do {
       interpreter = try Interpreter(modelPath: modelPath)
@@ -51,7 +51,7 @@ class ImageSegmenterService: NSObject {
       print("Failed to create Interpreter: \(error.localizedDescription)")
     }
   }
-
+  
   // MARK: - Segmention Methods for Different Modes
   /**
    This method return ImageSegmenterResult and infrenceTime when receive an image
@@ -63,7 +63,7 @@ class ImageSegmenterService: NSObject {
     
     return runModel(onFrame: pixelBuffer)
   }
-
+  
   func segmentAsync(
     sampleBuffer: CMSampleBuffer, completion: (ResultBundle?) -> Void) {
       guard let pixelBuffer = CMSampleBufferGetImageBuffer(sampleBuffer) else {
@@ -72,7 +72,7 @@ class ImageSegmenterService: NSObject {
       }
       completion(runModel(onFrame: pixelBuffer))
     }
-
+  
   func segment(
     videoFrame: CGImage)
   -> ResultBundle?  {
@@ -81,7 +81,7 @@ class ImageSegmenterService: NSObject {
   }
   
   private func runModel(onFrame pixelBuffer: CVPixelBuffer) -> ResultBundle? {
-    guard let resizedPixelBuffer = pixelBuffer.convertToSquarePixelBuffer(outputSize: inputWidth) else {
+    guard let resizedPixelBuffer = pixelBuffer.convertToSquare(squareSize: inputWidth) else {
       return nil
     }
     let sourcePixelFormat = CVPixelBufferGetPixelFormatType(pixelBuffer)
@@ -108,7 +108,6 @@ class ImageSegmenterService: NSObject {
       }
       
       try interpreter.copy(rgbData, toInputAt: 0)
-      
       // Run inference by invoking the `Interpreter`.
       let startDate = Date()
       try interpreter.invoke()
@@ -122,51 +121,34 @@ class ImageSegmenterService: NSObject {
       return nil
     }
     let outputData = outputTensor.data
-//    let rawPointer = UnsafeMutableRawPointer.allocate(byteCount: outputData.count, alignment: MemoryLayout<Float32>.alignment)
-//    let length = outputData.count
-//
-//    let floatCount = outputData.count / MemoryLayout<Float32>.size
-//    outputData.withUnsafeBytes { rawBufferPointer in
-//      if let baseAddress = rawBufferPointer.baseAddress {
-//        rawPointer.copyMemory(from: baseAddress, byteCount: length)
-//
-//        // Now use the makeBuffer function to create the Metal buffer
-//      }
-//    }
-    
-
-    let floatData = convertTensorDataToFloatArray(tensorData: outputData)
-    let segmentMask = createSegmentationMask(from: floatData, width: outputTensor.shape.dimensions[1], height: outputTensor.shape.dimensions[2], numClasses: outputTensor.shape.dimensions[3])
+        
+    let segmentMask = createSegmentationMask(from: outputData, width: outputTensor.shape.dimensions[1], height: outputTensor.shape.dimensions[2], numClasses: outputTensor.shape.dimensions[3])
     
     let categoryMask = CategoryMask(width: outputTensor.shape.dimensions[1], height: outputTensor.shape.dimensions[1], data: segmentMask)
-
-//
-//    guard let floatData = getFloatsData(tensor: outputTensor) else { return nil }
-//    
-//
-//    let pointer = UnsafeMutableRawPointer.allocate(byteCount: floatData.count, alignment: 1)
-//    pointer.copyMemory(from: floatData, byteCount: floatData.count)
-//    let categoryMask = CategoryMask(width: inputWidth, height: inputHeight, mask: pointer)
     
     return ResultBundle(inferenceTime: interval, categoryMasks: [categoryMask])
   }
   
   // Function to convert TensorFlow Lite Data (float32) to [Float] array
   func convertTensorDataToFloatArray(tensorData: Data) -> [Float] {
-      return tensorData.withUnsafeBytes {
-          Array(UnsafeBufferPointer<Float32>(start: $0.bindMemory(to: Float32.self).baseAddress, count: tensorData.count / MemoryLayout<Float32>.stride))
-      }
+    return tensorData.withUnsafeBytes {
+      Array(UnsafeBufferPointer<Float32>(start: $0.bindMemory(to: Float32.self).baseAddress, count: tensorData.count / MemoryLayout<Float32>.stride))
+    }
   }
-
+  
   // Function to create a segmentation mask by picking the class with the maximum probability
-  func createSegmentationMask(from floatArray: [Float], width: Int, height: Int, numClasses: Int) -> [UInt8] {
-      guard floatArray.count == width * height * numClasses else {
-          print("Error: Float array size (\(floatArray.count)) does not match expected dimensions (\(width * height * numClasses))")
-          return []
-      }
-      
-      var maskData = [UInt8](repeating: 0, count: width * height)
-      
+  func createSegmentationMask(from data: Data, width: Int, height: Int, numClasses: Int) -> [UInt8] {
+    let expectedDataSize = width * height * numClasses
+    guard data.count == expectedDataSize * MemoryLayout<Float>.size else {
+        print("Data size mismatch")
+        return []
+    }
+    let floatArray = data.withUnsafeBytes {
+        Array(UnsafeBufferPointer<Float>(start: $0.bindMemory(to: Float.self).baseAddress!, count: expectedDataSize))
+    }
+        
+    var maskData = [UInt8](repeating: 0, count: width * height)
+    
     floatArray.withUnsafeBufferPointer { bufferPointer in
       for i in 0..<width * height {
         let startIdx = i * numClasses
@@ -179,10 +161,10 @@ class ImageSegmenterService: NSObject {
         vDSP_maxvi(classValues, 1, &maxClassValue, &maxClassIndex, vDSP_Length(numClasses))
         
         // Store the index of the class with the maximum probability (as grayscale)
-        maskData[i] = UInt8((Float(maxClassIndex) / Float(numClasses)) * 255)
+        maskData[i] = UInt8(maxClassIndex)
       }
     }
-      
+    
     return maskData
   }
   
@@ -219,67 +201,67 @@ class ImageSegmenterService: NSObject {
   /// - Returns: The RGB data representation of the image buffer or `nil` if the buffer could not be
   ///     converted.
   private func rgbDataFromBuffer(
-      _ buffer: CVPixelBuffer,
-      byteCount: Int,
-      isModelQuantized: Bool
+    _ buffer: CVPixelBuffer,
+    byteCount: Int,
+    isModelQuantized: Bool
   ) -> Data? {
-      CVPixelBufferLockBaseAddress(buffer, .readOnly)
-      defer {
-          CVPixelBufferUnlockBaseAddress(buffer, .readOnly)
-      }
-      guard let sourceData = CVPixelBufferGetBaseAddress(buffer) else {
-          return nil
-      }
-      
-      let width = CVPixelBufferGetWidth(buffer)
-      let height = CVPixelBufferGetHeight(buffer)
-      let sourceBytesPerRow = CVPixelBufferGetBytesPerRow(buffer)
-      let destinationChannelCount = inputChannels
-      let destinationBytesPerRow = destinationChannelCount * width
-      
-      var sourceBuffer = vImage_Buffer(data: sourceData,
-                                       height: vImagePixelCount(height),
-                                       width: vImagePixelCount(width),
-                                       rowBytes: sourceBytesPerRow)
-      
-      guard let destinationData = malloc(height * destinationBytesPerRow) else {
-          print("Error: out of memory")
-          return nil
-      }
-      
-      defer {
-          free(destinationData)
-      }
-      
-      var destinationBuffer = vImage_Buffer(data: destinationData,
-                                            height: vImagePixelCount(height),
-                                            width: vImagePixelCount(width),
-                                            rowBytes: destinationBytesPerRow)
-      
-      let pixelBufferFormat = CVPixelBufferGetPixelFormatType(buffer)
-      
-      switch (pixelBufferFormat) {
-      case kCVPixelFormatType_32BGRA:
-          vImageConvert_BGRA8888toRGB888(&sourceBuffer, &destinationBuffer, UInt32(kvImageNoFlags))
-      case kCVPixelFormatType_32ARGB:
-          vImageConvert_ARGB8888toRGB888(&sourceBuffer, &destinationBuffer, UInt32(kvImageNoFlags))
-      case kCVPixelFormatType_32RGBA:
-          vImageConvert_RGBA8888toRGB888(&sourceBuffer, &destinationBuffer, UInt32(kvImageNoFlags))
-      default:
-          // Unknown pixel format.
-          return nil
-      }
-      
-      let byteData = Data(bytes: destinationBuffer.data, count: destinationBuffer.rowBytes * height)
-      
-      // Quantized model: keep it as uint8
-      if isModelQuantized {
-          return byteData
-      }
-      
-      // Non-quantized: normalize to float values
-      guard let bytes = Array<UInt8>(unsafeData: byteData) else { return nil }
-      return Data(copyingBufferOf: normalizeBytesToFloats(bytes: bytes))
+    CVPixelBufferLockBaseAddress(buffer, .readOnly)
+    defer {
+      CVPixelBufferUnlockBaseAddress(buffer, .readOnly)
+    }
+    guard let sourceData = CVPixelBufferGetBaseAddress(buffer) else {
+      return nil
+    }
+    
+    let width = CVPixelBufferGetWidth(buffer)
+    let height = CVPixelBufferGetHeight(buffer)
+    let sourceBytesPerRow = CVPixelBufferGetBytesPerRow(buffer)
+    let destinationChannelCount = inputChannels
+    let destinationBytesPerRow = destinationChannelCount * width
+    
+    var sourceBuffer = vImage_Buffer(data: sourceData,
+                                     height: vImagePixelCount(height),
+                                     width: vImagePixelCount(width),
+                                     rowBytes: sourceBytesPerRow)
+    
+    guard let destinationData = malloc(height * destinationBytesPerRow) else {
+      print("Error: out of memory")
+      return nil
+    }
+    
+    defer {
+      free(destinationData)
+    }
+    
+    var destinationBuffer = vImage_Buffer(data: destinationData,
+                                          height: vImagePixelCount(height),
+                                          width: vImagePixelCount(width),
+                                          rowBytes: destinationBytesPerRow)
+    
+    let pixelBufferFormat = CVPixelBufferGetPixelFormatType(buffer)
+    
+    switch (pixelBufferFormat) {
+    case kCVPixelFormatType_32BGRA:
+      vImageConvert_BGRA8888toRGB888(&sourceBuffer, &destinationBuffer, UInt32(kvImageNoFlags))
+    case kCVPixelFormatType_32ARGB:
+      vImageConvert_ARGB8888toRGB888(&sourceBuffer, &destinationBuffer, UInt32(kvImageNoFlags))
+    case kCVPixelFormatType_32RGBA:
+      vImageConvert_RGBA8888toRGB888(&sourceBuffer, &destinationBuffer, UInt32(kvImageNoFlags))
+    default:
+      // Unknown pixel format.
+      return nil
+    }
+    
+    let byteData = Data(bytes: destinationBuffer.data, count: destinationBuffer.rowBytes * height)
+    
+    // Quantized model: keep it as uint8
+    if isModelQuantized {
+      return byteData
+    }
+    
+    // Non-quantized: normalize to float values
+    guard let bytes = Array<UInt8>(unsafeData: byteData) else { return nil }
+    return Data(copyingBufferOf: normalizeBytesToFloats(bytes: bytes))
   }
   
   /// Normalizes an array of UInt8 bytes to an array of Float values, reducing CPU usage.
@@ -320,8 +302,6 @@ struct CategoryMask {
       return UnsafeRawPointer(rawBufferPointer.baseAddress!)
     }
   }
-  
-  var uiImage: UIImage?
 }
 
 struct VideoFrame {
@@ -333,84 +313,6 @@ struct VideoFrame {
 import Accelerate
 
 extension CVPixelBuffer {
-  public func convertToSquarePixelBuffer(outputSize: Int) -> CVPixelBuffer? {
-    let srcWidth = CVPixelBufferGetWidth(self)
-    let srcHeight = CVPixelBufferGetHeight(self)
-    
-    var dstPixelBuffer: CVPixelBuffer?
-    
-    let pixelBufferAttributes: [String: Any] = [
-      kCVPixelBufferPixelFormatTypeKey as String: kCVPixelFormatType_32BGRA,
-      kCVPixelBufferWidthKey as String: outputSize,
-      kCVPixelBufferHeightKey as String: outputSize,
-      kCVPixelBufferIOSurfacePropertiesKey as String: [:]
-    ]
-    
-    let status = CVPixelBufferCreate(kCFAllocatorDefault, outputSize, outputSize, kCVPixelFormatType_32BGRA, pixelBufferAttributes as CFDictionary, &dstPixelBuffer)
-    
-    guard status == kCVReturnSuccess, let dstPixelBuffer = dstPixelBuffer else {
-      print("Error: could not create destination pixel buffer")
-      return nil
-    }
-    
-    let srcFlags = CVPixelBufferLockFlags.readOnly
-    let dstFlags = CVPixelBufferLockFlags(rawValue: 0)
-    
-    guard kCVReturnSuccess == CVPixelBufferLockBaseAddress(self, srcFlags) else {
-      print("Error: could not lock source pixel buffer")
-      return nil
-    }
-    defer { CVPixelBufferUnlockBaseAddress(self, srcFlags) }
-    
-    guard kCVReturnSuccess == CVPixelBufferLockBaseAddress(dstPixelBuffer, dstFlags) else {
-      print("Error: could not lock destination pixel buffer")
-      return nil
-    }
-    defer { CVPixelBufferUnlockBaseAddress(dstPixelBuffer, dstFlags) }
-    
-    guard let srcData = CVPixelBufferGetBaseAddress(self),
-          let dstData = CVPixelBufferGetBaseAddress(dstPixelBuffer) else {
-      print("Error: could not get pixel buffer base address")
-      return nil
-    }
-    
-    let srcBytesPerRow = CVPixelBufferGetBytesPerRow(self)
-    let dstBytesPerRow = CVPixelBufferGetBytesPerRow(dstPixelBuffer)
-    
-    // Initialize destination buffer with black color
-    memset(dstData, 0, dstBytesPerRow * outputSize)
-    
-    // Calculate the scaling factor to fit the source image within the destination square
-    let maxDimension = Float(max(srcWidth, srcHeight))
-    let scaleFactor = Float(outputSize) / maxDimension
-    
-    // Calculate the size of the scaled image
-    let scaledWidth = Int(Float(srcWidth) * scaleFactor)
-    let scaledHeight = Int(Float(srcHeight) * scaleFactor)
-    
-    // Calculate the position to place the scaled image in the destination buffer
-    let dstX = (outputSize - scaledWidth) / 2
-    let dstY = (outputSize - scaledHeight) / 2
-    
-    var srcCropBuffer = vImage_Buffer(data: srcData,
-                                      height: vImagePixelCount(srcHeight),
-                                      width: vImagePixelCount(srcWidth),
-                                      rowBytes: srcBytesPerRow)
-    
-    var dstCropBuffer = vImage_Buffer(data: dstData.advanced(by: dstY * dstBytesPerRow + dstX * 4),
-                                      height: vImagePixelCount(scaledHeight),
-                                      width: vImagePixelCount(scaledWidth),
-                                      rowBytes: dstBytesPerRow)
-    
-    let error = vImageScale_ARGB8888(&srcCropBuffer, &dstCropBuffer, nil, vImage_Flags(0))
-    if error != kvImageNoError {
-      print("Error:", error)
-      return nil
-    }
-    
-    return dstPixelBuffer
-  }
-  
   static func buffer(from image: UIImage) -> CVPixelBuffer? {
     let attrs = [
       kCVPixelBufferCGImageCompatibilityKey: kCFBooleanTrue,
@@ -423,15 +325,15 @@ extension CVPixelBuffer {
                                      kCVPixelFormatType_32BGRA,
                                      attrs,
                                      &pixelBuffer)
-
+    
     guard let buffer = pixelBuffer, status == kCVReturnSuccess else {
       return nil
     }
-
+    
     CVPixelBufferLockBaseAddress(buffer, [])
     defer { CVPixelBufferUnlockBaseAddress(buffer, []) }
     let pixelData = CVPixelBufferGetBaseAddress(buffer)
-
+    
     let rgbColorSpace = CGColorSpaceCreateDeviceRGB()
     guard let context = CGContext(data: pixelData,
                                   width: Int(image.size.width),
@@ -442,14 +344,14 @@ extension CVPixelBuffer {
                                   bitmapInfo: CGImageAlphaInfo.noneSkipLast.rawValue) else {
       return nil
     }
-
+    
     context.translateBy(x: 0, y: image.size.height)
     context.scaleBy(x: 1.0, y: -1.0)
-
+    
     UIGraphicsPushContext(context)
     image.draw(in: CGRect(x: 0, y: 0, width: image.size.width, height: image.size.height))
     UIGraphicsPopContext()
-
+    
     return pixelBuffer
   }
   
