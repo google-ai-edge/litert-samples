@@ -143,7 +143,7 @@ class ImageClassifierService: NSObject {
   
   // MARK: - Private methods
   private func runModel(onFrame pixelBuffer: CVPixelBuffer) -> ResultBundle? {
-    guard let resizedPixelBuffer = pixelBuffer.convertToSquarePixelBuffer(outputSize: inputWidth) else {
+    guard let resizedPixelBuffer = pixelBuffer.convertToSquare(squareSize: inputWidth) else {
       return nil
     }
     let sourcePixelFormat = CVPixelBufferGetPixelFormatType(pixelBuffer)
@@ -194,15 +194,15 @@ class ImageClassifierService: NSObject {
   /// Returns the top classification categories inference results sorted in descending order.
   private func getClassificationCategories(_ floatData: [Float]) -> [ClassificationCategory] {
     var classificationCategories: [ClassificationCategory] = []
-    let maxIndex = floatData.indices.max { floatData[$0] < floatData[$1] } ?? -1
-    if maxIndex >= 0 {
-      let confidence = floatData[maxIndex]
-      if confidence > scoreThreshold, maxIndex < labels.count {
-        let predictedLabel = labels[maxIndex]
-        let category = ClassificationCategory(label: predictedLabel, score: confidence)
+    floatData.indices.forEach { index in
+      let confidence = floatData[index]
+      if confidence > scoreThreshold, index < labels.count {
+        let predictedLabel = labels[index]
+        let category = ClassificationCategory(index: index, score: confidence, label: predictedLabel)
         classificationCategories.append(category)
       }
     }
+
     let sortedClassificationCategories = classificationCategories
       .sorted { $0.score > $1.score }.prefix(maxResult)
     return Array(sortedClassificationCategories)
@@ -378,6 +378,7 @@ struct ResultBundle {
 }
 
 struct ClassificationCategory {
-  let label: String
+  let index: Int
   let score: Float
+  let label: String
 }

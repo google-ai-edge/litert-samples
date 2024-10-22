@@ -3,82 +3,114 @@ import UIKit
 import Accelerate
 
 extension CVPixelBuffer {
-  public func convertToSquarePixelBuffer(outputSize: Int) -> CVPixelBuffer? {
+  public func convertToSquare(squareSize: Int) -> CVPixelBuffer? {
+    guard squareSize > 0 else { return nil }
     let srcWidth = CVPixelBufferGetWidth(self)
     let srcHeight = CVPixelBufferGetHeight(self)
     
-    var dstPixelBuffer: CVPixelBuffer?
+    // cropX: 0, cropY: 0 for cropping from the top-left corner
+    // Use source size to set cropWidth and cropHeight for no crop; just resize.
+    return resizePixelBuffer(
+      self,
+      cropX: 0,
+      cropY: 0,
+      cropWidth: srcWidth,
+      cropHeight: srcHeight,
+      scaleWidth: squareSize,
+      scaleHeight: squareSize
+    )
+  }
+  
+  private func resizePixelBuffer(_ srcPixelBuffer: CVPixelBuffer,
+                                 cropX: Int,
+                                 cropY: Int,
+                                 cropWidth: Int,
+                                 cropHeight: Int,
+                                 scaleWidth: Int,
+                                 scaleHeight: Int) -> CVPixelBuffer? {
     
-    let pixelBufferAttributes: [String: Any] = [
-      kCVPixelBufferPixelFormatTypeKey as String: kCVPixelFormatType_32BGRA,
-      kCVPixelBufferWidthKey as String: outputSize,
-      kCVPixelBufferHeightKey as String: outputSize,
-      kCVPixelBufferIOSurfacePropertiesKey as String: [:]
-    ]
+    let pixelFormat = CVPixelBufferGetPixelFormatType(srcPixelBuffer)
+    let dstPixelBuffer = createPixelBuffer(width: scaleWidth, height: scaleHeight,
+                                           pixelFormat: pixelFormat)
     
-    let status = CVPixelBufferCreate(kCFAllocatorDefault, outputSize, outputSize, kCVPixelFormatType_32BGRA, pixelBufferAttributes as CFDictionary, &dstPixelBuffer)
-    
-    guard status == kCVReturnSuccess, let dstPixelBuffer = dstPixelBuffer else {
-      print("Error: could not create destination pixel buffer")
-      return nil
+    if let dstPixelBuffer = dstPixelBuffer {
+      CVBufferPropagateAttachments(srcPixelBuffer, dstPixelBuffer)
+      
+      resizePixelBuffer(from: srcPixelBuffer, to: dstPixelBuffer,
+                        cropX: cropX, cropY: cropY,
+                        cropWidth: cropWidth, cropHeight: cropHeight,
+                        scaleWidth: scaleWidth, scaleHeight: scaleHeight)
     }
+    
+    return dstPixelBuffer
+  }
+  
+  private func resizePixelBuffer(from srcPixelBuffer: CVPixelBuffer,
+                                 to dstPixelBuffer: CVPixelBuffer,
+                                 cropX: Int,
+                                 cropY: Int,
+                                 cropWidth: Int,
+                                 cropHeight: Int,
+                                 scaleWidth: Int,
+                                 scaleHeight: Int) {
+    
+    assert(CVPixelBufferGetWidth(dstPixelBuffer) >= scaleWidth)
+    assert(CVPixelBufferGetHeight(dstPixelBuffer) >= scaleHeight)
     
     let srcFlags = CVPixelBufferLockFlags.readOnly
     let dstFlags = CVPixelBufferLockFlags(rawValue: 0)
     
-    guard kCVReturnSuccess == CVPixelBufferLockBaseAddress(self, srcFlags) else {
+    guard kCVReturnSuccess == CVPixelBufferLockBaseAddress(srcPixelBuffer, srcFlags) else {
       print("Error: could not lock source pixel buffer")
-      return nil
+      return
     }
-    defer { CVPixelBufferUnlockBaseAddress(self, srcFlags) }
+    defer { CVPixelBufferUnlockBaseAddress(srcPixelBuffer, srcFlags) }
     
     guard kCVReturnSuccess == CVPixelBufferLockBaseAddress(dstPixelBuffer, dstFlags) else {
       print("Error: could not lock destination pixel buffer")
-      return nil
+      return
     }
     defer { CVPixelBufferUnlockBaseAddress(dstPixelBuffer, dstFlags) }
     
-    guard let srcData = CVPixelBufferGetBaseAddress(self),
+    guard let srcData = CVPixelBufferGetBaseAddress(srcPixelBuffer),
           let dstData = CVPixelBufferGetBaseAddress(dstPixelBuffer) else {
       print("Error: could not get pixel buffer base address")
-      return nil
+      return
     }
     
-    let srcBytesPerRow = CVPixelBufferGetBytesPerRow(self)
+    let srcBytesPerRow = CVPixelBufferGetBytesPerRow(srcPixelBuffer)
+    let offset = cropY*srcBytesPerRow + cropX*4
+    var srcBuffer = vImage_Buffer(data: srcData.advanced(by: offset),
+                                  height: vImagePixelCount(cropHeight),
+                                  width: vImagePixelCount(cropWidth),
+                                  rowBytes: srcBytesPerRow)
+    
     let dstBytesPerRow = CVPixelBufferGetBytesPerRow(dstPixelBuffer)
+    var dstBuffer = vImage_Buffer(data: dstData,
+                                  height: vImagePixelCount(scaleHeight),
+                                  width: vImagePixelCount(scaleWidth),
+                                  rowBytes: dstBytesPerRow)
     
-    // Initialize destination buffer with black color
-    memset(dstData, 0, dstBytesPerRow * outputSize)
-    
-    // Calculate the scaling factor to fit the source image within the destination square
-    let maxDimension = Float(max(srcWidth, srcHeight))
-    let scaleFactor = Float(outputSize) / maxDimension
-    
-    // Calculate the size of the scaled image
-    let scaledWidth = Int(Float(srcWidth) * scaleFactor)
-    let scaledHeight = Int(Float(srcHeight) * scaleFactor)
-    
-    // Calculate the position to place the scaled image in the destination buffer
-    let dstX = (outputSize - scaledWidth) / 2
-    let dstY = (outputSize - scaledHeight) / 2
-    
-    var srcCropBuffer = vImage_Buffer(data: srcData,
-                                      height: vImagePixelCount(srcHeight),
-                                      width: vImagePixelCount(srcWidth),
-                                      rowBytes: srcBytesPerRow)
-    
-    var dstCropBuffer = vImage_Buffer(data: dstData.advanced(by: dstY * dstBytesPerRow + dstX * 4),
-                                      height: vImagePixelCount(scaledHeight),
-                                      width: vImagePixelCount(scaledWidth),
-                                      rowBytes: dstBytesPerRow)
-    
-    let error = vImageScale_ARGB8888(&srcCropBuffer, &dstCropBuffer, nil, vImage_Flags(0))
+    let error = vImageScale_ARGB8888(&srcBuffer, &dstBuffer, nil, vImage_Flags(0))
     if error != kvImageNoError {
       print("Error:", error)
+    }
+  }
+  
+  private func createPixelBuffer(width: Int, height: Int, pixelFormat: OSType) -> CVPixelBuffer? {
+    let pixelBufferAttributes: [String: Any] = [
+      kCVPixelBufferPixelFormatTypeKey as String: kCVPixelFormatType_32BGRA,
+      kCVPixelBufferWidthKey as String: width,
+      kCVPixelBufferHeightKey as String: height,
+      kCVPixelBufferIOSurfacePropertiesKey as String: [:]
+    ]
+    var pixelBuffer: CVPixelBuffer?
+    let status = CVPixelBufferCreate(nil, width, height, pixelFormat, pixelBufferAttributes as CFDictionary, &pixelBuffer)
+    if status != kCVReturnSuccess {
+      print("Error: could not create pixel buffer", status)
       return nil
     }
-    
-    return dstPixelBuffer
+    return pixelBuffer
   }
   
   static func buffer(from image: UIImage) -> CVPixelBuffer? {
@@ -93,15 +125,15 @@ extension CVPixelBuffer {
                                      kCVPixelFormatType_32BGRA,
                                      attrs,
                                      &pixelBuffer)
-
+    
     guard let buffer = pixelBuffer, status == kCVReturnSuccess else {
       return nil
     }
-
+    
     CVPixelBufferLockBaseAddress(buffer, [])
     defer { CVPixelBufferUnlockBaseAddress(buffer, []) }
     let pixelData = CVPixelBufferGetBaseAddress(buffer)
-
+    
     let rgbColorSpace = CGColorSpaceCreateDeviceRGB()
     guard let context = CGContext(data: pixelData,
                                   width: Int(image.size.width),
@@ -112,15 +144,14 @@ extension CVPixelBuffer {
                                   bitmapInfo: CGImageAlphaInfo.noneSkipLast.rawValue) else {
       return nil
     }
-
+    
     context.translateBy(x: 0, y: image.size.height)
     context.scaleBy(x: 1.0, y: -1.0)
-
+    
     UIGraphicsPushContext(context)
     image.draw(in: CGRect(x: 0, y: 0, width: image.size.width, height: image.size.height))
     UIGraphicsPopContext()
-
+    
     return pixelBuffer
   }
-  
 }
