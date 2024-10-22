@@ -15,7 +15,7 @@
 
 import XCTest
 @testable import ImageClassifier
-import TensorFlowLiteTaskVision
+import TensorFlowLite
 
 final class ImageClassifierTests: XCTestCase {
 
@@ -33,37 +33,31 @@ final class ImageClassifierTests: XCTestCase {
   static let efficientnetLite0Results = [
     ClassificationCategory(
       index: 504,
-      score: 0.6224187,
-      label: "coffee mug",
-      displayName: nil),
+      score: 0.3895175,
+      label: "coffee mug"),
     ClassificationCategory(
       index: 968,
-      score: 0.13291624,
-      label: "cup",
-      displayName: nil),
+      score: 0.12411501,
+      label: "cup"),
     ClassificationCategory(
       index: 899,
-      score: 0.055026982,
-      label: "water jug",
-      displayName: nil),
+      score: 0.11273212,
+      label: "water jug"),
   ]
 
   static let efficientnetLite2Results = [
     ClassificationCategory(
       index: 504,
-      score: 0.4353558,
-      label: "coffee mug",
-      displayName: nil),
+      score: 0.30924687,
+      label: "coffee mug"),
     ClassificationCategory(
       index: 968,
-      score: 0.16430414,
-      label: "cup",
-      displayName: nil),
+      score: 0.10224192,
+      label: "cup"),
     ClassificationCategory(
-      index: 725,
-      score: 0.017306592,
-      label: "pitcher",
-      displayName: nil),
+      index: 899,
+      score: 0.032947347,
+      label: "water jug")
   ]
 
   func imageClassifierWithModel(
@@ -76,13 +70,6 @@ final class ImageClassifierTests: XCTestCase {
       scoreThreshold: scoreThreshold,
       maxResult: maxResult)
     return imageClassifierService!
-  }
-
-  func assertImageClassifierResultHasOneHead(
-    _ imageClassifierResult: ClassificationResult
-  ) {
-    XCTAssertEqual(imageClassifierResult.classifications.count, 1)
-    XCTAssertEqual(imageClassifierResult.classifications[0].headIndex, 0)
   }
 
   func assertCategoriesAreEqual(
@@ -113,14 +100,6 @@ final class ImageClassifierTests: XCTestCase {
               category[%d].categoryName and expectedCategory[%d].categoryName are \
               not equal.
               """, indexInCategoryList))
-    XCTAssertEqual(
-      category.displayName,
-      expectedCategory.displayName,
-      String(
-        format: """
-              category[%d].displayName and expectedCategory[%d].displayName are \
-              not equal.
-              """, indexInCategoryList))
   }
 
   func assertEqualCategoryArrays(
@@ -148,12 +127,11 @@ final class ImageClassifierTests: XCTestCase {
   ) throws {
     let imageClassifierResult =
     try XCTUnwrap(
-      imageClassifier.classify(image: image)!.imageClassifierResults[0])
+        imageClassifier.classify(image: image)!)
     print(imageClassifierResult)
-    assertImageClassifierResultHasOneHead(imageClassifierResult)
     assertEqualCategoryArrays(
       categoryArray:
-        imageClassifierResult.classifications[0].categories,
+        imageClassifierResult.categories,
       expectedCategoryArray: expectedCategories)
   }
 
