@@ -26,17 +26,28 @@ struct DefaultConstants {
 
 // MARK: Tflite Model
 enum Model: String, CaseIterable {
-    case efficientnetLite0 = "EfficientNet-Lite0"
-    case efficientnetLite2 = "EfficientNet-Lite2"
-
-    var modelPath: String? {
-        switch self {
-        case .efficientnetLite0:
-            return Bundle.main.path(
-                forResource: "efficientnet_lite0", ofType: "tflite")
-        case .efficientnetLite2:
-            return Bundle.main.path(
-                forResource: "efficientnet_lite2", ofType: "tflite")
-        }
+  case efficientnetLite0 = "EfficientNet-Lite0"
+  case efficientnetLite2 = "EfficientNet-Lite2"
+  
+  var modelPath: String? {
+    switch self {
+    case .efficientnetLite0:
+      return Bundle.main.path(
+        forResource: "efficientnet_lite0", ofType: "tflite")
+    case .efficientnetLite2:
+      return Bundle.main.path(
+        forResource: "efficientnet_lite2", ofType: "tflite")
     }
+  }
+  
+  var labelPath: String? {
+    switch self {
+    case .efficientnetLite0:
+      return Bundle.main.path(
+        forResource: "labels_efficientnet_lite0", ofType: "txt")
+    case .efficientnetLite2:
+      return Bundle.main.path(
+        forResource: "labels_efficientnet_lite2", ofType: "txt")
+    }
+  }
 }

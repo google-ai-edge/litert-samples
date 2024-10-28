@@ -14,7 +14,7 @@
 // =============================================================================
 
 import UIKit
-import TensorFlowLiteTaskVision
+import TensorFlowLite
 
 protocol BottomSheetViewControllerDelegate: AnyObject {
   /**
@@ -51,7 +51,7 @@ class BottomSheetViewController: UIViewController {
 
   // MARK: Constants
   private let normalCellHeight: CGFloat = 27.0
-  private var imageClassifierResult: ClassificationResult?
+  private var imageClassifierResult: ResultBundle?
 
   // MARK: Computed properties
   var collapsedHeight: CGFloat {
@@ -70,7 +70,11 @@ class BottomSheetViewController: UIViewController {
   }
   
   // MARK: - Public Functions
-  func update(inferenceTimeString: String, result: ClassificationResult?) {
+  func update(result: ResultBundle?) {
+    var inferenceTimeString = ""
+    if let inferenceTime = result?.inferenceTime {
+      inferenceTimeString = String(format: "%.2fms", inferenceTime)
+    }
     inferenceTimeLabel.text = inferenceTimeString
     imageClassifierResult = result
     tableView.reloadData()
@@ -141,14 +145,13 @@ extension BottomSheetViewController: UITableViewDataSource {
 
   func tableView(_ tableView: UITableView, cellForRowAt indexPath: IndexPath) -> UITableViewCell {
     let cell = tableView.dequeueReusableCell(withIdentifier: "INFO_CELL") as! InfoCell
-    guard let imageClassifierResult = imageClassifierResult,
-          let classification = imageClassifierResult.classifications.first else {
+    guard let imageClassifierResult = imageClassifierResult, !imageClassifierResult.categories.isEmpty else {
       cell.fieldNameLabel.text = "--"
       cell.infoLabel.text = "--"
       return cell
     }
-    if indexPath.row < classification.categories.count {
-      let category = classification.categories[indexPath.row]
+    if indexPath.row < imageClassifierResult.categories.count {
+      let category = imageClassifierResult.categories[indexPath.row]
       cell.fieldNameLabel.text = category.label
       cell.infoLabel.text = String(format: "%.2f", category.score)
     } else {
