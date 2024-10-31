@@ -103,6 +103,7 @@ class SegmentedImageRenderer {
       return nil
     }
 
+
     // Set up command queue, buffer, and encoder.
     guard let commandQueue = commandQueue,
           let commandBuffer = commandQueue.makeCommandBuffer(),
@@ -328,7 +329,7 @@ func fixedOrientation() -> CGImage? {
     guard let colorSpace = cgImage.colorSpace, let ctx = CGContext(data: nil, width: Int(size.width), height: Int(size.height), bitsPerComponent: cgImage.bitsPerComponent, bytesPerRow: 0, space: colorSpace, bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue) else {
       return nil //Not able to create CGContext
     }
-
+    print(colorSpace)
     var transform: CGAffineTransform = CGAffineTransform.identity
 
     switch imageOrientation {
