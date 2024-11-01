@@ -1,0 +1,536 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 56;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		4DEB6A3928D247D3B3E93619 /* Pods_ImageSegmentation.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 8B138343A3F7E091F2683651 /* Pods_ImageSegmentation.framework */; };
+		BF1816C62CD1C1FE002ABB35 /* BottomSheetViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = BF1816C52CD1C1FE002ABB35 /* BottomSheetViewController.swift */; };
+		BF1816CC2CD334EC002ABB35 /* isnet_tfl_drq.tflite in Resources */ = {isa = PBXBuildFile; fileRef = BF1816C92CD334EC002ABB35 /* isnet_tfl_drq.tflite */; };
+		BF6C8E742CC760730000A790 /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = BF6C8E732CC760730000A790 /* AppDelegate.swift */; };
+		BF6C8E762CC760730000A790 /* SceneDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = BF6C8E752CC760730000A790 /* SceneDelegate.swift */; };
+		BF6C8E7B2CC760730000A790 /* Base in Resources */ = {isa = PBXBuildFile; fileRef = BF6C8E7A2CC760730000A790 /* Base */; };
+		BF6C8E7D2CC760750000A790 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = BF6C8E7C2CC760750000A790 /* Assets.xcassets */; };
+		BF6C8E802CC760750000A790 /* Base in Resources */ = {isa = PBXBuildFile; fileRef = BF6C8E7F2CC760750000A790 /* Base */; };
+		BF6C8E932CC7A87C0000A790 /* CameraFeedService.swift in Sources */ = {isa = PBXBuildFile; fileRef = BF6C8E872CC7A87C0000A790 /* CameraFeedService.swift */; };
+		BF6C8E942CC7A87C0000A790 /* ImageSegmenterService.swift in Sources */ = {isa = PBXBuildFile; fileRef = BF6C8E882CC7A87C0000A790 /* ImageSegmenterService.swift */; };
+		BF6C8E962CC7A87C0000A790 /* DefaultConstants.swift in Sources */ = {isa = PBXBuildFile; fileRef = BF6C8E8B2CC7A87C0000A790 /* DefaultConstants.swift */; };
+		BF6C8E972CC7A87C0000A790 /* InferenceConfigurationManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = BF6C8E8C2CC7A87C0000A790 /* InferenceConfigurationManager.swift */; };
+		BF6C8E992CC7A87C0000A790 /* MergeColorShaders.metal in Sources */ = {isa = PBXBuildFile; fileRef = BF6C8E902CC7A87C0000A790 /* MergeColorShaders.metal */; };
+		BF6C8EA02CC7A8F40000A790 /* MediaLibraryViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = BF6C8E9C2CC7A8F40000A790 /* MediaLibraryViewController.swift */; };
+		BF6C8EA12CC7A8F40000A790 /* RootViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = BF6C8E9D2CC7A8F40000A790 /* RootViewController.swift */; };
+		BF6C8EA52CC88E300000A790 /* CVPixelBufferExtension.swift in Sources */ = {isa = PBXBuildFile; fileRef = BF6C8EA22CC88E300000A790 /* CVPixelBufferExtension.swift */; };
+		BF6C8EA62CC88E300000A790 /* UIImageExtension.swift in Sources */ = {isa = PBXBuildFile; fileRef = BF6C8EA32CC88E300000A790 /* UIImageExtension.swift */; };
+		BF6C8EA72CC8922E0000A790 /* SegmentedImageRenderer.swift in Sources */ = {isa = PBXBuildFile; fileRef = BF6C8E892CC7A87C0000A790 /* SegmentedImageRenderer.swift */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXFileReference section */
+		4A3015CB58DD300D3F1A70BD /* Pods-ImageSegmentation.debug.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-ImageSegmentation.debug.xcconfig"; path = "Target Support Files/Pods-ImageSegmentation/Pods-ImageSegmentation.debug.xcconfig"; sourceTree = "<group>"; };
+		8B138343A3F7E091F2683651 /* Pods_ImageSegmentation.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; includeInIndex = 0; path = Pods_ImageSegmentation.framework; sourceTree = BUILT_PRODUCTS_DIR; };
+		9B63F548354D1153074D9A87 /* Pods-ImageSegmentation.release.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-ImageSegmentation.release.xcconfig"; path = "Target Support Files/Pods-ImageSegmentation/Pods-ImageSegmentation.release.xcconfig"; sourceTree = "<group>"; };
+		BF1816C52CD1C1FE002ABB35 /* BottomSheetViewController.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = BottomSheetViewController.swift; sourceTree = "<group>"; };
+		BF1816C92CD334EC002ABB35 /* isnet_tfl_drq.tflite */ = {isa = PBXFileReference; lastKnownFileType = file; path = isnet_tfl_drq.tflite; sourceTree = "<group>"; };
+		BF6C8E702CC760730000A790 /* ImageSegmentation.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = ImageSegmentation.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		BF6C8E732CC760730000A790 /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDelegate.swift; sourceTree = "<group>"; };
+		BF6C8E752CC760730000A790 /* SceneDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SceneDelegate.swift; sourceTree = "<group>"; };
+		BF6C8E7A2CC760730000A790 /* Base */ = {isa = PBXFileReference; lastKnownFileType = file.storyboard; name = Base; path = Base.lproj/Main.storyboard; sourceTree = "<group>"; };
+		BF6C8E7C2CC760750000A790 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
+		BF6C8E7F2CC760750000A790 /* Base */ = {isa = PBXFileReference; lastKnownFileType = file.storyboard; name = Base; path = Base.lproj/LaunchScreen.storyboard; sourceTree = "<group>"; };
+		BF6C8E812CC760750000A790 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
+		BF6C8E872CC7A87C0000A790 /* CameraFeedService.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = CameraFeedService.swift; sourceTree = "<group>"; };
+		BF6C8E882CC7A87C0000A790 /* ImageSegmenterService.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = ImageSegmenterService.swift; sourceTree = "<group>"; };
+		BF6C8E892CC7A87C0000A790 /* SegmentedImageRenderer.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = SegmentedImageRenderer.swift; sourceTree = "<group>"; };
+		BF6C8E8B2CC7A87C0000A790 /* DefaultConstants.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = DefaultConstants.swift; sourceTree = "<group>"; };
+		BF6C8E8C2CC7A87C0000A790 /* InferenceConfigurationManager.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = InferenceConfigurationManager.swift; sourceTree = "<group>"; };
+		BF6C8E902CC7A87C0000A790 /* MergeColorShaders.metal */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.metal; path = MergeColorShaders.metal; sourceTree = "<group>"; };
+		BF6C8E9C2CC7A8F40000A790 /* MediaLibraryViewController.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = MediaLibraryViewController.swift; sourceTree = "<group>"; };
+		BF6C8E9D2CC7A8F40000A790 /* RootViewController.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = RootViewController.swift; sourceTree = "<group>"; };
+		BF6C8EA22CC88E300000A790 /* CVPixelBufferExtension.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = CVPixelBufferExtension.swift; sourceTree = "<group>"; };
+		BF6C8EA32CC88E300000A790 /* UIImageExtension.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = UIImageExtension.swift; sourceTree = "<group>"; };
+/* End PBXFileReference section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		BF6C8E6D2CC760730000A790 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				4DEB6A3928D247D3B3E93619 /* Pods_ImageSegmentation.framework in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXFrameworksBuildPhase section */
+
+/* Begin PBXGroup section */
+		4462E2BAB51EAF662DB55493 /* Pods */ = {
+			isa = PBXGroup;
+			children = (
+				4A3015CB58DD300D3F1A70BD /* Pods-ImageSegmentation.debug.xcconfig */,
+				9B63F548354D1153074D9A87 /* Pods-ImageSegmentation.release.xcconfig */,
+			);
+			path = Pods;
+			sourceTree = "<group>";
+		};
+		BF6C8E672CC760730000A790 = {
+			isa = PBXGroup;
+			children = (
+				BF6C8E722CC760730000A790 /* ImageSegmentation */,
+				BF6C8E712CC760730000A790 /* Products */,
+				4462E2BAB51EAF662DB55493 /* Pods */,
+				E6D67282DF195D3F7C9DD26C /* Frameworks */,
+			);
+			sourceTree = "<group>";
+		};
+		BF6C8E712CC760730000A790 /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				BF6C8E702CC760730000A790 /* ImageSegmentation.app */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+		BF6C8E722CC760730000A790 /* ImageSegmentation */ = {
+			isa = PBXGroup;
+			children = (
+				BF6C8EA82CC8945F0000A790 /* Model */,
+				BF6C8E732CC760730000A790 /* AppDelegate.swift */,
+				BF6C8E752CC760730000A790 /* SceneDelegate.swift */,
+				BF6C8E792CC760730000A790 /* Main.storyboard */,
+				BF6C8E7C2CC760750000A790 /* Assets.xcassets */,
+				BF6C8E7E2CC760750000A790 /* LaunchScreen.storyboard */,
+				BF6C8E8D2CC7A87C0000A790 /* Configurations */,
+				BF6C8EA42CC88E300000A790 /* Extensions */,
+				BF6C8E8A2CC7A87C0000A790 /* Services */,
+				BF6C8E9E2CC7A8F40000A790 /* ViewContoller */,
+				BF6C8E922CC7A87C0000A790 /* Units */,
+				BF6C8E812CC760750000A790 /* Info.plist */,
+			);
+			path = ImageSegmentation;
+			sourceTree = "<group>";
+		};
+		BF6C8E8A2CC7A87C0000A790 /* Services */ = {
+			isa = PBXGroup;
+			children = (
+				BF6C8E872CC7A87C0000A790 /* CameraFeedService.swift */,
+				BF6C8E882CC7A87C0000A790 /* ImageSegmenterService.swift */,
+				BF6C8E892CC7A87C0000A790 /* SegmentedImageRenderer.swift */,
+			);
+			path = Services;
+			sourceTree = "<group>";
+		};
+		BF6C8E8D2CC7A87C0000A790 /* Configurations */ = {
+			isa = PBXGroup;
+			children = (
+				BF6C8E8B2CC7A87C0000A790 /* DefaultConstants.swift */,
+				BF6C8E8C2CC7A87C0000A790 /* InferenceConfigurationManager.swift */,
+			);
+			path = Configurations;
+			sourceTree = "<group>";
+		};
+		BF6C8E922CC7A87C0000A790 /* Units */ = {
+			isa = PBXGroup;
+			children = (
+				BF6C8E902CC7A87C0000A790 /* MergeColorShaders.metal */,
+			);
+			path = Units;
+			sourceTree = "<group>";
+		};
+		BF6C8E9E2CC7A8F40000A790 /* ViewContoller */ = {
+			isa = PBXGroup;
+			children = (
+				BF1816C52CD1C1FE002ABB35 /* BottomSheetViewController.swift */,
+				BF6C8E9C2CC7A8F40000A790 /* MediaLibraryViewController.swift */,
+				BF6C8E9D2CC7A8F40000A790 /* RootViewController.swift */,
+			);
+			path = ViewContoller;
+			sourceTree = "<group>";
+		};
+		BF6C8EA42CC88E300000A790 /* Extensions */ = {
+			isa = PBXGroup;
+			children = (
+				BF6C8EA22CC88E300000A790 /* CVPixelBufferExtension.swift */,
+				BF6C8EA32CC88E300000A790 /* UIImageExtension.swift */,
+			);
+			path = Extensions;
+			sourceTree = "<group>";
+		};
+		BF6C8EA82CC8945F0000A790 /* Model */ = {
+			isa = PBXGroup;
+			children = (
+				BF1816C92CD334EC002ABB35 /* isnet_tfl_drq.tflite */,
+			);
+			path = Model;
+			sourceTree = "<group>";
+		};
+		E6D67282DF195D3F7C9DD26C /* Frameworks */ = {
+			isa = PBXGroup;
+			children = (
+				8B138343A3F7E091F2683651 /* Pods_ImageSegmentation.framework */,
+			);
+			name = Frameworks;
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		BF6C8E6F2CC760730000A790 /* ImageSegmentation */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = BF6C8E842CC760750000A790 /* Build configuration list for PBXNativeTarget "ImageSegmentation" */;
+			buildPhases = (
+				E5D0811280391A4260437CE8 /* [CP] Check Pods Manifest.lock */,
+				BF6C8E6C2CC760730000A790 /* Sources */,
+				BF6C8E6D2CC760730000A790 /* Frameworks */,
+				BF6C8E6E2CC760730000A790 /* Resources */,
+				3E61E569CBE09F2D1DAAD445 /* [CP] Copy Pods Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = ImageSegmentation;
+			productName = ImageSegmentation;
+			productReference = BF6C8E702CC760730000A790 /* ImageSegmentation.app */;
+			productType = "com.apple.product-type.application";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		BF6C8E682CC760730000A790 /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = 1;
+				LastSwiftUpdateCheck = 1530;
+				LastUpgradeCheck = 1530;
+				TargetAttributes = {
+					BF6C8E6F2CC760730000A790 = {
+						CreatedOnToolsVersion = 15.3;
+					};
+				};
+			};
+			buildConfigurationList = BF6C8E6B2CC760730000A790 /* Build configuration list for PBXProject "ImageSegmentation" */;
+			compatibilityVersion = "Xcode 14.0";
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				en,
+				Base,
+			);
+			mainGroup = BF6C8E672CC760730000A790;
+			productRefGroup = BF6C8E712CC760730000A790 /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				BF6C8E6F2CC760730000A790 /* ImageSegmentation */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		BF6C8E6E2CC760730000A790 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				BF6C8E7D2CC760750000A790 /* Assets.xcassets in Resources */,
+				BF6C8E802CC760750000A790 /* Base in Resources */,
+				BF1816CC2CD334EC002ABB35 /* isnet_tfl_drq.tflite in Resources */,
+				BF6C8E7B2CC760730000A790 /* Base in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
+
+/* Begin PBXShellScriptBuildPhase section */
+		3E61E569CBE09F2D1DAAD445 /* [CP] Copy Pods Resources */ = {
+			isa = PBXShellScriptBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputFileListPaths = (
+				"${PODS_ROOT}/Target Support Files/Pods-ImageSegmentation/Pods-ImageSegmentation-resources-${CONFIGURATION}-input-files.xcfilelist",
+			);
+			name = "[CP] Copy Pods Resources";
+			outputFileListPaths = (
+				"${PODS_ROOT}/Target Support Files/Pods-ImageSegmentation/Pods-ImageSegmentation-resources-${CONFIGURATION}-output-files.xcfilelist",
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "\"${PODS_ROOT}/Target Support Files/Pods-ImageSegmentation/Pods-ImageSegmentation-resources.sh\"\n";
+			showEnvVarsInLog = 0;
+		};
+		E5D0811280391A4260437CE8 /* [CP] Check Pods Manifest.lock */ = {
+			isa = PBXShellScriptBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputFileListPaths = (
+			);
+			inputPaths = (
+				"${PODS_PODFILE_DIR_PATH}/Podfile.lock",
+				"${PODS_ROOT}/Manifest.lock",
+			);
+			name = "[CP] Check Pods Manifest.lock";
+			outputFileListPaths = (
+			);
+			outputPaths = (
+				"$(DERIVED_FILE_DIR)/Pods-ImageSegmentation-checkManifestLockResult.txt",
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "diff \"${PODS_PODFILE_DIR_PATH}/Podfile.lock\" \"${PODS_ROOT}/Manifest.lock\" > /dev/null\nif [ $? != 0 ] ; then\n    # print error to STDERR\n    echo \"error: The sandbox is not in sync with the Podfile.lock. Run 'pod install' or update your CocoaPods installation.\" >&2\n    exit 1\nfi\n# This output is used by Xcode 'outputs' to avoid re-running this script phase.\necho \"SUCCESS\" > \"${SCRIPT_OUTPUT_FILE_0}\"\n";
+			showEnvVarsInLog = 0;
+		};
+/* End PBXShellScriptBuildPhase section */
+
+/* Begin PBXSourcesBuildPhase section */
+		BF6C8E6C2CC760730000A790 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				BF6C8E972CC7A87C0000A790 /* InferenceConfigurationManager.swift in Sources */,
+				BF1816C62CD1C1FE002ABB35 /* BottomSheetViewController.swift in Sources */,
+				BF6C8EA52CC88E300000A790 /* CVPixelBufferExtension.swift in Sources */,
+				BF6C8EA02CC7A8F40000A790 /* MediaLibraryViewController.swift in Sources */,
+				BF6C8E932CC7A87C0000A790 /* CameraFeedService.swift in Sources */,
+				BF6C8E942CC7A87C0000A790 /* ImageSegmenterService.swift in Sources */,
+				BF6C8EA62CC88E300000A790 /* UIImageExtension.swift in Sources */,
+				BF6C8E992CC7A87C0000A790 /* MergeColorShaders.metal in Sources */,
+				BF6C8E742CC760730000A790 /* AppDelegate.swift in Sources */,
+				BF6C8EA72CC8922E0000A790 /* SegmentedImageRenderer.swift in Sources */,
+				BF6C8EA12CC7A8F40000A790 /* RootViewController.swift in Sources */,
+				BF6C8E762CC760730000A790 /* SceneDelegate.swift in Sources */,
+				BF6C8E962CC7A87C0000A790 /* DefaultConstants.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin PBXVariantGroup section */
+		BF6C8E792CC760730000A790 /* Main.storyboard */ = {
+			isa = PBXVariantGroup;
+			children = (
+				BF6C8E7A2CC760730000A790 /* Base */,
+			);
+			name = Main.storyboard;
+			sourceTree = "<group>";
+		};
+		BF6C8E7E2CC760750000A790 /* LaunchScreen.storyboard */ = {
+			isa = PBXVariantGroup;
+			children = (
+				BF6C8E7F2CC760750000A790 /* Base */,
+			);
+			name = LaunchScreen.storyboard;
+			sourceTree = "<group>";
+		};
+/* End PBXVariantGroup section */
+
+/* Begin XCBuildConfiguration section */
+		BF6C8E822CC760750000A790 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++20";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_TESTABILITY = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu17;
+				GCC_DYNAMIC_NO_PIC = NO;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"DEBUG=1",
+					"$(inherited)",
+				);
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.4;
+				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
+				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
+				MTL_FAST_MATH = YES;
+				ONLY_ACTIVE_ARCH = YES;
+				SDKROOT = iphoneos;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "DEBUG $(inherited)";
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+			};
+			name = Debug;
+		};
+		BF6C8E832CC760750000A790 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++20";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				ENABLE_NS_ASSERTIONS = NO;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu17;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.4;
+				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
+				MTL_ENABLE_DEBUG_INFO = NO;
+				MTL_FAST_MATH = YES;
+				SDKROOT = iphoneos;
+				SWIFT_COMPILATION_MODE = wholemodule;
+				VALIDATE_PRODUCT = YES;
+			};
+			name = Release;
+		};
+		BF6C8E852CC760750000A790 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			baseConfigurationReference = 4A3015CB58DD300D3F1A70BD /* Pods-ImageSegmentation.debug.xcconfig */;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = "";
+				ENABLE_USER_SCRIPT_SANDBOXING = NO;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = ImageSegmentation/Info.plist;
+				INFOPLIST_KEY_NSCameraUsageDescription = "This app will use camera to take photo.";
+				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
+				INFOPLIST_KEY_UILaunchStoryboardName = LaunchScreen;
+				INFOPLIST_KEY_UIMainStoryboardFile = Main;
+				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				IPHONEOS_DEPLOYMENT_TARGET = 16.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.google.litert.examples.ImageSegmentation;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
+		BF6C8E862CC760750000A790 /* Release */ = {
+			isa = XCBuildConfiguration;
+			baseConfigurationReference = 9B63F548354D1153074D9A87 /* Pods-ImageSegmentation.release.xcconfig */;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = "";
+				ENABLE_USER_SCRIPT_SANDBOXING = NO;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = ImageSegmentation/Info.plist;
+				INFOPLIST_KEY_NSCameraUsageDescription = "This app will use camera to take photo.";
+				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
+				INFOPLIST_KEY_UILaunchStoryboardName = LaunchScreen;
+				INFOPLIST_KEY_UIMainStoryboardFile = Main;
+				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				IPHONEOS_DEPLOYMENT_TARGET = 16.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.google.litert.examples.ImageSegmentation;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Release;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		BF6C8E6B2CC760730000A790 /* Build configuration list for PBXProject "ImageSegmentation" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				BF6C8E822CC760750000A790 /* Debug */,
+				BF6C8E832CC760750000A790 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		BF6C8E842CC760750000A790 /* Build configuration list for PBXNativeTarget "ImageSegmentation" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				BF6C8E852CC760750000A790 /* Debug */,
+				BF6C8E862CC760750000A790 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+/* End XCConfigurationList section */
+	};
+	rootObject = BF6C8E682CC760730000A790 /* Project object */;
+}
