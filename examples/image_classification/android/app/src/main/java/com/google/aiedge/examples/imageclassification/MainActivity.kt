@@ -48,7 +48,9 @@ import androidx.compose.material.DropdownMenuItem
 import androidx.compose.material.ExperimentalMaterialApi
 import androidx.compose.material.FloatingActionButton
 import androidx.compose.material.Icon
+import androidx.compose.material.MaterialTheme
 import androidx.compose.material.RadioButton
+import androidx.compose.material.RadioButtonDefaults
 import androidx.compose.material.Tab
 import androidx.compose.material.TabRow
 import androidx.compose.material.Text
@@ -65,13 +67,15 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.painter.ColorPainter
+import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.google.aiedge.examples.imageclassification.view.ApplicationTheme
 import com.google.aiedge.examples.imageclassification.view.CameraScreen
 import com.google.aiedge.examples.imageclassification.view.GalleryScreen
 import java.util.Locale
@@ -104,44 +108,47 @@ class MainActivity : ComponentActivity() {
                     viewModel.errorMessageShown()
                 }
             }
-
-            BottomSheetScaffold(sheetPeekHeight = (90 + 20 * uiState.categories.size).dp,
-                sheetContent = {
-                    BottomSheet(uiState = uiState, onModelSelected = {
-                        viewModel.setModel(it)
-                    }, onDelegateSelected = {
-                        viewModel.setDelegate(it)
-                    }, onThresholdSet = {
-                        viewModel.setThreshold(it)
-                    }, onMaxResultSet = {
-                        viewModel.setNumberOfResult(it)
-                    })
-                },
-                floatingActionButton = {
-                    if (tabState == Tab.Gallery) {
-                        FloatingActionButton(shape = CircleShape, onClick = {
-                            val request = PickVisualMediaRequest()
-                            galleryLauncher.launch(request)
-                        }) {
-                            Icon(Icons.Filled.Add, contentDescription = null)
-                        }
-                    }
-                }) {
-                Column {
-                    Header()
-                    Content(uiState = uiState,
-                        tab = tabState,
-                        uri = mediaUriState.toString(),
-                        onTabChanged = {
-                            tabState = it
-                            viewModel.stopClassify()
-                        },
-                        onImageProxyAnalyzed = { imageProxy ->
-                            viewModel.classify(imageProxy)
-                        },
-                        onImageBitMapAnalyzed = { bitmap, degrees ->
-                            viewModel.classify(bitmap, degrees)
+            ApplicationTheme {
+                BottomSheetScaffold(sheetPeekHeight = (90 + 20 * uiState.categories.size).dp,
+                    sheetContent = {
+                        BottomSheet(uiState = uiState, onModelSelected = {
+                            viewModel.setModel(it)
+                        }, onDelegateSelected = {
+                            viewModel.setDelegate(it)
+                        }, onThresholdSet = {
+                            viewModel.setThreshold(it)
+                        }, onMaxResultSet = {
+                            viewModel.setNumberOfResult(it)
                         })
+                    },
+                    floatingActionButton = {
+                        if (tabState == Tab.Gallery) {
+                            FloatingActionButton(
+                                backgroundColor = MaterialTheme.colors.secondary,
+                                shape = CircleShape, onClick = {
+                                    val request = PickVisualMediaRequest()
+                                    galleryLauncher.launch(request)
+                                }) {
+                                Icon(Icons.Filled.Add, contentDescription = null)
+                            }
+                        }
+                    }) {
+                    Column {
+                        Header()
+                        Content(uiState = uiState,
+                            tab = tabState,
+                            uri = mediaUriState.toString(),
+                            onTabChanged = {
+                                tabState = it
+                                viewModel.stopClassify()
+                            },
+                            onImageProxyAnalyzed = { imageProxy ->
+                                viewModel.classify(imageProxy)
+                            },
+                            onImageBitMapAnalyzed = { bitmap, degrees ->
+                                viewModel.classify(bitmap, degrees)
+                            })
+                    }
                 }
             }
         }
@@ -159,10 +166,10 @@ class MainActivity : ComponentActivity() {
     ) {
         val tabs = Tab.entries
         Column(modifier) {
-            TabRow(backgroundColor = Color.LightGray, selectedTabIndex = tab.ordinal) {
+            TabRow(selectedTabIndex = tab.ordinal) {
                 tabs.forEach { t ->
                     Tab(
-                        text = { Text(t.name) },
+                        text = { Text(t.name, color = Color.White) },
                         selected = tab == t,
                         onClick = { onTabChanged(t) },
                     )
@@ -189,24 +196,16 @@ class MainActivity : ComponentActivity() {
     }
 
     @Composable
-    fun Header(modifier: Modifier = Modifier) {
+    fun Header() {
         TopAppBar(
-            modifier = modifier,
-            backgroundColor = Color.LightGray,
+            backgroundColor = MaterialTheme.colors.secondary,
             title = {
-                Row(
-                    modifier = Modifier.fillMaxSize(),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Image(
-                        modifier = Modifier.size(50.dp),
-                        painter = ColorPainter(color = Color.White),
-                        contentDescription = null,
-                    )
-
-                    Spacer(modifier = modifier.width(10.dp))
-                    Text(text = "LiteRT", color = Color.Blue, fontWeight = FontWeight.SemiBold)
-                }
+                Image(
+                    modifier = Modifier.size(120.dp),
+                    alignment = Alignment.CenterStart,
+                    painter = painterResource(id = R.drawable.logo),
+                    contentDescription = null,
+                )
             },
         )
     }
@@ -254,24 +253,28 @@ class MainActivity : ComponentActivity() {
                     .size(40.dp)
                     .align(Alignment.CenterHorizontally),
                 painter = painterResource(id = R.drawable.ic_chevron_up),
+                colorFilter = ColorFilter.tint(MaterialTheme.colors.secondary),
                 contentDescription = ""
             )
             Row {
-                Text(modifier = Modifier.weight(0.5f), text = "Inference Time")
-                Text(text = inferenceTime.toString())
+                Text(
+                    modifier = Modifier.weight(0.5f),
+                    text = stringResource(id = R.string.inference_title)
+                )
+                Text(text = stringResource(id = R.string.inference_value, inferenceTime))
             }
             Spacer(modifier = Modifier.height(20.dp))
             ModelSelection(onModelSelected = {
                 onModelSelected(it)
             })
             Spacer(modifier = Modifier.height(20.dp))
-            OptionMenu(label = "Delegate",
+            OptionMenu(label = stringResource(id = R.string.delegate),
                 options = ImageClassificationHelper.Delegate.entries.map { it.name }) {
                 onDelegateSelected(ImageClassificationHelper.Delegate.valueOf(it))
             }
             Spacer(modifier = Modifier.height(10.dp))
             AdjustItem(
-                name = "Threshold",
+                name = stringResource(id = R.string.threshold),
                 value = uiState.setting.threshold,
                 onMinusClicked = {
                     if (threshold > 0.3f) {
@@ -288,7 +291,7 @@ class MainActivity : ComponentActivity() {
             )
 
             AdjustItem(
-                name = "Max Results", value = resultCount,
+                name = stringResource(id = R.string.maxResult), value = resultCount,
                 onMinusClicked = {
                     if (resultCount >= 2) {
                         val count = resultCount - 1
@@ -365,6 +368,7 @@ class MainActivity : ComponentActivity() {
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     RadioButton(
+                        colors = RadioButtonDefaults.colors(selectedColor = MaterialTheme.colors.primary),
                         selected = (option == selectedOption),
                         onClick = {
                             if (selectedOption == option) return@RadioButton
@@ -400,10 +404,11 @@ class MainActivity : ComponentActivity() {
             Row(
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                Button(onClick = {
-                    onMinusClicked()
-                }) {
-                    Text(text = "-", fontSize = 15.sp)
+                Button(
+                    onClick = {
+                        onMinusClicked()
+                    }) {
+                    Text(text = "-", fontSize = 15.sp, color = Color.White)
                 }
                 Spacer(modifier = Modifier.width(10.dp))
                 Text(
@@ -415,10 +420,11 @@ class MainActivity : ComponentActivity() {
                     fontSize = 15.sp,
                 )
                 Spacer(modifier = Modifier.width(10.dp))
-                Button(onClick = {
-                    onPlusClicked()
-                }) {
-                    Text(text = "+", fontSize = 15.sp)
+                Button(
+                    onClick = {
+                        onPlusClicked()
+                    }) {
+                    Text(text = "+", fontSize = 15.sp, color = Color.White)
                 }
             }
         }

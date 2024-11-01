@@ -25,7 +25,6 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -36,6 +35,7 @@ import androidx.compose.material.DropdownMenu
 import androidx.compose.material.DropdownMenuItem
 import androidx.compose.material.ExperimentalMaterialApi
 import androidx.compose.material.Icon
+import androidx.compose.material.MaterialTheme
 import androidx.compose.material.Tab
 import androidx.compose.material.TabRow
 import androidx.compose.material.Text
@@ -49,22 +49,21 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.painter.ColorPainter
+import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.res.painterResource
-import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.google.aiedge.examples.super_resolution.gallery.ImagePickerScreen
-import com.google.aiedge.examples.super_resolution.quicksample.QuickSampleScreen
-import com.google.aiedge.examples.super_resolution.R
+import com.google.aiedge.examples.super_resolution.imagesample.ImageSampleScreen
+import com.google.aiedge.examples.super_resolution.ui.ApplicationTheme
 
 class MainActivity : ComponentActivity() {
     @OptIn(ExperimentalMaterialApi::class)
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContent {
-            var tabState by remember { mutableStateOf(MenuTab.QuickSample) }
+            var tabState by remember { mutableStateOf(MenuTab.ImageSample) }
             var inferenceTimeState by remember {
                 mutableStateOf("--")
             }
@@ -72,27 +71,24 @@ class MainActivity : ComponentActivity() {
                 mutableStateOf(ImageSuperResolutionHelper.Delegate.CPU)
             }
 
-            BottomSheetScaffold(
-                sheetShape = RoundedCornerShape(topStart = 15.dp, topEnd = 15.dp),
-                sheetPeekHeight = 0.dp,
-                sheetContent = {
-                    BottomSheet(inferenceTime = inferenceTimeState, onDelegateSelected = {
-                        delegateState = it
-                    })
-                },
-            ) {
-                Column {
-                    Header()
-                    Content(
-                        tab = tabState,
-                        delegate = delegateState,
-                        onTabChanged = {
+            ApplicationTheme {
+                BottomSheetScaffold(
+                    sheetShape = RoundedCornerShape(topStart = 15.dp, topEnd = 15.dp),
+                    sheetPeekHeight = 70.dp,
+                    sheetContent = {
+                        BottomSheet(inferenceTime = inferenceTimeState, onDelegateSelected = {
+                            delegateState = it
+                        })
+                    },
+                ) {
+                    Column {
+                        Header()
+                        Content(tab = tabState, delegate = delegateState, onTabChanged = {
                             tabState = it
-                        },
-                        onInferenceTimeCallback = {
+                        }, onInferenceTimeCallback = {
                             inferenceTimeState = it.toString()
-                        }
-                    )
+                        })
+                    }
                 }
             }
         }
@@ -108,7 +104,7 @@ class MainActivity : ComponentActivity() {
     ) {
         val tabs = MenuTab.entries
         Column(modifier) {
-            TabRow(backgroundColor = Color.LightGray, selectedTabIndex = tab.ordinal) {
+            TabRow(backgroundColor = MaterialTheme.colors.primary, selectedTabIndex = tab.ordinal) {
                 tabs.forEach { t ->
                     Tab(
                         text = { Text(t.name) },
@@ -119,36 +115,28 @@ class MainActivity : ComponentActivity() {
             }
 
             when (tab) {
-                MenuTab.QuickSample -> QuickSampleScreen(
-                    delegate = delegate,
-                    onInferenceTimeCallback = onInferenceTimeCallback
+                MenuTab.ImageSample -> ImageSampleScreen(
+                    delegate = delegate, onInferenceTimeCallback = onInferenceTimeCallback
                 )
 
                 MenuTab.Gallery -> ImagePickerScreen(
-                    delegate = delegate,
-                    onInferenceTimeCallback = onInferenceTimeCallback
+                    delegate = delegate, onInferenceTimeCallback = onInferenceTimeCallback
                 )
             }
         }
     }
 
     @Composable
-    fun Header(modifier: Modifier = Modifier) {
+    fun Header() {
         TopAppBar(
-            backgroundColor = Color.LightGray,
+            backgroundColor = MaterialTheme.colors.secondary,
             title = {
-                Row(
-                    modifier = Modifier.fillMaxSize(),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Image(
-                        modifier = Modifier.size(50.dp),
-                        painter = ColorPainter(color = Color.White),
-                        contentDescription = null,
-                    )
-                    Spacer(modifier = modifier.width(10.dp))
-                    Text(text = "LiteRT", color = Color.Blue, fontWeight = FontWeight.SemiBold)
-                }
+                Image(
+                    modifier = Modifier.size(120.dp),
+                    alignment = Alignment.CenterStart,
+                    painter = painterResource(id = R.drawable.logo),
+                    contentDescription = null,
+                )
             },
         )
     }
@@ -166,17 +154,20 @@ class MainActivity : ComponentActivity() {
                     .padding(top = 2.dp, bottom = 5.dp)
                     .align(Alignment.CenterHorizontally),
                 painter = painterResource(id = R.drawable.ic_chevron_up),
+                colorFilter = ColorFilter.tint(MaterialTheme.colors.secondary),
                 contentDescription = ""
             )
             Row {
-                Text(modifier = Modifier.weight(0.5f), text = "Inference Time")
-                Text(text = inferenceTime)
+                Text(
+                    modifier = Modifier.weight(0.5f),
+                    text = stringResource(id = R.string.inference_title)
+                )
+                Text(text = stringResource(id = R.string.inference_value, inferenceTime))
             }
 
             Spacer(modifier = Modifier.height(10.dp))
 
-            OptionMenu(
-                label = "Delegate",
+            OptionMenu(label = stringResource(id = R.string.delegate_label),
                 options = ImageSuperResolutionHelper.Delegate.entries.map { it.name }) {
                 onDelegateSelected(ImageSuperResolutionHelper.Delegate.valueOf(it))
             }
@@ -205,8 +196,7 @@ class MainActivity : ComponentActivity() {
                     Text(text = option)
                     Spacer(modifier = Modifier.width(5.dp))
                     Icon(
-                        imageVector = Icons.Default.ArrowDropDown,
-                        contentDescription = "Localized description"
+                        imageVector = Icons.Default.ArrowDropDown, contentDescription = ""
                     )
                 }
 
@@ -230,5 +220,5 @@ class MainActivity : ComponentActivity() {
 }
 
 enum class MenuTab {
-    QuickSample, Gallery,
+    ImageSample, Gallery,
 }

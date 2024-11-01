@@ -14,14 +14,13 @@
 // =============================================================================
 
 import UIKit
-import TensorFlowLiteTaskAudio
 
 /// TableViewCell to display the inference results. Each cell corresponds to a single category.
 class ResultTableViewCell: UITableViewCell {
-
+  
   @IBOutlet weak var nameLabel: UILabel!
   @IBOutlet weak var scoreWidthLayoutConstraint: NSLayoutConstraint!
-
+  
   func setData(_ data: ClassificationCategory) {
     nameLabel.text = data.label
     if !data.score.isNaN {
