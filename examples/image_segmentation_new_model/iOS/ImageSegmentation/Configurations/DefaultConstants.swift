@@ -18,49 +18,33 @@ import UIKit
 
 // MARK: Define default constants
 struct DefaultConstants {
-  static let model: Model = .isnetPt2eDrq
+  static let model: Model = .isnetTflDrq
 }
 
 // MARK: Model
 enum Model: Int, CaseIterable {
-  case isnetPt2eDrq
   case isnetTflDrq
-  case isnet
 
 
   var name: String {
     switch self {
-    case .isnetPt2eDrq:
-      return "Isnet pt2e drq"
     case .isnetTflDrq:
       return "Isnet tfl drq"
-    case .isnet:
-      return "Isnet"
     }
   }
 
   var modelPath: String? {
     switch self {
-    case .isnetPt2eDrq:
-      return Bundle.main.path(
-        forResource: "isnet_pt2e_drq", ofType: "tflite")
     case .isnetTflDrq:
       return Bundle.main.path(
         forResource: "isnet_tfl_drq", ofType: "tflite")
-    case .isnet:
-      return Bundle.main.path(
-        forResource: "isnet", ofType: "tflite")
     }
   }
 
   init?(name: String) {
     switch name {
-    case "Isnet pt2e drq":
-      self = .isnetPt2eDrq
     case "Isnet tfl drq":
       self = .isnetTflDrq
-    case "Isnet":
-      self = .isnet
     default:
       return nil
     }

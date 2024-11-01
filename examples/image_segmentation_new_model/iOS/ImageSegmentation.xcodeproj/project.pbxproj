@@ -9,8 +9,6 @@
 /* Begin PBXBuildFile section */
 		4DEB6A3928D247D3B3E93619 /* Pods_ImageSegmentation.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 8B138343A3F7E091F2683651 /* Pods_ImageSegmentation.framework */; };
 		BF1816C62CD1C1FE002ABB35 /* BottomSheetViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = BF1816C52CD1C1FE002ABB35 /* BottomSheetViewController.swift */; };
-		BF1816CA2CD334EC002ABB35 /* isnet.tflite in Resources */ = {isa = PBXBuildFile; fileRef = BF1816C72CD334EC002ABB35 /* isnet.tflite */; };
-		BF1816CB2CD334EC002ABB35 /* isnet_pt2e_drq.tflite in Resources */ = {isa = PBXBuildFile; fileRef = BF1816C82CD334EC002ABB35 /* isnet_pt2e_drq.tflite */; };
 		BF1816CC2CD334EC002ABB35 /* isnet_tfl_drq.tflite in Resources */ = {isa = PBXBuildFile; fileRef = BF1816C92CD334EC002ABB35 /* isnet_tfl_drq.tflite */; };
 		BF6C8E742CC760730000A790 /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = BF6C8E732CC760730000A790 /* AppDelegate.swift */; };
 		BF6C8E762CC760730000A790 /* SceneDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = BF6C8E752CC760730000A790 /* SceneDelegate.swift */; };
@@ -34,8 +32,6 @@
 		8B138343A3F7E091F2683651 /* Pods_ImageSegmentation.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; includeInIndex = 0; path = Pods_ImageSegmentation.framework; sourceTree = BUILT_PRODUCTS_DIR; };
 		9B63F548354D1153074D9A87 /* Pods-ImageSegmentation.release.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-ImageSegmentation.release.xcconfig"; path = "Target Support Files/Pods-ImageSegmentation/Pods-ImageSegmentation.release.xcconfig"; sourceTree = "<group>"; };
 		BF1816C52CD1C1FE002ABB35 /* BottomSheetViewController.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = BottomSheetViewController.swift; sourceTree = "<group>"; };
-		BF1816C72CD334EC002ABB35 /* isnet.tflite */ = {isa = PBXFileReference; lastKnownFileType = file; path = isnet.tflite; sourceTree = "<group>"; };
-		BF1816C82CD334EC002ABB35 /* isnet_pt2e_drq.tflite */ = {isa = PBXFileReference; lastKnownFileType = file; path = isnet_pt2e_drq.tflite; sourceTree = "<group>"; };
 		BF1816C92CD334EC002ABB35 /* isnet_tfl_drq.tflite */ = {isa = PBXFileReference; lastKnownFileType = file; path = isnet_tfl_drq.tflite; sourceTree = "<group>"; };
 		BF6C8E702CC760730000A790 /* ImageSegmentation.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = ImageSegmentation.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		BF6C8E732CC760730000A790 /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDelegate.swift; sourceTree = "<group>"; };
@@ -163,9 +159,7 @@
 		BF6C8EA82CC8945F0000A790 /* Model */ = {
 			isa = PBXGroup;
 			children = (
-				BF1816C82CD334EC002ABB35 /* isnet_pt2e_drq.tflite */,
 				BF1816C92CD334EC002ABB35 /* isnet_tfl_drq.tflite */,
-				BF1816C72CD334EC002ABB35 /* isnet.tflite */,
 			);
 			path = Model;
 			sourceTree = "<group>";
@@ -239,9 +233,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				BF6C8E7D2CC760750000A790 /* Assets.xcassets in Resources */,
-				BF1816CA2CD334EC002ABB35 /* isnet.tflite in Resources */,
 				BF6C8E802CC760750000A790 /* Base in Resources */,
-				BF1816CB2CD334EC002ABB35 /* isnet_pt2e_drq.tflite in Resources */,
 				BF1816CC2CD334EC002ABB35 /* isnet_tfl_drq.tflite in Resources */,
 				BF6C8E7B2CC760730000A790 /* Base in Resources */,
 			);

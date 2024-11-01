@@ -36,17 +36,12 @@ class BottomSheetViewController: UIViewController {
   @IBOutlet weak var inferenceTimeLabel: UILabel!
   @IBOutlet weak var inferenceTimeNameLabel: UILabel!
 
-  @IBOutlet weak var choseModelButton: UIButton!
-
-  @IBOutlet weak var toggleBottomSheetButton: UIButton!
-
 
   // MARK: Computed properties
 
 
   override func viewDidLoad() {
     super.viewDidLoad()
-    setupUI()
   }
 
   // MARK: - Public Functions
@@ -58,33 +53,8 @@ class BottomSheetViewController: UIViewController {
     }
   }
 
-  // MARK: - Private function
-  private func setupUI() {
-
-    // Chose model option
-    let choseModel = {(action: UIAction) in
-      self.updateModel(modelTitle: action.title)
-    }
-    let actions: [UIAction] = Model.allCases.compactMap { model in
-      let action = UIAction(title: model.name, handler: choseModel)
-      if model == InferenceConfigurationManager.sharedInstance.model {
-        action.state = .on
-      }
-      return action
-    }
-    choseModelButton.menu = UIMenu(children: actions)
-    choseModelButton.showsMenuAsPrimaryAction = true
-    choseModelButton.changesSelectionAsPrimaryAction = true
-  }
-
   private func updateModel(modelTitle: String) {
     guard let model = Model(name: modelTitle) else { return }
     InferenceConfigurationManager.sharedInstance.model = model
-  }
-
-  // MARK: IBAction
-  @IBAction func expandButtonTouchUpInside(_ sender: UIButton) {
-    sender.isSelected.toggle()
-    delegate?.viewController(self, didSwitchBottomSheetViewState: sender.isSelected)
   }
 }
