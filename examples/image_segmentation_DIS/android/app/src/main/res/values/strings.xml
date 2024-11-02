@@ -1,0 +1,7 @@
+<resources>
+    <string name="app_name">Segmentation DIS</string>
+    <string name="inference_title">Inference Time</string>
+    <string name="inference_value">%d ms</string>
+    <string name="delegate">Delagate</string>
+    <string name="model">Model</string>
+</resources>
