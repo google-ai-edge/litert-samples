@@ -183,7 +183,7 @@
                                             <action selector="showHidenButtonTouchUpInside:" destination="iph-Fi-onr" eventType="touchUpInside" id="46E-6m-MbN"/>
                                         </connections>
                                     </button>
-                                    <button opaque="NO" contentMode="scaleToFill" showsMenuAsPrimaryAction="YES" contentHorizontalAlignment="center" contentVerticalAlignment="center" buttonType="system" lineBreakMode="middleTruncation" translatesAutoresizingMaskIntoConstraints="NO" id="NhR-Jw-fCt">
+                                    <button opaque="NO" userInteractionEnabled="NO" contentMode="scaleToFill" showsMenuAsPrimaryAction="YES" contentHorizontalAlignment="center" contentVerticalAlignment="center" buttonType="system" lineBreakMode="middleTruncation" translatesAutoresizingMaskIntoConstraints="NO" id="NhR-Jw-fCt">
                                         <rect key="frame" x="261" y="90.333333333333371" width="94" height="34"/>
                                         <constraints>
                                             <constraint firstAttribute="height" constant="34" id="39y-ec-FSs"/>

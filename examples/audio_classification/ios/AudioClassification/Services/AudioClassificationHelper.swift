@@ -82,8 +82,6 @@ class AudioClassificationHelper {
       switch model {
       case .Yamnet:
         sampleRate = inputShape.dimensions[0]
-      case .speechCommand:
-        sampleRate = inputShape.dimensions[1]
       }
       try interpreter.invoke()
     } catch {
