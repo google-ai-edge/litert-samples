@@ -145,13 +145,6 @@ class MainViewModel(private val imageSegmentationHelper: ImageSegmentationHelper
         }
     }
 
-    /** Set Model for ImageSegmentationHelper*/
-    fun setModel(model: ImageSegmentationHelper.Model) {
-        viewModelScope.launch {
-            imageSegmentationHelper.initClassifier(model = model)
-        }
-    }
-
     /** Clear error message after it has been consumed*/
     fun errorMessageShown() {
         _uiState.update {

@@ -133,9 +133,6 @@ class MainActivity : ComponentActivity() {
                         onDelegateSelected = {
                             viewModel.setDelegate(it)
                         },
-                        onModelSelected = {
-                            viewModel.setModel(it)
-                        },
                     )
                 }, floatingActionButton = {
                     FloatingActionButton(backgroundColor = MaterialTheme.colors.secondary,
@@ -235,7 +232,6 @@ class MainActivity : ComponentActivity() {
         inferenceTime: Long,
         modifier: Modifier = Modifier,
         onDelegateSelected: (ImageSegmentationHelper.Delegate) -> Unit,
-        onModelSelected: (ImageSegmentationHelper.Model) -> Unit
     ) {
         Column(modifier = modifier.padding(horizontal = 20.dp, vertical = 5.dp)) {
             Image(
@@ -253,11 +249,6 @@ class MainActivity : ComponentActivity() {
                     text = stringResource(id = R.string.inference_title)
                 )
                 Text(text = stringResource(id = R.string.inference_value, inferenceTime))
-            }
-            Spacer(modifier = Modifier.height(20.dp))
-            OptionMenu(label = stringResource(id = R.string.model),
-                options = ImageSegmentationHelper.Model.entries.map { it.title }) { title ->
-                onModelSelected(ImageSegmentationHelper.Model.entries.find { it.title == title }!!)
             }
             Spacer(modifier = Modifier.height(20.dp))
             OptionMenu(label = stringResource(id = R.string.delegate),

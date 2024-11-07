@@ -37,15 +37,18 @@ fun GalleryScreen(
             modifier = Modifier.fillMaxSize(),
             model = uri,
             contentDescription = null,
-            contentScale = ContentScale.Crop,
+            contentScale = ContentScale.Inside,
             onSuccess = {
-                val bimap = it.result.drawable.toBitmap()
-                onImageAnalyzed(bimap)
+                val bitmap = it.result.drawable.toBitmap()
+                onImageAnalyzed(bitmap)
             },
         )
         if (uiState.galleryOverlayInfo != null) {
-            SegmentationOverlay(
-                modifier = Modifier.fillMaxSize(), overlayInfo = uiState.galleryOverlayInfo
+            AsyncImage(
+                modifier = Modifier.fillMaxSize(),
+                model = uiState.galleryOverlayInfo.bitmap,
+                contentDescription = null,
+                contentScale = ContentScale.Inside,
             )
         }
     }

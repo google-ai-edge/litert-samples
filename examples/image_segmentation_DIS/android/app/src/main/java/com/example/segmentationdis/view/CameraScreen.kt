@@ -42,16 +42,18 @@ fun CameraScreen(
             modifier = Modifier.fillMaxSize(),
             model = uri,
             contentDescription = null,
-            contentScale = ContentScale.Crop,
+            contentScale = ContentScale.Inside,
             onSuccess = {
                 val bimap = it.result.drawable.toBitmap()
                 onImageAnalyzed(bimap)
             },
         )
         if (uiState.cameraOverlayInfo != null) {
-            SegmentationOverlay(
+            AsyncImage(
                 modifier = Modifier.fillMaxSize(),
-                overlayInfo = uiState.cameraOverlayInfo
+                model = uiState.cameraOverlayInfo.bitmap,
+                contentDescription = null,
+                contentScale = ContentScale.Inside,
             )
         }
     }
