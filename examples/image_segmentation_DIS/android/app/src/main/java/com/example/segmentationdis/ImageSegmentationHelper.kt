@@ -43,7 +43,7 @@ class ImageSegmentationHelper(private val context: Context) {
         private const val TAG = "SegmentationDis"
     }
 
-    /** As the result of sound classification, this value emits map of probabilities */
+    /** emits map of probabilities */
     val segmentation: SharedFlow<SegmentationResult>
         get() = _segmentation
     private val _segmentation = MutableSharedFlow<SegmentationResult>(
