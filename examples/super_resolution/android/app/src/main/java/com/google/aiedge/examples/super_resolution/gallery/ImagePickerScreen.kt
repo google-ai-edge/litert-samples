@@ -93,7 +93,11 @@ fun ImagePickerScreen(
                 val contentResolver = context.contentResolver
                 val inputStream: InputStream? = contentResolver.openInputStream(uri)
                 val bitmap = BitmapFactory.decodeStream(inputStream)
-                viewModel.selectImage(bitmap)
+                when (val convertedBitmap =
+                    ImagePickerHelper.modifyOrientation(bitmap, contentResolver, uri)) {
+                    is OrientationResult.Success -> viewModel.selectImage(convertedBitmap.bitmap)
+                    is OrientationResult.Error -> viewModel.selectImage(bitmap)
+                }
             }
         }
 

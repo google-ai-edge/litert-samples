@@ -77,6 +77,7 @@ dependencies {
     implementation(libs.coil.compose)
     implementation(libs.litert.api)
     implementation(libs.google.litert)
+    implementation(libs.androidx.exifinterface)
 
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.junit)
