@@ -48,12 +48,34 @@ half4 mergeColor(half4 pixelData, int categoryIndex) {
 kernel void mergeColor(texture2d<half, access::read> inTexture [[ texture (0) ]],
                        texture2d<half, access::read_write> outTexture [[ texture (1) ]],
                        device uint8_t* data_in [[ buffer(0) ]],
-                       constant int& width [[buffer(1)]],
-                       constant int& height [[buffer(2)]],
+                       constant int& maskWidth [[buffer(1)]],
+                       constant int& maskHeight [[buffer(2)]],
                        uint2 gid [[ thread_position_in_grid ]]) {
-  uint2 newPoint = uint2(uint(gid.x * width / inTexture.get_width()),uint(gid.y * height / inTexture.get_height()));
+  
+  // Compute the mask coordinate with floating-point precision
+  float2 maskCoords = float2(gid.x * (float(maskWidth) / float(inTexture.get_width())),
+                             gid.y * (float(maskHeight) / float(inTexture.get_height())));
+
+  // Convert floating-point mask coordinates to integer index (for accessing data_in)
+  uint maskX = uint(maskCoords.x);
+  uint maskY = uint(maskCoords.y);
+  
+  // Ensure the coordinates are clamped within valid mask bounds
+  maskX = min(maskX, uint(maskWidth - 1));
+  maskY = min(maskY, uint(maskHeight - 1));
+
+  // Calculate mask index (row-major order)
+  uint maskIndex = maskY * maskWidth + maskX;
+
+  // Fetch category index from mask
+  uint8_t categoryIndex = data_in[maskIndex];
+
+  // Fetch pixel from input texture
   half4 pixelData = inTexture.read(gid).rgba;
-  uint8_t categoryIndex = data_in[uint(newPoint.y * height  + newPoint.x)];
+
+  // Merge the color based on category
   half4 outputPixelData = mergeColor(pixelData, categoryIndex);
+
+  // Write the output pixel
   outTexture.write(outputPixelData, gid);
 }
