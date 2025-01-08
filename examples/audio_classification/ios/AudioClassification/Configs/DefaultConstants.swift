@@ -17,16 +17,12 @@ import Foundation
 
 enum Model: String, CaseIterable {
   case Yamnet = "YAMNet"
-  case speechCommand = "Speech Command"
 
   var modelPath: String? {
     switch self {
     case .Yamnet:
       return Bundle.main.path(
         forResource: "yamnet", ofType: "tflite")
-    case .speechCommand:
-      return Bundle.main.path(
-        forResource: "speech_commands", ofType: "tflite")
     }
   }
 
@@ -35,9 +31,6 @@ enum Model: String, CaseIterable {
     case .Yamnet:
       return Bundle.main.path(
         forResource: "yamnet_label_list", ofType: "txt")
-    case .speechCommand:
-      return Bundle.main.path(
-        forResource: "probability_labels", ofType: "txt")
     }
   }
 }
@@ -45,7 +38,7 @@ enum Model: String, CaseIterable {
 
 struct DefaultConstants {
   static var model: Model = .Yamnet
-  static var overLap: Double = 0.5
+  static var overLap: Double = 0.2
   static var maxResults: Int = 3
   static var threshold: Float = 0.3
   static var threadCount: Int = 2

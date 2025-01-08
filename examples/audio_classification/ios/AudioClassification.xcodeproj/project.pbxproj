@@ -19,7 +19,6 @@
 		BF5A2B322BC3D40C00A0ABAC /* DefaultConstants.swift in Sources */ = {isa = PBXBuildFile; fileRef = BF5A2B312BC3D40C00A0ABAC /* DefaultConstants.swift */; };
 		BF871AE42C9D306000299B0E /* AudioInputManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = BF871AE32C9D306000299B0E /* AudioInputManager.swift */; };
 		BF871AE72C9D327500299B0E /* yamnet_label_list.txt in Resources */ = {isa = PBXBuildFile; fileRef = BF871AE52C9D327500299B0E /* yamnet_label_list.txt */; };
-		BF871AE82C9D327500299B0E /* probability_labels.txt in Resources */ = {isa = PBXBuildFile; fileRef = BF871AE62C9D327500299B0E /* probability_labels.txt */; };
 		BFB819572BD755B200C71A36 /* yamnet.tflite in Resources */ = {isa = PBXBuildFile; fileRef = BFB819552BD755B200C71A36 /* yamnet.tflite */; };
 		BFB819582BD755B200C71A36 /* speech_commands.tflite in Resources */ = {isa = PBXBuildFile; fileRef = BFB819562BD755B200C71A36 /* speech_commands.tflite */; };
 		DC1E75C4F2AD273C59E6B96C /* Pods_AudioClassification.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = D7EFDE0C16196D1BDC31A015 /* Pods_AudioClassification.framework */; };
@@ -42,7 +41,6 @@
 		BF5A2B312BC3D40C00A0ABAC /* DefaultConstants.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DefaultConstants.swift; sourceTree = "<group>"; };
 		BF871AE32C9D306000299B0E /* AudioInputManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AudioInputManager.swift; sourceTree = "<group>"; };
 		BF871AE52C9D327500299B0E /* yamnet_label_list.txt */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text; path = yamnet_label_list.txt; sourceTree = "<group>"; };
-		BF871AE62C9D327500299B0E /* probability_labels.txt */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text; path = probability_labels.txt; sourceTree = "<group>"; };
 		BFB819552BD755B200C71A36 /* yamnet.tflite */ = {isa = PBXFileReference; lastKnownFileType = file; path = yamnet.tflite; sourceTree = "<group>"; };
 		BFB819562BD755B200C71A36 /* speech_commands.tflite */ = {isa = PBXFileReference; lastKnownFileType = file; path = speech_commands.tflite; sourceTree = "<group>"; };
 		D0B6F76E4B8425E1C75565D4 /* Pods_AudioClassificationTests.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; includeInIndex = 0; path = Pods_AudioClassificationTests.framework; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -112,7 +110,6 @@
 		BF5A2B262BC3CFD800A0ABAC /* Services */ = {
 			isa = PBXGroup;
 			children = (
-				BF871AE62C9D327500299B0E /* probability_labels.txt */,
 				BF871AE52C9D327500299B0E /* yamnet_label_list.txt */,
 				BFB819562BD755B200C71A36 /* speech_commands.tflite */,
 				BFB819552BD755B200C71A36 /* yamnet.tflite */,
@@ -218,7 +215,6 @@
 			buildActionMask = 2147483647;
 			files = (
 				BF5A2AFD2BC3CE0200A0ABAC /* Assets.xcassets in Resources */,
-				BF871AE82C9D327500299B0E /* probability_labels.txt in Resources */,
 				BFB819582BD755B200C71A36 /* speech_commands.tflite in Resources */,
 				BFB819572BD755B200C71A36 /* yamnet.tflite in Resources */,
 				BF871AE72C9D327500299B0E /* yamnet_label_list.txt in Resources */,
