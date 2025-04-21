@@ -18,7 +18,9 @@ package com.google.aiedge.examples.imageclassification
 
 import android.graphics.Bitmap
 import android.net.Uri
+import android.os.Build
 import android.os.Bundle
+import android.view.WindowInsetsController
 import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -37,6 +39,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
@@ -45,7 +48,6 @@ import androidx.compose.material.BottomSheetScaffold
 import androidx.compose.material.Button
 import androidx.compose.material.DropdownMenu
 import androidx.compose.material.DropdownMenuItem
-import androidx.compose.material.ExperimentalMaterialApi
 import androidx.compose.material.FloatingActionButton
 import androidx.compose.material.Icon
 import androidx.compose.material.MaterialTheme
@@ -82,11 +84,17 @@ import java.util.Locale
 
 
 class MainActivity : ComponentActivity() {
-    @OptIn(ExperimentalMaterialApi::class)
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         val viewModel: MainViewModel by viewModels { MainViewModel.getFactory(this) }
         setContent {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                window.decorView.windowInsetsController?.setSystemBarsAppearance(
+                    WindowInsetsController.APPEARANCE_LIGHT_STATUS_BARS,
+                    WindowInsetsController.APPEARANCE_LIGHT_STATUS_BARS
+                )
+            }
+
             var tabState by remember { mutableStateOf(Tab.Camera) }
 
             var mediaUriState: Uri by remember {
@@ -109,7 +117,9 @@ class MainActivity : ComponentActivity() {
                 }
             }
             ApplicationTheme {
-                BottomSheetScaffold(sheetPeekHeight = (90 + 20 * uiState.categories.size).dp,
+                BottomSheetScaffold(
+                    modifier = Modifier.safeDrawingPadding(),
+                    sheetPeekHeight = (90 + 20 * uiState.categories.size).dp,
                     sheetContent = {
                         BottomSheet(uiState = uiState, onModelSelected = {
                             viewModel.setModel(it)
@@ -132,22 +142,21 @@ class MainActivity : ComponentActivity() {
                                 Icon(Icons.Filled.Add, contentDescription = null)
                             }
                         }
-                    }) {
+                    }
+                ) {
                     Column {
                         Header()
-                        Content(uiState = uiState,
+                        Content(
+                            uiState = uiState,
                             tab = tabState,
                             uri = mediaUriState.toString(),
                             onTabChanged = {
                                 tabState = it
                                 viewModel.stopClassify()
                             },
-                            onImageProxyAnalyzed = { imageProxy ->
-                                viewModel.classify(imageProxy)
-                            },
-                            onImageBitMapAnalyzed = { bitmap, degrees ->
-                                viewModel.classify(bitmap, degrees)
-                            })
+                            onImageProxyAnalyzed = viewModel::classify,
+                            onImageBitMapAnalyzed = viewModel::classify
+                        )
                     }
                 }
             }
@@ -162,7 +171,7 @@ class MainActivity : ComponentActivity() {
         modifier: Modifier = Modifier,
         onTabChanged: (Tab) -> Unit,
         onImageProxyAnalyzed: (ImageProxy) -> Unit,
-        onImageBitMapAnalyzed: (Bitmap, Int) -> Unit,
+        onImageBitMapAnalyzed: (Bitmap) -> Unit,
     ) {
         val tabs = Tab.entries
         Column(modifier) {
@@ -179,17 +188,13 @@ class MainActivity : ComponentActivity() {
             when (tab) {
                 Tab.Camera -> CameraScreen(
                     uiState = uiState,
-                    onImageAnalyzed = {
-                        onImageProxyAnalyzed(it)
-                    },
+                    onImageAnalyzed = onImageProxyAnalyzed,
                 )
 
                 Tab.Gallery -> GalleryScreen(
                     modifier = Modifier.fillMaxSize(),
                     uri = uri,
-                    onImageAnalyzed = {
-                        onImageBitMapAnalyzed(it, 0)
-                    },
+                    onImageAnalyzed = onImageBitMapAnalyzed,
                 )
             }
         }
@@ -264,11 +269,10 @@ class MainActivity : ComponentActivity() {
                 Text(text = stringResource(id = R.string.inference_value, inferenceTime))
             }
             Spacer(modifier = Modifier.height(20.dp))
-            ModelSelection(onModelSelected = {
-                onModelSelected(it)
-            })
+            ModelSelection(onModelSelected = onModelSelected)
             Spacer(modifier = Modifier.height(20.dp))
-            OptionMenu(label = stringResource(id = R.string.delegate),
+            OptionMenu(
+                label = stringResource(id = R.string.delegate),
                 options = ImageClassificationHelper.Delegate.entries.map { it.name }) {
                 onDelegateSelected(ImageClassificationHelper.Delegate.valueOf(it))
             }
@@ -405,11 +409,9 @@ class MainActivity : ComponentActivity() {
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Button(
-                    onClick = {
-                        onMinusClicked()
-                    }) {
-                    Text(text = "-", fontSize = 15.sp, color = Color.White)
-                }
+                    onClick = onMinusClicked,
+                    content = { Text(text = "-", fontSize = 15.sp, color = Color.White) }
+                )
                 Spacer(modifier = Modifier.width(10.dp))
                 Text(
                     modifier = Modifier.width(30.dp),
@@ -421,11 +423,9 @@ class MainActivity : ComponentActivity() {
                 )
                 Spacer(modifier = Modifier.width(10.dp))
                 Button(
-                    onClick = {
-                        onPlusClicked()
-                    }) {
-                    Text(text = "+", fontSize = 15.sp, color = Color.White)
-                }
+                    onClick = onPlusClicked,
+                    content = { Text(text = "+", fontSize = 15.sp, color = Color.White) }
+                )
             }
         }
     }

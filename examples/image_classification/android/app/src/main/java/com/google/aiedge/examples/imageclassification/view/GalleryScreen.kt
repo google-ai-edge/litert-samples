@@ -30,6 +30,7 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.graphics.drawable.toBitmap
+import androidx.core.net.toUri
 import coil.compose.AsyncImage
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -42,7 +43,7 @@ fun GalleryScreen(
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
-    val mediaType = getMediaType(context, Uri.parse(uri))
+    val mediaType = getMediaType(context, uri.toUri())
 
     DisposableEffect(uri) {
         var retriever: MediaMetadataRetriever? = null
@@ -51,7 +52,7 @@ fun GalleryScreen(
             retriever = MediaMetadataRetriever()
             job = scope.launch(Dispatchers.IO) {
                 // Load frames from the video.
-                retriever.setDataSource(context, Uri.parse(uri))
+                retriever.setDataSource(context, uri.toUri())
                 val videoLengthMs =
                     retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_DURATION)
                         ?.toLong()
@@ -89,7 +90,8 @@ fun GalleryScreen(
     Box(modifier = modifier) {
         when (mediaType) {
             MediaType.IMAGE -> {
-                AsyncImage(modifier = Modifier.fillMaxSize(),
+                AsyncImage(
+                    modifier = Modifier.fillMaxSize(),
                     model = uri,
                     contentDescription = null,
                     contentScale = ContentScale.Crop,
@@ -103,14 +105,14 @@ fun GalleryScreen(
                 AndroidView(modifier = Modifier.fillMaxSize(), factory = { context ->
                     ScalableVideoView(context).apply {
                         setDisplayMode(ScalableVideoView.DisplayMode.ORIGINAL)
-                        setVideoURI(Uri.parse(uri))
+                        setVideoURI(uri.toUri())
                         setOnPreparedListener {
 
                             it.start()
                         }
                     }
                 }, update = {
-                    it.setVideoURI(Uri.parse(uri))
+                    it.setVideoURI(uri.toUri())
                     it.setOnPreparedListener { player ->
                         if (player.isPlaying) {
                             player.stop()
