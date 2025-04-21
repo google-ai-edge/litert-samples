@@ -105,12 +105,11 @@ class MainViewModel(private val imageClassificationHelper: ImageClassificationHe
     /** Start classify an image.
      *  @param bitmap Tries to make a new bitmap based on the dimensions of this bitmap,
      *  setting the new bitmap's config to Bitmap.Config.ARGB_8888
-     *  @param rotationDegrees to correct the rotationDegrees during classification
      */
-    fun classify(bitmap: Bitmap, rotationDegrees: Int) {
-        viewModelScope.launch {
+    fun classify(bitmap: Bitmap) {
+        classificationJob = viewModelScope.launch {
             val argbBitmap = bitmap.copy(Bitmap.Config.ARGB_8888, true)
-            imageClassificationHelper.classify(argbBitmap, rotationDegrees)
+            imageClassificationHelper.classify(argbBitmap, 0)
         }
     }
 
