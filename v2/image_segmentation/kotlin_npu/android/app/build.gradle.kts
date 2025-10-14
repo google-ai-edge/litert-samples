@@ -84,6 +84,7 @@ android {
 
 // Import DownloadModels task
 project.extensions.extraProperties["ASSET_DIR"] = "$projectDir/src/main/assets"
+apply(from = "download_model.gradle")
 
 dependencies {
   // Strings for NPU runtime libraries

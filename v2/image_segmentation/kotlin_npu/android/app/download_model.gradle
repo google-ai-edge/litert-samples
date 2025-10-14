@@ -1,0 +1,7 @@
+tasks.register('selfieMulticlass', Download) {
+    src 'https://huggingface.co/litert-community/MediaPipe-Selfie-Segmentation/resolve/main/selfie_multiclass.tflite'
+    dest project.ext.ASSET_DIR + '/segmentation_multiclass_cpu_gpu.tflite'
+    overwrite false
+}
+
+preBuild.dependsOn selfieMulticlass
