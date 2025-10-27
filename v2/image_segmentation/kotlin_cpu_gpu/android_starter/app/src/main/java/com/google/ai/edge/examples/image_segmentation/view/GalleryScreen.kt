@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-package com.google.aiedge.examples.image_segmentation.view
+package com.google.ai.edge.examples.image_segmentation.view
 
 import android.content.Context
 import android.graphics.Bitmap
@@ -32,7 +32,8 @@ import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.graphics.drawable.toBitmap
 import coil.compose.AsyncImage
 import coil.imageLoader
-import com.google.aiedge.examples.image_segmentation.UiState
+import com.google.ai.edge.examples.image_segmentation.UiState
+import kotlin.time.Duration.Companion.seconds
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.isActive
@@ -72,10 +73,10 @@ fun GalleryScreen(
           if ((videoLengthMs == null) || (width == null) || (height == null)) return@launch
 
           // Next, we'll get one frame every frameInterval ms
-          val numberOfFrameToRead = videoLengthMs.div(1000)
+          val numberOfFrameToRead = videoLengthMs / 1000
           for (i in 0..numberOfFrameToRead) {
             if (!isActive) return@launch
-            val timestampUs = i * 1000000
+            val timestampUs = i.seconds.inWholeMicroseconds
             val frame =
               retriever.getFrameAtTime(timestampUs, MediaMetadataRetriever.OPTION_CLOSEST)
                 ?: return@launch
