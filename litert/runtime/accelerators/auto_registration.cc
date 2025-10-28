@@ -109,7 +109,7 @@ Expected<void> TriggerAcceleratorAutomaticRegistration(
     LITERT_LOG(LITERT_VERBOSE, "Loading GPU accelerator(%s).",
                plugin_path.data());
     auto registration = RegisterSharedObjectAccelerator(
-        environment, plugin_path, "LiteRtRegisterGpuAccelerator",
+        environment, plugin_path, "LiteRtRegisterAccelerator",
         /*try_symbol_already_loaded=*/false);
     if (registration.HasValue()) {
       LITERT_LOG(LITERT_INFO,
