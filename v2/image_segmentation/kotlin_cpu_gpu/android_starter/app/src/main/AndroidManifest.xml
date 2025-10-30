@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
-          package="com.google.aiedge.examples.image_segmentation"
+          package="com.google.ai.edge.examples.image_segmentation"
           xmlns:tools="http://schemas.android.com/tools">
 
     <!-- Declare permissions -->

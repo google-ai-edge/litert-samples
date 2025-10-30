@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-package com.google.aiedge.examples.image_segmentation
+package com.google.ai.edge.examples.image_segmentation
 
 import android.content.Context
 import android.graphics.Bitmap
