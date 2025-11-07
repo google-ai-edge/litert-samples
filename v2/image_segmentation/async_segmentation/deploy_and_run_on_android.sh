@@ -37,55 +37,57 @@ if [ "$#" -eq 0 ]; then
     usage
 fi
 
-# Initialize variables that will be set by flags
+# Parse options
+TEMP=$(getopt -o '' --long accelerator:,phone:,use_gl_buffers,host_npu_lib:,host_npu_dispatch_lib: -- "$@")
+if [ $? -ne 0 ]; then
+    echo "Error parsing options." >&2
+    usage
+fi
+
+eval set -- "$TEMP"
+unset TEMP
+
 USE_GL_BUFFERS=false
 HOST_NPU_LIB=""
 HOST_NPU_DISPATCH_LIB=""
 
-# Loop through arguments, handling --key=value and flags
-while [ "$#" -gt 0 ]; do
+while true; do
     case "$1" in
-        --accelerator=*)
-            ACCELERATOR="${1#*=}"
+        '--accelerator')
+            ACCELERATOR="$2"
             # Validate accelerator value
             if [[ "$ACCELERATOR" != "gpu" && "$ACCELERATOR" != "npu" && "$ACCELERATOR" != "cpu" ]]; then
                 echo "Error: Invalid value for --accelerator. Must be 'gpu', 'npu', or 'cpu'." >&2
                 usage
                 exit 1
             fi
-            shift 1
+            shift 2
             ;;
-        --phone=*)
-            PHONE="${1#*=}"
-            shift 1
+        '--phone')
+            PHONE="$2"
+            shift 2
             ;;
-        --use_gl_buffers)
+        '--use_gl_buffers')
             USE_GL_BUFFERS=true
-            shift 1
+            shift
             ;;
-        --host_npu_lib=*)
-            HOST_NPU_LIB="${1#*=}"
-            shift 1
+        '--host_npu_lib')
+            HOST_NPU_LIB="$2"
+            shift 2
             ;;
-        --host_npu_dispatch_lib=*)
-            HOST_NPU_DISPATCH_LIB="${1#*=}"
-            shift 1
+        '--host_npu_dispatch_lib')
+            HOST_NPU_DISPATCH_LIB="$2"
+            shift 2
             ;;
-        -*)
-            echo "Error: Unknown option: $1" >&2
-            usage
-            exit 1
+        '--')
+            shift
+            break
             ;;
         *)
-            # This will be the positional argument (binary_build_path)
-            if [ -z "$BINARY_BUILD_PATH" ]; then
-                BINARY_BUILD_PATH="$1"
-            else
-                echo "Error: Unexpected argument '$1'" >&2
-                usage
-                exit 1
-            fi
-            shift 1
+            # This case should ideally not be reached if getopt is working correctly
+            # and all options are defined.
+            # However, it can catch unexpected issues or be used for positional args after options.
+            break
             ;;
     esac
 done
@@ -93,12 +95,13 @@ done
 echo "Selected Accelerator: $ACCELERATOR"
 echo "Use GL Buffers: $USE_GL_BUFFERS"
 
-# The binary_build_path is now set within the parsing loop.
-# No remaining arguments are expected.
-if [ -z "$BINARY_BUILD_PATH" ]; then
-    echo "Error: Missing <binary_build_path> argument."
+# The remaining argument should be the binary_build_path
+if [ "$#" -ne 1 ]; then
+    echo "Error: Incorrect number of arguments or invalid option."
     usage
 fi
+
+BINARY_BUILD_PATH="$1"
 
 # Check if the binary_build_path is a valid directory.
 if [ ! -d "$BINARY_BUILD_PATH" ]; then
@@ -107,10 +110,10 @@ if [ ! -d "$BINARY_BUILD_PATH" ]; then
 fi
 
 # --- Configuration ---
-ROOT_DIR="v2/image_segmentation"
+ROOT_DIR="litert/"
 
-PACKAGE_LOCATION="${ROOT_DIR}/async_segmentation"
-C_LIBRARY_LOCATION="${BINARY_BUILD_PATH}/litert/c"
+PACKAGE_LOCATION="${ROOT_DIR}samples/async_segmentation"
+C_LIBRARY_LOCATION="${BINARY_BUILD_PATH}/${ROOT_DIR}c"
 PACKAGE_NAME="async_segmentation_${ACCELERATOR}"
 OUTPUT_PATH="${BINARY_BUILD_PATH}/${PACKAGE_LOCATION}/${PACKAGE_NAME}"
 
@@ -218,20 +221,20 @@ adb push "${HOST_MODEL_DIR}/${MODEL_FILENAME}" "${DEVICE_MODEL_DIR}/"
 echo "Pushed segmentation models."
 
 # Push c api shared library
-LD_LIBRARY_PATH="${LD_LIBRARY_PATH}:${DEVICE_BASE_DIR}/" 
+LD_LIBRARY_PATH="${LD_LIBRARY_PATH}:${DEVICE_BASE_DIR}/"
 adb push "${C_LIBRARY_LOCATION}/libLiteRtRuntimeCApi.so" "${DEVICE_BASE_DIR}/"
 echo "Pushed c api shared library."
 
 # Push gpu accelerator shared library
-LD_LIBRARY_PATH="${LD_LIBRARY_PATH}:${DEVICE_BASE_DIR}/" 
+LD_LIBRARY_PATH="${LD_LIBRARY_PATH}:${DEVICE_BASE_DIR}/"
 if [[ "$ACCELERATOR" == "gpu" ]]; then
-    adb push "${HOST_GPU_LIBRARY_DIR}/libLiteRtGpuAccelerator.so" "${DEVICE_BASE_DIR}/"
+    adb push "${HOST_GPU_LIBRARY_DIR}/libLiteRtOpenClAccelerator.so" "${DEVICE_BASE_DIR}/"
 fi
 echo "Pushed gpu accelerator shared library."
 
 # Push NPU dispatch library
 if [[ "$ACCELERATOR" == "npu" ]]; then
-adb push "${HOST_NPU_DISPATCH_LIB}/libLiteRtDispatch_Qualcomm.so" "${DEVICE_NPU_LIBRARY_DIR}/"
+adb push "${HOST_NPU_DISPATCH_LIB/libLiteRtDispatch_Qualcomm.so}" "${DEVICE_NPU_LIBRARY_DIR}/"
 echo "Pushed NPU dispatch library."
 
 # Push NPU libraries

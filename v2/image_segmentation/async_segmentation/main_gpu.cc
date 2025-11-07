@@ -23,9 +23,11 @@
 #include <vector>
 
 #include <GLES2/gl2.h>
+#include "absl/time/clock.h"  // from @com_google_absl
+#include "absl/algorithm/container.h"  // from @com_google_absl
 #include "absl/types/span.h"  // from @com_google_absl
-#include "./litert/c/litert_common.h"
 #include "./litert/c/litert_tensor_buffer_types.h"
+#include "./litert/cc/litert_common.h"
 #include "./litert/cc/litert_compiled_model.h"
 #include "./litert/cc/litert_environment.h"
 #include "./litert/cc/litert_event.h"
@@ -36,9 +38,11 @@
 #include "./litert/cc/litert_ranked_tensor_type.h"
 #include "./litert/cc/litert_tensor_buffer.h"
 #include "./litert/cc/litert_tensor_buffer_requirements.h"
+#include "./litert/cc/litert_tensor_buffer_types.h"
 #include "./litert/cc/options/litert_gpu_options.h"
 #include "v2/image_segmentation/async_segmentation/image_processor.h"
 #include "v2/image_segmentation/async_segmentation/image_utils.h"
+#include "v2/image_segmentation/async_segmentation/timing_utils.h"
 
 namespace {
 
@@ -46,21 +50,22 @@ litert::Options CreateGpuOptions(bool use_gl_buffers) {
   LITERT_ASSIGN_OR_ABORT(auto gpu_options, litert::GpuOptions::Create());
   if (use_gl_buffers) {
     LITERT_ABORT_IF_ERROR(
-        gpu_options.SetDelegatePrecision(kLiteRtDelegatePrecisionFp32));
+        gpu_options.SetPrecision(litert::GpuOptions::Precision::kFp32));
     LITERT_ABORT_IF_ERROR(gpu_options.SetBufferStorageType(
-        kLiteRtDelegateBufferStorageTypeBuffer));
+        litert::GpuOptions::BufferStorageType::kBuffer));
     LITERT_ABORT_IF_ERROR(gpu_options.EnableExternalTensorsMode(true));
   } else {
     LITERT_ABORT_IF_ERROR(gpu_options.EnableExternalTensorsMode(false));
   }
   LITERT_ASSIGN_OR_ABORT(litert::Options options, litert::Options::Create());
-  options.SetHardwareAccelerators(kLiteRtHwAcceleratorGpu);
+  options.SetHardwareAccelerators(litert::HwAccelerators::kGpu |
+                                  litert::HwAccelerators::kCpu);
   options.AddOpaqueOptions(std::move(gpu_options));
   return options;
 }
 
 litert::Expected<std::vector<litert::TensorBuffer>> CreateGlInputBuffers(
-    LiteRtEnvironment env, litert::CompiledModel& compiled_model,
+    litert::Environment& env, litert::CompiledModel& compiled_model,
     litert::Model& model, int signature_index) {
   LITERT_ASSIGN_OR_RETURN(auto input_names,
                           model.GetSignatureInputNames(signature_index));
@@ -76,7 +81,7 @@ litert::Expected<std::vector<litert::TensorBuffer>> CreateGlInputBuffers(
 
     LITERT_ASSIGN_OR_RETURN(auto input_buffer,
                             litert::TensorBuffer::CreateManaged(
-                                env, kLiteRtTensorBufferTypeGlBuffer,
+                                env, litert::TensorBufferType::kGlBuffer,
                                 ranked_tensor_type, buffer_size));
 
     input_buffers.push_back(std::move(input_buffer));
@@ -85,7 +90,7 @@ litert::Expected<std::vector<litert::TensorBuffer>> CreateGlInputBuffers(
 }
 
 litert::Expected<std::vector<litert::TensorBuffer>> CreateGlOutputBuffers(
-    LiteRtEnvironment env, litert::CompiledModel& compiled_model,
+    litert::Environment& env, litert::CompiledModel& compiled_model,
     litert::Model& model, int signature_index) {
   LITERT_ASSIGN_OR_RETURN(auto output_names,
                           model.GetSignatureOutputNames(signature_index));
@@ -102,7 +107,7 @@ litert::Expected<std::vector<litert::TensorBuffer>> CreateGlOutputBuffers(
 
     LITERT_ASSIGN_OR_RETURN(auto output_buffer,
                             litert::TensorBuffer::CreateManaged(
-                                env, kLiteRtTensorBufferTypeGlBuffer,
+                                env, litert::TensorBufferType::kGlBuffer,
                                 ranked_tensor_type, buffer_size));
 
     output_buffers.push_back(std::move(output_buffer));
@@ -129,8 +134,8 @@ int main(int argc, char* argv[]) {
 
   if (argc == 5) {
     std::string use_gl_buffers_arg = argv[4];
-    std::transform(use_gl_buffers_arg.begin(), use_gl_buffers_arg.end(),
-                   use_gl_buffers_arg.begin(), ::tolower);
+    absl::c_transform(use_gl_buffers_arg, use_gl_buffers_arg.begin(),
+                      ::tolower);
     if (use_gl_buffers_arg == "true") {
       use_gl_buffers = true;
     } else if (use_gl_buffers_arg != "false") {
@@ -170,12 +175,10 @@ int main(int argc, char* argv[]) {
   std::vector<litert::TensorBuffer> input_buffers;
   std::vector<litert::TensorBuffer> output_buffers;
   if (use_gl_buffers) {
+    LITERT_ASSIGN_OR_ABORT(input_buffers,
+                           CreateGlInputBuffers(env, compiled_model, model, 0));
     LITERT_ASSIGN_OR_ABORT(
-        input_buffers,
-        CreateGlInputBuffers(env.Get(), compiled_model, model, 0));
-    LITERT_ASSIGN_OR_ABORT(
-        output_buffers,
-        CreateGlOutputBuffers(env.Get(), compiled_model, model, 0));
+        output_buffers, CreateGlOutputBuffers(env, compiled_model, model, 0));
   } else {
     LITERT_ASSIGN_OR_ABORT(input_buffers, compiled_model.CreateInputBuffers());
     LITERT_ASSIGN_OR_ABORT(output_buffers,
@@ -184,6 +187,8 @@ int main(int argc, char* argv[]) {
 
   // ================= PRE-PROCESSING =================
   // Load and preprocess the image
+  ProfilingTimestamps profiling_timestamps;
+  profiling_timestamps.load_image_start_time = absl::Now();
   int width_orig = 0, height_orig = 0, channels_file = 0, loaded_channels = 3;
   GLuint tex_id_orig = 0;
   auto img_data_cpu = ImageUtils::LoadImage(input_file, width_orig, height_orig,
@@ -192,6 +197,9 @@ int main(int argc, char* argv[]) {
     std::cerr << "Failed to load image file: " << input_file << std::endl;
     return 1;
   }
+  profiling_timestamps.load_image_end_time =
+      profiling_timestamps.e2e_start_time =
+          profiling_timestamps.pre_process_start_time = absl::Now();
   tex_id_orig = processor.CreateOpenGLTexture(img_data_cpu, width_orig,
                                               height_orig, loaded_channels);
   if (!tex_id_orig) {
@@ -234,12 +242,16 @@ int main(int argc, char* argv[]) {
     LITERT_ABORT_IF_ERROR(
         input_buffers[0].Write(absl::MakeConstSpan(preprocessed_buffer_data)));
   }
+  profiling_timestamps.pre_process_end_time =
+      profiling_timestamps.inference_start_time = absl::Now();
   // ================= INFERENCE =================
   // Run inference
 
   bool async = false;
   LITERT_ABORT_IF_ERROR(
       compiled_model.RunAsync(0, input_buffers, output_buffers, async));
+  profiling_timestamps.inference_end_time =
+      profiling_timestamps.post_process_start_time = absl::Now();
 
   // ================= POST-PROCESSING =================
   // Post-process the results
@@ -293,6 +305,9 @@ int main(int argc, char* argv[]) {
     return 1;
   }
 
+  profiling_timestamps.post_process_end_time =
+      profiling_timestamps.e2e_end_time =
+          profiling_timestamps.save_image_start_time = absl::Now();
   // Save the output image
   std::vector<unsigned char> final_blended_uchar_data(out_blend_width *
                                                       out_blend_height * 4);
@@ -307,6 +322,9 @@ int main(int argc, char* argv[]) {
   }
   std::cout << "Successfully saved final blended image to " << output_file
             << std::endl;
+
+  profiling_timestamps.save_image_end_time = absl::Now();
+  PrintTiming(profiling_timestamps);
 
   processor.DeleteOpenGLTexture(tex_id_orig);
   if (!use_gl_buffers) {

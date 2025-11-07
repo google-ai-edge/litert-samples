@@ -19,10 +19,11 @@
 #include <iostream>
 #include <string>
 #include <utility>
-#include <vector>
+#include <vector> 
 
 #include <GLES2/gl2.h>
 #include "absl/strings/string_view.h"  // from @com_google_absl
+#include "absl/time/clock.h"  // from @com_google_absl
 #include "absl/types/span.h"  // from @com_google_absl
 #include "./litert/c/litert_common.h"
 #include "./litert/cc/litert_compiled_model.h"
@@ -32,6 +33,7 @@
 #include "./litert/cc/litert_options.h"
 #include "v2/image_segmentation/async_segmentation/image_processor.h"
 #include "v2/image_segmentation/async_segmentation/image_utils.h"
+#include "v2/image_segmentation/async_segmentation/timing_utils.h"
 
 int main(int argc, char* argv[]) {
   if (argc != 4) {
@@ -62,7 +64,7 @@ int main(int argc, char* argv[]) {
   std::vector<litert::Environment::Option> environment_options;
   environment_options.push_back(litert::Environment::Option{
       litert::Environment::OptionTag::DispatchLibraryDir,
-      absl::string_view("/data/local/tmp/async_segmentation_acc_android/npu/"),
+      absl::string_view("/data/local/tmp/async_segmentation_android/npu/"),
   });
   LITERT_ASSIGN_OR_ABORT(
       auto env, litert::Environment::Create(std::move(environment_options)));
@@ -85,6 +87,8 @@ int main(int argc, char* argv[]) {
 
   // ================= PRE-PROCESSING =================
   // Load and preprocess the image
+  ProfilingTimestamps profiling_timestamps;
+  profiling_timestamps.load_image_start_time = absl::Now();
   int width_orig = 0, height_orig = 0, channels_file = 0, loaded_channels = 3;
   GLuint tex_id_orig = 0;
   auto img_data_cpu = ImageUtils::LoadImage(input_file, width_orig, height_orig,
@@ -93,6 +97,9 @@ int main(int argc, char* argv[]) {
     std::cerr << "Failed to load image file: " << input_file << std::endl;
     return 1;
   }
+  profiling_timestamps.load_image_end_time =
+      profiling_timestamps.e2e_start_time =
+          profiling_timestamps.pre_process_start_time = absl::Now();
   tex_id_orig = processor.CreateOpenGLTexture(img_data_cpu, width_orig,
                                               height_orig, loaded_channels);
   if (!tex_id_orig) {
@@ -129,9 +136,13 @@ int main(int argc, char* argv[]) {
   LITERT_ABORT_IF_ERROR(
       input_buffers[0].Write(absl::MakeConstSpan(preprocessed_buffer_data)));
 
+  profiling_timestamps.pre_process_end_time =
+      profiling_timestamps.inference_start_time = absl::Now();
   // ================= INFERENCE =================
   // Run inference
   LITERT_ABORT_IF_ERROR(compiled_model.Run(input_buffers, output_buffers));
+  profiling_timestamps.inference_end_time =
+      profiling_timestamps.post_process_start_time = absl::Now();
 
   // ================= POST-PROCESSING =================
   // Post-process the results
@@ -173,6 +184,9 @@ int main(int argc, char* argv[]) {
     return 1;
   }
 
+  profiling_timestamps.post_process_end_time =
+      profiling_timestamps.e2e_end_time =
+          profiling_timestamps.save_image_start_time = absl::Now();
   // Save the output image
   std::vector<unsigned char> final_blended_uchar_data(out_blend_width *
                                                       out_blend_height * 4);
@@ -187,6 +201,9 @@ int main(int argc, char* argv[]) {
   }
   std::cout << "Successfully saved final blended image to " << output_file
             << std::endl;
+
+  profiling_timestamps.save_image_end_time = absl::Now();
+  PrintTiming(profiling_timestamps);
 
   processor.DeleteOpenGLTexture(tex_id_orig);
   processor.DeleteOpenGLBuffer(preprocessed_buffer_id);

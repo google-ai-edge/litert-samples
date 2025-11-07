@@ -71,6 +71,7 @@ cc_binary(
     deps = [
         ":image_processor",
         ":image_utils",
+        ":timing_utils",
         "//litert/cc:litert_api_with_dynamic_runtime",
         "@com_google_absl//absl/strings:string_view",
         "@com_google_absl//absl/time",
@@ -91,14 +92,16 @@ cc_binary(
         ":shader_files",
         ":test_images",
         "//litert/c:litert_runtime_c_api_shared_lib",  # buildcleaner: keep
-        "@litert_gpu//:jni/arm64-v8a/libLiteRtGpuAccelerator.so",  # copybara:comment
+        "@litert_gpu//:jni/arm64-v8a/libLiteRtOpenClAccelerator.so",  # copybara:comment
         # copybara:uncomment "//litert/runtime/accelerators/gpu:ml_drift_cl_accelerator_so",
     ],
     linkopts = litert_android_linkopts() + gles_linkopts(),
     deps = [
         ":image_processor",
         ":image_utils",
+        ":timing_utils",
         "//litert/cc:litert_api_with_dynamic_runtime",
+        "@com_google_absl//absl/algorithm:container",
         "@com_google_absl//absl/strings:string_view",
         "@com_google_absl//absl/time",
         "@com_google_absl//absl/types:span",
@@ -131,6 +134,7 @@ cc_binary(
     deps = [
         ":image_processor",
         ":image_utils",
+        ":timing_utils",
         "//litert/cc:litert_api_with_dynamic_runtime",
         "@com_google_absl//absl/strings:string_view",
         "@com_google_absl//absl/time",
@@ -156,4 +160,13 @@ cc_library(
         ":image_utils",
         "@com_google_absl//absl/log:absl_check",
     ] + gles_deps(),
+)
+
+cc_library(
+    name = "timing_utils",
+    srcs = ["timing_utils.cc"],
+    hdrs = ["timing_utils.h"],
+    deps = [
+        "@com_google_absl//absl/time",
+    ],
 )
