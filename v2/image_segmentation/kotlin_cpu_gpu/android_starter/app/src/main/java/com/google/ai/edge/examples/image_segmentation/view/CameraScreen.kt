@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-package com.google.aiedge.examples.image_segmentation.view
+package com.google.ai.edge.examples.image_segmentation.view
 
 import android.content.pm.PackageManager
 import android.util.Log
@@ -48,7 +48,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.LifecycleOwner
-import com.google.aiedge.examples.image_segmentation.UiState
+import com.google.ai.edge.examples.image_segmentation.UiState
 import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
 

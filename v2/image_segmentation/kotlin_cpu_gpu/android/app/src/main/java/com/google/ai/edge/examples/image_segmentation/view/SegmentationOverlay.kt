@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-package com.google.aiedge.examples.image_segmentation.view
+package com.google.ai.edge.examples.image_segmentation.view
 
 import android.graphics.Bitmap
 import android.graphics.Matrix
@@ -24,7 +24,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.core.graphics.scale
-import com.google.aiedge.examples.image_segmentation.OverlayInfo
+import com.google.ai.edge.examples.image_segmentation.OverlayInfo
 
 @Composable
 fun SegmentationOverlay(modifier: Modifier = Modifier, overlayInfo: OverlayInfo, lensFacing: Int) {
@@ -39,8 +39,16 @@ fun SegmentationOverlay(modifier: Modifier = Modifier, overlayInfo: OverlayInfo,
         overlayInfo.height,
         Bitmap.Config.ARGB_8888,
       )
-    // TODO: Handle the camera flip and reorient the overlay.
-    val orientedBitmap = image
+    val orientedBitmap =
+      if (lensFacing == CameraSelector.LENS_FACING_FRONT) {
+        // Create a matrix for horizontal flipping
+        val matrix = Matrix().apply { preScale(-1f, 1f) }
+        Bitmap.createBitmap(image, 0, 0, image.width, image.height, matrix, false).also {
+          image.recycle()
+        }
+      } else {
+        image
+      }
 
     val scaleBitmap = orientedBitmap.scale(imageWidth.toInt(), imageHeight.toInt(), true)
     drawImage(scaleBitmap.asImageBitmap())

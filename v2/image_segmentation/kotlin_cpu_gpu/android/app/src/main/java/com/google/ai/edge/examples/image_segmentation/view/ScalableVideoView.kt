@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-package com.google.aiedge.examples.image_segmentation.view
+package com.google.ai.edge.examples.image_segmentation.view
 
 import android.content.Context
 import android.widget.VideoView
@@ -37,29 +37,24 @@ class ScalableVideoView(context: Context?) : VideoView(context) {
   override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
     var width = getDefaultSize(0, widthMeasureSpec)
     var height = getDefaultSize(mVideoHeight, heightMeasureSpec)
-    when (displayMode) {
-      DisplayMode.ORIGINAL -> {
-        if (mVideoWidth > 0 && mVideoHeight > 0) {
-          if (mVideoWidth * height > width * mVideoHeight) {
-            // video height exceeds screen, shrink it
-            height = width * mVideoHeight / mVideoWidth
-          } else if (mVideoWidth * height < width * mVideoHeight) {
-            // video width exceeds screen, shrink it
-            width = height * mVideoWidth / mVideoHeight
-          }
+    if (displayMode == DisplayMode.ORIGINAL) {
+      if (mVideoWidth > 0 && mVideoHeight > 0) {
+        if (mVideoWidth * height > width * mVideoHeight) {
+          // video height exceeds screen, shrink it
+          height = width * mVideoHeight / mVideoWidth
+        } else if (mVideoWidth * height < width * mVideoHeight) {
+          // video width exceeds screen, shrink it
+          width = height * mVideoWidth / mVideoHeight
         }
       }
-      DisplayMode.FULL_SCREEN -> {
-        // just use the default screen width and screen height
-      }
-      DisplayMode.ZOOM -> {
-        // zoom video
-        if (mVideoWidth > 0 && mVideoHeight > 0 && mVideoWidth < width) {
-          height = mVideoHeight * width / mVideoWidth
-        }
+    } else if (displayMode == DisplayMode.FULL_SCREEN) {
+      // just use the default screen width and screen height
+    } else if (displayMode == DisplayMode.ZOOM) {
+      // zoom video
+      if (mVideoWidth > 0 && mVideoHeight > 0 && mVideoWidth < width) {
+        height = mVideoHeight * width / mVideoWidth
       }
     }
-
     setMeasuredDimension(width, height)
   }
 

@@ -14,10 +14,15 @@
  * limitations under the License.
  */
 
-package com.google.aiedge.examples.image_segmentation.view
+package com.google.ai.edge.examples.image_segmentation.view
 
-import androidx.compose.ui.graphics.Color
+import androidx.compose.material.MaterialTheme
+import androidx.compose.runtime.Composable
 
-val darkBlue = Color(0xFF020f59)
-val teal = Color(0xFF00c99e)
-val cyan = Color(0xFF5be3e3)
+@Composable
+fun ApplicationTheme(content: @Composable () -> Unit) {
+  MaterialTheme(
+    colors = MaterialTheme.colors.copy(primary = darkBlue, secondary = teal, onSurface = teal),
+    content = content,
+  )
+}
