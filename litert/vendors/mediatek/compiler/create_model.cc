@@ -25,9 +25,9 @@
 #include "litert/c/litert_common.h"
 #include "litert/c/litert_op_code.h"
 #include "litert/c/litert_op_options.h"
+#include "litert/cc/internal/litert_extended_model.h"
 #include "litert/cc/litert_expected.h"
 #include "litert/cc/litert_macros.h"
-#include "litert/cc/litert_model.h"
 #include "litert/vendors/mediatek/compiler/legalizations/add_op_legalization.h"
 #include "litert/vendors/mediatek/compiler/legalizations/batch_matmul_op_legalization.h"
 #include "litert/vendors/mediatek/compiler/legalizations/common_op_legalization.h"
@@ -45,7 +45,9 @@
 #include "litert/vendors/mediatek/compiler/legalizations/rms_norm_op_legalization.h"
 #include "litert/vendors/mediatek/compiler/legalizations/rsqrt_op_legalization.h"
 #include "litert/vendors/mediatek/compiler/legalizations/softmax_op_legalization.h"
+#include "litert/vendors/mediatek/compiler/legalizations/split_op_legalization.h"
 #include "litert/vendors/mediatek/compiler/legalizations/squared_difference_op_legalization.h"
+#include "litert/vendors/mediatek/compiler/legalizations/strided_slice_op_legalization.h"
 #include "litert/vendors/mediatek/compiler/legalizations/sub_op_legalization.h"
 #include "litert/vendors/mediatek/compiler/legalizations/transpose_conv_op_legalization.h"
 #include "litert/vendors/mediatek/compiler/legalizations/transpose_op_legalization.h"
@@ -136,6 +138,13 @@ Expected<void> CreateModel(const NeuronAdapterApi& neuron_adapter_api,
       case kLiteRtOpCodeTflSlice:
         status = LegalizeCommonOp(neuron_adapter_api, model, *operand_map, op,
                                   NEURON_SLICE);
+        break;
+      case kLiteRtOpCodeTflStridedSlice:
+        status =
+            LegalizeStridedSliceOp(neuron_adapter_api, model, *operand_map, op);
+        break;
+      case kLiteRtOpCodeTflSplit:
+        status = LegalizeSplitOp(neuron_adapter_api, model, *operand_map, op);
         break;
       case kLiteRtOpCodeTflTanh:
         status = LegalizeCommonOp(neuron_adapter_api, model, *operand_map, op,

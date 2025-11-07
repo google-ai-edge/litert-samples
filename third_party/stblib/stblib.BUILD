@@ -31,7 +31,6 @@ cc_library(
     srcs = [
         "stb_image.h",
         "stb_image_write.h",
-        "stb_image_resize.h",
     ],
     includes = ["."],
 )

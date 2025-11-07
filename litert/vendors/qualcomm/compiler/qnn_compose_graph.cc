@@ -28,6 +28,7 @@
 #include "absl/container/flat_hash_map.h"  // from @com_google_absl
 #include "absl/container/flat_hash_set.h"  // from @com_google_absl
 #include "absl/strings/str_cat.h"  // from @com_google_absl
+#include "absl/strings/str_split.h"  // from @com_google_absl
 #include "absl/strings/string_view.h"  // from @com_google_absl
 #include "absl/types/span.h"  // from @com_google_absl
 #include "litert/c/internal/litert_logging.h"
@@ -35,10 +36,11 @@
 #include "litert/c/litert_model_types.h"
 #include "litert/c/litert_op_code.h"
 #include "litert/c/litert_op_options.h"
+#include "litert/cc/internal/litert_extended_model.h"
 #include "litert/cc/internal/litert_op_options.h"
 #include "litert/cc/litert_element_type.h"
 #include "litert/cc/litert_macros.h"
-#include "litert/cc/litert_model.h"
+#include "litert/vendors/cc/namespace_heuristics.h"
 #include "litert/vendors/qualcomm/common.h"
 #include "litert/vendors/qualcomm/compiler/graph_mapper.h"
 #include "litert/vendors/qualcomm/core/builders/arg_min_max_op_builder.h"
@@ -84,12 +86,14 @@
 #include "litert/vendors/qualcomm/core/builders/strided_slice_op_builder.h"
 #include "litert/vendors/qualcomm/core/builders/tanh_op_builder.h"
 #include "litert/vendors/qualcomm/core/builders/tile_op_builder.h"
+#include "litert/vendors/qualcomm/core/builders/topk_op_builder.h"
 #include "litert/vendors/qualcomm/core/builders/transpose_conv_op_builder.h"
 #include "litert/vendors/qualcomm/core/builders/transpose_op_builder.h"
 #include "litert/vendors/qualcomm/core/builders/unpack_op_builder.h"
 #include "litert/vendors/qualcomm/core/common.h"
 #include "litert/vendors/qualcomm/core/dump/dump_graph.h"
 #include "litert/vendors/qualcomm/core/transformation/graph_to_graph.h"
+#include "litert/vendors/qualcomm/core/utils/log.h"
 #include "litert/vendors/qualcomm/core/utils/miscs.h"
 #include "litert/vendors/qualcomm/core/wrappers/op_wrapper.h"
 #include "litert/vendors/qualcomm/core/wrappers/quantize_params_wrapper.h"
@@ -284,7 +288,8 @@ LiteRtStatus ConvertTensor(const litert::Tensor& litert_tensor,
     auto& res = tensor_pool.CreateStaticTensorWithSuffix(
         qnn_data_type, quantize_params, dimentions, litert_suffix,
         litert_tensor.Weights().Bytes().size(),
-        reinterpret_cast<const void*>(litert_tensor.Weights().Bytes().data()));
+        reinterpret_cast<const void*>(litert_tensor.Weights().Bytes().data()),
+        false);
     tensor_wrapper = &res;
   } else {
     auto& res = tensor_pool.CreateNativeTensorWithSuffix(
@@ -656,6 +661,36 @@ LiteRtStatus ConvertOp(const bool use_htp_preferences,
     case LiteRtOpCode::kLiteRtOpCodeTflTile: {
       op_wrappers =
           ::qnn::BuildTileOp(tensor_pool, input_tensors, output_tensors);
+      break;
+    }
+    case LiteRtOpCode::kLiteRtOpCodeTflTopkV2: {
+      // TODO (Graham): Refactor all OpBuilder to follow QNN master definition
+      ::qnn::TensorWrapper k_tensor = input_tensors[1].get();
+      if (!k_tensor.IsTensorStatic() || k_tensor.GetTensorNumElements() != 1) {
+        QNN_LOG_ERROR(
+            "The param 'k' of TopK OP is not static or not 1 element");
+        return {};
+      }
+
+      std::uint32_t k_data = 0;
+      switch (k_tensor.GetDataType()) {
+        case QNN_DATATYPE_UINT_32:
+          if (auto k = k_tensor.GetTensorData<std::uint32_t>(); k.has_value()) {
+            k_data = k.value()[0];
+          }
+          break;
+        case QNN_DATATYPE_INT_32:
+          if (auto k = k_tensor.GetTensorData<std::int32_t>(); k.has_value()) {
+            k_data = static_cast<std::uint32_t>(k.value()[0]);
+          }
+          break;
+        default:
+          QNN_LOG_ERROR("Unsupported data type: %d for k in TopK OP",
+                        k_tensor.GetDataType());
+          return {};
+      }
+      op_wrappers = ::qnn::BuildTopKOp(tensor_pool, input_tensors,
+                                       output_tensors, k_data);
       break;
     }
     case LiteRtOpCode::kLiteRtOpCodeTflPack: {
@@ -1228,13 +1263,18 @@ LiteRtStatus MapGraph(QnnManager& qnn, Qnn_ContextHandle_t context_handle,
           absl::StrCat("_LiteRt_OpId_", std::to_string(idx)));
     }
     if (!op.Outputs().empty()) {
-      // Add op namespace based on the first output tensor name.
-      if (size_t pos = op.Outputs()[0].Name().find(';');
-          pos != std::string_view::npos) {
-        auto op_namespace = op.Outputs()[0].Name().substr(0, pos);
-        for (auto& op_wrapper : op_wrappers) {
-          op_wrapper.AddPrefixToName(absl::StrCat(op_namespace, "/"));
+      // Add op namespace inference based on output tensor names.
+      std::vector<std::string> candidate_names;
+      for (const auto& output_tensor : op.Outputs()) {
+        for (const auto& name :
+             absl::StrSplit(output_tensor.Name(), ';', absl::SkipEmpty())) {
+          candidate_names.emplace_back(name);
         }
+      }
+      auto op_namespace = TfliteNodeNamespaceHeuristic(
+          GetTfliteOpName(op.Code()), candidate_names);
+      for (auto& op_wrapper : op_wrappers) {
+        op_wrapper.AddPrefixToName(absl::StrCat(op_namespace, "/"));
       }
     }
     // Move op_wrappers to graph_op_wrappers.

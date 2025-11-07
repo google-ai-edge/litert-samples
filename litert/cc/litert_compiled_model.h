@@ -18,20 +18,18 @@
 #include <cstddef>
 #include <cstdlib>
 #include <memory>
-#include <optional>
 #include <string>
-#include <utility>
 #include <vector>
 
 #include "absl/container/flat_hash_map.h"  // from @com_google_absl
 #include "absl/functional/any_invocable.h"  // from @com_google_absl
 #include "absl/strings/string_view.h"  // from @com_google_absl
 #include "absl/types/span.h"  // from @com_google_absl
-#include "litert/c/litert_any.h"
 #include "litert/c/litert_common.h"
 #include "litert/c/litert_compiled_model.h"
 #include "litert/c/litert_layout.h"
 #include "litert/cc/internal/litert_handle.h"
+#include "litert/cc/litert_common.h"
 #include "litert/cc/litert_environment.h"
 #include "litert/cc/litert_expected.h"
 #include "litert/cc/litert_layout.h"
@@ -39,6 +37,7 @@
 #include "litert/cc/litert_model.h"
 #include "litert/cc/litert_options.h"
 #include "litert/cc/litert_profiler.h"
+#include "litert/cc/litert_ranked_tensor_type.h"
 #include "litert/cc/litert_tensor_buffer.h"
 #include "litert/cc/litert_tensor_buffer_requirements.h"
 
@@ -63,28 +62,7 @@ namespace litert {
 class CompiledModel
     : public internal::Handle<LiteRtCompiledModel, LiteRtDestroyCompiledModel> {
  public:
-  // Hardware specific metrics collected by the CompiledModel.
-  struct Metrics {
-    struct Metric {
-      std::string name;
-      LiteRtAny value;
-    };
-    std::vector<Metric> metrics;
-  };
-
   CompiledModel() = default;
-
-  // Creates a CompiledModel instance.
-  //
-  // If `owned` is `true`, then the created object takes ownership of the
-  // `compiled_model` handle.
-  explicit CompiledModel(LiteRtModel litert_model,
-                         LiteRtCompiledModel compiled_model, OwnHandle owned)
-      : internal::Handle<LiteRtCompiledModel, LiteRtDestroyCompiledModel>(
-            compiled_model, owned),
-        model_(Model::CreateFromNonOwnedHandle(litert_model)) {
-    LiteRtGetCompiledModelEnvironment(compiled_model, &env_);
-  }
 
   // Creates a CompiledModel from a TFLite file.
   //
@@ -117,6 +95,16 @@ class CompiledModel
   // Note: It should be specified for both JIT and AOT compiled models.
   static Expected<CompiledModel> Create(
       litert::Environment& env, const litert::Model& model,
+      litert::HwAccelerators hardware_accelerators) {
+    LITERT_ASSIGN_OR_RETURN(auto compilation_options, Options::Create());
+    compilation_options.SetHardwareAccelerators(
+        static_cast<LiteRtHwAccelerators>(hardware_accelerators));
+    return Create(env, model, compilation_options);
+  }
+
+  [[deprecated("Use the version that takes litert::HwAcceleratorSet instead.")]]
+  static Expected<CompiledModel> Create(
+      litert::Environment& env, const litert::Model& model,
       LiteRtHwAccelerators hardware_accelerators) {
     LITERT_ASSIGN_OR_RETURN(auto compilation_options, Options::Create());
     compilation_options.SetHardwareAccelerators(hardware_accelerators);
@@ -139,7 +127,8 @@ class CompiledModel
     LiteRtTensorBufferRequirements buffer_requirements;
     LITERT_RETURN_IF_ERROR(LiteRtGetCompiledModelInputBufferRequirements(
         Get(), signature_index, input_index, &buffer_requirements));
-    return TensorBufferRequirements(buffer_requirements, OwnHandle::kNo);
+    return TensorBufferRequirements::WrapCObject(buffer_requirements,
+                                                 OwnHandle::kNo);
   }
 
   // The same as above except this function takes input tensor name.
@@ -203,7 +192,8 @@ class CompiledModel
     LiteRtTensorBufferRequirements buffer_requirements;
     LITERT_RETURN_IF_ERROR(LiteRtGetCompiledModelOutputBufferRequirements(
         Get(), signature_index, output_index, &buffer_requirements));
-    return TensorBufferRequirements(buffer_requirements, OwnHandle::kNo);
+    return TensorBufferRequirements::WrapCObject(buffer_requirements,
+                                                 OwnHandle::kNo);
   }
 
   // The same as above except this function takes output tensor name.
@@ -411,19 +401,9 @@ class CompiledModel
     return RunMapHelper(signature_key, input_map, output_map, async);
   }
 
-  // Starts collection of HW-specific metrics at a specific level of detail.
-  Expected<void> StartMetricsCollection(int detail_level);
-
-  // Stops collection of HW-specific metrics and report the collected metrics.
-  Expected<Metrics> StopMetricsCollection();
-
+  // Returns true if the compiled model is fully accelerated with the given
+  // hardware accelerators.
   Expected<bool> IsFullyAccelerated();
-
-  // Returns the environment used to create this compiled model.
-  // The returned Environment doesn't own the underlying LiteRtEnvironment.
-  Expected<Environment> GetEnvironment() const {
-    return Environment(env_, OwnHandle::kNo);
-  }
 
   // Returns the profiler used by the compiled model.
   // The returned Profiler doesn't own the underlying LiteRtProfiler.
@@ -541,105 +521,29 @@ class CompiledModel
     return std::string(error_messages);
   }
 
-  // Sets a dispatch annotation on the compiled model. These annotations will be
-  // propagated to dispatch graphs when they are created during model execution.
-  // The annotations provide runtime hints and metadata that can be used by
-  // hardware accelerators for optimization.
+  ///  \internal Wraps a LiteRtCompiledModel C object in a CompiledModel C++
+  ///  object.
+  ///
+  /// Warning: This is internal use only.
+  static CompiledModel WrapCObject(LiteRtModel litert_model,
+                                   LiteRtCompiledModel compiled_model,
+                                   OwnHandle owned) {
+    return CompiledModel(litert_model, compiled_model, owned);
+  }
+
+ protected:
+  // Creates a CompiledModel instance.
   //
-  // Parameters:
-  // - signature_index: the index of the signature (zero-based).
-  // - key: the annotation key.
-  // - value: the annotation value.
-  //
-  // Example annotations:
-  // - "priority": "high|medium|low" - execution priority hints
-  // - "memory_type": "shared|dedicated" - memory allocation preferences
-  // - "accelerator": "npu|gpu|dsp" - preferred hardware accelerator
-  // - "precision": "fp32|fp16|int8" - computation precision requirements
-  Expected<void> SetDispatchAnnotation(size_t signature_index,
-                                       absl::string_view key,
-                                       absl::string_view value) {
-    LITERT_RETURN_IF_ERROR(LiteRtCompiledModelSetDispatchAnnotation(
-        Get(), signature_index, key.data(), value.data()));
-    return {};
+  // If `owned` is `true`, then the created object takes ownership of the
+  // `compiled_model` handle.
+  explicit CompiledModel(LiteRtModel litert_model,
+                         LiteRtCompiledModel compiled_model, OwnHandle owned)
+      : internal::Handle<LiteRtCompiledModel, LiteRtDestroyCompiledModel>(
+            compiled_model, owned),
+        model_(Model::CreateFromNonOwnedHandle(litert_model)) {
+    LiteRtGetCompiledModelEnvironment(compiled_model, &env_);
   }
 
-  // Gets a dispatch annotation from the compiled model.
-  //
-  // Parameters:
-  // - signature_index: the index of the signature (zero-based).
-  // - key: the annotation key to look up.
-  //
-  // Returns:
-  // - The annotation value if found, or nullopt if the key doesn't exist.
-  Expected<std::optional<std::string>> GetDispatchAnnotation(
-      size_t signature_index, absl::string_view key) {
-    const char* value = nullptr;
-    LITERT_RETURN_IF_ERROR(LiteRtCompiledModelGetDispatchAnnotation(
-        Get(), signature_index, key.data(), &value));
-    if (value == nullptr) {
-      return Expected<std::optional<std::string>>(std::nullopt);
-    }
-    return Expected<std::optional<std::string>>(std::string(value));
-  }
-
-  // Removes a dispatch annotation from the compiled model.
-  //
-  // Parameters:
-  // - signature_index: the index of the signature (zero-based).
-  // - key: the annotation key to remove.
-  //
-  // Note: This function succeeds even if the key doesn't exist.
-  Expected<void> RemoveDispatchAnnotation(size_t signature_index,
-                                          absl::string_view key) {
-    LITERT_RETURN_IF_ERROR(LiteRtCompiledModelRemoveDispatchAnnotation(
-        Get(), signature_index, key.data()));
-    return {};
-  }
-
-  // Overloaded version for the default signature (index 0).
-  Expected<void> SetDispatchAnnotation(absl::string_view key,
-                                       absl::string_view value) {
-    return SetDispatchAnnotation(0, key, value);
-  }
-
-  // Overloaded version for the default signature (index 0).
-  Expected<std::optional<std::string>> GetDispatchAnnotation(
-      absl::string_view key) {
-    return GetDispatchAnnotation(0, key);
-  }
-
-  // Overloaded version for the default signature (index 0).
-  Expected<void> RemoveDispatchAnnotation(absl::string_view key) {
-    return RemoveDispatchAnnotation(0, key);
-  }
-
-  // Overloaded version that takes a signature name instead of index.
-  Expected<void> SetDispatchAnnotation(absl::string_view signature_name,
-                                       absl::string_view key,
-                                       absl::string_view value) {
-    LITERT_ASSIGN_OR_RETURN(size_t signature_index,
-                            model_.GetSignatureIndex(signature_name));
-    return SetDispatchAnnotation(signature_index, key, value);
-  }
-
-  // Overloaded version that takes a signature name instead of index.
-  Expected<std::optional<std::string>> GetDispatchAnnotation(
-      absl::string_view signature_name, absl::string_view key) {
-    LITERT_ASSIGN_OR_RETURN(size_t signature_index,
-                            model_.GetSignatureIndex(signature_name));
-    return GetDispatchAnnotation(signature_index, key);
-  }
-
-  // Overloaded version that takes a signature name instead of index.
-  Expected<void> RemoveDispatchAnnotation(absl::string_view signature_name,
-                                          absl::string_view key) {
-    LITERT_ASSIGN_OR_RETURN(size_t signature_index,
-                            model_.GetSignatureIndex(signature_name));
-    return RemoveDispatchAnnotation(signature_index, key);
-  }
-
- private:
   static bool CheckCancelledWrapper(void* data);
 
   // Returns the signature input index for the given input tensor name.
@@ -652,7 +556,7 @@ class CompiledModel
 
   // Creates a TensorBuffer with the given buffer requirements and tensor type.
   static Expected<TensorBuffer> CreateBufferImpl(
-      LiteRtEnvironment env,
+      const Environment& env,
       const TensorBufferRequirements& buffer_requirements,
       const RankedTensorType& tensor_type);
 
@@ -673,6 +577,12 @@ class CompiledModel
   // Creates a vector of TensorBuffers for the given signature subgraph.
   Expected<std::vector<TensorBuffer>> CreateInputOutputBuffers(
       size_t signature_index, bool is_input) const;
+
+  // Returns the environment used to create this compiled model.
+  // The returned Environment doesn't own the underlying LiteRtEnvironment.
+  Expected<Environment> GetEnvironment() const {
+    return Environment::WrapCObject(env_, OwnHandle::kNo);
+  }
 
   Expected<void> RunCApiHelper(LiteRtParamIndex signature_index,
                                size_t num_input_buffers,

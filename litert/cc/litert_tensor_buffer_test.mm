@@ -59,12 +59,12 @@ constexpr const LiteRtRankedTensorType kTestTensorType = {
   auto env = litert::Environment::Create(environment_options);
 
   const litert::RankedTensorType kTensorType(kTestTensorType);
-  constexpr auto kTensorBufferType = kLiteRtTensorBufferTypeMetalBuffer;
+  constexpr auto kTensorBufferType = litert::TensorBufferType::kMetalBuffer;
 
-  auto tensor_buffer = litert::TensorBuffer::CreateManaged(env->Get(), kTensorBufferType,
-                                                           kTensorType, sizeof(kTensorData));
+  auto tensor_buffer = litert::TensorBuffer::CreateManaged(*env, kTensorBufferType, kTensorType,
+                                                           sizeof(kTensorData));
 
-  auto tensor_buffer_type = tensor_buffer->BufferType();
+  auto tensor_buffer_type = tensor_buffer->BufferTypeCC();
   XCTAssertTrue(tensor_buffer_type);
   XCTAssertEqual(*tensor_buffer_type, kTensorBufferType);
 
@@ -115,11 +115,11 @@ constexpr const LiteRtRankedTensorType kTestTensorType = {
   auto env = litert::Environment::Create(environment_options);
 
   const litert::RankedTensorType kTensorType(kTestTensorType);
-  constexpr auto kTensorBufferType = kLiteRtTensorBufferTypeMetalBuffer;
+  constexpr auto kTensorBufferType = litert::TensorBufferType::kMetalBuffer;
 
   // Create a managed buffer
-  auto tensor_buffer = litert::TensorBuffer::CreateManaged(env->Get(), kTensorBufferType,
-                                                           kTensorType, sizeof(kTensorData));
+  auto tensor_buffer = litert::TensorBuffer::CreateManaged(*env, kTensorBufferType, kTensorType,
+                                                           sizeof(kTensorData));
   XCTAssertTrue(tensor_buffer);
 
   // Get the native handle from the managed buffer.
@@ -128,11 +128,11 @@ constexpr const LiteRtRankedTensorType kTestTensorType = {
 
   // Create a tensor buffer from the existing metal buffer.
   auto metal_buffer_created = litert::TensorBuffer::CreateFromMetalBuffer(
-      env->Get(), kTensorType, kTensorBufferType, *metal_buffer, sizeof(kTensorData));
+      *env, kTensorType, kTensorBufferType, *metal_buffer, sizeof(kTensorData));
   XCTAssertTrue(metal_buffer_created);
 
   // Check properties of the wrapped buffer
-  auto tensor_buffer_type = metal_buffer_created->BufferType();
+  auto tensor_buffer_type = metal_buffer_created->BufferTypeCC();
   XCTAssertTrue(tensor_buffer_type);
   XCTAssertEqual(*tensor_buffer_type, kTensorBufferType);
 

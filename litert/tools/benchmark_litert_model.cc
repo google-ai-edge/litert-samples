@@ -37,6 +37,7 @@ limitations under the License.
 #include "litert/cc/options/litert_gpu_options.h"
 #include "litert/cc/options/litert_qualcomm_options.h"
 #include "litert/cc/options/litert_runtime_options.h"
+#include "litert/core/util/perfetto_profiling.h"
 #include "litert/runtime/compiled_model.h"
 #include "tflite/c/c_api_types.h"
 #include "tflite/c/common.h"
@@ -60,6 +61,7 @@ Options CreateCompiledModelOptions(const BenchmarkParams& params) {
   auto use_profiler = params.Get<bool>("use_profiler");
   auto require_full_delegation = params.Get<bool>("require_full_delegation");
   auto num_threads = params.Get<int>("num_threads");
+  auto enable_weight_sharing = params.Get<bool>("enable_weight_sharing");
   LITERT_ASSIGN_OR_ABORT(Options compilation_options,
                          litert::Options::Create());
 
@@ -93,20 +95,23 @@ Options CreateCompiledModelOptions(const BenchmarkParams& params) {
     // Enable benchmark mode to run clFinish() after each inference.
     gpu_options.EnableBenchmarkMode(/*enabled=*/true);
     if (gpu_backend == "webgpu") {
-      gpu_options.SetGpuBackend(kLiteRtGpuBackendWebGpu);
+      gpu_options.SetBackend(GpuOptions::Backend::kWebGpu);
     } else if (gpu_backend == "opengl") {
-      gpu_options.SetGpuBackend(kLiteRtGpuBackendOpenGl);
+      gpu_options.SetBackend(GpuOptions::Backend::kOpenGl);
     }
     if (allow_fp16 == false) {
-      gpu_options.SetDelegatePrecision(kLiteRtDelegatePrecisionFp32);
+      gpu_options.SetPrecision(GpuOptions::Precision::kFp32);
     }
     if (gpu_low_priority) {
-      gpu_options.SetGpuPriority(kLiteRtGpuPriorityLow);
+      gpu_options.SetPriority(GpuOptions::Priority::kLow);
+    }
+    if (enable_weight_sharing) {
+      gpu_options.EnableConstantTensorSharing(true);
     }
 
     auto use_profiler = params.Get<bool>("use_profiler");
     if (use_profiler) {
-      gpu_options.SetGpuPriority(kLiteRtGpuPriorityLow);
+      gpu_options.SetPriority(GpuOptions::Priority::kLow);
     }
 
     compilation_options.AddOpaqueOptions(std::move(gpu_options));
@@ -179,6 +184,10 @@ TfLiteStatus BenchmarkLiteRtModel::LoadModel() {
 }
 
 TfLiteStatus BenchmarkLiteRtModel::Init() {
+  if (params_.Get<bool>("enable_perfetto")) {
+    litert::internal::InitializePerfetto();
+  }
+
   TF_LITE_ENSURE_STATUS(LoadModel());
 
   LITERT_ASSIGN_OR_RETURN(

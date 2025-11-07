@@ -135,6 +135,7 @@ litert_bin(
         ":apply_plugin_runtimecapi",
         ":outstream",
         "//litert/cc:litert_api_with_dynamic_runtime",
+        "//litert/cc/options:compiler_options",
         "//litert/core:build_stamp",
         "//litert/tools/flags:apply_plugin_flags",
         "//litert/tools/flags:common_flags",
@@ -145,6 +146,7 @@ litert_bin(
         "//litert/tools/flags/vendors:qualcomm_flags_with_dynamic_runtime",
         "@com_google_absl//absl/flags:flag",
         "@com_google_absl//absl/flags:parse",
+        "@com_google_absl//absl/functional:function_ref",
         "@com_google_absl//absl/strings:str_format",
         "@com_google_absl//absl/strings:string_view",
     ],
@@ -174,6 +176,7 @@ litert_bin(
         ":apply_plugin_runtimecapi",
         ":outstream",
         "//litert/cc:litert_api_with_dynamic_runtime",
+        "//litert/cc/options:compiler_options",
         "//litert/core:build_stamp",
         "//litert/tools/flags:apply_plugin_flags",
         "//litert/tools/flags:common_flags",
@@ -184,6 +187,7 @@ litert_bin(
         "//litert/tools/flags/vendors:qualcomm_flags_with_dynamic_runtime",
         "@com_google_absl//absl/flags:flag",
         "@com_google_absl//absl/flags:parse",
+        "@com_google_absl//absl/functional:function_ref",
         "@com_google_absl//absl/strings:str_format",
         "@com_google_absl//absl/strings:string_view",
     ],
@@ -257,6 +261,7 @@ cc_binary(
         ":apply_plugin_runtimecapi",
         ":outstream",
         "//litert/cc:litert_api_with_dynamic_runtime",
+        "//litert/cc/options:compiler_options",
         "//litert/tools/flags:apply_plugin_flags",
         "//litert/tools/flags:common_flags",
         "//litert/tools/flags:flag_types",
@@ -266,6 +271,7 @@ cc_binary(
         "//litert/tools/flags/vendors:qualcomm_flags_with_dynamic_runtime",
         "@com_google_absl//absl/flags:flag",
         "@com_google_absl//absl/flags:parse",
+        "@com_google_absl//absl/functional:function_ref",
         "@com_google_absl//absl/strings:str_format",
     ],
 )
@@ -371,6 +377,7 @@ cc_library(
         "//litert/cc/options:litert_gpu_options",
         "//litert/cc/options:litert_qualcomm_options",
         "//litert/cc/options:litert_runtime_options",
+        "//litert/core/util:perfetto_profiling",
         "//litert/runtime:compiled_model",
         "//tflite:framework_stable",
         "//tflite/c:c_api_types",
@@ -510,6 +517,9 @@ cc_binary(
     srcs = ["gpu_numerics_check.cc"],
     deps = NUMERICS_CHECK_DEPS + [
         "//litert/cc/options:litert_gpu_options",
+        "//litert/core:filesystem",
+        "//tflite/c:c_api_types",
+        "//tflite/tools:utils",
     ] + GPU_ACCELERATOR_DEPS,
 )
 
@@ -518,8 +528,11 @@ cc_binary(
     srcs = ["gpu_numerics_check.cc"],
     deps = NUMERICS_CHECK_DEPS + [
         "//litert/cc/options:litert_gpu_options",
+        "//litert/core:filesystem",
         # copybara:uncomment_begin(google-only)
         # "//litert/runtime/accelerators/gpu:ml_drift_cl_gl_accelerator",  # buildcleaner: keep
+        # "//tflite/c:c_api_types",
+        # "//tflite/tools:utils",
         # copybara:uncomment_end
     ],
 )
@@ -530,8 +543,11 @@ cc_binary(
     tags = ["requires-gpu-nvidia"],
     deps = NUMERICS_CHECK_DEPS + [
         "//litert/cc/options:litert_gpu_options",
+        "//litert/core:filesystem",
         # copybara:uncomment_begin(google-only)
         # "//litert/runtime/accelerators/gpu:ml_drift_vulkan_accelerator",  # buildcleaner: keep
+        # "//tflite/c:c_api_types",
+        # "//tflite/tools:utils",
         # "//third_party/vulkan_loader",
         # copybara:uncomment_end
     ],
@@ -547,8 +563,11 @@ cc_binary(
     ],
     deps = NUMERICS_CHECK_DEPS + [
         "//litert/cc/options:litert_gpu_options",
+        "//litert/core:filesystem",
         # copybara:uncomment_begin(google-only)
         # "//litert/runtime/accelerators/gpu/google:jet_gpu_accelerator",  # buildcleaner: keep
+        # "//tflite/c:c_api_types",
+        # "//tflite/tools:utils",
         # copybara:uncomment_end
     ],
 )
@@ -585,8 +604,9 @@ cc_library(
     ],
 )
 
-cc_binary(
+litert_bin(
     name = "benchmark_model",
+    export_litert_only = True,
     deps = [":benchmark_model_main"] + GPU_ACCELERATOR_DEPS,
 )
 
@@ -680,7 +700,7 @@ cc_binary(
         "//litert/cc:litert_buffer_ref",
         "//litert/cc:litert_expected",
         "//litert/cc:litert_macros",
-        "//litert/cc:litert_model",
+        "//litert/cc/internal:litert_extended_model",
         "//litert/core:dispatch_op_schema",
         "//litert/core/model",
         "@com_google_absl//absl/flags:flag",

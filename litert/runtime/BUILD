@@ -14,7 +14,6 @@
 
 load("@rules_cc//cc:cc_library.bzl", "cc_library")
 load("@rules_cc//cc:cc_test.bzl", "cc_test")
-load("//litert/build_common:flavor_transition.bzl", "flavored_cc_alias")
 load("//litert/build_common:litert_build_defs.bzl", "gtest_main_no_heapcheck_deps")
 load(
     "//litert/build_common:special_rule.bzl",
@@ -281,31 +280,6 @@ cc_library(
     }) + litert_metal_deps(),
 )
 
-# Flavor aliases for tensor_buffer
-flavored_cc_alias(
-    name = "tensor_buffer_cpu",
-    build_include = "cpu_only",
-    tags = ["notap"],
-    visibility = ["//visibility:public"],
-    deps = [":tensor_buffer"],
-)
-
-flavored_cc_alias(
-    name = "tensor_buffer_gpu",
-    build_include = "gpu",
-    tags = ["notap"],
-    visibility = ["//visibility:public"],
-    deps = [":tensor_buffer"],
-)
-
-flavored_cc_alias(
-    name = "tensor_buffer_npu",
-    build_include = "npu",
-    tags = ["notap"],
-    visibility = ["//visibility:public"],
-    deps = [":tensor_buffer"],
-)
-
 cc_library(
     name = "tensor_buffer_lockstate",
     hdrs = ["tensor_buffer_lockstate.h"],
@@ -553,6 +527,16 @@ cc_library(
         ":tensor_buffer",
         ":tensor_identifier",
         ":tfl_utils",
+        "@com_google_absl//absl/cleanup",
+        "@com_google_absl//absl/container:flat_hash_map",
+        "@com_google_absl//absl/container:flat_hash_set",
+        "@com_google_absl//absl/functional:any_invocable",
+        "@com_google_absl//absl/log:absl_check",
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/strings",
+        "@com_google_absl//absl/strings:str_format",
+        "@com_google_absl//absl/strings:string_view",
+        "@com_google_absl//absl/types:span",
         "//litert/c:litert_any",
         "//litert/c:litert_common",
         "//litert/c:litert_environment_options",
@@ -578,6 +562,8 @@ cc_library(
         "//litert/core/model",
         "//litert/core/util:flatbuffer_tools",
         "//litert/runtime/dispatch:dispatch_opaque_options",
+        # copybara:uncomment "//third_party/odml/litert/weight_loader:external_weight_loader",
+        "//tflite/converter:allocation",
         "//tflite:builtin_ops",
         "//tflite:framework",
         "//tflite:model_builder",
@@ -585,20 +571,10 @@ cc_library(
         "//tflite/c:c_api_opaque",
         "//tflite/c:c_api_types_opaque_delegate",
         "//tflite/c:common",
-        "//tflite/converter:allocation",
         "//tflite/core:private_cc_api_stable",
         "//tflite/core/api",
         "//tflite/delegates/utils:simple_opaque_delegate",
         "//tflite/schema:schema_fbs",
-        "@com_google_absl//absl/cleanup",
-        "@com_google_absl//absl/container:flat_hash_map",
-        "@com_google_absl//absl/container:flat_hash_set",
-        "@com_google_absl//absl/functional:any_invocable",
-        "@com_google_absl//absl/log:absl_check",
-        "@com_google_absl//absl/strings",
-        "@com_google_absl//absl/strings:str_format",
-        "@com_google_absl//absl/strings:string_view",
-        "@com_google_absl//absl/types:span",
     ] + select({
         "//litert/build_common:build_include_npu_enabled": [
             "//litert/compiler/plugin:compiler_plugin",
@@ -612,35 +588,13 @@ cc_library(
     }),
 )
 
-# Flavor aliases for compiled_model
-flavored_cc_alias(
-    name = "compiled_model_cpu",
-    build_include = "cpu_only",
-    tags = ["notap"],
-    visibility = ["//visibility:public"],
-    deps = [":compiled_model"],
-)
-
-flavored_cc_alias(
-    name = "compiled_model_gpu",
-    build_include = "gpu",
-    tags = ["notap"],
-    visibility = ["//visibility:public"],
-    deps = [":compiled_model"],
-)
-
-flavored_cc_alias(
-    name = "compiled_model_npu",
-    build_include = "npu",
-    tags = ["notap"],
-    visibility = ["//visibility:public"],
-    deps = [":compiled_model"],
-)
-
 cc_test(
     name = "compiled_model_test",
     srcs = ["compiled_model_test.cc"],
-    data = ["//litert/test:testdata/simple_model.tflite"],
+    data = [
+        "//litert/test:testdata/simple_add_dynamic_shape.tflite",
+        "//litert/test:testdata/simple_model.tflite",
+    ],
     linkopts = litert_android_linkopts(),
     # require GPU to run OpenCL tests.
     tags = ["requires-gpu-nvidia"],
@@ -656,11 +610,14 @@ cc_test(
         "//litert/c:litert_tensor_buffer",
         "//litert/c:litert_tensor_buffer_types",
         "//litert/cc:litert_element_type",
+        "//litert/cc:litert_environment",
         "//litert/cc:litert_expected",
         "//litert/cc:litert_layout",
         "//litert/cc:litert_macros",
         "//litert/cc:litert_model",
+        "//litert/cc:litert_ranked_tensor_type",
         "//litert/cc:litert_tensor_buffer",
+        "//litert/cc:litert_tensor_buffer_types",
         "//litert/cc/internal:litert_handle",
         "//litert/cc/options:litert_runtime_options",
         "//litert/core:options",

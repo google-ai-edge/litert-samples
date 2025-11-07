@@ -36,12 +36,13 @@
 #include "litert/c/litert_common.h"
 #include "litert/c/litert_model.h"
 #include "litert/c/litert_op_code.h"
+#include "litert/c/litert_rewriter.h"
 #include "litert/c/options/litert_qualcomm_options.h"  // IWYU pragma: keep
+#include "litert/cc/internal/litert_extended_model.h"
 #include "litert/cc/litert_element_type.h"
 #include "litert/cc/litert_environment_options.h"
 #include "litert/cc/litert_expected.h"
 #include "litert/cc/litert_macros.h"
-#include "litert/cc/litert_model.h"
 #include "litert/cc/litert_opaque_options.h"
 #include "litert/cc/litert_options.h"
 #include "litert/cc/options/litert_qualcomm_options.h"
@@ -340,7 +341,7 @@ LiteRtStatus LiteRtCompilerPluginPartition(LiteRtCompilerPlugin compiler_plugin,
 LiteRtStatus LiteRtCompilerPluginCompile(
     LiteRtCompilerPlugin compiler_plugin, const char* soc_model,
     LiteRtModel partitions, LiteRtCompiledResult* compiled_result) {
-  auto model = litert::Model::CreateFromNonOwnedHandle(partitions);
+  auto model = litert::ExtendedModel::CreateFromNonOwnedHandle(partitions);
   const auto num_partitions = model.NumSubgraphs();
 
   LITERT_LOG(LITERT_INFO,
@@ -486,5 +487,12 @@ LiteRtStatus LiteRtCompilerPluginCompile(
   }
   *compiled_result = result.release();
 
+  return kLiteRtStatusOk;
+}
+
+LiteRtStatus LiteRtCompilerPluginRegisterAllTransformations(
+    LiteRtCompilerPlugin compiler_plugin, LiteRtPatternFn** pattern_fns,
+    const char*** transformation_names, LiteRtParamIndex* num_patterns) {
+  *num_patterns = 0;
   return kLiteRtStatusOk;
 }

@@ -14,7 +14,6 @@
 
 #include "litert/cc/litert_compiled_model.h"
 
-#include <algorithm>
 #include <cstddef>
 #include <iterator>
 #include <memory>
@@ -22,7 +21,6 @@
 #include <vector>
 
 #include "absl/algorithm/container.h"  // from @com_google_absl
-#include "absl/cleanup/cleanup.h"  // from @com_google_absl
 #include "absl/container/flat_hash_map.h"  // from @com_google_absl
 #include "absl/functional/any_invocable.h"  // from @com_google_absl
 #include "absl/strings/string_view.h"  // from @com_google_absl
@@ -30,17 +28,16 @@
 #include "litert/c/litert_common.h"
 #include "litert/c/litert_compiled_model.h"
 #include "litert/c/litert_layout.h"
-#include "litert/c/litert_metrics.h"
-#include "litert/c/litert_tensor_buffer.h"
 #include "litert/c/litert_tensor_buffer_types.h"
+#include "litert/cc/litert_environment.h"
 #include "litert/cc/litert_expected.h"
 #include "litert/cc/litert_layout.h"
 #include "litert/cc/litert_macros.h"
 #include "litert/cc/litert_model.h"
-#include "litert/cc/litert_profiler.h"
 #include "litert/cc/litert_ranked_tensor_type.h"
 #include "litert/cc/litert_tensor_buffer.h"
 #include "litert/cc/litert_tensor_buffer_requirements.h"
+#include "litert/cc/litert_tensor_buffer_types.h"
 
 namespace litert {
 
@@ -67,17 +64,17 @@ Expected<size_t> CompiledModel::FindOutputIndex(
 }
 
 Expected<TensorBuffer> CompiledModel::CreateBufferImpl(
-    LiteRtEnvironment env, const TensorBufferRequirements& buffer_requirements,
+    const Environment& env, const TensorBufferRequirements& buffer_requirements,
     const RankedTensorType& tensor_type) {
   LITERT_ASSIGN_OR_RETURN(
-      const std::vector<LiteRtTensorBufferType>& supported_types,
-      buffer_requirements.SupportedTypes());
+      const std::vector<TensorBufferType>& supported_types,
+      buffer_requirements.SupportedTypesCC());
   if (supported_types.empty()) {
     return Unexpected(kLiteRtStatusErrorRuntimeFailure,
                       "Input doesn't support any tensor buffer types");
   }
   // For simplicity we just pick the first supported tensor buffer type.
-  LiteRtTensorBufferType tensor_buffer_type = supported_types[0];
+  TensorBufferType tensor_buffer_type = supported_types[0];
   LITERT_ASSIGN_OR_RETURN(size_t buffer_size, buffer_requirements.BufferSize());
 
   LITERT_ASSIGN_OR_RETURN(TensorBuffer buffer, TensorBuffer::CreateManaged(
@@ -93,13 +90,11 @@ Expected<TensorBuffer> CompiledModel::CreateInputOutputBuffer(
       is_input ? model_.GetInputTensorType(signature_index, tensor_name)
                : model_.GetOutputTensorType(signature_index, tensor_name);
   LITERT_ASSIGN_OR_RETURN(RankedTensorType tensor_type, tensor_type_expected);
-  Expected<TensorBufferRequirements> buffer_requirements_expected =
-      is_input ? GetInputBufferRequirements(signature_index, tensor_name)
-               : GetOutputBufferRequirements(signature_index, tensor_name);
-
-  LITERT_ASSIGN_OR_RETURN(const TensorBufferRequirements& buffer_requirements,
-                          buffer_requirements_expected);
+  LITERT_ASSIGN_OR_RETURN(auto env, GetEnvironment());
   if (is_input) {
+    LITERT_ASSIGN_OR_RETURN(
+        TensorBufferRequirements buffer_requirements,
+        GetInputBufferRequirements(signature_index, tensor_name));
     LITERT_ASSIGN_OR_RETURN(size_t tensor_index,
                             FindInputIndex(signature_index, tensor_name));
     LiteRtLayout input_layout;
@@ -110,19 +105,28 @@ Expected<TensorBuffer> CompiledModel::CreateInputOutputBuffer(
       tensor_type = RankedTensorType(tensor_type.ElementType(),
                                      std::move(runtime_layout));
     }
+    return CreateBufferImpl(env, buffer_requirements, tensor_type);
   } else {
     const auto& dims = tensor_type.Layout().Dimensions();
     if (absl::c_find(dims, -1) != dims.end()) {
       LITERT_ASSIGN_OR_RETURN(size_t tensor_index,
                               FindOutputIndex(signature_index, tensor_name));
       LITERT_ASSIGN_OR_RETURN(
-          std::vector<Layout> output_layouts,
+          std::vector<Layout> runtime_layouts,
           GetOutputTensorLayouts(signature_index, /*update_allocation=*/true));
       tensor_type = RankedTensorType(tensor_type.ElementType(),
-                                     std::move(output_layouts[tensor_index]));
+                                     std::move(runtime_layouts[tensor_index]));
+      LITERT_ASSIGN_OR_RETURN(
+          const TensorBufferRequirements& refreshed_requirements,
+          GetOutputBufferRequirements(signature_index, tensor_name));
+      return CreateBufferImpl(env, refreshed_requirements, tensor_type);
+    } else {
+      LITERT_ASSIGN_OR_RETURN(
+          const TensorBufferRequirements& requirements,
+          GetOutputBufferRequirements(signature_index, tensor_name));
+      return CreateBufferImpl(env, requirements, tensor_type);
     }
   }
-  return CreateBufferImpl(env_, buffer_requirements, tensor_type);
 }
 
 Expected<std::vector<TensorBuffer>> CompiledModel::CreateInputOutputBuffers(
@@ -231,34 +235,6 @@ Expected<void> CompiledModel::RunMapWithIndexHelper(
   }
   return RunCApiHelper(signature_index, num_inputs, input_buffers_ptr.get(),
                        num_outputs, output_buffers_ptr.get(), async);
-}
-
-Expected<void> CompiledModel::StartMetricsCollection(int detail_level) {
-  if (auto status =
-          LiteRtCompiledModelStartMetricsCollection(Get(), detail_level);
-      status != kLiteRtStatusOk) {
-    return Unexpected(status, "Failed to start metrics collection");
-  }
-  return {};
-}
-
-Expected<CompiledModel::Metrics> CompiledModel::StopMetricsCollection() {
-  LiteRtMetrics metrics = nullptr;
-  LITERT_RETURN_IF_ERROR(LiteRtCreateMetrics(&metrics));
-  absl::Cleanup metrics_cleanup = [&metrics] { LiteRtDestroyMetrics(metrics); };
-  LITERT_RETURN_IF_ERROR(
-      LiteRtCompiledModelStopMetricsCollection(Get(), metrics));
-  int num_metrics;
-  LITERT_RETURN_IF_ERROR(LiteRtGetNumMetrics(metrics, &num_metrics));
-
-  std::vector<Metrics::Metric> compiled_model_metrics;
-  compiled_model_metrics.reserve(num_metrics);
-  for (int i = 0; i < num_metrics; ++i) {
-    LiteRtMetric metric;
-    LITERT_RETURN_IF_ERROR(LiteRtGetMetric(metrics, i, &metric));
-    compiled_model_metrics.push_back({metric.name, metric.value});
-  }
-  return CompiledModel::Metrics{.metrics = std::move(compiled_model_metrics)};
 }
 
 Expected<bool> CompiledModel::IsFullyAccelerated() {

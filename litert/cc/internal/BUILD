@@ -19,24 +19,34 @@ load("@rules_cc//cc:cc_test.bzl", "cc_test")
 package(
     # copybara:uncomment default_applicable_licenses = ["@org_tensorflow//tensorflow:license"],
     default_visibility = [
-        # Temporary visibility for GenAI until they bundle libLiteRtRuntimeCApi.so.
-        # copybara:uncomment_begin(oss litert_lm)
-        # "//litert:litert_cc_users_static_link",
-        # "//litert/c:__pkg__",
-        # "//litert/cc:__pkg__",
-        # "//litert/cc/dynamic_runtime:__pkg__",
-        # "//litert/core:__subpackages__",
-        # "//litert/integration_test:__pkg__",
-        # "//litert/kotlin:__pkg__",
-        # "//litert/runtime/dispatch:__pkg__",
-        # "//litert/sdk_util:__pkg__",
-        # "//litert/test:__pkg__",
-        # "//litert/vendors:__subpackages__",
+        # copybara:uncomment_begin(oss)
+        # "//litert:litert_internal_users",
         # copybara:uncomment_end_and_comment_begin
         "//visibility:public",
         # copybara:comment_end
     ],
 )
+
+internal_static_library_visibility = [
+    # copybara:uncomment_begin(oss)
+    # "//litert:litert_cc_users_static_link",
+    # copybara:uncomment_end_and_comment_begin
+    "//visibility:public",
+    # copybara:comment_end
+]
+
+next_library_visibility = [
+    # copybara:uncomment_begin(oss)
+    # "//litert:litert_friends",
+    # "//litert/runtime/dispatch:__subpackages__",
+    # copybara:uncomment_end_and_comment_begin
+    "//visibility:public",
+    # copybara:comment_end
+]
+
+# -----------------------------------------------------------------------------
+# Runtime only internal C++ libraries.
+# -----------------------------------------------------------------------------
 
 cc_library(
     name = "litert_dispatch_delegate",
@@ -72,10 +82,12 @@ cc_library(
         "//litert/c:litert_model_types",
         "//litert/c:litert_tensor_buffer",
         "//litert/c:litert_tensor_buffer_types",
+        "//litert/cc:litert_environment",
         "//litert/cc:litert_event",
         "//litert/cc:litert_expected",
         "//litert/cc:litert_macros",
         "//litert/cc:litert_ranked_tensor_type",
+        "//litert/cc:litert_tensor_buffer_types",
         "@com_google_absl//absl/cleanup",
         "@com_google_absl//absl/strings:str_format",
         "@com_google_absl//absl/types:span",
@@ -97,6 +109,10 @@ cc_library(
         "//tflite/c:common",
     ],
 )
+
+# -----------------------------------------------------------------------------
+# Common internal C++ libraries.
+# -----------------------------------------------------------------------------
 
 cc_library(
     name = "litert_c_types_printing",
@@ -268,19 +284,63 @@ cc_test(
 )
 
 cc_library(
+    name = "litert_shared_library",
+    srcs = ["litert_shared_library.cc"],
+    hdrs = ["litert_shared_library.h"],
+    deps = [
+        "//litert/c:litert_common",
+        "//litert/c/internal:litert_logging",
+        "//litert/cc:litert_expected",
+        "//litert/cc:litert_macros",
+        "@com_google_absl//absl/debugging:leak_check",
+        "@com_google_absl//absl/strings:str_format",
+        "@com_google_absl//absl/strings:string_view",
+    ],
+)
+
+cc_library(
+    name = "test_litert_shared_library_impl",
+    srcs = ["test_shared_library.cc"],
+)
+
+cc_shared_library(
+    name = "test_litert_shared_library",
+    shared_lib_name = "test_shared_library.so",
+    deps = [":test_litert_shared_library_impl"],
+)
+
+cc_test(
+    name = "litert_shared_library_test",
+    srcs = ["litert_shared_library_test.cc"],
+    data = [":test_litert_shared_library"],
+    defines = ["LITERT_DEFINE_GTEST_STATUS_PRINTER"],
+    deps = [
+        ":litert_shared_library",
+        "//litert/test:matchers",
+        "@com_google_absl//absl/strings",
+        "@com_google_googletest//:gtest_main",
+    ],
+)
+
+# -----------------------------------------------------------------------------
+# Internal static C++ libraries.
+#
+# There are shared version of these libraries available in cc/dynamic_runtime/.
+# -----------------------------------------------------------------------------
+
+cc_library(
     name = "litert_model_predicates",
     srcs = ["litert_model_predicates.cc"],
     hdrs = ["litert_model_predicates.h"],
-    visibility = [
-        "//litert:litert_cc_users_static_link",
-    ],
+    visibility = internal_static_library_visibility,
     deps = [
+        ":litert_detail",
+        ":litert_extended_model",
         "//litert/c:litert_common",
         "//litert/c:litert_model_types",
         "//litert/c:litert_op_code",
         "//litert/cc:litert_element_type",
-        "//litert/cc:litert_model",
-        "//litert/cc/internal:litert_detail",
+        "//litert/cc:litert_ranked_tensor_type",
         "@com_google_absl//absl/container:inlined_vector",
         "@com_google_absl//absl/types:span",
     ],
@@ -291,10 +351,10 @@ cc_test(
     srcs = ["litert_model_predicates_test.cc"],
     data = ["//litert/test:mlir_test_data"],
     deps = [
+        ":litert_extended_model",
         ":litert_model_predicates",
         "//litert/c:litert_op_code",
         "//litert/cc:litert_element_type",
-        "//litert/cc:litert_model",
         "//litert/test:common",
         "@com_google_absl//absl/container:inlined_vector",
         "@com_google_absl//absl/log:absl_check",
@@ -307,6 +367,7 @@ cc_library(
     name = "litert_op_options",
     srcs = ["litert_op_options.cc"],
     hdrs = ["litert_op_options.h"],
+    visibility = internal_static_library_visibility,
     deps = [
         "//litert/c:litert_common",
         "//litert/c:litert_model",
@@ -347,18 +408,16 @@ cc_library(
     name = "litert_rewriter",
     srcs = ["litert_rewriter.cc"],
     hdrs = ["litert_rewriter.h"],
-    visibility = [
-        "//litert:litert_public",
-    ],
+    visibility = internal_static_library_visibility,
     deps = [
+        ":litert_detail",
+        ":litert_extended_model",
         ":litert_handle",
         "//litert/c:litert_common",
         "//litert/c:litert_model_types",
         "//litert/c:litert_op_code",
         "//litert/c:litert_rewriter",
         "//litert/cc:litert_expected",
-        "//litert/cc:litert_model",
-        "//litert/cc/internal:litert_detail",
     ],
 )
 
@@ -366,59 +425,66 @@ cc_test(
     name = "litert_rewriter_test",
     srcs = ["litert_rewriter_test.cc"],
     deps = [
+        ":litert_extended_model",
         ":litert_rewriter",
         "//litert/c:litert_common",
         "//litert/c:litert_layout",
-        "//litert/c:litert_model",
         "//litert/c:litert_op_code",
         "//litert/cc:litert_buffer_ref",
         "//litert/cc:litert_element_type",
         "//litert/cc:litert_layout",
-        "//litert/cc:litert_model",
         "//litert/core/model",
         "//litert/core/model:buffer_manager",
-        "//litert/test:common",
         "@com_google_absl//absl/strings:string_view",
-        "@com_google_absl//absl/types:span",
         "@com_google_googletest//:gtest_main",
     ],
 )
 
 cc_library(
-    name = "litert_shared_library",
-    srcs = ["litert_shared_library.cc"],
-    hdrs = ["litert_shared_library.h"],
+    name = "litert_extended_model",
+    srcs = ["litert_extended_model.cc"],
+    hdrs = ["litert_extended_model.h"],
+    visibility = internal_static_library_visibility,
     deps = [
+        ":litert_consts",
+        ":litert_detail",
+        ":litert_handle",
         "//litert/c:litert_common",
-        "//litert/c/internal:litert_logging",
+        "//litert/c:litert_model",
+        "//litert/c:litert_model_types",
+        "//litert/c:litert_op_code",
+        "//litert/cc:litert_buffer_ref",
+        "//litert/cc:litert_element_type",
         "//litert/cc:litert_expected",
         "//litert/cc:litert_macros",
-        "@com_google_absl//absl/debugging:leak_check",
-        "@com_google_absl//absl/strings:str_format",
+        "//litert/cc:litert_model",
+        "//litert/cc:litert_ranked_tensor_type",
+        "@com_google_absl//absl/container:inlined_vector",
         "@com_google_absl//absl/strings:string_view",
+        "@com_google_absl//absl/types:span",
     ],
 )
 
-cc_library(
-    name = "test_litert_shared_library_impl",
-    srcs = ["test_shared_library.cc"],
-)
-
-cc_shared_library(
-    name = "test_litert_shared_library",
-    shared_lib_name = "test_shared_library.so",
-    deps = [":test_litert_shared_library_impl"],
-)
-
 cc_test(
-    name = "litert_shared_library_test",
-    srcs = ["litert_shared_library_test.cc"],
-    data = [":test_litert_shared_library"],
-    defines = ["LITERT_DEFINE_GTEST_STATUS_PRINTER"],
+    name = "litert_extended_model_test",
+    srcs = ["litert_extended_model_test.cc"],
+    data = [
+        "//litert/test:mlir_test_data",
+        "//litert/test:tflite_test_data",
+    ],
     deps = [
-        ":litert_shared_library",
+        ":litert_extended_model",
+        "//litert/c:litert_common",
+        "//litert/c:litert_layout",
+        "//litert/c:litert_model",
+        "//litert/c:litert_op_code",
+        "//litert/cc:litert_element_type",
+        "//litert/cc:litert_layout",
+        "//litert/core/model",
+        "//litert/test:common",
         "//litert/test:matchers",
-        "@com_google_absl//absl/strings",
+        "@com_google_absl//absl/strings:string_view",
+        "@com_google_absl//absl/types:span",
         "@com_google_googletest//:gtest_main",
     ],
 )
@@ -427,3 +493,62 @@ exports_files(glob([
     "*.h",
     "*.cc",
 ]))
+
+# -----------------------------------------------------------------------------
+# New / experimental features.
+# -----------------------------------------------------------------------------
+
+# Advanced CompiledModel with new / experimental features.
+cc_library(
+    name = "litert_compiled_model_next",
+    srcs = ["litert_compiled_model_next.cc"],
+    hdrs = ["litert_compiled_model_next.h"],
+    visibility = next_library_visibility,
+    deps = [
+        ":litert_handle",
+        "//litert/c:litert_any",
+        "//litert/c:litert_common",
+        "//litert/c:litert_compiled_model",
+        "//litert/c:litert_metrics",
+        "//litert/cc:litert_common",
+        "//litert/cc:litert_compiled_model",
+        "//litert/cc:litert_environment",
+        "//litert/cc:litert_expected",
+        "//litert/cc:litert_macros",
+        "//litert/cc:litert_model",
+        "//litert/cc:litert_options",
+        "@com_google_absl//absl/cleanup",
+        "@com_google_absl//absl/strings:string_view",
+    ],
+)
+
+cc_test(
+    name = "litert_compiled_model_next_test",
+    srcs = ["litert_compiled_model_next_test.cc"],
+    data = [
+        "//litert/test:mlir_test_data",
+        "//litert/test:tflite_test_data",
+    ],
+    deps = [
+        ":litert_compiled_model_next",
+        "//litert/c:litert_compiled_model",
+        "//litert/c:litert_tensor_buffer",
+        "//litert/cc:litert_common",
+        "//litert/cc:litert_environment",
+        "//litert/cc:litert_model",
+        "//litert/cc:litert_options",
+        "//litert/cc:litert_tensor_buffer",
+        "//litert/cc:litert_tensor_buffer_types",
+        "//litert/test:common",
+        "//litert/test:matchers",
+        "//litert/test:simple_model",
+        "//tflite:framework",
+        "//tflite/c:c_api_opaque",
+        "//tflite/c:common",
+        "//tflite/kernels:builtin_ops",
+        "@com_google_absl//absl/log:absl_log",
+        "@com_google_absl//absl/strings:string_view",
+        "@com_google_absl//absl/types:span",
+        "@com_google_googletest//:gtest_main",
+    ],
+)

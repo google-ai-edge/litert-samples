@@ -32,6 +32,9 @@ namespace litert::internal {
 // Append all given subpaths together (e.g. os.path.join).
 std::string Join(const std::vector<absl::string_view>& paths);
 
+// Returns the stem of the given path.
+std::string Stem(absl::string_view path);
+
 // Make a new empty file at the given path.
 void Touch(absl::string_view path);
 
@@ -59,6 +62,9 @@ Expected<void> MkDir(absl::string_view path);
 // Get the parent directory of the given path.
 Expected<std::string> Parent(absl::string_view path);
 
+Expected<void> RmDir(std::string path_to_remove);
+
 }  // namespace litert::internal
 
 #endif  // ODML_LITERT_LITERT_CORE_FILESYSTEM_H_
+

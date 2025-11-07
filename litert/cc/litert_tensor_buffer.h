@@ -25,14 +25,17 @@
 #include "litert/c/litert_common.h"
 #include "litert/c/litert_custom_tensor_buffer.h"
 #include "litert/c/litert_gl_types.h"
+#include "litert/c/litert_model_types.h"
 #include "litert/c/litert_tensor_buffer.h"
 #include "litert/c/litert_tensor_buffer_types.h"
 #include "litert/cc/internal/litert_detail.h"
 #include "litert/cc/internal/litert_handle.h"
+#include "litert/cc/litert_environment.h"
 #include "litert/cc/litert_event.h"
 #include "litert/cc/litert_expected.h"
 #include "litert/cc/litert_macros.h"
 #include "litert/cc/litert_ranked_tensor_type.h"
+#include "litert/cc/litert_tensor_buffer_types.h"
 
 #if LITERT_HAS_OPENCL_SUPPORT
 #include <CL/cl.h>
@@ -48,19 +51,42 @@ class TensorBuffer
  public:
   TensorBuffer() = default;
 
-  // Parameter `owned` indicates if the created TensorBuffer object should take
-  // ownership of the provided `tensor_buffer` handle.
-  explicit TensorBuffer(LiteRtTensorBuffer tensor_buffer, OwnHandle owned)
-      : Handle(tensor_buffer, owned) {}
-
   // Creates a managed TensorBuffer object in a given buffer type and size.
-  // The returned object is owned by the caller.
+  // The returned object is owned by the caller. For host memory this allocator
+  // guarantees `LITERT_HOST_MEMORY_BUFFER_ALIGNMENT` alignment and reserves any
+  // delegate-specific padding (e.g. XNNPACK extra bytes), so callers do not
+  // need to over-allocate manually.
+  static Expected<TensorBuffer> CreateManaged(
+      const Environment& env, TensorBufferType buffer_type,
+      const RankedTensorType& tensor_type, size_t buffer_size);
+
+  // Creates a managed TensorBuffer object in the given buffer type using the
+  // default environment (if applicable). The returned object is owned by the
+  // caller.
+  [[deprecated("Use the overload that takes Environmnet instead.")]]
+  static Expected<TensorBuffer> CreateManaged(
+      TensorBufferType buffer_type, const RankedTensorType& tensor_type,
+      size_t buffer_size);
+
+  [[deprecated(
+      "Use the overload that takes litert::TensorBufferType instead.")]]
+  static Expected<TensorBuffer> CreateManaged(
+      const Environment& env, LiteRtTensorBufferType buffer_type,
+      const RankedTensorType& tensor_type, size_t buffer_size);
+
+  // TODO(b/453768409): Remove this method once all clients are migrated.
+  [[deprecated]]
   static Expected<TensorBuffer> CreateManaged(
       LiteRtEnvironment env, LiteRtTensorBufferType buffer_type,
-      const RankedTensorType& tensor_type, size_t buffer_size);
+      const RankedTensorType& tensor_type, size_t buffer_size) {
+    auto cc_env = Environment::WrapCObject(env, OwnHandle::kNo);
+    return CreateManaged(cc_env, buffer_type, tensor_type, buffer_size);
+  }
 
   // The same as above, but uses the default environment.
   // Warning: This method can't be used for GPU buffers.
+  // TODO(b/453768409): Remove this method once all clients are migrated.
+  [[deprecated]]
   static Expected<TensorBuffer> CreateManaged(
       LiteRtTensorBufferType buffer_type, const RankedTensorType& tensor_type,
       size_t buffer_size) {
@@ -81,7 +107,16 @@ class TensorBuffer
 
   // Creates a TensorBuffer object that wraps the provided host memory.
   // The provided host memory is not owned by the TensorBuffer object and must
-  // outlive the TensorBuffer object.
+  // outlive the TensorBuffer object. Callers are responsible for ensuring that
+  // the pointer is aligned to at least `LITERT_HOST_MEMORY_BUFFER_ALIGNMENT`
+  // bytes and, if a delegate such as XNNPACK needs extra padding, that the
+  // underlying allocation includes and initializes that region.
+  static Expected<TensorBuffer> CreateFromHostMemory(
+      const Environment& env, const RankedTensorType& tensor_type,
+      void* host_mem_addr, size_t buffer_size);
+
+  // TODO(b/453768409): Remove this method once all clients are migrated.
+  [[deprecated]]
   static Expected<TensorBuffer> CreateFromHostMemory(
       const RankedTensorType& tensor_type, void* host_mem_addr,
       size_t buffer_size);
@@ -92,32 +127,73 @@ class TensorBuffer
   // specifies the offset in bytes from the start of the AHardwareBuffer where
   // the tensor data starts.
   static Expected<TensorBuffer> CreateFromAhwb(
+      const Environment& env, const RankedTensorType& tensor_type,
+      AHardwareBuffer* ahwb, size_t ahwb_offset);
+
+  // TODO(niuchl): Remove this method once all clients are migrated.
+  [[deprecated]]
+  static Expected<TensorBuffer> CreateFromAhwb(
       const RankedTensorType& tensor_type, AHardwareBuffer* ahwb,
       size_t ahwb_offset);
 
-  // The same as above, with additional parameter `env`. Users should use this
-  // API if they want to create a GPU buffer from the created AHardwareBuffer.
+  // TODO(niuchl): Remove this method once all clients are migrated.
+  [[deprecated]]
   static Expected<TensorBuffer> CreateFromAhwb(
       LiteRtEnvironment env, const RankedTensorType& tensor_type,
-      AHardwareBuffer* ahwb, size_t ahwb_offset);
+      AHardwareBuffer* ahwb, size_t ahwb_offset) {
+    auto cc_env = Environment::WrapCObject(env, OwnHandle::kNo);
+    return CreateFromAhwb(cc_env, tensor_type, ahwb, ahwb_offset);
+  }
 
   static Expected<TensorBuffer> CreateFromClBuffer(
-      LiteRtEnvironment env, const RankedTensorType& tensor_type,
+      const Environment& env, const RankedTensorType& tensor_type,
+      TensorBufferType buffer_type, cl_mem cl_memory, size_t size_bytes);
+
+  [[deprecated(
+      "Use the overload that takes litert::TensorBufferType instead.")]]
+  static Expected<TensorBuffer> CreateFromClBuffer(
+      const Environment& env, const RankedTensorType& tensor_type,
       LiteRtTensorBufferType buffer_type, cl_mem cl_memory, size_t size_bytes);
 
   static Expected<TensorBuffer> CreateFromGlBuffer(
-      LiteRtEnvironment env, const RankedTensorType& tensor_type,
+      const Environment& env, const RankedTensorType& tensor_type,
       LiteRtGLenum target, LiteRtGLuint id, size_t size_bytes, size_t offset);
 
-  static Expected<TensorBuffer> CreateFromGlTexture(
+  // TODO(niuchl): Remove this method once all clients are migrated.
+  [[deprecated]]
+  static Expected<TensorBuffer> CreateFromGlBuffer(
       LiteRtEnvironment env, const RankedTensorType& tensor_type,
+      LiteRtGLenum target, LiteRtGLuint id, size_t size_bytes, size_t offset) {
+    auto cc_env = Environment::WrapCObject(env, OwnHandle::kNo);
+    return CreateFromGlBuffer(cc_env, tensor_type, target, id, size_bytes,
+                              offset);
+  }
+
+  static Expected<TensorBuffer> CreateFromGlTexture(
+      const Environment& env, const RankedTensorType& tensor_type,
       LiteRtGLenum target, LiteRtGLuint id, LiteRtGLenum format,
       size_t size_bytes, LiteRtGLint layer);
 
 #if LITERT_HAS_METAL_SUPPORT
   static Expected<TensorBuffer> CreateFromMetalBuffer(
-      LiteRtEnvironment env, const RankedTensorType& tensor_type,
+      const Environment& env, const RankedTensorType& tensor_type,
+      TensorBufferType buffer_type, void* buffer, size_t size_bytes);
+
+  [[deprecated(
+      "Use the overload that takes litert::TensorBufferType instead.")]]
+  static Expected<TensorBuffer> CreateFromMetalBuffer(
+      const Environment& env, const RankedTensorType& tensor_type,
       LiteRtTensorBufferType buffer_type, void* buffer, size_t size_bytes);
+
+  // TODO(niuchl): Remove this method once all clients are migrated.
+  [[deprecated]]
+  static Expected<TensorBuffer> CreateFromMetalBuffer(
+      LiteRtEnvironment env, const RankedTensorType& tensor_type,
+      LiteRtTensorBufferType buffer_type, void* buffer, size_t size_bytes) {
+    auto cc_env = Environment::WrapCObject(env, OwnHandle::kNo);
+    return CreateFromMetalBuffer(cc_env, tensor_type, buffer_type, buffer,
+                                 size_bytes);
+  }
 #endif  // LITERT_HAS_METAL_SUPPORT
 
   // Creates a duplicate of the current TensorBuffer object. The returned
@@ -232,6 +308,17 @@ class TensorBuffer
     return gl_texture;
   }
 
+  // TODO(b/454666070): Rename to BufferType after removing deprecated
+  // BufferType function below.
+  Expected<TensorBufferType> BufferTypeCC() const {
+    LiteRtTensorBufferType tensor_buffer_type;
+    LITERT_RETURN_IF_ERROR(
+        LiteRtGetTensorBufferType(Get(), &tensor_buffer_type));
+    return static_cast<enum TensorBufferType>(tensor_buffer_type);
+  }
+
+  [[deprecated(
+      "Use the overload that returns litert::TensorBufferType instead.")]]
   Expected<LiteRtTensorBufferType> BufferType() const {
     LiteRtTensorBufferType tensor_buffer_type;
     LITERT_RETURN_IF_ERROR(
@@ -306,7 +393,7 @@ class TensorBuffer
   Expected<Event> GetEvent() const {
     LiteRtEvent event;
     LITERT_RETURN_IF_ERROR(LiteRtGetTensorBufferEvent(Get(), &event));
-    return Event(event, OwnHandle::kNo);
+    return Event::WrapCObject(event, OwnHandle::kNo);
   }
 
   // Set the C++ Event object for the tensor buffer.
@@ -317,13 +404,6 @@ class TensorBuffer
                    "Expected an owned event");
     }
     LITERT_RETURN_IF_ERROR(LiteRtSetTensorBufferEvent(Get(), event.Release()));
-    return {};
-  }
-
-  // Set the C LiteRtEvent object for the tensor buffer.
-  // The function takes ownership of the passed LiteRtEvent object.
-  Expected<void> SetLiteRtEvent(LiteRtEvent& litert_event) {
-    LITERT_RETURN_IF_ERROR(LiteRtSetTensorBufferEvent(Get(), litert_event));
     return {};
   }
 
@@ -403,6 +483,21 @@ class TensorBuffer
     std::memcpy(data.data(), host_mem_addr, total_read_size);
     return {};
   }
+
+  /// \internal  Wraps a LiteRtTensorBuffer C object in a TensorBuffer C++
+  /// object.
+  ///
+  /// Warning: This is internal use only.
+  static TensorBuffer WrapCObject(LiteRtTensorBuffer tensor_buffer,
+                                  OwnHandle owned) {
+    return TensorBuffer(tensor_buffer, owned);
+  }
+
+ private:
+  // Parameter `owned` indicates if the created TensorBuffer object should take
+  // ownership of the provided `tensor_buffer` handle.
+  explicit TensorBuffer(LiteRtTensorBuffer tensor_buffer, OwnHandle owned)
+      : Handle(tensor_buffer, owned) {}
 };
 
 class TensorBufferScopedLock {

@@ -26,6 +26,7 @@
 #include "litert/cc/internal/litert_handle.h"
 #include "litert/cc/litert_expected.h"
 #include "litert/cc/litert_macros.h"
+#include "litert/cc/litert_tensor_buffer_types.h"
 
 namespace litert {
 
@@ -38,14 +39,21 @@ class TensorBufferRequirements
  public:
   TensorBufferRequirements() = default;
 
-  // Parameter `owned` indicates if the created TensorBufferRequirements object
-  // should take ownership of the provided `requirements` handle.
-  explicit TensorBufferRequirements(LiteRtTensorBufferRequirements requirements,
-                                    OwnHandle owned)
-      : internal::Handle<LiteRtTensorBufferRequirements,
-                         LiteRtDestroyTensorBufferRequirements>(requirements,
-                                                                owned) {}
+  static Expected<TensorBufferRequirements> Create(
+      absl::Span<const TensorBufferType> buffer_types, size_t buffer_size,
+      absl::Span<const uint32_t> strides =
+          absl::MakeSpan(static_cast<const uint32_t*>(nullptr), 0),
+      OwnHandle owned = OwnHandle::kYes) {
+    std::vector<LiteRtTensorBufferType> buffer_types_c;
+    buffer_types_c.reserve(buffer_types.size());
+    for (auto type : buffer_types) {
+      buffer_types_c.push_back(static_cast<LiteRtTensorBufferType>(type));
+    }
+    return Create(absl::MakeConstSpan(buffer_types_c), buffer_size, strides,
+                  owned);
+  }
 
+  [[deprecated("Use function above with TensorBufferType instead")]]
   static Expected<TensorBufferRequirements> Create(
       absl::Span<const LiteRtTensorBufferType> buffer_types, size_t buffer_size,
       absl::Span<const uint32_t> strides =
@@ -59,6 +67,22 @@ class TensorBufferRequirements
   }
 
   static Expected<TensorBufferRequirements> CreateWithAlignment(
+      absl::Span<const TensorBufferType> buffer_types, size_t buffer_size,
+      size_t alignment,
+      absl::Span<const uint32_t> strides =
+          absl::MakeSpan(static_cast<const uint32_t*>(nullptr), 0),
+      OwnHandle owned = OwnHandle::kYes) {
+    std::vector<LiteRtTensorBufferType> buffer_types_c;
+    buffer_types_c.reserve(buffer_types.size());
+    for (auto type : buffer_types) {
+      buffer_types_c.push_back(static_cast<LiteRtTensorBufferType>(type));
+    }
+    return CreateWithAlignment(absl::MakeConstSpan(buffer_types_c), buffer_size,
+                               alignment, strides, owned);
+  }
+
+  [[deprecated("Use function above with TensorBufferType instead")]]
+  static Expected<TensorBufferRequirements> CreateWithAlignment(
       absl::Span<const LiteRtTensorBufferType> buffer_types, size_t buffer_size,
       size_t alignment,
       absl::Span<const uint32_t> strides =
@@ -71,6 +95,24 @@ class TensorBufferRequirements
     return TensorBufferRequirements(tensor_buffer_requirements, owned);
   }
 
+  // TODO(b/454666070) Rename to SupportedTypes once the old one is deprecated.
+  Expected<std::vector<TensorBufferType>> SupportedTypesCC() const {
+  int num_types;
+    LITERT_RETURN_IF_ERROR(
+        LiteRtGetNumTensorBufferRequirementsSupportedBufferTypes(Get(),
+                                                                 &num_types));
+    std::vector<TensorBufferType> types(num_types);
+    for (auto i = 0; i < num_types; ++i) {
+      LiteRtTensorBufferType type;
+      LITERT_RETURN_IF_ERROR(
+          LiteRtGetTensorBufferRequirementsSupportedTensorBufferType(
+              Get(), i, &type));
+      types[i] = static_cast<TensorBufferType>(type);
+    }
+    return types;
+  }
+
+  [[deprecated("Use SupportedTypesCC instead")]]
   Expected<std::vector<LiteRtTensorBufferType>> SupportedTypes() const {
     int num_types;
     LITERT_RETURN_IF_ERROR(
@@ -110,6 +152,24 @@ class TensorBufferRequirements
   friend Expected<TensorBufferRequirements> Join(
       const TensorBufferRequirements& src1,
       const TensorBufferRequirements& src2);
+
+  ///  \internal Wraps a LiteRtTensorBufferRequirements C object in a
+  /// TensorBufferRequirements C++ object.
+  ///
+  /// Warning: This is internal use only.
+  static TensorBufferRequirements WrapCObject(
+      LiteRtTensorBufferRequirements requirements, OwnHandle owned) {
+    return TensorBufferRequirements(requirements, owned);
+  }
+
+ private:
+  // Parameter `owned` indicates if the created TensorBufferRequirements object
+  // should take ownership of the provided `requirements` handle.
+  explicit TensorBufferRequirements(LiteRtTensorBufferRequirements requirements,
+                                    OwnHandle owned)
+      : internal::Handle<LiteRtTensorBufferRequirements,
+                         LiteRtDestroyTensorBufferRequirements>(requirements,
+                                                                owned) {}
 };
 
 inline Expected<TensorBufferRequirements> Join(

@@ -307,6 +307,10 @@ void LiteRtRewriterT::ApplyChanges(LiteRtSubgraphT* subgraph_to_apply) {
   DCE(*subgraph_to_apply);
   subgraph_to_apply->TransferOpsFrom(subgraph_.OpsAllocation(), splice_index);
   subgraph_to_apply->TransferTensorsFrom(subgraph_.TensorsAllocation());
+
+  erases_.clear();
+  allocated_ops_.clear();
+  allocated_tensors_.clear();
 }
 
 namespace litert::internal {
@@ -473,6 +477,10 @@ bool IsConstant(const LiteRtTensorT& tensor) {
       << "Constant tensors should not be defined by an op";
   return is_const;
 }
+// TODO: reuse this in cc api.
+bool IsSubgraphInput(const LiteRtTensorT& tensor) {
+  return !IsConstant(tensor) && tensor.DefiningOp() == nullptr;
+}
 
 void AttachInput(LiteRtTensor tensor, LiteRtOpT& op) {
   op.Inputs().push_back(tensor);
@@ -528,7 +536,7 @@ bool IsCompiledOp(const LiteRtModelT& graph, LiteRtOpT& op) {
   // If there hasn't been a round of serialization,
   // since dispatches were added, they won't be in the code
   // table.
-  // TODO: Fix this once the code table is updateded
+  // TODO: Fix this once the code table is updated
   // dynamically.
   return litert::internal::GetTflOpCodeInd(op) ==
              litert::internal::kDispatchOpCodeTflInd ||

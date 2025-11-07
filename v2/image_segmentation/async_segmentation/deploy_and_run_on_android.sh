@@ -110,10 +110,10 @@ if [ ! -d "$BINARY_BUILD_PATH" ]; then
 fi
 
 # --- Configuration ---
-ROOT_DIR="litert/"
+ROOT_DIR="v2/image_segmentation/"
 
-PACKAGE_LOCATION="${ROOT_DIR}samples/async_segmentation"
-C_LIBRARY_LOCATION="${BINARY_BUILD_PATH}/${ROOT_DIR}c"
+PACKAGE_LOCATION="${ROOT_DIR}/async_segmentation"
+C_LIBRARY_LOCATION="${BINARY_BUILD_PATH}/litert/c"
 PACKAGE_NAME="async_segmentation_${ACCELERATOR}"
 OUTPUT_PATH="${BINARY_BUILD_PATH}/${PACKAGE_LOCATION}/${PACKAGE_NAME}"
 

@@ -27,10 +27,10 @@
 #include "absl/strings/string_view.h"  // from @com_google_absl
 #include "absl/types/span.h"  // from @com_google_absl
 #include "litert/c/litert_common.h"
-#include "litert/c/litert_tensor_buffer.h"
 #include "litert/c/litert_tensor_buffer_types.h"
 #include "litert/cc/litert_element_type.h"
 #include "litert/cc/litert_environment.h"
+#include "litert/cc/litert_expected.h"
 #include "litert/cc/litert_layout.h"
 #include "litert/cc/litert_macros.h"
 #include "litert/cc/litert_model.h"
@@ -39,6 +39,7 @@
 #include "litert/cc/litert_ranked_tensor_type.h"
 #include "litert/cc/litert_tensor_buffer.h"
 #include "litert/cc/litert_tensor_buffer_requirements.h"
+#include "litert/cc/litert_tensor_buffer_types.h"
 #include "litert/cc/options/litert_runtime_options.h"
 #include "litert/test/common.h"
 #include "litert/test/matchers.h"
@@ -77,28 +78,26 @@ TEST(CompiledModelTest, Basic) {
       TensorBufferRequirements input_buffer_requirements_arg0,
       compiled_model.GetInputBufferRequirements(/*input_name=*/"arg0"));
   LITERT_ASSERT_OK_AND_ASSIGN(
-      std::vector<LiteRtTensorBufferType> input_buffer_types_arg0,
-      input_buffer_requirements_arg0.SupportedTypes());
+      std::vector<TensorBufferType> input_buffer_types_arg0,
+      input_buffer_requirements_arg0.SupportedTypesCC());
   EXPECT_THAT(input_buffer_types_arg0,
-              ElementsAre(kLiteRtTensorBufferTypeHostMemory));
+              ElementsAre(TensorBufferType::kHostMemory));
 
   LITERT_ASSERT_OK_AND_ASSIGN(
       TensorBufferRequirements input_buffer_requirements_arg1,
       compiled_model.GetInputBufferRequirements(/*input_name=*/"arg1"));
   LITERT_ASSERT_OK_AND_ASSIGN(
-      std::vector<LiteRtTensorBufferType> input_buffer_types_arg1,
-      input_buffer_requirements_arg1.SupportedTypes());
+      std::vector<TensorBufferType> input_buffer_types_arg1,
+      input_buffer_requirements_arg1.SupportedTypesCC());
   EXPECT_THAT(input_buffer_types_arg1,
-              ElementsAre(kLiteRtTensorBufferTypeHostMemory));
+              ElementsAre(TensorBufferType::kHostMemory));
 
   LITERT_ASSERT_OK_AND_ASSIGN(
       TensorBufferRequirements output_buffer_requirements,
       compiled_model.GetOutputBufferRequirements(/*output_name=*/"tfl.add"));
-  LITERT_ASSERT_OK_AND_ASSIGN(
-      std::vector<LiteRtTensorBufferType> output_buffer_types,
-      output_buffer_requirements.SupportedTypes());
-  EXPECT_THAT(output_buffer_types,
-              ElementsAre(kLiteRtTensorBufferTypeHostMemory));
+  LITERT_ASSERT_OK_AND_ASSIGN(std::vector<TensorBufferType> output_buffer_types,
+                              output_buffer_requirements.SupportedTypesCC());
+  EXPECT_THAT(output_buffer_types, ElementsAre(TensorBufferType::kHostMemory));
 
   // Create and fill input and output buffers.
   LITERT_ASSERT_OK_AND_ASSIGN(std::vector<TensorBuffer> input_buffers,
@@ -143,16 +142,33 @@ TEST(CompiledModelTest,
   absl::string_view signature_key = model.DefaultSignatureKey();
 
   const std::vector<int> resized_dims = {4, 2, 3};
-  LITERT_ASSERT_OK(compiled_model.ResizeInputTensor(
-      signature_key, "arg0", absl::MakeConstSpan(resized_dims)));
+  LITERT_ASSERT_OK_AND_ASSIGN(const auto& input_names,
+                              model.GetSignatureInputNames(signature_key));
+  absl::flat_hash_map<absl::string_view, TensorBuffer> input_map;
+  for (const auto& input_name : input_names) {
+    LITERT_ASSERT_OK(compiled_model.ResizeInputTensor(
+        signature_key, input_name, absl::MakeConstSpan(resized_dims)));
+    LITERT_ASSERT_OK_AND_ASSIGN(
+        TensorBuffer input_buffer,
+        compiled_model.CreateInputBuffer(signature_key, input_name));
+    LITERT_ASSERT_OK_AND_ASSIGN(RankedTensorType buffer_type,
+                                input_buffer.TensorType());
+    EXPECT_THAT(buffer_type.Layout().Dimensions(),
+                ElementsAre(resized_dims[0], resized_dims[1], resized_dims[2]));
+    input_map[input_name] = std::move(input_buffer);
+  }
 
   LITERT_ASSERT_OK_AND_ASSIGN(
-      TensorBuffer input_buffer,
-      compiled_model.CreateInputBuffer(signature_key, "arg0"));
+      TensorBuffer output_buffer,
+      compiled_model.CreateOutputBuffer(signature_key, "tfl.add"));
   LITERT_ASSERT_OK_AND_ASSIGN(RankedTensorType buffer_type,
-                              input_buffer.TensorType());
+                              output_buffer.TensorType());
   EXPECT_THAT(buffer_type.Layout().Dimensions(),
               ElementsAre(resized_dims[0], resized_dims[1], resized_dims[2]));
+  absl::flat_hash_map<absl::string_view, TensorBuffer> output_map;
+  output_map["tfl.add"] = std::move(output_buffer);
+
+  LITERT_ASSERT_OK(compiled_model.Run(input_map, output_map));
 }
 
 TEST(CompiledModelTest, BasicSignatureIndex) {
@@ -186,30 +202,29 @@ TEST(CompiledModelTest, BasicSignatureIndex) {
       compiled_model.GetInputBufferRequirements(signature_index,
                                                 /*input_name=*/"arg0"));
   LITERT_ASSERT_OK_AND_ASSIGN(
-      std::vector<LiteRtTensorBufferType> input_buffer_types_arg0,
-      input_buffer_requirements_arg0.SupportedTypes());
+      const auto input_buffer_types_arg0,
+      input_buffer_requirements_arg0.SupportedTypesCC());
   EXPECT_THAT(input_buffer_types_arg0,
-              ElementsAre(kLiteRtTensorBufferTypeHostMemory));
+              ElementsAre(TensorBufferType::kHostMemory));
 
   LITERT_ASSERT_OK_AND_ASSIGN(
       TensorBufferRequirements input_buffer_requirements_arg1,
       compiled_model.GetInputBufferRequirements(signature_index,
                                                 /*input_name=*/"arg1"));
   LITERT_ASSERT_OK_AND_ASSIGN(
-      std::vector<LiteRtTensorBufferType> input_buffer_types_arg1,
-      input_buffer_requirements_arg1.SupportedTypes());
+      const std::vector<TensorBufferType> input_buffer_types_arg1,
+      input_buffer_requirements_arg1.SupportedTypesCC());
   EXPECT_THAT(input_buffer_types_arg1,
-              ElementsAre(kLiteRtTensorBufferTypeHostMemory));
+              ElementsAre(TensorBufferType::kHostMemory));
 
   LITERT_ASSERT_OK_AND_ASSIGN(
       TensorBufferRequirements output_buffer_requirements,
       compiled_model.GetOutputBufferRequirements(signature_index,
                                                  /*output_name=*/"tfl.add"));
   LITERT_ASSERT_OK_AND_ASSIGN(
-      std::vector<LiteRtTensorBufferType> output_buffer_types,
-      output_buffer_requirements.SupportedTypes());
-  EXPECT_THAT(output_buffer_types,
-              ElementsAre(kLiteRtTensorBufferTypeHostMemory));
+      const std::vector<TensorBufferType> output_buffer_types,
+      output_buffer_requirements.SupportedTypesCC());
+  EXPECT_THAT(output_buffer_types, ElementsAre(TensorBufferType::kHostMemory));
 
   // Create and fill input and output buffers.
   LITERT_ASSERT_OK_AND_ASSIGN(
@@ -271,30 +286,28 @@ TEST(CompiledModelTest, RunWithInputOutputMap) {
       compiled_model.GetInputBufferRequirements(
           /*input_name=*/"arg0"));
   LITERT_ASSERT_OK_AND_ASSIGN(
-      std::vector<LiteRtTensorBufferType> input_buffer_types_arg0,
-      input_buffer_requirements_arg0.SupportedTypes());
+      std::vector<TensorBufferType> input_buffer_types_arg0,
+      input_buffer_requirements_arg0.SupportedTypesCC());
   EXPECT_THAT(input_buffer_types_arg0,
-              ElementsAre(kLiteRtTensorBufferTypeHostMemory));
+              ElementsAre(TensorBufferType::kHostMemory));
 
   LITERT_ASSERT_OK_AND_ASSIGN(
       TensorBufferRequirements input_buffer_requirements_arg1,
       compiled_model.GetInputBufferRequirements(
           /*input_name=*/"arg1"));
   LITERT_ASSERT_OK_AND_ASSIGN(
-      std::vector<LiteRtTensorBufferType> input_buffer_types_arg1,
-      input_buffer_requirements_arg1.SupportedTypes());
+      std::vector<TensorBufferType> input_buffer_types_arg1,
+      input_buffer_requirements_arg1.SupportedTypesCC());
   EXPECT_THAT(input_buffer_types_arg1,
-              ElementsAre(kLiteRtTensorBufferTypeHostMemory));
+              ElementsAre(TensorBufferType::kHostMemory));
 
   LITERT_ASSERT_OK_AND_ASSIGN(
       TensorBufferRequirements output_buffer_requirements,
       compiled_model.GetOutputBufferRequirements(
           /*output_name=*/"tfl.add"));
-  LITERT_ASSERT_OK_AND_ASSIGN(
-      std::vector<LiteRtTensorBufferType> output_buffer_types,
-      output_buffer_requirements.SupportedTypes());
-  EXPECT_THAT(output_buffer_types,
-              ElementsAre(kLiteRtTensorBufferTypeHostMemory));
+  LITERT_ASSERT_OK_AND_ASSIGN(std::vector<TensorBufferType> output_buffer_types,
+                              output_buffer_requirements.SupportedTypesCC());
+  EXPECT_THAT(output_buffer_types, ElementsAre(TensorBufferType::kHostMemory));
 
   // Create and fill input and output buffers.
   LITERT_ASSERT_OK_AND_ASSIGN(TensorBuffer input_buffer0,
@@ -358,12 +371,12 @@ TEST(CompiledModelTest, RunAsyncReturnsFalse) {
       compiled_model.CreateOutputBuffers(model.DefaultSignatureKey()));
 
   // Confirm input and output buffers are host memory.
-  EXPECT_THAT(input_buffers[0].BufferType(),
-              IsOkAndHolds(kLiteRtTensorBufferTypeHostMemory));
-  EXPECT_THAT(input_buffers[1].BufferType(),
-              IsOkAndHolds(kLiteRtTensorBufferTypeHostMemory));
-  EXPECT_THAT(output_buffers[0].BufferType(),
-              IsOkAndHolds(kLiteRtTensorBufferTypeHostMemory));
+  EXPECT_THAT(input_buffers[0].BufferTypeCC(),
+              IsOkAndHolds(TensorBufferType::kHostMemory));
+  EXPECT_THAT(input_buffers[1].BufferTypeCC(),
+              IsOkAndHolds(TensorBufferType::kHostMemory));
+  EXPECT_THAT(output_buffers[0].BufferTypeCC(),
+              IsOkAndHolds(TensorBufferType::kHostMemory));
 
   ASSERT_THAT(input_buffers, SizeIs(2));
   ASSERT_THAT(output_buffers, SizeIs(1));
@@ -429,28 +442,26 @@ TEST(CompiledModelTest, WithProfiler) {
       TensorBufferRequirements input_buffer_requirements_arg0,
       compiled_model.GetInputBufferRequirements(/*input_name=*/"arg0"));
   LITERT_ASSERT_OK_AND_ASSIGN(
-      std::vector<LiteRtTensorBufferType> input_buffer_types_arg0,
-      input_buffer_requirements_arg0.SupportedTypes());
+      std::vector<TensorBufferType> input_buffer_types_arg0,
+      input_buffer_requirements_arg0.SupportedTypesCC());
   EXPECT_THAT(input_buffer_types_arg0,
-              ElementsAre(kLiteRtTensorBufferTypeHostMemory));
+              ElementsAre(TensorBufferType::kHostMemory));
 
   LITERT_ASSERT_OK_AND_ASSIGN(
       TensorBufferRequirements input_buffer_requirements_arg1,
       compiled_model.GetInputBufferRequirements(/*input_name=*/"arg1"));
   LITERT_ASSERT_OK_AND_ASSIGN(
-      std::vector<LiteRtTensorBufferType> input_buffer_types_arg1,
-      input_buffer_requirements_arg1.SupportedTypes());
+      std::vector<TensorBufferType> input_buffer_types_arg1,
+      input_buffer_requirements_arg1.SupportedTypesCC());
   EXPECT_THAT(input_buffer_types_arg1,
-              ElementsAre(kLiteRtTensorBufferTypeHostMemory));
+              ElementsAre(TensorBufferType::kHostMemory));
 
   LITERT_ASSERT_OK_AND_ASSIGN(
       TensorBufferRequirements output_buffer_requirements,
       compiled_model.GetOutputBufferRequirements(/*output_name=*/"tfl.add"));
-  LITERT_ASSERT_OK_AND_ASSIGN(
-      std::vector<LiteRtTensorBufferType> output_buffer_types,
-      output_buffer_requirements.SupportedTypes());
-  EXPECT_THAT(output_buffer_types,
-              ElementsAre(kLiteRtTensorBufferTypeHostMemory));
+  LITERT_ASSERT_OK_AND_ASSIGN(std::vector<TensorBufferType> output_buffer_types,
+                              output_buffer_requirements.SupportedTypesCC());
+  EXPECT_THAT(output_buffer_types, ElementsAre(TensorBufferType::kHostMemory));
 
   // Create and fill input and output buffers.
   LITERT_ASSERT_OK_AND_ASSIGN(std::vector<TensorBuffer> input_buffers,
@@ -578,12 +589,12 @@ TEST(CompiledModelTest, ResizeInputTensorWithDynamicModel) {
 
     LITERT_ASSERT_OK_AND_ASSIGN(
         TensorBuffer input_buffer0,
-        TensorBuffer::CreateManaged(
-            env.Get(), kLiteRtTensorBufferTypeHostMemory, new_type0, size0));
+        TensorBuffer::CreateManaged(env, TensorBufferType::kHostMemory,
+                                    new_type0, size0));
     LITERT_ASSERT_OK_AND_ASSIGN(
         TensorBuffer input_buffer1,
-        TensorBuffer::CreateManaged(
-            env.Get(), kLiteRtTensorBufferTypeHostMemory, new_type1, size1));
+        TensorBuffer::CreateManaged(env, TensorBufferType::kHostMemory,
+                                    new_type1, size1));
     std::vector<TensorBuffer> input_buffers;
     input_buffers.push_back(std::move(input_buffer0));
     input_buffers.push_back(std::move(input_buffer1));
@@ -608,8 +619,7 @@ TEST(CompiledModelTest, ResizeInputTensorWithDynamicModel) {
 
     LITERT_ASSERT_OK_AND_ASSIGN(
         TensorBuffer output_buffer,
-        TensorBuffer::CreateManaged(env.Get(),
-                                    kLiteRtTensorBufferTypeHostMemory,
+        TensorBuffer::CreateManaged(env, TensorBufferType::kHostMemory,
                                     new_out_type, out_size));
 
     std::vector<TensorBuffer> output_buffers;
@@ -820,244 +830,6 @@ TEST(CompiledModelTest, ErrorReporterNoneMode) {
   EXPECT_FALSE(clear_result.HasValue());
 }
 
-TEST(CompiledModelTest, DispatchAnnotations) {
-  // Environment setup.
-  LITERT_ASSERT_OK_AND_ASSIGN(Environment env, litert::Environment::Create({}));
-
-  // Create Model.
-  Model model = testing::LoadTestFileModel(kModelFileName);
-  ASSERT_TRUE(model);
-
-  // Create CompiledModel.
-  LITERT_ASSERT_OK_AND_ASSIGN(
-      CompiledModel compiled_model,
-      CompiledModel::Create(env, model, kLiteRtHwAcceleratorCpu));
-
-  // Test 1: Set and get annotation for signature index 0
-  {
-    LITERT_ASSERT_OK(
-        compiled_model.SetDispatchAnnotation(0, "priority", "high"));
-
-    LITERT_ASSERT_OK_AND_ASSIGN(
-        auto value, compiled_model.GetDispatchAnnotation(0, "priority"));
-    ASSERT_TRUE(value.has_value());
-    EXPECT_EQ(value.value(), "high");
-  }
-
-  // Test 2: Set and get annotation for default signature (overload without
-  // index)
-  {
-    LITERT_ASSERT_OK(
-        compiled_model.SetDispatchAnnotation("memory_type", "shared"));
-
-    LITERT_ASSERT_OK_AND_ASSIGN(
-        auto value, compiled_model.GetDispatchAnnotation("memory_type"));
-    ASSERT_TRUE(value.has_value());
-    EXPECT_EQ(value.value(), "shared");
-  }
-
-  // Test 3: Get non-existent annotation
-  {
-    LITERT_ASSERT_OK_AND_ASSIGN(
-        auto value, compiled_model.GetDispatchAnnotation(0, "nonexistent"));
-    EXPECT_FALSE(value.has_value());
-  }
-
-  // Test 4: Remove annotation
-  {
-    // First set an annotation
-    LITERT_ASSERT_OK(
-        compiled_model.SetDispatchAnnotation(0, "to_remove", "value"));
-
-    // Verify it exists
-    LITERT_ASSERT_OK_AND_ASSIGN(
-        auto value_before,
-        compiled_model.GetDispatchAnnotation(0, "to_remove"));
-    ASSERT_TRUE(value_before.has_value());
-
-    // Remove it
-    LITERT_ASSERT_OK(compiled_model.RemoveDispatchAnnotation(0, "to_remove"));
-
-    // Verify it's gone
-    LITERT_ASSERT_OK_AND_ASSIGN(
-        auto value_after, compiled_model.GetDispatchAnnotation(0, "to_remove"));
-    EXPECT_FALSE(value_after.has_value());
-  }
-
-  // Test 5: Remove non-existent annotation (should succeed)
-  {
-    LITERT_ASSERT_OK(
-        compiled_model.RemoveDispatchAnnotation(0, "never_existed"));
-  }
-
-  // Test 6: Update existing annotation
-  {
-    LITERT_ASSERT_OK(
-        compiled_model.SetDispatchAnnotation(0, "accelerator", "gpu"));
-
-    LITERT_ASSERT_OK_AND_ASSIGN(
-        auto value1, compiled_model.GetDispatchAnnotation(0, "accelerator"));
-    ASSERT_TRUE(value1.has_value());
-    EXPECT_EQ(value1.value(), "gpu");
-
-    // Update to new value
-    LITERT_ASSERT_OK(
-        compiled_model.SetDispatchAnnotation(0, "accelerator", "npu"));
-
-    LITERT_ASSERT_OK_AND_ASSIGN(
-        auto value2, compiled_model.GetDispatchAnnotation(0, "accelerator"));
-    ASSERT_TRUE(value2.has_value());
-    EXPECT_EQ(value2.value(), "npu");
-  }
-
-  // Test 7: Multiple annotations on same signature
-  {
-    LITERT_ASSERT_OK(compiled_model.SetDispatchAnnotation(0, "key1", "value1"));
-    LITERT_ASSERT_OK(compiled_model.SetDispatchAnnotation(0, "key2", "value2"));
-    LITERT_ASSERT_OK(compiled_model.SetDispatchAnnotation(0, "key3", "value3"));
-
-    LITERT_ASSERT_OK_AND_ASSIGN(
-        auto val1, compiled_model.GetDispatchAnnotation(0, "key1"));
-    ASSERT_TRUE(val1.has_value());
-    EXPECT_EQ(val1.value(), "value1");
-
-    LITERT_ASSERT_OK_AND_ASSIGN(
-        auto val2, compiled_model.GetDispatchAnnotation(0, "key2"));
-    ASSERT_TRUE(val2.has_value());
-    EXPECT_EQ(val2.value(), "value2");
-
-    LITERT_ASSERT_OK_AND_ASSIGN(
-        auto val3, compiled_model.GetDispatchAnnotation(0, "key3"));
-    ASSERT_TRUE(val3.has_value());
-    EXPECT_EQ(val3.value(), "value3");
-  }
-
-  // Test 8: Empty string values
-  {
-    LITERT_ASSERT_OK(
-        compiled_model.SetDispatchAnnotation(0, "empty_value", ""));
-
-    LITERT_ASSERT_OK_AND_ASSIGN(
-        auto value, compiled_model.GetDispatchAnnotation(0, "empty_value"));
-    ASSERT_TRUE(value.has_value());
-    EXPECT_EQ(value.value(), "");
-  }
-
-  // Test 9: Special characters in keys and values
-  {
-    LITERT_ASSERT_OK(compiled_model.SetDispatchAnnotation(
-        0, "key-with-dashes", "value/with/slashes"));
-
-    LITERT_ASSERT_OK_AND_ASSIGN(
-        auto value, compiled_model.GetDispatchAnnotation(0, "key-with-dashes"));
-    ASSERT_TRUE(value.has_value());
-    EXPECT_EQ(value.value(), "value/with/slashes");
-  }
-}
-
-TEST(CompiledModelTest, DispatchAnnotationsWithSignatureName) {
-  // Environment setup.
-  LITERT_ASSERT_OK_AND_ASSIGN(Environment env, litert::Environment::Create({}));
-
-  // Create Model.
-  Model model = testing::LoadTestFileModel(kModelFileName);
-  ASSERT_TRUE(model);
-
-  EXPECT_EQ(model.GetNumSignatures(), 1);
-
-  // Create CompiledModel.
-  LITERT_ASSERT_OK_AND_ASSIGN(
-      CompiledModel compiled_model,
-      CompiledModel::Create(env, model, kLiteRtHwAcceleratorCpu));
-
-  // Test 1: Set and get annotation using signature name
-  {
-    LITERT_ASSERT_OK(compiled_model.SetDispatchAnnotation("precision", "fp16"));
-
-    LITERT_ASSERT_OK_AND_ASSIGN(
-        auto value, compiled_model.GetDispatchAnnotation("precision"));
-    ASSERT_TRUE(value.has_value());
-    EXPECT_EQ(value.value(), "fp16");
-  }
-
-  // Test 2: Remove annotation using signature name
-  {
-    LITERT_ASSERT_OK(
-        compiled_model.SetDispatchAnnotation("to_remove", "value"));
-
-    LITERT_ASSERT_OK_AND_ASSIGN(
-        auto value_before, compiled_model.GetDispatchAnnotation("to_remove"));
-    ASSERT_TRUE(value_before.has_value());
-
-    LITERT_ASSERT_OK(compiled_model.RemoveDispatchAnnotation("to_remove"));
-
-    LITERT_ASSERT_OK_AND_ASSIGN(
-        auto value_after, compiled_model.GetDispatchAnnotation("to_remove"));
-    EXPECT_FALSE(value_after.has_value());
-  }
-
-  // Test 3: Annotations set by name should be retrievable by index
-  {
-    LITERT_ASSERT_OK(
-        compiled_model.SetDispatchAnnotation("cross_check", "test_value"));
-
-    // Since this is signature 0, we should be able to get it by index 0
-    LITERT_ASSERT_OK_AND_ASSIGN(
-        auto value, compiled_model.GetDispatchAnnotation(0, "cross_check"));
-    ASSERT_TRUE(value.has_value());
-    EXPECT_EQ(value.value(), "test_value");
-  }
-}
-
-TEST(CompiledModelTest, DispatchAnnotationsInvalidSignature) {
-  // Environment setup.
-  LITERT_ASSERT_OK_AND_ASSIGN(Environment env, litert::Environment::Create({}));
-
-  // Create Model.
-  Model model = testing::LoadTestFileModel(kModelFileName);
-  ASSERT_TRUE(model);
-
-  // Create CompiledModel.
-  LITERT_ASSERT_OK_AND_ASSIGN(
-      CompiledModel compiled_model,
-      CompiledModel::Create(env, model, kLiteRtHwAcceleratorCpu));
-
-  // Test with invalid signature index (model only has 1 signature at index 0)
-  {
-    auto result = compiled_model.SetDispatchAnnotation(999, "key", "value");
-    EXPECT_FALSE(result.HasValue());
-  }
-
-  {
-    auto result = compiled_model.GetDispatchAnnotation(999, "key");
-    EXPECT_FALSE(result.HasValue());
-  }
-
-  {
-    auto result = compiled_model.RemoveDispatchAnnotation(999, "key");
-    EXPECT_FALSE(result.HasValue());
-  }
-
-  // Test with invalid signature name
-  {
-    auto result = compiled_model.SetDispatchAnnotation("nonexistent_signature",
-                                                       "key", "value");
-    EXPECT_FALSE(result.HasValue());
-  }
-
-  {
-    auto result =
-        compiled_model.GetDispatchAnnotation("nonexistent_signature", "key");
-    EXPECT_FALSE(result.HasValue());
-  }
-
-  {
-    auto result =
-        compiled_model.RemoveDispatchAnnotation("nonexistent_signature", "key");
-    EXPECT_FALSE(result.HasValue());
-  }
-}
-
 // Test for constant output tensor support
 TEST(CompiledModelTest, ConstantOutputTensor) {
   // Create Model with constant output tensor.
@@ -1209,7 +981,7 @@ TEST(CompiledModelTest, ExternalTensorBinding) {
   LITERT_ASSERT_OK_AND_ASSIGN(
       TensorBuffer arg0_buffer,
       TensorBuffer::CreateManaged(
-          env.Get(), kLiteRtTensorBufferTypeHostMemory,
+          env, TensorBufferType::kHostMemory,
           RankedTensorType(ElementType::Float32, Layout(Dimensions({2}))),
           sizeof(kInputTensor)));
   LITERT_ASSERT_OK(

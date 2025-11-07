@@ -37,11 +37,13 @@
 #include "litert/c/litert_tensor_buffer_types.h"
 #include "litert/cc/internal/litert_handle.h"
 #include "litert/cc/litert_element_type.h"
+#include "litert/cc/litert_environment.h"
 #include "litert/cc/litert_expected.h"
 #include "litert/cc/litert_layout.h"
 #include "litert/cc/litert_macros.h"
-#include "litert/cc/litert_model.h"
+#include "litert/cc/litert_ranked_tensor_type.h"
 #include "litert/cc/litert_tensor_buffer.h"
+#include "litert/cc/litert_tensor_buffer_types.h"
 #include "litert/cc/options/litert_runtime_options.h"
 #include "litert/core/model/model.h"
 #include "litert/core/options.h"
@@ -263,13 +265,15 @@ TEST(CompiledModelTest, Basic) {
 
   LiteRtTensorBuffer& input_0_buffer = input_buffers[0];
   {
-    TensorBuffer cpu_buffer(input_0_buffer, OwnHandle::kNo);
+    TensorBuffer cpu_buffer =
+        TensorBuffer::WrapCObject(input_0_buffer, OwnHandle::kNo);
     cpu_buffer.Write<float>(
         absl::MakeConstSpan(kTestInput0Tensor, kTestInput0Size));
   }
   LiteRtTensorBuffer& input_1_buffer = input_buffers[1];
   {
-    TensorBuffer cpu_buffer(input_1_buffer, OwnHandle::kNo);
+    TensorBuffer cpu_buffer =
+        TensorBuffer::WrapCObject(input_1_buffer, OwnHandle::kNo);
     cpu_buffer.Write<float>(
         absl::MakeConstSpan(kTestInput1Tensor, kTestInput1Size));
   }
@@ -416,13 +420,15 @@ TEST(CompiledModelTest, UseAhwbBuffer) {
   LiteRtTensorBuffer& input_0_buffer = input_buffers[0];
   EXPECT_EQ(input_0_buffer->buffer_type(), kLiteRtTensorBufferTypeAhwb);
   {
-    TensorBuffer ahwb_buffer(input_0_buffer, OwnHandle::kNo);
+    TensorBuffer ahwb_buffer =
+        TensorBuffer::WrapCObject(input_0_buffer, OwnHandle::kNo);
     ahwb_buffer.Write<float>(
         absl::MakeConstSpan(kTestInput0Tensor, kTestInput0Size));
   }
   LiteRtTensorBuffer& input_1_buffer = input_buffers[1];
   {
-    TensorBuffer ahwb_buffer(input_1_buffer, OwnHandle::kNo);
+    TensorBuffer ahwb_buffer =
+        TensorBuffer::WrapCObject(input_1_buffer, OwnHandle::kNo);
     ahwb_buffer.Write<float>(
         absl::MakeConstSpan(kTestInput1Tensor, kTestInput1Size));
   }
@@ -551,13 +557,15 @@ TEST(CompiledModelTest, UseOpenCLBuffer) {
   LiteRtTensorBuffer& input_0_buffer = input_buffers[0];
   EXPECT_EQ(input_0_buffer->buffer_type(), kLiteRtTensorBufferTypeOpenClBuffer);
   {
-    TensorBuffer opencl_buffer(input_0_buffer, OwnHandle::kNo);
+    TensorBuffer opencl_buffer =
+        TensorBuffer::WrapCObject(input_0_buffer, OwnHandle::kNo);
     opencl_buffer.Write<float>(
         absl::MakeConstSpan(kTestInput0Tensor, kTestInput0Size));
   }
   LiteRtTensorBuffer& input_1_buffer = input_buffers[1];
   {
-    TensorBuffer opencl_buffer(input_1_buffer, OwnHandle::kNo);
+    TensorBuffer opencl_buffer =
+        TensorBuffer::WrapCObject(input_1_buffer, OwnHandle::kNo);
     opencl_buffer.Write<float>(
         absl::MakeConstSpan(kTestInput1Tensor, kTestInput1Size));
   }
@@ -683,13 +691,15 @@ TEST(CompiledModelTest, WithProfiler) {
 
   LiteRtTensorBuffer& input_0_buffer = input_buffers[0];
   {
-    TensorBuffer cpu_buffer(input_0_buffer, OwnHandle::kNo);
+    TensorBuffer cpu_buffer =
+        TensorBuffer::WrapCObject(input_0_buffer, OwnHandle::kNo);
     cpu_buffer.Write<float>(
         absl::MakeConstSpan(kTestInput0Tensor, kTestInput0Size));
   }
   LiteRtTensorBuffer& input_1_buffer = input_buffers[1];
   {
-    TensorBuffer cpu_buffer(input_1_buffer, OwnHandle::kNo);
+    TensorBuffer cpu_buffer =
+        TensorBuffer::WrapCObject(input_1_buffer, OwnHandle::kNo);
     cpu_buffer.Write<float>(
         absl::MakeConstSpan(kTestInput1Tensor, kTestInput1Size));
   }
@@ -1065,10 +1075,11 @@ TEST(CompiledModelTest, BindExternalWeightBuffer) {
       LiteRtCompiledModelT::Create(env_ptr, model, jit_compilation_options));
   LiteRtDestroyOptions(jit_compilation_options);
 
+  auto cc_env = litert::Environment::WrapCObject(env_ptr, OwnHandle::kNo);
   LITERT_ASSERT_OK_AND_ASSIGN(
       auto input_buffer,
       TensorBuffer::CreateManaged(
-          env_ptr, kLiteRtTensorBufferTypeHostMemory,
+          cc_env, TensorBufferType::kHostMemory,
           RankedTensorType(ElementType::Float32, Layout(Dimensions({2}))),
           2 * sizeof(float)));
   // The model has two inputs: "input" and "weight". We only provide the buffer
@@ -1176,12 +1187,121 @@ TEST(CompiledModelTest, GetOutputTensorShapes) {
   std::vector<LiteRtLayout> output_layouts(1);
   auto output_tensor_shapes = absl::MakeSpan(output_layouts);
   LITERT_ASSERT_OK(compiled_model->GetOutputTensorShapes(
-      LiteRtSignatureT::kDefaultSignatureKey,
-      output_tensor_shapes));
+      LiteRtSignatureT::kDefaultSignatureKey, output_tensor_shapes));
   ASSERT_EQ(output_tensor_shapes.size(), 1);
   // The output tensor shape is [[2]]
   EXPECT_EQ(output_tensor_shapes[0].rank, 1);
   EXPECT_EQ(output_tensor_shapes[0].dimensions[0], 2);
+
+  LiteRtDestroyOptions(jit_compilation_options);
+  LiteRtDestroyModel(model);
+  LiteRtDestroyEnvironment(env_ptr);
+}
+
+TEST(CompiledModelTest, CheckResize) {
+  constexpr absl::string_view kSimpleAddDynamicShapeModel =
+      "simple_add_dynamic_shape.tflite";
+
+  // Environment setup.
+  LITERT_ASSERT_OK_AND_ASSIGN(LiteRtEnvironmentT::Ptr env,
+                              LiteRtEnvironmentT::CreateWithOptions({}));
+  LiteRtEnvironmentT* env_ptr = env.release();
+
+  // Create LiteRtModel and check signatures.
+  std::string path = testing::GetTestFilePath(kSimpleAddDynamicShapeModel);
+  LiteRtModel model;
+  ASSERT_EQ(LiteRtCreateModelFromFile(path.c_str(), &model), kLiteRtStatusOk);
+
+  // Create CompiledModel with options.
+  LiteRtOptions jit_compilation_options;
+  ASSERT_EQ(LiteRtCreateOptions(&jit_compilation_options), kLiteRtStatusOk);
+  ASSERT_EQ(LiteRtSetOptionsHardwareAccelerators(jit_compilation_options,
+                                                 kLiteRtHwAcceleratorCpu),
+            kLiteRtStatusOk);
+  LITERT_ASSERT_OK_AND_ASSIGN(
+      LiteRtCompiledModelT::Ptr compiled_model,
+      LiteRtCompiledModelT::Create(env_ptr, model, jit_compilation_options));
+
+  LITERT_ASSERT_OK_AND_ASSIGN(auto interp,
+                              GetInterpreter(compiled_model.get()));
+  auto input_tensor0 = interp->input_tensor(0);
+  auto input_tensor1 = interp->input_tensor(1);
+  {
+    // Check that the input tensors need resize with {2, 128, 4}.
+    LITERT_ASSERT_OK_AND_ASSIGN(
+        bool input0_need_resize,
+        InputTensorNeedsResize(compiled_model.get(), input_tensor0,
+                               {2, 128, 4}));
+    LITERT_ASSERT_OK_AND_ASSIGN(
+        bool input1_need_resize,
+        InputTensorNeedsResize(compiled_model.get(), input_tensor1,
+                               {2, 128, 4}));
+    EXPECT_TRUE(input0_need_resize);
+    EXPECT_TRUE(input1_need_resize);
+  }
+  {
+    // Check that the input tensors don't need resize with {1, 128, 4}.
+    LITERT_ASSERT_OK_AND_ASSIGN(
+        bool input0_need_resize,
+        InputTensorNeedsResize(compiled_model.get(), input_tensor0,
+                               {1, 128, 4}));
+    LITERT_ASSERT_OK_AND_ASSIGN(
+        bool input1_need_resize,
+        InputTensorNeedsResize(compiled_model.get(), input_tensor1,
+                               {1, 128, 4}));
+    EXPECT_FALSE(input0_need_resize);
+    EXPECT_FALSE(input1_need_resize);
+  }
+
+  // Check output tensor shape.
+  std::vector<LiteRtLayout> output_layouts(1);
+  auto output_tensor_shapes = absl::MakeSpan(output_layouts);
+  LITERT_ASSERT_OK(compiled_model->GetOutputTensorShapes(
+      LiteRtSignatureT::kDefaultSignatureKey, output_tensor_shapes));
+  ASSERT_EQ(output_tensor_shapes.size(), 1);
+  // The output tensor shape is [1, 128, 4]
+  EXPECT_EQ(output_tensor_shapes[0].rank, 3);
+  EXPECT_EQ(output_tensor_shapes[0].dimensions[0], 1);
+  EXPECT_EQ(output_tensor_shapes[0].dimensions[1], 128);
+  EXPECT_EQ(output_tensor_shapes[0].dimensions[2], 4);
+  LiteRtDestroyOptions(jit_compilation_options);
+  LiteRtDestroyModel(model);
+  LiteRtDestroyEnvironment(env_ptr);
+}
+
+TEST(CompiledModelTest, CheckResizeFail) {
+  // Environment setup.
+  LITERT_ASSERT_OK_AND_ASSIGN(LiteRtEnvironmentT::Ptr env,
+                              LiteRtEnvironmentT::CreateWithOptions({}));
+  LiteRtEnvironmentT* env_ptr = env.release();
+
+  // Create LiteRtModel and check signatures.
+  std::string path = testing::GetTestFilePath(kModelFileName);
+  LiteRtModel model;
+  ASSERT_EQ(LiteRtCreateModelFromFile(path.c_str(), &model), kLiteRtStatusOk);
+
+  // Create CompiledModel with options.
+  LiteRtOptions jit_compilation_options;
+  ASSERT_EQ(LiteRtCreateOptions(&jit_compilation_options), kLiteRtStatusOk);
+  ASSERT_EQ(LiteRtSetOptionsHardwareAccelerators(jit_compilation_options,
+                                                 kLiteRtHwAcceleratorCpu),
+            kLiteRtStatusOk);
+  LITERT_ASSERT_OK_AND_ASSIGN(
+      LiteRtCompiledModelT::Ptr compiled_model,
+      LiteRtCompiledModelT::Create(env_ptr, model, jit_compilation_options));
+
+  LITERT_ASSERT_OK_AND_ASSIGN(auto interp,
+                              GetInterpreter(compiled_model.get()));
+  auto input_tensor0 = interp->input_tensor(0);
+  auto input_tensor1 = interp->input_tensor(1);
+  // Check that the input tensors need resize with {2, 128, 4}.
+  // The input tensor has static dimensions, so the resize should fail.
+  EXPECT_THAT(
+      InputTensorNeedsResize(compiled_model.get(), input_tensor0, {2, 128, 4}),
+      IsError(kLiteRtStatusErrorInvalidArgument));
+  EXPECT_THAT(
+      InputTensorNeedsResize(compiled_model.get(), input_tensor1, {2, 128, 4}),
+      IsError(kLiteRtStatusErrorInvalidArgument));
 
   LiteRtDestroyOptions(jit_compilation_options);
   LiteRtDestroyModel(model);

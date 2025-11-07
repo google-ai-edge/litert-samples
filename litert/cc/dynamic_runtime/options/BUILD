@@ -65,6 +65,7 @@ cc_library(
     srcs = ["//litert/cc/options:litert_gpu_options.cc"],
     hdrs = ["//litert/cc/options:litert_gpu_options.h"],
     deps = [
+        "//litert/cc:litert_common",
         "//litert/cc:litert_expected",
         "//litert/cc:litert_macros",
         "//litert/cc/dynamic_runtime:litert_opaque_options",
@@ -169,7 +170,6 @@ cc_library(
             "//litert/c:litert_runtime_c_api_shared_lib",
         ],
     }),
-    alwayslink = 1,
 )
 
 cc_library(

@@ -16,7 +16,6 @@ load("@rules_cc//cc:cc_library.bzl", "cc_library")
 load("@rules_cc//cc:cc_test.bzl", "cc_test")
 
 # copybara:uncomment load("@rules_cc//cc:objc_library.bzl", "objc_library")
-load("//litert/build_common:flavor_transition.bzl", "flavored_cc_alias")
 load("//litert/build_common:litert_build_defs.bzl", "cc_library_with_testonly_vis")
 load("//litert/build_common:special_rule.bzl", "gles_headers", "gles_linkopts", "litert_android_linkopts")
 load("//litert/integration_test:litert_device.bzl", "litert_device_exec", "litert_device_test")
@@ -96,6 +95,14 @@ cc_test(
 )
 
 cc_library(
+    name = "litert_common",
+    hdrs = ["litert_common.h"],
+    deps = [
+        "//litert/c:litert_common",
+    ],
+)
+
+cc_library(
     name = "litert_macros",
     srcs = ["litert_macros.cc"],
     hdrs = ["litert_macros.h"],
@@ -129,6 +136,7 @@ cc_library(
     hdrs = ["litert_expected.h"],
     deps = [
         "//litert/c:litert_common",
+        "//litert/cc:litert_common",
         "//litert/cc/internal:litert_detail",
         "@com_google_absl//absl/log:absl_check",
         "@com_google_absl//absl/strings",
@@ -264,6 +272,7 @@ cc_library(
         # copybara:comment_end
     ],
     deps = [
+        ":litert_common",
         ":litert_environment",
         ":litert_expected",
         ":litert_layout",
@@ -281,6 +290,7 @@ cc_library(
         "//litert/c:litert_metrics",
         "//litert/c:litert_tensor_buffer",
         "//litert/c:litert_tensor_buffer_types",
+        "//litert/cc:litert_tensor_buffer_types",
         "//litert/cc/internal:litert_handle",
         "@com_google_absl//absl/algorithm:container",
         "@com_google_absl//absl/cleanup",
@@ -289,31 +299,6 @@ cc_library(
         "@com_google_absl//absl/strings:string_view",
         "@com_google_absl//absl/types:span",
     ],
-)
-
-# Flavor aliases for CC compiled model
-flavored_cc_alias(
-    name = "litert_compiled_model_cpu",
-    build_include = "cpu_only",
-    tags = ["notap"],
-    visibility = ["//visibility:public"],
-    deps = [":litert_compiled_model"],
-)
-
-flavored_cc_alias(
-    name = "litert_compiled_model_gpu",
-    build_include = "gpu",
-    tags = ["notap"],
-    visibility = ["//visibility:public"],
-    deps = [":litert_compiled_model"],
-)
-
-flavored_cc_alias(
-    name = "litert_compiled_model_npu",
-    build_include = "npu",
-    tags = ["notap"],
-    visibility = ["//visibility:public"],
-    deps = [":litert_compiled_model"],
 )
 
 # copybara:uncomment_begin(google-only)
@@ -386,6 +371,7 @@ litert_device_test(
 #         ":litert_profiler",
 #         ":litert_ranked_tensor_type",
 #         ":litert_tensor_buffer",
+#         ":litert_tensor_buffer_types",
 #         "@com_google_googletest//:gtest_main",
 #         "@com_google_absl//absl/container:flat_hash_map",
 #         "@com_google_absl//absl/debugging:leak_check",
@@ -558,6 +544,18 @@ litert_device_test(
 #         "requires-gpu-nvidia",
 #     ],
 #     deps = [
+#         ":litert_compiled_model",
+#         ":litert_element_type",
+#         ":litert_environment",
+#         ":litert_event",
+#         ":litert_expected",
+#         ":litert_layout",
+#         ":litert_macros",
+#         ":litert_model",
+#         ":litert_options",
+#         ":litert_profiler",
+#         ":litert_tensor_buffer",
+#         ":litert_tensor_buffer_types",
 #         "@com_google_googletest//:gtest_main",
 #         "@com_google_absl//absl/container:flat_hash_map",
 #         "@com_google_absl//absl/debugging:leak_check",
@@ -571,17 +569,6 @@ litert_device_test(
 #         "//litert/c:litert_profiler_event",
 #         "//litert/c:litert_tensor_buffer",
 #         "//litert/c:litert_tensor_buffer_types",
-#         "//litert/cc:litert_compiled_model",
-#         "//litert/cc:litert_element_type",
-#         "//litert/cc:litert_environment",
-#         "//litert/cc:litert_event",
-#         "//litert/cc:litert_expected",
-#         "//litert/cc:litert_layout",
-#         "//litert/cc:litert_macros",
-#         "//litert/cc:litert_model",
-#         "//litert/cc:litert_options",
-#         "//litert/cc:litert_profiler",
-#         "//litert/cc:litert_tensor_buffer",
 #         "//litert/cc/internal:litert_platform_support",
 #         "//litert/cc/options:litert_gpu_options",
 #         "//litert/cc/options:litert_runtime_options",
@@ -668,19 +655,24 @@ cc_test(
         "//litert/test:tflite_test_data",
     ],
     deps = [
+        ":litert_common",
         ":litert_compiled_model",
         ":litert_element_type",
         ":litert_environment",
+        ":litert_expected",
         ":litert_layout",
         ":litert_macros",
         ":litert_model",
         ":litert_options",
+        ":litert_profiler",
+        ":litert_ranked_tensor_type",
         ":litert_tensor_buffer",
+        ":litert_tensor_buffer_types",
         "//litert/c:litert_common",
+        "//litert/c:litert_compiled_model",
         "//litert/c:litert_tensor_buffer",
         "//litert/c:litert_tensor_buffer_types",
-        "//litert/cc:litert_profiler",
-        "//litert/cc:litert_ranked_tensor_type",
+        "//litert/cc/internal:litert_handle",
         "//litert/cc/options:litert_runtime_options",
         "//litert/test:common",
         "//litert/test:matchers",
@@ -722,30 +714,6 @@ cc_library_with_testonly_vis(
 )
 
 # Flavor aliases for CC environment
-flavored_cc_alias(
-    name = "litert_environment_cpu",
-    build_include = "cpu_only",
-    tags = ["notap"],
-    visibility = ["//visibility:public"],
-    deps = [":litert_environment"],
-)
-
-flavored_cc_alias(
-    name = "litert_environment_gpu",
-    build_include = "gpu",
-    tags = ["notap"],
-    visibility = ["//visibility:public"],
-    deps = [":litert_environment"],
-)
-
-flavored_cc_alias(
-    name = "litert_environment_npu",
-    build_include = "npu",
-    tags = ["notap"],
-    visibility = ["//visibility:public"],
-    deps = [":litert_environment"],
-)
-
 cc_test(
     name = "litert_environment_test",
     srcs = ["litert_environment_test.cc"],
@@ -825,45 +793,16 @@ cc_library(
         ":litert_buffer_ref",
         ":litert_element_type",
         ":litert_expected",
-        ":litert_layout",
         ":litert_macros",
         ":litert_ranked_tensor_type",
         "//litert/c:litert_common",
-        "//litert/c:litert_layout",
         "//litert/c:litert_model",
-        "//litert/c:litert_op_code",
-        "//litert/cc/internal:litert_consts",
+        "//litert/c:litert_model_types",
         "//litert/cc/internal:litert_detail",
         "//litert/cc/internal:litert_handle",
-        "@com_google_absl//absl/container:inlined_vector",
         "@com_google_absl//absl/strings:string_view",
         "@com_google_absl//absl/types:span",
     ],
-)
-
-# Flavor aliases for CC model
-flavored_cc_alias(
-    name = "litert_model_cpu",
-    build_include = "cpu_only",
-    tags = ["notap"],
-    visibility = ["//visibility:public"],
-    deps = [":litert_model"],
-)
-
-flavored_cc_alias(
-    name = "litert_model_gpu",
-    build_include = "gpu",
-    tags = ["notap"],
-    visibility = ["//visibility:public"],
-    deps = [":litert_model"],
-)
-
-flavored_cc_alias(
-    name = "litert_model_npu",
-    build_include = "npu",
-    tags = ["notap"],
-    visibility = ["//visibility:public"],
-    deps = [":litert_model"],
 )
 
 cc_library(
@@ -932,10 +871,10 @@ cc_library(
     deps = [
         ":litert_expected",
         ":litert_macros",
+        ":litert_tensor_buffer_types",
         "//litert/c:litert_common",
         "//litert/c:litert_tensor_buffer",
         "//litert/c:litert_tensor_buffer_types",
-        "//litert/cc/internal:litert_detail",
         "//litert/cc/internal:litert_handle",
         "@com_google_absl//absl/types:span",
     ],
@@ -946,8 +885,10 @@ cc_test(
     srcs = ["litert_tensor_buffer_requirements_test.cc"],
     deps = [
         ":litert_tensor_buffer",
+        ":litert_tensor_buffer_types",
         "//litert/c:litert_common",
         "//litert/c:litert_tensor_buffer",
+        "//litert/c:litert_tensor_buffer_types",
         "//litert/cc/internal:litert_handle",
         "@com_google_absl//absl/types:span",
         "@com_google_googletest//:gtest_main",
@@ -968,14 +909,17 @@ cc_library(
         # copybara:comment_end
     ],
     deps = [
+        ":litert_environment",
         ":litert_event",
         ":litert_expected",
         ":litert_macros",
         ":litert_ranked_tensor_type",
+        ":litert_tensor_buffer_types",
         "//litert/c:litert_common",
         "//litert/c:litert_custom_tensor_buffer",
         "//litert/c:litert_event",
         "//litert/c:litert_gl_types",
+        "//litert/c:litert_model_types",
         "//litert/c:litert_tensor_buffer",
         "//litert/c:litert_tensor_buffer_types",
         "//litert/c/internal:litert_tensor_buffer_registry",  # buildcleaner: keep
@@ -987,31 +931,6 @@ cc_library(
         "@com_google_absl//absl/types:span",
         "@opencl_headers",
     ],
-)
-
-# Flavor aliases for CC tensor_buffer
-flavored_cc_alias(
-    name = "litert_tensor_buffer_cpu",
-    build_include = "cpu_only",
-    tags = ["notap"],
-    visibility = ["//visibility:public"],
-    deps = [":litert_tensor_buffer"],
-)
-
-flavored_cc_alias(
-    name = "litert_tensor_buffer_gpu",
-    build_include = "gpu",
-    tags = ["notap"],
-    visibility = ["//visibility:public"],
-    deps = [":litert_tensor_buffer"],
-)
-
-flavored_cc_alias(
-    name = "litert_tensor_buffer_npu",
-    build_include = "npu",
-    tags = ["notap"],
-    visibility = ["//visibility:public"],
-    deps = [":litert_tensor_buffer"],
 )
 
 # copybara:uncomment_begin(google-only)
@@ -1027,7 +946,9 @@ flavored_cc_alias(
 #         ":litert_layout",
 #         ":litert_macros",
 #         ":litert_model",
+#         ":litert_ranked_tensor_type",
 #         ":litert_tensor_buffer",
+#         ":litert_tensor_buffer_types",
 #         "@com_google_googletest//:gtest_main",
 #         "@com_google_absl//absl/debugging:leak_check",
 #         "@com_google_absl//absl/log:absl_check",
@@ -1057,6 +978,17 @@ flavored_cc_alias(
 #     }),
 # )
 #
+# cc_test(
+#     name = "litert_options_test",
+#     srcs = ["litert_options_test.cc"],
+#     deps = [
+#         ":litert_common",
+#         ":litert_options",
+#         "@com_google_googletest//:gtest_main",
+#         "//litert/test:matchers",
+#     ],
+# )
+#
 # litert_device_exec(
 #     name = "litert_tensor_buffer_device_test",
 #     backend_id = "cpu",
@@ -1076,6 +1008,7 @@ cc_library_with_testonly_vis(
         # copybara:comment_end
     ],
     deps = [
+        ":litert_common",
         ":litert_custom_op_kernel",
         ":litert_expected",
         ":litert_macros",
@@ -1180,7 +1113,9 @@ cc_library(
     hdrs = [
         # C++ API headers.
         "litert_any.h",
+        "litert_common.h",
         "litert_buffer_ref.h",
+        "litert_tensor_buffer_types.h",
         "litert_compiled_model.h",
         "litert_custom_op_kernel.h",
         "litert_element_type.h",
@@ -1211,6 +1146,7 @@ cc_library(
         "//litert/cc/internal:litert_handle.h",
         "//litert/cc/internal:litert_logging.h",
         "//litert/cc/internal:litert_model_predicates.h",
+        "//litert/cc/internal:litert_extended_model.h",
         "//litert/cc/internal:litert_numerics.h",
         "//litert/cc/internal:litert_platform_support.h",
         "//litert/cc/internal:litert_source_location.h",
@@ -1237,6 +1173,7 @@ cc_library(
         "//litert/cc/dynamic_runtime:litert_environment",
         "//litert/cc/dynamic_runtime:litert_event",
         "//litert/cc/dynamic_runtime:litert_model",
+        "//litert/cc/dynamic_runtime:litert_extended_model",
         "//litert/cc/dynamic_runtime:litert_model_predicates",
         "//litert/cc/dynamic_runtime:litert_profiler",
         "//litert/cc/dynamic_runtime:litert_tensor_buffer",
@@ -1251,7 +1188,9 @@ cc_library(
         "//litert/cc/dynamic_runtime/options:litert_runtime_options",
         # Other (static) C++ API targets.
         ":litert_any",
+        ":litert_tensor_buffer_types",
         ":litert_expected",
+        ":litert_common",
         ":litert_macros",
         ":litert_buffer_ref",
         ":litert_element_type",
@@ -1286,6 +1225,16 @@ cc_library(
             "//litert/cc/dynamic_runtime/options:litert_mediatek_options",
         ],
     }) + gles_headers(),
+)
+
+cc_library(
+    name = "litert_tensor_buffer_types",
+    srcs = ["litert_tensor_buffer_types.cc"],
+    hdrs = ["litert_tensor_buffer_types.h"],
+    deps = [
+        "//litert/c:litert_tensor_buffer_types",
+        "//litert/cc/internal:litert_tensor_buffer_utils",
+    ],
 )
 
 exports_files(glob([

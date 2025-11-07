@@ -36,6 +36,7 @@
 #include "absl/types/span.h"  // from @com_google_absl
 #include "litert/c/litert_common.h"
 #include "litert/c/litert_tensor_buffer.h"
+#include "litert/cc/internal/litert_extended_model.h"
 #include "litert/cc/internal/litert_rng.h"
 #include "litert/cc/litert_buffer_ref.h"
 #include "litert/cc/litert_element_type.h"
@@ -43,7 +44,6 @@
 #include "litert/cc/litert_expected.h"
 #include "litert/cc/litert_layout.h"
 #include "litert/cc/litert_macros.h"
-#include "litert/cc/litert_model.h"
 #include "litert/cc/litert_tensor_buffer.h"
 
 namespace litert {
@@ -82,8 +82,9 @@ class SimpleBuffer {
     using Type = std::remove_const_t<T>;
     Layout::Dim NumElements() const {
       Layout::Dim num_elements = 1;
-      for (Layout::Dim dim : dimensions)
+      for (Layout::Dim dim : dimensions) {
         num_elements *= dim;
+      }
       return num_elements;
     }
   };
@@ -254,7 +255,8 @@ class SimpleBuffer {
   // Create a new native tensor buffer from this buffer which points to the
   // underlying host memory.
   Expected<TensorBuffer> SpawnTensorBuffer() const {
-    return TensorBuffer::CreateFromHostMemory(tensor_type_, buffer_.get(),
+    LITERT_ASSIGN_OR_RETURN(auto env, Environment::Create({}));
+    return TensorBuffer::CreateFromHostMemory(env, tensor_type_, buffer_.get(),
                                               size_in_bytes_);
   }
 

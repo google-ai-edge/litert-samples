@@ -35,11 +35,12 @@
 #include "litert/c/litert_common.h"
 #include "litert/c/litert_model.h"
 #include "litert/c/litert_op_code.h"
+#include "litert/c/litert_rewriter.h"
 #include "litert/c/options/litert_intel_openvino_options.h"
+#include "litert/cc/internal/litert_extended_model.h"
 #include "litert/cc/litert_environment_options.h"
 #include "litert/cc/litert_expected.h"
 #include "litert/cc/litert_macros.h"
-#include "litert/cc/litert_model.h"
 #include "litert/cc/litert_opaque_options.h"
 #include "litert/cc/litert_options.h"
 #include "litert/cc/options/litert_intel_openvino_options.h"
@@ -119,6 +120,10 @@ constexpr LiteRtOpCode kSupportedOps[] = {
     kLiteRtOpCodeTflSelectV2,
     kLiteRtOpCodeTflHardSwish,
     kLiteRtOpCodeTflPrelu,
+    kLiteRtOpCodeTflSqrt,
+    kLiteRtOpCodeTflGreaterEqual,
+    kLiteRtOpCodeTflLessEqual,
+    kLiteRtOpCodeTflLogicalAnd,
 };
 // clang format on
 
@@ -301,7 +306,7 @@ LiteRtStatus LiteRtCompilerPluginCompile(
     LiteRtCompilerPlugin compiler_plugin, const char* soc_model,
     LiteRtModel partitions, LiteRtCompiledResult* compiled_result) {
   try {
-    auto model = litert::Model::CreateFromNonOwnedHandle(partitions);
+    auto model = litert::ExtendedModel::CreateFromNonOwnedHandle(partitions);
     const auto num_partitions = model.NumSubgraphs();
 
     // Configure device and OpenVINO settings from Intel OpenVINO options
@@ -398,11 +403,11 @@ LiteRtStatus LiteRtCompilerPluginCompile(
                     &expected_subgraph.Value());
         auto input_model = tflite_fe->load(graph_delegate);
         LITERT_LOG(LITERT_INFO, "Model loaded");
-        auto model = tflite_fe->convert(input_model);
+        auto ov_model = tflite_fe->convert(input_model);
 
         // Use device and configs_map from Intel OpenVINO options
         std::ostringstream oss;
-        auto compiled_model = core.compile_model(model, device, configs_map);
+        auto compiled_model = core.compile_model(ov_model, device, configs_map);
         compiled_model.export_model(oss);
         LITERT_LOG(LITERT_INFO, "Model export done");
         result->byte_code[partition_idx] = oss.str();
@@ -420,4 +425,11 @@ LiteRtStatus LiteRtCompilerPluginCompile(
     LITERT_LOG(LITERT_ERROR, "Exception in compilation: %s", e.what());
     return kLiteRtStatusErrorCompilation;
   }
+}
+
+LiteRtStatus LiteRtCompilerPluginRegisterAllTransformations(
+    LiteRtCompilerPlugin compiler_plugin, LiteRtPatternFn** pattern_fns,
+    const char*** transformation_names, LiteRtParamIndex* num_patterns) {
+  *num_patterns = 0;
+  return kLiteRtStatusOk;
 }

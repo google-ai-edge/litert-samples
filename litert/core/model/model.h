@@ -498,6 +498,10 @@ class LiteRtOpT {
   // Get any custom options attached to this op. Empty if there are none.
   litert::BufferRef<uint8_t> CustomOptions() const { return custom_options_; }
 
+  // Op index. (For internal debugging only)
+  void SetOpIndex(uint32_t op_index) { op_index_ = op_index; }
+  uint32_t OpIndex() const { return op_index_; }
+
   // Attach custom opaque optins to this op.
   template <class... Args>
   void SetCustomOptions(Args&&... args) {
@@ -572,6 +576,8 @@ class LiteRtOpT {
   std::vector<LiteRtTensor> outputs_;
 
   std::string custom_code_;
+
+  uint32_t op_index_;
 
   // TFLITE
   int32_t tfl_op_code_ind_ = litert::internal::kDispatchOpCodeTflInd;
@@ -1048,6 +1054,11 @@ class LiteRtModelT {
     }
   }
 
+  // Records the original source path of the model, if known.
+  void SetSourcePath(std::string path) { source_path_ = path; }
+
+  const std::optional<std::string>& SourcePath() const { return source_path_; }
+
   // Attach an asset to the given op. An asset is a non-tensor buffer
   // that is used by the op. Assets may be referenced by multiple ops.
   // Each edge from an op to an asset is identified by a name. All buffers
@@ -1117,6 +1128,7 @@ class LiteRtModelT {
   // TFLITE
   TflOpCodes tfl_operator_codes_;
   TflFlatbuffer tfl_flatbuffer_;
+  std::optional<std::string> source_path_;
 };
 
 // Get the build stamp from the model if it exists.
@@ -1208,6 +1220,9 @@ UseIndices FindUseInds(const LiteRtTensorT& tensor, const LiteRtOpT& op);
 
 // Is this tensor a constant tensor?
 bool IsConstant(const LiteRtTensorT& tensor);
+
+// Is this tensor a subgraph input tensor?
+bool IsSubgraphInput(const LiteRtTensorT& tensor);
 
 // MUTATORS
 
