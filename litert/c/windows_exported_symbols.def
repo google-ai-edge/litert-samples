@@ -81,7 +81,7 @@ EXPORTS
   LiteRtGetGpuAcceleratorRuntimeOptionsNumStepsOfCommandBufferPreparations
   LiteRtGetGpuOptionsBenchmarkMode
   LiteRtGetGpuOptionsConstantTensorSharing
-  LiteRtGetGpuOptionsExternalTensorsMode
+  LiteRtGetGpuOptionsNoExternalTensorsMode
   LiteRtGetGpuOptionsGpuPriority
   LiteRtGetGpuOptionsInfiniteFloatCapping
   LiteRtGetGpuOptionsPayloadIdentifier

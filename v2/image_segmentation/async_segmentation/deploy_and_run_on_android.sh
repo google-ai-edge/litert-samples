@@ -37,57 +37,56 @@ if [ "$#" -eq 0 ]; then
     usage
 fi
 
-# Parse options
-TEMP=$(getopt -o '' --long accelerator:,phone:,use_gl_buffers,host_npu_lib:,host_npu_dispatch_lib: -- "$@")
-if [ $? -ne 0 ]; then
-    echo "Error parsing options." >&2
-    usage
-fi
 
-eval set -- "$TEMP"
-unset TEMP
-
+# Initialize variables that will be set by flags
 USE_GL_BUFFERS=false
 HOST_NPU_LIB=""
 HOST_NPU_DISPATCH_LIB=""
 
-while true; do
+# Loop through arguments, handling --key=value and flags
+while [ "$#" -gt 0 ]; do
     case "$1" in
-        '--accelerator')
-            ACCELERATOR="$2"
+        --accelerator=*)
+            ACCELERATOR="${1#*=}"
             # Validate accelerator value
             if [[ "$ACCELERATOR" != "gpu" && "$ACCELERATOR" != "npu" && "$ACCELERATOR" != "cpu" ]]; then
                 echo "Error: Invalid value for --accelerator. Must be 'gpu', 'npu', or 'cpu'." >&2
                 usage
                 exit 1
             fi
-            shift 2
+            shift 1
             ;;
-        '--phone')
-            PHONE="$2"
-            shift 2
+        --phone=*)
+            PHONE="${1#*=}"
+            shift 1
             ;;
-        '--use_gl_buffers')
+        --use_gl_buffers)
             USE_GL_BUFFERS=true
-            shift
+            shift 1
             ;;
-        '--host_npu_lib')
-            HOST_NPU_LIB="$2"
-            shift 2
+        --host_npu_lib=*)
+            HOST_NPU_LIB="${1#*=}"
+            shift 1
             ;;
-        '--host_npu_dispatch_lib')
-            HOST_NPU_DISPATCH_LIB="$2"
-            shift 2
+        --host_npu_dispatch_lib=*)
+            HOST_NPU_DISPATCH_LIB="${1#*=}"
+            shift 1
             ;;
-        '--')
-            shift
-            break
+        -*)
+            echo "Error: Unknown option: $1" >&2
+            usage
+            exit 1
             ;;
         *)
-            # This case should ideally not be reached if getopt is working correctly
-            # and all options are defined.
-            # However, it can catch unexpected issues or be used for positional args after options.
-            break
+            # This will be the positional argument (binary_build_path)
+            if [ -z "$BINARY_BUILD_PATH" ]; then
+                BINARY_BUILD_PATH="$1"
+            else
+                echo "Error: Unexpected argument '$1'" >&2
+                usage
+                exit 1
+            fi
+            shift 1
             ;;
     esac
 done
@@ -95,13 +94,13 @@ done
 echo "Selected Accelerator: $ACCELERATOR"
 echo "Use GL Buffers: $USE_GL_BUFFERS"
 
-# The remaining argument should be the binary_build_path
-if [ "$#" -ne 1 ]; then
-    echo "Error: Incorrect number of arguments or invalid option."
+# The binary_build_path is now set within the parsing loop.
+# No remaining arguments are expected.
+if [ -z "$BINARY_BUILD_PATH" ]; then
+    echo "Error: Missing <binary_build_path> argument."
     usage
 fi
 
-BINARY_BUILD_PATH="$1"
 
 # Check if the binary_build_path is a valid directory.
 if [ ! -d "$BINARY_BUILD_PATH" ]; then
@@ -138,7 +137,7 @@ if [[ -z "$HOST_NPU_LIB" ]]; then
 fi
 if [[ -z "$HOST_NPU_DISPATCH_LIB" ]]; then
     echo "Defaulting to internal dispatch library path."
-    HOST_NPU_DISPATCH_LIB="${BINARY_BUILD_PATH}/${PACKAGE_LOCATION}/${PACKAGE_NAME}.runfiles/litert/vendors/qualcomm/dispatch"
+    HOST_NPU_DISPATCH_LIB="${BINARY_BUILD_PATH}/${PACKAGE_LOCATION}/${PACKAGE_NAME}.runfiles/litert/litert/vendors/qualcomm/dispatch"
 fi
 # Qualcomm NPU library path
 LD_LIBRARY_PATH="${DEVICE_NPU_LIBRARY_DIR}/"
@@ -234,7 +233,7 @@ echo "Pushed gpu accelerator shared library."
 
 # Push NPU dispatch library
 if [[ "$ACCELERATOR" == "npu" ]]; then
-adb push "${HOST_NPU_DISPATCH_LIB/libLiteRtDispatch_Qualcomm.so}" "${DEVICE_NPU_LIBRARY_DIR}/"
+adb push "${HOST_NPU_DISPATCH_LIB}/libLiteRtDispatch_Qualcomm.so" "${DEVICE_NPU_LIBRARY_DIR}/"
 echo "Pushed NPU dispatch library."
 
 # Push NPU libraries
