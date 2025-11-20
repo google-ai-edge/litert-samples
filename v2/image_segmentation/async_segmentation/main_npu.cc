@@ -19,26 +19,27 @@
 #include <iostream>
 #include <string>
 #include <utility>
-#include <vector> 
+#include <vector>
 
 #include <GLES2/gl2.h>
 #include "absl/strings/string_view.h"  // from @com_google_absl
 #include "absl/time/clock.h"  // from @com_google_absl
 #include "absl/types/span.h"  // from @com_google_absl
-#include "./litert/c/litert_common.h"
-#include "./litert/cc/litert_compiled_model.h"
-#include "./litert/cc/litert_environment.h"
-#include "./litert/cc/litert_macros.h"
-#include "./litert/cc/litert_model.h"
-#include "./litert/cc/litert_options.h"
+#include "litert/cc/litert_common.h"
+#include "litert/cc/litert_compiled_model.h"
+#include "litert/cc/litert_environment.h"
+#include "litert/cc/litert_macros.h"
+#include "litert/cc/litert_model.h"
+#include "litert/cc/litert_options.h"
 #include "v2/image_segmentation/async_segmentation/image_processor.h"
 #include "v2/image_segmentation/async_segmentation/image_utils.h"
 #include "v2/image_segmentation/async_segmentation/timing_utils.h"
 
 int main(int argc, char* argv[]) {
-  if (argc != 4) {
+  if (argc < 4) {
     std::cerr << "Usage: " << argv[0]
-              << " <model_path> <input_image_path> <output_image_path>"
+              << " <model_path> <input_image_path> <output_image_path> "
+                 "[use_jit (true|false)]"
               << std::endl;
     return 1;
   }
@@ -46,6 +47,14 @@ int main(int argc, char* argv[]) {
   const std::string model_path = argv[1];
   const std::string input_file = argv[2];
   const std::string output_file = argv[3];
+  const std::string use_jit_arg = argc > 4 ? argv[4] : "false";
+  bool use_jit = false;
+  if (use_jit_arg == "true") {
+    use_jit = true;
+  } else if (use_jit_arg != "false") {
+    std::cerr << "Warning: Unknown value for use_jit '" << use_jit_arg
+              << "'. Defaulting to false." << std::endl;
+  }
 
   std::vector<RGBAColor> mask_colors = {
       {1.0f, 0.0f, 0.0f, 0.1f}, {0.0f, 1.0f, 0.0f, 0.1f},
@@ -66,18 +75,21 @@ int main(int argc, char* argv[]) {
       litert::Environment::OptionTag::DispatchLibraryDir,
       absl::string_view("/data/local/tmp/async_segmentation_android/npu/"),
   });
+  if (use_jit) {
+    environment_options.push_back(litert::Environment::Option{
+        litert::Environment::OptionTag::CompilerPluginLibraryDir,
+        absl::string_view("/data/local/tmp/async_segmentation_android/npu/"),
+    });
+  }
   LITERT_ASSIGN_OR_ABORT(
       auto env, litert::Environment::Create(std::move(environment_options)));
 
-  // Initialize LiteRT model
-  LITERT_ASSIGN_OR_ABORT(auto model, litert::Model::CreateFromFile(model_path));
-
   // Compile the model for the NPU, allowing CPU fallback for unsupported ops.
   LITERT_ASSIGN_OR_ABORT(litert::Options options, litert::Options::Create());
-  options.SetHardwareAccelerators(kLiteRtHwAcceleratorNpu |
-                                  kLiteRtHwAcceleratorCpu);
-  LITERT_ASSIGN_OR_ABORT(auto compiled_model,
-                         litert::CompiledModel::Create(env, model, options));
+  options.SetHardwareAccelerators(litert::HwAccelerators::kNpu |
+                                  litert::HwAccelerators::kCpu);
+  LITERT_ASSIGN_OR_ABORT(auto compiled_model, litert::CompiledModel::Create(
+                                                  env, model_path, options));
 
   // Create input and output buffers
   LITERT_ASSIGN_OR_ABORT(auto input_buffers,

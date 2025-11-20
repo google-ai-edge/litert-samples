@@ -92,6 +92,11 @@ Configure the build tools:
 # specify Android build tools (tested with 34.0.0)
 ```
 
+Configure the dependency files:
+```bash
+./v2/image_segmentation/async_segmentation/deps.sh
+```
+
 ```bash
 bazel build //v2/image_segmentation/async_segmentation:async_segmentation_cpu --config=android_arm64
 bazel build //v2/image_segmentation/async_segmentation:async_segmentation_gpu --config=android_arm64
@@ -107,8 +112,10 @@ After building, use the `deploy_and_run_on_android.sh` script to deploy and run 
 ./v2/image_segmentation/async_segmentation/deploy_and_run_on_android.sh --accelerator=gpu --phone=s25 bazel-bin/
 # For GPU with GL buffers
 ./v2/image_segmentation/async_segmentation/deploy_and_run_on_android.sh --accelerator=gpu --use_gl_buffers --phone=s25 bazel-bin/
-# For NPU
+# For NPU with an ahead-of-time compiled model
 ./v2/image_segmentation/async_segmentation/deploy_and_run_on_android.sh --accelerator=npu --phone=s25 bazel-bin/
+# For NPU with just-in-time (jit) compilation of the model
+./v2/image_segmentation/async_segmentation/deploy_and_run_on_android.sh --accelerator=npu --phone=s25 --jit bazel-bin/
 ```
 The output image `output_segmented.png` will be pulled from the device and saved in the current directory.
 
@@ -121,4 +128,6 @@ The output image `output_segmented.png` will be pulled from the device and saved
 | CPU                   | Sync Exec                      | 116       |
 | GPU                   | Sync Exec                      | 35        |
 | GPU                   | Async Exec + 0-copy buffer     | 17        |
-| NPU                   | Sync Exec                      | 17        |
+| NPU                   | Sync Exec (AOT)                | 17        |
+| NPU                   | Sync Exec (JIT)                | 28        |
+

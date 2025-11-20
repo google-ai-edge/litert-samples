@@ -23,11 +23,12 @@
 #include <GLES2/gl2.h>
 #include "absl/time/clock.h"  // from @com_google_absl
 #include "absl/types/span.h"  // from @com_google_absl
-#include "./litert/c/litert_common.h"
-#include "./litert/cc/litert_compiled_model.h"
-#include "./litert/cc/litert_environment.h"
-#include "./litert/cc/litert_macros.h"
-#include "./litert/cc/litert_model.h"
+#include "litert/c/litert_common.h"
+#include "litert/cc/litert_common.h"
+#include "litert/cc/litert_compiled_model.h"
+#include "litert/cc/litert_environment.h"
+#include "litert/cc/litert_macros.h"
+#include "litert/cc/litert_model.h"
 #include "v2/image_segmentation/async_segmentation/image_processor.h"
 #include "v2/image_segmentation/async_segmentation/image_utils.h"
 #include "v2/image_segmentation/async_segmentation/timing_utils.h"
@@ -60,13 +61,10 @@ int main(int argc, char* argv[]) {
   // Initialize LiteRT environment
   LITERT_ASSIGN_OR_ABORT(auto env, litert::Environment::Create({}));
 
-  // Initialize LiteRT model
-  LITERT_ASSIGN_OR_ABORT(auto model, litert::Model::CreateFromFile(model_path));
-
   // Compile the model for the CPU
-  LITERT_ASSIGN_OR_ABORT(
-      auto compiled_model,
-      litert::CompiledModel::Create(env, model, kLiteRtHwAcceleratorCpu));
+  LITERT_ASSIGN_OR_ABORT(auto compiled_model,
+                         litert::CompiledModel::Create(
+                             env, model_path, litert::HwAccelerators::kCpu));
 
   // Create input and output buffers
   LITERT_ASSIGN_OR_ABORT(auto input_buffers,
