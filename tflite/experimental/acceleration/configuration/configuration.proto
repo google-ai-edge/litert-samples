@@ -1,5 +1,0 @@
-syntax = "proto2";
-
-package tflite.proto;
-
-import public "tflite/acceleration/configuration/configuration.proto";
