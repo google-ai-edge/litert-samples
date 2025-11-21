@@ -65,6 +65,7 @@ android {
   dynamicFeatures.add(":litert_npu_runtime_libraries:qualcomm_runtime_v73")
   dynamicFeatures.add(":litert_npu_runtime_libraries:qualcomm_runtime_v75")
   dynamicFeatures.add(":litert_npu_runtime_libraries:qualcomm_runtime_v79")
+  dynamicFeatures.add(":litert_npu_runtime_libraries:qualcomm_runtime_v81")
 
   bundle {
     deviceTargetingConfig = file("device_targeting_configuration.xml")
