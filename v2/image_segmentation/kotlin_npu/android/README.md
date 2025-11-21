@@ -44,10 +44,7 @@ $ $bundletool build-apks \
   --bundle=./build/outputs/bundle/release/app-release.aab \
   --output="$tmp_dir/image_segmentation.apks" \
   --local-testing \
-  --overwrite \
-  --ks=tools/android/debug_keystore \
-  --ks-pass=pass:android \
-  --ks-key-alias=androiddebugkey
+  --overwrite
 
 $ $bundletool install-apks --apks="$tmp_dir/image_segmentation.apks" \
   --device-groups=<GROUP_FOR_YOUR_DEVICE>
@@ -65,6 +62,7 @@ Currently, the following devices are supported:
 | Qualcomm | SM8550    |  S+             | Qualcomm_SM8550            |
 | Qualcomm | SM8650    |  S+             | Qualcomm_SM8650            |
 | Qualcomm | SM8750    |  S+             | Qualcomm_SM8750            |
+| Qualcomm | SM8850    |  S+             | Qualcomm_SM8850            |
 | Mediatek | MT6878    |  15             | Mediatek_MT6878_ANDROID_15 |
 | Mediatek | MT6897    |  15             | Mediatek_MT6897_ANDROID_15 |
 | Mediatek | MT6983    |  15             | Mediatek_MT6983_ANDROID_15 |

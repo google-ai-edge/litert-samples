@@ -57,3 +57,5 @@ include(":litert_npu_runtime_libraries:qualcomm_runtime_v73")
 include(":litert_npu_runtime_libraries:qualcomm_runtime_v75")
 
 include(":litert_npu_runtime_libraries:qualcomm_runtime_v79")
+
+include(":litert_npu_runtime_libraries:qualcomm_runtime_v81")
