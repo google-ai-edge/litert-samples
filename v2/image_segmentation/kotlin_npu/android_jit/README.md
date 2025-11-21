@@ -45,3 +45,21 @@ $ $bundletool install-apks --apks="$tmp_dir/image_segmentation.apks" \
 
 Learn more about local testing, see
 [this doc](https://developer.android.com/google/play/on-device-ai#local-testing).
+
+### Identify the group for your device
+
+Currently, the following devices are supported:
+
+| Vendor   | SoC Model | Android version | Group Name                 |
+|----------|-----------|-----------------|----------------------------|
+| Qualcomm | SM8450    |  S+             | Qualcomm_SM8450            |
+| Qualcomm | SM8550    |  S+             | Qualcomm_SM8550            |
+| Qualcomm | SM8650    |  S+             | Qualcomm_SM8650            |
+| Qualcomm | SM8750    |  S+             | Qualcomm_SM8750            |
+| Qualcomm | SM8850    |  S+             | Qualcomm_SM8850            |
+| Mediatek | MT6878    |  15             | Mediatek_MT6878_ANDROID_15 |
+| Mediatek | MT6897    |  15             | Mediatek_MT6897_ANDROID_15 |
+| Mediatek | MT6983    |  15             | Mediatek_MT6983_ANDROID_15 |
+| Mediatek | MT6985    |  15             | Mediatek_MT6985_ANDROID_15 |
+| Mediatek | MT6989    |  15             | Mediatek_MT6989_ANDROID_15 |
+| Mediatek | MT6991    |  15             | Mediatek_MT6991_ANDROID_15 |
