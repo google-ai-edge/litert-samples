@@ -150,12 +150,12 @@ if [[ -z "$HOST_NPU_LIB" ]]; then
 fi
 if [[ -z "$HOST_NPU_DISPATCH_LIB" ]]; then
     echo "Defaulting to internal dispatch library path."
-    HOST_NPU_DISPATCH_LIB="${BINARY_BUILD_PATH}/${PACKAGE_LOCATION}/${PACKAGE_NAME}.runfiles/litert/vendors/qualcomm/dispatch"
+    HOST_NPU_DISPATCH_LIB="${BINARY_BUILD_PATH}/${PACKAGE_LOCATION}/${PACKAGE_NAME}/litert/vendors/qualcomm/dispatch"
 fi
 if [[ "$USE_JIT" == "true" ]]; then
     echo "Using NPU JIT compilation."
     if [[ -z "$HOST_NPU_COMPILER_LIB" ]]; then
-        HOST_NPU_COMPILER_LIB="${BINARY_BUILD_PATH}/${PACKAGE_LOCATION}/${PACKAGE_NAME}.runfiles/litert/vendors/qualcomm/compiler"
+        HOST_NPU_COMPILER_LIB="${BINARY_BUILD_PATH}/${PACKAGE_LOCATION}/${PACKAGE_NAME}/litert/vendors/qualcomm/compiler"
     fi
 fi
 
