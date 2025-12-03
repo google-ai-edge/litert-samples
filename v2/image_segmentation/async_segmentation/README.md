@@ -1,10 +1,4 @@
 # LiteRT Android CPU/GPU/NPU Image Segmentation
-__Disclaimer:__
-
-*LiteRT NPU acceleration is only available through an Early Access Program. If
-you are not already enrolled, [sign up](http://forms.gle/CoH4jpLwxiEYvDvF6).
-See [NPU acceleration instruction](https://ai.google.dev/edge/litert/next/eap/npu) for more information about compiling NPU
-models and setup NPU runtime.*
 
 ## This project demonstrates:
 
