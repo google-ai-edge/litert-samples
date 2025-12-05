@@ -48,9 +48,6 @@ significantly faster inference on compatible devices.
 
 -   Same 21-class segmentation as CPU/GPU version
 
--   Requires enrollment in the
-    [Early Access Program](forms.gle/CoH4jpLwxiEYvDvF6)
-
 **Performance on Samsung S25 Ultra:**
 
 -   CPU: 120-140ms per frame
