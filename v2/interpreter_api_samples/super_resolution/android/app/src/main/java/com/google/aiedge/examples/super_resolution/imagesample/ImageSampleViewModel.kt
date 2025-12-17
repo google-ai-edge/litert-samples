@@ -85,7 +85,7 @@ class ImageSampleViewModel(private val imageSuperResolutionHelper: ImageSuperRes
         val bitmap = selectBitmapFlow.value ?: return
         sharpenJob = viewModelScope.launch(Dispatchers.IO) {
             if (bitmap.config != Bitmap.Config.ARGB_8888) {
-                bitmap.config = Bitmap.Config.ARGB_8888
+              bitmap.setConfig(Bitmap.Config.ARGB_8888)
             }
             imageSuperResolutionHelper.makeSuperResolution(bitmap)
         }

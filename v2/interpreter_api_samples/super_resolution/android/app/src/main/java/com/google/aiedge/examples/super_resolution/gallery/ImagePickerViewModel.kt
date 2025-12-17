@@ -127,7 +127,7 @@ class ImagePickerViewModel(private val imageSuperResolutionHelper: ImageSuperRes
      */
     private suspend fun makeSharpen(bitmap: Bitmap) {
         if (bitmap.config != Bitmap.Config.ARGB_8888) {
-            bitmap.config = Bitmap.Config.ARGB_8888
+            bitmap.setConfig(Bitmap.Config.ARGB_8888)
         }
         imageSuperResolutionHelper.makeSuperResolution(bitmap)
     }

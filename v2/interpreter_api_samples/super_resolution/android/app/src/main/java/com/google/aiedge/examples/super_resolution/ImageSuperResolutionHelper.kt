@@ -59,7 +59,6 @@ class ImageSuperResolutionHelper(private val context: Context) {
             Log.i(TAG, "Done creating TFLite buffer from ESRGAN model")
             val options = Interpreter.Options().apply {
                 numThreads = 4
-                useNNAPI = delegate == Delegate.CPU
             }
             Interpreter(litertBuffer, options)
         } catch (e: Exception) {
@@ -134,6 +133,6 @@ class ImageSuperResolutionHelper(private val context: Context) {
     )
 
     enum class Delegate {
-        CPU, NNAPI
+        CPU
     }
 }

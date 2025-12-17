@@ -2,11 +2,12 @@ plugins {
     alias(libs.plugins.androidApplication)
     alias(libs.plugins.jetbrainsKotlinAndroid)
     alias(libs.plugins.undercouchDownload)
+    alias(libs.plugins.composeCompiler)
 }
 
 android {
     namespace = "com.google.aiedge.examples.super_resolution"
-    compileSdk = 34
+    compileSdk = 36
 
     defaultConfig {
         applicationId = "com.google.aiedge.examples.super_resolution"
@@ -62,21 +63,24 @@ dependencies {
     implementation(libs.androidx.lifecycle.runtime.compose)
     implementation(libs.androidx.lifecycle.viewmodel.compose)
     implementation(libs.androidx.activity.compose)
+    implementation(libs.androidx.material.icons.extended)
     implementation(platform(libs.androidx.compose.bom))
     implementation(libs.androidx.ui)
     implementation(libs.androidx.ui.graphics)
     implementation(libs.androidx.ui.tooling.preview)
     implementation(libs.androidx.material2)
     implementation(libs.litert)
-    implementation(libs.litert.support)
-    implementation(libs.litert.metadata)
+    implementation(libs.litert.support) {
+      exclude(group = "com.google.ai.edge.litert", module = "litert-api")
+    }
+    implementation(libs.litert.metadata) {
+      exclude(group = "com.google.ai.edge.litert", module = "litert-api")
+    }
     implementation(libs.androidx.camera.core)
     implementation(libs.androidx.camera.lifecycle)
     implementation(libs.androidx.camera.view)
     implementation(libs.androidx.camera.camera2)
     implementation(libs.coil.compose)
-    implementation(libs.litert.api)
-    implementation(libs.google.litert)
     implementation(libs.androidx.exifinterface)
 
     testImplementation(libs.junit)
