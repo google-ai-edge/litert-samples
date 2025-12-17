@@ -104,18 +104,23 @@ class ImageSegmentationHelper(private val context: Context) {
           .selectModel(env)
 
       withContext(singleThreadDispatcher) {
+        val options = CompiledModel.Options(aiPackModelProvider.getCompatibleAccelerators()).apply {
+          qualcommOptions = CompiledModel.QualcommOptions(
+            htpPerformanceMode = CompiledModel.QualcommOptions.HtpPerformanceMode.HIGH_PERFORMANCE
+          )
+        }
         val model =
           if (aiPackModelProvider.getType() == ModelProvider.Type.ASSET) {
             CompiledModel.create(
               context.assets,
               aiPackModelProvider.getPath(),
-              CompiledModel.Options(aiPackModelProvider.getCompatibleAccelerators()),
+              options,
               env,
             )
           } else {
             CompiledModel.create(
               aiPackModelProvider.getPath(),
-              CompiledModel.Options(aiPackModelProvider.getCompatibleAccelerators()),
+              options,
               env,
             )
           }

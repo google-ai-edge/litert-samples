@@ -67,12 +67,17 @@ class ImageSegmentationHelper(private val context: Context) {
       val accelerator = toAccelerator(acceleratorEnum)
       val env = Environment.create(BuiltinNpuAcceleratorProvider(context))
 
+      val options = CompiledModel.Options(accelerator).apply {
+        qualcommOptions = CompiledModel.QualcommOptions(
+          htpPerformanceMode = CompiledModel.QualcommOptions.HtpPerformanceMode.HIGH_PERFORMANCE
+        )
+      }
       withContext(singleThreadDispatcher) {
         val model =
             CompiledModel.create(
               context.assets,
               "model/segmentation_multiclass_cpu_gpu.tflite",
-              CompiledModel.Options(accelerator),
+              options,
               env,
             )
         segmenter = Segmenter(model, coloredLabels)
