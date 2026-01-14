@@ -51,7 +51,9 @@ build:clang_local --repo_env USE_HERMETIC_CC_TOOLCHAIN=1
 build --repo_env=USE_PYWRAP_RULES=True
 build --copt=-DGRPC_BAZEL_BUILD
 build --cxxopt=-std=gnu++17
+build --cxxopt=-fpermissive
 build --host_copt=-DGRPC_BAZEL_BUILD
+build --host_cxxopt=-fpermissive
 build --action_env=GRPC_BAZEL_RUNTIME=1
 build --repo_env=PROTOCOL_BUFFERS_PYTHON_IMPLEMENTATION=upb
 build --action_env=PROTOCOL_BUFFERS_PYTHON_IMPLEMENTATION=upb
@@ -122,6 +124,13 @@ build --incompatible_enforce_config_setting_visibility
 # TODO: also enable this flag after fixing the visibility violations
 # build --incompatible_config_setting_private_default_visibility
 
+# Compiler MLIR Builds
+common --copt=-DMLIR_PYTHON_PACKAGE_PREFIX=ai_edge_litert.mlir.
+common --copt=-DNB_DOMAIN=litert
+
+# Use GitHub mirror for BCR to work around bcr.bazel.build outages
+common --registry=https://raw.githubusercontent.com/bazelbuild/bazel-central-registry/main/
+
 # Default options should come above this line.
 
 # Android configs. Bazel needs to have --cpu and --fat_apk_cpu both set to the
@@ -178,6 +187,12 @@ build:apple-toolchain --config=clang_local
 build:apple-toolchain --apple_crosstool_top=@local_config_apple_cc//:toolchain
 build:apple-toolchain --crosstool_top=@local_config_apple_cc//:toolchain
 build:apple-toolchain --host_crosstool_top=@local_config_apple_cc//:toolchain
+
+# Wheel builds need the LiteRT runtime dylib linked into python extensions.
+# This config overrides the macos default above.
+build:macos_wheel --config=macos
+build:macos_wheel --define=resolve_symbols_in_exec=false
+build:macos_wheel --define=litert_macos_wheel_use_so=true
 
 # Settings for MacOS on ARM CPUs.
 build:macos_arm64 --config=macos
@@ -454,7 +469,7 @@ build:elinux_armhf --copt -mfp16-format=ieee
 
 # Load rc file written by ./configure.
 # Fail on missing litert configure. It must exist for clang to be properly configured.
-import %workspace%/.litert_configure.bazelrc
+try-import %workspace%/.litert_configure.bazelrc
 try-import %workspace%/xla_configure.bazelrc
 
 # Load rc file with user-specific options.
