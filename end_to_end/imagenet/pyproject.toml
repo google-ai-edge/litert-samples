@@ -1,12 +1,15 @@
 [project]
 name = "imagenet-e2e-sample"
 version = "0.1.0"
-description = "Add your description here"
+description = "A LiteRT sample"
 readme = "README.md"
 requires-python = ">=3.10, <3.14"
 dependencies = [
     "ai-edge-litert>=2.1.0",
+    "ai-edge-quantizer>=0.4.1",
     "ai-edge-torch>=0.2.0",
+    "numpy>=2.2.6",
+    "pillow>=12.0.0",
     "torch>=2.8.0",
     "torchvision==0.24.0+cpu",
 ]
@@ -15,7 +18,7 @@ dependencies = [
 torch = { index = "pytorch" }
 torchvision = { index = "pytorch" }
 
+# The pytorch build must have jax support otherwise you may get errors like "PyTorch is not linked with support for jax devices" during model conversion.
 [[tool.uv.index]]
 name = "pytorch"
 url = "https://download.pytorch.org/whl/cpu"
-

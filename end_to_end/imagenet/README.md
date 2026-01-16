@@ -1,8 +1,10 @@
-# Imagenet LiteRT end-to-end sample
+# ImageNet LiteRT end-to-end sample
 
-This sample demonstrates how to convert an ImageNet model from PyTorch to LiteRT (TFLite) format and run classification using the LiteRT Python package.
+This sample demonstrates how to convert an ImageNet model from PyTorch to LiteRT format and run classification using the LiteRT Python package.
 
 While you can often download converted models from a model hub, they may have been trained with preprocessing steps (or parameters) incompatible with this script. This sample ensures the preprocessing logic matches the model conversion.
+
+Currently it only supports CPU inferencing. 
 
 ### Why convert the model yourself?
 
@@ -20,8 +22,8 @@ We recommend using `uv` to run this sample.
 The script requires ImageNet label metadata to map model outputs to human-readable names. Run the following commands in the project root to download the required files:
 
 ```bash
-curl -sSL -o imagenet_lsvrc_2015_synsets.txt [https://raw.githubusercontent.com/tensorflow/models/refs/heads/master/research/slim/datasets/imagenet_lsvrc_2015_synsets.txt](https://raw.githubusercontent.com/tensorflow/models/refs/heads/master/research/slim/datasets/imagenet_lsvrc_2015_synsets.txt)
-curl -sSL -o imagenet_metadata.txt [https://raw.githubusercontent.com/tensorflow/models/refs/heads/master/research/slim/datasets/imagenet_metadata.txt](https://raw.githubusercontent.com/tensorflow/models/refs/heads/master/research/slim/datasets/imagenet_metadata.txt)
+curl -sSL -o imagenet_lsvrc_2015_synsets.txt https://raw.githubusercontent.com/tensorflow/models/refs/heads/master/research/slim/datasets/imagenet_lsvrc_2015_synsets.txt
+curl -sSL -o imagenet_metadata.txt https://raw.githubusercontent.com/tensorflow/models/refs/heads/master/research/slim/datasets/imagenet_metadata.txt
 ```
 
 
@@ -46,7 +48,7 @@ If you choose a different architecture, the default output name matches it (for 
 2) Run Classification
 
 ```bash
-uv run main.py --model resnet18.tflite --image /path/to/something.jpg
+uv run main.py --model mobilenet_v2.tflite --image /path/to/something.jpg
 ```
 
 ### Options

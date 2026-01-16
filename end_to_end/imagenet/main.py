@@ -81,41 +81,44 @@ def _load_image(
   array = np.transpose(array, (2, 0, 1))
   return array
 
-
-def _infer_input_size(model, signature_index: int) -> tuple[int, int]:
-  """Infer the model's input HxW for preprocessing from compiled metadata."""
+# Used in the classify path
+def _infer_input_size(model, signature_index: int) -> tuple[int, int, bool]:
+  """Infer the model's input HxW and layout (channels_first) for preprocessing."""
   default_size = (224, 224)
-  # Try to infer HxW from the compiled model input metadata; fall back to 224x224.
+  default_channels_first = True
+  # Try to infer HxW/layout from the compiled model input metadata; fall back.
   try:
     requirements = model.get_input_buffer_requirements(0, signature_index)
   except Exception:
-    return default_size
+    return default_size[0], default_size[1], default_channels_first
   dims = (
       requirements.get("dimensions")
       or requirements.get("shape")
       or requirements.get("dims")
   )
   if not dims:
-    return default_size
-  # Handle common NCHW/NHWC shapes, tolerating unknown batch or dim values.
+    return default_size[0], default_size[1], default_channels_first
   try:
     dims = [int(dim) for dim in dims]
   except Exception:
-    return default_size
+    return default_size[0], default_size[1], default_channels_first
+
+  # Handle common NCHW/NHWC shapes, tolerating unknown batch or dim values.
   if len(dims) == 4:
     if dims[1] == 3:
-      return dims[2], dims[3]
+      return dims[2], dims[3], True  # NCHW
     if dims[-1] == 3:
-      return dims[1], dims[2]
+      return dims[1], dims[2], False  # NHWC
     if dims[0] in (1, -1):
       dims = dims[1:]
+
   if len(dims) == 3:
     if dims[0] == 3:
-      return dims[1], dims[2]
+      return dims[1], dims[2], True  # CHW
     if dims[-1] == 3:
-      return dims[0], dims[1]
-  return default_size
+      return dims[0], dims[1], False  # HWC
 
+  return default_size[0], default_size[1], default_channels_first
 
 def _pick_preprocess_config(
     model_path: str, input_height: int, input_width: int
@@ -309,6 +312,7 @@ def _parse_convert_args(argv: list[str]):
   return parser.parse_args(argv)
 
 
+# Used in the convert path
 def _infer_input_size_from_weights(weights) -> tuple[int, int]:
   """Infer input HxW from torchvision weights metadata."""
   default_size = (224, 224)
@@ -408,7 +412,7 @@ def _init_torchvision_model(arch: str):
       ),
   }
   if arch not in model_specs:
-    raise ValueError(f"Unsupported architecture: {arch}")
+    raise ValueError(f"Unsupported model architecture: {arch}")
   model_fn, weights = model_specs[arch]
   model = model_fn(weights).eval()
   input_height, input_width = _infer_input_size_from_weights(weights)
@@ -428,14 +432,22 @@ def _convert_pretrained(argv: list[str]) -> int:
   edge_model = ai_edge_torch.convert(model, sample_inputs)
   if args.quantize:
     import tempfile  # pylint: disable=import-outside-toplevel
+    tmp_path = None
+    try:
+      with tempfile.NamedTemporaryFile(suffix=".tflite", delete=False) as tmp:
+        tmp_path = tmp.name
 
-    with tempfile.NamedTemporaryFile(suffix=".tflite", delete=False) as tmp:
-      tmp_path = tmp.name
-    edge_model.export(tmp_path)
-    qt = quantizer.Quantizer(tmp_path)
-    qt.load_quantization_recipe(recipe.dynamic_wi8_afp32())
-    qt.quantize().export_model(args.output)
-    print(f"Saved quantized LiteRT model to: {args.output}")
+      edge_model.export(tmp_path)
+      qt = quantizer.Quantizer(tmp_path)
+      qt.load_quantization_recipe(recipe.dynamic_wi8_afp32())
+      qt.quantize().export_model(args.output)
+      print(f"Saved quantized LiteRT model to: {args.output}")
+    finally:
+      if tmp_path:
+        try:
+          os.remove(tmp_path)
+        except FileNotFoundError:
+          print(f"Warning: failed to delete temp file {tmp_path}: {e}", file=sys.stderr)
   else:
     edge_model.export(args.output)
     print(f"Saved LiteRT model to: {args.output}")
@@ -455,7 +467,7 @@ def _classify(argv: list[str]) -> int:
 
   channels = 3
 
-  input_height, input_width = _infer_input_size(model, signature_index)
+  input_height, input_width, channels_first = _infer_input_size(model, signature_index)
   preprocess = _pick_preprocess_config(args.model, input_height, input_width)
   image_array = _load_image(
       args.image,
@@ -467,6 +479,8 @@ def _classify(argv: list[str]) -> int:
       preprocess["std"],
       preprocess["resample"],
   )
+  if not channels_first:
+    image_array = np.transpose(image_array, (1, 2, 0))  # CHW -> HWC
   input_buffers = model.create_input_buffers(signature_index)
   output_buffers = model.create_output_buffers(signature_index)
   input_buffers[0].write(image_array)
