@@ -20,8 +20,8 @@ We recommend using `uv` to run this sample.
 The script requires ImageNet label metadata to map model outputs to human-readable names. Run the following commands in the project root to download the required files:
 
 ```bash
-curl -L -o imagenet_lsvrc_2015_synsets.txt [https://raw.githubusercontent.com/tensorflow/examples/master/lite/examples/image_classification/android/app/src/main/assets/imagenet_lsvrc_2015_synsets.txt](https://raw.githubusercontent.com/tensorflow/examples/master/lite/examples/image_classification/android/app/src/main/assets/imagenet_lsvrc_2015_synsets.txt)
-curl -L -o imagenet_metadata.txt [https://raw.githubusercontent.com/tensorflow/examples/master/lite/examples/image_classification/android/app/src/main/assets/imagenet_metadata.txt](https://raw.githubusercontent.com/tensorflow/examples/master/lite/examples/image_classification/android/app/src/main/assets/imagenet_metadata.txt)
+curl -sSL -o imagenet_lsvrc_2015_synsets.txt [https://raw.githubusercontent.com/tensorflow/models/refs/heads/master/research/slim/datasets/imagenet_lsvrc_2015_synsets.txt](https://raw.githubusercontent.com/tensorflow/models/refs/heads/master/research/slim/datasets/imagenet_lsvrc_2015_synsets.txt)
+curl -sSL -o imagenet_metadata.txt [https://raw.githubusercontent.com/tensorflow/models/refs/heads/master/research/slim/datasets/imagenet_metadata.txt](https://raw.githubusercontent.com/tensorflow/models/refs/heads/master/research/slim/datasets/imagenet_metadata.txt)
 ```
 
 

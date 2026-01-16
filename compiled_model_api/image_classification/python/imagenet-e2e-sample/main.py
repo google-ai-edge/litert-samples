@@ -301,6 +301,11 @@ def _parse_convert_args(argv: list[str]):
       default=None,
       help="Path to output .tflite file.",
   )
+  parser.add_argument(
+      "--quantize",
+      action="store_true",
+      help="Enable dynamic weight int8 quantization (activations float32).",
+  )
   return parser.parse_args(argv)
 
 
@@ -415,12 +420,25 @@ def _convert_pretrained(argv: list[str]) -> int:
   if not args.output:
     args.output = os.path.join(os.getcwd(), f"{args.arch}.tflite")
   import ai_edge_torch  # pylint: disable=import-outside-toplevel
+  if args.quantize:
+    from ai_edge_quantizer import quantizer, recipe  # pylint: disable=import-outside-toplevel
 
   model, torch, input_height, input_width = _init_torchvision_model(args.arch)
   sample_inputs = (torch.randn(1, 3, input_height, input_width),)
   edge_model = ai_edge_torch.convert(model, sample_inputs)
-  edge_model.export(args.output)
-  print(f"Saved LiteRT model to: {args.output}")
+  if args.quantize:
+    import tempfile  # pylint: disable=import-outside-toplevel
+
+    with tempfile.NamedTemporaryFile(suffix=".tflite", delete=False) as tmp:
+      tmp_path = tmp.name
+    edge_model.export(tmp_path)
+    qt = quantizer.Quantizer(tmp_path)
+    qt.load_quantization_recipe(recipe.dynamic_wi8_afp32())
+    qt.quantize().export_model(args.output)
+    print(f"Saved quantized LiteRT model to: {args.output}")
+  else:
+    edge_model.export(args.output)
+    print(f"Saved LiteRT model to: {args.output}")
   return 0
 
 
