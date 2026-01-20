@@ -15,6 +15,7 @@
  */
 
 package com.google.aiedge.examples.digit_classifier
+import androidx.compose.material3.Switch
 
 import android.graphics.Bitmap
 import android.os.Bundle
@@ -67,8 +68,6 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 
 
-import androidx.compose.material3.Switch
-
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -79,10 +78,7 @@ class MainActivity : ComponentActivity() {
 
             Scaffold(
                 topBar = {
-                    Header(
-                        isGpuEnabled = uiState.isGpuEnabled,
-                        onGpuEnabledChange = { viewModel.updateGpuEnabled(it) }
-                    )
+                    Header()
                 },
             ) { paddingValue ->
                 Column(
@@ -111,6 +107,24 @@ class MainActivity : ComponentActivity() {
                     Text("Prediction result: ${uiState.digit}")
                     Spacer(modifier = Modifier.height(5.dp))
                     Text("Confidence: ${uiState.score}")
+                    Spacer(modifier = Modifier.height(20.dp))
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text("Accelerator: ${uiState.accelerator}")
+                        Spacer(modifier = Modifier.width(10.dp))
+                        Switch(
+                            checked = uiState.accelerator == DigitClassificationHelper.AcceleratorEnum.GPU,
+                            onCheckedChange = { isChecked ->
+                                val newAccelerator = if (isChecked) {
+                                    DigitClassificationHelper.AcceleratorEnum.GPU
+                                } else {
+                                    DigitClassificationHelper.AcceleratorEnum.CPU
+                                }
+                                viewModel.setAccelerator(newAccelerator)
+                            }
+                        )
+                    }
                     Spacer(Modifier.weight(1f))
                     Button(onClick = {
                         viewModel.cleanBoard()
@@ -203,11 +217,7 @@ class MainActivity : ComponentActivity() {
 
     @OptIn(ExperimentalMaterial3Api::class)
     @Composable
-    fun Header(
-        modifier: Modifier = Modifier,
-        isGpuEnabled: Boolean,
-        onGpuEnabledChange: (Boolean) -> Unit
-    ) {
+    fun Header(modifier: Modifier = Modifier) {
         TopAppBar(
             modifier = modifier,
             colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.LightGray),
@@ -224,15 +234,6 @@ class MainActivity : ComponentActivity() {
 
                     Spacer(modifier = modifier.width(10.dp))
                     Text(text = "LiteRT", color = Color.Blue, fontWeight = FontWeight.SemiBold)
-                    Spacer(Modifier.weight(1f))
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text(text = "GPU", color = Color.Black)
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Switch(
-                            checked = isGpuEnabled,
-                            onCheckedChange = onGpuEnabledChange
-                        )
-                    }
                 }
             },
         )

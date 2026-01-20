@@ -17,13 +17,14 @@
 package com.google.aiedge.examples.digit_classifier
 
 import androidx.compose.runtime.Immutable
+import com.google.aiedge.examples.digit_classifier.DigitClassificationHelper.AcceleratorEnum
 
 @Immutable
 class UiState(
     val digit: String = "-",
     val score: Float = 0f,
     val drawOffsets: List<DrawOffset> = emptyList(),
-    val isGpuEnabled: Boolean = false
+    val accelerator: AcceleratorEnum = AcceleratorEnum.CPU
 )
 
 abstract class DrawOffset

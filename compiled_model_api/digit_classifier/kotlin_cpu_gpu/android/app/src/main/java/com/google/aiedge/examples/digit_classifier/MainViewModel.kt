@@ -22,7 +22,6 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.CreationExtras
-import com.google.ai.edge.litert.Accelerator
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -42,8 +41,14 @@ class MainViewModel(private val digitClassificationHelper: DigitClassificationHe
         }
     }
 
+    init {
+        viewModelScope.launch {
+            digitClassificationHelper.initClassifier()
+        }
+    }
+
     private val drawFlow = MutableStateFlow<List<DrawOffset>>(emptyList())
-    private val isGpuEnabledFlow = MutableStateFlow(false)
+    private val acceleratorFlow = MutableStateFlow(DigitClassificationHelper.AcceleratorEnum.CPU)
 
     val uiState: StateFlow<UiState> = combine(
         digitClassificationHelper.classification
@@ -53,21 +58,15 @@ class MainViewModel(private val digitClassificationHelper: DigitClassificationHe
                 Pair("-", 0f)
             ),
         drawFlow,
-        isGpuEnabledFlow
-    ) { pair, drawOffsets, isGpuEnabled ->
+        acceleratorFlow
+    ) { pair, drawOffsets, accelerator ->
         UiState(
             digit = if (drawOffsets.isEmpty()) "-" else pair.first,
             score = if (drawOffsets.isEmpty()) 0f else pair.second,
             drawOffsets = drawOffsets,
-            isGpuEnabled = isGpuEnabled
+            accelerator = accelerator
         )
     }.stateIn(viewModelScope, SharingStarted.Lazily, UiState())
-
-    init {
-        viewModelScope.launch {
-            digitClassificationHelper.initHelper()
-        }
-    }
 
     fun classify(bitmap: Bitmap) {
         viewModelScope.launch {
@@ -81,22 +80,16 @@ class MainViewModel(private val digitClassificationHelper: DigitClassificationHe
         }
     }
 
-    fun updateGpuEnabled(isGpuEnabled: Boolean) {
-        viewModelScope.launch {
-            isGpuEnabledFlow.emit(isGpuEnabled)
-            digitClassificationHelper.initHelper(
-                if (isGpuEnabled) Accelerator.GPU else Accelerator.CPU
-            )
-        }
-    }
-
     /* Clean the board*/
     fun cleanBoard() {
         drawFlow.update { emptyList() }
     }
-    
-    override fun onCleared() {
-        super.onCleared()
-        digitClassificationHelper.close()
+
+    /** Set Accelerator for DigitClassificationHelper(CPU/GPU) */
+    fun setAccelerator(acceleratorEnum: DigitClassificationHelper.AcceleratorEnum) {
+        viewModelScope.launch { 
+            digitClassificationHelper.initClassifier(acceleratorEnum)
+            acceleratorFlow.update { acceleratorEnum }
+        }
     }
 }

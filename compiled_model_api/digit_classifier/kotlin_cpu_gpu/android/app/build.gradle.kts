@@ -1,8 +1,8 @@
 plugins {
     alias(libs.plugins.androidApplication)
     alias(libs.plugins.jetbrainsKotlinAndroid)
+    alias(libs.plugins.compose.compiler)
     alias(libs.plugins.undercouchDownload)
-    alias(libs.plugins.composeCompiler)
 }
 
 android {
@@ -41,6 +41,7 @@ android {
     buildFeatures {
         compose = true
     }
+
     packaging {
         resources {
             excludes += "/META-INF/{AL2.0,LGPL2.1}"

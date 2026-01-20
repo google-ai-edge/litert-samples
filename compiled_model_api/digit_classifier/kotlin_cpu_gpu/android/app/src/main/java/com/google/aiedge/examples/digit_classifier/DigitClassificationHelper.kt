@@ -19,8 +19,8 @@ package com.google.aiedge.examples.digit_classifier
 import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.Color
+import android.graphics.Matrix
 import android.util.Log
-import androidx.core.graphics.scale
 import com.google.ai.edge.litert.Accelerator
 import com.google.ai.edge.litert.CompiledModel
 import kotlinx.coroutines.Dispatchers
@@ -28,14 +28,22 @@ import kotlinx.coroutines.channels.BufferOverflow
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.withContext
-import java.nio.FloatBuffer
 
 class DigitClassificationHelper(private val context: Context) {
     private var model: CompiledModel? = null
     
+    // Use a single thread to avoid race conditions with model execution
+    private val dispatcher = Dispatchers.IO.limitedParallelism(1)
+
     companion object {
         private const val TAG = "DigitClassificationHelper"
-        private const val MODEL_PATH = "digit_classifier.tflite"
+        
+        fun toAccelerator(acceleratorEnum: AcceleratorEnum): Accelerator {
+            return when (acceleratorEnum) {
+                AcceleratorEnum.CPU -> Accelerator.CPU
+                AcceleratorEnum.GPU -> Accelerator.GPU
+            }
+        }
     }
 
     /** As the result of digit classification, this value emits digit and score */
@@ -45,99 +53,101 @@ class DigitClassificationHelper(private val context: Context) {
         extraBufferCapacity = 64, onBufferOverflow = BufferOverflow.DROP_OLDEST
     )
 
-    suspend fun initHelper(accelerator: Accelerator = Accelerator.CPU) {
-        withContext(Dispatchers.IO) {
-            try {
-                model?.close()
-                model = null
-                // Initialize with specified accelerator
-                val options = CompiledModel.Options(accelerator)
-                model = CompiledModel.create(context.assets, MODEL_PATH, options, null)
-                Log.i(TAG, "Done creating LiteRT CompiledModel with $accelerator")
-            } catch (e: Exception) {
-                Log.e(TAG, "Initializing LiteRT has failed with error: ${e.message}")
+    enum class AcceleratorEnum {
+        CPU,
+        GPU,
+    }
+
+    suspend fun initClassifier(acceleratorEnum: AcceleratorEnum = AcceleratorEnum.CPU) {
+        cleanup()
+        try {
+            withContext(dispatcher) {
+                model = CompiledModel.create(
+                    context.assets,
+                    "digit_classifier.tflite",
+                    CompiledModel.Options(toAccelerator(acceleratorEnum)),
+                    null
+                )
+                Log.i(TAG, "Created a CompiledModel with $acceleratorEnum")
             }
+        } catch (e: Exception) {
+            Log.e(TAG, "Initializing CompiledModel has failed with error: ${e.message}")
         }
+    }
+
+    fun cleanup() {
+        model?.close()
+        model = null
     }
 
     suspend fun classify(bitmap: Bitmap) {
-        withContext(Dispatchers.IO) {
-            if (model == null) {
-                initHelper()
-                if (model == null) return@withContext
+        withContext(dispatcher) {
+            val localModel = model ?: return@withContext
+
+            try {
+                // 1. Preprocessing
+                // Resize to 28x28
+                val scaledBitmap = Bitmap.createScaledBitmap(bitmap, 28, 28, true)
+                // Convert to grayscale and normalize to 0..1
+                val inputFloatArray = convertBitmapToFloatArray(scaledBitmap)
+
+                // 2. Execution
+                val inputBuffers = localModel.createInputBuffers()
+                val outputBuffers = localModel.createOutputBuffers()
+
+                inputBuffers[0].writeFloat(inputFloatArray)
+                localModel.run(inputBuffers, outputBuffers)
+                
+                val outputFloatArray = outputBuffers[0].readFloat()
+
+                // Cleanup buffers
+                inputBuffers.forEach { it.close() }
+                outputBuffers.forEach { it.close() }
+
+                // 3. Postprocessing
+                val (digit, score) = findResult(outputFloatArray)
+                _classification.emit(Pair(digit.toString(), score))
+
+            } catch (e: Exception) {
+                Log.e(TAG, "Error during classification: ${e.message}")
             }
-
-            val currentModel = model ?: return@withContext
-
-            // Create input and output buffers
-            val inputBuffers = currentModel.createInputBuffers()
-            val outputBuffers = currentModel.createOutputBuffers()
-
-            // Preprocess the image
-            // The model expects 28x28 input, grayscale, normalized to [0, 1]
-            val scaledBitmap = bitmap.scale(28, 28, true)
-            val inputData = preprocessBitmap(scaledBitmap)
-
-            // Write to input buffer
-            inputBuffers[0].writeFloat(inputData)
-
-            // Run inference
-            currentModel.run(inputBuffers, outputBuffers)
-
-            // Read output
-            val outputData = outputBuffers[0].readFloat()
-            
-            // Find result
-            val (digit, score) = findResult(outputData)
-            _classification.emit(Pair(digit.toString(), score))
-            
-            // Close buffers
-            inputBuffers.forEach { it.close() }
-            outputBuffers.forEach { it.close() }
         }
     }
-    
-    private fun preprocessBitmap(bitmap: Bitmap): FloatArray {
+
+    private fun convertBitmapToFloatArray(bitmap: Bitmap): FloatArray {
         val width = bitmap.width
         val height = bitmap.height
         val pixels = IntArray(width * height)
         bitmap.getPixels(pixels, 0, width, 0, 0, width, height)
+
+        // The original sample used ImageProcessor without grayscale conversion, 
+        // implying it sent 3 channels (RGB) to the model.
+        // It also used NormalizeOp(0f, 1f), which effectively keeps the 0-255 range 
+        // when converting from the default Bitmap uint8 values to Float32.
         
-        val floatArray = FloatArray(width * height)
+        // Target: [1, 28, 28, 3]
+        val output = FloatArray(width * height * 3) 
+        
         for (i in pixels.indices) {
             val pixel = pixels[i]
-            // Convert to grayscale and normalize. 
-            // Assuming the input bitmap is white drawing on black background or similar.
-            // The v1 sample used NormalizeOp(0f, 1f) which just casts to float if values are already 0-255? 
-            // Actually TensorImage.fromBitmap converts to 0-255 int values. 
-            // NormalizeOp(0f, 1f) divides by 1? No, (value - mean) / stddev. So (x - 0) / 1 = x.
-            // Wait, TFLite usually expects 0-1 or -1 to 1 for float models.
-            // Let's check v1 code again. 
-            // ImageProcessor.Builder().add(ResizeOp(h, w, ...)).add(NormalizeOp(0f, 1f)).build()
-            // NormalizeOp(0f, 1f) does nothing effectively if input is 0-255? 
-            // Ah, TensorImage handles the conversion.
-            // Let's assume standard 0-1 normalization for float32 models usually.
-            // But the v1 sample might have been trained on 0-255?
-            // Let's look at the v1 code: `NormalizeOp(0f, 1f)` -> (x - 0) / 1. 
-            // If the input tensor is float32, TensorImage loads bitmap as 0-255 integers (in float format).
-            // So it seems it passes 0-255 values.
-            // However, standard MNIST is usually 0-1. 
-            // Let's try to normalize to 0-1 (pixel / 255f). If that fails, we can try 0-255.
             
-            // Using the blue channel as they are all the same for grayscale/black-white
-            val r = Color.red(pixel)
-            val g = Color.green(pixel)
-            val b = Color.blue(pixel)
+            // Extract RGB (ignore alpha)
+            val r = Color.red(pixel).toFloat()
+            val g = Color.green(pixel).toFloat()
+            val b = Color.blue(pixel).toFloat()
             
-            // Simple grayscale conversion or just taking one channel if it's black/white
-            val gray = (r + g + b) / 3.0f
-            
-            // Normalize to 0-1
-            floatArray[i] = gray / 255.0f
+            // Don't divide by 255.0f to match original 0..255 range behavior
+            val baseIndex = i * 3
+            output[baseIndex] = r
+            output[baseIndex + 1] = g
+            output[baseIndex + 2] = b
         }
-        return floatArray
+        return output
     }
 
+    /**
+     * Finds the index and value of the maximum element in a non-empty float array.
+     */
     private fun findResult(array: FloatArray): Pair<Int, Float> {
         if (array.isEmpty()) return Pair(-1, 0f)
 
@@ -152,10 +162,5 @@ class DigitClassificationHelper(private val context: Context) {
         }
 
         return Pair(maxIndex, maxValue)
-    }
-    
-    fun close() {
-        model?.close()
-        model = null
     }
 }
