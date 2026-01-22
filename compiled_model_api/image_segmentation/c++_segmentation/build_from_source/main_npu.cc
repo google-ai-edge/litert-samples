@@ -88,6 +88,13 @@ int main(int argc, char* argv[]) {
   LITERT_ASSIGN_OR_ABORT(litert::Options options, litert::Options::Create());
   options.SetHardwareAccelerators(litert::HwAccelerators::kNpu |
                                   litert::HwAccelerators::kCpu);
+
+ LITERT_ASSIGN_OR_ABORT(auto& qnn_opts, options.GetQualcommOptions());
+  qnn_opts.SetLogLevel(litert::qualcomm::QualcommOptions::LogLevel::kOff);
+  qnn_opts.SetHtpPerformanceMode(
+      litert::qualcomm::QualcommOptions::HtpPerformanceMode::kBurst);
+  std::cout << "Enabled Qualcomm NPU Burst Mode." << std::endl;
+
   LITERT_ASSIGN_OR_ABORT(auto compiled_model, litert::CompiledModel::Create(
                                                   env, model_path, options));
 
