@@ -22,7 +22,7 @@ A standard implementation utilizing the Compiled Model API with support for CPU 
 
 | CPU Execution | GPU Execution |
 | :---: | :---: |
-| ![CPU](../../CPU.jpg) | ![GPU](../../GPU.jpg) |
+| ![CPU](./CPU.jpg) | ![GPU](./GPU.jpg) |
 
 ## Technical Details
 
