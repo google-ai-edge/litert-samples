@@ -46,9 +46,9 @@ load("//litert:tensorflow_source_rules.bzl", "tensorflow_source_repo")
 
 tensorflow_source_repo(
     name = "org_tensorflow",
-    sha256 = "3ec4399033e9691a3375703f418257417191124bcddb754e6ecb53faf68656d2",
-    strip_prefix = "tensorflow-bdb78510d0ce35ea98eb298fc770657a16056a2c",
-    urls = ["https://github.com/tensorflow/tensorflow/archive/bdb78510d0ce35ea98eb298fc770657a16056a2c.tar.gz"],
+    sha256 = "09377e9c6e719fd26a5b41fad3c2a909d24757fd523bb30d8895411cb5ac876b",
+    strip_prefix = "tensorflow-8bb1b4215c096c0800f99b19567856948b0ab332",
+    urls = ["https://github.com/tensorflow/tensorflow/archive/8bb1b4215c096c0800f99b19567856948b0ab332.tar.gz"],
 )
 
 # Initialize the TensorFlow repository and all dependencies.
@@ -192,6 +192,14 @@ load("//third_party/dawn:workspace.bzl", dawn = "repo")
 
 dawn()
 
+load("//third_party/lark:workspace.bzl", lark = "repo")
+
+lark()
+
+load("//third_party/xdsl:workspace.bzl", xdsl = "repo")
+
+xdsl()
+
 load("@rules_jvm_external//:defs.bzl", "maven_install")
 
 maven_install(
@@ -291,9 +299,12 @@ load("//third_party/litert_gpu:workspace.bzl", "litert_gpu")
 
 litert_gpu()
 
+# LiteRT Prebuilts ---------------------------------------------------------------------------------
+load("//third_party/litert_prebuilts:workspace.bzl", "litert_prebuilts")
+
+litert_prebuilts()
+
+# INTEL OPENVINO ---------------------------------------------------------------------------------
 load("//third_party/intel_openvino:openvino.bzl", "openvino_configure")
 
-openvino_configure(
-    name = "intel_openvino",
-    build_file = "//third_party/intel_openvino:openvino.bazel",
-)
+openvino_configure()
