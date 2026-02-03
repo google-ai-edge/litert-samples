@@ -69,13 +69,13 @@ This folder contains the CPU samples that use the **Interpreter API**.
 
 Contributions are welcome\!
 
-1. Read [CONTRIBUTING.md](https://www.google.com/search?q=CONTRIBUTING.md).  
+1. Read [CONTRIBUTING.md](https://github.com/google-ai-edge/litert-samples/blob/main/CONTRIBUTING.md).  
 2. Fork the repo and create a branch.  
 3. Submit a Pull Request.
 
 ## **📄 License**
 
-Apache License 2.0. See [LICENSE](https://www.google.com/search?q=LICENSE) for details.
+Apache License 2.0. See [LICENSE](https://github.com/google-ai-edge/litert-samples/blob/main/LICENSE) for details.
 
 ---
 
