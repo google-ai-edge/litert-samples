@@ -21,7 +21,7 @@ REPO_URL="https://github.com/google-ai-edge/LiteRT.git"
 
 # The specific commit hash to clone (Pinned for stability)
 # You can still override this by passing an argument to the script: ./setup.sh <other_sha>
-DEFAULT_SHA="fb853535a6085fb4c497514b64a4f07b555ddf11"
+DEFAULT_SHA="v2.1.2"
 TARGET_COMMIT="${1:-$DEFAULT_SHA}" 
 
 CLONE_PATH="LiteRT_temp_clone"

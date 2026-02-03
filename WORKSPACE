@@ -46,9 +46,9 @@ load("//litert:tensorflow_source_rules.bzl", "tensorflow_source_repo")
 
 tensorflow_source_repo(
     name = "org_tensorflow",
-    sha256 = "3ec4399033e9691a3375703f418257417191124bcddb754e6ecb53faf68656d2",
-    strip_prefix = "tensorflow-bdb78510d0ce35ea98eb298fc770657a16056a2c",
-    urls = ["https://github.com/tensorflow/tensorflow/archive/bdb78510d0ce35ea98eb298fc770657a16056a2c.tar.gz"],
+    sha256 = "6e78f0d1503b3e70913512cb7c5fdafd1b69dfd45563924ee6ee9f768c8c283a",
+    strip_prefix = "tensorflow-777924f5575e7e6e22e4f47be211c2a94f59c4f5",
+    urls = ["https://github.com/tensorflow/tensorflow/archive/777924f5575e7e6e22e4f47be211c2a94f59c4f5.tar.gz"],
 )
 
 # Initialize the TensorFlow repository and all dependencies.
@@ -62,11 +62,11 @@ load("@org_tensorflow//tensorflow:workspace3.bzl", "tf_workspace3")
 tf_workspace3()
 
 # Initialize hermetic Python
-load("@local_xla//third_party/py:python_init_rules.bzl", "python_init_rules")
+load("@xla//third_party/py:python_init_rules.bzl", "python_init_rules")
 
 python_init_rules()
 
-load("@local_xla//third_party/py:python_init_repositories.bzl", "python_init_repositories")
+load("@xla//third_party/py:python_init_repositories.bzl", "python_init_repositories")
 
 python_init_repositories(
     default_python_version = "system",
@@ -77,7 +77,6 @@ python_init_repositories(
     ],
     local_wheel_workspaces = ["@org_tensorflow//:WORKSPACE"],
     requirements = {
-        "3.9": "@org_tensorflow//:requirements_lock_3_9.txt",
         "3.10": "@org_tensorflow//:requirements_lock_3_10.txt",
         "3.11": "@org_tensorflow//:requirements_lock_3_11.txt",
         "3.12": "@org_tensorflow//:requirements_lock_3_12.txt",
@@ -85,11 +84,11 @@ python_init_repositories(
     },
 )
 
-load("@local_xla//third_party/py:python_init_toolchains.bzl", "python_init_toolchains")
+load("@xla//third_party/py:python_init_toolchains.bzl", "python_init_toolchains")
 
 python_init_toolchains()
 
-load("@local_xla//third_party/py:python_init_pip.bzl", "python_init_pip")
+load("@xla//third_party/py:python_init_pip.bzl", "python_init_pip")
 
 python_init_pip()
 
@@ -111,7 +110,7 @@ load("@org_tensorflow//tensorflow:workspace0.bzl", "tf_workspace0")
 tf_workspace0()
 
 load(
-    "@local_xla//third_party/py:python_wheel.bzl",
+    "@xla//third_party/py:python_wheel.bzl",
     "python_wheel_version_suffix_repository",
 )
 
@@ -138,7 +137,7 @@ cc_toolchain_deps()
 register_toolchains("@rules_ml_toolchain//cc:linux_x86_64_linux_x86_64")
 
 load(
-    "@rules_ml_toolchain//third_party/gpus/cuda/hermetic:cuda_json_init_repository.bzl",
+    "@rules_ml_toolchain//gpu/cuda:cuda_json_init_repository.bzl",
     "cuda_json_init_repository",
 )
 
@@ -150,7 +149,7 @@ load(
     "CUDNN_REDISTRIBUTIONS",
 )
 load(
-    "@rules_ml_toolchain//third_party/gpus/cuda/hermetic:cuda_redist_init_repositories.bzl",
+    "@rules_ml_toolchain//gpu/cuda:cuda_redist_init_repositories.bzl",
     "cuda_redist_init_repositories",
     "cudnn_redist_init_repository",
 )
@@ -164,21 +163,21 @@ cudnn_redist_init_repository(
 )
 
 load(
-    "@rules_ml_toolchain//third_party/gpus/cuda/hermetic:cuda_configure.bzl",
+    "@rules_ml_toolchain//gpu/cuda:cuda_configure.bzl",
     "cuda_configure",
 )
 
 cuda_configure(name = "local_config_cuda")
 
 load(
-    "@rules_ml_toolchain//third_party/nccl/hermetic:nccl_redist_init_repository.bzl",
+    "@rules_ml_toolchain//gpu/nccl:nccl_redist_init_repository.bzl",
     "nccl_redist_init_repository",
 )
 
 nccl_redist_init_repository()
 
 load(
-    "@rules_ml_toolchain//third_party/nccl/hermetic:nccl_configure.bzl",
+    "@rules_ml_toolchain//gpu/nccl:nccl_configure.bzl",
     "nccl_configure",
 )
 
@@ -291,9 +290,12 @@ load("//third_party/litert_gpu:workspace.bzl", "litert_gpu")
 
 litert_gpu()
 
+# LiteRT Prebuilts ---------------------------------------------------------------------------------
+load("//third_party/litert_prebuilts:workspace.bzl", "litert_prebuilts")
+
+litert_prebuilts()
+
+# INTEL OPENVINO ---------------------------------------------------------------------------------
 load("//third_party/intel_openvino:openvino.bzl", "openvino_configure")
 
-openvino_configure(
-    name = "intel_openvino",
-    build_file = "//third_party/intel_openvino:openvino.bazel",
-)
+openvino_configure()
