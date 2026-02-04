@@ -212,7 +212,7 @@ fi
 echo "Target device directory: ${DEVICE_BASE_DIR}"
 
 # Clean up previous deployment
-adb shell "rm -rf ${DEVICE_BASE_DIR}"
+adb shell "rm -rf ${DEVICE_BASE_DIR}/*.so"
 
 # Create directories on device
 adb shell "mkdir -p ${DEVICE_BASE_DIR}"

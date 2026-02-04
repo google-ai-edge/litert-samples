@@ -12,15 +12,8 @@ http_archive(
     strip_prefix = "LiteRT-2.1.2",
     sha256 = "16079585fcd0c7fbb95585db10516d059f35b8860d4a92566e257d67e259473a",
     patch_cmds = [
-        "sed 's|\"//ci/tools/python/wheel:__subpackages__\",||g; s|\"//litert:__subpackages__\"|\"//visibility:public\"|g; s|@flatbuffers//:runtime_cc|@flatbuffers//:flatbuffers|g; s|\"@qairt//:qnn_lib_headers\",|\"@qairt//:qnn_lib_headers\", \"@flatbuffers//:flatbuffers\",|g' litert/vendors/qualcomm/compiler/BUILD > litert/vendors/qualcomm/compiler/BUILD.tmp && mv litert/vendors/qualcomm/compiler/BUILD.tmp litert/vendors/qualcomm/compiler/BUILD",
-        "sed 's|//litert:litert_public|//visibility:public|g' litert/vendors/qualcomm/dispatch/BUILD > litert/vendors/qualcomm/dispatch/BUILD.tmp && mv litert/vendors/qualcomm/dispatch/BUILD.tmp litert/vendors/qualcomm/dispatch/BUILD",
-        "sed 's|\"LiteRtRegisterGpuAccelerator\"|\"LiteRtRegisterAcceleratorGpuOpenCl\"|g' litert/runtime/accelerators/auto_registration.cc > litert/runtime/accelerators/auto_registration.cc.tmp && mv litert/runtime/accelerators/auto_registration.cc.tmp litert/runtime/accelerators/auto_registration.cc",
         "sed 's|//litert|@litert_archive//litert|g' litert/build_common/special_rule.bzl > litert/build_common/special_rule.bzl.tmp && mv litert/build_common/special_rule.bzl.tmp litert/build_common/special_rule.bzl",
         "sed 's|@//third_party|@litert_archive//third_party|g' third_party/litert_prebuilts/workspace.bzl > third_party/litert_prebuilts/workspace.bzl.tmp && mv third_party/litert_prebuilts/workspace.bzl.tmp third_party/litert_prebuilts/workspace.bzl",
-        "sed -i '/dsp_backend.h/d' litert/vendors/qualcomm/qnn_manager.cc",
-        "sed -i '/case ::qnn::BackendType::kDspBackend:/,+9d' litert/vendors/qualcomm/qnn_manager.cc",
-        "sed -i '/dsp_backend/d' litert/vendors/qualcomm/BUILD",
-        "sed -i 's|LiteRtRegisterAcceleratorGpuOpenCl|LiteRtRegisterGpuAccelerator|g' litert/runtime/accelerators/auto_registration.cc",
     ],
 )
 
