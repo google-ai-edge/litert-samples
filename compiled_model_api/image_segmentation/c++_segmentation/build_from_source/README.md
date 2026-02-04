@@ -86,11 +86,6 @@ Configure the build tools:
 # specify Android build tools (tested with 34.0.0)
 ```
 
-Configure the dependency files:
-```bash
-./compiled_model_api/image_segmentation/c++_segmentation/build_from_source/deps.sh
-```
-
 ```bash
 bazel build //compiled_model_api/image_segmentation/c++_segmentation/build_from_source:cpp_segmentation_cpu --config=android_arm64
 bazel build //compiled_model_api/image_segmentation/c++_segmentation/build_from_source:cpp_segmentation_gpu --config=android_arm64

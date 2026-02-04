@@ -125,7 +125,7 @@ fi
 ROOT_DIR="compiled_model_api/image_segmentation/c++_segmentation"
 
 PACKAGE_LOCATION="${ROOT_DIR}/build_from_source"
-C_LIBRARY_LOCATION="${BINARY_BUILD_PATH}/litert/c"
+C_LIBRARY_LOCATION="${BINARY_BUILD_PATH}/external/litert_archive/litert/c"
 PACKAGE_NAME="cpp_segmentation_${ACCELERATOR}"
 OUTPUT_PATH="${BINARY_BUILD_PATH}/${PACKAGE_LOCATION}/${PACKAGE_NAME}"
 
@@ -141,7 +141,7 @@ DEVICE_NPU_LIBRARY_DIR="${DEVICE_BASE_DIR}/npu"
 HOST_SHADER_DIR="${PACKAGE_LOCATION}/shaders"
 HOST_TEST_IMAGE_DIR="${PACKAGE_LOCATION}/test_images"
 HOST_MODEL_DIR="${PACKAGE_LOCATION}/models"
-HOST_GPU_LIBRARY_DIR="${BINARY_BUILD_PATH}/${PACKAGE_LOCATION}/${PACKAGE_NAME}.runfiles/litert_gpu/jni/arm64-v8a/"
+HOST_GPU_LIBRARY_DIR="${BINARY_BUILD_PATH}/${PACKAGE_LOCATION}/${PACKAGE_NAME}.runfiles/litert_prebuilts/android_arm64/"
 
 # Set NPU library path based on the --npu_dispatch_lib_path flag
 if [[ -z "$HOST_NPU_LIB" ]]; then
@@ -150,12 +150,12 @@ if [[ -z "$HOST_NPU_LIB" ]]; then
 fi
 if [[ -z "$HOST_NPU_DISPATCH_LIB" ]]; then
     echo "Defaulting to internal dispatch library path."
-    HOST_NPU_DISPATCH_LIB="${BINARY_BUILD_PATH}/${PACKAGE_LOCATION}/${PACKAGE_NAME}/litert/vendors/qualcomm/dispatch"
+    HOST_NPU_DISPATCH_LIB="${BINARY_BUILD_PATH}/${PACKAGE_LOCATION}/${PACKAGE_NAME}.runfiles/litert_archive/litert/vendors/qualcomm/dispatch"
 fi
 if [[ "$USE_JIT" == "true" ]]; then
     echo "Using NPU JIT compilation."
     if [[ -z "$HOST_NPU_COMPILER_LIB" ]]; then
-        HOST_NPU_COMPILER_LIB="${BINARY_BUILD_PATH}/${PACKAGE_LOCATION}/${PACKAGE_NAME}/litert/vendors/qualcomm/compiler"
+        HOST_NPU_COMPILER_LIB="${BINARY_BUILD_PATH}/${PACKAGE_LOCATION}/${PACKAGE_NAME}.runfiles/litert_archive/litert/vendors/qualcomm/compiler"
     fi
 fi
 
@@ -211,6 +211,9 @@ fi
 
 echo "Target device directory: ${DEVICE_BASE_DIR}"
 
+# Clean up previous deployment
+adb shell "rm -rf ${DEVICE_BASE_DIR}"
+
 # Create directories on device
 adb shell "mkdir -p ${DEVICE_BASE_DIR}"
 adb shell "mkdir -p ${DEVICE_SHADER_DIR}"
@@ -247,7 +250,7 @@ echo "Pushed c api shared library."
 # Push gpu accelerator shared library
 LD_LIBRARY_PATH="${LD_LIBRARY_PATH}:${DEVICE_BASE_DIR}/"
 if [[ "$ACCELERATOR" == "gpu" ]]; then
-    adb push --sync "${HOST_GPU_LIBRARY_DIR}/libLiteRtOpenClAccelerator.so" "${DEVICE_BASE_DIR}/"
+    adb push --sync "${HOST_GPU_LIBRARY_DIR}/libLiteRtClGlAccelerator.so" "${DEVICE_BASE_DIR}/"
 fi
 echo "Pushed gpu accelerator shared library."
 
