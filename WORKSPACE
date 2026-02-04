@@ -17,12 +17,12 @@ http_archive(
         "sed 's|\"LiteRtRegisterGpuAccelerator\"|\"LiteRtRegisterAcceleratorGpuOpenCl\"|g' litert/runtime/accelerators/auto_registration.cc > litert/runtime/accelerators/auto_registration.cc.tmp && mv litert/runtime/accelerators/auto_registration.cc.tmp litert/runtime/accelerators/auto_registration.cc",
         "sed 's|//litert|@litert_archive//litert|g' litert/build_common/special_rule.bzl > litert/build_common/special_rule.bzl.tmp && mv litert/build_common/special_rule.bzl.tmp litert/build_common/special_rule.bzl",
         "sed 's|@//third_party|@litert_archive//third_party|g' third_party/litert_prebuilts/workspace.bzl > third_party/litert_prebuilts/workspace.bzl.tmp && mv third_party/litert_prebuilts/workspace.bzl.tmp third_party/litert_prebuilts/workspace.bzl",
-        "grep -rl \"@xla//\" . | xargs sed -i 's|@xla//|@local_xla//|g'",
         "sed -i '/dsp_backend.h/d' litert/vendors/qualcomm/qnn_manager.cc",
         "sed -i '/case ::qnn::BackendType::kDspBackend:/,+9d' litert/vendors/qualcomm/qnn_manager.cc",
         "sed -i '/dsp_backend/d' litert/vendors/qualcomm/BUILD",
         "sed -i 's|LiteRtRegisterAcceleratorGpuOpenCl|LiteRtRegisterGpuAccelerator|g' litert/runtime/accelerators/auto_registration.cc",
     ],
+    repo_mapping = {"@xla": "@local_xla"},
 )
 
 load("@bazel_tools//tools/build_defs/repo:git.bzl", "git_repository")
