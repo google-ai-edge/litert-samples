@@ -5,13 +5,13 @@ description = "A LiteRT sample"
 readme = "README.md"
 requires-python = ">=3.10, <3.14"
 dependencies = [
-    "ai-edge-litert>=2.1.0",
-    "ai-edge-quantizer>=0.4.1",
-    "ai-edge-torch>=0.2.0",
+    "ai-edge-litert>=2.1.2",
+    "ai-edge-quantizer>=0.4.2",
+    "litert-torch>=0.8.0",
     "numpy>=2.2.6",
     "pillow>=12.0.0",
     "torch>=2.8.0",
-    "torchvision==0.24.0+cpu",
+    "torchvision==0.24.0",
 ]
 
 [tool.uv.sources]
@@ -22,3 +22,4 @@ torchvision = { index = "pytorch" }
 [[tool.uv.index]]
 name = "pytorch"
 url = "https://download.pytorch.org/whl/cpu"
+explicit = true
