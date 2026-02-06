@@ -2,9 +2,34 @@
 
 workspace(name = "litert")
 
-# buildifier: disable=load-on-top
-
 load("@bazel_tools//tools/build_defs/repo:http.bzl", "http_archive")
+load("@bazel_tools//tools/build_defs/repo:git.bzl", "new_git_repository")
+
+# LiteRT Archive (v2.1.2) with Correct Checksum
+http_archive(
+    name = "litert_archive",
+    url = "https://github.com/google-ai-edge/LiteRT/archive/refs/tags/v2.1.2.tar.gz",
+    strip_prefix = "LiteRT-2.1.2",
+    sha256 = "16079585fcd0c7fbb95585db10516d059f35b8860d4a92566e257d67e259473a",
+    patch_cmds = [
+        "sed 's|//litert|@litert_archive//litert|g' litert/build_common/special_rule.bzl > litert/build_common/special_rule.bzl.tmp && mv litert/build_common/special_rule.bzl.tmp litert/build_common/special_rule.bzl",
+        "sed 's|@//third_party|@litert_archive//third_party|g' third_party/litert_prebuilts/workspace.bzl > third_party/litert_prebuilts/workspace.bzl.tmp && mv third_party/litert_prebuilts/workspace.bzl.tmp third_party/litert_prebuilts/workspace.bzl",
+    ],
+)
+
+load("@bazel_tools//tools/build_defs/repo:git.bzl", "git_repository")
+
+git_repository(
+    name = "XNNPACK",
+    remote = "https://github.com/google/XNNPACK.git",
+    branch = "master",
+)
+
+git_repository(
+    name = "KleidiAI",
+    remote = "https://github.com/ARM-software/kleidiai.git",
+    branch = "main",  # Check if main or master. Usually main for modern repos.
+)
 
 http_archive(
     name = "rules_shell",
@@ -42,7 +67,7 @@ http_archive(
 )
 
 # Load the custom repository rule to select either a local TensorFlow source or a remote http_archive.
-load("//litert:tensorflow_source_rules.bzl", "tensorflow_source_repo")
+load("@litert_archive//litert:tensorflow_source_rules.bzl", "tensorflow_source_repo")
 
 tensorflow_source_repo(
     name = "org_tensorflow",
@@ -77,10 +102,10 @@ python_init_repositories(
     ],
     local_wheel_workspaces = ["@org_tensorflow//:WORKSPACE"],
     requirements = {
+        "3.9": "@org_tensorflow//:requirements_lock_3_9.txt",
         "3.10": "@org_tensorflow//:requirements_lock_3_10.txt",
         "3.11": "@org_tensorflow//:requirements_lock_3_11.txt",
         "3.12": "@org_tensorflow//:requirements_lock_3_12.txt",
-        "3.13": "@org_tensorflow//:requirements_lock_3_13.txt",
     },
 )
 
@@ -120,11 +145,9 @@ python_wheel_version_suffix_repository(name = "tf_wheel_version_suffix")
 # Details: https://github.com/google-ml-infra/rules_ml_toolchain
 http_archive(
     name = "rules_ml_toolchain",
-    sha256 = "9dbee8f24cc1b430bf9c2a6661ab70cbca89979322ddc7742305a05ff637ab6b",
-    strip_prefix = "rules_ml_toolchain-545c80f1026d526ea9c7aaa410bf0b52c9a82e74",
-    urls = [
-        "https://github.com/google-ml-infra/rules_ml_toolchain/archive/545c80f1026d526ea9c7aaa410bf0b52c9a82e74.tar.gz",
-    ],
+    sha256 = "d67b536f812ba8784d58b1548d0f9cba49237ad280cea694934a6c14da706f30",
+    strip_prefix = "rules_ml_toolchain-4a5659fcf7a91d6a25c2abddf3736ab175101a49",
+    url = "https://github.com/google-ml-infra/rules_ml_toolchain/archive/4a5659fcf7a91d6a25c2abddf3736ab175101a49.tar.gz",
 )
 
 load(
@@ -183,13 +206,9 @@ load(
 
 nccl_configure(name = "local_config_nccl")
 
-load("//third_party/tqdm:workspace.bzl", tqdm = "repo")
+load("@litert_archive//litert/sdk_util:repo.bzl", "configurable_repo")
 
-tqdm()
 
-load("//third_party/dawn:workspace.bzl", dawn = "repo")
-
-dawn()
 
 load("@rules_jvm_external//:defs.bzl", "maven_install")
 
@@ -219,83 +238,80 @@ http_archive(
     url = "https://github.com/bazelbuild/rules_kotlin/releases/download/v2.1.3/rules_kotlin-v2.1.3.tar.gz",
 )
 
-# Sentencepiece
 http_archive(
-    name = "sentencepiece",
-    build_file = "@//:BUILD.sentencepiece",
-    patch_cmds = [
-        # Empty config.h seems enough.
-        "touch config.h",
-        # Replace third_party/absl/ with absl/ in *.h and *.cc files.
-        "sed -i -e 's|#include \"third_party/absl/|#include \"absl/|g' *.h *.cc",
-        # Replace third_party/darts_clone/ with include/ in *.h and *.cc files.
-        "sed -i -e 's|#include \"third_party/darts_clone/|#include \"include/|g' *.h *.cc",
+    name = "tqdm",
+    build_file = "@litert_archive//third_party/tqdm:tqdm.BUILD",
+    add_prefix = "tqdm",
+    urls = [
+        "https://third-party-mirror.googlesource.com/tqdm/+archive/d593e871a6b3fcc21ca5281aebda0feee0e8732e.tar.gz",
     ],
-    patches = ["@//:PATCH.sentencepiece"],
-    sha256 = "9970f0a0afee1648890293321665e5b2efa04eaec9f1671fcf8048f456f5bb86",
-    strip_prefix = "sentencepiece-0.2.0/src",
-    url = "https://github.com/google/sentencepiece/archive/refs/tags/v0.2.0.tar.gz",
 )
 
-# Darts Clone
 http_archive(
-    name = "darts_clone",
-    build_file = "@//:BUILD.darts_clone",
-    sha256 = "4a562824ec2fbb0ef7bd0058d9f73300173d20757b33bb69baa7e50349f65820",
-    strip_prefix = "darts-clone-e40ce4627526985a7767444b6ed6893ab6ff8983",
-    url = "https://github.com/s-yata/darts-clone/archive/e40ce4627526985a7767444b6ed6893ab6ff8983.tar.gz",
+    name = "dawn",
+    add_prefix = "dawn",
+    urls = [
+        "https://github.com/google/dawn/archive/v20250713.025201.tar.gz",
+    ],
+    build_file = "@litert_archive//third_party/dawn:BUILD",
 )
 
-load("@rules_kotlin//kotlin:repositories.bzl", "kotlin_repositories")
+new_git_repository(
+    name = "stblib",
+    remote = "https://github.com/nothings/stb",
+    commit = "c0c982601f40183e74d84a61237e968dca08380e",
+    build_file = "@litert_archive//third_party/stblib:stblib.BUILD",
+)
 
-kotlin_repositories()  # if you want the default. Otherwise see custom kotlinc distribution below
+configurable_repo(
+    name = "models",
+    build_file = "@litert_archive//third_party/models:models.BUILD",
+    local_path_env = "LITERT_MODELS",
+    url = "https://storage.googleapis.com/litert/models.tar.gz",
+)
 
-load("@rules_kotlin//kotlin:core.bzl", "kt_register_toolchains")
+configurable_repo(
+    name = "ats_models",
+    build_file = "@litert_archive//third_party/models:ats_models.BUILD",
+    local_path_env = "LITERT_ATS_MODELS",
+    url = "https://storage.googleapis.com/litert/ats_models.tar.gz",
+)
 
-kt_register_toolchains()  # to use the default toolchain, otherwise see toolchains below
-
-load("//third_party/stblib:workspace.bzl", stblib = "repo")
-
-stblib()
-
-# TEST DATA ########################################################################################
-
-load("//third_party/models:workspace.bzl", "models")
-
-models()
-
-# VENDOR SDKS ######################################################################################
-
-# QUALCOMM ---------------------------------------------------------------------------------------
-
-# The actual macro call will be set during configure for now.
-load("//third_party/qairt:workspace.bzl", "qairt")
-
-qairt()
-
-# MEDIATEK ---------------------------------------------------------------------------------------
+configurable_repo(
+    name = "qairt",
+    build_file = "@litert_archive//third_party/qairt:qairt.BUILD",
+    local_path_env = "LITERT_QAIRT_SDK",
+    strip_prefix = "latest",
+    url = "https://storage.googleapis.com/litert/litert_qualcomm_sdk_2_37_1_release.tar.gz",
+)
 
 # Currently only works with local sdk
-load("//third_party/neuro_pilot:workspace.bzl", "neuro_pilot")
+configurable_repo(
+    name = "neuro_pilot",
+    build_file = "@litert_archive//third_party/neuro_pilot:neuro_pilot.BUILD",
+    local_path_env = "LITERT_NEURO_PILOT_SDK",
+    strip_prefix = "neuro_pilot",
+    url = "https://s3.ap-southeast-1.amazonaws.com/mediatek.neuropilot.com/57c17aa0-90b4-4871-a7b6-cdcdc678b3aa.gz",
+    symlink_mapping = {
+        "v8_latest": "v8_0_8",
+        # Just let the compilation pass, we don't expect it to work...
+        # TODO: Remove this once we have a working V7 & V9 version.
+        "v7_latest": "v8_0_8",
+        "v9_latest": "v8_0_8",
+    },
+)
 
-neuro_pilot()
-
-# GOOGLE TENSOR ----------------------------------------------------------------------------------
-load("//third_party/google_tensor:workspace.bzl", "google_tensor")
-
-google_tensor()
-
-# LiteRT GPU ----------------------------------------------------------------------------------
-load("//third_party/litert_gpu:workspace.bzl", "litert_gpu")
-
-litert_gpu()
+configurable_repo(
+    name = "google_tensor",
+    build_file = "@litert_archive//third_party/google_tensor:google_tensor.BUILD",
+    local_path_env = "GOOGLE_TENSOR_COMPILER_LIB",
+)
 
 # LiteRT Prebuilts ---------------------------------------------------------------------------------
-load("//third_party/litert_prebuilts:workspace.bzl", "litert_prebuilts")
+load("@litert_archive//third_party/litert_prebuilts:workspace.bzl", "litert_prebuilts")
 
 litert_prebuilts()
 
-# INTEL OPENVINO ---------------------------------------------------------------------------------
-load("//third_party/intel_openvino:openvino.bzl", "openvino_configure")
+load("@litert_archive//third_party/intel_openvino:openvino.bzl", "openvino_configure")
 
 openvino_configure()

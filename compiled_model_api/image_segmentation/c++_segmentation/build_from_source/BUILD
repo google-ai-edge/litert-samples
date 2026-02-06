@@ -15,7 +15,7 @@ load("@rules_cc//cc:cc_library.bzl", "cc_library")
 # See the License for the specific language governing permissions and
 # limitations under the License.
 load(
-    "//litert/build_common:special_rule.bzl",
+    "@litert_archive//litert/build_common:special_rule.bzl",
     "gl_native_deps",
     "gles_deps",
     "gles_linkopts",
@@ -65,14 +65,14 @@ cc_binary(
         ":model_files",
         ":shader_files",
         ":test_images",
-        "//litert/c:litert_runtime_c_api_shared_lib",  # buildcleaner: keep
+        "@litert_archive//litert/c:litert_runtime_c_api_shared_lib",  # buildcleaner: keep
     ],
     linkopts = litert_android_linkopts() + gles_linkopts(),
     deps = [
         ":image_processor",
         ":image_utils",
         ":timing_utils",
-        "//litert/cc:litert_api_with_dynamic_runtime",
+        "@litert_archive//litert/cc:litert_api_with_dynamic_runtime",
         "@com_google_absl//absl/strings:string_view",
         "@com_google_absl//absl/time",
         "@com_google_absl//absl/types:span",
@@ -91,8 +91,8 @@ cc_binary(
         ":model_files",
         ":shader_files",
         ":test_images",
-        "//litert/c:litert_runtime_c_api_shared_lib",  # buildcleaner: keep
-        "@litert_gpu//:jni/arm64-v8a/libLiteRtOpenClAccelerator.so",  # copybara:comment
+        "@litert_archive//litert/c:litert_runtime_c_api_shared_lib",  # buildcleaner: keep
+        "@litert_prebuilts//:android_arm64/libLiteRtClGlAccelerator.so",  # copybara:comment
         # copybara:uncomment "//litert/runtime/accelerators/gpu:ml_drift_cl_accelerator_so",
     ],
     linkopts = litert_android_linkopts() + gles_linkopts(),
@@ -100,7 +100,7 @@ cc_binary(
         ":image_processor",
         ":image_utils",
         ":timing_utils",
-        "//litert/cc:litert_api_with_dynamic_runtime",
+        "@litert_archive//litert/cc:litert_api_with_dynamic_runtime",
         "@com_google_absl//absl/algorithm:container",
         "@com_google_absl//absl/strings:string_view",
         "@com_google_absl//absl/time",
@@ -120,9 +120,9 @@ cc_binary(
         ":model_files",
         ":shader_files",
         ":test_images",
-        "//litert/c:litert_runtime_c_api_shared_lib",  # buildcleaner: keep
-        "//litert/vendors/qualcomm/compiler:libLiteRtCompilerPlugin_Qualcomm.so",
-        "//litert/vendors/qualcomm/dispatch:dispatch_api_so",
+        "@litert_archive//litert/c:litert_runtime_c_api_shared_lib",  # buildcleaner: keep
+        "@litert_archive//litert/vendors/qualcomm/compiler:libLiteRtCompilerPlugin_Qualcomm.so",
+        "@litert_archive//litert/vendors/qualcomm/dispatch:dispatch_api_so",
         "@qairt//:lib/aarch64-android/libQnnHtp.so",
         "@qairt//:lib/aarch64-android/libQnnHtpPrepare.so",
         "@qairt//:lib/aarch64-android/libQnnHtpV75Stub.so",
@@ -136,7 +136,7 @@ cc_binary(
         ":image_processor",
         ":image_utils",
         ":timing_utils",
-        "//litert/cc:litert_api_with_dynamic_runtime",
+        "@litert_archive//litert/cc:litert_api_with_dynamic_runtime",
         "@com_google_absl//absl/strings:string_view",
         "@com_google_absl//absl/time",
         "@com_google_absl//absl/types:span",
