@@ -63,7 +63,7 @@ This folder contains the CPU samples that use the **Interpreter API**.
 
 * **LiteRT Overview**: [ai.google.dev/edge/litert](https://ai.google.dev/edge/litert)  
 * **CompiledModel API Guide**: [LiteRT for Android](https://ai.google.dev/edge/litert/android)  
-* **Model Conversion**: [Convert models to LiteRT](https://ai.google.dev/edge/litert/models/convert)
+* **Model Conversion**: [Convert models to LiteRT](https://ai.google.dev/edge/litert/conversion/overview)
 
 ## **🤝 Contributing**
 

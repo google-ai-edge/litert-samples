@@ -423,13 +423,13 @@ def _convert_pretrained(argv: list[str]) -> int:
   args = _parse_convert_args(argv)
   if not args.output:
     args.output = os.path.join(os.getcwd(), f"{args.arch}.tflite")
-  import ai_edge_torch  # pylint: disable=import-outside-toplevel
+  import litert_torch  # pylint: disable=import-outside-toplevel
   if args.quantize:
     from ai_edge_quantizer import quantizer, recipe  # pylint: disable=import-outside-toplevel
 
   model, torch, input_height, input_width = _init_torchvision_model(args.arch)
   sample_inputs = (torch.randn(1, 3, input_height, input_width),)
-  edge_model = ai_edge_torch.convert(model, sample_inputs)
+  edge_model = litert_torch.convert(model, sample_inputs)
   if args.quantize:
     import tempfile  # pylint: disable=import-outside-toplevel
     tmp_path = None
