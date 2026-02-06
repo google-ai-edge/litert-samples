@@ -89,7 +89,21 @@ Configure the build tools:
 ```bash
 bazel build //compiled_model_api/image_segmentation/c++_segmentation/build_from_source:cpp_segmentation_cpu --config=android_arm64
 bazel build //compiled_model_api/image_segmentation/c++_segmentation/build_from_source:cpp_segmentation_gpu --config=android_arm64
-bazel build //compiled_model_api/image_segmentation/c++_segmentation/build_from_source:cpp_segmentation_npu --config=android_arm64
+
+# For NPU Build
+# 1. Download QAIRT SDK v2.41+ and extract it.
+# 2. IMPORTANT: The Bazel configuration expects the SDK contents to be inside a 
+#    subdirectory named "latest".
+#    Example structure:
+#    /path/to/qairt_sdk/
+#      └── latest/
+#          ├── include/
+#          ├── lib/
+#          └── ...
+# 3. Pass the absolute path to the parent directory (ending with /) in the environment variable.
+bazel build //compiled_model_api/image_segmentation/c++_segmentation/build_from_source:cpp_segmentation_npu \
+  --config=android_arm64 \
+  --action_env LITERT_QAIRT_SDK=/path/to/qairt_sdk/
 ```
 
 ### Running the Executables
