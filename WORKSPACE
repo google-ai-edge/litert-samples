@@ -345,3 +345,21 @@ litert_prebuilts()
 load("@litert_archive//third_party/intel_openvino:openvino.bzl", "openvino_configure")
 
 openvino_configure()
+
+# iOS Build Rules
+http_archive(
+    name = "build_bazel_rules_apple",
+    sha256 = "c044bab8aa260ff0d4e976865d496e57930edeb53de58aefd8ab32be7c8f9b97",
+    url = "https://github.com/bazelbuild/rules_apple/releases/download/3.1.1/rules_apple.3.1.1.tar.gz",
+)
+http_archive(
+    name = "build_bazel_rules_swift",
+    sha256 = "1ffae82d1c1ef22830eaad2f4c9c4cc0ac1fbfc2f8c5b96715f21226ebec585c",
+    url = "https://github.com/bazelbuild/rules_swift/releases/download/1.5.0/rules_swift.1.5.0.tar.gz",
+)
+
+load("@build_bazel_rules_swift//swift:repositories.bzl", "swift_rules_dependencies")
+swift_rules_dependencies()
+
+load("@build_bazel_rules_apple//apple:repositories.bzl", "apple_rules_dependencies")
+apple_rules_dependencies()
