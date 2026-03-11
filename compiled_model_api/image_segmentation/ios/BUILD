@@ -20,7 +20,7 @@ swift_library(
     name = "ImageSegmentationSwift",
     srcs = glob(["ImageSegmentation/*.swift"]),
     module_name = "ImageSegmentation",
-    copts = ["-import-objc-header", "ImageSegmentation/ImageSegmentation-Bridging-Header.h"],
+    copts = ["-import-objc-header", "compiled_model_api/image_segmentation/ios/ImageSegmentation/ImageSegmentation-Bridging-Header.h"],
     deps = [
         ":LiteRTSegmenterObjC",
     ],

@@ -71,13 +71,13 @@ struct ContentView: View {
             
             // Run segmentation asynchronously
             DispatchQueue.global(qos: .userInitiated).async {
-                var error: NSError?
-                if let result = segmenter.segmentImage(frame, error: &error) {
+                do {
+                    let result = try segmenter.segmentImage(frame)
                     DispatchQueue.main.async {
                         self.currentMask = result.maskImage
                         self.inferenceTimeMs = result.inferenceTimeMs
                     }
-                } else if let error = error {
+                } catch {
                     print("Segmentation error: \(error.localizedDescription)")
                 }
             }
@@ -89,10 +89,10 @@ struct ContentView: View {
             print("Model path not found")
             return
         }
-        var error: NSError?
-        let accelerator = useMetal ? LiteRTAcceleratorMetal : LiteRTAcceleratorCPU
-        segmenter = LiteRTSegmenter(modelPath: path, accelerator: accelerator, error: &error)
-        if let error = error {
+        let accelerator = useMetal ? LiteRTAccelerator.metal : LiteRTAccelerator.CPU
+        do {
+            segmenter = try LiteRTSegmenter(modelPath: path, accelerator: accelerator)
+        } catch {
             print("Failed to initialize segmenter: \(error)")
         }
     }

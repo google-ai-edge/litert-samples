@@ -3,7 +3,7 @@
 <plist version="1.0">
 <dict>
     <key>CFBundleIdentifier</key>
-    <string>com.example.ImageSegmentation</string>
+    <string>com.google.ai.edge.examples.image_segmentation</string>
     <key>CFBundleName</key>
     <string>ImageSegmentation</string>
     <key>CFBundleShortVersionString</key>

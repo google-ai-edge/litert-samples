@@ -33,9 +33,9 @@ git_repository(
 
 http_archive(
     name = "rules_shell",
-    sha256 = "bc61ef94facc78e20a645726f64756e5e285a045037c7a61f65af2941f4c25e1",
-    strip_prefix = "rules_shell-0.4.1",
-    url = "https://github.com/bazelbuild/rules_shell/releases/download/v0.4.1/rules_shell-v0.4.1.tar.gz",
+    sha256 = "d8cd4a3a91fc1dc68d4c7d6b655f09def109f7186437e3f50a9b60ab436a0c53",
+    strip_prefix = "rules_shell-0.3.0",
+    url = "https://github.com/bazelbuild/rules_shell/releases/download/v0.3.0/rules_shell-v0.3.0.tar.gz",
 )
 
 load("@rules_shell//shell:repositories.bzl", "rules_shell_dependencies", "rules_shell_toolchains")
@@ -348,14 +348,24 @@ openvino_configure()
 
 # iOS Build Rules
 http_archive(
-    name = "build_bazel_rules_apple",
-    sha256 = "c044bab8aa260ff0d4e976865d496e57930edeb53de58aefd8ab32be7c8f9b97",
-    url = "https://github.com/bazelbuild/rules_apple/releases/download/3.1.1/rules_apple.3.1.1.tar.gz",
+    name = "build_bazel_apple_support",
+    sha256 = "b53f6491e742549f13866628ddffcc75d1f3b2d6987dc4f14a16b242113c890b",
+    url = "https://github.com/bazelbuild/apple_support/releases/download/1.17.1/apple_support.1.17.1.tar.gz",
 )
+
+http_archive(
+    name = "build_bazel_rules_apple",
+    sha256 = "34953c6c5666f2bd864a4a2a27599eb6630a42fde18ba57292fa0a7fcb3d851c",
+    url = "https://github.com/bazelbuild/rules_apple/releases/download/4.5.0/rules_apple.4.5.0.tar.gz",
+)
+
+load("@build_bazel_apple_support//lib:repositories.bzl", "apple_support_dependencies")
+apple_support_dependencies()
+
 http_archive(
     name = "build_bazel_rules_swift",
-    sha256 = "1ffae82d1c1ef22830eaad2f4c9c4cc0ac1fbfc2f8c5b96715f21226ebec585c",
-    url = "https://github.com/bazelbuild/rules_swift/releases/download/1.5.0/rules_swift.1.5.0.tar.gz",
+    sha256 = "fbc1843b0d87922d05903b2909a5676ee5f27918840c9497e6e58b901594950a",
+    url = "https://github.com/bazelbuild/rules_swift/releases/download/1.18.0/rules_swift.1.18.0.tar.gz",
 )
 
 load("@build_bazel_rules_swift//swift:repositories.bzl", "swift_rules_dependencies")
