@@ -14,5 +14,7 @@
     <string>LaunchScreen</string>
     <key>NSCameraUsageDescription</key>
     <string>We need access to the camera to run segmentation models.</string>
+    <key>NSPhotoLibraryUsageDescription</key>
+    <string>We need access to your photo library to select images for segmentation.</string>
 </dict>
 </plist>
