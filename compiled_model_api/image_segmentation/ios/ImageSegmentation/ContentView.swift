@@ -1,99 +1,242 @@
+/*
+ * Copyright 2025 The Google AI Edge Authors. All Rights Reserved.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *       http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 import SwiftUI
-import CoreGraphics
 
 struct ContentView: View {
+    @StateObject private var viewModel = SegmentationViewModel()
     @StateObject private var cameraManager = CameraManager()
-    @State private var useMetal = false
-    @State private var segmenter: LiteRTSegmenter?
-    @State private var currentMask: UIImage?
-    @State private var inferenceTimeMs: Double = 0.0
-    
-    let modelPath = Bundle.main.path(forResource: "selfie_multiclass_256x256", ofType: "tflite")
-    
+
     var body: some View {
-        VStack {
-            Text("LiteRT iOS Segmentation")
-                .font(.headline)
-                .padding()
-            
-            ZStack {
-                if let frame = cameraManager.currentFrame {
-                    Image(decorative: frame, scale: 1.0, orientation: .up)
-                        .resizable()
-                        .scaledToFit()
-                        .frame(maxWidth: .infinity, maxHeight: 400)
-                } else {
-                    Rectangle()
-                        .fill(Color.black)
-                        .frame(height: 400)
-                        .overlay(Text("No Camera Feed").foregroundColor(.white))
-                }
-                
-                if let mask = currentMask {
-                    Image(uiImage: mask)
-                        .resizable()
-                        .scaledToFill()
-                        .frame(maxWidth: .infinity, maxHeight: 400)
-                        .opacity(0.8)
-                }
+        VStack(spacing: 0) {
+            HeaderView()
+
+            TabSelector(selectedTab: $viewModel.selectedTab) {
+                viewModel.stopSegmentation()
             }
-            .clipShape(RoundedRectangle(cornerRadius: 15))
-            .padding()
-            
-            HStack {
-                Text("Backend: ")
-                Picker("Backend", selection: $useMetal) {
-                    Text("CPU").tag(false)
-                    Text("Metal").tag(true)
-                }
-                .pickerStyle(SegmentedPickerStyle())
-                .onChange(of: useMetal) { _ in
-                    initSegmenter()
-                }
+
+            switch viewModel.selectedTab {
+            case .camera:
+                CameraContentView(
+                    viewModel: viewModel,
+                    cameraManager: cameraManager
+                )
+            case .gallery:
+                GalleryView(viewModel: viewModel)
             }
-            .padding()
-            
-            Text(String(format: "Inference time: %.1f ms", inferenceTimeMs))
-                .font(.subheadline)
-                .padding()
-            
-            Spacer()
+
+            Spacer(minLength: 0)
+
+            BottomControlsView(
+                viewModel: viewModel,
+                onFlipCamera: { cameraManager.flipCamera() }
+            )
         }
         .onAppear {
-            initSegmenter()
-            cameraManager.start()
+            cameraManager.requestPermissionAndStart()
         }
         .onDisappear {
             cameraManager.stop()
         }
-        .onChange(of: cameraManager.currentFrame) { frame in
-            guard let frame = frame, let segmenter = segmenter else { return }
-            
-            // Run segmentation asynchronously
-            DispatchQueue.global(qos: .userInitiated).async {
-                do {
-                    let result = try segmenter.segmentImage(frame)
-                    DispatchQueue.main.async {
-                        self.currentMask = result.maskImage
-                        self.inferenceTimeMs = result.inferenceTimeMs
+        .alert(isPresented: Binding(
+            get: { viewModel.errorMessage != nil },
+            set: { if !$0 { viewModel.clearError() } }
+        )) {
+            Alert(
+                title: Text("Error"),
+                message: Text(viewModel.errorMessage ?? ""),
+                dismissButton: .default(Text("OK")) { viewModel.clearError() }
+            )
+        }
+    }
+}
+
+// MARK: - Header
+
+struct HeaderView: View {
+    var body: some View {
+        HStack {
+            Text("LiteRT")
+                .font(.headline)
+                .fontWeight(.bold)
+            Text("Image Segmentation")
+                .font(.headline)
+            Spacer()
+        }
+        .padding(.horizontal)
+        .padding(.vertical, 10)
+        .background(Color(.systemBackground))
+    }
+}
+
+// MARK: - Tab Selector
+
+struct TabSelector: View {
+    @Binding var selectedTab: AppTab
+    let onTabChanged: () -> Void
+
+    var body: some View {
+        HStack(spacing: 0) {
+            ForEach(AppTab.allCases, id: \.self) { tab in
+                Button(action: {
+                    if selectedTab != tab {
+                        onTabChanged()
+                        selectedTab = tab
                     }
-                } catch {
-                    print("Segmentation error: \(error.localizedDescription)")
+                }) {
+                    Text(tab.rawValue)
+                        .font(.subheadline)
+                        .fontWeight(selectedTab == tab ? .semibold : .regular)
+                        .foregroundColor(selectedTab == tab ? .white : .gray)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 10)
+                        .background(selectedTab == tab ? Color.blue : Color(.systemGray5))
                 }
             }
         }
     }
-    
-    private func initSegmenter() {
-        guard let path = modelPath else {
-            print("Model path not found")
-            return
+}
+
+// MARK: - Camera Content
+
+struct CameraContentView: View {
+    @ObservedObject var viewModel: SegmentationViewModel
+    @ObservedObject var cameraManager: CameraManager
+
+    var body: some View {
+        ZStack {
+            switch cameraManager.permissionStatus {
+            case .authorized:
+                cameraPreview
+            case .denied:
+                permissionDeniedView
+            case .notDetermined:
+                ProgressView("Requesting camera access...")
+                    .frame(height: 400)
+            }
         }
-        let accelerator = useMetal ? LiteRTAccelerator.metal : LiteRTAccelerator.CPU
-        do {
-            segmenter = try LiteRTSegmenter(modelPath: path, accelerator: accelerator)
-        } catch {
-            print("Failed to initialize segmenter: \(error)")
+        .onChange(of: cameraManager.currentFrame) { frame in
+            guard let frame = frame else { return }
+            viewModel.segment(image: frame)
         }
+    }
+
+    private var cameraPreview: some View {
+        ZStack {
+            if let frame = cameraManager.currentFrame {
+                Image(decorative: frame, scale: 1.0, orientation: .up)
+                    .resizable()
+                    .scaledToFit()
+                    .frame(maxWidth: .infinity, maxHeight: 400)
+            } else {
+                Rectangle()
+                    .fill(Color.black)
+                    .frame(height: 400)
+                    .overlay(ProgressView())
+            }
+
+            if let mask = viewModel.currentMask {
+                Image(uiImage: mask)
+                    .resizable()
+                    .scaledToFit()
+                    .frame(maxWidth: .infinity, maxHeight: 400)
+                    .opacity(0.6)
+            }
+        }
+        .clipShape(RoundedRectangle(cornerRadius: 15))
+        .padding()
+    }
+
+    private var permissionDeniedView: some View {
+        VStack(spacing: 12) {
+            Image(systemName: "camera.fill")
+                .font(.largeTitle)
+                .foregroundColor(.gray)
+            Text("Camera access denied")
+                .font(.headline)
+            Text("Go to Settings > Privacy > Camera to enable access.")
+                .font(.caption)
+                .foregroundColor(.gray)
+                .multilineTextAlignment(.center)
+        }
+        .frame(height: 400)
+        .padding()
+    }
+}
+
+// MARK: - Bottom Controls
+
+struct BottomControlsView: View {
+    @ObservedObject var viewModel: SegmentationViewModel
+    let onFlipCamera: () -> Void
+
+    var body: some View {
+        VStack(spacing: 12) {
+            Divider()
+
+            // Timing display
+            HStack {
+                Text("Inference:")
+                Spacer()
+                Text(String(format: "%.1f ms", viewModel.inferenceTimeMs))
+                    .fontWeight(.medium)
+            }
+            .font(.subheadline)
+            .padding(.horizontal)
+
+            HStack {
+                Text("Pre-process:")
+                Spacer()
+                Text(String(format: "%.1f ms", viewModel.preProcessTimeMs))
+            }
+            .font(.caption)
+            .foregroundColor(.secondary)
+            .padding(.horizontal)
+
+            HStack {
+                Text("Post-process:")
+                Spacer()
+                Text(String(format: "%.1f ms", viewModel.postProcessTimeMs))
+            }
+            .font(.caption)
+            .foregroundColor(.secondary)
+            .padding(.horizontal)
+
+            // Controls row
+            HStack {
+                Text("Accelerator: CPU")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+
+                Spacer()
+
+                // Camera flip button
+                if viewModel.selectedTab == .camera {
+                    Button(action: onFlipCamera) {
+                        Image(systemName: "camera.rotate")
+                            .font(.title2)
+                            .padding(10)
+                            .background(Color(.systemGray5))
+                            .clipShape(Circle())
+                    }
+                }
+            }
+            .padding(.horizontal)
+            .padding(.bottom, 8)
+        }
+        .background(Color(.systemBackground))
     }
 }
