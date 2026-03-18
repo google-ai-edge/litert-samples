@@ -7,7 +7,7 @@ and gallery images, identifying and classifying objects at the pixel level.
 ## Screenshot
 
 <p align="center">
-  <img src="inference.PNG" alt="Image Segmentation running on iPhone" width="300">
+  <img src="img/inference.png" alt="Image Segmentation running on iPhone" width="300">
 </p>
 
 ## Features
