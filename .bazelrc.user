@@ -1,0 +1,6 @@
+build --incompatible_enable_apple_toolchain_resolution
+build --apple_crosstool_top=@build_bazel_apple_support//crosstool:toolchain
+build --crosstool_top=@build_bazel_apple_support//crosstool:toolchain
+build --host_crosstool_top=@build_bazel_apple_support//crosstool:toolchain
+build --action_env=DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer
+build --action_env=SDKROOT=/Applications/Xcode.app/Contents/Developer/Platforms/iPhoneSimulator.platform/Developer/SDKs/iPhoneSimulator.sdk
