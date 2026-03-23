@@ -64,8 +64,6 @@ struct ContentView: View {
     }
 }
 
-// MARK: - Header
-
 struct HeaderView: View {
     var body: some View {
         HStack {

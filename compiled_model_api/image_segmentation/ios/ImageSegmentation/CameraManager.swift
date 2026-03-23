@@ -157,8 +157,6 @@ final class CameraManager: NSObject, ObservableObject, AVCaptureVideoDataOutputS
         }
     }
 
-    // MARK: - AVCaptureVideoDataOutputSampleBufferDelegate
-
     func captureOutput(
         _ output: AVCaptureOutput,
         didOutput sampleBuffer: CMSampleBuffer,
