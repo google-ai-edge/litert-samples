@@ -30,8 +30,11 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.graphics.drawable.toBitmap
-import coil.compose.AsyncImage
-import coil.imageLoader
+import coil3.compose.AsyncImage
+import coil3.imageLoader // Extension function for Context.imageLoader
+import coil3.asDrawable
+import android.graphics.drawable.BitmapDrawable
+import coil3.request.SuccessResult // Import for SuccessResult
 import com.google.ai.edge.examples.image_segmentation.UiState
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -40,122 +43,132 @@ import kotlinx.coroutines.launch
 
 @Composable
 fun GalleryScreen(
-  uiState: UiState,
-  modifier: Modifier = Modifier,
-  onImageAnalyzed: (Bitmap) -> Unit,
+    uiState: UiState,
+    modifier: Modifier = Modifier,
+    onImageAnalyzed: (Bitmap) -> Unit,
 ) {
-  val context = LocalContext.current
-  val scope = rememberCoroutineScope()
-  val uri = uiState.mediaUri
-  val mediaType = getMediaType(context, uri)
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    val uri = uiState.mediaUri
+    val mediaType = getMediaType(context, uri)
 
-  DisposableEffect(uri) {
-    var retriever: MediaMetadataRetriever? = null
-    var job: Job? = null
-    if (mediaType == MediaType.VIDEO) {
-      retriever = MediaMetadataRetriever()
-      job =
-        scope.launch(Dispatchers.IO) {
-          // Load frames from the video.
-          retriever.setDataSource(context, uri)
-          val videoLengthMs =
-            retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_DURATION)?.toLong()
+    DisposableEffect(uri) {
+        var retriever: MediaMetadataRetriever? = null
+        var job: Job? = null
+        if (mediaType == MediaType.VIDEO) {
+            retriever = MediaMetadataRetriever()
+            job =
+                scope.launch(Dispatchers.IO) {
+                    // Load frames from the video.
+                    retriever.setDataSource(context, uri)
+                    val videoLengthMs =
+                        retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_DURATION)?.toLong()
 
-          // Note: We need to read width/height from frame instead of getting the width/height
-          // of the video directly because MediaRetriever returns frames that are smaller than the
-          // actual dimension of the video file.
-          val firstFrame = retriever.getFrameAtTime(0)
-          val width = firstFrame?.width
-          val height = firstFrame?.height
+                    // Note: We need to read width/height from frame instead of getting the width/height
+                    // of the video directly because MediaRetriever returns frames that are smaller than the
+                    // actual dimension of the video file.
+                    val firstFrame = retriever.getFrameAtTime(0)
+                    val width = firstFrame?.width
+                    val height = firstFrame?.height
 
-          // If the video is invalid, returns a null
-          if ((videoLengthMs == null) || (width == null) || (height == null)) return@launch
+                    // If the video is invalid, returns a null
+                    if ((videoLengthMs == null) || (width == null) || (height == null)) return@launch
 
-          // Next, we'll get one frame every frameInterval ms
-          val numberOfFrameToRead = videoLengthMs.div(1000)
-          for (i in 0..numberOfFrameToRead) {
-            if (!isActive) return@launch
-            val timestampUs = i * 1000000
-            val frame =
-              retriever.getFrameAtTime(timestampUs, MediaMetadataRetriever.OPTION_CLOSEST)
-                ?: return@launch
-            onImageAnalyzed(frame)
-          }
-          retriever.release()
+                    // Next, we'll get one frame every frameInterval ms
+                    val numberOfFrameToRead = videoLengthMs.div(1000)
+                    for (i in 0..numberOfFrameToRead) {
+                        if (!isActive) return@launch
+                        val timestampUs = i * 1000000
+                        val frame =
+                            retriever.getFrameAtTime(timestampUs, MediaMetadataRetriever.OPTION_CLOSEST)
+                                ?: return@launch
+                        onImageAnalyzed(frame)
+                    }
+                    retriever.release()
+                }
+        }
+        onDispose {
+            retriever?.release()
+            job?.cancel()
         }
     }
-    onDispose {
-      retriever?.release()
-      job?.cancel()
-    }
-  }
 
-  Box(modifier = modifier) {
-    when (mediaType) {
-      MediaType.IMAGE -> {
-        AsyncImage(
-          modifier = Modifier.fillMaxSize(),
-          model = uri,
-          contentDescription = null,
-          imageLoader = LocalContext.current.imageLoader,
-          onSuccess = {
-            val bimap = it.result.drawable.toBitmap()
-            onImageAnalyzed(bimap)
-          },
-          contentScale = ContentScale.Crop,
-        )
-      }
+    Box(modifier = modifier) {
+        when (mediaType) {
+            MediaType.IMAGE -> {
+                AsyncImage(
+                    modifier = Modifier.fillMaxSize(),
+                    model = uri,
+                    contentDescription = null,
+                    // Use the imageLoader extension property on Context
+                    imageLoader = LocalContext.current.imageLoader,
+                    onSuccess = { result ->
+                        val coilImage = (result as SuccessResult).image
+                        val drawable = coilImage.asDrawable(context.resources)
+                        val bitmap = (drawable as? android.graphics.drawable.BitmapDrawable)?.bitmap
 
-      MediaType.VIDEO -> {
-        AndroidView(
-          modifier = Modifier.fillMaxSize(),
-          factory = { context ->
-            ScalableVideoView(context).apply {
-              setDisplayMode(ScalableVideoView.DisplayMode.ORIGINAL)
-              setVideoURI(uri)
-              setOnPreparedListener { it.start() }
+                        bitmap?.let {
+                            onImageAnalyzed(it)
+                        }
+                    },
+                    contentScale = ContentScale.Crop,
+                )
             }
-          },
-          update = {
-            it.setVideoURI(uri)
-            it.setOnPreparedListener { player ->
-              if (player.isPlaying) {
-                player.stop()
-              }
-              player.start()
+
+            MediaType.VIDEO -> {
+                AndroidView(
+                    modifier = Modifier.fillMaxSize(),
+                    factory = { ctx ->
+                        ScalableVideoView(ctx).apply {
+                            setDisplayMode(ScalableVideoView.DisplayMode.ORIGINAL)
+                            setVideoURI(uri)
+                            setOnPreparedListener { it.start() }
+                        }
+                    },
+                    update = {
+                        it.setVideoURI(uri)
+                        it.setOnPreparedListener { player ->
+                            // Recheck if playing before stop/start
+                            if (player.isPlaying) {
+                                // Optionally stop if you need to restart from the beginning
+                                // player.stop()
+                                // player.prepareAsync() // or similar call to re-prepare
+                            }
+                            player.start()
+                        }
+                    },
+                )
             }
-          },
-        )
-      }
 
-      MediaType.UNKNOWN -> {
-        // Do Nothing
-      }
-    }
+            MediaType.UNKNOWN -> {
+                // Do Nothing
+            }
+        }
 
-    if (uiState.overlayInfo != null) {
-      SegmentationOverlay(
-        modifier = Modifier.fillMaxSize(),
-        overlayInfo = uiState.overlayInfo,
-        uiState.lensFacing,
-      )
+        if (uiState.overlayInfo != null) {
+            SegmentationOverlay(
+                modifier = Modifier.fillMaxSize(),
+                overlayInfo = uiState.overlayInfo,
+                uiState.lensFacing,
+            )
+        }
     }
-  }
 }
 
 enum class MediaType {
-  IMAGE,
-  VIDEO,
-  UNKNOWN,
+    IMAGE,
+    VIDEO,
+    UNKNOWN,
 }
 
 fun getMediaType(context: Context, uri: Uri): MediaType {
-  val mimeType = context.contentResolver.getType(uri)
-  return if (mimeType?.startsWith("image/") == true) {
-    MediaType.IMAGE
-  } else if (mimeType?.startsWith("video/") == true) {
-    MediaType.VIDEO
-  } else {
-    MediaType.UNKNOWN
-  }
+    val mimeType = context.contentResolver.getType(uri)
+    return if (mimeType?.startsWith("image/") == true) {
+        MediaType.IMAGE
+    } else if (mimeType?.startsWith("video/") == true) {
+        MediaType.VIDEO
+    } else {
+        MediaType.UNKNOWN
+    }
 }
+
