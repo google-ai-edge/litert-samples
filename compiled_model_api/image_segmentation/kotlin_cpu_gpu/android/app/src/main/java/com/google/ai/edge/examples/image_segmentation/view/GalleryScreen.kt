@@ -30,10 +30,10 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.graphics.drawable.toBitmap
-import coil3.compose.AsyncImage
-import coil3.imageLoader // Extension function for Context.imageLoader
-import coil3.asDrawable
 import android.graphics.drawable.BitmapDrawable
+import coil3.asDrawable
+import coil3.compose.AsyncImage
+import coil3.imageLoader
 import coil3.request.SuccessResult // Import for SuccessResult
 import com.google.ai.edge.examples.image_segmentation.UiState
 import kotlinx.coroutines.Dispatchers
