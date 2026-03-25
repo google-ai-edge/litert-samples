@@ -2,6 +2,7 @@ plugins {
     alias(libs.plugins.androidApplication)
     alias(libs.plugins.jetbrainsKotlinAndroid)
     alias(libs.plugins.undercouchDownload)
+    alias(libs.plugins.composeCompiler)
 }
 
 android {
@@ -40,9 +41,7 @@ android {
     buildFeatures {
         compose = true
     }
-    composeOptions {
-        kotlinCompilerExtensionVersion = "1.5.1"
-    }
+    // Compose compiler is configured via the composeCompiler plugin
     packaging {
         resources {
             excludes += "/META-INF/{AL2.0,LGPL2.1}"
@@ -67,6 +66,8 @@ dependencies {
     implementation(libs.litert)
     implementation(libs.litert.support)
     implementation(libs.litert.metadata)
+    implementation(platform("org.jetbrains.kotlinx:kotlinx-coroutines-bom:1.10.2"))
+    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android")
     implementation(libs.androidx.camera.core)
     implementation(libs.androidx.camera.lifecycle)
     implementation(libs.androidx.camera.view)

@@ -65,6 +65,12 @@ class ImageClassificationHelper(
         const val DEFAULT_THRESHOLD = 0.3f
         const val DEFAULT_THREAD_COUNT = 2
 
+        fun toAccelerator(acceleratorEnum: AcceleratorEnum): Accelerator {
+            return when (acceleratorEnum) {
+                AcceleratorEnum.CPU -> Accelerator.CPU
+                AcceleratorEnum.GPU -> Accelerator.GPU
+            }
+        }
     }
 
     /** As the result of sound classification, this value emits map of probabilities */
@@ -104,7 +110,7 @@ class ImageClassificationHelper(
                 Log.i(TAG, "Done creating CompiledModel from ${options.model.fileName}")
             }
         } catch (e: Exception) {
-            Log.i(TAG, "Create CompiledModel from ${options.options.model.fileName} is failed ${e.message}")
+            Log.i(TAG, "Create CompiledModel from ${options.model.fileName} is failed ${e.message}")
             _error.emit(e)
         }
     }
@@ -249,12 +255,4 @@ class ImageClassificationHelper(
 
     data class Category(val label: String, val score: Float)
 
-    private companion object {
-        fun toAccelerator(acceleratorEnum: AcceleratorEnum): Accelerator {
-            return when (acceleratorEnum) {
-                AcceleratorEnum.CPU -> Accelerator.CPU
-                AcceleratorEnum.GPU -> Accelerator.GPU
-            }
-        }
-    }
 }
