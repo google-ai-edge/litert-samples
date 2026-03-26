@@ -1,0 +1,8 @@
+<resources>
+    <string name="app_name">Image Classification</string>
+    <string name="inference_title">Inference Time</string>
+    <string name="inference_value">%d ms</string>
+    <string name="delegate">Delegate</string>
+    <string name="threshold">Threshold</string>
+    <string name="maxResult">Max Results</string>
+</resources>
