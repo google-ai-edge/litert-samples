@@ -1,0 +1,15 @@
+tasks.register('downloadEfficientnetLite0Model', Download) {
+    src 'https://storage.googleapis.com/ai-edge/interpreter-samples/image_classification/android/efficientnet_lite0.tflite'
+    dest project.ext.ASSET_DIR + '/efficientnet_lite0.tflite'
+    overwrite false
+}
+
+tasks.register('downloadEfficientnetLite2Model', Download) {
+    // This model is custom made using Model Maker. A detailed guide can be found here:
+    // https://www.tensorflow.org/lite/models/modify/model_maker/speech_recognition
+    src 'https://storage.googleapis.com/ai-edge/interpreter-samples/image_classification/android/efficientnet_lite2.tflite'
+    dest project.ext.ASSET_DIR + '/efficientnet_lite2.tflite'
+    overwrite false
+}
+
+preBuild.dependsOn downloadEfficientnetLite0Model, downloadEfficientnetLite2Model
