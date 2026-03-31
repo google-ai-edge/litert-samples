@@ -40,7 +40,11 @@ This will generate mobilenet_v2.tflite in the current directory.
 Supported architectures include:
 `mobilenet_v2`, `resnet18`, `resnet34`, `resnet50`, `resnet101`, `resnet152`,
 `efficientnet_b0` through `efficientnet_b7`, `efficientnet_v2_s`, `efficientnet_v2_m`,
-`efficientnet_v2_l`.
+`alexnet`, `convnext_tiny`, `convnext_small`, `convnext_base`, `convnext_large`,
+`vgg11`, `vgg11_bn`, `vgg13`, `vgg13_bn`, `vgg16`, `vgg16_bn`, `vgg19`, `vgg19_bn`,
+`efficientnet_v2_l`, `shufflenet_v2_x0_5`, `shufflenet_v2_x1_0`,
+`shufflenet_v2_x1_5`, `shufflenet_v2_x2_0`, `squeezenet1_0`, `squeezenet1_1`,
+`inception_v3`.
 
 If you choose a different architecture, the default output name matches it (for example,
 `resnet18.tflite`).
