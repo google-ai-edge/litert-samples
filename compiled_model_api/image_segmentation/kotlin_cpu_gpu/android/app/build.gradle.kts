@@ -29,12 +29,12 @@ plugins {
 
 android {
   namespace = "com.google.ai.edge.examples.image_segmentation"
-  compileSdk = 34
+  compileSdk = 36
 
   defaultConfig {
     applicationId = "com.google.ai.edge.examples.image_segmentation"
     minSdk = 23
-    targetSdk = 33
+    targetSdk = 36
     versionCode = 1
     versionName = "1.0"
 
