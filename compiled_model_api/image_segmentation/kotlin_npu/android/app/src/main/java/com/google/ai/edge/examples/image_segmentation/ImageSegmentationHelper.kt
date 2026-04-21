@@ -105,9 +105,11 @@ class ImageSegmentationHelper(private val context: Context) {
 
       withContext(singleThreadDispatcher) {
         val options = CompiledModel.Options(aiPackModelProvider.getCompatibleAccelerators()).apply {
-          qualcommOptions = CompiledModel.QualcommOptions(
-            htpPerformanceMode = CompiledModel.QualcommOptions.HtpPerformanceMode.HIGH_PERFORMANCE
-          )
+          if (acceleratorEnum == AcceleratorEnum.NPU) {
+            qualcommOptions = CompiledModel.QualcommOptions(
+              htpPerformanceMode = CompiledModel.QualcommOptions.HtpPerformanceMode.HIGH_PERFORMANCE
+            )
+          }
         }
         val model =
           if (aiPackModelProvider.getType() == ModelProvider.Type.ASSET) {
@@ -115,13 +117,13 @@ class ImageSegmentationHelper(private val context: Context) {
               context.assets,
               aiPackModelProvider.getPath(),
               options,
-              env,
+              if (acceleratorEnum == AcceleratorEnum.NPU) env else null,
             )
           } else {
             CompiledModel.create(
               aiPackModelProvider.getPath(),
               options,
-              env,
+              if (acceleratorEnum == AcceleratorEnum.NPU) env else null,
             )
           }
         segmenter = Segmenter(model, coloredLabels)
