@@ -30,8 +30,10 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.graphics.drawable.toBitmap
-import coil.compose.AsyncImage
-import coil.imageLoader
+import coil3.asDrawable
+import coil3.compose.AsyncImage
+import coil3.imageLoader
+import coil3.request.SuccessResult
 import com.google.ai.edge.examples.image_segmentation.UiState
 import kotlin.time.Duration.Companion.seconds
 import kotlinx.coroutines.Dispatchers
@@ -99,9 +101,14 @@ fun GalleryScreen(
           model = uri,
           contentDescription = null,
           imageLoader = LocalContext.current.imageLoader,
-          onSuccess = {
-            val bimap = it.result.drawable.toBitmap()
-            onImageAnalyzed(bimap)
+          onSuccess = { result ->
+            val coilImage = (result as SuccessResult).image
+            val drawable = coilImage.asDrawable(context.resources)
+            val bitmap = (drawable as? android.graphics.drawable.BitmapDrawable)?.bitmap
+
+            bitmap?.let {
+              onImageAnalyzed(it)
+            }
           },
           contentScale = ContentScale.Crop,
         )
