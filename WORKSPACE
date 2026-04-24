@@ -5,12 +5,12 @@ workspace(name = "litert")
 load("@bazel_tools//tools/build_defs/repo:http.bzl", "http_archive")
 load("@bazel_tools//tools/build_defs/repo:git.bzl", "new_git_repository")
 
-# LiteRT Archive (v2.1.2) with Correct Checksum
+# LiteRT Archive (v2.1.4) with Correct Checksum
 http_archive(
     name = "litert_archive",
-    url = "https://github.com/google-ai-edge/LiteRT/archive/refs/tags/v2.1.2.tar.gz",
-    strip_prefix = "LiteRT-2.1.2",
-    sha256 = "16079585fcd0c7fbb95585db10516d059f35b8860d4a92566e257d67e259473a",
+    url = "https://github.com/google-ai-edge/LiteRT/archive/refs/tags/v2.1.4.tar.gz",
+    strip_prefix = "LiteRT-2.1.4",
+    sha256 = "be614b050cc6603863acca0c48d0e210c0399ca80974648cb6fb5f70374a5b86",
     patch_cmds = [
         "sed 's|//litert|@litert_archive//litert|g' litert/build_common/special_rule.bzl > litert/build_common/special_rule.bzl.tmp && mv litert/build_common/special_rule.bzl.tmp litert/build_common/special_rule.bzl",
         "sed 's|@//third_party|@litert_archive//third_party|g' third_party/litert_prebuilts/workspace.bzl > third_party/litert_prebuilts/workspace.bzl.tmp && mv third_party/litert_prebuilts/workspace.bzl.tmp third_party/litert_prebuilts/workspace.bzl",
@@ -33,9 +33,9 @@ git_repository(
 
 http_archive(
     name = "rules_shell",
-    sha256 = "d8cd4a3a91fc1dc68d4c7d6b655f09def109f7186437e3f50a9b60ab436a0c53",
-    strip_prefix = "rules_shell-0.3.0",
-    url = "https://github.com/bazelbuild/rules_shell/releases/download/v0.3.0/rules_shell-v0.3.0.tar.gz",
+    sha256 = "bc61ef94facc78e20a645726f64756e5e285a045037c7a61f65af2941f4c25e1",
+    strip_prefix = "rules_shell-0.4.1",
+    url = "https://github.com/bazelbuild/rules_shell/releases/download/v0.4.1/rules_shell-v0.4.1.tar.gz",
 )
 
 load("@rules_shell//shell:repositories.bzl", "rules_shell_dependencies", "rules_shell_toolchains")
@@ -71,9 +71,9 @@ load("@litert_archive//litert:tensorflow_source_rules.bzl", "tensorflow_source_r
 
 tensorflow_source_repo(
     name = "org_tensorflow",
-    sha256 = "6e78f0d1503b3e70913512cb7c5fdafd1b69dfd45563924ee6ee9f768c8c283a",
-    strip_prefix = "tensorflow-777924f5575e7e6e22e4f47be211c2a94f59c4f5",
-    urls = ["https://github.com/tensorflow/tensorflow/archive/777924f5575e7e6e22e4f47be211c2a94f59c4f5.tar.gz"],
+    sha256 = "dfdb64ef739ce773f14f703b8a0b98ee5c005595852aa19d9c51aeb53bce0eff",
+    strip_prefix = "tensorflow-a9cd5eb2b4536b6c185ed882e0f41d9c10ada5f5",
+    urls = ["https://github.com/tensorflow/tensorflow/archive/a9cd5eb2b4536b6c185ed882e0f41d9c10ada5f5.tar.gz"],
 )
 
 # Initialize the TensorFlow repository and all dependencies.
@@ -82,6 +82,16 @@ tensorflow_source_repo(
 # restriction that load() statements need to be at the top of .bzl files.
 # E.g. we can not retrieve a new repository with http_archive and then load()
 # a macro from that repository in the same file.
+
+# Darts Clone
+http_archive(
+    name = "darts_clone",
+    build_file = "@//:BUILD.darts_clone",
+    sha256 = "4a562824ec2fbb0ef7bd0058d9f73300173d20757b33bb69baa7e50349f65820",
+    strip_prefix = "darts-clone-e40ce4627526985a7767444b6ed6893ab6ff8983",
+    url = "https://github.com/s-yata/darts-clone/archive/e40ce4627526985a7767444b6ed6893ab6ff8983.tar.gz",
+)
+
 load("@org_tensorflow//tensorflow:workspace3.bzl", "tf_workspace3")
 
 tf_workspace3()
@@ -255,15 +265,6 @@ http_archive(
     sha256 = "9970f0a0afee1648890293321665e5b2efa04eaec9f1671fcf8048f456f5bb86",
     strip_prefix = "sentencepiece-0.2.0/src",
     url = "https://github.com/google/sentencepiece/archive/refs/tags/v0.2.0.tar.gz",
-)
-
-# Darts Clone
-http_archive(
-    name = "darts_clone",
-    build_file = "@//:BUILD.darts_clone",
-    sha256 = "4a562824ec2fbb0ef7bd0058d9f73300173d20757b33bb69baa7e50349f65820",
-    strip_prefix = "darts-clone-e40ce4627526985a7767444b6ed6893ab6ff8983",
-    url = "https://github.com/s-yata/darts-clone/archive/e40ce4627526985a7767444b6ed6893ab6ff8983.tar.gz",
 )
 
 http_archive(
