@@ -82,6 +82,7 @@ tensorflow_source_repo(
 # restriction that load() statements need to be at the top of .bzl files.
 # E.g. we can not retrieve a new repository with http_archive and then load()
 # a macro from that repository in the same file.
+
 # Darts Clone
 http_archive(
     name = "darts_clone",
