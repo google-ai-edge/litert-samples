@@ -1,12 +1,13 @@
 # Guide to prepare and build the app
 
-LiteRT NPU, previously under Early access program is available to all 
-users: https://ai.google.dev/edge/litert/next/npu
+LiteRT NPU is available to all users: https://ai.google.dev/edge/litert/next/npu
 
 ## Build the app bundle
 
 WARNING: Before building the app, please follow instructions above to setup NPU
 runtime libraries correctly.
+
+WARNING: The version of NPU runtime libraries has to match the runtime maven package, which is available in `gradle/libs.versions.toml`.
 
 Please make sure your NPU runtime are being placed under the project root folder
 (current folder for this gradle project).
