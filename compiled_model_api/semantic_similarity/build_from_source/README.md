@@ -69,9 +69,7 @@ provided explicitly:
   `compiled_model_api/semantic_similarity/build_from_source/models/sentencepiece.model`.
 - `--embedder`: Defaults to
   `compiled_model_api/semantic_similarity/build_from_source/models/embeddinggemma-300M_seq256_mixed-precision.tflite`.
-- `--accelerator`: Defaults to `cpu`. To use `gpu` acceleration, please download
-   libLiteRtOpenClAccelerator.so from the [prebuilt](https://github.com/google-ai-edge/LiteRT-LM/tree/main/prebuilt),
-   and put it under `./libs`.
+- `--accelerator`: Defaults to `cpu`.
 
 #### Important Note on Command Format
 
