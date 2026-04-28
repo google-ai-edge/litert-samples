@@ -148,7 +148,7 @@ push() {
   if [[ "${PUSH_GPU_LIBS}" == "true" ]]; then
     print_info "Pushing GPU accelerator library..."
     # This path assumes the library is checked into the repo or built by Bazel
-    local local_gpu_library_path="${ROOT_DIR}/compiled_model_api/semantic_similarity/build_from_source/libs/libLiteRtOpenClAccelerator.so"
+    local local_gpu_library_path="${ROOT_DIR}/bazel-bin/compiled_model_api/semantic_similarity/build_from_source/semantic_similarity.runfiles/litert/external/litert_prebuilts/android_arm64/libLiteRtClGlAccelerator.so"
     if [[ ! -f "${local_gpu_library_path}" ]]; then
       print_error "Could not find GPU library at: ${local_gpu_library_path}"
       exit 1

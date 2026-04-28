@@ -13,6 +13,7 @@
 # limitations under the License.
 
 load("@rules_cc//cc:cc_binary.bzl", "cc_binary")
+load("@litert_archive//litert/build_common:special_rule.bzl", "litert_gpu_accelerator_prebuilts")
 
 package(
     # copybara:uncomment default_applicable_licenses = ["@org_tensorflow//tensorflow:license"],
@@ -36,7 +37,7 @@ cc_binary(
 cc_binary(
     name = "semantic_similarity",
     srcs = ["main.cc"],
-    # copybara:uncomment data = ["//litert/runtime/accelerators/gpu:ml_drift_cl_accelerator_so"],
+    data = litert_gpu_accelerator_prebuilts(),
     deps = [
         # copybara:uncomment "//base",
         "@com_google_absl//absl/flags:flag",
