@@ -1,0 +1,50 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Base palette -->
+    <color name="background_primary">#FF0A0A0F</color>
+    <color name="background_surface">#FF141420</color>
+    <color name="background_card">#FF1A1A2E</color>
+    <color name="background_elevated">#FF222238</color>
+
+    <!-- Accent colors -->
+    <color name="accent_primary">#FF4FC3F7</color>
+    <color name="accent_primary_dark">#FF0288D1</color>
+    <color name="accent_secondary">#FF7C4DFF</color>
+    <color name="accent_gradient_start">#FF4FC3F7</color>
+    <color name="accent_gradient_end">#FF7C4DFF</color>
+
+    <!-- Text colors -->
+    <color name="text_primary">#FFF0F0F5</color>
+    <color name="text_secondary">#FFB0B0C0</color>
+    <color name="text_tertiary">#FF707088</color>
+    <color name="text_on_accent">#FF0A0A0F</color>
+
+    <!-- Chat bubbles -->
+    <color name="bubble_user">#FF1E3A5F</color>
+    <color name="bubble_user_border">#FF2A5580</color>
+    <color name="bubble_assistant">#FF1A1A2E</color>
+    <color name="bubble_assistant_border">#FF2A2A40</color>
+
+    <!-- Status colors -->
+    <color name="status_success">#FF4CAF50</color>
+    <color name="status_warning">#FFFFA726</color>
+    <color name="status_error">#FFEF5350</color>
+    <color name="status_npu">#FF00E676</color>
+    <color name="status_gpu">#FFFFAB40</color>
+    <color name="status_cpu">#FF90A4AE</color>
+
+    <!-- Input area -->
+    <color name="input_background">#FF1A1A28</color>
+    <color name="input_border">#FF2A2A40</color>
+    <color name="input_hint">#FF505068</color>
+
+    <!-- Misc -->
+    <color name="divider">#FF1E1E30</color>
+    <color name="ripple">#20FFFFFF</color>
+    <color name="overlay_background">#E60A0A0F</color>
+    <color name="progress_track">#FF1A1A2E</color>
+
+    <!-- Legacy defaults (required by theme) -->
+    <color name="black">#FF000000</color>
+    <color name="white">#FFFFFFFF</color>
+</resources>
