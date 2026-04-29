@@ -74,3 +74,11 @@ python scripts/download_efficientdet_lite.py --variant lite0
 
 The included model is already quantized for byte input (`uint8`) and has mostly
 `int8` tensors, so it is the preferred first model to test on Qualcomm NPU.
+
+## Debugging
+
+If the model is missing from the assets after all the steps, run the following:
+
+```bash
+curl -L "https://tfhub.dev/tensorflow/lite-model/efficientdet/lite0/detection/default/1?lite-format=tflite" -o app/src/main/assets/efficientdet_lite0_detection.tflite
+```
