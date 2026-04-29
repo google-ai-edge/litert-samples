@@ -1,0 +1,14 @@
+.gradle/
+.idea/
+build/
+*/build/
+local.properties
+captures/
+*.iml
+*.apk
+*.aab
+*.apks
+.venv/
+__pycache__/
+litert_npu_runtime_libraries/
+app/device_targeting_configuration.xml

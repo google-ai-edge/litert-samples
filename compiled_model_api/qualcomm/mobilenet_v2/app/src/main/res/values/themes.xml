@@ -1,0 +1,7 @@
+<resources>
+  <style name="Theme.MobileNetLiteRT" parent="android:style/Theme.Material.Light.NoActionBar">
+    <item name="android:windowLightStatusBar">true</item>
+    <item name="android:navigationBarColor">#F7F8FA</item>
+    <item name="android:statusBarColor">#F7F8FA</item>
+  </style>
+</resources>
