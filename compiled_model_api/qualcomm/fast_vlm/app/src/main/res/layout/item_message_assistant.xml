@@ -1,0 +1,57 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="vertical"
+    android:gravity="start"
+    android:paddingHorizontal="16dp"
+    android:paddingVertical="4dp">
+
+    <!-- Assistant label -->
+    <TextView
+        android:id="@+id/tvAssistantLabel"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="FastVLM"
+        android:textColor="@color/accent_primary"
+        android:textSize="11sp"
+        android:textStyle="bold"
+        android:fontFamily="sans-serif-medium"
+        android:layout_marginBottom="4dp"
+        android:paddingStart="4dp"
+        tools:ignore="RtlSymmetry" />
+
+    <!-- Message bubble -->
+    <LinearLayout
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:background="@drawable/bg_bubble_assistant"
+        android:paddingHorizontal="16dp"
+        android:paddingVertical="10dp"
+        android:orientation="vertical"
+        android:maxWidth="320dp">
+
+        <TextView
+            android:id="@+id/tvAssistantMessage"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:textColor="@color/text_primary"
+            android:textSize="15sp"
+            android:lineSpacingMultiplier="1.4"
+            tools:text="This image shows a beautiful landscape with mountains and a lake reflecting the sky." />
+
+        <!-- Typing indicator (shown when generating) -->
+        <TextView
+            android:id="@+id/tvTypingIndicator"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="&#x25CF; &#x25CF; &#x25CF;"
+            android:textColor="@color/accent_primary"
+            android:textSize="14sp"
+            android:visibility="gone"
+            android:letterSpacing="0.3"
+            tools:visibility="visible" />
+    </LinearLayout>
+</LinearLayout>
