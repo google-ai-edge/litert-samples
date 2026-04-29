@@ -5,7 +5,7 @@ A premium **multimodal** on-device LLM chat application for Android, powered by 
 ## Setup & Installation
 
 ### Prerequisites
-*   Android Studio Ladybug (or newer)
+*   Latest Android Studio (Panda4 or newer)
 *   Samsung S25 Ultra (or any Android 10+ device with ARM64)
 *   ~3GB free storage for the model
 
@@ -29,7 +29,6 @@ adb push gemma-4-E2B-it_qualcomm_sm8750.litertlm /sdcard/Android/data/com.exampl
 The app will automatically detect the model in `/sdcard/Android/data/com.example.qnn_litertlm_gemma/files/model.litertlm` on launch.
 
 ### 3. Usage
-1.  **Launch the App**: The app detects the Gemma 4 model and initializes (NPU → GPU → CPU)
 2.  **Chat**: Type messages for text-only conversations
 3.  **Image Input**: Tap the gallery button to attach an image, then ask about it
 4.  **Audio Input**: Tap the mic button to record audio, tap again to stop
