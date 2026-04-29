@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="black">#FF000000</color>
+    <color name="white">#FFFFFFFF</color>
+    
+    <!-- Brand Colors -->
+    <color name="brand_primary">#2563EB</color> <!-- Tech Blue -->
+    <color name="brand_secondary">#10B981</color> <!-- Emerald -->
+    
+    <!-- Backgrounds -->
+    <color name="bg_app">#F3F4F6</color> <!-- Light Gray -->
+    <color name="bg_input">#FFFFFF</color>
+    
+    <!-- Message Bubbles -->
+    <color name="bubble_user">#E0E7FF</color> <!-- Light Indigo -->
+    <color name="bubble_assistant">#FFFFFF</color>
+    
+    <!-- Text -->
+    <color name="text_primary">#1F2937</color> <!-- Dark Gray -->
+    <color name="text_secondary">#6B7280</color> <!-- Medium Gray -->
+    <color name="text_on_brand">#FFFFFF</color>
+    
+    <!-- Status -->
+    <color name="status_bar_bg">#FFFFFF</color>
+</resources>
