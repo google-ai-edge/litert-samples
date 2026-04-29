@@ -4,8 +4,6 @@ A premium **multimodal** on-device LLM chat application for Android, powered by 
 
 ## Setup & Installation
 
-[![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/carrycooldude/ModelGarden-QNN-LiteRT/blob/main/google_colab/LiteRT_Gemma4_NPU_AOT_Compilation.ipynb)
-
 ### Prerequisites
 *   Android Studio Ladybug (or newer)
 *   Samsung S25 Ultra (or any Android 10+ device with ARM64)
