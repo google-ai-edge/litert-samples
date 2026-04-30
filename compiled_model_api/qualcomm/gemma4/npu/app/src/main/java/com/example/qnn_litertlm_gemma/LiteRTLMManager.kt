@@ -66,7 +66,9 @@ class LiteRTLMManager private constructor(private val context: Context) {
         modelPath: String,
         systemPrompt: String? = null,
         isEmbedding: Boolean = false,
-        preferredBackend: String? = null
+        preferredBackend: String? = null,
+        supportsImage: Boolean = true,
+        supportsAudio: Boolean = true
     ): Result<Boolean> = withContext(Dispatchers.IO) {
         Log.i(TAG, "Initializing for: $modelPath (preferred: $preferredBackend)")
         if (isInitialized) {
@@ -80,7 +82,7 @@ class LiteRTLMManager private constructor(private val context: Context) {
             } else {
                 // Build ordered backend list based on preference
                 val backends = buildBackendList(preferredBackend)
-                initializeEngineWithFallback(modelPath, backends)
+                initializeEngineWithFallback(modelPath, backends, supportsImage, supportsAudio)
             }
             isInitialized = true
             Log.i(TAG, "Initialization SUCCEEDED on backend: $currentBackendName")
@@ -123,13 +125,18 @@ class LiteRTLMManager private constructor(private val context: Context) {
     /**
      * Try each backend in order; stop at the first one that works.
      */
-    private fun initializeEngineWithFallback(modelPath: String, backends: List<BackendFactory>) {
+    private fun initializeEngineWithFallback(
+        modelPath: String,
+        backends: List<BackendFactory>,
+        supportsImage: Boolean,
+        supportsAudio: Boolean
+    ) {
         var lastError: Throwable? = null
         
         for (factory in backends) {
             try {
                 Log.i(TAG, "Trying backend: ${factory.name}")
-                initializeEngine(modelPath, factory)
+                initializeEngine(modelPath, factory, supportsImage, supportsAudio)
                 Log.i(TAG, "Backend ${factory.name} SUCCEEDED")
                 return
             } catch (e: Throwable) {
@@ -141,7 +148,12 @@ class LiteRTLMManager private constructor(private val context: Context) {
         throw lastError ?: IllegalStateException("All backends failed")
     }
 
-    private fun initializeEngine(modelPath: String, factory: BackendFactory) {
+    private fun initializeEngine(
+        modelPath: String,
+        factory: BackendFactory,
+        supportsImage: Boolean,
+        supportsAudio: Boolean
+    ) {
         val file = File(modelPath)
         if (!file.exists()) {
             throw java.io.FileNotFoundException("Model file not found at $modelPath")
@@ -160,22 +172,24 @@ class LiteRTLMManager private constructor(private val context: Context) {
 
         Log.i(TAG, "Initializing Engine with backend: ${factory.name}")
 
-        val visionBackend = if (factory.name == "NPU") {
+        val visionBackend = if (!supportsImage) {
+            null
+        } else if (factory.name == "NPU") {
             Backend.NPU(nativeLibraryDir = libDir)
         } else {
             Backend.CPU()
         }
-        val visionBackendName = if (factory.name == "NPU") "NPU" else "CPU"
-        val audioBackend = Backend.CPU()
-        val audioBackendName = "CPU"
+        val visionBackendName = if (!supportsImage) "none" else if (factory.name == "NPU") "NPU" else "CPU"
+        val audioBackend = if (supportsAudio) Backend.CPU() else null
+        val audioBackendName = if (supportsAudio) "CPU" else "none"
         val engineConfig = EngineConfig(
             modelPath = modelPath,
             backend = backend,
-            // Gemma multimodal LiteRT-LM packages require a vision executor
-            // for image prompts. Keep vision on NPU for SM8750 NPU model runs.
+            // Multimodal LiteRT-LM packages require a vision executor for
+            // image prompts. Keep vision on NPU for SM8750 NPU model runs.
             visionBackend = visionBackend,
             // The packaged LiteRT-LM audio executor supports CPU/GPU, but not NPU.
-            // Use CPU so audio modality is initialized instead of left unset.
+            // Use CPU for Gemma audio; leave it unset for image-only models.
             audioBackend = audioBackend,
             maxNumImages = 1,
             // Cache dir is CRITICAL for JIT compilation

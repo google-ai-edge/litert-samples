@@ -15,6 +15,8 @@ import android.text.Editable
 import android.text.TextWatcher
 import android.view.View
 import android.webkit.MimeTypeMap
+import android.widget.AdapterView
+import android.widget.ArrayAdapter
 import android.widget.Toast
 import androidx.activity.result.ActivityResultLauncher
 import androidx.activity.result.contract.ActivityResultContracts
@@ -58,6 +60,7 @@ class MainActivity : AppCompatActivity() {
     @Volatile
     private var isRecording = false
     private var isGenerating = false
+    private var selectedModel = ModelDownloader.GEMMA4_NPU
 
     // Activity result launchers
     private lateinit var imagePickerLauncher: ActivityResultLauncher<Intent>
@@ -73,6 +76,7 @@ class MainActivity : AppCompatActivity() {
         
         setupActivityResultLaunchers()
         setupRecyclerView()
+        setupModelSelector()
         setupInput()
         setupAttachments()
         checkAndInitializeModel()
@@ -91,6 +95,27 @@ class MainActivity : AppCompatActivity() {
             if (permissions[Manifest.permission.RECORD_AUDIO] == true && !isRecording && !isGenerating) {
                 startRecording()
             }
+        }
+    }
+
+    private fun setupModelSelector() {
+        val adapter = ArrayAdapter(
+            this,
+            android.R.layout.simple_spinner_item,
+            ModelDownloader.AVAILABLE_MODELS.map { it.name }
+        )
+        adapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item)
+        binding.spinnerModel.adapter = adapter
+        binding.spinnerModel.setSelection(ModelDownloader.AVAILABLE_MODELS.indexOf(selectedModel))
+        binding.spinnerModel.onItemSelectedListener = object : AdapterView.OnItemSelectedListener {
+            override fun onItemSelected(parent: AdapterView<*>?, view: View?, position: Int, id: Long) {
+                val model = ModelDownloader.AVAILABLE_MODELS[position]
+                if (model.id != selectedModel.id) {
+                    switchModel(model)
+                }
+            }
+
+            override fun onNothingSelected(parent: AdapterView<*>?) = Unit
         }
     }
 
@@ -126,7 +151,7 @@ class MainActivity : AppCompatActivity() {
         binding.buttonSend.setOnClickListener {
             val text = binding.editTextMessage.text.toString().trim()
             if (text.isNotEmpty() || pendingImagePath != null || pendingAudioPath != null) {
-                sendMessage(text.ifEmpty { "Describe what you see/hear." })
+                sendMessage(text.ifEmpty { selectedModel.defaultPrompt })
                 binding.editTextMessage.text?.clear()
             }
         }
@@ -188,6 +213,10 @@ class MainActivity : AppCompatActivity() {
         if (isGenerating) {
             return
         }
+        if (!selectedModel.supportsAudio) {
+            Toast.makeText(this, "${selectedModel.name} does not support audio.", Toast.LENGTH_SHORT).show()
+            return
+        }
         if (isRecording) {
             stopRecording()
         } else {
@@ -243,6 +272,7 @@ class MainActivity : AppCompatActivity() {
             binding.buttonAttachAudio.alpha = 0.5f
             binding.textAttachmentStatus.text = "🎙️ Recording... tap again to stop"
             binding.textAttachmentStatus.visibility = View.VISIBLE
+            updateSendButtonState()
             Toast.makeText(this, "Recording started", Toast.LENGTH_SHORT).show()
         } catch (e: Exception) {
             Log.e("MainActivity", "Recording failed: ${e.message}", e)
@@ -255,6 +285,7 @@ class MainActivity : AppCompatActivity() {
         val file = audioFile
         isRecording = false
         binding.buttonAttachAudio.alpha = 1.0f
+        updateSendButtonState()
 
         try {
             recorder?.stop()
@@ -359,19 +390,27 @@ class MainActivity : AppCompatActivity() {
         val canSend = hasContent && !isGenerating
         binding.buttonSend.alpha = if (canSend) 1.0f else 0.5f
         binding.buttonSend.isEnabled = canSend
-        binding.buttonAttachImage.isEnabled = !isGenerating
-        binding.buttonAttachAudio.isEnabled = !isGenerating
-        binding.buttonAttachImage.alpha = if (isGenerating) 0.5f else 1.0f
-        binding.buttonAttachAudio.alpha = if (isGenerating) 0.5f else 1.0f
+        binding.spinnerModel.isEnabled = !isGenerating && !isRecording
+
+        val imageEnabled = !isGenerating && selectedModel.supportsImage
+        binding.buttonAttachImage.isEnabled = imageEnabled
+        binding.buttonAttachImage.alpha = if (imageEnabled) 1.0f else 0.35f
+
+        val audioEnabled = !isGenerating && selectedModel.supportsAudio
+        binding.buttonAttachAudio.isEnabled = audioEnabled
+        binding.buttonAttachAudio.alpha = when {
+            isRecording -> 0.5f
+            audioEnabled -> 1.0f
+            else -> 0.35f
+        }
     }
     
     // ─── Model Management ───────────────────────────────────────
 
     private fun checkAndInitializeModel() {
-        binding.textModelName.text = ModelDownloader.GEMMA4_NPU.name
         binding.textBackendStatus.text = "NPU"
 
-        if (modelDownloader.isModelAvailable()) {
+        if (modelDownloader.isModelAvailable(selectedModel)) {
             initializeEngine()
             return
         }
@@ -379,13 +418,14 @@ class MainActivity : AppCompatActivity() {
         binding.cardInput.visibility = View.GONE
         binding.layoutLoading.visibility = View.VISIBLE
         binding.progressLoading.visibility = View.GONE
-        binding.textBenchmarkStats.text = "Model missing"
+        binding.textBenchmarkStats.text = "Missing: ${selectedModel.filename}"
         binding.textLoadingStatus.text = "Please push the model"
+        updateSendButtonState()
     }
 
     private fun initializeEngine() {
         lifecycleScope.launch {
-            val modelConfig = ModelDownloader.GEMMA4_NPU
+            val modelConfig = selectedModel
             binding.cardInput.visibility = View.GONE
             binding.layoutLoading.visibility = View.VISIBLE
             binding.progressLoading.visibility = View.VISIBLE
@@ -394,10 +434,12 @@ class MainActivity : AppCompatActivity() {
             val startTime = System.currentTimeMillis()
             
             val result = liteRTLMManager.initialize(
-                modelDownloader.getModelPath(),
+                modelDownloader.getModelPath(modelConfig),
                 modelConfig.systemPrompt,
                 false,
-                modelConfig.preferredBackend
+                modelConfig.preferredBackend,
+                modelConfig.supportsImage,
+                modelConfig.supportsAudio
             )
             
             val loadTime = System.currentTimeMillis() - startTime
@@ -420,6 +462,20 @@ class MainActivity : AppCompatActivity() {
             }
         }
     }
+
+    private fun switchModel(modelConfig: ModelConfig) {
+        if (isGenerating || isRecording) {
+            binding.spinnerModel.setSelection(ModelDownloader.AVAILABLE_MODELS.indexOf(selectedModel))
+            return
+        }
+
+        selectedModel = modelConfig
+        liteRTLMManager.cleanup()
+        messages.clear()
+        updateMessages()
+        clearAttachments()
+        checkAndInitializeModel()
+    }
     
     // ─── Message Sending ────────────────────────────────────────
 
@@ -434,7 +490,7 @@ class MainActivity : AppCompatActivity() {
         // Build display text showing what's attached
         val attachInfo = buildString {
             if (pendingImagePath != null) append("[📷 Image] ")
-            if (pendingAudioPath != null) append("[🎙️ Audio] ")
+            if (pendingAudioPath != null && selectedModel.supportsAudio) append("[🎙️ Audio] ")
             append(text)
         }
         
@@ -449,7 +505,7 @@ class MainActivity : AppCompatActivity() {
         
         // Capture and clear attachments
         val imagePath = pendingImagePath
-        val audioPath = pendingAudioPath
+        val audioPath = if (selectedModel.supportsAudio) pendingAudioPath else null
         clearAttachments()
         
         var firstTokenReceived = false

@@ -22,15 +22,17 @@
             android:layout_height="wrap_content"
             android:padding="16dp">
 
-            <TextView
-                android:id="@+id/text_model_name"
-                android:layout_width="wrap_content"
+            <Spinner
+                android:id="@+id/spinner_model"
+                android:layout_width="0dp"
                 android:layout_height="wrap_content"
-                android:text="Gemma 4"
-                android:textSize="18sp"
-                android:textStyle="bold"
-                android:textColor="@color/black"
+                android:spinnerMode="dropdown"
+                android:contentDescription="Model"
+                android:minHeight="36dp"
+                android:paddingStart="0dp"
+                android:paddingEnd="8dp"
                 app:layout_constraintStart_toStartOf="parent"
+                app:layout_constraintEnd_toStartOf="@id/text_backend_status"
                 app:layout_constraintTop_toTopOf="parent" />
 
             <TextView
@@ -46,9 +48,9 @@
                 android:paddingTop="2dp"
                 android:paddingBottom="2dp"
                 android:layout_marginStart="8dp"
-                app:layout_constraintStart_toEndOf="@id/text_model_name"
-                app:layout_constraintBottom_toBottomOf="@id/text_model_name"
-                app:layout_constraintTop_toTopOf="@id/text_model_name" />
+                app:layout_constraintEnd_toEndOf="parent"
+                app:layout_constraintBottom_toBottomOf="@id/spinner_model"
+                app:layout_constraintTop_toTopOf="@id/spinner_model" />
 
             <TextView
                 android:id="@+id/text_benchmark_stats"
@@ -59,7 +61,7 @@
                 android:textColor="@color/text_secondary"
                 android:layout_marginTop="4dp"
                 app:layout_constraintStart_toStartOf="parent"
-                app:layout_constraintTop_toBottomOf="@id/text_model_name" />
+                app:layout_constraintTop_toBottomOf="@id/spinner_model" />
 
         </androidx.constraintlayout.widget.ConstraintLayout>
     </com.google.android.material.card.MaterialCardView>
