@@ -1,0 +1,39 @@
+[versions]
+agp = "8.13.1"
+kotlin = "2.2.0"
+coreKtx = "1.10.1"
+junit = "4.13.2"
+junitVersion = "1.1.5"
+espressoCore = "3.5.1"
+appcompat = "1.6.1"
+material = "1.10.0"
+litertlm = "0.11.0-rc1"
+coroutines = "1.7.3"
+lifecycle = "2.6.2"
+activity = "1.8.0"
+recyclerview = "1.3.2"
+securityCrypto = "1.1.0-alpha06"
+litert = "2.1.4"
+litertGpu = "1.4.2"
+qnnDelegate = "2.44.0"
+
+[libraries]
+androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }
+junit = { group = "junit", name = "junit", version.ref = "junit" }
+androidx-junit = { group = "androidx.test.ext", name = "junit", version.ref = "junitVersion" }
+androidx-espresso-core = { group = "androidx.test.espresso", name = "espresso-core", version.ref = "espressoCore" }
+androidx-appcompat = { group = "androidx.appcompat", name = "appcompat", version.ref = "appcompat" }
+material = { group = "com.google.android.material", name = "material", version.ref = "material" }
+litertlm-android = { group = "com.google.ai.edge.litertlm", name = "litertlm-android", version.ref = "litertlm" }
+kotlinx-coroutines-android = { group = "org.jetbrains.kotlinx", name = "kotlinx-coroutines-android", version.ref = "coroutines" }
+androidx-lifecycle-runtime-ktx = { group = "androidx.lifecycle", name = "lifecycle-runtime-ktx", version.ref = "lifecycle" }
+androidx-activity-ktx = { group = "androidx.activity", name = "activity-ktx", version.ref = "activity" }
+androidx-recyclerview = { group = "androidx.recyclerview", name = "recyclerview", version.ref = "recyclerview" }
+androidx-security-crypto = { group = "androidx.security", name = "security-crypto", version.ref = "securityCrypto" }
+litert-core = { group = "com.google.ai.edge.litert", name = "litert", version.ref = "litert" }
+litert-gpu = { group = "com.google.ai.edge.litert", name = "litert-gpu", version.ref = "litertGpu" }
+litert-qnn = { group = "com.qualcomm.qti", name = "qnn-litert-delegate", version.ref = "qnnDelegate" }
+
+[plugins]
+android-application = { id = "com.android.application", version.ref = "agp" }
+kotlin-android = { id = "org.jetbrains.kotlin.android", version.ref = "kotlin" }
