@@ -7,7 +7,6 @@ data class ModelConfig(
     val id: String,
     val name: String,
     val filename: String,
-    val url: String,
     val systemPrompt: String? = null,
     val preferredBackend: String? = null
 )
