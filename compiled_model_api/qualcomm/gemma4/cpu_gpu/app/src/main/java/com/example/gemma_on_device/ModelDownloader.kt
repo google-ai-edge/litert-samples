@@ -30,46 +30,15 @@ class ModelDownloader(private val context: Context) {
         private const val TAG = "ModelDownloader"
         private const val KEY_HF_TOKEN = "hf_token"
 
-        // Gemma 4 models - NPU model first for S25 Ultra
+        // Gemma 4 models
         val AVAILABLE_MODELS = listOf(
-            ModelConfig(
-                id = "gemma3-1b",
-                name = "Gemma 3 1B (Int4)",
-                filename = "gemma3-1b-it-int4.litertlm",
-                url = "https://huggingface.co/litert-community/Gemma3-1B-IT/resolve/main/gemma3-1b-it-int4.litertlm",
-                systemPrompt = "You are Gemma, a helpful AI assistant running on device.",
-                preferredBackend = "NPU"
-            ),
-            ModelConfig(
-                id = "gemma-3n",
-                name = "Gemma 3n (Int4)",
-                filename = "gemma3n.litertlm",
-                url = "https://huggingface.co/google/gemma-3n-E2B-it-litert-lm/resolve/main/gemma-3n-E2B-it-int4.litertlm",
-                systemPrompt = "You are Gemma, a helpful AI assistant powered by Google's LiteRT-LM running on device.",
-                preferredBackend = "NPU"
-            ),
-            ModelConfig(
-                id = "gemma4-e2b-sm8750",
-                name = "Gemma 4 2B (S25 Ultra NPU)",
-                filename = "gemma4_2b_181450_244_sm8750.litertlm",
-                url = "local", // Pushed via ADB
-                systemPrompt = "You are Gemma 4, a powerful multimodal AI assistant by Google, optimized for the Snapdragon 8 Elite NPU. You can understand text, images, and audio.",
-                preferredBackend = "NPU"
-            ),
             ModelConfig(
                 id = "gemma4-e2b",
                 name = "Gemma 4 E2B (Int4)",
                 filename = "gemma-4-E2B-it.litertlm",
                 url = "https://huggingface.co/litert-community/gemma-4-E2B-it-litert-lm/resolve/main/gemma-4-E2B-it.litertlm",
                 systemPrompt = "You are Gemma 4, a powerful multimodal AI assistant by Google, running privately on-device. You can understand text, images, and audio.",
-                preferredBackend = "NPU"
-            ),
-            ModelConfig(
-                id = "qwen3-0.6b",
-                name = "Qwen 3 0.6B (Int4)",
-                filename = "qwen3-0.6b.litertlm",
-                url = "https://huggingface.co/litert-community/Qwen3-0.6B/resolve/main/qwen3-0.6b-int4.litertlm",
-                systemPrompt = "You are Qwen, a helpful AI assistant running on device."
+                preferredBackend = "GPU"
             )
         )
     }
