@@ -1,0 +1,191 @@
+<?xml version="1.0" encoding="utf-8"?>
+<androidx.constraintlayout.widget.ConstraintLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@color/bg_app"
+    android:fitsSystemWindows="true">
+
+    <!-- Status Header -->
+    <com.google.android.material.card.MaterialCardView
+        android:id="@+id/card_header"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        app:cardBackgroundColor="@color/white"
+        app:cardElevation="2dp"
+        app:cardCornerRadius="0dp"
+        app:layout_constraintTop_toTopOf="parent">
+
+        <androidx.constraintlayout.widget.ConstraintLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:padding="16dp">
+
+            <TextView
+                android:id="@+id/text_model_name"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Gemma 4"
+                android:textSize="18sp"
+                android:textStyle="bold"
+                android:textColor="@color/black"
+                app:layout_constraintStart_toStartOf="parent"
+                app:layout_constraintTop_toTopOf="parent" />
+
+            <TextView
+                android:id="@+id/text_backend_status"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="NPU"
+                android:textSize="12sp"
+                android:textColor="@color/brand_secondary"
+                android:background="@drawable/bg_status_pill"
+                android:paddingStart="8dp"
+                android:paddingEnd="8dp"
+                android:paddingTop="2dp"
+                android:paddingBottom="2dp"
+                android:layout_marginStart="8dp"
+                app:layout_constraintStart_toEndOf="@id/text_model_name"
+                app:layout_constraintBottom_toBottomOf="@id/text_model_name"
+                app:layout_constraintTop_toTopOf="@id/text_model_name" />
+
+            <TextView
+                android:id="@+id/text_benchmark_stats"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Ready"
+                android:textSize="12sp"
+                android:textColor="@color/text_secondary"
+                android:layout_marginTop="4dp"
+                app:layout_constraintStart_toStartOf="parent"
+                app:layout_constraintTop_toBottomOf="@id/text_model_name" />
+
+        </androidx.constraintlayout.widget.ConstraintLayout>
+    </com.google.android.material.card.MaterialCardView>
+
+    <!-- Chat List -->
+    <androidx.recyclerview.widget.RecyclerView
+        android:id="@+id/recycler_view_messages"
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:clipToPadding="false"
+        android:paddingBottom="120dp"
+        android:paddingTop="8dp"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintTop_toBottomOf="@id/card_header" />
+
+    <!-- Loading Overlay -->
+    <LinearLayout
+        android:id="@+id/layout_loading"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:gravity="center"
+        android:visibility="gone"
+        android:padding="32dp"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintTop_toTopOf="parent"
+        app:layout_constraintBottom_toBottomOf="parent">
+        
+        <ProgressBar
+            android:id="@+id/progress_loading"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content" />
+        <TextView
+            android:id="@+id/text_loading_status"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:text="Initializing..."
+            android:textAlignment="center"
+            android:textColor="@color/text_secondary"/>
+    </LinearLayout>
+
+    <!-- Attachment Status -->
+    <TextView
+        android:id="@+id/text_attachment_status"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:visibility="gone"
+        android:text=""
+        android:textSize="12sp"
+        android:textColor="@color/brand_primary"
+        android:background="@color/bg_input"
+        android:paddingStart="20dp"
+        android:paddingEnd="20dp"
+        android:paddingTop="4dp"
+        android:paddingBottom="4dp"
+        android:layout_marginStart="16dp"
+        android:layout_marginEnd="16dp"
+        app:layout_constraintBottom_toTopOf="@id/card_input" />
+
+    <!-- Input Area -->
+    <com.google.android.material.card.MaterialCardView
+        android:id="@+id/card_input"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_margin="8dp"
+        app:cardCornerRadius="24dp"
+        app:cardElevation="4dp"
+        app:cardBackgroundColor="@color/bg_input"
+        app:layout_constraintBottom_toBottomOf="parent">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="center_vertical"
+            android:padding="4dp">
+
+            <!-- Image Attach Button -->
+            <ImageButton
+                android:id="@+id/button_attach_image"
+                android:layout_width="36dp"
+                android:layout_height="36dp"
+                android:layout_marginStart="4dp"
+                android:visibility="gone"
+                android:background="?attr/selectableItemBackgroundBorderless"
+                android:src="@android:drawable/ic_menu_gallery"
+                android:contentDescription="Attach image"
+                app:tint="@color/text_secondary" />
+
+            <!-- Audio Record Button -->
+            <ImageButton
+                android:id="@+id/button_attach_audio"
+                android:layout_width="36dp"
+                android:layout_height="36dp"
+                android:visibility="gone"
+                android:background="?attr/selectableItemBackgroundBorderless"
+                android:src="@android:drawable/ic_btn_speak_now"
+                android:contentDescription="Record audio"
+                app:tint="@color/text_secondary" />
+
+            <EditText
+                android:id="@+id/edit_text_message"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:background="@null"
+                android:hint="Type a message..."
+                android:padding="12dp"
+                android:textColor="@color/text_primary"
+                android:textSize="16sp"
+                android:maxLines="4" 
+                android:inputType="textCapSentences|textMultiLine"/>
+
+            <ImageButton
+                android:id="@+id/button_send"
+                android:layout_width="40dp"
+                android:layout_height="40dp"
+                android:layout_marginEnd="8dp"
+                android:background="?attr/selectableItemBackgroundBorderless"
+                android:src="@android:drawable/ic_menu_send"
+                android:contentDescription="Send message"
+                app:tint="@color/brand_primary" />
+
+        </LinearLayout>
+    </com.google.android.material.card.MaterialCardView>
+
+</androidx.constraintlayout.widget.ConstraintLayout>
