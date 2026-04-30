@@ -112,7 +112,7 @@ class MobilenetClassifier(private val context: Context) : AutoCloseable {
     val compiledModel = CompiledModel.create(context.assets, CPU_MODEL_ASSET, options, env)
     Log.i(TAG, "Selected model source=assets/$CPU_MODEL_ASSET accelerators=[NPU]")
     Log.i(TAG, "NPU model created successfully with JIT")
-    return ModelSession(compiledModel, "NPU (JIT)")
+    return ModelSession(compiledModel, "NPU (JIT)", env)
   }
 
   private fun loadLabels(): List<String> {
@@ -134,6 +134,7 @@ class MobilenetClassifier(private val context: Context) : AutoCloseable {
   private class ModelSession(
     val model: CompiledModel,
     val backendName: String,
+    val env: Environment? = null
   ) : AutoCloseable {
     val inputBuffers = model.createInputBuffers()
     val outputBuffers = model.createOutputBuffers()
@@ -142,6 +143,7 @@ class MobilenetClassifier(private val context: Context) : AutoCloseable {
       inputBuffers.forEach { it.close() }
       outputBuffers.forEach { it.close() }
       model.close()
+      env?.close()
     }
   }
 
