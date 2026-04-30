@@ -1,5 +1,5 @@
 <resources>
-    <string name="app_name">Gemma 4 Chat</string>
+    <string name="app_name">LLM Chatbot NPU</string>
     <string name="user_sender">User</string>
     <string name="assistant_sender">Gemma 4</string>
     <string name="error_init">Failed to initialize engine</string>
