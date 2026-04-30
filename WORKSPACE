@@ -312,8 +312,9 @@ configurable_repo(
     name = "qairt",
     build_file = "@litert_archive//third_party/qairt:qairt.BUILD",
     local_path_env = "LITERT_QAIRT_SDK",
-    strip_prefix = "latest",
-    url = "https://storage.googleapis.com/litert/litert_qualcomm_sdk_2_37_1_release.tar.gz",
+    strip_prefix = "qairt/2.44.0.260225",
+    url = "https://softwarecenter.qualcomm.com/api/download/software/sdks/Qualcomm_AI_Runtime_Community/All/2.44.0.260225/v2.44.0.260225.zip",
+    file_extension = "zip",
 )
 
 # Currently only works with local sdk
