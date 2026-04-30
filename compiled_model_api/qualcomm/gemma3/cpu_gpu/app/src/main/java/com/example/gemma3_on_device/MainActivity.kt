@@ -56,7 +56,6 @@ class MainActivity : AppCompatActivity() {
         modelDownloader = ModelDownloader(this)
         
         setupRecyclerView()
-        setupRecyclerView()
         setupInput()
         
         // Settings
