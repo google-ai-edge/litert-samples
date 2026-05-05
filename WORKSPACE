@@ -14,6 +14,10 @@ http_archive(
     patch_cmds = [
         "sed 's|//litert|@litert_archive//litert|g' litert/build_common/special_rule.bzl > litert/build_common/special_rule.bzl.tmp && mv litert/build_common/special_rule.bzl.tmp litert/build_common/special_rule.bzl",
         "sed 's|@//third_party|@litert_archive//third_party|g' third_party/litert_prebuilts/workspace.bzl > third_party/litert_prebuilts/workspace.bzl.tmp && mv third_party/litert_prebuilts/workspace.bzl.tmp third_party/litert_prebuilts/workspace.bzl",
+        # Windows: inject windows_export_all_symbols feature into cc_shared_library for DLL builds.
+        "sed -i 's/cc_shared_library(/cc_shared_library(\\n    features = [\"windows_export_all_symbols\"],/g' litert/c/BUILD",
+        # Windows: define the missing static constant kValueNotSet needed by MSVC linker.
+        "echo 'namespace tflite { namespace profiling { namespace memory { constexpr size_t MemoryUsage::kValueNotSet; } } }' >> tflite/profiling/memory_info.cc",
     ],
 )
 

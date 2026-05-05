@@ -79,6 +79,30 @@ cc_binary(
     ] + gles_deps() + gl_native_deps(),
 )
 
+# CPU-only segmentation target with no OpenGL/EGL dependency.
+# Intended for platforms where GLES compute shaders are unavailable (e.g. Windows).
+cc_binary(
+    name = "cpp_segmentation_cpu_no_gl",
+    srcs = [
+        "main_cpu_no_gl.cc",
+    ],
+    copts = [
+        "-I.",
+    ],
+    data = [
+        ":model_files",
+        ":test_images",
+    ],
+    deps = [
+        ":image_utils",
+        ":timing_utils",
+        "@litert_archive//litert/cc:litert_api_with_dynamic_runtime",
+        "@com_google_absl//absl/strings:string_view",
+        "@com_google_absl//absl/time",
+        "@com_google_absl//absl/types:span",
+    ],
+)
+
 cc_binary(
     name = "cpp_segmentation_gpu",
     srcs = [
