@@ -18,7 +18,7 @@
 set -e
 
 # --- Default values ---
-ACCELERATOR="gpu" # Default accelerator if not specified
+ACCELERATOR="cpu" # Default accelerator if not specified
 PHONE="s25" # Default phone model
 BINARY_BUILD_PATH=""
 
@@ -27,6 +27,7 @@ usage() {
     echo "Usage: $0 --accelerator=[gpu|npu|cpu] --phone=[s24|s25|dim9400] <binary_build_path>"
     echo "  --accelerator : Specify the accelerator to use (gpu, npu, or cpu)."
     echo "  --phone       : Specify the phone model (s24/s25 for Qualcomm, dim9400 for MediaTek)."
+    echo "  --backend     : For GPU, specify backend (opengl or opencl). Defaults to opencl."
     echo "  --jit         : Use JIT compilation (true). Defaults to false (Qualcomm AOT)."
     echo "  <binary_build_path> : Path to bazel-bin/."
     exit 1
@@ -40,7 +41,7 @@ if [ "$#" -eq 0 ]; then
 fi
 
 # Parse options
-TEMP=$(getopt -o '' --long accelerator:,phone:,use_gl_buffers,jit,host_npu_lib:,host_npu_dispatch_lib:,host_npu_compiler_lib: -- "$@")
+TEMP=$(getopt -o '' --long accelerator:,phone:,backend:,use_gl_buffers,jit,host_npu_lib:,host_npu_dispatch_lib:,host_npu_compiler_lib: -- "$@")
 if [ $? -ne 0 ]; then
     echo "Error parsing options." >&2
     usage
@@ -51,6 +52,7 @@ unset TEMP
 
 USE_GL_BUFFERS=false
 USE_JIT=false
+BACKEND="opencl"
 HOST_NPU_LIB=""
 HOST_NPU_DISPATCH_LIB=""
 HOST_NPU_COMPILER_LIB=""
@@ -71,9 +73,9 @@ while true; do
             PHONE="$2"
             shift 2
             ;;
-        '--use_gl_buffers')
-            USE_GL_BUFFERS=true
-            shift
+        '--backend')
+            BACKEND="$2"
+            shift 2
             ;;
         '--jit')
             USE_JIT=true
@@ -105,7 +107,6 @@ while true; do
 done
 
 echo "Selected Accelerator: $ACCELERATOR"
-echo "Use GL Buffers: $USE_GL_BUFFERS"
 
 # The remaining argument should be the binary_build_path
 if [ "$#" -ne 1 ]; then
@@ -331,8 +332,8 @@ echo "To run the async segmentation on the device, use a command like this:"
 MODEL_PATH="./models/${MODEL_FILENAME}"
 
 RUN_COMMAND="./${DEVICE_EXEC_NAME} ${MODEL_PATH} ./test_images/image.jpeg ./output_segmented.png"
-if [[ "$ACCELERATOR" == "gpu" ]] && $USE_GL_BUFFERS; then
-    RUN_COMMAND="${RUN_COMMAND} true"
+if [[ "$ACCELERATOR" == "gpu" ]]; then
+    RUN_COMMAND="${RUN_COMMAND} ${BACKEND}"
 fi
 
 if [[ "$ACCELERATOR" == "npu" ]]; then
