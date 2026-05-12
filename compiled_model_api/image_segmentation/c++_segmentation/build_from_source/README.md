@@ -120,10 +120,10 @@ After building, use the `deploy_and_run_on_android.sh` script to deploy and run 
 ```bash
 # For CPU
 ./compiled_model_api/image_segmentation/c++_segmentation/build_from_source/deploy_and_run_on_android.sh --accelerator=cpu --phone=s25 bazel-bin/
-# For GPU
+# For GPU (OpenCL Backend)
 ./compiled_model_api/image_segmentation/c++_segmentation/build_from_source/deploy_and_run_on_android.sh --accelerator=gpu --phone=s25 bazel-bin/
-# For GPU with GL buffers
-./compiled_model_api/image_segmentation/c++_segmentation/build_from_source/deploy_and_run_on_android.sh --accelerator=gpu --use_gl_buffers --phone=s25 bazel-bin/
+# For GPU (OpenGL Backend)
+./compiled_model_api/image_segmentation/c++_segmentation/build_from_source/deploy_and_run_on_android.sh --accelerator=gpu --backend=opengl --phone=s25 bazel-bin/
 # For NPU with an ahead-of-time compiled model
 ./compiled_model_api/image_segmentation/c++_segmentation/build_from_source/deploy_and_run_on_android.sh --accelerator=npu --phone=s25 bazel-bin/
 # For NPU with just-in-time (jit) compilation of the model

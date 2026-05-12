@@ -46,17 +46,15 @@
 
 namespace {
 
-litert::Options CreateGpuOptions(bool use_gl_buffers) {
+litert::Options CreateGpuOptions(bool use_opengl) {
   LITERT_ASSIGN_OR_ABORT(litert::Options options, litert::Options::Create());
   LITERT_ASSIGN_OR_ABORT(auto& gpu_options, options.GetGpuOptions());
-  if (use_gl_buffers) {
+  if (use_opengl) {
     LITERT_ABORT_IF_ERROR(
-        gpu_options.SetPrecision(litert::GpuOptions::Precision::kFp32));
-    LITERT_ABORT_IF_ERROR(gpu_options.SetBufferStorageType(
-        litert::GpuOptions::BufferStorageType::kBuffer));
-    LITERT_ABORT_IF_ERROR(gpu_options.EnableExternalTensorsMode(true));
+        gpu_options.SetBackend(litert::GpuOptions::Backend::kOpenGl));
   } else {
-    LITERT_ABORT_IF_ERROR(gpu_options.EnableExternalTensorsMode(false));
+    LITERT_ABORT_IF_ERROR(
+        gpu_options.SetBackend(litert::GpuOptions::Backend::kOpenCl));
   }
 
   options.SetHardwareAccelerators(litert::HwAccelerators::kGpu |
@@ -124,8 +122,7 @@ int main(int argc, char* argv[]) {
   if (argc < 4 || argc > 5) {
     std::cerr << "Usage: " << argv[0]
               << " <model_path> <input_image_path> <output_image_path> "
-                 "[use_gl_buffers "
-                 "(true|false)]"
+                 "[backend (opengl|opencl)]"
               << std::endl;
     return 1;
   }
@@ -133,17 +130,19 @@ int main(int argc, char* argv[]) {
   const std::string model_path = argv[1];
   const std::string input_file = argv[2];
   const std::string output_file = argv[3];
-  bool use_gl_buffers = false;
+  bool use_opengl = false; // default to opencl
 
   if (argc == 5) {
-    std::string use_gl_buffers_arg = argv[4];
-    absl::c_transform(use_gl_buffers_arg, use_gl_buffers_arg.begin(),
-                      ::tolower);
-    if (use_gl_buffers_arg == "true") {
-      use_gl_buffers = true;
-    } else if (use_gl_buffers_arg != "false") {
-      std::cerr << "Warning: Unknown value for use_gl_buffers '"
-                << use_gl_buffers_arg << "'. Defaulting to false." << std::endl;
+    std::string backend_arg = argv[4];
+    absl::c_transform(backend_arg, backend_arg.begin(), ::tolower);
+    if (backend_arg == "opengl") {
+      use_opengl = true;
+    } else if (backend_arg == "opencl") {
+      use_opengl = false;
+    } else {
+      std::cerr << "Warning: Unknown backend '" << backend_arg
+                << "'. Defaulting to opencl." << std::endl;
+      use_opengl = false;
     }
   }
 
@@ -164,26 +163,15 @@ int main(int argc, char* argv[]) {
   LITERT_ASSIGN_OR_ABORT(auto env, litert::Environment::Create({}));
 
   // Compile the model for the GPU
-  litert::Options options = CreateGpuOptions(use_gl_buffers);
+  litert::Options options = CreateGpuOptions(use_opengl);
   LITERT_ASSIGN_OR_ABORT(auto compiled_model, litert::CompiledModel::Create(
                                                   env, model_path, options));
 
   // Create input and output buffers.
-  // When using GL buffers, the input and output buffers are created as GL
-  // buffers. This allows for zero-copy pre- and post-processing, as the data
-  // can be manipulated on the GPU without being copied to the CPU.
   std::vector<litert::TensorBuffer> input_buffers;
   std::vector<litert::TensorBuffer> output_buffers;
-  if (use_gl_buffers) {
-    LITERT_ASSIGN_OR_ABORT(input_buffers,
-                           CreateGlInputBuffers(env, compiled_model, 0));
-    LITERT_ASSIGN_OR_ABORT(output_buffers,
-                           CreateGlOutputBuffers(env, compiled_model, 0));
-  } else {
-    LITERT_ASSIGN_OR_ABORT(input_buffers, compiled_model.CreateInputBuffers());
-    LITERT_ASSIGN_OR_ABORT(output_buffers,
-                           compiled_model.CreateOutputBuffers());
-  }
+  LITERT_ASSIGN_OR_ABORT(input_buffers, compiled_model.CreateInputBuffers());
+  LITERT_ASSIGN_OR_ABORT(output_buffers, compiled_model.CreateOutputBuffers());
 
   // ================= PRE-PROCESSING =================
   // Load and preprocess the image
@@ -210,16 +198,11 @@ int main(int argc, char* argv[]) {
   ImageUtils::FreeImageData(img_data_cpu);
 
   int preprocessed_width = 256, preprocessed_height = 256;
-  int num_channels = use_gl_buffers ? 4 : 3;
+  int num_channels = 3;
   GLuint preprocessed_buffer_id;
-  if (use_gl_buffers) {
-    LITERT_ASSIGN_OR_ABORT(auto gl_buffer, input_buffers[0].GetGlBuffer());
-    preprocessed_buffer_id = gl_buffer.id;
-  } else {
-    preprocessed_buffer_id = processor.CreateOpenGLBuffer(
-        nullptr, preprocessed_width * preprocessed_height * num_channels *
-                     sizeof(float));
-  }
+  preprocessed_buffer_id = processor.CreateOpenGLBuffer(
+      nullptr,
+      preprocessed_width * preprocessed_height * num_channels * sizeof(float));
 
   if (!processor.PreprocessInputForSegmentation(
           tex_id_orig, width_orig, height_orig, preprocessed_width,
@@ -229,28 +212,37 @@ int main(int argc, char* argv[]) {
     return 1;
   }
 
-  if (!use_gl_buffers) {
     std::vector<float> preprocessed_buffer_data(
-        preprocessed_width * preprocessed_height * num_channels);
-    if (!processor.ReadBufferData(preprocessed_buffer_id, 0,
-                                  preprocessed_width * preprocessed_height *
-                                      num_channels * sizeof(float),
-                                  preprocessed_buffer_data.data())) {
-      std::cerr << "Failed to read preprocessed input SSBO." << std::endl;
-      return 1;
-    }
-    LITERT_ABORT_IF_ERROR(
-        input_buffers[0].Write(absl::MakeConstSpan(preprocessed_buffer_data)));
+      preprocessed_width * preprocessed_height * num_channels);
+  if (!processor.ReadBufferData(preprocessed_buffer_id, 0,
+                                preprocessed_width * preprocessed_height *
+                                    num_channels * sizeof(float),
+                                preprocessed_buffer_data.data())) {
+    std::cerr << "Failed to read preprocessed input SSBO." << std::endl;
+    return 1;
   }
+  LITERT_ABORT_IF_ERROR(
+      input_buffers[0].Write(absl::MakeConstSpan(preprocessed_buffer_data)));
+  
   profiling_timestamps.pre_process_end_time =
       profiling_timestamps.inference_start_time = absl::Now();
   // ================= INFERENCE =================
   // Run inference
 
-  bool async = false;
+    bool async = false;
   LITERT_ABORT_IF_ERROR(
       compiled_model.RunAsync(0, input_buffers, output_buffers, async));
-  if (output_buffers[0].HasEvent()) {
+
+  if (use_opengl) {
+    // Force OpenGL to wait to ensure everything is flushed properly,
+    // specifically required for OpenCL/GL interoperability backend before
+    // reading back the memory mappings on the CPU thread, mitigating
+    // segmentation faults on teardown.
+    glFinish();
+  }
+
+  // Only the OpenCL backend returns a sync event on the output buffer right now
+  if (!use_opengl && output_buffers[0].HasEvent()) {
     LITERT_ASSIGN_OR_ABORT(auto event, output_buffers[0].GetEvent());
     event.Wait();
   }
@@ -267,23 +259,15 @@ int main(int argc, char* argv[]) {
         nullptr, preprocessed_width * preprocessed_height * sizeof(float)));
   }
 
-  if (use_gl_buffers) {
-    LITERT_ASSIGN_OR_ABORT(auto gl_buffer, output_buffers[0].GetGlBuffer());
-    if (!processor.DeinterleaveMasks(gl_buffer.id, mask_buffer_ids)) {
-      std::cerr << "Failed to deinterleave masks." << std::endl;
-      return 1;
-    }
-  } else {
-    std::vector<float> deinterleaved_masks_data(preprocessed_width *
-                                                preprocessed_height * 6);
-    LITERT_ABORT_IF_ERROR(
-        output_buffers[0].Read(absl::MakeSpan(deinterleaved_masks_data)));
-    if (!processor.DeinterleaveMasksCpu(deinterleaved_masks_data.data(),
-                                        preprocessed_width, preprocessed_height,
-                                        mask_buffer_ids)) {
-      std::cerr << "Failed to deinterleave masks on CPU." << std::endl;
-      return 1;
-    }
+  std::vector<float> deinterleaved_masks_data(preprocessed_width *
+                                              preprocessed_height * 6);
+  LITERT_ABORT_IF_ERROR(
+      output_buffers[0].Read(absl::MakeSpan(deinterleaved_masks_data)));
+  if (!processor.DeinterleaveMasksCpu(deinterleaved_masks_data.data(),
+                                      preprocessed_width, preprocessed_height,
+                                      mask_buffer_ids)) {
+    std::cerr << "Failed to deinterleave masks on CPU." << std::endl;
+    return 1;
   }
 
   int out_blend_width = 0, out_blend_height = 0;
@@ -327,13 +311,24 @@ int main(int argc, char* argv[]) {
   PrintTiming(profiling_timestamps);
 
   processor.DeleteOpenGLTexture(tex_id_orig);
-  if (!use_gl_buffers) {
-    processor.DeleteOpenGLBuffer(preprocessed_buffer_id);
-  }
+  processor.DeleteOpenGLBuffer(preprocessed_buffer_id);
+
   for (GLuint id : mask_buffer_ids) {
     processor.DeleteOpenGLBuffer(id);
   }
   processor.DeleteOpenGLBuffer(final_blended_ssbo_id);
+
+
+  // Clean up litert allocations before the GL context dies
+  input_buffers.clear();
+  output_buffers.clear();
+
+  // Create an explicit scope drop for compiled_model via destruction,
+  // ensuring the model gets destroyed before the environment and EGL teardown
+  compiled_model = litert::CompiledModel();
+
+  // Explicitly drop environment references to avoid lifecycle crashes
+  env.Release();
 
   return 0;
 }
