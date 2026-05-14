@@ -48,9 +48,11 @@ SEQUENCE_LENGTH=0
 
 # Flag to determine if GPU libraries need to be pushed.
 PUSH_GPU_LIBS="false"
+# Flag to determine if NPU libraries need to be pushed.
+PUSH_NPU_LIBS="false"
 
 # Flag to determine which NPU libraries to push.
-# Options: "", "Qualcomm", "MediaTek"
+# Options: "", "Qualcomm", "MediaTek", "Google"
 SOC_MAN=""
 
 # -- Build flags for Bazel --
@@ -84,7 +86,11 @@ validate_accelerators() {
     local trimmed_accelerator
     trimmed_accelerator="$(echo "${accelerator}" | xargs)"
     case "${trimmed_accelerator}" in
-      cpu|npu)
+      cpu)
+        ;;
+      npu)
+        print_info "NPU accelerator detected. Will push NPU delegate libraries based on --soc_man."
+        PUSH_NPU_LIBS="true"
         ;;
       gpu)
         print_info "GPU accelerator detected. Will push GPU delegate libraries."
@@ -109,11 +115,11 @@ usage() {
   echo "  --embedder          Path to the embedder model. (Default: ${EMBEDDER_MODEL})"
   echo "  --sentence1         (Required) First sentence for comparison."
   echo "  --sentence2         (Required) Second sentence for comparison."
-  echo "  --accelerator       Backend to use (e.g. cpu, gpu). Can be multiple e.g. 'cpu,npu' (Default: ${ACCELERATOR})"
+  echo "  --accelerator       Backend to use (e.g. cpu, gpu, npu). Can be multiple e.g. 'cpu,npu' (Default: ${ACCELERATOR})"
   echo "  --sequence_length   Sequence length of the embedder model. (Default: ${SEQUENCE_LENGTH}, will be inferred from the model path)"
-  echo "  --soc_man           SoC Manufacturer for NPU libs (e.g., Qualcomm, MediaTek). (Default: ${SOC_MAN})"
+  echo "  --soc_man           SoC Manufacturer for NPU libs (e.g., Qualcomm, MediaTek, Google). (Default: ${SOC_MAN})"
   echo
-  echo "Example: $0 --sentence1=\"Hello world\" --sentence2=\"Hi there\""
+  echo "Example: $0 --sentence1=\"Hello world\" --sentence2=\"Hi there\" --accelerator=npu --soc_man=Google"
 }
 
 build() {
@@ -156,29 +162,42 @@ push() {
     adb push --sync "${local_gpu_library_path}" "${DEVICE_LD_LIBRARY_PATH}"
   fi
 
-  if [[ "${SOC_MAN}" == "Qualcomm" ]]; then
-    print_info "Building and Pushing QNN accelerator library..."
-    bazel build ${BUILD_FLAGS} @litert_archive//litert/vendors/qualcomm/dispatch:dispatch_api_so
-    adb push --sync "${ROOT_DIR}/bazel-bin/external/litert_archive/litert/vendors/qualcomm/dispatch/libLiteRtDispatch_Qualcomm.so" "${DEVICE_LD_LIBRARY_PATH}"
+  if [[ "${PUSH_NPU_LIBS}" == "true" ]]; then
+    if [[ "${SOC_MAN}" == "Qualcomm" ]]; then
+      print_info "Building and Pushing QNN accelerator library..."
+      bazel build ${BUILD_FLAGS} @litert_archive//litert/vendors/qualcomm/dispatch:dispatch_api_so
+      adb push --sync "${ROOT_DIR}/bazel-bin/external/litert_archive/litert/vendors/qualcomm/dispatch/libLiteRtDispatch_Qualcomm.so" "${DEVICE_LD_LIBRARY_PATH}"
 
-    if [[ -z "${QNN_SDK_ROOT}" ]]; then
-      print_error "QNN_SDK_ROOT environment variable is not set. Cannot push QNN HTP libraries."
+      if [[ -z "${QNN_SDK_ROOT}" ]]; then
+        print_error "QNN_SDK_ROOT environment variable is not set. Cannot push QNN HTP libraries."
+        exit 1
+      fi
+      if [[ ! -d "${QNN_SDK_ROOT}" ]]; then
+        print_error "Could not find QNN SDK at: ${QNN_SDK_ROOT}"
+        exit 1
+      fi
+      print_info "Pushing QNN HTP libraries from ${QNN_SDK_ROOT}..."
+      adb push --sync ${QNN_SDK_ROOT}/lib/aarch64-android/libQnnHtp*Stub.so ${DEVICE_LD_LIBRARY_PATH}
+      adb push --sync ${QNN_SDK_ROOT}/lib/aarch64-android/libQnnHtp.so ${DEVICE_LD_LIBRARY_PATH}
+      adb push --sync ${QNN_SDK_ROOT}/lib/aarch64-android/libQnnSystem.so ${DEVICE_LD_LIBRARY_PATH}
+      # Note: The glob below might need adjustment based on QNN SDK structure.
+      adb push --sync ${QNN_SDK_ROOT}/lib/hexagon-*/unsigned/libQnnHtp*Skel.so ${DEVICE_LD_LIBRARY_PATH}
+    elif [[ "${SOC_MAN}" == "MediaTek" ]]; then
+      print_info "Building and Pushing MTK accelerator library..."
+      bazel build ${BUILD_FLAGS} @litert_archive//litert/vendors/mediatek/dispatch:dispatch_api_so
+      adb push --sync "${ROOT_DIR}/bazel-bin/external/litert_archive/litert/vendors/mediatek/dispatch/libLiteRtDispatch_MediaTek.so" "${DEVICE_LD_LIBRARY_PATH}"
+    elif [[ "${SOC_MAN}" == "Google" ]]; then
+      print_info "Building and Pushing Google Tensor accelerator library..."
+      bazel build ${BUILD_FLAGS} @litert_archive//litert/vendors/google_tensor/dispatch:dispatch_api_so
+      adb push --sync "${ROOT_DIR}/bazel-bin/external/litert_archive/litert/vendors/google_tensor/dispatch/libLiteRtDispatch_GoogleTensor.so" "${DEVICE_LD_LIBRARY_PATH}"
+      print_info "Google Tensor (DarwiNN) libraries pushed."
+    elif [[ -z "${SOC_MAN}" ]]; then
+      print_error "NPU accelerator specified, but --soc_man is not set. Please specify SoC Manufacturer (e.g., Qualcomm, MediaTek, Google)."
+      exit 1
+    else
+      print_error "Unsupported SoC Manufacturer for NPU: ${SOC_MAN}"
       exit 1
     fi
-    if [[ ! -d "${QNN_SDK_ROOT}" ]]; then
-      print_error "Could not find QNN SDK at: ${QNN_SDK_ROOT}"
-      exit 1
-    fi
-    print_info "Pushing QNN HTP libraries from ${QNN_SDK_ROOT}..."
-    adb push --sync ${QNN_SDK_ROOT}/lib/aarch64-android/libQnnHtp*Stub.so ${DEVICE_LD_LIBRARY_PATH}
-    adb push --sync ${QNN_SDK_ROOT}/lib/aarch64-android/libQnnHtp.so ${DEVICE_LD_LIBRARY_PATH}
-    adb push --sync ${QNN_SDK_ROOT}/lib/aarch64-android/libQnnSystem.so ${DEVICE_LD_LIBRARY_PATH}
-    # Note: The glob below might need adjustment based on QNN SDK structure.
-    adb push --sync ${QNN_SDK_ROOT}/lib/hexagon-*/unsigned/libQnnHtp*Skel.so ${DEVICE_LD_LIBRARY_PATH}
-  elif [[ "${SOC_MAN}" == "MediaTek" ]]; then
-    print_info "Building and Pushing MTK accelerator library..."
-    bazel build ${BUILD_FLAGS} @litert_archive//litert/vendors/mediatek/dispatch:dispatch_api_so
-    adb push --sync "${ROOT_DIR}/bazel-bin/external/litert_archive/litert/vendors/mediatek/dispatch/libLiteRtDispatch_MediaTek.so" "${DEVICE_LD_LIBRARY_PATH}"
   fi
 
   print_success "Files pushed to the device."
@@ -274,6 +293,12 @@ main() {
 
   if [[ -z "${SENTENCE1}" || -z "${SENTENCE2}" ]]; then
     print_error "Error: --sentence1 and --sentence2 are required."
+    usage
+    exit 1
+  fi
+
+  if [[ "${PUSH_NPU_LIBS}" == "true" && -z "${SOC_MAN}" ]]; then
+    print_error "Error: --accelerator=npu requires --soc_man to be set."
     usage
     exit 1
   fi
