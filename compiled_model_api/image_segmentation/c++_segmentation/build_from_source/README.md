@@ -110,6 +110,11 @@ bazel build //compiled_model_api/image_segmentation/c++_segmentation/build_from_
 bazel build //compiled_model_api/image_segmentation/c++_segmentation/build_from_source:cpp_segmentation_npu_mtk \
   --config=android_arm64 \
   --nocheck_visibility
+
+# 5. Google Tensor NPU (No extra SDK required)
+bazel build //compiled_model_api/image_segmentation/c++_segmentation/build_from_source:cpp_segmentation_npu_google_tensor \
+  --config=android_arm64 \
+  --nocheck_visibility
 ```
 
 > [!NOTE]
@@ -131,6 +136,9 @@ After building, use the `deploy_and_run_on_android.sh` script to deploy and run 
 
 # For MediaTek APU (dim9400)
 ./compiled_model_api/image_segmentation/c++_segmentation/build_from_source/deploy_and_run_on_android.sh --accelerator=npu --phone=dim9400 --jit bazel-bin/
+
+# For Google Tensor G5 (pixel10)
+./compiled_model_api/image_segmentation/c++_segmentation/build_from_source/deploy_and_run_on_android.sh --accelerator=npu --phone=pixel10 bazel-bin/
 ```
 The output image `output_segmented.png` will be pulled from the device and saved in the current directory.
 

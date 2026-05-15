@@ -50,6 +50,8 @@ include(":litert_npu_runtime_libraries:runtime_strings")
 
 include(":litert_npu_runtime_libraries:mediatek_runtime")
 
+include(":litert_npu_runtime_libraries:google_tensor_runtime")
+
 include(":litert_npu_runtime_libraries:qualcomm_runtime_v69")
 
 include(":litert_npu_runtime_libraries:qualcomm_runtime_v73")

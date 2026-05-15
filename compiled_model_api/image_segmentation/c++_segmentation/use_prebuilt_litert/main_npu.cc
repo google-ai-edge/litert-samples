@@ -35,17 +35,15 @@
 #include "image_utils.h"
 #include "timing_utils.h"
 
-// Device paths where NPU libraries are deployed by the deploy script.
-static constexpr absl::string_view kQualcommDispatchDir =
-    "/data/local/tmp/cpp_segmentation_android/npu/";
-static constexpr absl::string_view kMediatekDispatchDir =
+// Device path where NPU libraries are deployed by the deploy script.
+static constexpr absl::string_view kNpuDispatchDir =
     "/data/local/tmp/cpp_segmentation_android/npu/";
 
 int main(int argc, char* argv[]) {
   if (argc < 4) {
     std::cerr << "Usage: " << argv[0]
               << " <model_path> <input_image_path> <output_image_path> "
-                 "[use_jit (true|false)] [npu_vendor (qualcomm|mediatek)]"
+                 "[use_jit (true|false)] [npu_vendor (qualcomm|mediatek|google_tensor)]"
               << std::endl;
     return 1;
   }
@@ -65,9 +63,10 @@ int main(int argc, char* argv[]) {
   }
 
   const bool use_mediatek = (npu_vendor == "mediatek");
-  if (npu_vendor != "qualcomm" && npu_vendor != "mediatek") {
+  const bool use_google_tensor = (npu_vendor == "google_tensor");
+  if (npu_vendor != "qualcomm" && npu_vendor != "mediatek" && npu_vendor != "google_tensor") {
     std::cerr << "Warning: Unknown npu_vendor '" << npu_vendor
-              << "'. Must be 'qualcomm' or 'mediatek'. Defaulting to qualcomm."
+              << "'. Must be 'qualcomm', 'mediatek', or 'google_tensor'. Defaulting to qualcomm."
               << std::endl;
   }
 
@@ -86,8 +85,7 @@ int main(int argc, char* argv[]) {
 
   // Initialize LiteRT environment, pointing at the directory where the
   // dispatch (and optionally compiler) plugin .so files are deployed.
-  const absl::string_view dispatch_dir =
-      use_mediatek ? kMediatekDispatchDir : kQualcommDispatchDir;
+  const absl::string_view dispatch_dir = kNpuDispatchDir;
 
   std::vector<litert::Environment::Option> environment_options;
   environment_options.push_back(litert::Environment::Option{
@@ -122,6 +120,10 @@ int main(int argc, char* argv[]) {
         kLiteRtMediatekOptionsNeronSDKVersionTypeVersion8);
     std::cout << "Enabled MediaTek APU: FastSingleAnswer + LowLatency hint."
               << std::endl;
+  } else if (use_google_tensor) {
+    // ---- Google Tensor options ----
+    // TODO: Add performance mode once new LiteRT SDK releases.
+    std::cout << "Enabled Google Tensor NPU." << std::endl;
   } else {
     // ---- Qualcomm HTP options ----
     LITERT_ASSIGN_OR_ABORT(auto& qnn_opts, options.GetQualcommOptions());

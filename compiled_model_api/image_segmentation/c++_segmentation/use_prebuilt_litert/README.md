@@ -103,9 +103,15 @@ runs inference, and pulls `output_segmented.png` back automatically.
     --accelerator=npu --phone=dim9400 --jit \
     --host_npu_dispatch_lib=/path/to/dir/with/libLiteRtDispatch_MediaTek.so \
     build/
+
+# Google Tensor G5 (pixel10)
+./deploy_and_run_on_android.sh \
+    --accelerator=npu --phone=pixel10 \
+    --host_npu_dispatch_lib=/path/to/dir/with/libLiteRtDispatch_GoogleTensor.so \
+    build/
 ```
 
-**`--phone` values**: `s24` (Snapdragon 8 Gen 3), `s25` (Snapdragon 8 Elite), `dim9400` (MediaTek Dimensity 9400)
+**`--phone` values**: `s24` (Snapdragon 8 Gen 3), `s25` (Snapdragon 8 Elite), `pixel10` (Google Tensor G5), `dim9400` (MediaTek Dimensity 9400)
 
 The Qualcomm NPU requires:
 - `libLiteRtDispatch_Qualcomm.so` from the [LiteRT NPU runtime libraries](https://github.com/google-ai-edge/LiteRT/releases/tag/v2.1.1) zip
