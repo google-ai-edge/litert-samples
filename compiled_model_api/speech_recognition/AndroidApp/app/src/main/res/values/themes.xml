@@ -1,0 +1,8 @@
+<resources xmlns:tools="http://schemas.android.com/tools">
+    <!-- Base application theme. -->
+    <style name="Base.Theme.Asr" parent="Theme.Material3.DayNight.NoActionBar">
+        <!-- Follow system theme colors. -->
+    </style>
+
+    <style name="Theme.Asr" parent="Base.Theme.Asr" />
+</resources>
