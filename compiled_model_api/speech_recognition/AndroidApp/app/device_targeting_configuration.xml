@@ -1,0 +1,140 @@
+<config:device-targeting-config
+    xmlns:config="http://schemas.android.com/apk/config">
+    <config:device-group name="Mediatek_MT6877">
+        <config:device-selector>
+            <config:system-on-chip manufacturer="Mediatek" model="MT6877"/>
+        </config:device-selector>
+    </config:device-group>
+    <config:device-group name="Mediatek_MT6878">
+        <config:device-selector>
+            <config:system-on-chip manufacturer="Mediatek" model="MT6878"/>
+        </config:device-selector>
+    </config:device-group>
+    <config:device-group name="Mediatek_MT6879">
+        <config:device-selector>
+            <config:system-on-chip manufacturer="Mediatek" model="MT6879"/>
+        </config:device-selector>
+    </config:device-group>
+    <config:device-group name="Mediatek_MT6893">
+        <config:device-selector>
+            <config:system-on-chip manufacturer="Mediatek" model="MT6893"/>
+        </config:device-selector>
+    </config:device-group>
+    <config:device-group name="Mediatek_MT6897">
+        <config:device-selector>
+            <config:system-on-chip manufacturer="Mediatek" model="MT6897"/>
+        </config:device-selector>
+    </config:device-group>
+    <config:device-group name="Mediatek_MT6983">
+        <config:device-selector>
+            <config:system-on-chip manufacturer="Mediatek" model="MT6983"/>
+        </config:device-selector>
+    </config:device-group>
+    <config:device-group name="Mediatek_MT6985">
+        <config:device-selector>
+            <config:system-on-chip manufacturer="Mediatek" model="MT6985"/>
+        </config:device-selector>
+    </config:device-group>
+    <config:device-group name="Mediatek_MT6989">
+        <config:device-selector>
+            <config:system-on-chip manufacturer="Mediatek" model="MT6989"/>
+        </config:device-selector>
+    </config:device-group>
+    <config:device-group name="Mediatek_MT6991">
+        <config:device-selector>
+            <config:system-on-chip manufacturer="Mediatek" model="MT6991"/>
+        </config:device-selector>
+    </config:device-group>
+    <config:device-group name="Mediatek_MT8171">
+        <config:device-selector>
+            <config:system-on-chip manufacturer="Mediatek" model="MT8171"/>
+        </config:device-selector>
+    </config:device-group>
+    <config:device-group name="Mediatek_MT8188">
+        <config:device-selector>
+            <config:system-on-chip manufacturer="Mediatek" model="MT8188"/>
+        </config:device-selector>
+    </config:device-group>
+    <config:device-group name="Mediatek_MT8189">
+        <config:device-selector>
+            <config:system-on-chip manufacturer="Mediatek" model="MT8189"/>
+        </config:device-selector>
+    </config:device-group>
+    <config:device-group name="Mediatek_MT6993">
+        <config:device-selector>
+            <config:system-on-chip manufacturer="Mediatek" model="MT6993"/>
+        </config:device-selector>
+    </config:device-group>
+    <config:device-group name="Qualcomm_SM8450">
+        <config:device-selector>
+            <config:system-on-chip manufacturer="Qualcomm" model="SM8450"/>
+        </config:device-selector>
+        <config:device-selector>
+            <config:system-on-chip manufacturer="QTI" model="SM8450"/>
+        </config:device-selector>
+    </config:device-group>
+    <config:device-group name="Qualcomm_SM8550">
+        <config:device-selector>
+            <config:system-on-chip manufacturer="Qualcomm" model="SM8550"/>
+        </config:device-selector>
+        <config:device-selector>
+            <config:system-on-chip manufacturer="QTI" model="SM8550"/>
+        </config:device-selector>
+    </config:device-group>
+    <config:device-group name="Qualcomm_SM8650">
+        <config:device-selector>
+            <config:system-on-chip manufacturer="Qualcomm" model="SM8650"/>
+        </config:device-selector>
+        <config:device-selector>
+            <config:system-on-chip manufacturer="QTI" model="SM8650"/>
+        </config:device-selector>
+    </config:device-group>
+    <config:device-group name="Qualcomm_SM8750">
+        <config:device-selector>
+            <config:system-on-chip manufacturer="Qualcomm" model="SM8750"/>
+        </config:device-selector>
+        <config:device-selector>
+            <config:system-on-chip manufacturer="QTI" model="SM8750"/>
+        </config:device-selector>
+    </config:device-group>
+    <config:device-group name="Qualcomm_SM8850">
+        <config:device-selector>
+            <config:system-on-chip manufacturer="Qualcomm" model="SM8850"/>
+        </config:device-selector>
+        <config:device-selector>
+            <config:system-on-chip manufacturer="QTI" model="SM8850"/>
+        </config:device-selector>
+    </config:device-group>
+    <config:device-group name="Google_Tensor_G3">
+        <config:device-selector>
+            <config:system-on-chip manufacturer="Google" model="Google Tensor G3"/>
+        </config:device-selector>
+        <config:device-selector>
+            <config:system-on-chip manufacturer="Google" model="Tensor G3"/>
+        </config:device-selector>
+    </config:device-group>
+    <config:device-group name="Google_Tensor_G4">
+        <config:device-selector>
+            <config:system-on-chip manufacturer="Google" model="Google Tensor G4"/>
+        </config:device-selector>
+        <config:device-selector>
+            <config:system-on-chip manufacturer="Google" model="Tensor G4"/>
+        </config:device-selector>
+    </config:device-group>
+    <config:device-group name="Google_Tensor_G5">
+        <config:device-selector>
+            <config:system-on-chip manufacturer="Google" model="Google Tensor G5"/>
+        </config:device-selector>
+        <config:device-selector>
+            <config:system-on-chip manufacturer="Google" model="Tensor G5"/>
+        </config:device-selector>
+    </config:device-group>
+    <config:device-group name="Google_Tensor_G6">
+        <config:device-selector>
+            <config:system-on-chip manufacturer="Google" model="Google Tensor G6"/>
+        </config:device-selector>
+        <config:device-selector>
+            <config:system-on-chip manufacturer="Google" model="Tensor G6"/>
+        </config:device-selector>
+    </config:device-group>
+</config:device-targeting-config>
