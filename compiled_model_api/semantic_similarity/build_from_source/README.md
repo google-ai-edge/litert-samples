@@ -109,3 +109,15 @@ export QNN_SDK_ROOT=<Qairt SDK path>
   --soc_man "MediaTek"
 ```
 
+##### Google Tensor TPU
+```
+./compiled_model_api/semantic_similarity/build_from_source/deploy_and_run_android.sh \
+  --tokenizer "path/to/tokenizer.model"  \
+  --embedder "path/to/embedder.tflite" \
+  --accelerator "npu" \
+  --sentence1 "The quick brown fox jumps over the lazy dog." \
+  --sentence2 "A fast, dark-colored fox leaps over a sleepy canine." \
+  --sequence_length 256 \
+  --soc_man "Google"
+```
+
