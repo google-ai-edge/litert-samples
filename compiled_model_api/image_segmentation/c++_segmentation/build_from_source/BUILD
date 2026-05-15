@@ -79,6 +79,62 @@ cc_binary(
     ] + gles_deps() + gl_native_deps(),
 )
 
+# CPU-only segmentation target with no OpenGL/EGL dependency.
+# Intended for platforms where GLES compute shaders are unavailable (e.g. Windows).
+cc_binary(
+    name = "cpp_segmentation_cpu_no_gl",
+    srcs = [
+        "main_cpu_no_gl.cc",
+    ],
+    copts = [
+        "-I.",
+    ],
+    data = [
+        ":model_files",
+        ":test_images",
+    ],
+    deps = [
+        ":image_utils",
+        ":timing_utils",
+        "@litert_archive//litert/cc:litert_api_with_dynamic_runtime",
+        "@com_google_absl//absl/strings:string_view",
+        "@com_google_absl//absl/time",
+        "@com_google_absl//absl/types:span",
+    ],
+)
+
+# Intel NPU segmentation target with no OpenGL/EGL dependency.
+# Intended for Windows desktop with Intel NPU via OpenVINO.
+cc_binary(
+    name = "cpp_segmentation_npu_intel",
+    srcs = [
+        "main_npu_no_gl.cc",
+    ],
+    copts = [
+        "-I.",
+    ],
+    data = [
+        ":model_files",
+        ":test_images",
+        "@litert_archive//litert/vendors/intel_openvino/compiler:LiteRtCompilerPlugin",
+        "@litert_archive//litert/vendors/intel_openvino/dispatch:LiteRtDispatch",
+        "@intel_openvino//:openvino/runtime/bin/intel64/Release/openvino.dll",
+        "@intel_openvino//:openvino/runtime/bin/intel64/Release/openvino_tensorflow_lite_frontend.dll",
+        "@intel_openvino//:openvino/runtime/bin/intel64/Release/openvino_intel_npu_plugin.dll",
+        "@intel_openvino//:openvino/runtime/bin/intel64/Release/openvino_intel_npu_compiler.dll",
+        "@intel_openvino//:openvino/runtime/bin/intel64/Release/openvino_auto_plugin.dll",
+        "@intel_openvino//:openvino/runtime/3rdparty/tbb/bin/tbb12.dll",
+    ],
+    deps = [
+        ":image_utils",
+        ":timing_utils",
+        "@litert_archive//litert/cc:litert_api_with_dynamic_runtime",
+        "@com_google_absl//absl/strings:string_view",
+        "@com_google_absl//absl/time",
+        "@com_google_absl//absl/types:span",
+    ],
+)
+
 cc_binary(
     name = "cpp_segmentation_gpu",
     srcs = [

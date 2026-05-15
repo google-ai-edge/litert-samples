@@ -20,6 +20,12 @@
 #include <string>
 #include <vector>
 
+// On Windows, windows.h (pulled in transitively) defines LoadImage as a macro
+// (LoadImageA / LoadImageW). This collides with ImageUtils::LoadImage.
+#ifdef LoadImage
+#undef LoadImage
+#endif
+
 struct RGBAColor {
   float r, g, b, a;
 };
