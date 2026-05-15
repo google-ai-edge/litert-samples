@@ -20,7 +20,7 @@
 # Usage:
 #   ./deploy_and_run_on_android.sh \
 #       --accelerator=[gpu|npu|cpu] \
-#       --phone=[s24|s25|dim9400] \
+#       --phone=[s24|s25|pixel10|dim9400] \
 #       [--use_gl_buffers] \
 #       [--jit] \
 #       [--host_npu_lib=<path>] \
@@ -35,9 +35,9 @@ PHONE="s25"
 BINARY_BUILD_PATH=""
 
 usage() {
-    echo "Usage: $0 --accelerator=[gpu|npu|cpu] --phone=[s24|s25|dim9400] <cmake_build_dir>"
+    echo "Usage: $0 --accelerator=[gpu|npu|cpu] --phone=[s24|s25|pixel10|dim9400] <cmake_build_dir>"
     echo "  --accelerator : Specify the accelerator to use (gpu, npu, or cpu)."
-    echo "  --phone       : Specify the phone model (s24/s25 for Qualcomm, dim9400 for MediaTek)."
+    echo "  --phone       : Specify the phone model (s24/s25 for Qualcomm, pixel10 for Google Tensor, dim9400 for MediaTek)."
     echo "  --jit         : Use JIT compilation (true). Defaults to false (Qualcomm AOT)."
     echo "  <cmake_build_dir> : Path to cmake build output directory (e.g. build/)."
     exit 1
@@ -179,23 +179,32 @@ IS_MTK=false
 QNN_STUB_LIB=""
 QNN_SKEL_LIB=""
 QNN_SKEL_PATH_ARCH=""
+IS_QUALCOMM=false
+IS_GOOGLE_TENSOR=false
+GOOGLE_TENSOR_MODEL=""
 if [[ "$ACCELERATOR" == "npu" ]]; then
     case "$PHONE" in
         's24')
             QNN_STUB_LIB="libQnnHtpV75Stub.so"
             QNN_SKEL_LIB="libQnnHtpV75Skel.so"
             QNN_SKEL_PATH_ARCH="hexagon-v75"
+            IS_QUALCOMM=true
             ;;
         's25')
             QNN_STUB_LIB="libQnnHtpV79Stub.so"
             QNN_SKEL_LIB="libQnnHtpV79Skel.so"
             QNN_SKEL_PATH_ARCH="hexagon-v79"
+            IS_QUALCOMM=true
+            ;;
+        'pixel10')
+            IS_GOOGLE_TENSOR=true
+            GOOGLE_TENSOR_MODEL="Tensor_G5"
             ;;
         'dim9400')
             IS_MTK=true
             ;;
         *)
-            echo "Error: Unsupported phone model '$PHONE'. Supported: s24, s25 (Qualcomm), dim9400 (MediaTek)." >&2
+            echo "Error: Unsupported phone model '$PHONE'. Supported: s24, s25 (Qualcomm), pixel10 (Google Tensor), dim9400 (MediaTek)." >&2
             exit 1
             ;;
     esac
@@ -203,8 +212,10 @@ fi
 
 # --- Model Selection ---
 MODEL_FILENAME="selfie_multiclass_256x256.tflite"
-if [[ "$ACCELERATOR" == "npu" && "$USE_JIT" == "false" ]]; then
-    if [[ "$PHONE" == "s24" ]]; then
+if [[ "$ACCELERATOR" == "npu" ]] && [[ "$USE_JIT" == "false" ]]; then
+    if [[ "$IS_GOOGLE_TENSOR" == "true" ]]; then
+        MODEL_FILENAME="selfie_multiclass_256x256_${GOOGLE_TENSOR_MODEL}.tflite"
+    elif [[ "$PHONE" == "s24" ]]; then
         MODEL_FILENAME="selfie_multiclass_256x256_SM8650.tflite"
     elif [[ "$PHONE" == "s25" ]]; then
         MODEL_FILENAME="selfie_multiclass_256x256_SM8750.tflite"
@@ -280,39 +291,55 @@ fi
 
 # Push NPU libraries
 if [[ "$ACCELERATOR" == "npu" ]]; then
-    if [[ "$IS_MTK" == "true" ]]; then
-        # ---- MediaTek path ----
-        if [[ -f "${HOST_MTK_DISPATCH_LIB}/libLiteRtDispatch_MediaTek.so" ]]; then
-            adb push --sync "${HOST_MTK_DISPATCH_LIB}/libLiteRtDispatch_MediaTek.so" "${DEVICE_NPU_LIBRARY_DIR}/"
-            echo "Pushed MediaTek dispatch library."
-        else
-            echo "Warning: libLiteRtDispatch_MediaTek.so not found at ${HOST_MTK_DISPATCH_LIB}."
-        fi
-        echo "Note: NeuroPilot runtime libs are system libs on the device."
-        if [[ "$USE_JIT" == "true" ]]; then
-            MTK_COMPILER="${HOST_MTK_COMPILER_LIB}/libLiteRtCompilerPlugin_MediaTek.so"
-            if [[ -f "$MTK_COMPILER" ]]; then
-                adb push --sync "$MTK_COMPILER" "${DEVICE_NPU_LIBRARY_DIR}/"
-                echo "Pushed MediaTek compiler plugin."
-            else
-                echo "Warning: libLiteRtCompilerPlugin_MediaTek.so not found."
-            fi
-        fi
+  if [[ "$IS_GOOGLE_TENSOR" == "true" ]]; then
+    # ---- Google Tensor path ----
+    if [[ -f "${HOST_NPU_DISPATCH_LIB}/libLiteRtDispatch_GoogleTensor.so" ]]; then
+        adb push --sync "${HOST_NPU_DISPATCH_LIB}/libLiteRtDispatch_GoogleTensor.so" "${DEVICE_NPU_LIBRARY_DIR}/"
+        echo "Pushed Google Tensor NPU dispatch library."
     else
-        # ---- Qualcomm path ----
-        adb push --sync "${HOST_NPU_DISPATCH_LIB}/libLiteRtDispatch_Qualcomm.so" "${DEVICE_NPU_LIBRARY_DIR}/"
-        echo "Pushed Qualcomm dispatch library."
-        adb push --sync "${HOST_NPU_LIB}/aarch64-android/libQnnHtp.so" "${DEVICE_NPU_LIBRARY_DIR}/"
-        adb push --sync "${HOST_NPU_LIB}/aarch64-android/${QNN_STUB_LIB}" "${DEVICE_NPU_LIBRARY_DIR}/"
-        adb push --sync "${HOST_NPU_LIB}/aarch64-android/libQnnSystem.so" "${DEVICE_NPU_LIBRARY_DIR}/"
-        adb push --sync "${HOST_NPU_LIB}/aarch64-android/libQnnHtpPrepare.so" "${DEVICE_NPU_LIBRARY_DIR}/"
-        adb push --sync "${HOST_NPU_LIB}/${QNN_SKEL_PATH_ARCH}/unsigned/${QNN_SKEL_LIB}" "${DEVICE_NPU_LIBRARY_DIR}/"
-        echo "Pushed Qualcomm NPU libraries."
-        if [[ "$USE_JIT" == "true" ]]; then
-            adb push --sync "${HOST_NPU_COMPILER_LIB}/libLiteRtCompilerPlugin_Qualcomm.so" "${DEVICE_NPU_LIBRARY_DIR}/"
-            echo "Pushed Qualcomm compiler plugin library."
+        echo "Warning: libLiteRtDispatch_GoogleTensor.so not found at ${HOST_NPU_DISPATCH_LIB}."
+    fi
+    if [[ "$USE_JIT" == "true" ]]; then
+        if [[ -f "${HOST_NPU_COMPILER_LIB}/libLiteRtCompilerPlugin_google_tensor.so" ]]; then
+            adb push --sync "${HOST_NPU_COMPILER_LIB}/libLiteRtCompilerPlugin_google_tensor.so" "${DEVICE_NPU_LIBRARY_DIR}/"
+            echo "Pushed Google Tensor NPU compiler library."
+        else
+            echo "Warning: libLiteRtCompilerPlugin_google_tensor.so not found."
         fi
     fi
+  elif [[ "$IS_MTK" == "true" ]]; then
+    # ---- MediaTek path ----
+    if [[ -f "${HOST_MTK_DISPATCH_LIB}/libLiteRtDispatch_MediaTek.so" ]]; then
+        adb push --sync "${HOST_MTK_DISPATCH_LIB}/libLiteRtDispatch_MediaTek.so" "${DEVICE_NPU_LIBRARY_DIR}/"
+        echo "Pushed MediaTek dispatch library."
+    else
+        echo "Warning: libLiteRtDispatch_MediaTek.so not found at ${HOST_MTK_DISPATCH_LIB}."
+    fi
+    echo "Note: NeuroPilot runtime libs are system libs on the device."
+    if [[ "$USE_JIT" == "true" ]]; then
+        MTK_COMPILER="${HOST_MTK_COMPILER_LIB}/libLiteRtCompilerPlugin_MediaTek.so"
+        if [[ -f "$MTK_COMPILER" ]]; then
+            adb push --sync "$MTK_COMPILER" "${DEVICE_NPU_LIBRARY_DIR}/"
+            echo "Pushed MediaTek compiler plugin."
+        else
+            echo "Warning: libLiteRtCompilerPlugin_MediaTek.so not found."
+        fi
+    fi
+  elif [[ "$IS_QUALCOMM" == "true" ]]; then
+    # ---- Qualcomm path ----
+    adb push --sync "${HOST_NPU_DISPATCH_LIB}/libLiteRtDispatch_Qualcomm.so" "${DEVICE_NPU_LIBRARY_DIR}/"
+    echo "Pushed Qualcomm dispatch library."
+    adb push --sync "${HOST_NPU_LIB}/aarch64-android/libQnnHtp.so" "${DEVICE_NPU_LIBRARY_DIR}/"
+    adb push --sync "${HOST_NPU_LIB}/aarch64-android/${QNN_STUB_LIB}" "${DEVICE_NPU_LIBRARY_DIR}/"
+    adb push --sync "${HOST_NPU_LIB}/aarch64-android/libQnnSystem.so" "${DEVICE_NPU_LIBRARY_DIR}/"
+    adb push --sync "${HOST_NPU_LIB}/aarch64-android/libQnnHtpPrepare.so" "${DEVICE_NPU_LIBRARY_DIR}/"
+    adb push --sync "${HOST_NPU_LIB}/${QNN_SKEL_PATH_ARCH}/unsigned/${QNN_SKEL_LIB}" "${DEVICE_NPU_LIBRARY_DIR}/"
+    echo "Pushed Qualcomm NPU libraries."
+    if [[ "$USE_JIT" == "true" ]]; then
+        adb push --sync "${HOST_NPU_COMPILER_LIB}/libLiteRtCompilerPlugin_Qualcomm.so" "${DEVICE_NPU_LIBRARY_DIR}/"
+        echo "Pushed Qualcomm compiler plugin library."
+    fi
+  fi
 fi
 
 # Set execute permissions
@@ -332,7 +359,14 @@ if [[ "$ACCELERATOR" == "gpu" ]] && $USE_GL_BUFFERS; then
 fi
 
 if [[ "$ACCELERATOR" == "npu" ]]; then
-    if [[ "$IS_MTK" == "true" ]]; then
+    if [[ "$IS_GOOGLE_TENSOR" == "true" ]]; then
+        FULL_COMMAND="cd ${DEVICE_BASE_DIR} && LD_LIBRARY_PATH=\"${LD_LIBRARY_PATH}\" ${RUN_COMMAND}"
+        if [[ "$USE_JIT" == "true" ]]; then
+            FULL_COMMAND="${FULL_COMMAND} true google_tensor"
+        else
+            FULL_COMMAND="${FULL_COMMAND} false google_tensor"
+        fi
+    elif [[ "$IS_MTK" == "true" ]]; then
         MTK_LD_PATH="${DEVICE_NPU_LIBRARY_DIR}/:${DEVICE_BASE_DIR}/:/system_ext/lib64/"
         FULL_COMMAND="cd ${DEVICE_BASE_DIR} && LD_LIBRARY_PATH=\"${MTK_LD_PATH}\" ${RUN_COMMAND}"
         if [[ "$USE_JIT" == "true" ]]; then
@@ -343,7 +377,9 @@ if [[ "$ACCELERATOR" == "npu" ]]; then
     else
         FULL_COMMAND="cd ${DEVICE_BASE_DIR} && LD_LIBRARY_PATH=\"${LD_LIBRARY_PATH}\" ADSP_LIBRARY_PATH=\"${ADSP_LIBRARY_PATH}\" ${RUN_COMMAND}"
         if [[ "$USE_JIT" == "true" ]]; then
-            FULL_COMMAND="${FULL_COMMAND} true"
+            FULL_COMMAND="${FULL_COMMAND} true qualcomm"
+        else
+            FULL_COMMAND="${FULL_COMMAND} false qualcomm"
         fi
     fi
 else

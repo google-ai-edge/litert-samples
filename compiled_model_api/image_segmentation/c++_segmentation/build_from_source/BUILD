@@ -50,6 +50,7 @@ filegroup(
     srcs = [
         "models/selfie_multiclass_256x256.tflite",
         "models/selfie_multiclass_256x256_SM8750.tflite",
+        "models/selfie_multiclass_256x256_Tensor_G5.tflite",
     ],
 )
 
@@ -130,6 +131,34 @@ cc_binary(
         "@qairt//:lib/aarch64-android/libQnnSystem.so",
         "@qairt//:lib/hexagon-v75/unsigned/libQnnHtpV75Skel.so",
         "@qairt//:lib/hexagon-v79/unsigned/libQnnHtpV79Skel.so",
+    ],
+    linkopts = gles_linkopts(),
+    deps = [
+        ":image_processor",
+        ":image_utils",
+        ":timing_utils",
+        "@litert_archive//litert/cc:litert_api_with_dynamic_runtime",
+        "@com_google_absl//absl/strings:string_view",
+        "@com_google_absl//absl/time",
+        "@com_google_absl//absl/types:span",
+    ] + gles_deps() + gl_native_deps(),
+)
+
+cc_binary(
+    name = "cpp_segmentation_npu_google_tensor",
+    srcs = [
+        "main_npu.cc",
+    ],
+    copts = [
+        "-I.",
+    ],
+    data = [
+        ":model_files",
+        ":shader_files",
+        ":test_images",
+        "@litert_archive//litert/c:litert_runtime_c_api_shared_lib",  # buildcleaner: keep
+        "@litert_archive//litert/vendors/google_tensor/compiler:libLiteRtCompilerPlugin_google_tensor.so",
+        "@litert_archive//litert/vendors/google_tensor/dispatch:dispatch_api_so",
     ],
     linkopts = gles_linkopts(),
     deps = [

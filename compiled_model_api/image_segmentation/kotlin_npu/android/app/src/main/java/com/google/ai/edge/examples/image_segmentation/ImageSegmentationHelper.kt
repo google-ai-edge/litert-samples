@@ -90,18 +90,19 @@ class ImageSegmentationHelper(private val context: Context) {
               add(Accelerator.NPU)
           }
         }
-      val qualcommNpuModelProvider =
+      val npuModelProvider =
         AiPackModelProvider(context, "selfie_multiclass", "model/segmentation_multiclass.tflite") {
           buildSet {
             if (
-              accelerator == Accelerator.NPU && NpuCompatibilityChecker.Qualcomm.isDeviceSupported()
+              accelerator == Accelerator.NPU &&
+                (NpuCompatibilityChecker.Qualcomm.isDeviceSupported() ||
+                  NpuCompatibilityChecker.GoogleTensor.isDeviceSupported())
             )
               add(Accelerator.NPU)
           }
         }
       val aiPackModelProvider =
-        ModelSelector(cpuGpuModelProvider, mtkNpuModelProvider, qualcommNpuModelProvider)
-          .selectModel(env)
+        ModelSelector(cpuGpuModelProvider, mtkNpuModelProvider, npuModelProvider).selectModel(env)
 
       withContext(singleThreadDispatcher) {
         val options = CompiledModel.Options(aiPackModelProvider.getCompatibleAccelerators()).apply {

@@ -24,9 +24,9 @@ BINARY_BUILD_PATH=""
 
 # --- Usage ---
 usage() {
-    echo "Usage: $0 --accelerator=[gpu|npu|cpu] --phone=[s24|s25|dim9400] <binary_build_path>"
+    echo "Usage: $0 --accelerator=[gpu|npu|cpu] --phone=[s24|s25|pixel10|dim9400] <binary_build_path>"
     echo "  --accelerator : Specify the accelerator to use (gpu, npu, or cpu)."
-    echo "  --phone       : Specify the phone model (s24/s25 for Qualcomm, dim9400 for MediaTek)."
+    echo "  --phone       : Specify the phone model (s24/s25 for Qualcomm, pixel10 for Google Tensor, dim9400 for MediaTek)."
     echo "  --backend     : For GPU, specify backend (opengl or opencl). Defaults to opencl."
     echo "  --jit         : Use JIT compilation (true). Defaults to false (Qualcomm AOT)."
     echo "  <binary_build_path> : Path to bazel-bin/."
@@ -128,10 +128,44 @@ ROOT_DIR="compiled_model_api/image_segmentation/c++_segmentation"
 PACKAGE_LOCATION="${ROOT_DIR}/build_from_source"
 C_LIBRARY_LOCATION="${BINARY_BUILD_PATH}/external/litert_archive/litert/c"
 
-# For MediaTek phones, use the dedicated MTK binary (no QAIRT SDK dependency).
-# The PHONE-to-IS_MTK mapping is re-derived here early so PACKAGE_NAME is set
-# correctly before the runfiles paths are computed.
-if [[ "$ACCELERATOR" == "npu" && "$PHONE" == "dim9400" ]]; then
+# --- NPU Configuration ---
+QNN_STUB_LIB=""
+QNN_SKEL_LIB=""
+QNN_SKEL_PATH_ARCH=""
+IS_QUALCOMM=false
+IS_GOOGLE_TENSOR=false
+GOOGLE_TENSOR_MODEL=""
+IS_MTK=false
+case "$PHONE" in
+    's24')
+        QNN_STUB_LIB="libQnnHtpV75Stub.so"
+        QNN_SKEL_LIB="libQnnHtpV75Skel.so"
+        QNN_SKEL_PATH_ARCH="hexagon-v75"
+        IS_QUALCOMM=true
+        ;;
+    's25')
+        QNN_STUB_LIB="libQnnHtpV79Stub.so"
+        QNN_SKEL_LIB="libQnnHtpV79Skel.so"
+        QNN_SKEL_PATH_ARCH="hexagon-v79"
+        IS_QUALCOMM=true
+        ;;
+    'pixel10')
+        IS_GOOGLE_TENSOR=true
+        GOOGLE_TENSOR_MODEL="Tensor_G5"
+        ;;
+    'dim9400')
+        # MediaTek Dimensity 9400 (MT6991) — NeuroPilot v8
+        IS_MTK=true
+        ;;
+    *)
+        echo "Error: Unsupported phone model '$PHONE'. Supported models are 's24', 's25', 'pixel10', 'dim9400'." >&2
+        exit 1
+        ;;
+esac
+
+if [[ "$ACCELERATOR" == "npu" ]] && [[ "$IS_GOOGLE_TENSOR" == "true" ]]; then
+    PACKAGE_NAME="cpp_segmentation_npu_google_tensor"
+elif [[ "$ACCELERATOR" == "npu" ]] && [[ "$IS_MTK" == "true" ]]; then
     PACKAGE_NAME="cpp_segmentation_npu_mtk"
 else
     PACKAGE_NAME="cpp_segmentation_${ACCELERATOR}"
@@ -154,18 +188,23 @@ HOST_MODEL_DIR="${PACKAGE_LOCATION}/models"
 HOST_GPU_LIBRARY_DIR="${BINARY_BUILD_PATH}/${PACKAGE_LOCATION}/${PACKAGE_NAME}.runfiles/litert_prebuilts/android_arm64/"
 
 # Set NPU library path based on the --npu_dispatch_lib_path flag
-if [[ -z "$HOST_NPU_LIB" ]]; then
+if [[ "$IS_QUALCOMM" == "true" ]] && [[ -z "$HOST_NPU_LIB" ]]; then
     echo "Defaulting to QNN libraries path."
     HOST_NPU_LIB="${BINARY_BUILD_PATH}/${PACKAGE_LOCATION}/${PACKAGE_NAME}.runfiles/qairt/lib/"
 fi
-if [[ -z "$HOST_NPU_DISPATCH_LIB" ]]; then
+if [[ "$IS_QUALCOMM" == "true" ]] && [[ -z "$HOST_NPU_DISPATCH_LIB" ]]; then
     echo "Defaulting to internal dispatch library path."
     HOST_NPU_DISPATCH_LIB="${BINARY_BUILD_PATH}/${PACKAGE_LOCATION}/${PACKAGE_NAME}.runfiles/litert_archive/litert/vendors/qualcomm/dispatch"
+elif [[ "$IS_GOOGLE_TENSOR" == "true" ]] && [[ -z "$HOST_NPU_DISPATCH_LIB" ]]; then
+    echo "Defaulting to Google Tensor dispatch library path."
+    HOST_NPU_DISPATCH_LIB="${BINARY_BUILD_PATH}/${PACKAGE_LOCATION}/${PACKAGE_NAME}.runfiles/litert_archive/litert/vendors/google_tensor/dispatch"
 fi
 if [[ "$USE_JIT" == "true" ]]; then
     echo "Using NPU JIT compilation."
-    if [[ -z "$HOST_NPU_COMPILER_LIB" ]]; then
+    if [[ "$IS_QUALCOMM" == "true" ]] && [[ -z "$HOST_NPU_COMPILER_LIB" ]]; then
         HOST_NPU_COMPILER_LIB="${BINARY_BUILD_PATH}/${PACKAGE_LOCATION}/${PACKAGE_NAME}.runfiles/litert_archive/litert/vendors/qualcomm/compiler"
+    elif [[ "$IS_GOOGLE_TENSOR" == "true" ]] && [[ -z "$HOST_NPU_COMPILER_LIB" ]]; then
+        HOST_NPU_COMPILER_LIB="${BINARY_BUILD_PATH}/${PACKAGE_LOCATION}/${PACKAGE_NAME}.runfiles/litert_archive/litert/vendors/google_tensor/compiler"
     fi
 fi
 
@@ -180,40 +219,12 @@ HOST_MTK_COMPILER_LIB="${BINARY_BUILD_PATH}/${PACKAGE_LOCATION}/cpp_segmentation
 LD_LIBRARY_PATH="${DEVICE_NPU_LIBRARY_DIR}/"
 ADSP_LIBRARY_PATH="${DEVICE_NPU_LIBRARY_DIR}/"
 
-# --- NPU / MTK phone configuration ---
-# Determine if this is a MediaTek phone by the --phone value.
-IS_MTK=false
-QNN_STUB_LIB=""
-QNN_SKEL_LIB=""
-QNN_SKEL_PATH_ARCH=""
-if [[ "$ACCELERATOR" == "npu" ]]; then
-    case "$PHONE" in
-        's24')
-            QNN_STUB_LIB="libQnnHtpV75Stub.so"
-            QNN_SKEL_LIB="libQnnHtpV75Skel.so"
-            QNN_SKEL_PATH_ARCH="hexagon-v75"
-            ;;
-        's25')
-            QNN_STUB_LIB="libQnnHtpV79Stub.so"
-            QNN_SKEL_LIB="libQnnHtpV79Skel.so"
-            QNN_SKEL_PATH_ARCH="hexagon-v79"
-            ;;
-        'dim9400')
-            # MediaTek Dimensity 9400 (MT6991) — NeuroPilot v8
-            IS_MTK=true
-            ;;
-        *)
-            echo "Error: Unsupported phone model '$PHONE'. Supported: s24, s25 (Qualcomm), dim9400 (MediaTek)." >&2
-            exit 1
-            ;;
-    esac
-fi
-
-
 # --- Model Selection ---
 MODEL_FILENAME="selfie_multiclass_256x256.tflite"
-if [[ "$ACCELERATOR" == "npu" && "$USE_JIT" == "false" ]]; then
-    if [[ "$PHONE" == "s24" ]]; then
+if [[ "$ACCELERATOR" == "npu" ]] && [[ "$USE_JIT" == "false" ]]; then
+    if [[ "$IS_GOOGLE_TENSOR" == "true" ]]; then
+        MODEL_FILENAME="selfie_multiclass_256x256_${GOOGLE_TENSOR_MODEL}.tflite"
+    elif [[ "$PHONE" == "s24" ]]; then
         MODEL_FILENAME="selfie_multiclass_256x256_SM8650.tflite"
     elif [[ "$PHONE" == "s25" ]]; then
         MODEL_FILENAME="selfie_multiclass_256x256_SM8750.tflite"
@@ -282,39 +293,48 @@ echo "Pushed gpu accelerator shared library."
 
 # Push NPU libraries (Qualcomm or MediaTek depending on phone)
 if [[ "$ACCELERATOR" == "npu" ]]; then
-    if [[ "$IS_MTK" == "true" ]]; then
-        # ---- MediaTek path ----
-        # Push the pre-built dispatch library from litert_npu_runtime_libraries.
-        adb push --sync "${HOST_MTK_DISPATCH_LIB}/libLiteRtDispatch_MediaTek.so" "${DEVICE_NPU_LIBRARY_DIR}/"
-        echo "Pushed MediaTek dispatch library."
-        # NeuroPilot runtime (libneuronusdk_adapter.mtk.so etc.) lives in
-        # /system_ext/lib64/ on the device -- nothing extra to push.
-        echo "Note: NeuroPilot runtime libs are system libs on the device."
-        if [[ "$USE_JIT" == "true" ]]; then
-            MTK_COMPILER="${HOST_MTK_COMPILER_LIB}/libLiteRtCompilerPlugin_MediaTek.so"
-            if [[ -f "$MTK_COMPILER" ]]; then
-                adb push --sync "$MTK_COMPILER" "${DEVICE_NPU_LIBRARY_DIR}/"
-                echo "Pushed MediaTek compiler plugin."
-            else
-                echo "Warning: libLiteRtCompilerPlugin_MediaTek.so not found."
-                echo "  Build it from LiteRT source and set HOST_MTK_COMPILER_LIB."
-            fi
-        fi
-    else
-        # ---- Qualcomm path ----
-        adb push --sync "${HOST_NPU_DISPATCH_LIB}/libLiteRtDispatch_Qualcomm.so" "${DEVICE_NPU_LIBRARY_DIR}/"
-        echo "Pushed Qualcomm dispatch library."
-        adb push --sync "${HOST_NPU_LIB}/aarch64-android/libQnnHtp.so" "${DEVICE_NPU_LIBRARY_DIR}/"
-        adb push --sync "${HOST_NPU_LIB}/aarch64-android/${QNN_STUB_LIB}" "${DEVICE_NPU_LIBRARY_DIR}/"
-        adb push --sync "${HOST_NPU_LIB}/aarch64-android/libQnnSystem.so" "${DEVICE_NPU_LIBRARY_DIR}/"
-        adb push --sync "${HOST_NPU_LIB}/aarch64-android/libQnnHtpPrepare.so" "${DEVICE_NPU_LIBRARY_DIR}/"
-        adb push --sync "${HOST_NPU_LIB}/${QNN_SKEL_PATH_ARCH}/unsigned/${QNN_SKEL_LIB}" "${DEVICE_NPU_LIBRARY_DIR}/"
-        echo "Pushed Qualcomm NPU libraries."
-        if [[ "$USE_JIT" == "true" ]]; then
-            adb push --sync "${HOST_NPU_COMPILER_LIB}/libLiteRtCompilerPlugin_Qualcomm.so" "${DEVICE_NPU_LIBRARY_DIR}/"
-            echo "Pushed Qualcomm compiler plugin library."
+  if [[ "$IS_GOOGLE_TENSOR" == "true" ]]; then
+    # ---- Google Tensor path ----
+    adb push --sync "${HOST_NPU_DISPATCH_LIB}/libLiteRtDispatch_GoogleTensor.so" "${DEVICE_NPU_LIBRARY_DIR}/"
+    echo "Pushed Google Tensor NPU dispatch library."
+    # If JIT, push compiler plugin.
+    if [[ "$USE_JIT" == "true" ]]; then
+        adb push --sync "${HOST_NPU_COMPILER_LIB}/libLiteRtCompilerPlugin_google_tensor.so" "${DEVICE_NPU_LIBRARY_DIR}/"
+        echo "Pushed Google Tensor NPU compiler library."
+    fi
+  elif [[ "$IS_MTK" == "true" ]]; then
+    # ---- MediaTek path ----
+    # Push the pre-built dispatch library from litert_npu_runtime_libraries.
+    adb push --sync "${HOST_MTK_DISPATCH_LIB}/libLiteRtDispatch_MediaTek.so" "${DEVICE_NPU_LIBRARY_DIR}/"
+    echo "Pushed MediaTek dispatch library."
+    # NeuroPilot runtime (libneuronusdk_adapter.mtk.so etc.) lives in
+    # /system_ext/lib64/ on the device -- nothing extra to push.
+    echo "Note: NeuroPilot runtime libs are system libs on the device."
+    if [[ "$USE_JIT" == "true" ]]; then
+        MTK_COMPILER="${HOST_MTK_COMPILER_LIB}/libLiteRtCompilerPlugin_MediaTek.so"
+        if [[ -f "$MTK_COMPILER" ]]; then
+            adb push --sync "$MTK_COMPILER" "${DEVICE_NPU_LIBRARY_DIR}/"
+            echo "Pushed MediaTek compiler plugin."
+        else
+            echo "Warning: libLiteRtCompilerPlugin_MediaTek.so not found."
+            echo "  Build it from LiteRT source and set HOST_MTK_COMPILER_LIB."
         fi
     fi
+  elif [[ "$IS_QUALCOMM" == "true" ]]; then
+    # ---- Qualcomm path ----
+    adb push --sync "${HOST_NPU_DISPATCH_LIB}/libLiteRtDispatch_Qualcomm.so" "${DEVICE_NPU_LIBRARY_DIR}/"
+    echo "Pushed Qualcomm dispatch library."
+    adb push --sync "${HOST_NPU_LIB}/aarch64-android/libQnnHtp.so" "${DEVICE_NPU_LIBRARY_DIR}/"
+    adb push --sync "${HOST_NPU_LIB}/aarch64-android/${QNN_STUB_LIB}" "${DEVICE_NPU_LIBRARY_DIR}/"
+    adb push --sync "${HOST_NPU_LIB}/aarch64-android/libQnnSystem.so" "${DEVICE_NPU_LIBRARY_DIR}/"
+    adb push --sync "${HOST_NPU_LIB}/aarch64-android/libQnnHtpPrepare.so" "${DEVICE_NPU_LIBRARY_DIR}/"
+    adb push --sync "${HOST_NPU_LIB}/${QNN_SKEL_PATH_ARCH}/unsigned/${QNN_SKEL_LIB}" "${DEVICE_NPU_LIBRARY_DIR}/"
+    echo "Pushed Qualcomm NPU libraries."
+    if [[ "$USE_JIT" == "true" ]]; then
+        adb push --sync "${HOST_NPU_COMPILER_LIB}/libLiteRtCompilerPlugin_Qualcomm.so" "${DEVICE_NPU_LIBRARY_DIR}/"
+        echo "Pushed Qualcomm compiler plugin library."
+    fi
+  fi
 fi
 
 
@@ -337,7 +357,14 @@ if [[ "$ACCELERATOR" == "gpu" ]]; then
 fi
 
 if [[ "$ACCELERATOR" == "npu" ]]; then
-    if [[ "$IS_MTK" == "true" ]]; then
+    if [[ "$IS_GOOGLE_TENSOR" == "true" ]]; then
+        FULL_COMMAND="cd ${DEVICE_BASE_DIR} && LD_LIBRARY_PATH=\"${LD_LIBRARY_PATH}\" ${RUN_COMMAND}"
+        if [[ "$USE_JIT" == "true" ]]; then
+            FULL_COMMAND="${FULL_COMMAND} true google_tensor"
+        else
+            FULL_COMMAND="${FULL_COMMAND} false google_tensor"
+        fi
+    elif [[ "$IS_MTK" == "true" ]]; then
         # MTK: dispatch dir is /npu/, also include /system_ext/lib64/ for NeuroPilot.
         MTK_LD_PATH="${DEVICE_NPU_LIBRARY_DIR}/:${DEVICE_BASE_DIR}/:/system_ext/lib64/"
         FULL_COMMAND="cd ${DEVICE_BASE_DIR} && LD_LIBRARY_PATH=\"${MTK_LD_PATH}\" ${RUN_COMMAND}"
@@ -351,7 +378,9 @@ if [[ "$ACCELERATOR" == "npu" ]]; then
         # Qualcomm: standard LD_LIBRARY_PATH + ADSP path.
         FULL_COMMAND="cd ${DEVICE_BASE_DIR} && LD_LIBRARY_PATH=\"${LD_LIBRARY_PATH}\" ADSP_LIBRARY_PATH=\"${ADSP_LIBRARY_PATH}\" ${RUN_COMMAND}"
         if [[ "$USE_JIT" == "true" ]]; then
-            FULL_COMMAND="${FULL_COMMAND} true"
+            FULL_COMMAND="${FULL_COMMAND} true qualcomm"
+        else
+            FULL_COMMAND="${FULL_COMMAND} false qualcomm"
         fi
     fi
 else

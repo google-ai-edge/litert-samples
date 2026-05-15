@@ -70,4 +70,19 @@
       <config:system-on-chip manufacturer="QTI" model="SM8850"/>
     </config:device-selector>
   </config:device-group>
+  <config:device-group name="Google_Tensor_G5">
+    <config:device-selector>
+      <config:system-on-chip manufacturer="Google" model="Tensor G5"/>
+    </config:device-selector>
+  </config:device-group>
+  <config:device-group name="Google_Tensor_G4">
+    <config:device-selector>
+      <config:system-on-chip manufacturer="Google" model="Tensor G4"/>
+    </config:device-selector>
+  </config:device-group>
+  <config:device-group name="Google_Tensor_G3">
+    <config:device-selector>
+      <config:system-on-chip manufacturer="Google" model="Tensor G3"/>
+    </config:device-selector>
+  </config:device-group>
 </config:device-targeting-config>
