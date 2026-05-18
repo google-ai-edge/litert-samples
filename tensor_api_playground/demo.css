@@ -1,0 +1,41 @@
+.abs {
+  position: absolute;
+}
+body {
+  font-family: 'Roboto', sans-serif;
+  position: absolute;
+  top: 0;
+  transform-origin: 0px 0px;
+  left: 0;
+  margin: 0;
+}
+#message {
+  left: 0;
+  top: -8px;
+  width: 100%;
+  text-align: center;
+  color: white;
+  font-size: 36px;
+  line-height: 46px;
+  position: absolute;
+}
+#logo {
+  bottom: 24px;
+  right: 0;
+  margin: 10px;
+  height: 20px;
+}
+#credit {
+  clip-path: polygon(5% 0%, 100% 0%, 100% 100%, 0% 100%);
+  color: rgba(237, 225, 187, 0.9);
+  right: 0;
+  bottom: 30px;
+  font-family: sans-serif;
+  padding: 5px 50px 5px 50px;
+  background-color: rgba(255,255,255,0.4);
+}
+#container {
+  left: 0;
+  bottom: 30px;
+  padding: 5px 10px 5px 10px;
+}

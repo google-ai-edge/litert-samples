@@ -1,0 +1,1187 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="Explore Google AI Edge LiteRT sample applications and interactive web-based ML playgrounds. Run on-device machine learning with WebAssembly, WebGPU, and NPU acceleration.">
+    <meta name="keywords" content="LiteRT, TensorFlow Lite, Google AI Edge, Machine Learning, On-device ML, WebGPU, WebAssembly, Android, iOS, NPU, GPU">
+    <title>Google AI Edge LiteRT Samples Portal</title>
+    
+    <!-- Modern Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=Plus+Jakarta+Sans:ital,wght@0,300;0,400;0,500;0,600;0,700;1,400&family=Fira+Code:wght@400;500&display=swap" rel="stylesheet">
+    
+    <style>
+        :root {
+            --bg-dark: #0b0f19;
+            --bg-card: rgba(20, 26, 45, 0.45);
+            --bg-card-hover: rgba(28, 37, 62, 0.7);
+            --border-color: rgba(255, 255, 255, 0.08);
+            --border-hover: rgba(59, 130, 246, 0.4);
+            --text-primary: #f8fafc;
+            --text-secondary: #94a3b8;
+            --text-muted: #64748b;
+            
+            /* Dynamic Palette */
+            --color-primary: #3b82f6; /* Neon Blue */
+            --color-secondary: #8b5cf6; /* Neon Purple */
+            --color-accent: #10b981; /* Neon Green */
+            --color-warning: #f59e0b; /* Amber */
+            --color-danger: #ef4444;
+            
+            --glow-primary: rgba(59, 130, 246, 0.15);
+            --glow-secondary: rgba(139, 92, 246, 0.15);
+            --glow-accent: rgba(16, 185, 129, 0.15);
+            
+            --transition-smooth: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: 'Plus Jakarta Sans', sans-serif;
+            background-color: var(--bg-dark);
+            color: var(--text-primary);
+            min-height: 100vh;
+            overflow-x: hidden;
+            line-height: 1.6;
+            background-image: 
+                radial-gradient(circle at 10% 20%, rgba(59, 130, 246, 0.08) 0%, transparent 40%),
+                radial-gradient(circle at 90% 80%, rgba(139, 92, 246, 0.08) 0%, transparent 40%);
+            background-attachment: fixed;
+        }
+
+        /* Header & Navigation */
+        header {
+            border-bottom: 1px solid var(--border-color);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            position: sticky;
+            top: 0;
+            z-index: 100;
+            background-color: rgba(11, 15, 25, 0.8);
+        }
+
+        .nav-container {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 1.25rem 2rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .logo-container {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            text-decoration: none;
+            color: var(--text-primary);
+        }
+
+        .logo-icon {
+            width: 32px;
+            height: 32px;
+            background: linear-gradient(135deg, var(--color-primary), var(--color-secondary));
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 800;
+            font-family: 'Outfit', sans-serif;
+            font-size: 1.1rem;
+            box-shadow: 0 0 15px var(--glow-primary);
+        }
+
+        .logo-text {
+            font-family: 'Outfit', sans-serif;
+            font-weight: 700;
+            font-size: 1.3rem;
+            letter-spacing: -0.02em;
+            background: linear-gradient(to right, #ffffff, #cbd5e1);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .logo-badge {
+            background: rgba(59, 130, 246, 0.1);
+            border: 1px solid rgba(59, 130, 246, 0.2);
+            color: var(--color-primary);
+            font-size: 0.7rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            padding: 0.2rem 0.5rem;
+            border-radius: 6px;
+            letter-spacing: 0.05em;
+        }
+
+        .nav-links {
+            display: flex;
+            gap: 1.5rem;
+            align-items: center;
+        }
+
+        .nav-link {
+            color: var(--text-secondary);
+            text-decoration: none;
+            font-weight: 500;
+            font-size: 0.9rem;
+            transition: var(--transition-smooth);
+            padding: 0.5rem 0.75rem;
+            border-radius: 6px;
+        }
+
+        .nav-link:hover {
+            color: var(--text-primary);
+            background-color: rgba(255, 255, 255, 0.05);
+        }
+
+        .btn-github {
+            background: rgba(255, 255, 255, 0.08);
+            border: 1px solid var(--border-color);
+            color: var(--text-primary);
+            padding: 0.5rem 1rem;
+            border-radius: 8px;
+            font-size: 0.9rem;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            cursor: pointer;
+            text-decoration: none;
+            transition: var(--transition-smooth);
+        }
+
+        .btn-github:hover {
+            background: rgba(255, 255, 255, 0.15);
+            border-color: var(--text-secondary);
+            transform: translateY(-1px);
+        }
+
+        /* Hero Section */
+        .hero-section {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 5rem 2rem 3rem;
+            text-align: center;
+            position: relative;
+        }
+
+        .hero-subtitle {
+            color: var(--color-primary);
+            font-family: 'Outfit', sans-serif;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.15em;
+            font-size: 0.95rem;
+            margin-bottom: 1rem;
+            display: inline-block;
+        }
+
+        .hero-title {
+            font-family: 'Outfit', sans-serif;
+            font-size: 3.5rem;
+            font-weight: 800;
+            line-height: 1.15;
+            letter-spacing: -0.03em;
+            max-width: 850px;
+            margin: 0 auto 1.5rem;
+            background: linear-gradient(135deg, #ffffff 30%, #94a3b8 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .hero-desc {
+            color: var(--text-secondary);
+            font-size: 1.2rem;
+            max-width: 650px;
+            margin: 0 auto 3rem;
+        }
+
+        /* Search & Filters Controls */
+        .controls-container {
+            max-width: 1000px;
+            margin: 0 auto 4rem;
+            padding: 0 1rem;
+        }
+
+        .search-wrapper {
+            position: relative;
+            margin-bottom: 1.5rem;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+            border-radius: 12px;
+        }
+
+        .search-input {
+            width: 100%;
+            padding: 1.1rem 1.5rem 1.1rem 3.2rem;
+            background-color: rgba(15, 22, 41, 0.8);
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            font-size: 1.05rem;
+            color: var(--text-primary);
+            font-family: inherit;
+            outline: none;
+            transition: var(--transition-smooth);
+        }
+
+        .search-input:focus {
+            border-color: var(--color-primary);
+            box-shadow: 0 0 15px rgba(59, 130, 246, 0.25);
+            background-color: rgba(15, 22, 41, 0.95);
+        }
+
+        .search-icon {
+            position: absolute;
+            left: 1.25rem;
+            top: 50%;
+            transform: translateY(-50%);
+            width: 20px;
+            height: 20px;
+            fill: var(--text-muted);
+            transition: var(--transition-smooth);
+            pointer-events: none;
+        }
+
+        .search-input:focus + .search-icon {
+            fill: var(--color-primary);
+        }
+
+        .tabs-wrapper {
+            display: flex;
+            justify-content: center;
+            gap: 0.5rem;
+            flex-wrap: wrap;
+            background: rgba(15, 22, 41, 0.4);
+            padding: 0.35rem;
+            border-radius: 10px;
+            border: 1px solid var(--border-color);
+            display: inline-flex;
+            margin: 0 auto;
+        }
+
+        .tab-btn {
+            background: none;
+            border: none;
+            color: var(--text-secondary);
+            padding: 0.6rem 1.25rem;
+            font-size: 0.88rem;
+            font-weight: 600;
+            font-family: inherit;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: var(--transition-smooth);
+        }
+
+        .tab-btn:hover {
+            color: var(--text-primary);
+            background-color: rgba(255, 255, 255, 0.05);
+        }
+
+        .tab-btn.active {
+            background-color: var(--color-primary);
+            color: #ffffff;
+            box-shadow: 0 4px 12px var(--glow-primary);
+        }
+
+        .tab-btn[data-category="web"].active {
+            background-color: var(--color-accent);
+            box-shadow: 0 4px 12px var(--glow-accent);
+        }
+
+        .tab-btn[data-category="compiled"].active {
+            background-color: var(--color-secondary);
+            box-shadow: 0 4px 12px var(--glow-secondary);
+        }
+
+        /* Main Content Grid */
+        main {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 0 2rem 6rem;
+        }
+
+        .section-title {
+            font-family: 'Outfit', sans-serif;
+            font-size: 1.75rem;
+            font-weight: 700;
+            margin-bottom: 2rem;
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+        }
+
+        .section-title::after {
+            content: '';
+            flex-grow: 1;
+            height: 1px;
+            background: linear-gradient(to right, var(--border-color), transparent);
+        }
+
+        .card-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(360px, 1fr));
+            gap: 2rem;
+            margin-bottom: 4rem;
+        }
+
+        /* Premium Card Styling */
+        .card {
+            background: var(--bg-card);
+            border: 1px solid var(--border-color);
+            border-radius: 16px;
+            padding: 1.75rem;
+            display: flex;
+            flex-direction: column;
+            min-height: 260px;
+            position: relative;
+            overflow: hidden;
+            transition: var(--transition-smooth);
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
+        }
+
+        .card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 4px;
+            background: linear-gradient(90deg, transparent, transparent);
+            transition: var(--transition-smooth);
+        }
+
+        /* Category Theme Top Borders */
+        .card[data-category="web"]::before {
+            background: linear-gradient(90deg, var(--color-accent), var(--color-primary));
+        }
+        .card[data-category="interpreter"]::before {
+            background: linear-gradient(90deg, var(--color-primary), var(--color-secondary));
+        }
+        .card[data-category="compiled"]::before {
+            background: linear-gradient(90deg, var(--color-secondary), #ec4899);
+        }
+        .card[data-category="end_to_end"]::before {
+            background: linear-gradient(90deg, var(--color-warning), var(--color-primary));
+        }
+
+        .card:hover {
+            background: var(--bg-card-hover);
+            border-color: var(--border-hover);
+            transform: translateY(-4px);
+            box-shadow: 0 12px 30px rgba(0, 0, 0, 0.3);
+        }
+
+        .card[data-category="web"]:hover {
+            border-color: rgba(16, 185, 129, 0.4);
+            box-shadow: 0 12px 30px rgba(16, 185, 129, 0.1);
+        }
+        .card[data-category="interpreter"]:hover {
+            border-color: rgba(59, 130, 246, 0.4);
+            box-shadow: 0 12px 30px rgba(59, 130, 246, 0.1);
+        }
+        .card[data-category="compiled"]:hover {
+            border-color: rgba(139, 92, 246, 0.4);
+            box-shadow: 0 12px 30px rgba(139, 92, 246, 0.1);
+        }
+
+        .card-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            margin-bottom: 1rem;
+        }
+
+        .card-category-badge {
+            font-size: 0.72rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            padding: 0.2rem 0.6rem;
+            border-radius: 6px;
+            letter-spacing: 0.05em;
+        }
+
+        .card[data-category="web"] .card-category-badge {
+            background: rgba(16, 185, 129, 0.1);
+            color: var(--color-accent);
+            border: 1px solid rgba(16, 185, 129, 0.2);
+        }
+        .card[data-category="interpreter"] .card-category-badge {
+            background: rgba(59, 130, 246, 0.1);
+            color: var(--color-primary);
+            border: 1px solid rgba(59, 130, 246, 0.2);
+        }
+        .card[data-category="compiled"] .card-category-badge {
+            background: rgba(139, 92, 246, 0.1);
+            color: var(--color-secondary);
+            border: 1px solid rgba(139, 92, 246, 0.2);
+        }
+        .card[data-category="end_to_end"] .card-category-badge {
+            background: rgba(245, 158, 11, 0.1);
+            color: var(--color-warning);
+            border: 1px solid rgba(245, 158, 11, 0.2);
+        }
+
+        .live-indicator {
+            display: flex;
+            align-items: center;
+            gap: 0.35rem;
+            font-size: 0.72rem;
+            font-weight: 700;
+            color: var(--color-accent);
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            animation: pulse 2s infinite;
+        }
+
+        .live-dot {
+            width: 6px;
+            height: 6px;
+            background-color: var(--color-accent);
+            border-radius: 50%;
+        }
+
+        @keyframes pulse {
+            0% { opacity: 0.5; }
+            50% { opacity: 1; }
+            100% { opacity: 0.5; }
+        }
+
+        .card-title {
+            font-family: 'Outfit', sans-serif;
+            font-size: 1.3rem;
+            font-weight: 600;
+            margin-bottom: 0.75rem;
+            line-height: 1.3;
+            color: var(--text-primary);
+        }
+
+        .card-desc {
+            color: var(--text-secondary);
+            font-size: 0.92rem;
+            line-height: 1.5;
+            margin-bottom: 1.5rem;
+            flex-grow: 1;
+        }
+
+        .card-footer {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-top: auto;
+            padding-top: 1rem;
+            border-top: 1px solid rgba(255, 255, 255, 0.04);
+        }
+
+        .platform-badges {
+            display: flex;
+            gap: 0.35rem;
+        }
+
+        .platform-badge {
+            font-size: 0.7rem;
+            font-weight: 600;
+            background: rgba(255, 255, 255, 0.05);
+            color: var(--text-secondary);
+            padding: 0.15rem 0.45rem;
+            border-radius: 4px;
+            border: 1px solid rgba(255, 255, 255, 0.03);
+        }
+
+        .card-btn {
+            display: flex;
+            align-items: center;
+            gap: 0.35rem;
+            text-decoration: none;
+            font-size: 0.85rem;
+            font-weight: 700;
+            padding: 0.45rem 0.9rem;
+            border-radius: 8px;
+            transition: var(--transition-smooth);
+        }
+
+        .card[data-category="web"] .card-btn {
+            background: var(--color-accent);
+            color: #000000;
+        }
+        .card[data-category="web"] .card-btn:hover {
+            background: #34d399;
+            box-shadow: 0 0 15px rgba(16, 185, 129, 0.4);
+            transform: translateX(2px);
+        }
+
+        .card[data-category="interpreter"] .card-btn {
+            background: rgba(59, 130, 246, 0.1);
+            color: var(--color-primary);
+            border: 1px solid rgba(59, 130, 246, 0.25);
+        }
+        .card[data-category="interpreter"] .card-btn:hover {
+            background: var(--color-primary);
+            color: #ffffff;
+            box-shadow: 0 0 15px rgba(59, 130, 246, 0.4);
+            transform: translateX(2px);
+        }
+
+        .card[data-category="compiled"] .card-btn {
+            background: rgba(139, 92, 246, 0.1);
+            color: var(--color-secondary);
+            border: 1px solid rgba(139, 92, 246, 0.25);
+        }
+        .card[data-category="compiled"] .card-btn:hover {
+            background: var(--color-secondary);
+            color: #ffffff;
+            box-shadow: 0 0 15px rgba(139, 92, 246, 0.4);
+            transform: translateX(2px);
+        }
+
+        .card[data-category="end_to_end"] .card-btn {
+            background: rgba(245, 158, 11, 0.1);
+            color: var(--color-warning);
+            border: 1px solid rgba(245, 158, 11, 0.25);
+        }
+        .card[data-category="end_to_end"] .card-btn:hover {
+            background: var(--color-warning);
+            color: #000000;
+            box-shadow: 0 0 15px rgba(245, 158, 11, 0.4);
+            transform: translateX(2px);
+        }
+
+        /* Empty State */
+        .no-results {
+            text-align: center;
+            padding: 4rem 2rem;
+            background: var(--bg-card);
+            border: 1px solid var(--border-color);
+            border-radius: 16px;
+            max-width: 600px;
+            margin: 2rem auto;
+            display: none;
+        }
+
+        .no-results h3 {
+            font-family: 'Outfit', sans-serif;
+            font-size: 1.4rem;
+            margin-bottom: 0.5rem;
+        }
+
+        .no-results p {
+            color: var(--text-secondary);
+            font-size: 0.95rem;
+        }
+
+        /* Footer */
+        footer {
+            border-top: 1px solid var(--border-color);
+            padding: 3rem 2rem;
+            text-align: center;
+            background: rgba(7, 10, 18, 0.9);
+            color: var(--text-muted);
+            font-size: 0.85rem;
+        }
+
+        .footer-content {
+            max-width: 1400px;
+            margin: 0 auto;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 1rem;
+        }
+
+        .footer-links {
+            display: flex;
+            gap: 1.5rem;
+        }
+
+        .footer-link {
+            color: var(--text-muted);
+            text-decoration: none;
+            transition: var(--transition-smooth);
+        }
+
+        .footer-link:hover {
+            color: var(--text-secondary);
+        }
+
+        /* Responsive adjustments */
+        @media (max-width: 768px) {
+            .hero-title {
+                font-size: 2.5rem;
+            }
+            .nav-container {
+                flex-direction: column;
+                gap: 1rem;
+                padding: 1rem;
+            }
+            .card-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+
+    <!-- Navigation Bar -->
+    <header>
+        <div class="nav-container">
+            <a href="#" class="logo-container">
+                <div class="logo-icon">L</div>
+                <span class="logo-text">LiteRT Samples</span>
+                <span class="logo-badge">v3.0</span>
+            </a>
+            <div class="nav-links">
+                <a href="https://ai.google.dev/edge/litert" target="_blank" class="nav-link">Docs</a>
+                <a href="https://github.com/google-ai-edge/litert-samples" target="_blank" class="btn-github">
+                    <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+                        <path fill-rule="evenodd" clip-rule="evenodd" d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/>
+                    </svg>
+                    GitHub Repo
+                </a>
+            </div>
+        </div>
+    </header>
+
+    <!-- Hero Section -->
+    <section class="hero-section">
+        <span class="hero-subtitle">Google AI Edge</span>
+        <h1 class="hero-title">LiteRT Sample Applications</h1>
+        <p class="hero-desc">Discover official sample applications, high-performance demos, and interactive environments designed for on-device machine learning acceleration.</p>
+        
+        <!-- Search and Categories Controls -->
+        <div class="controls-container">
+            <div class="search-wrapper">
+                <input type="text" id="searchInput" class="search-input" placeholder="Search examples by name, keyword, or technology...">
+                <svg class="search-icon" viewBox="0 0 24 24">
+                    <path d="M15.5 14h-.79l-.28-.27C15.41 12.59 16 11.11 16 9.5 16 5.91 13.09 3 9.5 3S3 5.91 3 9.5 5.91 16 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"/>
+                </svg>
+            </div>
+            
+            <div class="tabs-wrapper">
+                <button class="tab-btn active" data-category="all">All Samples</button>
+                <button class="tab-btn" data-category="web">Interactive Web</button>
+                <button class="tab-btn" data-category="interpreter">Interpreter API (CPU)</button>
+                <button class="tab-btn" data-category="compiled">Compiled Model API (NPU)</button>
+            </div>
+        </div>
+    </section>
+
+    <!-- Main Portal Section -->
+    <main>
+        
+        <!-- Section: Showcase Demos -->
+        <h2 class="section-title" id="sectionHeader">All Library Samples</h2>
+        
+        <div class="card-grid" id="samplesGrid">
+            
+            <!-- ==================== INTERACTIVE WEB DEMOS ==================== -->
+            
+            <div class="card" data-category="web" data-keywords="sandbox console javascript wasm webassembly eager static graph runner arithmetic reductions broadcasting">
+                <div class="card-header">
+                    <span class="card-category-badge">Web Playground</span>
+                    <div class="live-indicator">
+                        <div class="live-dot"></div>
+                        Live Web Demo
+                    </div>
+                </div>
+                <h3 class="card-title">LiteRT Tensor API Sandbox</h3>
+                <p class="card-desc">Run on-device machine learning execution directly in your browser. Test eager mode, static graphs, arithmetic reductions, and broadcasting using standard JavaScript console inputs.</p>
+                <div class="card-footer">
+                    <div class="platform-badges">
+                        <span class="platform-badge">Web</span>
+                        <span class="platform-badge">WASM</span>
+                    </div>
+                    <a href="tensor_api_playground/index.html" class="card-btn">
+                        Launch Sandbox
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="9 18 15 12 9 6"></polyline></svg>
+                    </a>
+                </div>
+            </div>
+
+            <div class="card" data-category="web" data-keywords="gemma3 tokenizer large language models llm text tokenization webassembly wasm">
+                <div class="card-header">
+                    <span class="card-category-badge">Web Visualizer</span>
+                    <div class="live-indicator">
+                        <div class="live-dot"></div>
+                        Live Web Demo
+                    </div>
+                </div>
+                <h3 class="card-title">Gemma 3 Tokenizer Demo</h3>
+                <p class="card-desc">Interactive model visualizer exploring how Gemma 3 structures, tokenizes, and breaks down natural language text input in the browser using WebAssembly execution.</p>
+                <div class="card-footer">
+                    <div class="platform-badges">
+                        <span class="platform-badge">Web</span>
+                        <span class="platform-badge">WASM</span>
+                    </div>
+                    <a href="tensor_api_playground/demo/gemma3/gemma3_demo.html" class="card-btn">
+                        Run Visualizer
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="9 18 15 12 9 6"></polyline></svg>
+                    </a>
+                </div>
+            </div>
+
+            <div class="card" data-category="web" data-keywords="segmentation webgpu selfie background removal real time wasm webassembly">
+                <div class="card-header">
+                    <span class="card-category-badge">Web WebGPU</span>
+                    <div class="live-indicator">
+                        <div class="live-dot"></div>
+                        Live Web Demo
+                    </div>
+                </div>
+                <h3 class="card-title">Image Segmentation (WebGPU)</h3>
+                <p class="card-desc">Perform high-performance selfie multiclass image segmentation in real-time directly inside your web browser using hardware-accelerated WebGPU execution.</p>
+                <div class="card-footer">
+                    <div class="platform-badges">
+                        <span class="platform-badge">Web</span>
+                        <span class="platform-badge">WebGPU</span>
+                    </div>
+                    <a href="tensor_api_playground/demo/segmentation_webgpu_demo.html" class="card-btn">
+                        Launch Demo
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="9 18 15 12 9 6"></polyline></svg>
+                    </a>
+                </div>
+            </div>
+
+            <div class="card" data-category="web" data-keywords="mandelbrot fractal math complex numbers canvas high performance wasm webassembly">
+                <div class="card-header">
+                    <span class="card-category-badge">Web Simulation</span>
+                    <div class="live-indicator">
+                        <div class="live-dot"></div>
+                        Live Web Demo
+                    </div>
+                </div>
+                <h3 class="card-title">Mandelbrot Fractal Generator</h3>
+                <p class="card-desc">Highly optimized fractal canvas renderer demonstrating complex arithmetic operations executed using LiteRT Tensor WebAssembly backends.</p>
+                <div class="card-footer">
+                    <div class="platform-badges">
+                        <span class="platform-badge">Web</span>
+                        <span class="platform-badge">WASM</span>
+                    </div>
+                    <a href="tensor_api_playground/demo/mandelbrot_demo.html" class="card-btn">
+                        View Fractal
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="9 18 15 12 9 6"></polyline></svg>
+                    </a>
+                </div>
+            </div>
+
+            <div class="card" data-category="web" data-keywords="game of life conway cell simulation matrix operations grid wasm webassembly">
+                <div class="card-header">
+                    <span class="card-category-badge">Web Simulation</span>
+                    <div class="live-indicator">
+                        <div class="live-dot"></div>
+                        Live Web Demo
+                    </div>
+                </div>
+                <h3 class="card-title">Conway's Game of Life</h3>
+                <p class="card-desc">Classic cell automation board game implemented via 2D matrix computations triggered natively on-device with LiteRT WASM core functions.</p>
+                <div class="card-footer">
+                    <div class="platform-badges">
+                        <span class="platform-badge">Web</span>
+                        <span class="platform-badge">WASM</span>
+                    </div>
+                    <a href="tensor_api_playground/demo/game_of_life_demo.html" class="card-btn">
+                        Play Game
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="9 18 15 12 9 6"></polyline></svg>
+                    </a>
+                </div>
+            </div>
+            
+            <!-- ==================== INTERPRETER API SAMPLES ==================== -->
+            
+            <div class="card" data-category="interpreter" data-keywords="image classification computer vision object recognition mobile camera java kotlin swift android ios raspberry pi">
+                <div class="card-header">
+                    <span class="card-category-badge">Interpreter API</span>
+                </div>
+                <h3 class="card-title">Image Classification</h3>
+                <p class="card-desc">Identify and classify thousands of object categories inside images, live video streams, or custom user camera inputs. Supports standard mobile formats.</p>
+                <div class="card-footer">
+                    <div class="platform-badges">
+                        <span class="platform-badge">Android</span>
+                        <span class="platform-badge">iOS</span>
+                        <span class="platform-badge">Python</span>
+                    </div>
+                    <a href="interpreter_api/image_classification/" class="card-btn">
+                        View Files
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="9 18 15 12 9 6"></polyline></svg>
+                    </a>
+                </div>
+            </div>
+
+            <div class="card" data-category="interpreter" data-keywords="object detection bounding boxes real time vision tracking custom labels android ios camera">
+                <div class="card-header">
+                    <span class="card-category-badge">Interpreter API</span>
+                </div>
+                <h3 class="card-title">Object Detection</h3>
+                <p class="card-desc">Locate and draw bounding boxes around multiple distinct objects in a frame, complete with class name identification and trust percentage scores.</p>
+                <div class="card-footer">
+                    <div class="platform-badges">
+                        <span class="platform-badge">Android</span>
+                        <span class="platform-badge">iOS</span>
+                    </div>
+                    <a href="interpreter_api/object_detection/" class="card-btn">
+                        View Files
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="9 18 15 12 9 6"></polyline></svg>
+                    </a>
+                </div>
+            </div>
+
+            <div class="card" data-category="interpreter" data-keywords="image segmentation background removal cutout portrait masking android ios">
+                <div class="card-header">
+                    <span class="card-category-badge">Interpreter API</span>
+                </div>
+                <h3 class="card-title">Image Segmentation</h3>
+                <p class="card-desc">Assign category labels to every pixel of an image, enabling background blurring, clean virtual backgrounds, and high-accuracy shape masking.</p>
+                <div class="card-footer">
+                    <div class="platform-badges">
+                        <span class="platform-badge">Android</span>
+                        <span class="platform-badge">iOS</span>
+                    </div>
+                    <a href="interpreter_api/image_segmentation/" class="card-btn">
+                        View Files
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="9 18 15 12 9 6"></polyline></svg>
+                    </a>
+                </div>
+            </div>
+
+            <div class="card" data-category="interpreter" data-keywords="audio classification sound recognition microphone speech events android ios">
+                <div class="card-header">
+                    <span class="card-category-badge">Interpreter API</span>
+                </div>
+                <h3 class="card-title">Audio Classification</h3>
+                <p class="card-desc">Record live audio samples using on-device microphones to identify sound events, environmental noises, music genres, and keyword voice commands.</p>
+                <div class="card-footer">
+                    <div class="platform-badges">
+                        <span class="platform-badge">Android</span>
+                        <span class="platform-badge">iOS</span>
+                    </div>
+                    <a href="interpreter_api/audio_classification/" class="card-btn">
+                        View Files
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="9 18 15 12 9 6"></polyline></svg>
+                    </a>
+                </div>
+            </div>
+
+            <div class="card" data-category="interpreter" data-keywords="digit classification handwritten mnist letters optical character recognition android ios">
+                <div class="card-header">
+                    <span class="card-category-badge">Interpreter API</span>
+                </div>
+                <h3 class="card-title">Digit Classifier (MNIST)</h3>
+                <p class="card-desc">Recognize handwritten numerical digits drawn in real time onto canvas interfaces or parsed from paper document photography.</p>
+                <div class="card-footer">
+                    <div class="platform-badges">
+                        <span class="platform-badge">Android</span>
+                        <span class="platform-badge">iOS</span>
+                    </div>
+                    <a href="interpreter_api/digit_classifier/" class="card-btn">
+                        View Files
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="9 18 15 12 9 6"></polyline></svg>
+                    </a>
+                </div>
+            </div>
+
+            <div class="card" data-category="interpreter" data-keywords="text classification NLP sentiment analysis classification spam filter mobile text">
+                <div class="card-header">
+                    <span class="card-category-badge">Interpreter API</span>
+                </div>
+                <h3 class="card-title">Text Classification</h3>
+                <p class="card-desc">Natural Language Processing (NLP) application analyzing sentence structures to classify input paragraphs, determine sentiments, and detect spam.</p>
+                <div class="card-footer">
+                    <div class="platform-badges">
+                        <span class="platform-badge">Android</span>
+                    </div>
+                    <a href="interpreter_api/text_classification/" class="card-btn">
+                        View Files
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="9 18 15 12 9 6"></polyline></svg>
+                    </a>
+                </div>
+            </div>
+
+            <div class="card" data-category="interpreter" data-keywords="reinforcement learning training agent neural net game play simulator mobile">
+                <div class="card-header">
+                    <span class="card-category-badge">Interpreter API</span>
+                </div>
+                <h3 class="card-title">Reinforcement Learning</h3>
+                <p class="card-desc">Run on-device reinforcement learning agents to train game strategies, manage pathfindings, and control physics simulations in real-time.</p>
+                <div class="card-footer">
+                    <div class="platform-badges">
+                        <span class="platform-badge">Android</span>
+                    </div>
+                    <a href="interpreter_api/reinforcement_learning/" class="card-btn">
+                        View Files
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="9 18 15 12 9 6"></polyline></svg>
+                    </a>
+                </div>
+            </div>
+
+            <div class="card" data-category="interpreter" data-keywords="super resolution upscale images high definition enhance pixels zoom camera">
+                <div class="card-header">
+                    <span class="card-category-badge">Interpreter API</span>
+                </div>
+                <h3 class="card-title">Super Resolution</h3>
+                <p class="card-desc">Intelligently reconstruct low-resolution image assets to recover missing features, sharpen details, and produce high-definition visual outputs.</p>
+                <div class="card-footer">
+                    <div class="platform-badges">
+                        <span class="platform-badge">Android</span>
+                    </div>
+                    <a href="interpreter_api/super_resolution/" class="card-btn">
+                        View Files
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="9 18 15 12 9 6"></polyline></svg>
+                    </a>
+                </div>
+            </div>
+
+            <!-- ==================== COMPILED MODEL API SAMPLES ==================== -->
+            
+            <div class="card" data-category="compiled" data-keywords="qualcomm npu llm chatbot chatbot on-device generative AI modern accelerators model compilation">
+                <div class="card-header">
+                    <span class="card-category-badge">Compiled Model API</span>
+                </div>
+                <h3 class="card-title">LLM Chatbot (Qualcomm NPU)</h3>
+                <p class="card-desc">Accelerate large language model text generation natively on Qualcomm NPU hardware. Leverage async execution pipelines for fast on-device GenAI conversational response times.</p>
+                <div class="card-footer">
+                    <div class="platform-badges">
+                        <span class="platform-badge">Android</span>
+                        <span class="platform-badge">NPU</span>
+                    </div>
+                    <a href="compiled_model_api/qualcomm/llm_chatbot_npu/" class="card-btn">
+                        View Files
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="9 18 15 12 9 6"></polyline></svg>
+                    </a>
+                </div>
+            </div>
+
+            <div class="card" data-category="compiled" data-keywords="colab tutorial notebook ahead-of-time compilation AOT jit npu python code samples">
+                <div class="card-header">
+                    <span class="card-category-badge">Interactive Jupyter</span>
+                </div>
+                <h3 class="card-title">LiteRT AOT Compilation</h3>
+                <p class="card-desc">Hands-on tutorial demonstrating Ahead-of-Time (AOT) compilation strategies to target specialized GPU/NPU acceleration modules, boosting inference execution speed.</p>
+                <div class="card-footer">
+                    <div class="platform-badges">
+                        <span class="platform-badge">Colab</span>
+                        <span class="platform-badge">Python</span>
+                    </div>
+                    <a href="compiled_model_api/colab/" class="card-btn">
+                        Open Tutorial
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="9 18 15 12 9 6"></polyline></svg>
+                    </a>
+                </div>
+            </div>
+
+            <div class="card" data-category="compiled" data-keywords="speech recognition asr audio text transcription voice command speech translation native npu">
+                <div class="card-header">
+                    <span class="card-category-badge">Compiled Model API</span>
+                </div>
+                <h3 class="card-title">Accelerated Speech Recognition</h3>
+                <p class="card-desc">Automatic Speech Recognition (ASR) converting continuous audio input streams into transcribed text paragraphs using hardware-compiled models.</p>
+                <div class="card-footer">
+                    <div class="platform-badges">
+                        <span class="platform-badge">Android</span>
+                        <span class="platform-badge">NPU</span>
+                    </div>
+                    <a href="compiled_model_api/speech_recognition/" class="card-btn">
+                        View Files
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="9 18 15 12 9 6"></polyline></svg>
+                    </a>
+                </div>
+            </div>
+
+            <div class="card" data-category="compiled" data-keywords="semantic similarity embeddings sentences NLP search optimization vectors text matching">
+                <div class="card-header">
+                    <span class="card-category-badge">Compiled Model API</span>
+                </div>
+                <h3 class="card-title">Semantic Similarity API</h3>
+                <p class="card-desc">Calculate mathematical distances and similarity metrics between text embeddings instantly, optimized for advanced client search pipelines.</p>
+                <div class="card-footer">
+                    <div class="platform-badges">
+                        <span class="platform-badge">Android</span>
+                        <span class="platform-badge">C++</span>
+                    </div>
+                    <a href="compiled_model_api/semantic_similarity/" class="card-btn">
+                        View Files
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="9 18 15 12 9 6"></polyline></svg>
+                    </a>
+                </div>
+            </div>
+
+            <div class="card" data-category="compiled" data-keywords="text classification high speed sentiment accelerated categorization mobile android">
+                <div class="card-header">
+                    <span class="card-category-badge">Compiled Model API</span>
+                </div>
+                <h3 class="card-title">Accelerated Text Classification</h3>
+                <p class="card-desc">Process real-time texts, spam detections, and mood-metric classification models using CompiledModel API backends.</p>
+                <div class="card-footer">
+                    <div class="platform-badges">
+                        <span class="platform-badge">Android</span>
+                        <span class="platform-badge">NPU</span>
+                    </div>
+                    <a href="compiled_model_api/text_classification/" class="card-btn">
+                        View Files
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="9 18 15 12 9 6"></polyline></svg>
+                    </a>
+                </div>
+            </div>
+
+            <div class="card" data-category="compiled" data-keywords="image classification accelerated gpu npu android kotlin c++ standard vision pipeline">
+                <div class="card-header">
+                    <span class="card-category-badge">Compiled Model API</span>
+                </div>
+                <h3 class="card-title">Accelerated Image Classification</h3>
+                <p class="card-desc">Demonstrate state-of-the-art high frequency GPU/NPU image classification executing with async queues and optimized buffer allocations.</p>
+                <div class="card-footer">
+                    <div class="platform-badges">
+                        <span class="platform-badge">Android</span>
+                        <span class="platform-badge">NPU</span>
+                    </div>
+                    <a href="compiled_model_api/image_classification/" class="card-btn">
+                        View Files
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="9 18 15 12 9 6"></polyline></svg>
+                    </a>
+                </div>
+            </div>
+
+            <div class="card" data-category="compiled" data-keywords="image segmentation cutouts background GPU NPU accelerated masking vision">
+                <div class="card-header">
+                    <span class="card-category-badge">Compiled Model API</span>
+                </div>
+                <h3 class="card-title">Accelerated Image Segmentation</h3>
+                <p class="card-desc">High-throughput semantic segmentation of images. Enables rich camera masks and background isolation with specialized accelerators.</p>
+                <div class="card-footer">
+                    <div class="platform-badges">
+                        <span class="platform-badge">Android</span>
+                        <span class="platform-badge">NPU</span>
+                    </div>
+                    <a href="compiled_model_api/image_segmentation/" class="card-btn">
+                        View Files
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="9 18 15 12 9 6"></polyline></svg>
+                    </a>
+                </div>
+            </div>
+
+            <!-- ==================== END-TO-END SAMPLES ==================== -->
+            
+            <div class="card" data-category="end_to_end" data-keywords="imagenet classification end to end complete training inference pipelines model">
+                <div class="card-header">
+                    <span class="card-category-badge">End-to-End Sample</span>
+                </div>
+                <h3 class="card-title">ImageNet Classification</h3>
+                <p class="card-desc">Comprehensive full system implementation showing end-to-end image parsing, preprocessing, and classification using standard ImageNet benchmarks.</p>
+                <div class="card-footer">
+                    <div class="platform-badges">
+                        <span class="platform-badge">Android</span>
+                    </div>
+                    <a href="end_to_end/imagenet/" class="card-btn">
+                        View Files
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="9 18 15 12 9 6"></polyline></svg>
+                    </a>
+                </div>
+            </div>
+
+        </div>
+
+        <!-- Empty State for search results -->
+        <div class="no-results" id="emptyState">
+            <h3>No samples found</h3>
+            <p>Try refining your search terms or choosing a different category tab.</p>
+        </div>
+    </main>
+
+    <!-- Footer -->
+    <footer>
+        <div class="footer-content">
+            <div class="footer-links">
+                <a href="https://ai.google.dev/edge/litert" class="footer-link" target="_blank">Documentation</a>
+                <a href="https://github.com/google-ai-edge/litert-samples" class="footer-link" target="_blank">GitHub Repository</a>
+                <a href="https://github.com/google-ai-edge/litert-samples/blob/main/CONTRIBUTING.md" class="footer-link" target="_blank">Contributing</a>
+            </div>
+            <p>&copy; 2026 Google AI Edge Group. LiteRT is provided under the Apache License 2.0.</p>
+        </div>
+    </footer>
+
+    <!-- Real-time Filtering Script -->
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            const searchInput = document.getElementById('searchInput');
+            const tabButtons = document.querySelectorAll('.tab-btn');
+            const cards = document.querySelectorAll('.card');
+            const emptyState = document.getElementById('emptyState');
+            const sectionHeader = document.getElementById('sectionHeader');
+
+            let activeCategory = 'all';
+            let searchQuery = '';
+
+            // Filter logic
+            function filterSamples() {
+                let visibleCount = 0;
+
+                cards.forEach(card => {
+                    const category = card.getAttribute('data-category');
+                    const title = card.querySelector('.card-title').textContent.toLowerCase();
+                    const desc = card.querySelector('.card-desc').textContent.toLowerCase();
+                    const keywords = card.getAttribute('data-keywords') ? card.getAttribute('data-keywords').toLowerCase() : '';
+                    
+                    const matchesCategory = activeCategory === 'all' || category === activeCategory;
+                    
+                    // Simple multi-keyword matching
+                    const searchTerms = searchQuery.toLowerCase().split(/\s+/).filter(t => t.length > 0);
+                    const matchesSearch = searchTerms.every(term => 
+                        title.includes(term) || 
+                        desc.includes(term) || 
+                        keywords.includes(term)
+                    );
+
+                    if (matchesCategory && matchesSearch) {
+                        card.style.display = 'flex';
+                        visibleCount++;
+                    } else {
+                        card.style.display = 'none';
+                    }
+                });
+
+                // Handle empty state display
+                if (visibleCount === 0) {
+                    emptyState.style.display = 'block';
+                } else {
+                    emptyState.style.display = 'none';
+                }
+
+                // Update Section Header text dynamically
+                const categoryNames = {
+                    all: 'All Library Samples',
+                    web: 'Interactive Web Demos',
+                    interpreter: 'Interpreter API Samples (CPU)',
+                    compiled: 'Compiled Model API Samples (NPU)',
+                    end_to_end: 'End-to-End Framework Systems'
+                };
+                sectionHeader.textContent = searchQuery 
+                    ? `Search Results (${visibleCount} found)` 
+                    : (categoryNames[activeCategory] || 'Library Samples');
+            }
+
+            // Live input tracking
+            searchInput.addEventListener('input', (e) => {
+                searchQuery = e.target.value.trim();
+                filterSamples();
+            });
+
+            // Category tab switching
+            tabButtons.forEach(button => {
+                button.addEventListener('click', () => {
+                    // Toggle active class
+                    tabButtons.forEach(btn => btn.classList.remove('active'));
+                    button.classList.add('active');
+
+                    // Update category and filter
+                    activeCategory = button.getAttribute('data-category');
+                    filterSamples();
+                });
+            });
+        });
+    </script>
+</body>
+</html>
