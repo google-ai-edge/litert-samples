@@ -84,28 +84,16 @@
             color: var(--text-primary);
         }
 
-        .logo-icon {
-            width: 32px;
+        .logo-img {
             height: 32px;
-            background: linear-gradient(135deg, var(--color-primary), var(--color-secondary));
-            border-radius: 8px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-weight: 800;
-            font-family: 'Outfit', sans-serif;
-            font-size: 1.1rem;
-            box-shadow: 0 0 15px var(--glow-primary);
+            display: block;
+            filter: brightness(0) invert(1); /* Clean premium white logo on dark background */
+            transition: var(--transition-smooth);
         }
 
-        .logo-text {
-            font-family: 'Outfit', sans-serif;
-            font-weight: 700;
-            font-size: 1.3rem;
-            letter-spacing: -0.02em;
-            background: linear-gradient(to right, #ffffff, #cbd5e1);
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
+        .logo-img:hover {
+            filter: brightness(0) invert(1) drop-shadow(0 0 8px var(--color-primary));
+            transform: translateY(-1px);
         }
 
         .logo-badge {
@@ -631,9 +619,7 @@
     <header>
         <div class="nav-container">
             <a href="#" class="logo-container">
-                <div class="logo-icon">L</div>
-                <span class="logo-text">LiteRT Samples</span>
-                <span class="logo-badge">v3.0</span>
+                <img src="logo.png" alt="LiteRT Logo" class="logo-img">
             </a>
             <div class="nav-links">
                 <a href="https://ai.google.dev/edge/litert" target="_blank" class="nav-link">Docs</a>
@@ -665,8 +651,8 @@
             <div class="tabs-wrapper">
                 <button class="tab-btn active" data-category="all">All Samples</button>
                 <button class="tab-btn" data-category="web">Interactive Web</button>
-                <button class="tab-btn" data-category="interpreter">Interpreter API (CPU)</button>
-                <button class="tab-btn" data-category="compiled">Compiled Model API (NPU)</button>
+                <button class="tab-btn" data-category="interpreter">Interpreter API</button>
+                <button class="tab-btn" data-category="compiled">Compiled Model API</button>
             </div>
         </div>
     </section>
@@ -805,7 +791,7 @@
                         <span class="platform-badge">iOS</span>
                         <span class="platform-badge">Python</span>
                     </div>
-                    <a href="interpreter_api/image_classification/" class="card-btn">
+                    <a href="https://github.com/google-ai-edge/litert-samples/tree/main/interpreter_api/image_classification/" target="_blank" rel="noopener noreferrer" class="card-btn">
                         View Files
                         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="9 18 15 12 9 6"></polyline></svg>
                     </a>
@@ -823,7 +809,7 @@
                         <span class="platform-badge">Android</span>
                         <span class="platform-badge">iOS</span>
                     </div>
-                    <a href="interpreter_api/object_detection/" class="card-btn">
+                    <a href="https://github.com/google-ai-edge/litert-samples/tree/main/interpreter_api/object_detection/" target="_blank" rel="noopener noreferrer" class="card-btn">
                         View Files
                         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="9 18 15 12 9 6"></polyline></svg>
                     </a>
@@ -841,7 +827,7 @@
                         <span class="platform-badge">Android</span>
                         <span class="platform-badge">iOS</span>
                     </div>
-                    <a href="interpreter_api/image_segmentation/" class="card-btn">
+                    <a href="https://github.com/google-ai-edge/litert-samples/tree/main/interpreter_api/image_segmentation/" target="_blank" rel="noopener noreferrer" class="card-btn">
                         View Files
                         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="9 18 15 12 9 6"></polyline></svg>
                     </a>
@@ -859,7 +845,7 @@
                         <span class="platform-badge">Android</span>
                         <span class="platform-badge">iOS</span>
                     </div>
-                    <a href="interpreter_api/audio_classification/" class="card-btn">
+                    <a href="https://github.com/google-ai-edge/litert-samples/tree/main/interpreter_api/audio_classification/" target="_blank" rel="noopener noreferrer" class="card-btn">
                         View Files
                         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="9 18 15 12 9 6"></polyline></svg>
                     </a>
@@ -877,7 +863,7 @@
                         <span class="platform-badge">Android</span>
                         <span class="platform-badge">iOS</span>
                     </div>
-                    <a href="interpreter_api/digit_classifier/" class="card-btn">
+                    <a href="https://github.com/google-ai-edge/litert-samples/tree/main/interpreter_api/digit_classifier/" target="_blank" rel="noopener noreferrer" class="card-btn">
                         View Files
                         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="9 18 15 12 9 6"></polyline></svg>
                     </a>
@@ -894,7 +880,7 @@
                     <div class="platform-badges">
                         <span class="platform-badge">Android</span>
                     </div>
-                    <a href="interpreter_api/text_classification/" class="card-btn">
+                    <a href="https://github.com/google-ai-edge/litert-samples/tree/main/interpreter_api/text_classification/" target="_blank" rel="noopener noreferrer" class="card-btn">
                         View Files
                         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="9 18 15 12 9 6"></polyline></svg>
                     </a>
@@ -911,7 +897,7 @@
                     <div class="platform-badges">
                         <span class="platform-badge">Android</span>
                     </div>
-                    <a href="interpreter_api/reinforcement_learning/" class="card-btn">
+                    <a href="https://github.com/google-ai-edge/litert-samples/tree/main/interpreter_api/reinforcement_learning/" target="_blank" rel="noopener noreferrer" class="card-btn">
                         View Files
                         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="9 18 15 12 9 6"></polyline></svg>
                     </a>
@@ -928,7 +914,7 @@
                     <div class="platform-badges">
                         <span class="platform-badge">Android</span>
                     </div>
-                    <a href="interpreter_api/super_resolution/" class="card-btn">
+                    <a href="https://github.com/google-ai-edge/litert-samples/tree/main/interpreter_api/super_resolution/" target="_blank" rel="noopener noreferrer" class="card-btn">
                         View Files
                         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="9 18 15 12 9 6"></polyline></svg>
                     </a>
@@ -948,7 +934,7 @@
                         <span class="platform-badge">Android</span>
                         <span class="platform-badge">NPU</span>
                     </div>
-                    <a href="compiled_model_api/qualcomm/llm_chatbot_npu/" class="card-btn">
+                    <a href="https://github.com/google-ai-edge/litert-samples/tree/main/compiled_model_api/qualcomm/llm_chatbot_npu/" target="_blank" rel="noopener noreferrer" class="card-btn">
                         View Files
                         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="9 18 15 12 9 6"></polyline></svg>
                     </a>
@@ -966,7 +952,7 @@
                         <span class="platform-badge">Colab</span>
                         <span class="platform-badge">Python</span>
                     </div>
-                    <a href="compiled_model_api/colab/" class="card-btn">
+                    <a href="https://github.com/google-ai-edge/litert-samples/tree/main/compiled_model_api/colab/" target="_blank" rel="noopener noreferrer" class="card-btn">
                         Open Tutorial
                         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="9 18 15 12 9 6"></polyline></svg>
                     </a>
@@ -984,7 +970,7 @@
                         <span class="platform-badge">Android</span>
                         <span class="platform-badge">NPU</span>
                     </div>
-                    <a href="compiled_model_api/speech_recognition/" class="card-btn">
+                    <a href="https://github.com/google-ai-edge/litert-samples/tree/main/compiled_model_api/speech_recognition/" target="_blank" rel="noopener noreferrer" class="card-btn">
                         View Files
                         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="9 18 15 12 9 6"></polyline></svg>
                     </a>
@@ -1002,7 +988,7 @@
                         <span class="platform-badge">Android</span>
                         <span class="platform-badge">C++</span>
                     </div>
-                    <a href="compiled_model_api/semantic_similarity/" class="card-btn">
+                    <a href="https://github.com/google-ai-edge/litert-samples/tree/main/compiled_model_api/semantic_similarity/" target="_blank" rel="noopener noreferrer" class="card-btn">
                         View Files
                         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="9 18 15 12 9 6"></polyline></svg>
                     </a>
@@ -1020,7 +1006,7 @@
                         <span class="platform-badge">Android</span>
                         <span class="platform-badge">NPU</span>
                     </div>
-                    <a href="compiled_model_api/text_classification/" class="card-btn">
+                    <a href="https://github.com/google-ai-edge/litert-samples/tree/main/compiled_model_api/text_classification/" target="_blank" rel="noopener noreferrer" class="card-btn">
                         View Files
                         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="9 18 15 12 9 6"></polyline></svg>
                     </a>
@@ -1038,7 +1024,7 @@
                         <span class="platform-badge">Android</span>
                         <span class="platform-badge">NPU</span>
                     </div>
-                    <a href="compiled_model_api/image_classification/" class="card-btn">
+                    <a href="https://github.com/google-ai-edge/litert-samples/tree/main/compiled_model_api/image_classification/" target="_blank" rel="noopener noreferrer" class="card-btn">
                         View Files
                         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="9 18 15 12 9 6"></polyline></svg>
                     </a>
@@ -1056,7 +1042,7 @@
                         <span class="platform-badge">Android</span>
                         <span class="platform-badge">NPU</span>
                     </div>
-                    <a href="compiled_model_api/image_segmentation/" class="card-btn">
+                    <a href="https://github.com/google-ai-edge/litert-samples/tree/main/compiled_model_api/image_segmentation/" target="_blank" rel="noopener noreferrer" class="card-btn">
                         View Files
                         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="9 18 15 12 9 6"></polyline></svg>
                     </a>
@@ -1075,7 +1061,7 @@
                     <div class="platform-badges">
                         <span class="platform-badge">Android</span>
                     </div>
-                    <a href="end_to_end/imagenet/" class="card-btn">
+                    <a href="https://github.com/google-ai-edge/litert-samples/tree/main/end_to_end/imagenet/" target="_blank" rel="noopener noreferrer" class="card-btn">
                         View Files
                         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="9 18 15 12 9 6"></polyline></svg>
                     </a>
@@ -1154,8 +1140,8 @@
                 const categoryNames = {
                     all: 'All Library Samples',
                     web: 'Interactive Web Demos',
-                    interpreter: 'Interpreter API Samples (CPU)',
-                    compiled: 'Compiled Model API Samples (NPU)',
+                    interpreter: 'Interpreter API Samples',
+                    compiled: 'Compiled Model API Samples',
                     end_to_end: 'End-to-End Framework Systems'
                 };
                 sectionHeader.textContent = searchQuery 
