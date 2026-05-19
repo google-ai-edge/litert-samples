@@ -441,6 +441,96 @@
             100% { opacity: 0.5; }
         }
 
+        /* Highly noticeable Preview Tag styling */
+        .preview-tag-badge {
+            font-size: 0.68rem;
+            font-weight: 800;
+            text-transform: uppercase;
+            padding: 0.2rem 0.6rem;
+            border-radius: 6px;
+            letter-spacing: 0.07em;
+            background: linear-gradient(135deg, rgba(245, 158, 11, 0.2) 0%, rgba(239, 68, 68, 0.2) 100%);
+            color: #f59e0b;
+            border: 1px solid rgba(245, 158, 11, 0.45);
+            box-shadow: 0 0 10px rgba(245, 158, 11, 0.25);
+            animation: preview-pulse 2s infinite ease-in-out;
+            display: inline-flex;
+            align-items: center;
+            gap: 0.35rem;
+        }
+
+        .preview-tag-dot {
+            width: 5px;
+            height: 5px;
+            background-color: #f59e0b;
+            border-radius: 50%;
+            display: inline-block;
+            animation: blink 1.5s infinite;
+        }
+
+        @keyframes preview-pulse {
+            0% {
+                box-shadow: 0 0 8px rgba(245, 158, 11, 0.25);
+                border-color: rgba(245, 158, 11, 0.45);
+            }
+            50% {
+                box-shadow: 0 0 15px rgba(245, 158, 11, 0.6);
+                border-color: rgba(245, 158, 11, 0.85);
+            }
+            100% {
+                box-shadow: 0 0 8px rgba(245, 158, 11, 0.25);
+                border-color: rgba(245, 158, 11, 0.45);
+            }
+        }
+
+        @keyframes blink {
+            0% { opacity: 0.3; }
+            50% { opacity: 1; }
+            100% { opacity: 0.3; }
+        }
+
+        /* Premium Developer Preview Banner (Gold Theme) */
+        .preview-alert-banner {
+            background: rgba(255, 255, 255, 0.02);
+            border: 1px solid rgba(234, 179, 8, 0.15);
+            border-radius: 10px;
+            padding: 0.75rem 1.25rem;
+            margin-bottom: 2rem;
+            display: flex;
+            gap: 0.75rem;
+            align-items: center;
+            backdrop-filter: blur(8px);
+            -webkit-backdrop-filter: blur(8px);
+            transition: var(--transition-smooth);
+        }
+
+        .preview-alert-icon {
+            color: #eab308;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-shrink: 0;
+        }
+
+        .preview-alert-content {
+            display: flex;
+            flex-direction: column;
+        }
+
+        .preview-alert-content p {
+            color: var(--text-secondary);
+            font-size: 0.85rem;
+            line-height: 1.4;
+        }
+
+        .preview-alert-content p strong {
+            color: #eab308;
+        }
+
+
+
+
+
         .card-title {
             font-family: 'Outfit', sans-serif;
             font-size: 1.3rem;
@@ -663,6 +753,21 @@
         <!-- Section: Showcase Demos -->
         <h2 class="section-title" id="sectionHeader">All Library Samples</h2>
         
+        <!-- Developer Preview Alert Banner (Tuned-down & Concise) -->
+        <div class="preview-alert-banner" id="previewAlertBanner">
+            <div class="preview-alert-icon">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"
+                    stroke-linecap="round" stroke-linejoin="round">
+                    <circle cx="12" cy="12" r="10"></circle>
+                    <line x1="12" y1="16" x2="12" y2="12"></line>
+                    <line x1="12" y1="8" x2="12.01" y2="8"></line>
+                </svg>
+            </div>
+            <div class="preview-alert-content">
+                <p><strong>Developer Preview:</strong> These web demos are powered by the upcoming <strong>LiteRT Tensor API
+                        WASM</strong> library.</p>
+            </div>
+        </div>
         <div class="card-grid" id="samplesGrid">
             
             <!-- ==================== INTERACTIVE WEB DEMOS ==================== -->
@@ -683,6 +788,11 @@
                         <span class="platform-badge">WASM</span>
                     </div>
                     <a href="tensor_api_playground/index.html" class="card-btn">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"
+                            stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
+                            <circle cx="12" cy="12" r="3"></circle>
+                        </svg>
                         Launch Sandbox
                         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="9 18 15 12 9 6"></polyline></svg>
                     </a>
@@ -705,6 +815,11 @@
                         <span class="platform-badge">WASM</span>
                     </div>
                     <a href="tensor_api_playground/demo/gemma3/gemma3_demo.html" class="card-btn">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"
+                            stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
+                            <circle cx="12" cy="12" r="3"></circle>
+                        </svg>
                         Run Visualizer
                         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="9 18 15 12 9 6"></polyline></svg>
                     </a>
@@ -727,6 +842,11 @@
                         <span class="platform-badge">WebGPU</span>
                     </div>
                     <a href="tensor_api_playground/demo/segmentation_webgpu_demo.html" class="card-btn">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"
+                            stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
+                            <circle cx="12" cy="12" r="3"></circle>
+                        </svg>
                         Launch Demo
                         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="9 18 15 12 9 6"></polyline></svg>
                     </a>
@@ -749,6 +869,11 @@
                         <span class="platform-badge">WASM</span>
                     </div>
                     <a href="tensor_api_playground/demo/mandelbrot_demo.html" class="card-btn">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"
+                            stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
+                            <circle cx="12" cy="12" r="3"></circle>
+                        </svg>
                         View Fractal
                         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="9 18 15 12 9 6"></polyline></svg>
                     </a>
@@ -771,6 +896,11 @@
                         <span class="platform-badge">WASM</span>
                     </div>
                     <a href="tensor_api_playground/demo/game_of_life_demo.html" class="card-btn">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"
+                            stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
+                            <circle cx="12" cy="12" r="3"></circle>
+                        </svg>
                         Play Game
                         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="9 18 15 12 9 6"></polyline></svg>
                     </a>
@@ -1134,6 +1264,16 @@
                     emptyState.style.display = 'block';
                 } else {
                     emptyState.style.display = 'none';
+                }
+
+                // Toggle preview alert banner visibility
+                const previewAlertBanner = document.getElementById('previewAlertBanner');
+                if (previewAlertBanner) {
+                    if (activeCategory === 'all' || activeCategory === 'web') {
+                        previewAlertBanner.style.display = 'flex';
+                    } else {
+                        previewAlertBanner.style.display = 'none';
+                    }
                 }
 
                 // Update Section Header text dynamically
