@@ -6,6 +6,10 @@ The samples are organized into two main versions (`interpreter_api/` and `compil
 
 **Note:** For Generative AI and Large Language Models (LLMs), please refer to the [LiteRT-LM repository](https://github.com/google-ai-edge/LiteRT-LM).
 
+## **🔥 What's New**
+
+New sample app for [Automatic Speech Recognition(ASR)](compiled_model_api/speech_recognition) has been added.
+
 ## **📂 Repository Structure**
 
 ### **1\. `compiled_model_api/`**
