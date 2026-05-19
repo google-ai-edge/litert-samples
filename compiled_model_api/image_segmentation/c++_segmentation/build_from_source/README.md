@@ -89,7 +89,15 @@ Configure the build tools:
 ```bash
 bazel build //compiled_model_api/image_segmentation/c++_segmentation/build_from_source:cpp_segmentation_cpu --config=android_arm64
 bazel build //compiled_model_api/image_segmentation/c++_segmentation/build_from_source:cpp_segmentation_gpu --config=android_arm64
+```
 
+> [!IMPORTANT]
+> When running in GPU mode, please manually download the latest `libLiteRtClGlAccelerator.so` from the [LiteRT Storage URL](https://storage.googleapis.com/litert/binaries/2.1.4/android_arm64/libLiteRtClGlAccelerator.so) and push it directly to the target directory on your device:
+> ```bash
+> adb push libLiteRtClGlAccelerator.so /data/local/tmp/cpp_segmentation_android/libLiteRtClGlAccelerator.so
+> ```
+
+```bash
 # For NPU Build
 # 1. Download QAIRT SDK v2.41+ and extract it.
 # 2. IMPORTANT: The Bazel configuration expects the SDK contents to be inside a 
