@@ -1,0 +1,59 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1020 125" width="100%">
+  <defs>
+    <marker id="arrowhead" markerWidth="8" markerHeight="6" refX="7" refY="3.0" orient="auto">
+      <polygon points="0 0, 8 3.0, 0 6" fill="#5f6368" />
+    </marker>
+  </defs>
+  <style>
+    .box { font-family: sans-serif; font-size: 13px; font-weight: bold; fill: #202124; }
+    .datatype { font-family: sans-serif; font-size: 10px; font-weight: bold; fill: #1a73e8; }
+    .io-label { font-family: sans-serif; font-size: 11px; font-weight: bold; fill: #5f6368; }
+    .bg-blue { fill: #e8f0fe; stroke: #1a73e8; stroke-width: 2; rx: 6; ry: 6; }
+    .arrow { stroke: #757575; stroke-width: 2; fill: none; marker-end: url(#arrowhead); }
+  </style>
+
+  <!-- Arrows & Data Types -->
+  <!-- AudioSource -> AudioPreprocessor -->
+  <path d="M 135 60 L 228 60" class="arrow" />
+  <text x="182.5" y="47" text-anchor="middle" class="datatype">PCM Audio</text>
+
+  <!-- AudioPreprocessor -> SpeechRecognizer -->
+  <path d="M 385 60 L 478 60" class="arrow" />
+  <text x="432.5" y="47" text-anchor="middle" class="datatype">Feature Tensors</text>
+
+  <!-- SpeechRecognizer -> Postprocessor -->
+  <path d="M 630 60 L 778 60" class="arrow" />
+  <text x="705" y="37" text-anchor="middle" class="datatype">
+    <tspan x="705" dy="0">Token IDs</tspan>
+    <tspan x="705" dy="13">Timestamps (Optional)</tspan>
+  </text>
+
+  <!-- Postprocessor -> Output -->
+  <path d="M 900 60 L 928 60" class="arrow" />
+  <text x="936" y="64" text-anchor="start" class="datatype">Text Output</text>
+
+  <!-- Blocks -->
+  <!-- AudioSource -->
+  <g transform="translate(15, 35)">
+    <rect width="120" height="50" class="bg-blue" />
+    <text x="60" y="25" text-anchor="middle" dominant-baseline="middle" class="box">AudioSource</text>
+  </g>
+
+  <!-- AudioPreprocessor -->
+  <g transform="translate(230, 35)">
+    <rect width="155" height="50" class="bg-blue" />
+    <text x="77.5" y="25" text-anchor="middle" dominant-baseline="middle" class="box">AudioPreprocessor</text>
+  </g>
+
+  <!-- SpeechRecognizer -->
+  <g transform="translate(480, 35)">
+    <rect width="150" height="50" class="bg-blue" />
+    <text x="75" y="25" text-anchor="middle" dominant-baseline="middle" class="box">SpeechRecognizer</text>
+  </g>
+
+  <!-- Postprocessor -->
+  <g transform="translate(780, 35)">
+    <rect width="120" height="50" class="bg-blue" />
+    <text x="60" y="25" text-anchor="middle" dominant-baseline="middle" class="box">Postprocessor</text>
+  </g>
+</svg>
