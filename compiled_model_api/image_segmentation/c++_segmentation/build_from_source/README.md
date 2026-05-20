@@ -87,8 +87,12 @@ Configure the build tools:
 ```
 
 ```bash
-bazel build //compiled_model_api/image_segmentation/c++_segmentation/build_from_source:cpp_segmentation_cpu --config=android_arm64
-bazel build //compiled_model_api/image_segmentation/c++_segmentation/build_from_source:cpp_segmentation_gpu --config=android_arm64
+bazel build //compiled_model_api/image_segmentation/c++_segmentation/build_from_source:cpp_segmentation_cpu \
+  --config=android_arm64 \
+  --nocheck_visibility
+bazel build //compiled_model_api/image_segmentation/c++_segmentation/build_from_source:cpp_segmentation_gpu \
+  --config=android_arm64 \
+  --nocheck_visibility
 
 # For NPU Build
 # 1. Download QAIRT SDK v2.41+ and extract it.
@@ -104,7 +108,6 @@ bazel build //compiled_model_api/image_segmentation/c++_segmentation/build_from_
 bazel build //compiled_model_api/image_segmentation/c++_segmentation/build_from_source:cpp_segmentation_npu \
   --config=android_arm64 \
   --nocheck_visibility \
-  --action_env LITERT_QAIRT_SDK=/path/to/qairt_sdk/
 
 # 4. MediaTek NPU (No extra SDK required)
 bazel build //compiled_model_api/image_segmentation/c++_segmentation/build_from_source:cpp_segmentation_npu_mtk \
