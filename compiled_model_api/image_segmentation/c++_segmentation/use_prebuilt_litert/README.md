@@ -72,7 +72,8 @@ build/cpp_segmentation_npu
 
 Use `deploy_and_run_on_android.sh`, passing the cmake build directory (`build/`).
 The script pushes the binary, libraries, shaders, and model to the device,
-runs inference, and pulls `output_segmented.png` back automatically.
+runs inference, and pulls `output_segmented.png` back automatically. Note that
+for it to be run correctly, `models/selfie_multiclass_256x256*.tflite` are needed.
 
 ```bash
 # CPU
@@ -84,7 +85,11 @@ runs inference, and pulls `output_segmented.png` back automatically.
 # GPU with zero-copy GL buffers
 ./deploy_and_run_on_android.sh --accelerator=gpu --use_gl_buffers --phone=s25 build/
 
-# NPU (Qualcomm S25 / SM8750, AOT compiled model)
+# For NPU dispatch libraries:
+#   $ wget https://github.com/google-ai-edge/LiteRT/releases/download/v2.1.1/litert_npu_runtime_libraries_jit.zip
+#   $ (mkdir extracted/rt;cd extracted/rt;unzip ../../litert_npu_runtime_libraries_jit.zip)
+
+# NPU (Qualcomm S25 / SM8750, AOT compiled model needed)
 ./deploy_and_run_on_android.sh \
     --accelerator=npu --phone=s25 \
     --host_npu_lib=/path/to/qairt/lib \
@@ -96,6 +101,7 @@ runs inference, and pulls `output_segmented.png` back automatically.
     --accelerator=npu --phone=s25 --jit \
     --host_npu_lib=/path/to/qairt/lib \
     --host_npu_dispatch_lib=/path/to/dir/with/libLiteRtDispatch_Qualcomm.so \
+    --host_npu_compiler_lib=/path/to/dir/with/libLiteRtCompilerPlugin_Qualcomm.so \
     build/
 
 # MediaTek APU (dim9400, JIT)
@@ -113,9 +119,11 @@ runs inference, and pulls `output_segmented.png` back automatically.
 
 **`--phone` values**: `s24` (Snapdragon 8 Gen 3), `s25` (Snapdragon 8 Elite), `pixel10` (Google Tensor G5), `dim9400` (MediaTek Dimensity 9400)
 
-The Qualcomm NPU requires:
-- `libLiteRtDispatch_Qualcomm.so` from the [LiteRT NPU runtime libraries](https://github.com/google-ai-edge/LiteRT/releases/tag/v2.1.1) zip
-- QAIRT SDK libraries (`libQnnHtp.so`, stub/skel `.so` files)
+For NPU, we need dispatch libraries for AOT mode and compiler plugin libraries for JIT mode.
+- `libLiteRtDispatch_*.so` and `libLiteRtCompilerPluging.so` from the [LiteRT NPU runtime libraries](https://github.com/google-ai-edge/LiteRT/releases/tag/v2.1.1) zip
+
+The Qualcomm NPU also requires:
+- QAIRT SDK libraries (`libQnnHtp.so`, stub/skel `.so` files). The one used by LiteRT 2.1.1 is [qairt 2.41](https://softwarecenter.qualcomm.com/api/download/software/sdks/Qualcomm_AI_Runtime_Community/All/2.41.0.251128/v2.41.0.251128.zip)
 
 ---
 
