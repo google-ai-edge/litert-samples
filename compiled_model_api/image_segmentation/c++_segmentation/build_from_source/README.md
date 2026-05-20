@@ -92,7 +92,7 @@ bazel build //compiled_model_api/image_segmentation/c++_segmentation/build_from_
 ```
 
 > [!IMPORTANT]
-> When running in GPU mode, please manually download the latest `libLiteRtClGlAccelerator.so` from the [LiteRT Storage URL](https://storage.googleapis.com/litert/binaries/2.1.4/android_arm64/libLiteRtClGlAccelerator.so) and push it directly to the target directory on your device:
+> When running in GPU mode, please manually download the latest `libLiteRtClGlAccelerator.so` from the [Google AI Edge website](https://ai.google.dev/edge/litert/next/cpp_sdk) and push it directly to the target directory on your device:
 > ```bash
 > adb push libLiteRtClGlAccelerator.so /data/local/tmp/cpp_segmentation_android/libLiteRtClGlAccelerator.so
 > ```
