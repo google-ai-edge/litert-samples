@@ -1,0 +1,158 @@
+name: LiteRT C++ Samples CI
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+  schedule:
+    # Run at 10am UTC (2am PST) every day to refresh the cache/validate dependencies
+    - cron: "0 10 * * *"
+  workflow_dispatch:
+    inputs:
+      REFRESH_CACHE:
+        description: 'Refresh cache to remove unused files'
+        type: boolean
+        default: true
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.head_ref || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-and-test:
+    name: "Build-and-Test-Linux"
+    runs-on: ubuntu-latest
+    permissions:
+      actions: write
+      contents: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+      REFRESH_CACHE: ${{ github.event_name == 'schedule' ||
+                         (github.event_name == 'workflow_dispatch' && inputs.REFRESH_CACHE) }}
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Set up Bazel
+        uses: bazel-contrib/setup-bazel@0.19.0
+        with:
+          bazel-version: '7.6.1'
+
+      - name: Install System Dependencies (LLVM/Clang-19)
+        run: |
+          # Install apt LLVM setup script and invoke for LLVM-19
+          wget https://apt.llvm.org/llvm.sh
+          chmod +x llvm.sh
+          sudo ./llvm.sh 19
+          # Install core C++ library suites for LLVM-19
+          sudo apt-get update && sudo apt-get install -y --no-install-recommends libc++-19-dev libc++abi-19-dev
+
+      - name: Install Android Platform, Build Tools, and NDK
+        run: |
+          # Install the specific platform 36, build tools 36.1.0, and NDK 25.2.9519653
+          yes | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --install "platforms;android-36" "build-tools;36.1.0" "ndk;25.2.9519653"
+          
+          # Set explicit paths and version variables in GITHUB_ENV
+          echo "ANDROID_SDK_HOME=$ANDROID_HOME" >> $GITHUB_ENV
+          echo "ANDROID_NDK_HOME=$ANDROID_HOME/ndk/25.2.9519653" >> $GITHUB_ENV
+          echo "ANDROID_API_LEVEL=36" >> $GITHUB_ENV
+          echo "ANDROID_BUILD_TOOLS_VERSION=36.1.0" >> $GITHUB_ENV
+          echo "ANDROID_NDK_API_LEVEL=26" >> $GITHUB_ENV
+          echo "CLANG_COMPILER_PATH=/usr/lib/llvm-19/bin/clang" >> $GITHUB_ENV
+
+      - name: Non-Interactive Workspace Configuration
+        run: |
+          chmod +x configure.py
+          export PYTHON_BIN_PATH=$(which python3)
+          export PYTHON_LIB_PATH=$(python3 -c 'import site; print(site.getsitepackages()[0])')
+          export TF_NEED_ROCM=0
+          export TF_NEED_CUDA=0
+          export TF_NEED_CLANG=1
+          export CLANG_COMPILER_PATH=$CLANG_COMPILER_PATH
+          export CC_OPT_FLAGS='-Wno-sign-compare'
+          export TF_SET_ANDROID_WORKSPACE=1
+          export ANDROID_NDK_HOME=$ANDROID_NDK_HOME
+          export ANDROID_NDK_API_LEVEL=$ANDROID_NDK_API_LEVEL
+          export ANDROID_SDK_HOME=$ANDROID_SDK_HOME
+          export ANDROID_API_LEVEL=$ANDROID_API_LEVEL
+          export ANDROID_BUILD_TOOLS_VERSION=$ANDROID_BUILD_TOOLS_VERSION
+          yes "" | python3 configure.py
+
+      - name: Set up cache keys
+        id: cache-keys
+        run: |
+          CACHE_RESTORE_KEY_2="${{ github.workflow }}"
+          CACHE_RESTORE_KEY_1="$CACHE_RESTORE_KEY_2-${{ hashFiles('**/WORKSPACE', '**/.bazelrc') }}"
+          CACHE_RESTORE_KEY_0="$CACHE_RESTORE_KEY_1-${{ hashFiles('**/BUILD*') }}"
+          CACHE_RESTORE_KEY_HEAD="$CACHE_RESTORE_KEY_0-${{ github.event.pull_request.base.sha || github.event.before || 'no-head' }}"
+          CACHE_KEY="$CACHE_RESTORE_KEY_0-${{ github.sha }}"
+          echo "CACHE_RESTORE_KEY_2=$CACHE_RESTORE_KEY_2" >> "$GITHUB_OUTPUT"
+          echo "CACHE_RESTORE_KEY_1=$CACHE_RESTORE_KEY_1" >> "$GITHUB_OUTPUT"
+          echo "CACHE_RESTORE_KEY_0=$CACHE_RESTORE_KEY_0" >> "$GITHUB_OUTPUT"
+          echo "CACHE_RESTORE_KEY_HEAD=$CACHE_RESTORE_KEY_HEAD" >> "$GITHUB_OUTPUT"
+          echo "CACHE_KEY=$CACHE_KEY" >> "$GITHUB_OUTPUT"
+
+      - name: Clean build outputs if cache is being refreshed
+        if: env.REFRESH_CACHE == 'true'
+        run: bazel clean --expunge
+
+      - name: Restore bazel cache if cache is not being refreshed
+        id: bazel-cache
+        if: env.REFRESH_CACHE != 'true'
+        uses: actions/cache/restore@v4
+        with:
+          path: |
+            ~/.cache/bazel-linux
+            ~/.cache/bazel-android
+          key: ${{ steps.cache-keys.outputs.CACHE_KEY }}
+          restore-keys: |
+            ${{ steps.cache-keys.outputs.CACHE_RESTORE_KEY_HEAD }}
+            ${{ steps.cache-keys.outputs.CACHE_RESTORE_KEY_0 }}-
+            ${{ steps.cache-keys.outputs.CACHE_RESTORE_KEY_1 }}-
+            ${{ steps.cache-keys.outputs.CACHE_RESTORE_KEY_2 }}-
+
+      - name: Check cache hit status
+        run: |
+          echo "Cache Hit: ${{ steps.bazel-cache.outputs.cache-hit }}"
+          echo "Cache Primary Key: ${{ steps.bazel-cache.outputs.cache-primary-key }}"
+          echo "Cache Matched Key: ${{ steps.bazel-cache.outputs.cache-matched-key }}"
+
+      - name: Build Host Linux Targets
+        run: |
+          bazel build --disk_cache=~/.cache/bazel-linux -c opt //compiled_model_api/semantic_similarity/build_from_source:semantic_similarity
+
+      - name: Build Android Cross-Compiled Targets
+        run: |
+          bazel build --disk_cache=~/.cache/bazel-android //compiled_model_api/image_segmentation/c++_segmentation/build_from_source:cpp_segmentation_cpu --config=android_arm64 --nocheck_visibility
+          bazel build --disk_cache=~/.cache/bazel-android //compiled_model_api/image_segmentation/c++_segmentation/build_from_source:cpp_segmentation_gpu --config=android_arm64 --nocheck_visibility
+          bazel build --disk_cache=~/.cache/bazel-android //compiled_model_api/image_segmentation/c++_segmentation/build_from_source:cpp_segmentation_npu --config=android_arm64 --nocheck_visibility
+          bazel build --disk_cache=~/.cache/bazel-android //compiled_model_api/image_segmentation/c++_segmentation/build_from_source:cpp_segmentation_npu_google_tensor --config=android_arm64 --nocheck_visibility
+          bazel build --disk_cache=~/.cache/bazel-android //compiled_model_api/image_segmentation/c++_segmentation/build_from_source:cpp_segmentation_npu_mtk --config=android_arm64 --nocheck_visibility
+
+      - name: Remove GHA cache if cache is being refreshed
+        if: env.REFRESH_CACHE == 'true'
+        continue-on-error: true
+        run: gh cache delete ${{ steps.cache-keys.outputs.CACHE_KEY }}
+
+      - name: Save bazel cache if it's new or being refreshed
+        uses: actions/cache/save@v4
+        if: env.REFRESH_CACHE == 'true' || steps.bazel-cache.outputs.cache-hit != 'true'
+        with:
+          path: |
+            ~/.cache/bazel-linux
+            ~/.cache/bazel-android
+          key: ${{ steps.cache-keys.outputs.CACHE_KEY }}
