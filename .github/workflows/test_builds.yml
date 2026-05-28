@@ -70,11 +70,12 @@ jobs:
           bazel build //compiled_model_api/image_segmentation/c++_segmentation/build_from_source:cpp_segmentation_cpu_no_gl
           bazel build //compiled_model_api/semantic_similarity/build_from_source:tokenizer_client
           bazel build //compiled_model_api/semantic_similarity/build_from_source:embedding_client
-          bazel build //compiled_model_api/semantic_similarity/build_from_source:semantic_similarity
+          bazel build -c opt //compiled_model_api/semantic_similarity/build_from_source:semantic_similarity
 
       - name: Build Android Cross-Compiled Targets
         run: |
           bazel build //compiled_model_api/image_segmentation/c++_segmentation/build_from_source:cpp_segmentation_cpu --config=android_arm64 --nocheck_visibility
           bazel build //compiled_model_api/image_segmentation/c++_segmentation/build_from_source:cpp_segmentation_gpu --config=android_arm64 --nocheck_visibility
+          bazel build //compiled_model_api/image_segmentation/c++_segmentation/build_from_source:cpp_segmentation_npu --config=android_arm64 --nocheck_visibility
           bazel build //compiled_model_api/image_segmentation/c++_segmentation/build_from_source:cpp_segmentation_npu_google_tensor --config=android_arm64 --nocheck_visibility
           bazel build //compiled_model_api/image_segmentation/c++_segmentation/build_from_source:cpp_segmentation_npu_mtk --config=android_arm64 --nocheck_visibility
