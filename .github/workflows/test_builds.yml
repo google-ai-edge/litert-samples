@@ -57,29 +57,27 @@ jobs:
         with:
           bazel-version: '7.6.1'
 
-      - name: Install System Dependencies
+      - name: Install System Dependencies (LLVM/Clang-19)
         run: |
-          sudo apt-get update && sudo apt-get install -y --no-install-recommends libc++-18-dev libc++abi-18-dev llvm-18 clang-18
+          # Install apt LLVM setup script and invoke for LLVM-19
+          wget https://apt.llvm.org/llvm.sh
+          chmod +x llvm.sh
+          sudo ./llvm.sh 19
+          # Install core C++ library suites for LLVM-19
+          sudo apt-get update && sudo apt-get install -y --no-install-recommends libc++-19-dev libc++abi-19-dev
 
-      - name: Auto-configure SDK & NDK Paths
+      - name: Install Android Platform, Build Tools, and NDK
         run: |
+          # Install the specific platform 36, build tools 36.1.0, and NDK 25.2.9519653
+          yes | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --install "platforms;android-36" "build-tools;36.1.0" "ndk;25.2.9519653"
+          
+          # Set explicit paths and version variables in GITHUB_ENV
           echo "ANDROID_SDK_HOME=$ANDROID_HOME" >> $GITHUB_ENV
-          
-          # Find highest installed NDK version in default Android directory
-          NDK_PATH=$(ls -d $ANDROID_HOME/ndk/* | sort -V | tail -n 1)
-          echo "ANDROID_NDK_HOME=$NDK_PATH" >> $GITHUB_ENV
-          
-          # Find highest installed Android API Level
-          API_LEVEL=$(ls $ANDROID_HOME/platforms/ | sort -V | tail -n 1 | sed 's/android-//')
-          echo "ANDROID_API_LEVEL=$API_LEVEL" >> $GITHUB_ENV
-          
-          # Find highest installed Build Tools version
-          BUILD_TOOLS=$(ls $ANDROID_HOME/build-tools/ | sort -V | tail -n 1)
-          echo "ANDROID_BUILD_TOOLS_VERSION=$BUILD_TOOLS" >> $GITHUB_ENV
-          
-          # Find clang host compiler path (prefers clang-18 installed in steps above)
-          CLANG_PATH=$(which clang-18 || which clang)
-          echo "CLANG_COMPILER_PATH=$CLANG_PATH" >> $GITHUB_ENV
+          echo "ANDROID_NDK_HOME=$ANDROID_HOME/ndk/25.2.9519653" >> $GITHUB_ENV
+          echo "ANDROID_API_LEVEL=36" >> $GITHUB_ENV
+          echo "ANDROID_BUILD_TOOLS_VERSION=36.1.0" >> $GITHUB_ENV
+          echo "ANDROID_NDK_API_LEVEL=26" >> $GITHUB_ENV
+          echo "CLANG_COMPILER_PATH=/usr/lib/llvm-19/bin/clang" >> $GITHUB_ENV
 
       - name: Non-Interactive Workspace Configuration
         run: |
@@ -93,6 +91,7 @@ jobs:
           export CC_OPT_FLAGS='-Wno-sign-compare'
           export TF_SET_ANDROID_WORKSPACE=1
           export ANDROID_NDK_HOME=$ANDROID_NDK_HOME
+          export ANDROID_NDK_API_LEVEL=$ANDROID_NDK_API_LEVEL
           export ANDROID_SDK_HOME=$ANDROID_SDK_HOME
           export ANDROID_API_LEVEL=$ANDROID_API_LEVEL
           export ANDROID_BUILD_TOOLS_VERSION=$ANDROID_BUILD_TOOLS_VERSION
