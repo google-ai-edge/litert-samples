@@ -2,16 +2,11 @@ name: LiteRT C++ Samples CI
 
 on:
   push:
-    tags:
-      - v*.*.*
     branches:
       - main
-      - img_seg
-      - setup-github-actions
   pull_request:
     branches:
       - main
-      - img_seg
   schedule:
     # Run at 10am UTC (2am PST) every day to refresh the cache/validate dependencies
     - cron: "0 10 * * *"
