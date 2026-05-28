@@ -1,0 +1,80 @@
+name: LiteRT C++ Samples CI
+
+on:
+  schedule:
+    # Runs at 00:00 UTC every day
+    - cron: '0 0 * * *'
+  push:
+    branches: [ "main", "img_seg", "setup-github-actions" ]
+  pull_request:
+    branches: [ "main", "img_seg" ]
+  workflow_dispatch:
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Set up Bazel
+        uses: bazelbuild/setup-bazel@v3
+        with:
+          bazel-version: '7.6.1'
+
+      - name: Auto-configure SDK & NDK Paths
+        run: |
+          echo "ANDROID_SDK_HOME=$ANDROID_HOME" >> $GITHUB_ENV
+          
+          # Find highest installed NDK version in default Android directory
+          NDK_PATH=$(ls -d $ANDROID_HOME/ndk/* | sort -V | tail -n 1)
+          echo "ANDROID_NDK_HOME=$NDK_PATH" >> $GITHUB_ENV
+          
+          # Find highest installed Android API Level
+          API_LEVEL=$(ls $ANDROID_HOME/platforms/ | sort -V | tail -n 1 | sed 's/android-//')
+          echo "ANDROID_API_LEVEL=$API_LEVEL" >> $GITHUB_ENV
+          
+          # Find highest installed Build Tools version
+          BUILD_TOOLS=$(ls $ANDROID_HOME/build-tools/ | sort -V | tail -n 1)
+          echo "ANDROID_BUILD_TOOLS_VERSION=$BUILD_TOOLS" >> $GITHUB_ENV
+          
+          # Find clang host compiler path
+          CLANG_PATH=$(which clang)
+          echo "CLANG_COMPILER_PATH=$CLANG_PATH" >> $GITHUB_ENV
+
+      - name: Non-Interactive Workspace Configuration
+        env:
+          PYTHON_BIN_PATH: /usr/bin/python3
+          USE_DEFAULT_PYTHON_LIB_PATH: "1"
+          TF_NEED_ROCM: "0"
+          TF_NEED_CUDA: "0"
+          TF_NEED_CLANG: "1"
+          CC_OPT_FLAGS: -Wno-sign-compare
+          TF_SET_ANDROID_WORKSPACE: "1"
+        run: |
+          ./configure
+
+      - name: Build Host Linux Targets
+        run: |
+          bazel build //compiled_model_api/image_segmentation/c++_segmentation/build_from_source:cpp_segmentation_cpu_no_gl
+          bazel build //compiled_model_api/semantic_similarity/build_from_source:tokenizer_client
+          bazel build //compiled_model_api/semantic_similarity/build_from_source:embedding_client
+          bazel build //compiled_model_api/semantic_similarity/build_from_source:semantic_similarity
+
+      - name: Build Android Cross-Compiled Targets
+        run: |
+          bazel build //compiled_model_api/image_segmentation/c++_segmentation/build_from_source:cpp_segmentation_cpu --config=android_arm64 --nocheck_visibility
+          bazel build //compiled_model_api/image_segmentation/c++_segmentation/build_from_source:cpp_segmentation_gpu --config=android_arm64 --nocheck_visibility
+          bazel build //compiled_model_api/image_segmentation/c++_segmentation/build_from_source:cpp_segmentation_npu_google_tensor --config=android_arm64 --nocheck_visibility
+          bazel build //compiled_model_api/image_segmentation/c++_segmentation/build_from_source:cpp_segmentation_npu_mtk --config=android_arm64 --nocheck_visibility
