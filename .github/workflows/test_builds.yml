@@ -53,7 +53,7 @@ jobs:
           python-version: '3.11'
 
       - name: Set up Bazel
-        uses: bazel-contrib/setup-bazel@v0.20.0
+        uses: bazel-contrib/setup-bazel@0.19.0
         with:
           bazel-version: '7.6.1'
 
