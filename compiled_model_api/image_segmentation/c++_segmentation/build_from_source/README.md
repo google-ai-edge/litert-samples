@@ -123,6 +123,11 @@ bazel build //compiled_model_api/image_segmentation/c++_segmentation/build_from_
 bazel build //compiled_model_api/image_segmentation/c++_segmentation/build_from_source:cpp_segmentation_npu_google_tensor \
   --config=android_arm64 \
   --nocheck_visibility
+
+# 6. Samsung Exynos NPU (No extra SDK required)
+bazel build //compiled_model_api/image_segmentation/c++_segmentation/build_from_source:cpp_segmentation_npu_samsung \
+  --config=android_arm64 \
+  --nocheck_visibility
 ```
 
 > [!NOTE]
@@ -147,12 +152,15 @@ After building, use the `deploy_and_run_on_android.sh` script to deploy and run 
 
 # For Google Tensor G5 (pixel10)
 ./compiled_model_api/image_segmentation/c++_segmentation/build_from_source/deploy_and_run_on_android.sh --accelerator=npu --phone=pixel10 bazel-bin/
+
+# For Samsung Exynos NPU (exynos2600)
+./compiled_model_api/image_segmentation/c++_segmentation/build_from_source/deploy_and_run_on_android.sh --accelerator=npu --phone=s26 --jit bazel-bin/
 ```
 The output image `output_segmented.png` will be pulled from the device and saved in the current directory.
 
 ### Performance
 
-*Performance measured on Samsung S25 Ultra (Qualcomm) and MediaTek Dimensity 9400.*
+*Performance measured on Samsung S25 Ultra (Qualcomm), Samsung S26 (Samsung) and MediaTek Dimensity 9400.*
 
 | Processor             | Execution Type                 | Time (ms) |
 | :-------------------- | :----------------------------- | :-------- |
@@ -162,3 +170,4 @@ The output image `output_segmented.png` will be pulled from the device and saved
 | NPU                   | Sync Exec (AOT)                | 17        |
 | NPU                   | Sync Exec (JIT)                | 28        |
 | MediaTek APU          | Sync Exec (JIT)                | 9         |
+| NPU (Samsung)         | Sync Exec (JIT)                | TDB       |
