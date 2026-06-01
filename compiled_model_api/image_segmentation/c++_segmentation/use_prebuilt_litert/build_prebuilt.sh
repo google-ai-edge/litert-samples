@@ -19,7 +19,7 @@
 #
 # Usage:
 #   bash build_prebuilt.sh \
-#       --litert_version=2.1.1 \
+#       --litert_version=v2.1.1 \
 #       --ndk_path=/path/to/android-ndk \
 #       --litert_so=/path/to/libLiteRt.so \
 #       [--gpu_accel_so=/path/to/libLiteRtOpenClAccelerator.so] \
