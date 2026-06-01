@@ -109,9 +109,16 @@ runs inference, and pulls `output_segmented.png` back automatically.
     --accelerator=npu --phone=pixel10 \
     --host_npu_dispatch_lib=/path/to/dir/with/libLiteRtDispatch_GoogleTensor.so \
     build/
+
+# Samsung Exynos NPU (exynos2600, Galaxy S26, JIT)
+./deploy_and_run_on_android.sh \
+    --accelerator=npu --phone=s26 --jit \
+    --host_npu_lib=/path/to/litecore/lib \
+    --host_npu_dispatch_lib=/path/to/dir/with/libLiteRtDispatch_Samsung.so \
+    build/
 ```
 
-**`--phone` values**: `s24` (Snapdragon 8 Gen 3), `s25` (Snapdragon 8 Elite), `pixel10` (Google Tensor G5), `dim9400` (MediaTek Dimensity 9400)
+**`--phone` values**: `s24` (Snapdragon 8 Gen 3), `s25` (Snapdragon 8 Elite), `s26` (Exynos2600), `pixel10` (Google Tensor G5), `dim9400` (MediaTek Dimensity 9400)
 
 The Qualcomm NPU requires:
 - `libLiteRtDispatch_Qualcomm.so` from the [LiteRT NPU runtime libraries](https://github.com/google-ai-edge/LiteRT/releases/tag/v2.1.1) zip
@@ -128,4 +135,6 @@ The Qualcomm NPU requires:
 | GPU          | Async + zero-copy buffer | —         | ~17 ms  |
 | NPU (S25)    | AOT                      | —         | ~17 ms  |
 | NPU (S25)    | JIT                      | —         | ~28 ms  |
+| NPU (S26)    | AOT                      | —         | TDB     |
+| NPU (S26)    | JIT                      | —         | TDB     |
 | MediaTek APU | JIT                      | —         | ~9 ms   |

@@ -43,7 +43,7 @@ int main(int argc, char* argv[]) {
   if (argc < 4) {
     std::cerr << "Usage: " << argv[0]
               << " <model_path> <input_image_path> <output_image_path> "
-                 "[use_jit (true|false)] [npu_vendor (qualcomm|mediatek|google_tensor)]"
+                 "[use_jit (true|false)] [npu_vendor (qualcomm|mediatek|google_tensor|samsung)]"
               << std::endl;
     return 1;
   }
@@ -64,7 +64,9 @@ int main(int argc, char* argv[]) {
 
   const bool use_mediatek = (npu_vendor == "mediatek");
   const bool use_google_tensor = (npu_vendor == "google_tensor");
-  if (npu_vendor != "qualcomm" && npu_vendor != "mediatek" && npu_vendor != "google_tensor") {
+  const bool use_samsung = (npu_vendor == "samsung");
+  if (npu_vendor != "qualcomm" && npu_vendor != "mediatek" &&
+      npu_vendor != "google_tensor" && npu_vendor != "samsung") {
     std::cerr << "Warning: Unknown npu_vendor '" << npu_vendor
               << "'. Must be 'qualcomm', 'mediatek', or 'google_tensor'. Defaulting to qualcomm."
               << std::endl;
@@ -124,6 +126,9 @@ int main(int argc, char* argv[]) {
     // ---- Google Tensor options ----
     // TODO: Add performance mode once new LiteRT SDK releases.
     std::cout << "Enabled Google Tensor NPU." << std::endl;
+  } else if (use_samsung) {
+    // ---- Samsung options ----
+    std::cout << "Enabled Samsung NPU." << std::endl;
   } else {
     // ---- Qualcomm HTP options ----
     LITERT_ASSIGN_OR_ABORT(auto& qnn_opts, options.GetQualcommOptions());

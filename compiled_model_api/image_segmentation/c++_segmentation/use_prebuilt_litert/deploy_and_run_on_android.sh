@@ -20,7 +20,7 @@
 # Usage:
 #   ./deploy_and_run_on_android.sh \
 #       --accelerator=[gpu|npu|cpu] \
-#       --phone=[s24|s25|pixel10|dim9400] \
+#       --phone=[s24|s25|s26|pixel10|dim9400] \
 #       [--use_gl_buffers] \
 #       [--jit] \
 #       [--host_npu_lib=<path>] \
@@ -37,7 +37,7 @@ BINARY_BUILD_PATH=""
 usage() {
     echo "Usage: $0 --accelerator=[gpu|npu|cpu] --phone=[s24|s25|pixel10|dim9400] <cmake_build_dir>"
     echo "  --accelerator : Specify the accelerator to use (gpu, npu, or cpu)."
-    echo "  --phone       : Specify the phone model (s24/s25 for Qualcomm, pixel10 for Google Tensor, dim9400 for MediaTek)."
+    echo "  --phone       : Specify the phone model (s24/s25 for Qualcomm, s26 for Samsung, pixel10 for Google Tensor, dim9400 for MediaTek)."
     echo "  --jit         : Use JIT compilation (true). Defaults to false (Qualcomm AOT)."
     echo "  <cmake_build_dir> : Path to cmake build output directory (e.g. build/)."
     exit 1
@@ -62,6 +62,7 @@ USE_JIT=false
 HOST_NPU_LIB=""
 HOST_NPU_DISPATCH_LIB=""
 HOST_NPU_COMPILER_LIB=""
+HOST_NPU_COMPILER_LIB_SET=false
 
 while true; do
     case "$1" in
@@ -95,6 +96,7 @@ while true; do
             ;;
         '--host_npu_compiler_lib')
             HOST_NPU_COMPILER_LIB="$2"
+            HOST_NPU_COMPILER_LIB_SET=true
             shift 2
             ;;
         '--')
@@ -117,14 +119,20 @@ fi
 
 BINARY_BUILD_PATH="$1"
 
+# --- Configuration ---
+# Resolve to the use_prebuilt_litert source directory (script lives there).
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+# Resolve relative build paths against the script directory so the script works
+# regardless of the caller's working directory (e.g. `build/` → SCRIPT_DIR/build/).
+if [[ "$BINARY_BUILD_PATH" != /* ]]; then
+    BINARY_BUILD_PATH="${SCRIPT_DIR}/${BINARY_BUILD_PATH}"
+fi
+
 if [ ! -d "$BINARY_BUILD_PATH" ]; then
     echo "Error: The provided cmake_build_dir ($BINARY_BUILD_PATH) is not a valid directory."
     exit 1
 fi
-
-# --- Configuration ---
-# Resolve to the use_prebuilt_litert source directory (script lives there).
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 # Asset sources (shaders, images, models) come from the source directory.
 HOST_SHADER_DIR="${SCRIPT_DIR}/shaders"
@@ -174,12 +182,24 @@ HOST_MTK_COMPILER_LIB="${BINARY_BUILD_PATH}"
 LD_LIBRARY_PATH="${DEVICE_NPU_LIBRARY_DIR}/"
 ADSP_LIBRARY_PATH="${DEVICE_NPU_LIBRARY_DIR}/"
 
+# Samsung LD paths.
+HOST_SAMSUNG_DISPATCH_LIB="${HOST_NPU_DISPATCH_LIB}"
+# If --host_npu_compiler_lib was not explicitly set, fall back to the same
+# directory as --host_npu_dispatch_lib (Samsung compiler plugin is co-located).
+if [[ "$HOST_NPU_COMPILER_LIB_SET" == "true" ]]; then
+    HOST_SAMSUNG_COMPILER_LIB="${HOST_NPU_COMPILER_LIB}"
+else
+    HOST_SAMSUNG_COMPILER_LIB="${HOST_NPU_DISPATCH_LIB}"
+fi
+
+
 # --- NPU / MTK phone configuration ---
 IS_MTK=false
 QNN_STUB_LIB=""
 QNN_SKEL_LIB=""
 QNN_SKEL_PATH_ARCH=""
 IS_QUALCOMM=false
+IS_SAMSUNG=false
 IS_GOOGLE_TENSOR=false
 GOOGLE_TENSOR_MODEL=""
 if [[ "$ACCELERATOR" == "npu" ]]; then
@@ -196,6 +216,10 @@ if [[ "$ACCELERATOR" == "npu" ]]; then
             QNN_SKEL_PATH_ARCH="hexagon-v79"
             IS_QUALCOMM=true
             ;;
+        's26')
+            IS_SAMSUNG=true
+            ;;
+
         'pixel10')
             IS_GOOGLE_TENSOR=true
             GOOGLE_TENSOR_MODEL="Tensor_G5"
@@ -204,7 +228,7 @@ if [[ "$ACCELERATOR" == "npu" ]]; then
             IS_MTK=true
             ;;
         *)
-            echo "Error: Unsupported phone model '$PHONE'. Supported: s24, s25 (Qualcomm), pixel10 (Google Tensor), dim9400 (MediaTek)." >&2
+            echo "Error: Unsupported phone model '$PHONE'. Supported: s24, s25 (Qualcomm), s26 (Samsung), pixel10 (Google Tensor), dim9400 (MediaTek)." >&2
             exit 1
             ;;
     esac
@@ -219,6 +243,9 @@ if [[ "$ACCELERATOR" == "npu" ]] && [[ "$USE_JIT" == "false" ]]; then
         MODEL_FILENAME="selfie_multiclass_256x256_SM8650.tflite"
     elif [[ "$PHONE" == "s25" ]]; then
         MODEL_FILENAME="selfie_multiclass_256x256_SM8750.tflite"
+    elif [[ "$PHONE" == "s26" ]]; then
+        MODEL_FILENAME="selfie_multiclass_256x256_E9965.tflite"
+
     fi
 fi
 
@@ -339,6 +366,25 @@ if [[ "$ACCELERATOR" == "npu" ]]; then
         adb push --sync "${HOST_NPU_COMPILER_LIB}/libLiteRtCompilerPlugin_Qualcomm.so" "${DEVICE_NPU_LIBRARY_DIR}/"
         echo "Pushed Qualcomm compiler plugin library."
     fi
+  elif [[ "$IS_SAMSUNG" == "true" ]]; then
+    # ---- Samsung path ----
+    if [[ -f "${HOST_SAMSUNG_DISPATCH_LIB}/libLiteRtDispatch_Samsung.so" ]]; then
+        adb push --sync "${HOST_SAMSUNG_DISPATCH_LIB}/libLiteRtDispatch_Samsung.so" "${DEVICE_NPU_LIBRARY_DIR}/"
+        echo "Pushed Samsung Exynos dispatch library."
+    else
+        echo "Warning: libLiteRtDispatch_Samsung.so not found at ${HOST_SAMSUNG_DISPATCH_LIB}."
+    fi
+    # ONE API runtime (libEden_nn.so etc.) is a system lib in /vendor/lib64/ on device.
+    echo "Note: ONE API runtime libs are system libs on the device."
+    if [[ "$USE_JIT" == "true" ]]; then
+        SAMSUNG_COMPILER="${HOST_SAMSUNG_COMPILER_LIB}/libLiteRtCompilerPlugin_Samsung.so"
+        if [[ -f "$SAMSUNG_COMPILER" ]]; then
+            adb push --sync "$SAMSUNG_COMPILER" "${DEVICE_NPU_LIBRARY_DIR}/"
+            echo "Pushed Samsung compiler plugin."
+        else
+            echo "Warning: libLiteRtCompilerPlugin_Samsung.so not found at ${HOST_SAMSUNG_COMPILER_LIB}."
+        fi
+    fi
   fi
 fi
 
@@ -359,7 +405,15 @@ if [[ "$ACCELERATOR" == "gpu" ]] && $USE_GL_BUFFERS; then
 fi
 
 if [[ "$ACCELERATOR" == "npu" ]]; then
-    if [[ "$IS_GOOGLE_TENSOR" == "true" ]]; then
+    if [[ "$IS_SAMSUNG" == "true" ]]; then
+        SAMSUNG_LD_PATH="${DEVICE_NPU_LIBRARY_DIR}/:${DEVICE_BASE_DIR}/:/vendor/lib64/"
+        FULL_COMMAND="cd ${DEVICE_BASE_DIR} && LD_LIBRARY_PATH=\"${SAMSUNG_LD_PATH}\" ${RUN_COMMAND}"
+        if [[ "$USE_JIT" == "true" ]]; then
+            FULL_COMMAND="${FULL_COMMAND} true samsung"
+        else
+            FULL_COMMAND="${FULL_COMMAND} false samsung"
+        fi
+    elif [[ "$IS_GOOGLE_TENSOR" == "true" ]]; then
         FULL_COMMAND="cd ${DEVICE_BASE_DIR} && LD_LIBRARY_PATH=\"${LD_LIBRARY_PATH}\" ${RUN_COMMAND}"
         if [[ "$USE_JIT" == "true" ]]; then
             FULL_COMMAND="${FULL_COMMAND} true google_tensor"
