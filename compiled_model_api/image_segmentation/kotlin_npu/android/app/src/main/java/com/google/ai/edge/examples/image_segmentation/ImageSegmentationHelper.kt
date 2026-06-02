@@ -96,6 +96,7 @@ class ImageSegmentationHelper(private val context: Context) {
             if (
               accelerator == Accelerator.NPU &&
                 (NpuCompatibilityChecker.Qualcomm.isDeviceSupported() ||
+                 NpuCompatibilityChecker.Samsung.isDeviceSupported() ||
                   NpuCompatibilityChecker.GoogleTensor.isDeviceSupported())
             )
               add(Accelerator.NPU)
