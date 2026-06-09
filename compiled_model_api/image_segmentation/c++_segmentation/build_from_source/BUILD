@@ -228,6 +228,37 @@ cc_binary(
     ] + gles_deps() + gl_native_deps(),
 )
 
+# Samsung Exynos NPU target.
+# The ONE API runtime (libEden_nn.so etc.) is a system lib on Samsung Exynos
+# devices (e.g. Exynos 2600 in Galaxy S26); nothing extra to download or link.
+cc_binary(
+    name = "cpp_segmentation_npu_samsung",
+    srcs = [
+        "main_npu.cc",
+    ],
+    copts = [
+        "-I.",
+    ],
+    data = [
+        ":model_files",
+        ":shader_files",
+        ":test_images",
+        "@litert_archive//litert/c:litert_runtime_c_api_shared_lib",  # buildcleaner: keep
+        "@litert_archive//litert/vendors/samsung/dispatch:dispatch_api_so",  # libLiteRtDispatch_Samsung.so
+        "@litert_archive//litert/vendors/samsung/compiler:libLiteRtCompilerPlugin_Samsung.so",
+    ],
+    linkopts = gles_linkopts(),
+    deps = [
+        ":image_processor",
+        ":image_utils",
+        ":timing_utils",
+        "@litert_archive//litert/cc:litert_api_with_dynamic_runtime",
+        "@com_google_absl//absl/strings:string_view",
+        "@com_google_absl//absl/time",
+        "@com_google_absl//absl/types:span",
+    ] + gles_deps() + gl_native_deps(),
+)
+
 # MediaTek NPU target — does NOT depend on the Qualcomm QAIRT SDK.
 # The NeuroPilot runtime (libneuronusdk_adapter.mtk.so etc.) is a system lib
 # in /system_ext/lib64/ on MediaTek devices; nothing to download or link against.

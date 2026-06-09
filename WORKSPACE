@@ -338,6 +338,14 @@ configurable_repo(
 )
 
 configurable_repo(
+    name = "exynos_ai_litecore",
+    build_file = "@litert_archive//third_party/exynos_ai_litecore:exynos_ai_litecore.BUILD",
+    local_path_env = "EXYNOS_AI_LITECORE_ROOT",
+    strip_prefix = "exynos-ai-litecore-v1.2.0",
+    url = "https://soc-developer.semiconductor.samsung.com/api/v1/resource/download-file/1.2.0/ai-litecore-ubuntu2404-v1.2.0.tar.gz",
+)
+
+configurable_repo(
     name = "google_tensor",
     build_file = "@litert_archive//third_party/google_tensor:google_tensor.BUILD",
     local_path_env = "GOOGLE_TENSOR_COMPILER_LIB",
