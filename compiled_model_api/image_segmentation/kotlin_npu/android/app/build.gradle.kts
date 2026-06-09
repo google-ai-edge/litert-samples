@@ -62,6 +62,7 @@ android {
   // NPU runtime libraries
   dynamicFeatures.add(":litert_npu_runtime_libraries:mediatek_runtime")
   dynamicFeatures.add(":litert_npu_runtime_libraries:google_tensor_runtime")
+  dynamicFeatures.add(":litert_npu_runtime_libraries:samsung_runtime")
   dynamicFeatures.add(":litert_npu_runtime_libraries:qualcomm_runtime_v69")
   dynamicFeatures.add(":litert_npu_runtime_libraries:qualcomm_runtime_v73")
   dynamicFeatures.add(":litert_npu_runtime_libraries:qualcomm_runtime_v75")

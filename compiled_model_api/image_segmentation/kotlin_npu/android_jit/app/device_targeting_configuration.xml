@@ -85,4 +85,10 @@
       <config:system-on-chip manufacturer="Google" model="Tensor G3"/>
     </config:device-selector>
   </config:device-group>
+  <config:device-group name="Samsung_E9965">
+    <config:device-selector>
+      <config:system-on-chip manufacturer="Samsung" model="E9965"/>
+    </config:device-selector>
+  </config:device-group>
+
 </config:device-targeting-config>

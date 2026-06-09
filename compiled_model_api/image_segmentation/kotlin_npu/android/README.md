@@ -69,3 +69,4 @@ Currently, the following devices are supported:
 | Mediatek | MT6989    |  15             | Mediatek_MT6989_ANDROID_15 |
 | Mediatek | MT6991    |  15             | Mediatek_MT6991_ANDROID_15 |
 | Google   | Tensor G5 |  16             | Google_Tensor_G5           |
+| Samsung  | E9965     |  16             | Samsung_Exynos_2600        |
