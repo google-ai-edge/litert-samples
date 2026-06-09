@@ -110,11 +110,18 @@ runs inference, and pulls `output_segmented.png` back automatically.
     --host_npu_dispatch_lib=/path/to/dir/with/libLiteRtDispatch_GoogleTensor.so \
     build/
 
+# Samsung Exynos NPU (exynos2600, Galaxy S26, AOT)
+./deploy_and_run_on_android.sh \
+    --accelerator=npu --phone=s26 \
+    --host_npu_dispatch_lib=/path/to/dir/with/libLiteRtDispatch_Samsung.so \
+    build/
+
 # Samsung Exynos NPU (exynos2600, Galaxy S26, JIT)
 ./deploy_and_run_on_android.sh \
     --accelerator=npu --phone=s26 --jit \
     --host_npu_lib=/path/to/litecore/lib \
     --host_npu_dispatch_lib=/path/to/dir/with/libLiteRtDispatch_Samsung.so \
+    --host_npu_compiler_lib=/path/to/dir/with/libLiteRtCompilerPlugin_Samsung.so \
     build/
 ```
 
@@ -135,6 +142,6 @@ The Qualcomm NPU requires:
 | GPU          | Async + zero-copy buffer | —         | ~17 ms  |
 | NPU (S25)    | AOT                      | —         | ~17 ms  |
 | NPU (S25)    | JIT                      | —         | ~28 ms  |
-| NPU (S26)    | AOT                      | —         | TDB     |
-| NPU (S26)    | JIT                      | —         | TDB     |
+| NPU (S26)    | AOT                      | —         | ~11 ms  |
+| NPU (S26)    | JIT                      | —         | ~11 ms  |
 | MediaTek APU | JIT                      | —         | ~9 ms   |

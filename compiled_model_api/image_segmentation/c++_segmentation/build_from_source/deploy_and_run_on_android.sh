@@ -240,8 +240,8 @@ if [[ "$ACCELERATOR" == "npu" ]] && [[ "$USE_JIT" == "false" ]]; then
         MODEL_FILENAME="selfie_multiclass_256x256_SM8650.tflite"
     elif [[ "$PHONE" == "s25" ]]; then
         MODEL_FILENAME="selfie_multiclass_256x256_SM8750.tflite"
-#    elif [[ "$PHONE" == "s26" ]]; then
-#        MODEL_FILENAME="selfie_multiclass_256x256_E9965.tflite"
+    elif [[ "$PHONE" == "s26" ]]; then
+        MODEL_FILENAME="selfie_multiclass_256x256_E9965.tflite"
     fi
 fi
 
@@ -310,6 +310,7 @@ if [[ "$ACCELERATOR" == "npu" ]]; then
   if [[ "$IS_SAMSUNG" == "true" ]]; then
     # ---- Samsung Exynos path ----
     adb push --sync "${HOST_NPU_DISPATCH_LIB}/libLiteRtDispatch_Samsung.so" "${DEVICE_NPU_LIBRARY_DIR}/"
+    echo ${HOST_NPU_DISPATCH_LIB}/libLiteRtDispatch_Samsung.so
     echo "Pushed Samsung Exynos dispatch library."
     # ONE API runtime (libEden_nn.so etc.) lives in /vendor/lib64/ on device.
     echo "Note: ONE API runtime libs are system libs on the device."
@@ -389,7 +390,7 @@ fi
 if [[ "$ACCELERATOR" == "npu" ]]; then
     if [[ "$IS_SAMSUNG" == "true" ]]; then
         # Samsung: dispatch dir is /npu/, also include /vendor/lib64/ for ONE API runtime.
-        SAMSUNG_LD_PATH="${DEVICE_NPU_LIBRARY_DIR}/:${DEVICE_BASE_DIR}/:/vendor/lib64/"
+        SAMSUNG_LD_PATH="${DEVICE_NPU_LIBRARY_DIR}/:${DEVICE_BASE_DIR}/"
         FULL_COMMAND="cd ${DEVICE_BASE_DIR} && LD_LIBRARY_PATH=\"${SAMSUNG_LD_PATH}\" ${RUN_COMMAND}"
         # Pass JIT flag + 'samsung' vendor to binary.
         if [[ "$USE_JIT" == "true" ]]; then

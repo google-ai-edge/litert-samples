@@ -124,7 +124,7 @@ BINARY_BUILD_PATH="$1"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 # Resolve relative build paths against the script directory so the script works
-# regardless of the caller's working directory (e.g. `build/` → SCRIPT_DIR/build/).
+# regardless of the caller's working directory (e.g. `build/` SCRIPT_DIR/build/).
 if [[ "$BINARY_BUILD_PATH" != /* ]]; then
     BINARY_BUILD_PATH="${SCRIPT_DIR}/${BINARY_BUILD_PATH}"
 fi
@@ -191,6 +191,7 @@ if [[ "$HOST_NPU_COMPILER_LIB_SET" == "true" ]]; then
 else
     HOST_SAMSUNG_COMPILER_LIB="${HOST_NPU_DISPATCH_LIB}"
 fi
+HOST_SAMSUNG_NPU_LIB="${HOST_NPU_LIB}"
 
 
 # --- NPU / MTK phone configuration ---
@@ -377,6 +378,7 @@ if [[ "$ACCELERATOR" == "npu" ]]; then
     # ONE API runtime (libEden_nn.so etc.) is a system lib in /vendor/lib64/ on device.
     echo "Note: ONE API runtime libs are system libs on the device."
     if [[ "$USE_JIT" == "true" ]]; then
+        adb push --sync "${HOST_NPU_LIB}/." "${DEVICE_NPU_LIBRARY_DIR}/"
         SAMSUNG_COMPILER="${HOST_SAMSUNG_COMPILER_LIB}/libLiteRtCompilerPlugin_Samsung.so"
         if [[ -f "$SAMSUNG_COMPILER" ]]; then
             adb push --sync "$SAMSUNG_COMPILER" "${DEVICE_NPU_LIBRARY_DIR}/"
@@ -406,7 +408,7 @@ fi
 
 if [[ "$ACCELERATOR" == "npu" ]]; then
     if [[ "$IS_SAMSUNG" == "true" ]]; then
-        SAMSUNG_LD_PATH="${DEVICE_NPU_LIBRARY_DIR}/:${DEVICE_BASE_DIR}/:/vendor/lib64/"
+        SAMSUNG_LD_PATH="${DEVICE_NPU_LIBRARY_DIR}/:${DEVICE_BASE_DIR}/"
         FULL_COMMAND="cd ${DEVICE_BASE_DIR} && LD_LIBRARY_PATH=\"${SAMSUNG_LD_PATH}\" ${RUN_COMMAND}"
         if [[ "$USE_JIT" == "true" ]]; then
             FULL_COMMAND="${FULL_COMMAND} true samsung"
