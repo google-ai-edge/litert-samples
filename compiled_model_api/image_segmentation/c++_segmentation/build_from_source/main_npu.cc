@@ -113,13 +113,13 @@ int main(int argc, char* argv[]) {
     LITERT_ASSIGN_OR_ABORT(auto& mtk_opts, options.GetMediatekOptions());
     // Use the fastest single-answer mode (analogous to Qualcomm's kBurst).
     mtk_opts.SetPerformanceMode(
-        kLiteRtMediatekNeuronAdapterPerformanceModeNeuronPreferFastSingleAnswer);
+        litert::mediatek::MediatekOptions::PerformanceMode::kFastSingleAnswer);
     // Maximise APU core usage to minimise latency.
     mtk_opts.SetOptimizationHint(
-        kLiteRtMediatekNeuronAdapterOptimizationHintLowLatency);
+        litert::mediatek::MediatekOptions::OptimizationHint::kLowLatency);
     // Target NeuroPilot SDK v8 (Dimensity 9000+ devices).
     mtk_opts.SetNeronSDKVersionType(
-        kLiteRtMediatekOptionsNeronSDKVersionTypeVersion8);
+        litert::mediatek::MediatekOptions::NeronSDKVersion::kVersion8);
     std::cout << "Enabled MediaTek APU: FastSingleAnswer + LowLatency hint."
               << std::endl;
   } else if (use_google_tensor) {

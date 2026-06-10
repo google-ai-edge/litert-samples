@@ -5,12 +5,11 @@ workspace(name = "litert")
 load("@bazel_tools//tools/build_defs/repo:http.bzl", "http_archive")
 load("@bazel_tools//tools/build_defs/repo:git.bzl", "new_git_repository")
 
-# LiteRT Archive (v2.1.4) with Correct Checksum
+# LiteRT Archive pointing to the latest commit on main branch
 http_archive(
     name = "litert_archive",
-    url = "https://github.com/google-ai-edge/LiteRT/archive/refs/tags/v2.1.4.tar.gz",
-    strip_prefix = "LiteRT-2.1.4",
-    sha256 = "be614b050cc6603863acca0c48d0e210c0399ca80974648cb6fb5f70374a5b86",
+    url = "https://github.com/google-ai-edge/LiteRT/archive/refs/heads/main.tar.gz",
+    strip_prefix = "LiteRT-main",
     patch_cmds = [
         "sed 's|//litert|@litert_archive//litert|g' litert/build_common/special_rule.bzl > litert/build_common/special_rule.bzl.tmp && mv litert/build_common/special_rule.bzl.tmp litert/build_common/special_rule.bzl",
         "sed 's|@//third_party|@litert_archive//third_party|g' third_party/litert_prebuilts/workspace.bzl > third_party/litert_prebuilts/workspace.bzl.tmp && mv third_party/litert_prebuilts/workspace.bzl.tmp third_party/litert_prebuilts/workspace.bzl",
