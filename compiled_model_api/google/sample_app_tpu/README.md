@@ -40,9 +40,9 @@ adb install -r app/build/outputs/apk/debug/app-debug.apk
 ### 2. Available Models
 
 The application comes with three lightweight models pre-loaded in the raw assets folder:
-- **Gemma 3 270M (Assets)**
-- **Gemma 3 2B (Assets)**
-- **Tiny Garden 200M (Assets)**
+- **no models are added yet, we can add any small models like Gemma 3 270M in Assets**
+- **we can add any .litertlm models in Assets for Edge TPU, after adding the model we have to update the ModelResolver.kt file and then run the app**
+
 
 These models are copied to the app's cache directory and loaded on-demand.
 
