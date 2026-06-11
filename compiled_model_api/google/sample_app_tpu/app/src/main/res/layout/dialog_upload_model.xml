@@ -1,0 +1,72 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:padding="16dp">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical">
+
+        <TextView
+            android:id="@+id/dialogModelFileName"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="File: filename.litertlm"
+            android:textStyle="bold"
+            android:layout_marginBottom="12dp"/>
+
+        <com.google.android.material.textfield.TextInputLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:hint="System Prompt"
+            android:layout_marginBottom="12dp">
+
+            <com.google.android.material.textfield.TextInputEditText
+                android:id="@+id/dialogSystemPrompt"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:inputType="textMultiLine"
+                android:lines="3" />
+        </com.google.android.material.textfield.TextInputLayout>
+
+        <com.google.android.material.textfield.TextInputLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:hint="Default Prompt"
+            android:layout_marginBottom="12dp">
+
+            <com.google.android.material.textfield.TextInputEditText
+                android:id="@+id/dialogDefaultPrompt"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content" />
+        </com.google.android.material.textfield.TextInputLayout>
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Preferred Backend:"
+            android:layout_marginBottom="4dp"/>
+
+        <Spinner
+            android:id="@+id/dialogPreferredBackend"
+            android:layout_width="match_parent"
+            android:layout_height="48dp"
+            android:layout_marginBottom="12dp"
+            android:background="@android:drawable/btn_dropdown"/>
+
+        <CheckBox
+            android:id="@+id/dialogSupportsImage"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Supports Image Input" />
+
+        <CheckBox
+            android:id="@+id/dialogSupportsAudio"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Supports Audio Input" />
+
+    </LinearLayout>
+</ScrollView>
