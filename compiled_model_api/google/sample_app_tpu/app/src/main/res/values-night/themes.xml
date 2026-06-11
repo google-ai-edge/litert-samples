@@ -1,0 +1,16 @@
+<resources xmlns:tools="http://schemas.annotation.com/tools">
+  <!-- Base application theme. -->
+  <style name="Theme.EdgeTPUApp" parent="Theme.MaterialComponents.DayNight.NoActionBar">
+    <!-- Primary brand color. -->
+    <item name="colorPrimary">#8B5CF6</item>
+    <item name="colorPrimaryVariant">#6D28D9</item>
+    <item name="colorOnPrimary">#FFFFFF</item>
+    <!-- Secondary brand color. -->
+    <item name="colorSecondary">#10B981</item>
+    <item name="colorSecondaryVariant">#047857</item>
+    <item name="colorOnSecondary">#FFFFFF</item>
+    <!-- Status bar color. -->
+    <item name="android:statusBarColor">#1A1A1E</item>
+    <item name="android:windowLightStatusBar" tools:targetApi="m">false</item>
+  </style>
+</resources>
