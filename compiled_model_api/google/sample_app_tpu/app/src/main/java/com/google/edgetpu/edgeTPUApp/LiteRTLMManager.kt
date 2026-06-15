@@ -49,7 +49,8 @@ class LiteRTLMManager private constructor(private val context: Context) {
         systemPrompt: String? = null,
         preferredBackend: String? = null,
         supportsImage: Boolean = true,
-        supportsAudio: Boolean = false
+        supportsAudio: Boolean = false,
+        initialMessages: List<Message>? = null
     ): Result<Boolean> = withContext(Dispatchers.IO) {
         Log.i(TAG, "Initializing model: $modelPath (preferred: $preferredBackend)")
         if (isInitialized) {
@@ -59,7 +60,7 @@ class LiteRTLMManager private constructor(private val context: Context) {
 
         try {
             val backends = buildBackendList(preferredBackend)
-            initializeEngineWithFallback(modelPath, backends, systemPrompt, supportsImage, supportsAudio)
+            initializeEngineWithFallback(modelPath, backends, systemPrompt, supportsImage, supportsAudio, initialMessages)
             isInitialized = true
             Log.i(TAG, "Initialization SUCCEEDED on backend: $currentBackendName")
             Result.success(true)
@@ -91,14 +92,15 @@ class LiteRTLMManager private constructor(private val context: Context) {
         backends: List<BackendFactory>,
         systemPrompt: String?,
         supportsImage: Boolean,
-        supportsAudio: Boolean
+        supportsAudio: Boolean,
+        initialMessages: List<Message>?
     ) {
         var lastError: Throwable? = null
         
         for (factory in backends) {
             try {
                 Log.i(TAG, "Trying backend: ${factory.name}")
-                initializeEngine(modelPath, factory, systemPrompt, supportsImage, supportsAudio)
+                initializeEngine(modelPath, factory, systemPrompt, supportsImage, supportsAudio, initialMessages)
                 Log.i(TAG, "Backend ${factory.name} SUCCEEDED")
                 return
             } catch (e: Throwable) {
@@ -115,7 +117,8 @@ class LiteRTLMManager private constructor(private val context: Context) {
         factory: BackendFactory,
         systemPrompt: String?,
         supportsImage: Boolean,
-        supportsAudio: Boolean
+        supportsAudio: Boolean,
+        initialMessages: List<Message>?
     ) {
         val file = File(modelPath)
         if (!file.exists()) {
@@ -162,7 +165,8 @@ class LiteRTLMManager private constructor(private val context: Context) {
             
             // Create conversation config with system prompt if provided
             val conversationConfig = ConversationConfig(
-                systemInstruction = if (systemPrompt != null) Contents.of(systemPrompt) else null
+                systemInstruction = if (systemPrompt != null) Contents.of(systemPrompt) else null,
+                initialMessages = initialMessages ?: emptyList()
             )
             conversation = candidateEngine.createConversation(conversationConfig)
         } catch (e: Throwable) {

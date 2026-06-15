@@ -25,7 +25,7 @@ android {
 
   packaging {
     jniLibs {
-      useLegacyPackaging = true
+      useLegacyPackaging = false
       pickFirst("**/libLiteRt.so")
       pickFirst("**/libLiteRtDispatch_GoogleTensor.so")
       pickFirst("**/libLiteRtClGlAccelerator.so")
@@ -46,6 +46,11 @@ android {
   }
 
   
+  testOptions {
+    unitTests {
+      isIncludeAndroidResources = true
+    }
+  }
 }
 configurations.all {
     exclude(group = "com.google.ai.edge.litert", module = "litert-api")
@@ -65,6 +70,10 @@ dependencies {
   implementation(libs.litertlm.android)
   implementation(libs.litert)
   implementation(libs.androidx.activity.ktx) // Add this line
+  implementation(libs.androidx.camera.core)
+  implementation(libs.androidx.camera.camera2)
+  implementation(libs.androidx.camera.lifecycle)
+  implementation(libs.androidx.camera.view)
 
   testImplementation(libs.junit)
   testImplementation("org.mockito:mockito-core:5.11.0")

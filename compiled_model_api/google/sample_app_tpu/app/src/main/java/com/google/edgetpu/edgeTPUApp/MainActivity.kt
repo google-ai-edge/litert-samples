@@ -30,6 +30,7 @@ import android.widget.ImageView
 import android.widget.Spinner
 import android.widget.TextView
 import android.widget.Toast
+import android.widget.FrameLayout
 import android.widget.ImageButton
 import android.widget.CheckBox
 import android.app.AlertDialog
@@ -49,6 +50,8 @@ import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.File
+import com.google.ai.edge.litertlm.Content
+import com.google.ai.edge.litertlm.Contents
 
 class MainActivity : AppCompatActivity() {
 
@@ -77,8 +80,17 @@ class MainActivity : AppCompatActivity() {
     private lateinit var liteRTLMManager: LiteRTLMManager
     private var selectedModel: ModelConfig? = null
     private var isGenerating = false
+    private var isModelLoaded = false
 
-    private var cameraImageUri: Uri? = null
+    private lateinit var cameraContainer: FrameLayout
+    private lateinit var viewFinder: androidx.camera.view.PreviewView
+    private lateinit var btnCancelCamera: ImageView
+    private lateinit var btnCaptureCamera: ImageView
+    private lateinit var btnSwitchCamera: ImageView
+
+    private var imageCapture: androidx.camera.core.ImageCapture? = null
+    private var lensFacing = androidx.camera.core.CameraSelector.LENS_FACING_BACK
+    private lateinit var cameraExecutor: java.util.concurrent.ExecutorService
 
     private val pickMedia = registerForActivityResult(ActivityResultContracts.PickVisualMedia()) { uri ->
         if (uri != null) {
@@ -96,20 +108,11 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    private val takePicture = registerForActivityResult(ActivityResultContracts.TakePicture()) { success ->
-        if (success && cameraImageUri != null) {
-            val uri = cameraImageUri!!
-            lifecycleScope.launch(Dispatchers.IO) {
-                val bitmap = loadBitmapFromUri(uri)
-                if (bitmap != null) {
-                    withContext(Dispatchers.Main) {
-                        selectedImageBitmap = bitmap
-                        selectedImageView.setImageBitmap(bitmap)
-                        selectedImageView.visibility = View.VISIBLE
-                    }
-                    saveBitmapToPendingImagePath(bitmap)
-                }
-            }
+    private val requestCameraPermission = registerForActivityResult(ActivityResultContracts.RequestPermission()) { isGranted ->
+        if (isGranted) {
+            showCamera()
+        } else {
+            Toast.makeText(this, "Camera permission denied", Toast.LENGTH_SHORT).show()
         }
     }
 
@@ -174,6 +177,7 @@ class MainActivity : AppCompatActivity() {
         val pcmFile = File(cacheDir, "mic_record.pcm")
         pendingAudioPath = tempWav.absolutePath
         isRecording = true
+        updateSendButtonState()
 
         recordingThread = Thread {
             try {
@@ -200,11 +204,14 @@ class MainActivity : AppCompatActivity() {
                     recordingIndicatorLayout.visibility = View.GONE
                     selectedImageView.setImageResource(android.R.drawable.ic_media_play)
                     selectedImageView.visibility = View.VISIBLE
+                    updateSendButtonState()
                 }
             } catch (e: Exception) {
                 Log.e(TAG, "Recording failed", e)
                 runOnUiThread {
                     recordingIndicatorLayout.visibility = View.GONE
+                    isRecording = false
+                    updateSendButtonState()
                 }
             }
         }
@@ -251,23 +258,84 @@ class MainActivity : AppCompatActivity() {
         enableEdgeToEdge()
         super.onCreate(savedInstanceState)
 
-        if (savedInstanceState != null) {
-            cameraImageUri = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                savedInstanceState.getParcelable("cameraImageUri", Uri::class.java)
+        try {
+            System.load("/vendor/lib64/libedgetpu_litert.so")
+            Log.i("MainActivity", "Successfully loaded libedgetpu_litert.so directly!")
+            System.load("/vendor/lib64/libedgetpu_util.so")
+            Log.i("MainActivity", "Successfully loaded libedgetpu_util.so directly!")
+        } catch (e: Throwable) {
+            Log.e("MainActivity", "FAILED TO LOAD library: ${e.message}", e)
+        }
+
+        ModelResolver.loadCustomModels(this)
+        modelResolver = ModelResolver(this)
+        liteRTLMManager = LiteRTLMManager.getInstance(this)
+
+        setContentView(R.layout.activity_main)
+
+        recyclerView = findViewById(R.id.chatRecyclerView)
+        messageEditText = findViewById(R.id.messageEditText)
+        sendButton = findViewById(R.id.sendButton)
+        attachButton = findViewById(R.id.attachButton)
+        selectedImageView = findViewById(R.id.selectedImageView)
+        spinnerModel = findViewById(R.id.spinnerModel)
+        textBackendStatus = findViewById(R.id.textBackendStatus)
+        textBenchmarkStats = findViewById(R.id.textBenchmarkStats)
+        recordingIndicatorLayout = findViewById(R.id.recordingIndicatorLayout)
+        stopRecordingButton = findViewById(R.id.stopRecordingButton)
+
+        stopRecordingButton.setOnClickListener {
+            toggleRecording()
+        }
+
+        cameraExecutor = java.util.concurrent.Executors.newSingleThreadExecutor()
+
+        cameraContainer = findViewById(R.id.cameraContainer)
+        viewFinder = findViewById(R.id.viewFinder)
+        btnCancelCamera = findViewById(R.id.btnCancelCamera)
+        btnCaptureCamera = findViewById(R.id.btnCaptureCamera)
+        btnSwitchCamera = findViewById(R.id.btnSwitchCamera)
+
+        btnCancelCamera.setOnClickListener {
+            hideCamera()
+        }
+
+        btnCaptureCamera.setOnClickListener {
+            takePhoto()
+        }
+
+        btnSwitchCamera.setOnClickListener {
+            lensFacing = if (lensFacing == androidx.camera.core.CameraSelector.LENS_FACING_BACK) {
+                androidx.camera.core.CameraSelector.LENS_FACING_FRONT
             } else {
-                @Suppress("DEPRECATION")
-                savedInstanceState.getParcelable("cameraImageUri")
+                androidx.camera.core.CameraSelector.LENS_FACING_BACK
             }
+            startCamera()
+        }
+
+        if (savedInstanceState != null) {
             pendingImagePath = savedInstanceState.getString("pendingImagePath")
             pendingAudioPath = savedInstanceState.getString("pendingAudioPath")
             
             val texts = savedInstanceState.getStringArray("chatTexts")
             val isUsers = savedInstanceState.getBooleanArray("chatIsUsers")
             val audioPaths = savedInstanceState.getStringArray("chatAudioPaths")
+            val imagePaths = savedInstanceState.getStringArray("chatImagePaths")
             if (texts != null && isUsers != null && texts.size == isUsers.size) {
                 for (i in texts.indices) {
                     val audioPath = audioPaths?.get(i)?.takeIf { it.isNotEmpty() }
-                    messagesList.add(ChatMessage(texts[i], isUsers[i], null, audioPath))
+                    val imagePath = imagePaths?.get(i)?.takeIf { it.isNotEmpty() }
+                    val bitmap = if (imagePath != null) {
+                        try {
+                            BitmapFactory.decodeFile(imagePath)
+                        } catch (e: Exception) {
+                            Log.e(TAG, "Failed to restore message bitmap from: $imagePath", e)
+                            null
+                        }
+                    } else {
+                        null
+                    }
+                    messagesList.add(ChatMessage(texts[i], isUsers[i], bitmap, audioPath, imagePath))
                 }
             }
             val selectedModelId = savedInstanceState.getString("selectedModelId")
@@ -289,35 +357,11 @@ class MainActivity : AppCompatActivity() {
                     }
                 }
             }
-        }
 
-        try {
-            System.load("/vendor/lib64/libedgetpu_litert.so")
-            Log.i("MainActivity", "Successfully loaded libedgetpu_litert.so directly!")
-            System.load("/vendor/lib64/libedgetpu_util.so")
-            Log.i("MainActivity", "Successfully loaded libedgetpu_util.so directly!")
-        } catch (e: Throwable) {
-            Log.e("MainActivity", "FAILED TO LOAD library: ${e.message}", e)
-        }
-        setContentView(R.layout.activity_main)
-
-        ModelResolver.loadCustomModels(this)
-        modelResolver = ModelResolver(this)
-        liteRTLMManager = LiteRTLMManager.getInstance(this)
-
-        recyclerView = findViewById(R.id.chatRecyclerView)
-        messageEditText = findViewById(R.id.messageEditText)
-        sendButton = findViewById(R.id.sendButton)
-        attachButton = findViewById(R.id.attachButton)
-        selectedImageView = findViewById(R.id.selectedImageView)
-        spinnerModel = findViewById(R.id.spinnerModel)
-        textBackendStatus = findViewById(R.id.textBackendStatus)
-        textBenchmarkStats = findViewById(R.id.textBenchmarkStats)
-        recordingIndicatorLayout = findViewById(R.id.recordingIndicatorLayout)
-        stopRecordingButton = findViewById(R.id.stopRecordingButton)
-
-        stopRecordingButton.setOnClickListener {
-            toggleRecording()
+            pendingAudioPath?.let {
+                selectedImageView.setImageResource(android.R.drawable.ic_media_play)
+                selectedImageView.visibility = View.VISIBLE
+            }
         }
 
         setupRecyclerView()
@@ -489,13 +533,7 @@ class MainActivity : AppCompatActivity() {
                     when (item.itemId) {
                         1 -> pickMedia.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))
                         2 -> {
-                            val tempFile = File(cacheDir, "camera_image.jpg")
-                            cameraImageUri = androidx.core.content.FileProvider.getUriForFile(
-                                this@MainActivity,
-                                "${packageName}.fileprovider",
-                                tempFile
-                            )
-                            takePicture.launch(cameraImageUri!!)
+                            checkCameraPermissionAndStart()
                         }
                         3 -> pickAudio.launch("audio/*")
                         4 -> toggleRecording()
@@ -525,18 +563,24 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    private fun updateSendButtonState(isModelLoaded: Boolean) {
-        val canSend = !isGenerating && isModelLoaded && selectedModel != null
+    private fun updateSendButtonState() {
+        val canSend = !isGenerating && isModelLoaded && selectedModel != null && !isRecording
         sendButton.isEnabled = canSend
-        attachButton.isEnabled = canSend
-        spinnerModel.isEnabled = !isGenerating
+        sendButton.alpha = if (canSend) 1.0f else 0.5f
+
+        val canAttach = !isGenerating && isModelLoaded && selectedModel != null && !isRecording
+        attachButton.isEnabled = canAttach
+        attachButton.alpha = if (canAttach) 1.0f else 0.5f
+
+        spinnerModel.isEnabled = !isGenerating && !isRecording
     }
 
     private fun checkAndInitializeModel() {
         val model = selectedModel
         if (model == null) {
             addSystemMessage("Welcome! Please select or upload a model to begin.")
-            updateSendButtonState(false)
+            isModelLoaded = false
+            updateSendButtonState()
             return
         }
 
@@ -544,13 +588,15 @@ class MainActivity : AppCompatActivity() {
             initializeEngine(model)
         } else {
             addSystemMessage("Model files not found for: ${model.name}.\nPlease push ${model.filename} to ${getExternalFilesDir(null)?.absolutePath}")
-            updateSendButtonState(false)
+            isModelLoaded = false
+            updateSendButtonState()
         }
     }
 
     private fun initializeEngine(model: ModelConfig) {
         lifecycleScope.launch {
-            updateSendButtonState(false)
+            isModelLoaded = false
+            updateSendButtonState()
             textBackendStatus.text = "..."
             textBenchmarkStats.text = "Loading..."
             addSystemMessage("Loading ${model.name}...")
@@ -560,12 +606,14 @@ class MainActivity : AppCompatActivity() {
                 modelResolver.resolveModelPath(model)
             }
             
+            val history = getConversationHistoryMessages()
             val result = liteRTLMManager.initialize(
                 modelPath = modelPath,
                 systemPrompt = model.systemPrompt,
                 preferredBackend = model.preferredBackend,
                 supportsImage = model.supportsImage,
-                supportsAudio = model.supportsAudio
+                supportsAudio = model.supportsAudio,
+                initialMessages = history.takeIf { it.isNotEmpty() }
             )
             
             val loadTime = System.currentTimeMillis() - startTime
@@ -584,14 +632,16 @@ class MainActivity : AppCompatActivity() {
                 textBackendStatus.backgroundTintList = android.content.res.ColorStateList.valueOf(color)
                 
                 addSystemMessage("${model.name} ready on $backend.")
-                updateSendButtonState(true)
+                isModelLoaded = true
+                updateSendButtonState()
             } else {
                 val error = result.exceptionOrNull()?.message ?: "Unknown error"
                 textBackendStatus.text = "ERR"
                 textBenchmarkStats.text = "Init Failed"
                 addSystemMessage("Failed to load model: $error")
                 Toast.makeText(this@MainActivity, "Initialization failed", Toast.LENGTH_LONG).show()
-                updateSendButtonState(false)
+                isModelLoaded = false
+                updateSendButtonState()
             }
         }
     }
@@ -610,9 +660,15 @@ class MainActivity : AppCompatActivity() {
     private fun sendMessage(text: String) {
         if (isGenerating) return
         isGenerating = true
-        updateSendButtonState(true)
+        updateSendButtonState()
 
-        val userMsg = ChatMessage(text, true, selectedImageBitmap, pendingAudioPath)
+        val imagePath = pendingImagePath
+        val audioPath = pendingAudioPath
+
+        val uniqueImagePath = copyToUniqueSentFile(imagePath, "sent_image")
+        val uniqueAudioPath = copyToUniqueSentFile(audioPath, "sent_audio")
+
+        val userMsg = ChatMessage(text, true, selectedImageBitmap, uniqueAudioPath, uniqueImagePath)
         messagesList.add(userMsg)
         chatAdapter.notifyItemInserted(messagesList.size - 1)
         recyclerView.scrollToPosition(messagesList.size - 1)
@@ -623,8 +679,6 @@ class MainActivity : AppCompatActivity() {
         chatAdapter.notifyItemInserted(messagesList.size - 1)
         recyclerView.scrollToPosition(messagesList.size - 1)
 
-        val imagePath = pendingImagePath
-        val audioPath = pendingAudioPath
         if (isRecording) {
             Toast.makeText(this@MainActivity, "Stop recording first", Toast.LENGTH_SHORT).show()
             return
@@ -640,8 +694,8 @@ class MainActivity : AppCompatActivity() {
 
         lifecycleScope.launch {
             var fullResponse = ""
-            val flow = if (imagePath != null || audioPath != null) {
-                liteRTLMManager.sendMultimodalMessage(text, imagePath = imagePath, audioPath = audioPath)
+            val flow = if (uniqueImagePath != null || uniqueAudioPath != null) {
+                liteRTLMManager.sendMultimodalMessage(text, imagePath = uniqueImagePath, audioPath = uniqueAudioPath)
             } else {
                 liteRTLMManager.sendMessage(text)
             }
@@ -651,7 +705,7 @@ class MainActivity : AppCompatActivity() {
                 messagesList[assistantMsgIndex] = ChatMessage("Error: ${e.message}", false)
                 chatAdapter.notifyItemChanged(assistantMsgIndex)
                 isGenerating = false
-                updateSendButtonState(true)
+                updateSendButtonState()
             }.collect { chunk ->
                 if (chunk.isEmpty()) return@collect
                 if (!firstTokenReceived) {
@@ -680,7 +734,7 @@ class MainActivity : AppCompatActivity() {
             }
 
             isGenerating = false
-            updateSendButtonState(true)
+            updateSendButtonState()
         }
     }
 
@@ -783,10 +837,161 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
+    private fun checkCameraPermissionAndStart() {
+        if (ActivityCompat.checkSelfPermission(this, Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED) {
+            showCamera()
+        } else {
+            requestCameraPermission.launch(Manifest.permission.CAMERA)
+        }
+    }
+
+    private fun showCamera() {
+        cameraContainer.visibility = View.VISIBLE
+        startCamera()
+    }
+
+    private fun hideCamera() {
+        cameraContainer.visibility = View.GONE
+        try {
+            val cameraProviderFuture = androidx.camera.lifecycle.ProcessCameraProvider.getInstance(this)
+            val cameraProvider = cameraProviderFuture.get()
+            cameraProvider.unbindAll()
+        } catch (e: Exception) {
+            Log.e(TAG, "Error unbinding camera use cases", e)
+        }
+    }
+
+    private fun startCamera() {
+        val cameraProviderFuture = androidx.camera.lifecycle.ProcessCameraProvider.getInstance(this)
+        cameraProviderFuture.addListener({
+            val cameraProvider = cameraProviderFuture.get()
+
+            val preview = androidx.camera.core.Preview.Builder().build().also {
+                it.setSurfaceProvider(viewFinder.surfaceProvider)
+            }
+
+            imageCapture = androidx.camera.core.ImageCapture.Builder()
+                .setCaptureMode(androidx.camera.core.ImageCapture.CAPTURE_MODE_MINIMIZE_LATENCY)
+                .build()
+
+            val cameraSelector = androidx.camera.core.CameraSelector.Builder()
+                .requireLensFacing(lensFacing)
+                .build()
+
+            try {
+                cameraProvider.unbindAll()
+                cameraProvider.bindToLifecycle(
+                    this,
+                    cameraSelector,
+                    preview,
+                    imageCapture
+                )
+            } catch (exc: Exception) {
+                Log.e(TAG, "Use case binding failed", exc)
+                Toast.makeText(this, "Failed to start camera", Toast.LENGTH_SHORT).show()
+            }
+        }, androidx.core.content.ContextCompat.getMainExecutor(this))
+    }
+
+    private fun takePhoto() {
+        val imageCapture = imageCapture ?: return
+        val photoFile = File(cacheDir, "camera_image.jpg")
+        val outputOptions = androidx.camera.core.ImageCapture.OutputFileOptions.Builder(photoFile).build()
+
+        imageCapture.takePicture(
+            outputOptions,
+            cameraExecutor,
+            object : androidx.camera.core.ImageCapture.OnImageSavedCallback {
+                override fun onError(exc: androidx.camera.core.ImageCaptureException) {
+                    Log.e(TAG, "Photo capture failed: ${exc.message}", exc)
+                    runOnUiThread {
+                        Toast.makeText(this@MainActivity, "Photo capture failed", Toast.LENGTH_SHORT).show()
+                    }
+                }
+
+                override fun onImageSaved(output: androidx.camera.core.ImageCapture.OutputFileResults) {
+                    val savedUri = Uri.fromFile(photoFile)
+                    Log.i(TAG, "Photo capture succeeded: $savedUri")
+                    runOnUiThread {
+                        cameraContainer.visibility = View.GONE
+                        try {
+                            val cameraProviderFuture = androidx.camera.lifecycle.ProcessCameraProvider.getInstance(this@MainActivity)
+                            val cameraProvider = cameraProviderFuture.get()
+                            cameraProvider.unbindAll()
+                        } catch (e: Exception) {
+                            Log.e(TAG, "Error unbinding camera use cases in onImageSaved", e)
+                        }
+                        lifecycleScope.launch(Dispatchers.IO) {
+                            val bitmap = loadBitmapFromUri(savedUri)
+                            if (bitmap != null) {
+                                withContext(Dispatchers.Main) {
+                                    selectedImageBitmap = bitmap
+                                    selectedImageView.setImageBitmap(bitmap)
+                                    selectedImageView.visibility = View.VISIBLE
+                                }
+                                saveBitmapToPendingImagePath(bitmap)
+                            }
+                        }
+                    }
+                }
+            }
+        )
+    }
+
     private fun addSystemMessage(text: String) {
         messagesList.add(ChatMessage("$text", false))
         chatAdapter.notifyItemInserted(messagesList.size - 1)
         recyclerView.scrollToPosition(messagesList.size - 1)
+    }
+
+    private fun copyToUniqueSentFile(originalPath: String?, prefix: String): String? {
+        if (originalPath == null) return null
+        return try {
+            val srcFile = File(originalPath)
+            if (srcFile.exists()) {
+                val destFile = File(cacheDir, "${prefix}_${System.currentTimeMillis()}_${srcFile.name}")
+                srcFile.copyTo(destFile, overwrite = true)
+                destFile.absolutePath
+            } else {
+                null
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to copy sent file: $originalPath", e)
+            null
+        }
+    }
+
+    private fun getConversationHistoryMessages(): List<com.google.ai.edge.litertlm.Message> {
+        val history = mutableListOf<com.google.ai.edge.litertlm.Message>()
+        for (i in messagesList.indices) {
+            val msg = messagesList[i]
+            if (msg.isUser) {
+                val parts = mutableListOf<Content>()
+                msg.imagePath?.let { path ->
+                    if (File(path).exists()) {
+                        parts.add(Content.ImageFile(path))
+                    }
+                }
+                msg.audioPath?.let { path ->
+                    if (File(path).exists()) {
+                        parts.add(Content.AudioFile(path))
+                    }
+                }
+                parts.add(Content.Text(msg.text))
+                history.add(
+                    com.google.ai.edge.litertlm.Message.user(
+                        Contents.of(*parts.toTypedArray())
+                    )
+                )
+            } else {
+                if (i > 0 && messagesList[i - 1].isUser && msg.text.isNotEmpty() && !msg.text.startsWith("Error:") && !msg.text.startsWith("No response")) {
+                    history.add(
+                        com.google.ai.edge.litertlm.Message.model(msg.text)
+                    )
+                }
+            }
+        }
+        return history
     }
 
     private fun hideKeyboard() {
@@ -912,21 +1117,25 @@ class MainActivity : AppCompatActivity() {
 
     override fun onSaveInstanceState(outState: Bundle) {
         super.onSaveInstanceState(outState)
-        cameraImageUri?.let { outState.putParcelable("cameraImageUri", it) }
         pendingImagePath?.let { outState.putString("pendingImagePath", it) }
         pendingAudioPath?.let { outState.putString("pendingAudioPath", it) }
         
         val texts = messagesList.map { it.text }.toTypedArray()
         val isUsers = messagesList.map { it.isUser }.toBooleanArray()
         val audioPaths = messagesList.map { it.audioPath ?: "" }.toTypedArray()
+        val imagePaths = messagesList.map { it.imagePath ?: "" }.toTypedArray()
         outState.putStringArray("chatTexts", texts)
         outState.putBooleanArray("chatIsUsers", isUsers)
         outState.putStringArray("chatAudioPaths", audioPaths)
+        outState.putStringArray("chatImagePaths", imagePaths)
         selectedModel?.let { outState.putString("selectedModelId", it.id) }
     }
 
     override fun onDestroy() {
         super.onDestroy()
         liteRTLMManager.cleanup()
+        if (::cameraExecutor.isInitialized) {
+            cameraExecutor.shutdown()
+        }
     }
 }

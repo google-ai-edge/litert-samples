@@ -38,5 +38,20 @@ class ChatMessageTest {
         assertTrue(message.isUser)
         assertEquals(bitmap, message.image)
         assertEquals("/path/to/audio.wav", message.audioPath)
+        assertNull(message.imagePath)
+    }
+
+    @Test
+    fun testChatMessageWithImagePath() {
+        val message = ChatMessage(
+            text = "Analyze image path",
+            isUser = true,
+            imagePath = "/path/to/image.jpg"
+        )
+        assertEquals("Analyze image path", message.text)
+        assertTrue(message.isUser)
+        assertNull(message.image)
+        assertNull(message.audioPath)
+        assertEquals("/path/to/image.jpg", message.imagePath)
     }
 }

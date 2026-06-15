@@ -194,4 +194,80 @@
         </LinearLayout>
     </com.google.android.material.card.MaterialCardView>
 
+    <!-- Camera Preview Overlay -->
+    <FrameLayout
+        android:id="@+id/cameraContainer"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:background="#000000"
+        android:visibility="gone"
+        android:clickable="true"
+        android:focusable="true">
+
+        <androidx.camera.view.PreviewView
+            android:id="@+id/viewFinder"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent" />
+
+        <RelativeLayout
+            android:layout_width="match_parent"
+            android:layout_height="match_parent">
+
+            <!-- Top Close/Cancel Button -->
+            <ImageView
+                android:id="@+id/btnCancelCamera"
+                android:layout_width="48dp"
+                android:layout_height="48dp"
+                android:layout_alignParentTop="true"
+                android:layout_alignParentStart="true"
+                android:layout_margin="24dp"
+                android:background="@drawable/bg_circle_attach"
+                android:src="@android:drawable/ic_menu_close_clear_cancel"
+                android:padding="12dp"
+                android:clickable="true"
+                android:focusable="true" />
+
+            <!-- Bottom Control Layout -->
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_alignParentBottom="true"
+                android:gravity="center"
+                android:orientation="horizontal"
+                android:paddingBottom="48dp"
+                android:paddingTop="24dp"
+                android:background="#B3000000">
+
+                <!-- Spacer to balance layout -->
+                <View
+                    android:layout_width="48dp"
+                    android:layout_height="48dp"
+                    android:layout_marginHorizontal="24dp" />
+
+                <!-- Shutter Capture Button -->
+                <ImageView
+                    android:id="@+id/btnCaptureCamera"
+                    android:layout_width="72dp"
+                    android:layout_height="72dp"
+                    android:layout_marginHorizontal="24dp"
+                    android:background="@drawable/bg_shutter_button"
+                    android:clickable="true"
+                    android:focusable="true" />
+
+                <!-- Switch Camera Button -->
+                <ImageView
+                    android:id="@+id/btnSwitchCamera"
+                    android:layout_width="48dp"
+                    android:layout_height="48dp"
+                    android:layout_marginHorizontal="24dp"
+                    android:background="@drawable/bg_circle_attach"
+                    android:src="@android:drawable/ic_menu_rotate"
+                    android:padding="12dp"
+                    android:clickable="true"
+                    android:focusable="true" />
+
+            </LinearLayout>
+        </RelativeLayout>
+    </FrameLayout>
+
 </androidx.constraintlayout.widget.ConstraintLayout>
