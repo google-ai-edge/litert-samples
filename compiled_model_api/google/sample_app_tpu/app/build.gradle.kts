@@ -25,10 +25,10 @@ android {
 
   packaging {
     jniLibs {
-      useLegacyPackaging = false
-      pickFirst("**/libLiteRt.so")
-      pickFirst("**/libLiteRtDispatch_GoogleTensor.so")
-      pickFirst("**/libLiteRtClGlAccelerator.so")
+      useLegacyPackaging = true
+      pickFirsts.add("**/libLiteRt.so")
+      pickFirsts.add("**/libLiteRtDispatch_GoogleTensor.so")
+      pickFirsts.add("**/libLiteRtClGlAccelerator.so")
     }
   }
 

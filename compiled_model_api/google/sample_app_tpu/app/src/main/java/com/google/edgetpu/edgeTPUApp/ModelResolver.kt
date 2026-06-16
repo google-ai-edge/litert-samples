@@ -135,13 +135,17 @@ class ModelResolver(private val context: Context) {
         if (modelConfig.isAsset) {
             val cacheFile = File(context.cacheDir, modelConfig.filename)
             if (!cacheFile.exists() || cacheFile.length() == 0L) {
-                Log.i(TAG, "Copying asset ${modelConfig.filename} to cache...")
-                context.assets.open(modelConfig.filename).use { input ->
-                    FileOutputStream(cacheFile).use { output ->
-                        input.copyTo(output)
+                try {
+                    Log.i(TAG, "Copying asset ${modelConfig.filename} to cache...")
+                    context.assets.open(modelConfig.filename).use { input ->
+                        FileOutputStream(cacheFile).use { output ->
+                            input.copyTo(output)
+                        }
                     }
+                    Log.i(TAG, "Asset copy complete: ${cacheFile.length()} bytes")
+                } catch (e: Exception) {
+                    Log.e(TAG, "Asset ${modelConfig.filename} not found or copy failed", e)
                 }
-                Log.i(TAG, "Asset copy complete: ${cacheFile.length()} bytes")
             }
             return cacheFile.absolutePath
         } else {
@@ -157,13 +161,17 @@ class ModelResolver(private val context: Context) {
             }
             
             if (externalFile.exists()) {
-                Log.i(TAG, "Copying external model ${modelConfig.filename} to cache to bypass SELinux...")
-                externalFile.inputStream().use { input ->
-                    FileOutputStream(cacheFile).use { output ->
-                        input.copyTo(output)
+                try {
+                    Log.i(TAG, "Copying external model ${modelConfig.filename} to cache to bypass SELinux...")
+                    externalFile.inputStream().use { input ->
+                        FileOutputStream(cacheFile).use { output ->
+                            input.copyTo(output)
+                        }
                     }
+                    Log.i(TAG, "External model copy complete: ${cacheFile.length()} bytes")
+                } catch (e: Exception) {
+                    Log.e(TAG, "Failed to copy external model ${modelConfig.filename}", e)
                 }
-                Log.i(TAG, "External model copy complete: ${cacheFile.length()} bytes")
             }
             
             return cacheFile.absolutePath
@@ -172,17 +180,17 @@ class ModelResolver(private val context: Context) {
 
     /**
      * Checks if the model is ready to be loaded.
-     * Assets are always considered available.
+     * Assets are always checked against context.assets or cacheDir.
      * External files must exist, be readable, and have non-zero length.
      */
     fun isModelAvailable(modelConfig: ModelConfig): Boolean {
+        val cacheFile = File(context.cacheDir, modelConfig.filename)
+        if (cacheFile.exists() && cacheFile.canRead() && cacheFile.length() > 0) {
+            return true
+        }
         if (modelConfig.isAsset) {
             return true
         } else {
-            val cacheFile = File(context.cacheDir, modelConfig.filename)
-            if (cacheFile.exists() && cacheFile.canRead() && cacheFile.length() > 0) {
-                return true
-            }
             val externalDir = context.getExternalFilesDir(null)
                 ?: File("/sdcard/Android/data/${context.packageName}/files")
             val modelFile = File(externalDir, modelConfig.filename)

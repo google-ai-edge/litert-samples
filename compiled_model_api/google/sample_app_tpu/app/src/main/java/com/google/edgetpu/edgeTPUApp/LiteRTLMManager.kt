@@ -134,9 +134,7 @@ class LiteRTLMManager private constructor(private val context: Context) {
 
         val backend = factory.create()
 
-        val visionBackend = if (!supportsImage) {
-            null
-        } else if (factory.name == "NPU") {
+        val visionBackend = if (factory.name == "NPU") {
             Backend.NPU(nativeLibraryDir = context.applicationInfo.nativeLibraryDir)
         } else if (factory.name == "GPU") {
             Backend.GPU()
@@ -144,7 +142,7 @@ class LiteRTLMManager private constructor(private val context: Context) {
             Backend.CPU()
         }
 
-        val audioBackend = if (supportsAudio) Backend.CPU() else null
+        val audioBackend = Backend.CPU()
 
         val engineConfig = EngineConfig(
             modelPath = modelPath,
@@ -156,19 +154,12 @@ class LiteRTLMManager private constructor(private val context: Context) {
         )
         
         val startTime = System.currentTimeMillis()
-        val candidateEngine = Engine(engineConfig)
+        var candidateEngine = Engine(engineConfig)
         
         try {
             candidateEngine.initialize()
             val duration = System.currentTimeMillis() - startTime
             Log.i(TAG, "Engine initialization SUCCEEDED in ${duration}ms")
-            
-            // Create conversation config with system prompt if provided
-            val conversationConfig = ConversationConfig(
-                systemInstruction = if (systemPrompt != null) Contents.of(systemPrompt) else null,
-                initialMessages = initialMessages ?: emptyList()
-            )
-            conversation = candidateEngine.createConversation(conversationConfig)
         } catch (e: Throwable) {
             val duration = System.currentTimeMillis() - startTime
             Log.e(TAG, "Engine initialization FAILED after ${duration}ms: ${e.message}")
@@ -177,7 +168,44 @@ class LiteRTLMManager private constructor(private val context: Context) {
             } catch (closeEx: Throwable) {
                 Log.w(TAG, "Error closing candidate engine: ${closeEx.message}")
             }
-            throw e
+            
+            Log.i(TAG, "Retrying initialization as text-only model without vision/audio backend...")
+            val textOnlyConfig = EngineConfig(
+                modelPath = modelPath,
+                backend = factory.create(),
+                visionBackend = null,
+                audioBackend = null,
+                maxNumImages = null,
+                cacheDir = context.cacheDir.path
+            )
+            candidateEngine = Engine(textOnlyConfig)
+            try {
+                candidateEngine.initialize()
+                Log.i(TAG, "Text-only Engine initialization SUCCEEDED")
+            } catch (retryEx: Throwable) {
+                try {
+                    candidateEngine.close()
+                } catch (closeEx: Throwable) {
+                    Log.w(TAG, "Error closing fallback candidate engine: ${closeEx.message}")
+                }
+                throw retryEx
+            }
+        }
+
+        try {
+            // Create conversation config with system prompt if provided
+            val conversationConfig = ConversationConfig(
+                systemInstruction = if (systemPrompt != null) Contents.of(systemPrompt) else null,
+                initialMessages = initialMessages ?: emptyList()
+            )
+            conversation = candidateEngine.createConversation(conversationConfig)
+        } catch (convEx: Throwable) {
+            try {
+                candidateEngine.close()
+            } catch (closeEx: Throwable) {
+                Log.w(TAG, "Error closing candidate engine after conversation failure: ${closeEx.message}")
+            }
+            throw convEx
         }
 
         engine = candidateEngine
@@ -191,19 +219,19 @@ class LiteRTLMManager private constructor(private val context: Context) {
         }
 
         try {
-            // Workaround for 0.13.1 bug: The C++ engine looks for the dispatch library 
-            // in the model's parent directory because it drops the nativeLibraryDir parameter.
-            // Since our model is in the cacheDir, we copy the dispatch library there!
-            val sourceFile = File(nativeLibraryDir, "libLiteRtDispatch_GoogleTensor.so")
-            val destFile = File(context.cacheDir, "libLiteRtDispatch_GoogleTensor.so")
-            if (sourceFile.exists()) {
-                Log.i(TAG, "Copying NPU dispatch library to model directory (workaround for 0.13.1)")
-                sourceFile.copyTo(destFile, overwrite = true)
-            } else {
-                Log.w(TAG, "NPU dispatch library NOT found in $nativeLibraryDir")
-            }
+            System.loadLibrary("LiteRtDispatch_GoogleTensor")
+            Log.i(TAG, "Successfully loaded libLiteRtDispatch_GoogleTensor.so via System.loadLibrary")
+        } catch (e: Throwable) {
+            Log.w(TAG, "Failed to load LiteRtDispatch_GoogleTensor: ${e.message}")
+        }
+
+        try {
+            val ldPath = android.system.Os.getenv("LD_LIBRARY_PATH") ?: ""
+            val newLdPath = if (ldPath.isEmpty()) nativeLibraryDir else "$nativeLibraryDir:$ldPath"
+            android.system.Os.setenv("LD_LIBRARY_PATH", newLdPath, true)
+            Log.i(TAG, "Set LD_LIBRARY_PATH to $newLdPath")
         } catch (e: Exception) {
-            Log.w(TAG, "Failed to copy NPU dispatch library: ${e.message}")
+            Log.w(TAG, "Failed to set LD_LIBRARY_PATH: ${e.message}")
         }
 
         nativeRuntimeConfigured = true
