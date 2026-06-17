@@ -1,0 +1,12 @@
+# Large Model Files
+*.litertlm
+
+# Kotlin cache
+.kotlin/
+
+# Editor/Backup files
+*.bak
+
+# Build directories
+/build/
+/app/build/
