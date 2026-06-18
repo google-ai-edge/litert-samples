@@ -103,7 +103,7 @@ fun GalleryScreen(
                     // Use the imageLoader extension property on Context
                     imageLoader = LocalContext.current.imageLoader,
                     onSuccess = { result ->
-                        val coilImage = (result as SuccessResult).image
+                        val coilImage = (result.result).image
                         val drawable = coilImage.asDrawable(context.resources)
                         val bitmap = (drawable as? android.graphics.drawable.BitmapDrawable)?.bitmap
 
