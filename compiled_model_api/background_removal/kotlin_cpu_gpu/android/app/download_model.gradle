@@ -1,0 +1,13 @@
+// Downloads the U^2-Net background-removal model (converted with litert-torch, FP16) into the
+// assets directory at build time so the .tflite is never committed to the repository.
+//
+// NOTE: update `src` to the final hosting URL once the model is uploaded (e.g. Hugging Face).
+// For local device testing before the upload, drop u2net_fp16.tflite into
+// app/src/main/assets/ manually and this task will skip it (overwrite = false).
+tasks.register('downloadU2NetModel', Download) {
+    src 'https://huggingface.co/mlboydaisuke/U-2-Net-LiteRT/resolve/main/u2net_fp16.tflite'
+    dest project.ext.ASSET_DIR + '/u2net_fp16.tflite'
+    overwrite false
+}
+
+preBuild.dependsOn downloadU2NetModel
