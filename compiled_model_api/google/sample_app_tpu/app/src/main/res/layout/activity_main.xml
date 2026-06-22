@@ -63,7 +63,7 @@
             android:textSize="11sp"
             android:textStyle="bold"
             android:fontFamily="sans-serif-medium"
-            android:text="TTFT: -- | -- t/s"
+            android:text="TTFT: --\n-- t/s | total: -- s\ncontext: ~--"
             android:gravity="center" />
 
     </LinearLayout>

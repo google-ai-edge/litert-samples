@@ -72,6 +72,7 @@ class MainActivity : AppCompatActivity() {
     private lateinit var stopRecordingButton: MaterialButton
 
     private val messagesList = mutableListOf<ChatMessage>()
+    private var activeHistoryStartIndex = 0
     private var selectedImageBitmap: Bitmap? = null
     private var pendingImagePath: String? = null
     private var pendingAudioPath: String? = null
@@ -594,6 +595,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun initializeEngine(model: ModelConfig) {
+        activeHistoryStartIndex = 0
         lifecycleScope.launch {
             isModelLoaded = false
             updateSendButtonState()
@@ -613,6 +615,7 @@ class MainActivity : AppCompatActivity() {
                 preferredBackend = model.preferredBackend,
                 supportsImage = model.supportsImage,
                 supportsAudio = model.supportsAudio,
+                maxContext = model.maxContext,
                 initialMessages = history.takeIf { it.isNotEmpty() }
             )
             
@@ -648,6 +651,7 @@ class MainActivity : AppCompatActivity() {
 
     private fun switchModel(modelConfig: ModelConfig) {
         if (isGenerating) return
+        activeHistoryStartIndex = 0
         selectedModel = modelConfig
         liteRTLMManager.cleanup()
         System.gc()
@@ -686,55 +690,241 @@ class MainActivity : AppCompatActivity() {
         clearAttachments()
         hideKeyboard()
 
-        var firstTokenReceived = false
         var startTime = System.currentTimeMillis()
         val requestStartTime = startTime
-        var ttft: Long = 0
-        var tokenCount = 0
 
         lifecycleScope.launch {
-            var fullResponse = ""
+            var failed = false
             val flow = if (uniqueImagePath != null || uniqueAudioPath != null) {
                 liteRTLMManager.sendMultimodalMessage(text, imagePath = uniqueImagePath, audioPath = uniqueAudioPath)
             } else {
                 liteRTLMManager.sendMessage(text)
             }
 
-            flow.catch { e ->
-                Log.e(TAG, "Inference failed: ${e.message}", e)
-                messagesList[assistantMsgIndex] = ChatMessage("Error: ${e.message}", false)
+            collectInferenceFlow(
+                flow = flow,
+                text = text,
+                assistantMsgIndex = assistantMsgIndex,
+                startTime = startTime,
+                requestStartTime = requestStartTime,
+                onFailure = { e ->
+                    Log.w(TAG, "Primary inference failed, attempting auto-recovery: ${e.message}")
+                    failed = true
+                    refreshSessionAndRetry(
+                        text = text,
+                        imagePath = uniqueImagePath,
+                        audioPath = uniqueAudioPath,
+                        assistantMsgIndex = assistantMsgIndex
+                    )
+                }
+            )
+
+            if (!failed) {
+                isGenerating = false
+                updateSendButtonState()
+            }
+        }
+    }
+
+    private fun estimateMessageTokens(msg: ChatMessage): Int {
+        var tokens = msg.text.length / 4 + 1
+        if (msg.imagePath != null) tokens += 512
+        if (msg.audioPath != null) tokens += 256
+        return tokens
+    }
+
+    private fun getTrimmedConversationHistory(maxBudgetTokens: Int): List<com.google.ai.edge.litertlm.Message> {
+        val historyItems = mutableListOf<ChatMessage>()
+        val limitIndex = messagesList.size - 2
+        for (i in 0 until limitIndex) {
+            historyItems.add(messagesList[i])
+        }
+        
+        var totalTokens = (selectedModel?.systemPrompt?.length ?: 0) / 4 + 1
+        val keptItems = java.util.ArrayList<ChatMessage>()
+        
+        var i = historyItems.size - 1
+        while (i >= 0) {
+            val assistantMsg = historyItems[i]
+            if (!assistantMsg.isUser && i > 0) {
+                val userMsg = historyItems[i - 1]
+                if (userMsg.isUser) {
+                    val pairTokens = estimateMessageTokens(userMsg) + estimateMessageTokens(assistantMsg)
+                    if (totalTokens + pairTokens <= maxBudgetTokens) {
+                        totalTokens += pairTokens
+                        keptItems.add(0, assistantMsg)
+                        keptItems.add(0, userMsg)
+                    } else {
+                        break
+                    }
+                }
+                i -= 2
+            } else {
+                val singleTokens = estimateMessageTokens(assistantMsg)
+                if (totalTokens + singleTokens <= maxBudgetTokens) {
+                    totalTokens += singleTokens
+                    keptItems.add(0, assistantMsg)
+                } else {
+                    break
+                }
+                i -= 1
+            }
+        }
+        
+        activeHistoryStartIndex = limitIndex - keptItems.size
+        Log.i(TAG, "Sliding window optimized: kept ${keptItems.size} messages in model context. Start index set to $activeHistoryStartIndex")
+        
+        val history = mutableListOf<com.google.ai.edge.litertlm.Message>()
+        for (msg in keptItems) {
+            if (msg.isUser) {
+                val parts = mutableListOf<Content>()
+                msg.imagePath?.let { path ->
+                    if (File(path).exists()) {
+                        parts.add(Content.ImageFile(path))
+                    }
+                }
+                msg.audioPath?.let { path ->
+                    if (File(path).exists()) {
+                        parts.add(Content.AudioFile(path))
+                    }
+                }
+                parts.add(Content.Text(msg.text))
+                history.add(
+                    com.google.ai.edge.litertlm.Message.user(
+                        Contents.of(*parts.toTypedArray())
+                    )
+                )
+            } else {
+                if (msg.text.isNotEmpty() && !msg.text.startsWith("Error:") && !msg.text.startsWith("No response")) {
+                    history.add(
+                        com.google.ai.edge.litertlm.Message.model(msg.text)
+                    )
+                }
+            }
+        }
+        return history
+    }
+
+    private suspend fun collectInferenceFlow(
+        flow: kotlinx.coroutines.flow.Flow<String>,
+        text: String,
+        assistantMsgIndex: Int,
+        startTime: Long,
+        requestStartTime: Long,
+        onFailure: suspend (Throwable) -> Unit
+    ) {
+        var firstTokenReceived = false
+        var currentStartTime = startTime
+        var ttft: Long = 0
+        var tokenCount = 0
+        var fullResponse = ""
+        
+        flow.catch { e ->
+            onFailure(e)
+        }.collect { chunk ->
+            if (chunk.isEmpty()) return@collect
+            if (!firstTokenReceived) {
+                ttft = System.currentTimeMillis() - currentStartTime
+                firstTokenReceived = true
+                currentStartTime = System.currentTimeMillis()
+            }
+            
+            fullResponse += chunk
+            tokenCount = fullResponse.length / 4 + 1
+            
+            messagesList[assistantMsgIndex] = ChatMessage(fullResponse, false)
+            chatAdapter.notifyItemChanged(assistantMsgIndex)
+            recyclerView.scrollToPosition(assistantMsgIndex)
+            
+            val elapsed = (System.currentTimeMillis() - currentStartTime) / 1000.0
+            val speed = if (elapsed > 0) String.format("%.1f", tokenCount / elapsed) else "0"
+            val estimatedContext = getConversationHistoryTokens() + tokenCount
+            val maxContext = selectedModel?.maxContext ?: 2048
+            
+            val ttftStr = if (firstTokenReceived) "${ttft}ms" else "Calculating..."
+            val totalElapsed = (System.currentTimeMillis() - requestStartTime) / 1000.0
+            val totalStr = String.format("%.1f s", totalElapsed)
+            
+            textBenchmarkStats.text = "TTFT: $ttftStr\n$speed t/s | total: $totalStr\ncontext: ~$estimatedContext/$maxContext"
+        }
+        
+        if (fullResponse.isEmpty() && isGenerating) {
+            messagesList[assistantMsgIndex] = ChatMessage("No response from model.", false)
+            chatAdapter.notifyItemChanged(assistantMsgIndex)
+        }
+    }
+
+    private fun refreshSessionAndRetry(
+        text: String,
+        imagePath: String?,
+        audioPath: String?,
+        assistantMsgIndex: Int
+    ) {
+        val model = selectedModel ?: return
+        
+        lifecycleScope.launch {
+            messagesList[assistantMsgIndex] = ChatMessage("Optimizing conversation memory...", false)
+            chatAdapter.notifyItemChanged(assistantMsgIndex)
+            
+            // 1. Clean up old engine
+            liteRTLMManager.cleanup()
+            System.gc()
+            
+            // 2. Trim history (e.g. budget = 50% of maxContext)
+            val budget = (model.maxContext * 0.5).toInt()
+            val trimmedHistory = getTrimmedConversationHistory(budget)
+            
+            // 3. Re-initialize
+            val modelPath = withContext(Dispatchers.IO) {
+                modelResolver.resolveModelPath(model)
+            }
+            
+            val result = liteRTLMManager.initialize(
+                modelPath = modelPath,
+                systemPrompt = model.systemPrompt,
+                preferredBackend = model.preferredBackend,
+                supportsImage = model.supportsImage,
+                supportsAudio = model.supportsAudio,
+                maxContext = model.maxContext,
+                initialMessages = trimmedHistory.takeIf { it.isNotEmpty() }
+            )
+            
+            if (result.isSuccess) {
+                // 4. Retry sending the message
+                val startTime = System.currentTimeMillis()
+                val requestStartTime = startTime
+                
+                val flow = if (imagePath != null || audioPath != null) {
+                    liteRTLMManager.sendMultimodalMessage(text, imagePath = imagePath, audioPath = audioPath)
+                } else {
+                    liteRTLMManager.sendMessage(text)
+                }
+                
+                collectInferenceFlow(
+                    flow = flow,
+                    text = text,
+                    assistantMsgIndex = assistantMsgIndex,
+                    startTime = startTime,
+                    requestStartTime = requestStartTime,
+                    onFailure = { e ->
+                        Log.e(TAG, "Retry inference failed: ${e.message}", e)
+                        messagesList[assistantMsgIndex] = ChatMessage("Error after memory optimization: ${e.message}", false)
+                        chatAdapter.notifyItemChanged(assistantMsgIndex)
+                        isGenerating = false
+                        updateSendButtonState()
+                    }
+                )
+                
+                isGenerating = false
+                updateSendButtonState()
+                
+            } else {
+                val error = result.exceptionOrNull()?.message ?: "Unknown error"
+                messagesList[assistantMsgIndex] = ChatMessage("Failed to optimize memory and re-initialize: $error", false)
                 chatAdapter.notifyItemChanged(assistantMsgIndex)
                 isGenerating = false
                 updateSendButtonState()
-            }.collect { chunk ->
-                if (chunk.isEmpty()) return@collect
-                if (!firstTokenReceived) {
-                    ttft = System.currentTimeMillis() - startTime
-                    firstTokenReceived = true
-                    startTime = System.currentTimeMillis()
-                }
-
-                fullResponse += chunk
-                tokenCount = fullResponse.length / 4 + 1
-
-                messagesList[assistantMsgIndex] = ChatMessage(fullResponse, false)
-                chatAdapter.notifyItemChanged(assistantMsgIndex)
-                recyclerView.scrollToPosition(assistantMsgIndex)
-
-                val elapsed = (System.currentTimeMillis() - startTime) / 1000.0
-                val speed = if (elapsed > 0) String.format("%.1f", tokenCount / elapsed) else "0"
-                val totalElapsed = (System.currentTimeMillis() - requestStartTime) / 1000.0
-                val totalStr = String.format("%.1fs", totalElapsed)
-                textBenchmarkStats.text = "TTFT: ${ttft}ms | ${speed} t/s | Total: $totalStr"
             }
-
-            if (fullResponse.isEmpty()) {
-                messagesList[assistantMsgIndex] = ChatMessage("No response from model.", false)
-                chatAdapter.notifyItemChanged(assistantMsgIndex)
-            }
-
-            isGenerating = false
-            updateSendButtonState()
         }
     }
 
@@ -1010,12 +1200,14 @@ class MainActivity : AppCompatActivity() {
         val etSystemPrompt = dialogView.findViewById<EditText>(R.id.dialogSystemPrompt)
         val etDefaultPrompt = dialogView.findViewById<EditText>(R.id.dialogDefaultPrompt)
         val spinnerBackend = dialogView.findViewById<Spinner>(R.id.dialogPreferredBackend)
+        val etMaxContext = dialogView.findViewById<EditText>(R.id.dialogMaxContext)
         val cbImage = dialogView.findViewById<CheckBox>(R.id.dialogSupportsImage)
         val cbAudio = dialogView.findViewById<CheckBox>(R.id.dialogSupportsAudio)
 
         tvFileName.text = "File: $filename"
         etSystemPrompt.setText("You are a helpful assistant.")
         etDefaultPrompt.setText("help answer based on the provided context")
+        etMaxContext.setText("2048")
         
         val backends = arrayOf("NPU", "GPU", "CPU")
         spinnerBackend.adapter = ArrayAdapter(this, android.R.layout.simple_spinner_dropdown_item, backends)
@@ -1029,6 +1221,8 @@ class MainActivity : AppCompatActivity() {
                 val backend = spinnerBackend.selectedItem.toString()
                 val supportsImage = cbImage.isChecked
                 val supportsAudio = cbAudio.isChecked
+                val maxContextStr = etMaxContext.text.toString()
+                val maxContext = maxContextStr.toIntOrNull() ?: 2048
 
                 val modelConfig = ModelConfig(
                     id = "custom-${System.currentTimeMillis()}",
@@ -1039,7 +1233,8 @@ class MainActivity : AppCompatActivity() {
                     preferredBackend = backend,
                     supportsImage = supportsImage,
                     supportsAudio = supportsAudio,
-                    defaultPrompt = defaultPrompt
+                    defaultPrompt = defaultPrompt,
+                    maxContext = maxContext
                 )
                 
                 copyModelAndAdd(uri, modelConfig)
@@ -1129,6 +1324,17 @@ class MainActivity : AppCompatActivity() {
         outState.putStringArray("chatAudioPaths", audioPaths)
         outState.putStringArray("chatImagePaths", imagePaths)
         selectedModel?.let { outState.putString("selectedModelId", it.id) }
+    }
+
+    private fun getConversationHistoryTokens(): Int {
+        var totalTokens = (selectedModel?.systemPrompt?.length ?: 0) / 4 + 1
+        val limit = messagesList.size - 1
+        for (i in activeHistoryStartIndex until limit) {
+            if (i in messagesList.indices) {
+                totalTokens += estimateMessageTokens(messagesList[i])
+            }
+        }
+        return totalTokens
     }
 
     override fun onDestroy() {
