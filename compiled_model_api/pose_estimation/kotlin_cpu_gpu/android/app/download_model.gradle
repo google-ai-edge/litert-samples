@@ -1,0 +1,9 @@
+// Downloads the lightweight-OpenPose model into the app assets at build time.
+// The converted fp16 model is hosted on Hugging Face.
+tasks.register('pose', Download) {
+    src 'https://huggingface.co/mlboydaisuke/lightweight-openpose-litert/resolve/main/pose_256_fp16.tflite'
+    dest project.ext.ASSET_DIR + '/pose_256_fp16.tflite'
+    overwrite false
+}
+
+preBuild.dependsOn pose
