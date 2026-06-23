@@ -1,0 +1,9 @@
+// Downloads the Zero-DCE low-light enhancement model into the app assets at build time.
+// The converted fp16 model (conversion/convert_zerodce.py) is hosted on Hugging Face.
+tasks.register('zerodce', Download) {
+    src 'https://huggingface.co/mlboydaisuke/zero-dce-litert/resolve/main/zerodce_512_fp16.tflite'
+    dest project.ext.ASSET_DIR + '/zerodce_512_fp16.tflite'
+    overwrite false
+}
+
+preBuild.dependsOn zerodce
