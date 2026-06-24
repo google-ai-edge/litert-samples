@@ -5,7 +5,7 @@
 // For local device testing before the upload, drop u2net_fp16.tflite into
 // app/src/main/assets/ manually and this task will skip it (overwrite = false).
 tasks.register('downloadU2NetModel', Download) {
-    src 'https://huggingface.co/mlboydaisuke/U-2-Net-LiteRT/resolve/main/u2net_fp16.tflite'
+    src 'https://huggingface.co/litert-community/U-2-Net/resolve/main/u2net_fp16.tflite'
     dest project.ext.ASSET_DIR + '/u2net_fp16.tflite'
     overwrite false
 }
