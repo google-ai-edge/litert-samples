@@ -1,0 +1,9 @@
+// Downloads the SSDLite320-MobileNetV3 model into the app assets at build time.
+// The converted fp16 model (torchvision, BSD-3) is hosted on Hugging Face.
+tasks.register('ssdlite', Download) {
+    src 'https://huggingface.co/litert-community/ssdlite320-mobilenetv3-litert/resolve/main/ssdlite_mobilenetv3_320_fp16.tflite'
+    dest project.ext.ASSET_DIR + '/ssdlite_mobilenetv3_320_fp16.tflite'
+    overwrite false
+}
+
+preBuild.dependsOn ssdlite
