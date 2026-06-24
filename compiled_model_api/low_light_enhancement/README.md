@@ -71,8 +71,8 @@ full GPU residency, no CPU fallback.
 
 The `.tflite` is downloaded at build time (see
 `kotlin_cpu_gpu/android/app/download_model.gradle`) from
-[`mlboydaisuke/zero-dce-litert`](https://huggingface.co/mlboydaisuke/zero-dce-litert):
-`https://huggingface.co/mlboydaisuke/zero-dce-litert/resolve/main/zerodce_512_fp16.tflite`.
+[`litert-community/Zero-DCE`](https://huggingface.co/litert-community/Zero-DCE):
+`https://huggingface.co/litert-community/Zero-DCE/resolve/main/zerodce_512_fp16.tflite`.
 
 ## Reproducing the conversion
 
