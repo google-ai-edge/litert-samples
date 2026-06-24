@@ -73,8 +73,8 @@ full GPU residency, no CPU fallback.
 
 The `.tflite` is downloaded at build time (see
 `kotlin_cpu_gpu/android/app/download_model.gradle`) from
-[`mlboydaisuke/vdsr-litert`](https://huggingface.co/mlboydaisuke/vdsr-litert):
-`https://huggingface.co/mlboydaisuke/vdsr-litert/resolve/main/vdsr_256_fp16.tflite`.
+[`litert-community/VDSR`](https://huggingface.co/litert-community/VDSR):
+`https://huggingface.co/litert-community/VDSR/resolve/main/vdsr_256_fp16.tflite`.
 
 ## Reproducing the conversion
 

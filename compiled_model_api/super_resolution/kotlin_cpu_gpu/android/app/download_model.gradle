@@ -1,7 +1,7 @@
 // Downloads the VDSR super-resolution model into the app assets at build time.
 // The converted fp16 model is hosted on Hugging Face.
 tasks.register('vdsr', Download) {
-    src 'https://huggingface.co/mlboydaisuke/vdsr-litert/resolve/main/vdsr_256_fp16.tflite'
+    src 'https://huggingface.co/litert-community/VDSR/resolve/main/vdsr_256_fp16.tflite'
     dest project.ext.ASSET_DIR + '/vdsr_256_fp16.tflite'
     overwrite false
 }
