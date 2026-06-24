@@ -72,8 +72,8 @@ full GPU residency, no CPU fallback.
 
 The `.tflite` is downloaded at build time (see
 `kotlin_cpu_gpu/android/app/download_model.gradle`) from
-[`mlboydaisuke/lightweight-openpose-litert`](https://huggingface.co/mlboydaisuke/lightweight-openpose-litert):
-`https://huggingface.co/mlboydaisuke/lightweight-openpose-litert/resolve/main/pose_256_fp16.tflite`.
+[`litert-community/lightweight-openpose`](https://huggingface.co/litert-community/lightweight-openpose):
+`https://huggingface.co/litert-community/lightweight-openpose/resolve/main/pose_256_fp16.tflite`.
 
 ## Reproducing the conversion
 
