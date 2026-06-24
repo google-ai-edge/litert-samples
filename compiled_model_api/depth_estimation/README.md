@@ -86,8 +86,8 @@ fallback.
 
 The `.tflite` is downloaded at build time (see
 `kotlin_cpu_gpu/android/app/download_model.gradle`) from
-[`mlboydaisuke/midas-small-litert`](https://huggingface.co/mlboydaisuke/midas-small-litert):
-`https://huggingface.co/mlboydaisuke/midas-small-litert/resolve/main/midas_small_256_fp16.tflite`.
+[`litert-community/MiDaS-small`](https://huggingface.co/litert-community/MiDaS-small):
+`https://huggingface.co/litert-community/MiDaS-small/resolve/main/midas_small_256_fp16.tflite`.
 
 ## Reproducing the conversion
 

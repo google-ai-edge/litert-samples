@@ -2,7 +2,7 @@
 // Upload the converted fp16 model (conversion/convert_midas_litert.py) to a
 // Hugging Face repo and point `src` at its resolve URL.
 tasks.register('midasSmall', Download) {
-    src 'https://huggingface.co/mlboydaisuke/midas-small-litert/resolve/main/midas_small_256_fp16.tflite'
+    src 'https://huggingface.co/litert-community/MiDaS-small/resolve/main/midas_small_256_fp16.tflite'
     dest project.ext.ASSET_DIR + '/midas_small_256_fp16.tflite'
     overwrite false
 }
