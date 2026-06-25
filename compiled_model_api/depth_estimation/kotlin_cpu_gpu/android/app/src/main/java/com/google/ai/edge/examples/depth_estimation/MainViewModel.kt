@@ -52,8 +52,11 @@ class MainViewModel(private val depthEstimationHelper: DepthEstimationHelper) : 
       }
   }
 
+  private var currentModel = DepthEstimationHelper.Model.MidasSmall
+  private var currentAccelerator = DepthEstimationHelper.AcceleratorEnum.GPU
+
   init {
-    viewModelScope.launch { depthEstimationHelper.initEstimator() }
+    viewModelScope.launch { depthEstimationHelper.initEstimator(currentModel, currentAccelerator) }
   }
 
   private var estimateJob: Job? = null
@@ -147,7 +150,14 @@ class MainViewModel(private val depthEstimationHelper: DepthEstimationHelper) : 
 
   /** Set Accelerator for DepthEstimationHelper (CPU/GPU) */
   fun setAccelerator(acceleratorEnum: DepthEstimationHelper.AcceleratorEnum) {
-    viewModelScope.launch { depthEstimationHelper.initEstimator(acceleratorEnum) }
+    currentAccelerator = acceleratorEnum
+    viewModelScope.launch { depthEstimationHelper.initEstimator(currentModel, currentAccelerator) }
+  }
+
+  /** Set the depth Model (MiDaS-small / Depth Anything 3) */
+  fun setModel(model: DepthEstimationHelper.Model) {
+    currentModel = model
+    viewModelScope.launch { depthEstimationHelper.initEstimator(currentModel, currentAccelerator) }
   }
 
   /** Clear error message after it has been consumed */

@@ -19,13 +19,13 @@ package com.google.ai.edge.examples.depth_estimation
 import android.graphics.Bitmap
 
 /**
- * Turns a MiDaS inverse-depth map into a colorized ARGB bitmap using an `inferno`
- * lookup table (matches the Python conversion preview). Larger depth = nearer =
- * brighter.
+ * Colorizes depth maps into ARGB bitmaps. MiDaS inverse-depth uses an `inferno` LUT (larger = nearer =
+ * brighter); Depth Anything 3 uses disparity + a `Spectral` LUT (the model's official visualization).
  */
 object DepthColorMap {
 
-  fun toBitmap(depth: FloatArray, width: Int, height: Int): Bitmap {
+  /** MiDaS: min-max normalize inverse depth, map through the `inferno` LUT. */
+  fun inverseDepthInferno(depth: FloatArray, width: Int, height: Int): Bitmap {
     var min = Float.MAX_VALUE
     var max = -Float.MAX_VALUE
     for (v in depth) {
@@ -41,6 +41,70 @@ object DepthColorMap {
     }
     return Bitmap.createBitmap(pixels, width, height, Bitmap.Config.ARGB_8888)
   }
+
+  /**
+   * Depth Anything 3: crop to the content region, convert depth -> disparity (1/depth), robustly
+   * normalize on the 2nd/98th percentiles (avoids outlier wash-out), invert, then map through the
+   * `Spectral` LUT — matching the official DA3 `visualize.py`.
+   */
+  fun disparitySpectral(
+    depth: FloatArray,
+    width: Int,
+    height: Int,
+    cropL: Int,
+    cropT: Int,
+    cropR: Int,
+    cropB: Int,
+  ): Bitmap {
+    val cw = (cropR - cropL).coerceAtLeast(1)
+    val ch = (cropB - cropT).coerceAtLeast(1)
+    val disp = FloatArray(cw * ch)
+    var k = 0
+    for (y in cropT until cropB) {
+      for (x in cropL until cropR) {
+        val d = depth[y * width + x]
+        disp[k++] = if (d > 0f) 1f / d else 0f
+      }
+    }
+    val sorted = disp.copyOf()
+    sorted.sort()
+    val lo = sorted[(0.02f * (sorted.size - 1)).toInt()]
+    val hi = sorted[(0.98f * (sorted.size - 1)).toInt()]
+    val range = if (hi > lo) hi - lo else 1e-6f
+    val pixels = IntArray(cw * ch)
+    for (i in disp.indices) {
+      val n = 1f - ((disp[i] - lo) / range).coerceIn(0f, 1f)
+      pixels[i] = SPECTRAL[(n * 255f).toInt().coerceIn(0, 255)]
+    }
+    return Bitmap.createBitmap(pixels, cw, ch, Bitmap.Config.ARGB_8888)
+  }
+
+  /** matplotlib "Spectral" colormap, 256 RGB entries (the DA3 default depth colormap). */
+  private const val SPECTRAL_HEX =
+    "9e0142a00343a20643a40844a70b44a90d45ab0f45ad1246af1446b11747b41947b61b48b81e48ba2049bc2249be254a" +
+      "c1274ac32a4bc52c4bc72e4cc9314ccb334dcd364dd0384ed23a4ed43d4fd63f4fd7414ed8434ed9444dda464ddc484c" +
+      "dd4a4cde4c4bdf4e4be1504be2514ae3534ae45549e55749e75948e85b48e95c47ea5e47eb6046ed6246ee6445ef6645" +
+      "f06744f26944f36b43f46d43f47044f57245f57547f57748f67a49f67c4af67f4bf7814cf7844ef8864ff88950f88c51" +
+      "f98e52f99153f99355fa9656fa9857fa9b58fb9d59fba05bfba35cfca55dfca85efcaa5ffdad60fdaf62fdb163fdb365" +
+      "fdb567fdb768fdb96afdbb6cfdbd6dfdbf6ffdc171fdc372fdc574fdc776fec877feca79fecc7bfece7cfed07efed27f" +
+      "fed481fed683fed884feda86fedc88fede89fee08bfee18dfee28ffee491fee593fee695fee797fee999feea9bfeeb9d" +
+      "feec9ffeeda1feefa3fff0a6fff1a8fff2aafff3acfff5aefff6b0fff7b2fff8b4fffab6fffbb8fffcbafffdbcfffebe" +
+      "ffffbefefebdfdfebbfcfebafbfdb8fafdb7f9fcb5f8fcb4f7fcb2f6fbb0f5fbaff4faadf3faacf2faaaf1f9a9f0f9a7" +
+      "eff9a6eef8a4edf8a3ecf7a1ebf7a0eaf79ee9f69de8f69be7f59ae6f598e4f498e1f399dff299ddf19adaf09ad8ef9b" +
+      "d6ee9bd3ed9cd1ed9ccfec9dcdeb9dcaea9ec8e99ec6e89fc3e79fc1e6a0bfe5a0bce4a0bae3a1b8e2a1b5e1a2b3e0a2" +
+      "b1dfa3aedea3acdda4aadca4a7dba4a4daa4a2d9a49fd8a49cd7a499d6a497d5a494d4a491d3a48fd2a48cd1a489d0a4" +
+      "86cfa584cea581cda57ecca57ccaa579c9a576c8a574c7a571c6a56ec5a56bc4a569c3a566c2a564c0a662bda760bba8" +
+      "5eb9a95cb7aa5ab4ab58b2ac56b0ad54aead52abae50a9af4ea7b04ba4b149a2b247a0b3459eb4439bb54199b63f97b7" +
+      "3d95b83b92b93990ba378ebb358bbc3389bd3387bc3585bb3682ba3880b93a7eb83b7cb73d79b63f77b54175b44273b3" +
+      "4471b2466eb1486cb0496aaf4b68ae4d65ad4e63ac5061aa525fa9545ca8555aa75758a65956a55b53a45c51a35e4fa2"
+
+  private val SPECTRAL =
+    IntArray(256) { i ->
+      val r = SPECTRAL_HEX.substring(i * 6, i * 6 + 2).toInt(16)
+      val g = SPECTRAL_HEX.substring(i * 6 + 2, i * 6 + 4).toInt(16)
+      val b = SPECTRAL_HEX.substring(i * 6 + 4, i * 6 + 6).toInt(16)
+      (0xFF shl 24) or (r shl 16) or (g shl 8) or b
+    }
 
   /** 256-entry inferno color LUT (ARGB). */
   private val INFERNO =

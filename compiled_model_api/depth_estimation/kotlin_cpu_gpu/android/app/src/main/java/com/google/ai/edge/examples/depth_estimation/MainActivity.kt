@@ -109,6 +109,7 @@ class MainActivity : ComponentActivity() {
           sheetContent = {
             BottomSheet(
               inferenceTime = uiState.inferenceTime,
+              onModelSelected = { viewModel.setModel(it) },
               onDelegateSelected = { viewModel.setAccelerator(it) },
               onFlipCamera = viewModel::flipCamera,
             )
@@ -200,6 +201,7 @@ class MainActivity : ComponentActivity() {
   fun BottomSheet(
     inferenceTime: Long,
     modifier: Modifier = Modifier,
+    onModelSelected: (DepthEstimationHelper.Model) -> Unit,
     onDelegateSelected: (DepthEstimationHelper.AcceleratorEnum) -> Unit,
     onFlipCamera: () -> Unit,
   ) {
@@ -230,6 +232,13 @@ class MainActivity : ComponentActivity() {
         Text(text = stringResource(id = R.string.inference_value, inferenceTime))
       }
       Spacer(modifier = Modifier.height(20.dp))
+      OptionMenu(
+        label = stringResource(id = R.string.model),
+        options = DepthEstimationHelper.Model.entries.map { it.displayName },
+      ) { selected ->
+        onModelSelected(DepthEstimationHelper.Model.entries.first { it.displayName == selected })
+      }
+      Spacer(modifier = Modifier.height(10.dp))
       OptionMenu(
         label = stringResource(id = R.string.accelerator),
         options = DepthEstimationHelper.AcceleratorEnum.entries.map { it.name },
