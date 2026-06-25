@@ -1,0 +1,10 @@
+# Android / Gradle build artifacts
+android/.gradle/
+android/build/
+android/app/build/
+android/local.properties
+android/.idea/
+*.iml
+
+# The TTS model is downloaded at install time, never committed (see scripts/install_model.sh)
+*.tflite
