@@ -1,0 +1,13 @@
+// Downloads the MODNet portrait-matting model (converted with litert-torch, FP16) into the
+// assets directory at build time so the .tflite is never committed to the repository.
+//
+// NOTE: update `src` to the final hosting URL once the model is uploaded (e.g. Hugging Face).
+// For local device testing before the upload, drop modnet_512_fp16.tflite into
+// app/src/main/assets/ manually and this task will skip it (overwrite = false).
+tasks.register('downloadModnetModel', Download) {
+    src 'https://huggingface.co/litert-community/MODNet/resolve/main/modnet_512_fp16.tflite'
+    dest project.ext.ASSET_DIR + '/modnet_512_fp16.tflite'
+    overwrite false
+}
+
+preBuild.dependsOn downloadModnetModel
