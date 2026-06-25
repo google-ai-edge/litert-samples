@@ -12,5 +12,6 @@ data class ModelConfig(
     val preferredBackend: String? = null,
     val supportsImage: Boolean = true,
     val supportsAudio: Boolean = false,
-    val defaultPrompt: String = "Describe what you see."
+    val defaultPrompt: String = "Describe what you see.",
+    val maxContext: Int = 2048
 )

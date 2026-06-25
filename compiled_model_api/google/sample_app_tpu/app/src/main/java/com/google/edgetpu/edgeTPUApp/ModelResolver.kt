@@ -19,7 +19,8 @@ class ModelResolver(private val context: Context) {
             preferredBackend = "CPU",
             supportsImage = false,
             supportsAudio = false,
-            defaultPrompt = "What is this?"
+            defaultPrompt = "What is this?",
+            maxContext = 2048
         )
 
         val TINY_GARDEN = ModelConfig(
@@ -31,7 +32,8 @@ class ModelResolver(private val context: Context) {
             preferredBackend = "CPU",
             supportsImage = false,
             supportsAudio = false,
-            defaultPrompt = "Analyze the image."
+            defaultPrompt = "Analyze the image.",
+            maxContext = 2048
         )
 
         val AVAILABLE_MODELS = mutableListOf(GEMMA3_CPU, TINY_GARDEN)
@@ -56,7 +58,8 @@ class ModelResolver(private val context: Context) {
                             preferredBackend = if (obj.has("preferredBackend")) obj.getString("preferredBackend") else null,
                             supportsImage = obj.getBoolean("supportsImage"),
                             supportsAudio = obj.getBoolean("supportsAudio"),
-                            defaultPrompt = obj.getString("defaultPrompt")
+                            defaultPrompt = obj.getString("defaultPrompt"),
+                            maxContext = if (obj.has("maxContext")) obj.getInt("maxContext") else 2048
                         )
                         if (AVAILABLE_MODELS.none { it.id == config.id }) {
                             AVAILABLE_MODELS.add(config)
@@ -87,6 +90,7 @@ class ModelResolver(private val context: Context) {
                     put("supportsImage", model.supportsImage)
                     put("supportsAudio", model.supportsAudio)
                     put("defaultPrompt", model.defaultPrompt)
+                    put("maxContext", model.maxContext)
                 }
                 array.put(obj)
             }

@@ -50,6 +50,7 @@ class LiteRTLMManager private constructor(private val context: Context) {
         preferredBackend: String? = null,
         supportsImage: Boolean = true,
         supportsAudio: Boolean = false,
+        maxContext: Int = 2048,
         initialMessages: List<Message>? = null
     ): Result<Boolean> = withContext(Dispatchers.IO) {
         Log.i(TAG, "Initializing model: $modelPath (preferred: $preferredBackend)")
@@ -60,7 +61,7 @@ class LiteRTLMManager private constructor(private val context: Context) {
 
         try {
             val backends = buildBackendList(preferredBackend)
-            initializeEngineWithFallback(modelPath, backends, systemPrompt, supportsImage, supportsAudio, initialMessages)
+            initializeEngineWithFallback(modelPath, backends, systemPrompt, supportsImage, supportsAudio, maxContext, initialMessages)
             isInitialized = true
             Log.i(TAG, "Initialization SUCCEEDED on backend: $currentBackendName")
             Result.success(true)
@@ -70,8 +71,21 @@ class LiteRTLMManager private constructor(private val context: Context) {
         }
     }
 
+    private fun isPackageInstalled(packageName: String): Boolean {
+        return try {
+            context.packageManager.getPackageInfo(packageName, 0)
+            true
+        } catch (e: Exception) {
+            false
+        }
+    }
+
     private fun buildBackendList(preferred: String?): List<BackendFactory> {
         val nativeLibraryDir = context.applicationInfo.nativeLibraryDir
+        
+        val isNpuAvailable = isPackageInstalled("com.google.android.aicore")
+        Log.i(TAG, "AICore package (com.google.android.aicore) installed: $isNpuAvailable")
+        
         val npuBackend = BackendFactory("NPU") {
             Log.i(TAG, "Using NPU backend with nativeLibraryDir: $nativeLibraryDir")
             Backend.NPU(nativeLibraryDir = nativeLibraryDir)
@@ -79,11 +93,18 @@ class LiteRTLMManager private constructor(private val context: Context) {
         val gpuBackend = BackendFactory("GPU") { Backend.GPU() }
         val cpuBackend = BackendFactory("CPU") { Backend.CPU() }
         
-        return when (preferred?.uppercase()) {
+        val list = when (preferred?.uppercase()) {
             "NPU" -> listOf(npuBackend, gpuBackend, cpuBackend)
             "GPU" -> listOf(gpuBackend, cpuBackend)
             "CPU" -> listOf(cpuBackend, gpuBackend)
             else -> listOf(gpuBackend, cpuBackend)
+        }
+        
+        return if (!isNpuAvailable) {
+            Log.w(TAG, "NPU backend is not available on this device (AICore is missing). Filtering out NPU from fallback chain.")
+            list.filter { it.name != "NPU" }
+        } else {
+            list
         }
     }
 
@@ -93,6 +114,7 @@ class LiteRTLMManager private constructor(private val context: Context) {
         systemPrompt: String?,
         supportsImage: Boolean,
         supportsAudio: Boolean,
+        maxContext: Int,
         initialMessages: List<Message>?
     ) {
         var lastError: Throwable? = null
@@ -100,7 +122,7 @@ class LiteRTLMManager private constructor(private val context: Context) {
         for (factory in backends) {
             try {
                 Log.i(TAG, "Trying backend: ${factory.name}")
-                initializeEngine(modelPath, factory, systemPrompt, supportsImage, supportsAudio, initialMessages)
+                initializeEngine(modelPath, factory, systemPrompt, supportsImage, supportsAudio, maxContext, initialMessages)
                 Log.i(TAG, "Backend ${factory.name} SUCCEEDED")
                 return
             } catch (e: Throwable) {
@@ -118,6 +140,7 @@ class LiteRTLMManager private constructor(private val context: Context) {
         systemPrompt: String?,
         supportsImage: Boolean,
         supportsAudio: Boolean,
+        maxContext: Int,
         initialMessages: List<Message>?
     ) {
         val file = File(modelPath)
@@ -149,6 +172,7 @@ class LiteRTLMManager private constructor(private val context: Context) {
             backend = backend,
             visionBackend = visionBackend,
             audioBackend = audioBackend,
+            maxNumTokens = maxContext,
             maxNumImages = 1,
             cacheDir = context.cacheDir.path
         )
@@ -175,6 +199,7 @@ class LiteRTLMManager private constructor(private val context: Context) {
                 backend = factory.create(),
                 visionBackend = null,
                 audioBackend = null,
+                maxNumTokens = maxContext,
                 maxNumImages = null,
                 cacheDir = context.cacheDir.path
             )

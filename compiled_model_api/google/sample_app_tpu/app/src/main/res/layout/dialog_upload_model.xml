@@ -56,6 +56,19 @@
             android:layout_marginBottom="12dp"
             android:background="@android:drawable/btn_dropdown"/>
 
+        <com.google.android.material.textfield.TextInputLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:hint="Max Context Length (Tokens)"
+            android:layout_marginBottom="12dp">
+
+            <com.google.android.material.textfield.TextInputEditText
+                android:id="@+id/dialogMaxContext"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:inputType="number" />
+        </com.google.android.material.textfield.TextInputLayout>
+
         <CheckBox
             android:id="@+id/dialogSupportsImage"
             android:layout_width="match_parent"
