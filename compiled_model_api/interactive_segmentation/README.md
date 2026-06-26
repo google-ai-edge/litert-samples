@@ -1,5 +1,9 @@
 # LiteRT Interactive Segmentation Sample (SAM 2.1)
 
+<p align="center">
+  <img src="https://huggingface.co/litert-community/SAM2.1-Hiera-Tiny-Mask-Decoder/resolve/main/demo.gif" width="300" alt="Tap to segment demo (SAM 2.1 on LiteRT)">
+</p>
+
 This directory contains an Android **promptable "tap to segment"** sample demonstrating how to use
 LiteRT (Google's runtime for TensorFlow Lite) with the Compiled Model API. Tap any object in a photo
 and the app produces its segmentation mask in real time, using
