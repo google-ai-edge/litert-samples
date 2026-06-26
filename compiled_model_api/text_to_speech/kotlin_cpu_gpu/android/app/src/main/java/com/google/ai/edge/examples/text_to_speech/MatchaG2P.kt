@@ -48,8 +48,22 @@ class MatchaG2P(context: Context) : Closeable {
         // AAPT auto-decompresses .gz assets and strips the extension, so the packaged
         // name is g2p_dict.txt (AssetManager handles the APK compression transparently).
         const val DICT = "g2p_dict.txt"
-        private val WORD = Regex("[a-z']+")
-        private val TOKEN = Regex("[a-z']+|[.,!?;:—…\"]")
+        // case-aware tokens: ACRONYM (2+ caps) | NUMBER | word | punctuation
+        private val TOKEN = Regex("[A-Z]{2,}|\\d[\\d,]*(?:\\.\\d+)?|[A-Za-z']+|[.,!?;:—…\"]")
+        private val ACRO = Regex("[A-Z]{2,}")
+        private val WORD = Regex("[A-Za-z']+")
+        // espeak letter-name IPA — acronyms are spelled out (e.g. "GPU" -> dʒˈiːpˈiːjˈuː)
+        private val LETTER = mapOf(
+            'a' to "ˈeɪ", 'b' to "bˈiː", 'c' to "sˈiː", 'd' to "dˈiː", 'e' to "ˈiː", 'f' to "ˈɛf",
+            'g' to "dʒˈiː", 'h' to "ˈeɪtʃ", 'i' to "ˈaɪ", 'j' to "dʒˈeɪ", 'k' to "kˈeɪ", 'l' to "ˈɛl",
+            'm' to "ˈɛm", 'n' to "ˈɛn", 'o' to "ˈoʊ", 'p' to "pˈiː", 'q' to "kjˈuː", 'r' to "ˈɑːɹ",
+            's' to "ˈɛs", 't' to "tˈiː", 'u' to "jˈuː", 'v' to "vˈiː", 'w' to "dˈʌbəljˌuː",
+            'x' to "ˈɛks", 'y' to "wˈaɪ", 'z' to "zˈiː")
+        private val ONES = arrayOf("zero", "one", "two", "three", "four", "five", "six", "seven", "eight",
+            "nine", "ten", "eleven", "twelve", "thirteen", "fourteen", "fifteen", "sixteen", "seventeen",
+            "eighteen", "nineteen")
+        private val TENS = arrayOf("", "", "twenty", "thirty", "forty", "fifty", "sixty", "seventy", "eighty", "ninety")
+        private val SCALES = arrayOf("", "thousand", "million", "billion", "trillion")
     }
 
     private val dict = HashMap<String, String>(300_000)
@@ -101,22 +115,61 @@ class MatchaG2P(context: Context) : Closeable {
         }
     }
 
-    /** Full text -> matcha symbol ids (blanks are interspersed later by the synthesizer). */
+    /** Full text -> matcha symbol ids (blanks are interspersed later by the synthesizer).
+     *  Host-side text normalization: ALL-CAPS acronyms are spelled letter-by-letter (GPU ->
+     *  "gee pee you") and numbers are read as words (4090 -> "four thousand ninety"). */
     fun phonemize(text: String): IntArray {
         val ipa = StringBuilder()
         var first = true
-        for (m in TOKEN.findAll(text.lowercase())) {
+        fun add(p: String) { if (p.isNotEmpty()) { if (!first) ipa.append(' '); ipa.append(p); first = false } }
+        for (m in TOKEN.findAll(text)) {
             val tok = m.value
-            if (WORD.matches(tok)) {
-                val p = dict[tok] ?: phonemizeWord(tok)   // dict primary, neural OOV fallback
-                if (p.isNotEmpty()) { if (!first) ipa.append(' '); ipa.append(p); first = false }
-            } else {                       // punctuation: attach to the preceding word
-                ipa.append(tok)
+            when {
+                ACRO.matches(tok) -> add(tok.lowercase().mapNotNull { LETTER[it] }.joinToString(""))
+                tok[0].isDigit() -> for (w in numToWords(tok)) add(dict[w] ?: phonemizeWord(w))
+                WORD.matches(tok) -> add(dict[tok.lowercase()] ?: phonemizeWord(tok.lowercase()))  // dict primary, neural OOV
+                else -> ipa.append(tok)    // punctuation: attach to the preceding word
             }
         }
         val out = ArrayList<Int>(ipa.length)
         for (ch in ipa) symbolToId[ch]?.let { out.add(it) }
         return out.toIntArray()
+    }
+
+    /** "1,234.5" -> ["one","thousand","two","hundred","thirty","four","point","five"]. */
+    private fun numToWords(raw: String): List<String> {
+        val tok = raw.replace(",", "")
+        if (tok.contains('.')) {
+            val parts = tok.split('.', limit = 2)
+            val words = (if (parts[0].isNotEmpty()) intToWords(parts[0].toLongOrNull() ?: 0L) else listOf("zero")).toMutableList()
+            words.add("point")
+            for (d in parts[1]) if (d.isDigit()) words.add(ONES[d - '0'])
+            return words
+        }
+        return intToWords(tok.toLongOrNull() ?: return emptyList())
+    }
+
+    private fun under1000(n0: Int): List<String> {
+        var n = n0; val w = ArrayList<String>(4)
+        if (n >= 100) { w.add(ONES[n / 100]); w.add("hundred"); n %= 100 }
+        if (n >= 20) { w.add(TENS[n / 10]); n %= 10 }
+        if (n > 0) w.add(ONES[n])
+        return w
+    }
+
+    private fun intToWords(n0: Long): List<String> {
+        if (n0 == 0L) return listOf("zero")
+        if (n0 < 0) return listOf("minus") + intToWords(-n0)
+        val groups = ArrayList<Int>(); var n = n0
+        while (n > 0) { groups.add((n % 1000).toInt()); n /= 1000 }
+        if (groups.size > SCALES.size) return n0.toString().map { ONES[it - '0'] }   // too big -> digit by digit
+        val out = ArrayList<String>()
+        for (i in groups.indices.reversed()) {
+            if (groups[i] == 0) continue
+            out.addAll(under1000(groups[i]))
+            if (SCALES[i].isNotEmpty()) out.add(SCALES[i])
+        }
+        return out
     }
 
     /** One word -> espeak-style IPA string. */

@@ -53,6 +53,8 @@ Matcha-LJSpeech is trained on espeak en-us IPA, but espeak is GPL. The clean rep
 275k-entry espeak-IPA dictionary (from [OpenPhonemizer](https://github.com/NeuralVox/OpenPhonemizer),
 Clear BSD) as primary + [DeepPhonemizer](https://github.com/as-ideas/DeepPhonemizer) (MIT) on
 LiteRT CPU for out-of-dictionary words. Output IPA maps 1:1 onto the keithito 178-symbol set.
+`MatchaG2P` also normalizes text host-side: ALL-CAPS acronyms are spelled letter-by-letter
+("GPU" → "gee pee you") and numbers are read as words ("4090" → "four thousand ninety").
 
 ## Build & run
 
