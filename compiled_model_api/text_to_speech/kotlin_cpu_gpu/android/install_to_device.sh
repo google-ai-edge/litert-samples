@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Push the Matcha-TTS LiteRT graphs into the app's private filesDir (too big to bundle).
-# Get them from Hugging Face (mlboydaisuke/Matcha-TTS-LiteRT) or build with the scripts in
+# Get them from Hugging Face (litert-community/Matcha-TTS) or build with the scripts in
 # this dir, then:
 #   ./scripts/install_to_device.sh <dir-with-the-tflites>   (default: current dir)
 set -e

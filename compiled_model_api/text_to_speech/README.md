@@ -64,7 +64,7 @@ cd kotlin_cpu_gpu/android
 ```
 
 Get the `.tflite` files from Hugging Face
-([`mlboydaisuke/Matcha-TTS-LiteRT`](https://huggingface.co/mlboydaisuke/Matcha-TTS-LiteRT)) or
+([`litert-community/Matcha-TTS`](https://huggingface.co/litert-community/Matcha-TTS)) or
 build them with [`conversion/`](conversion/). The host tables (`emb.bin`, `g2p_dict.txt.gz`,
 `config.json`, `g2p_meta.json`) are bundled in the app assets. The first launch shows
 "model not found" until the install script has run.
