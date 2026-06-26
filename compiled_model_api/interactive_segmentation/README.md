@@ -8,7 +8,8 @@ This directory contains an Android **promptable "tap to segment"** sample demons
 LiteRT (Google's runtime for TensorFlow Lite) with the Compiled Model API. Tap any object in a photo
 and the app produces its segmentation mask in real time, using
 **[Segment Anything 2.1](https://huggingface.co/facebook/sam2.1-hiera-tiny) (Hiera-Tiny, Meta 2024)**
-split into the two halves of the SAM image path, both running **fully on the GPU**.
+split into the two halves of the SAM image path: a heavy image encoder on the **GPU** and a small mask
+decoder per tap.
 
 ## Overview
 
