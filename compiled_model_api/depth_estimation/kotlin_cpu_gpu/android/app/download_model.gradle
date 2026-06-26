@@ -1,0 +1,16 @@
+// Downloads the depth models into the app assets at build time (fp16, full GPU residency on the
+// LiteRT CompiledModel GPU delegate). The .tflite files are fetched from Hugging Face, not committed.
+tasks.register('midasSmall', Download) {
+    src 'https://huggingface.co/litert-community/MiDaS-small/resolve/main/midas_small_256_fp16.tflite'
+    dest project.ext.ASSET_DIR + '/midas_small_256_fp16.tflite'
+    overwrite false
+}
+
+tasks.register('depthAnything3Small', Download) {
+    src 'https://huggingface.co/litert-community/Depth-Anything-3-Small/resolve/main/da3_small_gpu_fp16.tflite'
+    dest project.ext.ASSET_DIR + '/da3_small_gpu_fp16.tflite'
+    overwrite false
+}
+
+preBuild.dependsOn midasSmall
+preBuild.dependsOn depthAnything3Small
