@@ -1,5 +1,8 @@
 # OCR with LiteRT — PP-OCRv5 (on-device, fully GPU)
 
+<p align="center"><img src="https://huggingface.co/litert-community/PP-OCRv5-LiteRT/resolve/main/hero.png" width="380" alt="PP-OCRv5 on-device OCR on a Pixel 8a"></p>
+
+
 An Android sample that runs [PP-OCRv5](https://github.com/PaddlePaddle/PaddleOCR) (PaddleOCR 2025) text
 detection + recognition end-to-end on device with the LiteRT `CompiledModel` API. It detects text
 regions in an image and reads each line, then overlays the boxes + recognized text.
