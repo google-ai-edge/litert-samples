@@ -45,3 +45,12 @@ NAFNet is a pure CNN (no activations; SimpleGate = channel-split multiply). Thre
    to a 6D reshape; ZeroStuffConvT2d is `RESIZE_NEAREST` + `MUL` + `CONV_2D`).
 
 Result: banned ops NONE, all tensors ≤4D, fp16 38 MB, tflite-vs-torch corr 1.0, device-vs-torch corr 1.0.
+
+
+## Denoising variant (NAFNet-SIDD)
+
+`build_sidd.py` is the same recipe for the **SIDD-width32 denoising** model (config width32 / enc[2,2,4,8] /
+mid12 / dec[2,2,2,2], weights `NAFNet-SIDD-width32.pth` from `nyanko7/nafnet-models`). It produces
+`sidd_fp16.tflite` — push it in place of the deblur model to run denoising in the same app. Device-verified
+on a Pixel 8a: `2179/2179` LITERT_CL, ~46 ms, device-vs-torch corr **0.999999**, no NaN. Model:
+[litert-community/NAFNet-SIDD-width32-LiteRT](https://huggingface.co/litert-community/NAFNet-SIDD-width32-LiteRT).
