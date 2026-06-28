@@ -1,0 +1,50 @@
+import sys, os, collections
+import numpy as np, torch, torch.nn as nn, torch.nn.functional as F
+HERE=os.path.dirname(os.path.abspath(__file__)); sys.path.insert(0,os.path.join(HERE,"L2CS-Net"))
+SIZE=int(os.environ.get("GZ_SIZE","448"))
+BANNED={"GATHER","GATHER_ND","TOPK_V2","GELU","ERF","WHERE","SELECT","SELECT_V2","BROADCAST_TO","POW","TRANSPOSE_CONV","CAST","EMBEDDING_LOOKUP","RFFT2D","FFT","STFT","COMPLEX","RFFT","IRFFT","CUMSUM","MIRROR_PAD"}
+class GAP(nn.Module):
+    def forward(s,x): return x.mean(3,keepdim=True).mean(2,keepdim=True)
+class ZeroPadMaxPool(nn.Module):
+    def forward(s,x): return F.max_pool2d(F.pad(x,(1,1,1,1),value=0.0),kernel_size=3,stride=2,padding=0)
+class Wrap(nn.Module):
+    def __init__(s,m): super().__init__(); s.m=m
+    def forward(s,x):
+        y,p=s.m(x); return F.softmax(y,1), F.softmax(p,1)   # bake softmax; host does expectation
+def build():
+    import torchvision
+    import importlib.util as _u
+    _sp=_u.spec_from_file_location("l2csm", os.path.join(HERE,"model.py"))
+    _mod=_u.module_from_spec(_sp); _sp.loader.exec_module(_mod); L2CS=_mod.L2CS
+    g=L2CS(torchvision.models.resnet.Bottleneck,[3,4,6,3],90)
+    sd=torch.load(f"{HERE}/L2CSNet_gaze360.pkl",map_location="cpu",weights_only=False)
+    sd=sd.get("model_state_dict",sd) if isinstance(sd,dict) and "model_state_dict" in sd else sd
+    miss,unexp=g.load_state_dict(sd,strict=False)
+    g.maxpool=ZeroPadMaxPool(); g.avgpool=GAP(); g.eval()
+    print(f"  loaded gaze360 resnet50; missing {len(miss)} unexpected {len(unexp)}; params {sum(p.numel() for p in g.parameters())/1e6:.2f}M")
+    return Wrap(g).eval()
+def opcheck(p,l):
+    from ai_edge_litert.interpreter import Interpreter
+    it=Interpreter(model_path=p); it.allocate_tensors()
+    ops=collections.Counter(d.get("op_name","?") for d in it._get_ops_details())
+    bad={k:v for k,v in ops.items() if k.upper() in BANNED}; over=sum(1 for d in it.get_tensor_details() if len(d.get("shape",[]))>4)
+    print(f"[{l}] banned:{bad or 'NONE'} >4D:{over} size {os.path.getsize(p)/1e6:.1f}MB","GPU-CLEAN" if not bad and not over else "BLOCKERS")
+    return it
+def to_fp16(fp32,fp16):
+    from ai_edge_quantizer import quantizer, recipe_manager
+    from ai_edge_quantizer.recipe import AlgorithmName, qtyping
+    rm=recipe_manager.RecipeManager()
+    rm.add_quantization_config(regex=".*",operation_name=qtyping.TFLOperationName.ALL_SUPPORTED,op_config=qtyping.OpQuantizationConfig(weight_tensor_config=qtyping.TensorQuantizationConfig(num_bits=16,dtype=qtyping.TensorDataType.FLOAT),compute_precision=qtyping.ComputePrecision.FLOAT),algorithm_key=AlgorithmName.FLOAT_CASTING)
+    if os.path.exists(fp16): os.remove(fp16)
+    q=quantizer.Quantizer(float_model=fp32); q.load_quantization_recipe(rm.get_quantization_recipe()); q.quantize().export_model(fp16); return fp16
+if __name__=="__main__":
+    m=build(); x=torch.rand(1,3,SIZE,SIZE)
+    with torch.no_grad(): y,p=m(x)
+    print(f"forward: yaw {tuple(y.shape)} pitch {tuple(p.shape)}")
+    if (sys.argv[1] if len(sys.argv)>1 else "all")=="forward": sys.exit()
+    import litert_torch
+    fp32=f"{HERE}/gaze.tflite"; litert_torch.convert(m,(x,)).export(fp32)
+    it=opcheck(fp32,"gaze"); d=it.get_input_details()[0]; it.set_tensor(d["index"],x.numpy().astype(d["dtype"])); it.invoke()
+    od=it.get_output_details(); o0=it.get_tensor(od[0]["index"]); 
+    print(f"tflite vs torch yaw corr {np.corrcoef(o0.ravel(),y.numpy().ravel())[0,1]:.6f}")
+    to_fp16(fp32,f"{HERE}/gaze_fp16.tflite"); opcheck(f"{HERE}/gaze_fp16.tflite","gaze_fp16")
