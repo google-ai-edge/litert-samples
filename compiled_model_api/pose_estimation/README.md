@@ -10,6 +10,11 @@ task to the set.
 
 ![pose estimation app screenshot](img/app_screenshot.png)
 
+> **Also in this directory:** [`rtmpose/`](rtmpose/) — a second pose model, **RTMPose-s** (mmpose, Apache-2.0),
+> the SOTA real-time **top-down** estimator (single centered person, SimCC head, ~4 ms, fully GPU). It
+> complements the bottom-up lightweight-OpenPose model here. Each has its own self-contained app and
+> `conversion/` recipe.
+
 ## Overview
 
 The model is a MobileNet-based heatmap pose network. Crucially, **the model only outputs
