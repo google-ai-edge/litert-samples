@@ -1,0 +1,7 @@
+// Downloads the XFeat LiteRT model (Apache-2.0) from litert-community into assets/.
+tasks.register('downloadXFeat', Download) {
+    src 'https://huggingface.co/litert-community/xfeat-litert/resolve/main/xfeat.tflite'
+    dest project.ext.ASSET_DIR + '/xfeat.tflite'
+    overwrite false
+}
+preBuild.dependsOn downloadXFeat
