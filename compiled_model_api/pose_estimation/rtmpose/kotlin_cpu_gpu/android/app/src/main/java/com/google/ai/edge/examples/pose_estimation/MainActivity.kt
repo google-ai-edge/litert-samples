@@ -74,8 +74,13 @@ class MainActivity : Activity() {
         bg.execute {
             try {
                 net = RtmPoseEstimator(this)
-                val bundled = cropPerson(BitmapFactory.decodeStream(assets.open("test_image.jpg")))
-                run(bundled, warm = true)
+                // Optional bundled demo image; if absent just wait for a picked image.
+                try {
+                    val bundled = cropPerson(BitmapFactory.decodeStream(assets.open("test_image.jpg")))
+                    run(bundled, warm = true)
+                } catch (_: java.io.IOException) {
+                    runOnUiThread { status.text = "Ready — pick an image to estimate pose." }
+                }
                 runOnUiThread { pick.isEnabled = true }
             } catch (e: Throwable) {
                 Log.e(tag, "load failed", e)
