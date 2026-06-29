@@ -2,22 +2,25 @@
 
 An Android sample that runs **RT-DETRv2-S** ([lyuwenyu/RT-DETR](https://github.com/lyuwenyu/RT-DETR),
 Baidu 2024, `PekingU/rtdetr_v2_r18vd`, Apache-2.0) end-to-end on device with the LiteRT `CompiledModel`
-API. RT-DETRv2 is a real-time **transformer** detector (ResNet18-vd backbone + a hybrid AIFI/CCFM encoder
-+ a plain deformable-attention DETR decoder). Both transformer graphs run on the GPU; only the topk
-selection and a tiny per-token tail run on the CPU. The app detects objects in a bundled image and any
-image picked from the gallery, drawing the boxes + COCO labels.
+API. RT-DETRv2 is a **transformer** detector (ResNet18-vd backbone + a hybrid AIFI/CCFM encoder + a plain
+deformable-attention DETR decoder). Both transformer graphs run on the GPU; only the topk selection and a
+tiny per-token tail run on the CPU. This is a **still-image** demo (bundled image + gallery pick): the
+GATHER-free deformable decoder over RT-DETR's 8400 tokens / 80×80 levels costs ~350 ms of GPU compute, so
+it is accurate but not real-time on-device (~615 ms/frame). (The sibling [RF-DETR](../rf_detr_kotlin_gpu)
+sample — one small 24×24 deformable level — is the real-time camera demo.)
 
 ## Model (two-graph split)
 
 | Graph | In → Out | Delegate (Pixel 8a) |
 | :-- | :-- | :--: |
-| Graph A — backbone + hybrid encoder + score head | image[1,3,640,640] → enc_class[1,8400,80], memory_raw[1,8400,256] | **GPU** ~6 ms |
+| Graph A — backbone + hybrid encoder + score head | image[1,3,640,640] → enc_class[1,8400,80], memory_raw[1,8400,256] | **GPU** fully `LITERT_CL` |
 | Graph B — two-stage combine + plain decoder + heads | (memory_raw, target[1,300,256], ref[1,300,4]) → boxes[1,300,4], logits[1,300,80] | **GPU** `704/704` |
 
 fp16, converted with [litert-torch](https://github.com/google-ai-edge/litert) — per-graph tflite-vs-torch
 corr **1.0**. On a Pixel 8a (Tensor G3): both graphs fully on `LITERT_CL`; the device chain reproduces the
 PyTorch detections **exactly** — COCO val *giraffe* image **7/7**, *cats* image **6/6**, every box at
-**IoU 0.98–1.00** with matching class and score.
+**IoU 0.98–1.00** with matching class and score. End-to-end ~615 ms/frame (Graph B's deformable decoder
+dominates).
 
 ## How it splits (and why it's fully GPU)
 
