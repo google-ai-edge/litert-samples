@@ -16,129 +16,135 @@
 
 package com.google.ai.edge.examples.rf_detr
 
-import android.app.Activity
+import android.Manifest
 import android.content.Context
-import android.content.Intent
+import android.content.pm.PackageManager
 import android.graphics.Bitmap
-import android.graphics.BitmapFactory
 import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.Matrix
 import android.graphics.Paint
-import android.media.ExifInterface
-import android.net.Uri
+import android.graphics.RectF
 import android.os.Bundle
 import android.util.Log
+import android.util.Size
+import android.view.Gravity
 import android.view.View
-import android.widget.Button
-import android.widget.LinearLayout
-import android.widget.ScrollView
+import android.widget.FrameLayout
 import android.widget.TextView
+import androidx.activity.ComponentActivity
+import androidx.camera.core.CameraSelector
+import androidx.camera.core.ImageAnalysis
+import androidx.camera.core.ImageProxy
+import androidx.camera.lifecycle.ProcessCameraProvider
+import androidx.core.content.ContextCompat
 import java.util.concurrent.Executors
 
 /**
- * RF-DETR Nano demo: object detection fully on the GPU (both transformer graphs on CompiledModel GPU;
- * only topk/gather + decode + NMS on CPU). Runs on a bundled image at launch and on any gallery image.
+ * RF-DETR Nano real-time demo: live camera object detection with both transformer graphs on CompiledModel
+ * GPU (only topk/gather + decode + NMS on CPU). Each camera frame is squashed to 384×384, detected, and
+ * drawn with its boxes + COCO labels. ~9 fps on a Pixel 8a (a transformer detector, fully on the GPU).
  */
-class MainActivity : Activity() {
+class MainActivity : ComponentActivity() {
 
   private val tag = "RFDETR"
-  private val bg = Executors.newSingleThreadExecutor()
+  private val analysisExec = Executors.newSingleThreadExecutor()
   private var model: RfDetr? = null
   private var labels: List<String> = emptyList()
-  private val pickReq = 100
 
   private lateinit var status: TextView
   private lateinit var overlay: OverlayView
-  private lateinit var results: TextView
+  private var emaMs = 0f
 
   override fun onCreate(savedInstanceState: Bundle?) {
     super.onCreate(savedInstanceState)
-    val root = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(24, 80, 24, 24) }
-    status = TextView(this).apply { textSize = 15f; text = "Loading RF-DETR on GPU…" }
-    val pick = Button(this).apply {
-      text = "🖼  Pick image"; isEnabled = false
-      setOnClickListener {
-        startActivityForResult(Intent(Intent.ACTION_GET_CONTENT).apply { type = "image/*" }, pickReq)
-      }
-    }
+    val root = FrameLayout(this)
     overlay = OverlayView(this)
-    results = TextView(this).apply { textSize = 14f; setPadding(0, 24, 0, 0) }
-    root.addView(status); root.addView(pick)
-    root.addView(overlay, LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, 900))
-    root.addView(ScrollView(this).apply { addView(results) })
+    status = TextView(this).apply {
+      textSize = 14f; setTextColor(Color.WHITE); setBackgroundColor(0xAA000000.toInt())
+      setPadding(24, 70, 24, 16); text = "Loading RF-DETR on GPU…"
+    }
+    root.addView(overlay, FrameLayout.LayoutParams(-1, -1))
+    root.addView(status, FrameLayout.LayoutParams(-1, -2, Gravity.TOP))
     setContentView(root)
 
-    bg.execute {
+    labels = assets.open("coco_labels.txt").bufferedReader().readLines()
+    if (ContextCompat.checkSelfPermission(this, Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED)
+      initModelAndCamera()
+    else
+      requestPermissions(arrayOf(Manifest.permission.CAMERA), 1)
+  }
+
+  override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<String>, grantResults: IntArray) {
+    super.onRequestPermissionsResult(requestCode, permissions, grantResults)
+    if (grantResults.firstOrNull() == PackageManager.PERMISSION_GRANTED) initModelAndCamera()
+    else runOnUiThread { status.text = "Camera permission denied" }
+  }
+
+  private fun initModelAndCamera() {
+    analysisExec.execute {
       try {
-        labels = assets.open("coco_labels.txt").bufferedReader().readLines()
-        model = RfDetr(this)
-        val bundled = squareResize(BitmapFactory.decodeStream(assets.open("test_image.jpg")))
-        runDetect(bundled, warm = true)
-        runOnUiThread { pick.isEnabled = true }
+        model = RfDetr(this)                       // load + compile GPU off the main thread
+        runOnUiThread { startCamera() }
       } catch (e: Throwable) {
-        Log.e(tag, "load failed", e)
-        runOnUiThread {
-          status.setBackgroundColor(Color.rgb(0xFF, 0xCD, 0xD2)); status.text = "FAIL: ${e.message}"
-        }
+        Log.e(tag, "model load failed", e)
+        runOnUiThread { status.text = "FAIL: ${e.message}" }
       }
     }
   }
 
-  override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
-    super.onActivityResult(requestCode, resultCode, data)
-    if (requestCode != pickReq || resultCode != RESULT_OK) return
-    val uri = data?.data ?: return
-    runOnUiThread { status.text = "Detecting…" }
-    bg.execute {
-      try {
-        runDetect(squareResize(loadOriented(uri)), warm = false)
-      } catch (e: Throwable) {
-        Log.e(tag, "detect failed", e)
-        runOnUiThread { status.text = "Failed: ${e.message}" }
+  private fun startCamera() {
+    val future = ProcessCameraProvider.getInstance(this)
+    future.addListener({
+      val provider = future.get()
+      val analysis = ImageAnalysis.Builder()
+        .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
+        .setOutputImageFormat(ImageAnalysis.OUTPUT_IMAGE_FORMAT_RGBA_8888)
+        .setTargetResolution(Size(RfDetr.SIZE, RfDetr.SIZE))
+        .build()
+      analysis.setAnalyzer(analysisExec) { proxy -> processFrame(proxy) }
+      provider.unbindAll()
+      provider.bindToLifecycle(this, CameraSelector.DEFAULT_BACK_CAMERA, analysis)
+    }, ContextCompat.getMainExecutor(this))
+  }
+
+  private fun processFrame(proxy: ImageProxy) {
+    val m = model ?: run { proxy.close(); return }
+    try {
+      val frame = proxyToBitmap(proxy)
+      val square = Bitmap.createScaledBitmap(frame, RfDetr.SIZE, RfDetr.SIZE, true)
+      val rgb = bitmapToRgb(square)
+      val t0 = System.nanoTime()
+      val dets = m.detect(rgb)
+      val ms = (System.nanoTime() - t0) / 1e6f
+      emaMs = if (emaMs == 0f) ms else emaMs * 0.8f + ms * 0.2f
+      val fps = 1000f / emaMs
+      runOnUiThread {
+        overlay.bitmap = frame; overlay.dets = dets; overlay.labels = labels; overlay.invalidate()
+        status.text = "RF-DETR Nano on CompiledModel GPU ✓  ${dets.size} objects · " +
+          "${"%.1f".format(fps)} fps (${ms.toInt()} ms)"
       }
+    } catch (e: Throwable) {
+      Log.e(tag, "frame failed", e)
+    } finally {
+      proxy.close()
     }
   }
 
-  private fun runDetect(img: Bitmap, warm: Boolean) {
-    val m = model!!
-    val rgb = bitmapToRgb(img)
-    if (warm) m.detect(rgb)                          // warm up GPU shaders once
-    val t0 = System.nanoTime()
-    val dets = m.detect(rgb)
-    val ms = (System.nanoTime() - t0) / 1_000_000
-    Log.i(tag, "detections=${dets.size} ${ms}ms")
-    runOnUiThread {
-      status.setBackgroundColor(Color.rgb(0xC8, 0xE6, 0xC9))
-      status.text = "On-device GPU detection ✓  ${dets.size} objects · ${ms} ms\n" +
-        "RF-DETR Nano — both transformer graphs on CompiledModel GPU"
-      overlay.bitmap = img; overlay.dets = dets; overlay.labels = labels; overlay.invalidate()
-      results.text = if (dets.isEmpty()) "(no objects found)" else dets.joinToString("\n") {
-        "• ${labelOf(it.cls)}  ${(it.score * 100).toInt()}%"
-      }
-    }
+  /** ImageProxy (RGBA_8888) -> upright Bitmap (handles row padding + sensor rotation). */
+  private fun proxyToBitmap(proxy: ImageProxy): Bitmap {
+    val plane = proxy.planes[0]
+    val buf = plane.buffer.apply { rewind() }
+    val pixelStride = plane.pixelStride
+    val rowPadPx = (plane.rowStride - pixelStride * proxy.width) / pixelStride
+    val bmp = Bitmap.createBitmap(proxy.width + rowPadPx, proxy.height, Bitmap.Config.ARGB_8888)
+    bmp.copyPixelsFromBuffer(buf)
+    val cropped = if (rowPadPx > 0) Bitmap.createBitmap(bmp, 0, 0, proxy.width, proxy.height) else bmp
+    val rot = proxy.imageInfo.rotationDegrees
+    return if (rot == 0) cropped
+    else Bitmap.createBitmap(cropped, 0, 0, cropped.width, cropped.height,
+      Matrix().apply { postRotate(rot.toFloat()) }, true)
   }
-
-  private fun labelOf(cls: Int) = labels.getOrNull(cls)?.ifBlank { "id $cls" } ?: "id $cls"
-
-  private fun loadOriented(uri: Uri): Bitmap {
-    val bm = contentResolver.openInputStream(uri).use { BitmapFactory.decodeStream(it) }
-      ?: error("cannot decode image")
-    val rot = contentResolver.openInputStream(uri).use {
-      when (ExifInterface(it!!).getAttributeInt(ExifInterface.TAG_ORIENTATION, 1)) {
-        ExifInterface.ORIENTATION_ROTATE_90 -> 90f
-        ExifInterface.ORIENTATION_ROTATE_180 -> 180f
-        ExifInterface.ORIENTATION_ROTATE_270 -> 270f
-        else -> 0f
-      }
-    }
-    if (rot == 0f) return bm
-    return Bitmap.createBitmap(bm, 0, 0, bm.width, bm.height, Matrix().apply { postRotate(rot) }, true)
-  }
-
-  /** Square resize to SIZE×SIZE (squash, matches RF-DETR's F.resize([res,res]) preprocessing). */
-  private fun squareResize(src: Bitmap): Bitmap =
-    Bitmap.createScaledBitmap(src, RfDetr.SIZE, RfDetr.SIZE, true)
 
   private fun bitmapToRgb(bm: Bitmap): FloatArray {
     val n = bm.width * bm.height; val px = IntArray(n)
@@ -152,16 +158,16 @@ class MainActivity : Activity() {
     return out
   }
 
-  override fun onDestroy() { super.onDestroy(); bg.shutdown(); model?.close() }
+  override fun onDestroy() { super.onDestroy(); analysisExec.shutdown(); model?.close() }
 
-  /** Draws the resized image and the detection boxes (coords are normalized [0,1] in SIZE space). */
+  /** Draws the latest frame (FIT_CENTER) and the detection boxes (coords normalized [0,1]). */
   class OverlayView(ctx: Context) : View(ctx) {
     var bitmap: Bitmap? = null
     var dets: List<RfDetr.Detection> = emptyList()
     var labels: List<String> = emptyList()
-    private val box = Paint().apply { color = Color.rgb(0x00, 0xC8, 0x53); style = Paint.Style.STROKE; strokeWidth = 4f }
-    private val txt = Paint().apply { color = Color.WHITE; textSize = 30f; isFakeBoldText = true }
-    private val bgp = Paint().apply { color = Color.rgb(0x00, 0xC8, 0x53); style = Paint.Style.FILL }
+    private val box = Paint().apply { style = Paint.Style.STROKE; strokeWidth = 5f }
+    private val txt = Paint().apply { color = Color.WHITE; textSize = 34f; isFakeBoldText = true }
+    private val bgp = Paint().apply { style = Paint.Style.FILL }
     private val palette = intArrayOf(
       0xFF00C853.toInt(), 0xFFFF6D00.toInt(), 0xFF2962FF.toInt(), 0xFFD50000.toInt(),
       0xFFAA00FF.toInt(), 0xFF00B8D4.toInt(), 0xFFFFD600.toInt(), 0xFFC51162.toInt())
@@ -169,18 +175,20 @@ class MainActivity : Activity() {
     override fun onDraw(canvas: Canvas) {
       val bm = bitmap ?: return
       val s = minOf(width.toFloat() / bm.width, height.toFloat() / bm.height)
-      canvas.drawBitmap(bm, null, android.graphics.RectF(0f, 0f, bm.width * s, bm.height * s), null)
+      val dw = bm.width * s; val dh = bm.height * s
+      val ox = (width - dw) / 2f; val oy = (height - dh) / 2f
+      canvas.drawBitmap(bm, null, RectF(ox, oy, ox + dw, oy + dh), null)
       for (d in dets) {
         val color = palette[d.cls % palette.size]
         box.color = color; bgp.color = color
-        val x0 = (d.cx - d.w / 2) * RfDetr.SIZE * s; val y0 = (d.cy - d.h / 2) * RfDetr.SIZE * s
-        val x1 = (d.cx + d.w / 2) * RfDetr.SIZE * s; val y1 = (d.cy + d.h / 2) * RfDetr.SIZE * s
+        val x0 = ox + (d.cx - d.w / 2) * dw; val y0 = oy + (d.cy - d.h / 2) * dh
+        val x1 = ox + (d.cx + d.w / 2) * dw; val y1 = oy + (d.cy + d.h / 2) * dh
         canvas.drawRect(x0, y0, x1, y1, box)
         val name = labels.getOrNull(d.cls)?.ifBlank { "id ${d.cls}" } ?: "id ${d.cls}"
         val label = "$name ${(d.score * 100).toInt()}%"
         val tw = txt.measureText(label)
-        canvas.drawRect(x0, y0 - 36f, x0 + tw + 12f, y0, bgp)
-        canvas.drawText(label, x0 + 6f, y0 - 8f, txt)
+        canvas.drawRect(x0, y0 - 40f, x0 + tw + 14f, y0, bgp)
+        canvas.drawText(label, x0 + 7f, y0 - 9f, txt)
       }
     }
   }

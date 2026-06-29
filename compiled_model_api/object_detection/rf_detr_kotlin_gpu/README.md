@@ -1,12 +1,12 @@
-# Object Detection with LiteRT — RF-DETR Nano (on-device, fully-GPU)
+# Object Detection with LiteRT — RF-DETR Nano (real-time camera, fully-GPU)
 
 An Android sample that runs **RF-DETR Nano** ([roboflow/rf-detr](https://github.com/roboflow/rf-detr),
 Roboflow 2025, an LW-DETR derivative, Apache-2.0) end-to-end on device with the LiteRT `CompiledModel` API.
 RF-DETR is a **transformer** detector (windowed DINOv2-S backbone + deformable-attention DETR decoder) — a
 family that doesn't ride the GPU API off-the-shelf (deformable `grid_sample` → `GATHER_ND`, windowed
 attention → 5D/6D tensors, two-stage query selection → `TOPK`/`GATHER`). Here every one of those is
-re-authored or split out, so the whole detector runs on the GPU. The app detects objects in a bundled
-image and any image picked from the gallery, drawing the boxes + COCO labels.
+re-authored or split out, so the whole detector runs on the GPU. The app runs **live camera** detection
+(CameraX), drawing the boxes + COCO labels on each frame.
 
 ## Model (two-graph split)
 
@@ -16,8 +16,10 @@ image and any image picked from the gallery, drawing the boxes + COCO labels.
 | Graph B — two-stage combine + decoder + heads | (memory, refpoint_ts[1,300,4]) → boxes[1,300,4], logits[1,300,91] | **GPU** `404/404` |
 
 fp16, converted with [litert-torch](https://github.com/google-ai-edge/litert) — per-graph tflite-vs-torch
-corr **1.0**. On a Pixel 8a (Tensor G3): both graphs fully on `LITERT_CL`, **≈27 ms** model time; on a real
-image the device chain reproduces the PyTorch detections at **IoU 0.98–0.99** (same class, matching score).
+corr **1.0**. On a Pixel 8a (Tensor G3): both graphs fully on `LITERT_CL` (Graph A `1381/1381`, Graph B
+`404/404`), and the **live camera runs at ~9 fps (~110 ms/frame end-to-end)** — a transformer detector
+running entirely on the GPU. On a real image the device chain reproduces the PyTorch detections at
+**IoU 0.98–0.99** (same class, matching score).
 
 ## How it splits (and why it's fully GPU)
 
@@ -53,15 +55,16 @@ near-duplicate queries). Preprocessing: square resize to 384×384, RGB, ImageNet
    ./gradlew :app:installDebug
    ./install_to_device.sh <dir-with-the-two-tflites>
    ```
-   (`test_image.jpg` + `coco_labels.txt` are bundled.)
-3. Launch **RF-DETR** — it compiles the GPU shaders (~1 s/graph on first launch), then detects objects.
+   (`coco_labels.txt` is bundled.)
+3. Launch **RF-DETR** and grant the camera permission — it compiles the GPU shaders (~1 s/graph on first
+   launch), then runs live detection.
 
 ## Files
 
 | File | Description |
 |------|-------------|
 | `android/.../rf_detr/RfDetr.kt` | Both GPU graphs on CompiledModel + host topk/gather + decode + per-class NMS |
-| `android/.../rf_detr/MainActivity.kt` | Runs detection on a bundled image / gallery pick, overlays boxes + labels |
+| `android/.../rf_detr/MainActivity.kt` | CameraX live detection, overlays boxes + labels on each frame |
 | `android/.../assets/coco_labels.txt` | 91-line COCO label table (index = COCO category id) |
 | `conversion/` | litert-torch conversion (2-graph split + SafeLayerNorm) + notes |
 
