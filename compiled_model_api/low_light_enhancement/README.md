@@ -1,9 +1,6 @@
 # Low-Light Enhancement with LiteRT — CPGA-Net (on-device, fully-GPU)
 
-An Android sample that runs **CPGA-Net** ([Shyandram/CPGA-Net-Pytorch](https://github.com/Shyandram/CPGA-Net-Pytorch),
-IJPRAI, MIT) end-to-end on device with the LiteRT `CompiledModel` API — **brightens dark photos** via Channel
-Prior + Gamma Correction. At **0.025 M params / 0.1 MB fp16** it is one of the smallest deep models you can run.
-The app shows the enhanced image; press-and-hold to compare with the original.
+An Android sample that runs **CPGA-Net** ([Shyandram/CPGA-Net-Pytorch](https://github.com/Shyandram/CPGA-Net-Pytorch), IJPRAI, MIT) end-to-end on device with the LiteRT `CompiledModel` API — **brightens dark photos** via Channel Prior + Gamma Correction. At **0.025 M params / 0.1 MB fp16** it is one of the smallest deep models you can run. The app shows the enhanced image; press-and-hold to compare with the original.
 
 ## Model
 
@@ -11,9 +8,7 @@ The app shows the enhanced image; press-and-hold to compare with the original.
 | :-- | :-- | :--: |
 | CPGA-Net | image[1,3,256,256] (RGB [0,1]) → enhanced[1,3,256,256] | **GPU** |
 
-fp16, converted with [litert-torch](https://github.com/google-ai-edge/litert) — tflite-vs-torch corr **1.0**,
-device-vs-torch corr **0.99999**. On a Pixel 8a (Tensor G3): **135 / 135** nodes on `LITERT_CL` (full GPU),
-**~2 ms**, **0.1 MB** fp16.
+fp16, converted with [litert-torch](https://github.com/google-ai-edge/litert) — tflite-vs-torch corr **1.0**, device-vs-torch corr **0.99999**. On a Pixel 8a (Tensor G3): **135 / 135** nodes on `LITERT_CL` (full GPU), **~2 ms**, **0.1 MB** fp16.
 
 ## Re-authoring (litert-torch) — three numerically-exact fixes
 
@@ -25,8 +20,7 @@ See [`conversion/`](conversion/).
 
 ## Run
 
-1. Build the tflite with `conversion/build_cpga.py`, or get it from
-   [litert-community/CPGA-Net-LowLight-LiteRT](https://huggingface.co/litert-community/CPGA-Net-LowLight-LiteRT).
+1. Build the tflite with `conversion/build_cpga.py`, or get it from [litert-community/CPGA-Net-LowLight-LiteRT](https://huggingface.co/litert-community/CPGA-Net-LowLight-LiteRT).
 2. Build/install the app and push the model:
    ```bash
    cd kotlin_cpu_gpu/android
