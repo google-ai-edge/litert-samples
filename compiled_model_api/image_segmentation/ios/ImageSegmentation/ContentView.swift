@@ -57,12 +57,14 @@ struct ContentView: View {
     var body: some View {
         ZStack(alignment: .bottom) {
             VStack(spacing: 0) {
-                // Custom Navigation Header
                 HStack(spacing: 8) {
-                    Image("logo")
-                        .resizable()
-                        .scaledToFit()
-                        .frame(height: 28)
+                    if let logoPath = Bundle.main.path(forResource: "logo", ofType: "png"),
+                       let uiImage = UIImage(contentsOfFile: logoPath) {
+                        Image(uiImage: uiImage)
+                            .resizable()
+                            .scaledToFit()
+                            .frame(height: 28)
+                    }
                     Text("LiteRT")
                         .font(.title2)
                         .fontWeight(.bold)
