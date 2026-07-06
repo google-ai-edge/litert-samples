@@ -23,7 +23,7 @@ import os
 import sys
 import numpy as np
 from ai_edge_litert.compiled_model import CompiledModel
-from PIL import Image
+from imagenet_preprocessing import infer_input_size, load_image, pick_preprocess_config
 
 
 _LITERT_TYPE_TO_NP = {
@@ -40,137 +40,6 @@ def _default_model_path() -> str:
 
 def _default_label_path(filename: str) -> str:
   return os.path.join(os.getcwd(), filename)
-
-
-# https://docs.pytorch.org/vision/main/models/generated/torchvision.models.mobilenet_v2.html
-def _load_image(
-    image_path: str,
-    channels: int,
-    resize_size: int,
-    crop_height: int,
-    crop_width: int,
-    mean: np.ndarray,
-    std: np.ndarray,
-    resample: int,
-) -> np.ndarray:
-  # Torchvision ImageNet models assume this preprocessing (resize/crop plus
-  # mean/std normalization from torchvision docs). If your model was converted
-  # from a different training pipeline, update these constants and transforms or
-  # you may get poor accuracy.
-  if channels != 3:
-    raise ValueError(f"Expected 3 channels, got {channels}")
-  if resize_size <= 0 or crop_height <= 0 or crop_width <= 0:
-    raise ValueError(
-        f"Invalid resize/crop size: resize={resize_size}, crop={crop_height}x{crop_width}"
-    )
-  image = Image.open(image_path).convert("RGB")
-  width, height = image.size
-  if width < height:
-    new_width = resize_size
-    new_height = int(round(height * resize_size / width))
-  else:
-    new_height = resize_size
-    new_width = int(round(width * resize_size / height))
-  image = image.resize((new_width, new_height), resample)
-  left = int(round((new_width - crop_width) / 2.0))
-  top = int(round((new_height - crop_height) / 2.0))
-  image = image.crop((left, top, left + crop_width, top + crop_height))
-  array = np.asarray(image, dtype=np.int32)
-  array = array.astype(np.float32) / 255.0
-  array = (array - mean) / std
-  array = np.transpose(array, (2, 0, 1))
-  return array
-
-# Used in the classify path
-def _infer_input_size(model, signature_index: int) -> tuple[int, int, bool]:
-  """Infer the model's input HxW and layout (channels_first) for preprocessing."""
-  default_size = (224, 224)
-  default_channels_first = True
-  # Try to infer HxW/layout from the compiled model input metadata; fall back.
-  try:
-    requirements = model.get_input_buffer_requirements(0, signature_index)
-  except Exception:
-    return default_size[0], default_size[1], default_channels_first
-  dims = (
-      requirements.get("dimensions")
-      or requirements.get("shape")
-      or requirements.get("dims")
-  )
-  if not dims:
-    return default_size[0], default_size[1], default_channels_first
-  try:
-    dims = [int(dim) for dim in dims]
-  except Exception:
-    return default_size[0], default_size[1], default_channels_first
-
-  # Handle common NCHW/NHWC shapes, tolerating unknown batch or dim values.
-  if len(dims) == 4:
-    if dims[1] == 3:
-      return dims[2], dims[3], True  # NCHW
-    if dims[-1] == 3:
-      return dims[1], dims[2], False  # NHWC
-    if dims[0] in (1, -1):
-      dims = dims[1:]
-
-  if len(dims) == 3:
-    if dims[0] == 3:
-      return dims[1], dims[2], True  # CHW
-    if dims[-1] == 3:
-      return dims[0], dims[1], False  # HWC
-
-  return default_size[0], default_size[1], default_channels_first
-
-def _pick_preprocess_config(
-    model_path: str, input_height: int, input_width: int
-) -> dict:
-  model_name = os.path.basename(model_path).lower()
-  if "efficientnet_v2_s" in model_name:
-    return {
-        "resize_size": 384,
-        "crop_height": 384,
-        "crop_width": 384,
-        "mean": np.array([0.485, 0.456, 0.406], dtype=np.float32),
-        "std": np.array([0.229, 0.224, 0.225], dtype=np.float32),
-        "resample": Image.BILINEAR,
-    }
-  if "efficientnet_v2_m" in model_name:
-    return {
-        "resize_size": 480,
-        "crop_height": 480,
-        "crop_width": 480,
-        "mean": np.array([0.485, 0.456, 0.406], dtype=np.float32),
-        "std": np.array([0.229, 0.224, 0.225], dtype=np.float32),
-        "resample": Image.BILINEAR,
-    }
-  if "efficientnet_v2_l" in model_name:
-    return {
-        "resize_size": 480,
-        "crop_height": 480,
-        "crop_width": 480,
-        "mean": np.array([0.5, 0.5, 0.5], dtype=np.float32),
-        "std": np.array([0.5, 0.5, 0.5], dtype=np.float32),
-        "resample": Image.BICUBIC,
-    }
-  if "efficientnet_b" in model_name:
-    return {
-        "resize_size": 600,
-        "crop_height": 600,
-        "crop_width": 600,
-        "mean": np.array([0.485, 0.456, 0.406], dtype=np.float32),
-        "std": np.array([0.229, 0.224, 0.225], dtype=np.float32),
-        "resample": Image.BICUBIC,
-    }
-  crop_height = input_height if input_height > 0 else 224
-  crop_width = input_width if input_width > 0 else 224
-  resize_size = int(round(max(crop_height, crop_width) / 0.875))
-  return {
-      "resize_size": resize_size,
-      "crop_height": crop_height,
-      "crop_width": crop_width,
-      "mean": np.array([0.485, 0.456, 0.406], dtype=np.float32),
-      "std": np.array([0.229, 0.224, 0.225], dtype=np.float32),
-      "resample": Image.BILINEAR,
-  }
 
 
 def _pick_output_dtype(requirements: dict) -> np.dtype:
@@ -289,12 +158,34 @@ def _parse_convert_args(argv: list[str]):
           "efficientnet_v2_s",
           "efficientnet_v2_m",
           "efficientnet_v2_l",
+          "alexnet",
+          "convnext_tiny",
+          "convnext_small",
+          "convnext_base",
+          "convnext_large",
+          "vgg11",
+          "vgg11_bn",
+          "vgg13",
+          "vgg13_bn",
+          "vgg16",
+          "vgg16_bn",
+          "vgg19",
+          "vgg19_bn",
           "mobilenet_v2",
+          "mobilenet_v3_large",
+          "mobilenet_v3_small",
           "resnet18",
           "resnet34",
           "resnet50",
           "resnet101",
           "resnet152",
+          "shufflenet_v2_x0_5",
+          "shufflenet_v2_x1_0",
+          "shufflenet_v2_x1_5",
+          "shufflenet_v2_x2_0",
+          "squeezenet1_0",
+          "squeezenet1_1",
+          "inception_v3",
       ),
       default="mobilenet_v2",
       help="Torchvision model architecture.",
@@ -344,71 +235,159 @@ def _init_torchvision_model(arch: str):
   model_specs = {
       "efficientnet_b0": (
           torchvision.models.efficientnet_b0,
-          torchvision.models.EfficientNet_B0_Weights.IMAGENET1K_V1,
+          torchvision.models.EfficientNet_B0_Weights.DEFAULT,
       ),
       "efficientnet_b1": (
           torchvision.models.efficientnet_b1,
-          torchvision.models.EfficientNet_B1_Weights.IMAGENET1K_V1,
+          torchvision.models.EfficientNet_B1_Weights.DEFAULT,
       ),
       "efficientnet_b2": (
           torchvision.models.efficientnet_b2,
-          torchvision.models.EfficientNet_B2_Weights.IMAGENET1K_V1,
+          torchvision.models.EfficientNet_B2_Weights.DEFAULT,
       ),
       "efficientnet_b3": (
           torchvision.models.efficientnet_b3,
-          torchvision.models.EfficientNet_B3_Weights.IMAGENET1K_V1,
+          torchvision.models.EfficientNet_B3_Weights.DEFAULT,
       ),
       "efficientnet_b4": (
           torchvision.models.efficientnet_b4,
-          torchvision.models.EfficientNet_B4_Weights.IMAGENET1K_V1,
+          torchvision.models.EfficientNet_B4_Weights.DEFAULT,
       ),
       "efficientnet_b5": (
           torchvision.models.efficientnet_b5,
-          torchvision.models.EfficientNet_B5_Weights.IMAGENET1K_V1,
+          torchvision.models.EfficientNet_B5_Weights.DEFAULT,
       ),
       "efficientnet_b6": (
           torchvision.models.efficientnet_b6,
-          torchvision.models.EfficientNet_B6_Weights.IMAGENET1K_V1,
+          torchvision.models.EfficientNet_B6_Weights.DEFAULT,
       ),
       "efficientnet_b7": (
           torchvision.models.efficientnet_b7,
-          torchvision.models.EfficientNet_B7_Weights.IMAGENET1K_V1,
+          torchvision.models.EfficientNet_B7_Weights.DEFAULT,
       ),
       "efficientnet_v2_s": (
           torchvision.models.efficientnet_v2_s,
-          torchvision.models.EfficientNet_V2_S_Weights.IMAGENET1K_V1,
+          torchvision.models.EfficientNet_V2_S_Weights.DEFAULT,
       ),
       "efficientnet_v2_m": (
           torchvision.models.efficientnet_v2_m,
-          torchvision.models.EfficientNet_V2_M_Weights.IMAGENET1K_V1,
+          torchvision.models.EfficientNet_V2_M_Weights.DEFAULT,
       ),
       "efficientnet_v2_l": (
           torchvision.models.efficientnet_v2_l,
-          torchvision.models.EfficientNet_V2_L_Weights.IMAGENET1K_V1,
+          torchvision.models.EfficientNet_V2_L_Weights.DEFAULT,
+      ),
+      "alexnet": (
+          torchvision.models.alexnet,
+          torchvision.models.AlexNet_Weights.DEFAULT,
+      ),
+      "convnext_tiny": (
+          torchvision.models.convnext_tiny,
+          torchvision.models.ConvNeXt_Tiny_Weights.DEFAULT,
+      ),
+      "convnext_small": (
+          torchvision.models.convnext_small,
+          torchvision.models.ConvNeXt_Small_Weights.DEFAULT,
+      ),
+      "convnext_base": (
+          torchvision.models.convnext_base,
+          torchvision.models.ConvNeXt_Base_Weights.DEFAULT,
+      ),
+      "convnext_large": (
+          torchvision.models.convnext_large,
+          torchvision.models.ConvNeXt_Large_Weights.DEFAULT,
+      ),
+      "vgg11": (
+          torchvision.models.vgg11,
+          torchvision.models.VGG11_Weights.DEFAULT,
+      ),
+      "vgg11_bn": (
+          torchvision.models.vgg11_bn,
+          torchvision.models.VGG11_BN_Weights.DEFAULT,
+      ),
+      "vgg13": (
+          torchvision.models.vgg13,
+          torchvision.models.VGG13_Weights.DEFAULT,
+      ),
+      "vgg13_bn": (
+          torchvision.models.vgg13_bn,
+          torchvision.models.VGG13_BN_Weights.DEFAULT,
+      ),
+      "vgg16": (
+          torchvision.models.vgg16,
+          torchvision.models.VGG16_Weights.DEFAULT,
+      ),
+      "vgg16_bn": (
+          torchvision.models.vgg16_bn,
+          torchvision.models.VGG16_BN_Weights.DEFAULT,
+      ),
+      "vgg19": (
+          torchvision.models.vgg19,
+          torchvision.models.VGG19_Weights.DEFAULT,
+      ),
+      "vgg19_bn": (
+          torchvision.models.vgg19_bn,
+          torchvision.models.VGG19_BN_Weights.DEFAULT,
       ),
       "mobilenet_v2": (
           torchvision.models.mobilenet_v2,
-          torchvision.models.MobileNet_V2_Weights.IMAGENET1K_V1,
+          torchvision.models.MobileNet_V2_Weights.DEFAULT,
+      ),
+      "mobilenet_v3_large": (
+          torchvision.models.mobilenet_v3_large,
+          torchvision.models.MobileNet_V3_Large_Weights.DEFAULT,
+      ),
+      "mobilenet_v3_small": (
+          torchvision.models.mobilenet_v3_small,
+          torchvision.models.MobileNet_V3_Small_Weights.DEFAULT,
       ),
       "resnet18": (
           torchvision.models.resnet18,
-          torchvision.models.ResNet18_Weights.IMAGENET1K_V1,
+          torchvision.models.ResNet18_Weights.DEFAULT,
       ),
       "resnet34": (
           torchvision.models.resnet34,
-          torchvision.models.ResNet34_Weights.IMAGENET1K_V1,
+          torchvision.models.ResNet34_Weights.DEFAULT,
       ),
       "resnet50": (
           torchvision.models.resnet50,
-          torchvision.models.ResNet50_Weights.IMAGENET1K_V1,
+          torchvision.models.ResNet50_Weights.DEFAULT,
       ),
       "resnet101": (
           torchvision.models.resnet101,
-          torchvision.models.ResNet101_Weights.IMAGENET1K_V1,
+          torchvision.models.ResNet101_Weights.DEFAULT,
       ),
       "resnet152": (
           torchvision.models.resnet152,
-          torchvision.models.ResNet152_Weights.IMAGENET1K_V1,
+          torchvision.models.ResNet152_Weights.DEFAULT,
+      ),
+      "shufflenet_v2_x0_5": (
+          torchvision.models.shufflenet_v2_x0_5,
+          torchvision.models.ShuffleNet_V2_X0_5_Weights.DEFAULT,
+      ),
+      "shufflenet_v2_x1_0": (
+          torchvision.models.shufflenet_v2_x1_0,
+          torchvision.models.ShuffleNet_V2_X1_0_Weights.DEFAULT,
+      ),
+      "shufflenet_v2_x1_5": (
+          torchvision.models.shufflenet_v2_x1_5,
+          torchvision.models.ShuffleNet_V2_X1_5_Weights.DEFAULT,
+      ),
+      "shufflenet_v2_x2_0": (
+          torchvision.models.shufflenet_v2_x2_0,
+          torchvision.models.ShuffleNet_V2_X2_0_Weights.DEFAULT,
+      ),
+      "squeezenet1_0": (
+          torchvision.models.squeezenet1_0,
+          torchvision.models.SqueezeNet1_0_Weights.DEFAULT,
+      ),
+      "squeezenet1_1": (
+          torchvision.models.squeezenet1_1,
+          torchvision.models.SqueezeNet1_1_Weights.DEFAULT,
+      ),
+      "inception_v3": (
+          torchvision.models.inception_v3,
+          torchvision.models.Inception_V3_Weights.DEFAULT,
       ),
   }
   if arch not in model_specs:
@@ -428,6 +407,7 @@ def _convert_pretrained(argv: list[str]) -> int:
     from ai_edge_quantizer import quantizer, recipe  # pylint: disable=import-outside-toplevel
 
   model, torch, input_height, input_width = _init_torchvision_model(args.arch)
+  model.eval()
   sample_inputs = (torch.randn(1, 3, input_height, input_width),)
   edge_model = litert_torch.convert(model, sample_inputs)
   if args.quantize:
@@ -447,7 +427,7 @@ def _convert_pretrained(argv: list[str]) -> int:
         try:
           os.remove(tmp_path)
         except FileNotFoundError:
-          print(f"Warning: failed to delete temp file {tmp_path}: {e}", file=sys.stderr)
+          print(f"Warning: temp file already deleted: {tmp_path}", file=sys.stderr)
   else:
     edge_model.export(args.output)
     print(f"Saved LiteRT model to: {args.output}")
@@ -467,9 +447,17 @@ def _classify(argv: list[str]) -> int:
 
   channels = 3
 
-  input_height, input_width, channels_first = _infer_input_size(model, signature_index)
-  preprocess = _pick_preprocess_config(args.model, input_height, input_width)
-  image_array = _load_image(
+  input_height, input_width, channels_first = infer_input_size(model, signature_index)
+  preprocess = pick_preprocess_config(args.model, input_height, input_width)
+  layout = "NCHW" if channels_first else "NHWC"
+  print(
+      "Model input:",
+      f"{input_height}x{input_width}",
+      layout,
+      f"resize={preprocess['resize_size']}",
+      f"crop={preprocess['crop_height']}x{preprocess['crop_width']}",
+  )
+  image_array = load_image(
       args.image,
       channels,
       preprocess["resize_size"],
@@ -478,9 +466,8 @@ def _classify(argv: list[str]) -> int:
       preprocess["mean"],
       preprocess["std"],
       preprocess["resample"],
+      channels_first,
   )
-  if not channels_first:
-    image_array = np.transpose(image_array, (1, 2, 0))  # CHW -> HWC
   input_buffers = model.create_input_buffers(signature_index)
   output_buffers = model.create_output_buffers(signature_index)
   input_buffers[0].write(image_array)
