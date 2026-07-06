@@ -1,8 +1,6 @@
 # Mimi → LiteRT conversion
 
-Scripts that produce the four `.tflite` graphs + the RVQ weight blob used by the Android sample,
-from the official [kyutai/mimi](https://huggingface.co/kyutai/mimi) checkpoint, with
-[litert-torch](https://github.com/google-ai-edge/litert).
+Scripts that produce the four `.tflite` graphs + the RVQ weight blob used by the Android sample, from the official [kyutai/mimi](https://huggingface.co/kyutai/mimi) checkpoint, with [litert-torch](https://github.com/google-ai-edge/litert).
 
 ## Environment
 
@@ -21,9 +19,7 @@ python mimi_rvq_validate_export.py   # split RVQ: validate vs torch + export mim
 python build_mimi.py all             # (optional) full op-check + parity + the C33 standalone/tapped graphs
 ```
 
-`build_hybrid_graphs.py` emits `mimi_{enc_conv,enc_tx,dec_tx,deconly}_fp16.tflite`;
-`mimi_rvq_validate_export.py` emits `mimi_rvq.bin`. Push all five to the app with
-`../kotlin_cpu_gpu/android/install_to_device.sh`.
+`build_hybrid_graphs.py` emits `mimi_{enc_conv,enc_tx,dec_tx,deconly}_fp16.tflite`; `mimi_rvq_validate_export.py` emits `mimi_rvq.bin`. Push all five to the app with `../kotlin_cpu_gpu/android/install_to_device.sh`.
 
 ## Files
 
@@ -36,8 +32,7 @@ python build_mimi.py all             # (optional) full op-check + parity + the C
 
 ## Re-authoring → GPU-clean
 
-Mimi rides the `CompiledModel` GPU delegate only after the standard re-authoring. Every rewrite is
-**numerically equivalent** (per-graph tflite-vs-torch corr **1.000000**; full round-trip corr 1.0):
+Mimi rides the `CompiledModel` GPU delegate only after the standard re-authoring. Every rewrite is **numerically equivalent** (per-graph tflite-vs-torch corr **1.000000**; full round-trip corr 1.0):
 
 | op (banned / Mali-hostile) | rewrite |
 |---|---|
@@ -51,29 +46,16 @@ Mimi rides the `CompiledModel` GPU delegate only after the standard re-authoring
 | downsample `replicate` pad | edge-slice SLICE+CONCAT — tflite PAD is constant-only; replicate emits GATHER_ND |
 | split RVQ (Euclidean argmin + int64 indices) | run on **CPU** (`MimiRvq.kt`) — int64 CAST + EMBEDDING_LOOKUP are Mali-rejected |
 
-These are the same patterns proven on the sibling DAC codec (`ZeroStuffConvT1d`, RVQ→CPU) and the
-ASR / Matcha samples (GroupNorm→4D, manual masked attention, host-side embeds).
+These are the same patterns proven on the sibling DAC codec (`ZeroStuffConvT1d`, RVQ→CPU) and the ASR / Matcha samples (GroupNorm→4D, manual masked attention, host-side embeds).
 
 ## On-device finding: GPU convs + CPU transformers (and the C33 result)
 
-This sample uses a **hybrid** placement (convs on GPU, transformers + RVQ on CPU). The reason is a
-useful `CompiledModel` data point:
+This sample uses a **hybrid** placement (convs on GPU, transformers + RVQ on CPU). The reason is a useful `CompiledModel` data point:
 
-- The SEANet convs are **fp16-exact on Mali** — feeding the decoder-only graph the exact transformer
-  output reconstructs audio at **48 dB SNR**.
-- The decoder transformer's residual stream reaches **|x| = 27** (L7 damps it back to ~4.4 by
-  near-cancellation). The Mali GPU delegate computes fp16 internally, and that cancellation loses
-  precision there → full-GPU decode is only ~12 dB SNR on real speech (a synthetic tone hides it; fp32
-  and fp16 tflite give the **same** device output because the delegate is fp16 internally either way).
-- Crucially, the transformer computes **identically standalone and fused** on device (corr 0.70 either
-  way, same activation range). So this is fp16 **precision** in a large-magnitude residual, **not** a
-  graph-fusion collapse. `build_mimi.py`'s `c33` stage builds the two graphs (the transformer alone,
-  and the full decode with a tap on the transformer output) that prove this on device.
+- The SEANet convs are **fp16-exact on Mali** — feeding the decoder-only graph the exact transformer output reconstructs audio at **48 dB SNR**.
+- The decoder transformer's residual stream reaches **|x| = 27** (L7 damps it back to ~4.4 by near-cancellation). The Mali GPU delegate computes fp16 internally, and that cancellation loses precision there → full-GPU decode is only ~12 dB SNR on real speech (a synthetic tone hides it; fp32 and fp16 tflite give the **same** device output because the delegate is fp16 internally either way).
+- Crucially, the transformer computes **identically standalone and fused** on device (corr 0.70 either way, same activation range). So this is fp16 **precision** in a large-magnitude residual, **not** a graph-fusion collapse. `build_mimi.py`'s `c33` stage builds the two graphs (the transformer alone, and the full decode with a tap on the transformer output) that prove this on device.
 
-Mimi's transformer is its own LLM-style implementation (RoPE + LayerScale), distinct from the
-diffusers `BasicTransformerBlock`. So this result also shows that the transformer-residual-collapse
-seen in some diffusion graphs does **not** generalize to it — the two are different failure modes.
+Mimi's transformer is its own LLM-style implementation (RoPE + LayerScale), distinct from the diffusers `BasicTransformerBlock`. So this result also shows that the transformer-residual-collapse seen in some diffusion graphs does **not** generalize to it — the two are different failure modes.
 
-The transformers are tiny (8 layers × 512, seq ~50), so running them on CPU is trivial and exact while
-the heavy convs stay on the GPU. Pixel 8a: enc_conv `189/189` + deconly `220/220` on `LITERT_CL`,
-RTF ≈ 0.35.
+The transformers are tiny (8 layers × 512, seq ~50), so running them on CPU is trivial and exact while the heavy convs stay on the GPU. Pixel 8a: enc_conv `189/189` + deconly `220/220` on `LITERT_CL`, RTF ≈ 0.35.
