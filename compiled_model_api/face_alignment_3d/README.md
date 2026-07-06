@@ -1,9 +1,6 @@
 # 3D Face Alignment (3DDFA_V2) — LiteRT CompiledModel, GPU
 
-[3DDFA_V2](https://github.com/cleardusk/3DDFA_V2) (Guo et al., ECCV 2020, MIT) fits a **3D morphable
-face model** to a photo: a MobileNetV1 regresses **62 3DMM parameters** (pose + 40 shape + 10
-expression) on the LiteRT `CompiledModel` **GPU**, and the 68 3D face landmarks (and a dense mesh)
-are reconstructed from the BFM bases host-side.
+[3DDFA_V2](https://github.com/cleardusk/3DDFA_V2) (Guo et al., ECCV 2020, MIT) fits a **3D morphable face model** to a photo: a MobileNetV1 regresses **62 3DMM parameters** (pose + 40 shape + 10 expression) on the LiteRT `CompiledModel` **GPU**, and the 68 3D face landmarks (and a dense mesh) are reconstructed from the BFM bases host-side.
 
 ## On-device (Pixel 8a, Tensor G3 — verified)
 
@@ -20,9 +17,7 @@ photo →[FaceDetector box → parse_roi → crop 120² (BGR, (x−127.5)/128)]�
       → denorm → R,offset,α_shp,α_exp → BFM 68 verts → R·v+offset → similar_transform → 68 (x,y)
 ```
 
-The regressor is a pure CNN — converts through litert-torch with no re-authoring, GPU-clean. Three
-host-side details: the model was trained on **cv2 BGR** input; the BFM bases are **interleaved**
-`[x0,y0,z0,x1,…]` (`reshape(3,-1, order='F')`); and `android.media.FaceDetector` needs an even width.
+The regressor is a pure CNN — converts through litert-torch with no re-authoring, GPU-clean. Three host-side details: the model was trained on **cv2 BGR** input; the BFM bases are **interleaved** `[x0,y0,z0,x1,…]` (`reshape(3,-1, order='F')`); and `android.media.FaceDetector` needs an even width.
 
 ## Build & run
 
@@ -33,9 +28,6 @@ cd kotlin_cpu_gpu/android
 ./gradlew :app:installDebug
 ```
 
-Launch the app — it detects the bundled sample's face and draws the 68 landmarks; tap **Pick face
-photo** for your own frontal-face photos.
+Launch the app — it detects the bundled sample's face and draws the 68 landmarks; tap **Pick face photo** for your own frontal-face photos.
 
-Model: [`litert-community/3DDFA-V2-LiteRT`](https://huggingface.co/litert-community/3DDFA-V2-LiteRT).
-Conversion in [`conversion/`](conversion/). Upstream:
-[cleardusk/3DDFA_V2](https://github.com/cleardusk/3DDFA_V2) (MIT).
+Model: [`litert-community/3DDFA-V2-LiteRT`](https://huggingface.co/litert-community/3DDFA-V2-LiteRT). Conversion in [`conversion/`](conversion/). Upstream: [cleardusk/3DDFA_V2](https://github.com/cleardusk/3DDFA_V2) (MIT).
