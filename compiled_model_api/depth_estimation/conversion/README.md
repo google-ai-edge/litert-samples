@@ -1,8 +1,6 @@
 # Converting the depth models to LiteRT
 
-This sample ships two monocular depth models; each `convert_*` script is
-self-contained — it converts with `litert-torch`, prints the op histogram, and
-checks numerical fidelity vs the original PyTorch model before FP16-quantizing.
+This sample ships two monocular depth models; each `convert_*` script is self-contained — it converts with `litert-torch`, prints the op histogram, and checks numerical fidelity vs the original PyTorch model before FP16-quantizing.
 
 | Model | Script | Output (used by app) | Path |
 |---|---|---|---|
@@ -25,12 +23,7 @@ Produces:
 
 ### Why this model converts cleanly
 
-`MiDaS_small` is the CNN MiDaS (EfficientNet-Lite3 backbone), **not** the DPT/ViT
-variants. It has no attention, no `PixelShuffle`, no `Focus`/strided-slice stems,
-no `grid_sample`, and no `LayerScale` — i.e. none of the ops that force the
-`litert-torch` converter into GPU-hostile primitives (`GATHER_ND`, `>4D`
-reshapes, Flex). It therefore lowers entirely to GPU-clean builtins with no
-patches:
+`MiDaS_small` is the CNN MiDaS (EfficientNet-Lite3 backbone), **not** the DPT/ViT variants. It has no attention, no `PixelShuffle`, no `Focus`/strided-slice stems, no `grid_sample`, and no `LayerScale` — i.e. none of the ops that force the `litert-torch` converter into GPU-hostile primitives (`GATHER_ND`, `>4D` reshapes, Flex). It therefore lowers entirely to GPU-clean builtins with no patches:
 
 ```
 CONV_2D, DEPTHWISE_CONV_2D, ADD, RELU, RESIZE_BILINEAR, RESHAPE
@@ -38,15 +31,9 @@ CONV_2D, DEPTHWISE_CONV_2D, ADD, RELU, RESIZE_BILINEAR, RESHAPE
 
 ### Notes
 
-- **Channel-last I/O** (`to_channel_last_io`): the exported model takes NHWC
-  `1x256x256x3`, which removes the input transpose and matches the interleaved
-  RGB the Android app writes.
-- **fp16** (AI Edge Quantizer `FLOAT_CASTING`): half size, native on the GPU
-  delegate, ~0.27 % difference vs fp32. Dynamic-range int8 is intentionally not
-  used — it favors the CPU/XNNPACK path, not the ML Drift GPU delegate.
-- Verified on-device (Pixel 8a): the fp16 model compiles to **234/234 nodes on
-  the LiteRT GPU delegate (LITERT_CL)** with no CPU fallback, ~1–3 ms/inference.
-  `RESIZE_BILINEAR align_corners=True` is GPU-supported as-is — no change needed.
+- **Channel-last I/O** (`to_channel_last_io`): the exported model takes NHWC `1x256x256x3`, which removes the input transpose and matches the interleaved RGB the Android app writes.
+- **fp16** (AI Edge Quantizer `FLOAT_CASTING`): half size, native on the GPU delegate, ~0.27 % difference vs fp32. Dynamic-range int8 is intentionally not used — it favors the CPU/XNNPACK path, not the ML Drift GPU delegate.
+- Verified on-device (Pixel 8a): the fp16 model compiles to **234/234 nodes on the LiteRT GPU delegate (LITERT_CL)** with no CPU fallback, ~1–3 ms/inference. `RESIZE_BILINEAR align_corners=True` is GPU-supported as-is — no change needed.
 
 ---
 
@@ -66,10 +53,7 @@ Produces:
 
 ### Why this model needs re-authoring
 
-Unlike MiDaS, DA3 is a **DINOv2 ViT-S + RoPE** backbone with a DPT/DualDPT head and
-does **not** ride the GPU delegate out of the box. The script applies exact,
-weights-verbatim rewrites — it measures depth `corr` vs the all-stock model after
-each, ending at **corr 0.99948** vs the official PyTorch pipeline:
+Unlike MiDaS, DA3 is a **DINOv2 ViT-S + RoPE** backbone with a DPT/DualDPT head and does **not** ride the GPU delegate out of the box. The script applies exact, weights-verbatim rewrites — it measures depth `corr` vs the all-stock model after each, ending at **corr 0.99948** vs the official PyTorch pipeline:
 
 | # | Wall | Rewrite |
 |---|---|---|
@@ -84,13 +68,6 @@ each, ending at **corr 0.99948** vs the official PyTorch pipeline:
 
 ### Notes
 
-- **Native aspect matters.** DA3 runs at the image's native aspect; a square
-  letterbox drops fidelity to corr ~0.977 (padding leaks through global attention).
-  This build is fixed to **896×504** (portrait) — re-convert at your aspect
-  (`python convert_da3_litert.py <image> <H> <W>`, multiples of 14) for other shapes.
-- **Honest residual: corr 0.99948, not 1.0.** FP16 is not the cause (FP32 ≡ FP16).
-  The ~0.05 % is rewrite #8 — the DPT-head `align_corners=True→False` change, forced
-  because the GPU delegate bans `align_corners=True` resize. An irreducible mobile-GPU
-  constraint, not a bug; structure and edge sharpness are visually identical.
-- **Heavy.** DA3-Small is a ViT — ~1.8 s / image on Pixel 8a GPU (on-demand, not
-  live). The sample's live path is MiDaS; DA3 is the high-quality on-demand option.
+- **Native aspect matters.** DA3 runs at the image's native aspect; a square letterbox drops fidelity to corr ~0.977 (padding leaks through global attention). This build is fixed to **896×504** (portrait) — re-convert at your aspect (`python convert_da3_litert.py <image> <H> <W>`, multiples of 14) for other shapes.
+- **Honest residual: corr 0.99948, not 1.0.** FP16 is not the cause (FP32 ≡ FP16). The ~0.05 % is rewrite #8 — the DPT-head `align_corners=True→False` change, forced because the GPU delegate bans `align_corners=True` resize. An irreducible mobile-GPU constraint, not a bug; structure and edge sharpness are visually identical.
+- **Heavy.** DA3-Small is a ViT — ~1.8 s / image on Pixel 8a GPU (on-demand, not live). The sample's live path is MiDaS; DA3 is the high-quality on-demand option.
