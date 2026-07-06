@@ -1,8 +1,6 @@
 # wav2vec2 KWS → LiteRT conversion
 
-Scripts that produce the two `.tflite` graphs used by the Android sample, from
-[`superb/wav2vec2-base-superb-ks`](https://huggingface.co/superb/wav2vec2-base-superb-ks), with
-[litert-torch](https://github.com/google-ai-edge/litert).
+Scripts that produce the two `.tflite` graphs used by the Android sample, from [`superb/wav2vec2-base-superb-ks`](https://huggingface.co/superb/wav2vec2-base-superb-ks), with [litert-torch](https://github.com/google-ai-edge/litert).
 
 ## Environment
 
@@ -20,8 +18,7 @@ python build_w2v2.py all          # single-graph re-authoring + op-check + parit
 python build_w2v2_split.py        # the 2-graph deployment split (frontend + head), fp16
 ```
 
-`build_w2v2_split.py` emits `w2v2_frontend_fp16.tflite` + `w2v2_head_fp16.tflite`; push both with
-`../kotlin_cpu_gpu/android/install_to_device.sh`.
+`build_w2v2_split.py` emits `w2v2_frontend_fp16.tflite` + `w2v2_head_fp16.tflite`; push both with `../kotlin_cpu_gpu/android/install_to_device.sh`.
 
 ## Files
 
@@ -45,17 +42,7 @@ Every rewrite is numerically equivalent (per-graph tflite-vs-torch corr **1.0000
 
 ## Two on-device findings (general)
 
-1. **Whole-graph Mali shader-compile limit.** A graph can be fully op-clean AND have each half compile,
-   yet **fail to compile when fused** (`Failed to compile model`; the delegate reports e.g. "Replacing 923
-   out of 1008 node(s) … 2 partitions"). The full wav2vec2 graph fails; splitting at the conv-frontend /
-   transformer-encoder boundary makes both halves compile (frontend 134/134 + head 893/893 LITERT_CL).
-   This is a size/complexity ceiling, not a bad op — when a clean graph won't compile, split it.
-2. **`use_weighted_layer_sum` on the GPU.** This checkpoint's logits use a softmax-weighted sum of ALL 13
-   hidden states, not just the last (dropping it flips predictions, corr 0.54 — replicate it exactly). It
-   must be (a) **accumulated incrementally** (`torch.stack` of all 13 keeps every layer output live and
-   splits the partition); and (b) the `softmax(layer_weights)` must be **baked to constants** — the runtime
-   softmax + 13 scalar `w[i]` gathers off a runtime tensor break delegation (3 partitions → compile fail).
-   Baked + incremental → 893/893 LITERT_CL, 1 partition.
+1. **Whole-graph Mali shader-compile limit.** A graph can be fully op-clean AND have each half compile, yet **fail to compile when fused** (`Failed to compile model`; the delegate reports e.g. "Replacing 923 out of 1008 node(s) … 2 partitions"). The full wav2vec2 graph fails; splitting at the conv-frontend / transformer-encoder boundary makes both halves compile (frontend 134/134 + head 893/893 LITERT_CL). This is a size/complexity ceiling, not a bad op — when a clean graph won't compile, split it.
+2. **`use_weighted_layer_sum` on the GPU.** This checkpoint's logits use a softmax-weighted sum of ALL 13 hidden states, not just the last (dropping it flips predictions, corr 0.54 — replicate it exactly). It must be (a) **accumulated incrementally** (`torch.stack` of all 13 keeps every layer output live and splits the partition); and (b) the `softmax(layer_weights)` must be **baked to constants** — the runtime softmax + 13 scalar `w[i]` gathers off a runtime tensor break delegation (3 partitions → compile fail). Baked + incremental → 893/893 LITERT_CL, 1 partition.
 
-The transformer residual peaks at `|x|≈3.2`, so there is no fp16-precision issue — the whole model is
-fp16-exact on the GPU (no CPU fallback).
+The transformer residual peaks at `|x|≈3.2`, so there is no fp16-precision issue — the whole model is fp16-exact on the GPU (no CPU fallback).
