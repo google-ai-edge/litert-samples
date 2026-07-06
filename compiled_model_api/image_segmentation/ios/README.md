@@ -102,5 +102,6 @@ LiteRtStatus status = LiteRtCreateEnvironment(1, env_options, &_env);
 
 ## Model Information
 * **Name**: `selfie_multiclass_256x256.tflite`
+* **Source**: Official MediaPipe Selfie Multiclass model hosted on [Kaggle Models](https://www.kaggle.com/models/google/mediapipe/tfLite/selfie-multiclass-256x256).
 * **Input**: `1 x 256 x 256 x 3` (normalized float32 values in `[-1.0, 1.0]`)
 * **Output**: `1 x 256 x 256 x 6` (float32 values representing probabilities across 6 target segmentation classes)
