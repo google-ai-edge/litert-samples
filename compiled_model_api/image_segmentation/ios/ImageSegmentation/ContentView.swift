@@ -65,7 +65,7 @@ struct ContentView: View {
                             .scaledToFit()
                             .frame(height: 28)
                     }
-                    Text("LiteRT")
+                    Text("Image Segmentation")
                         .font(.title2)
                         .fontWeight(.bold)
                         .foregroundColor(.white)
