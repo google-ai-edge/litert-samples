@@ -1,6 +1,6 @@
 # LiteRT Super Resolution Sample (Real-ESRGAN)
 
-<p align="center"> <img src="https://huggingface.co/litert-community/real-esrgan-x4v3-litert/resolve/main/demo.png" width="320" alt="Real-ESRGAN x4 super-resolution on LiteRT GPU"> </p>
+<p align="center"> <img src="https://huggingface.co/litert-community/real-esrgan-x4v3-litert/resolve/main/samples/sample.png" width="320" alt="Real-ESRGAN x4 super-resolution on LiteRT GPU"> </p>
 
 Android **×4 super-resolution** sample on the LiteRT (Google's TensorFlow Lite runtime) **Compiled Model API**, CPU/GPU. Pick an image and drag the divider to compare **bicubic vs Real-ESRGAN**. Model: **[Real-ESRGAN](https://github.com/xinntao/Real-ESRGAN) realesr-general-x4v3** (SRVGGNetCompact, BSD-3) — a pure CNN re-authored **GPU-native** with `litert_torch`.
 
