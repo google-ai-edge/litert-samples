@@ -1,8 +1,6 @@
-# LiteRT Image Segmentation - iOS
+# LiteRT Image Segmentation - iOS (Clean App)
 
-An iOS application demonstrating real-time image segmentation using LiteRT's
-Compiled Model API. The app performs multi-class segmentation on camera frames
-and gallery images, identifying and classifying objects at the pixel level.
+An iOS application demonstrating real-time and static image segmentation using LiteRT's Compiled Model API. The app performs multi-class segmentation on a bundled test image, allowing easy verification of CPU (Builtin Kernels) and GPU (Metal) execution.
 
 ## Screenshot
 
@@ -12,89 +10,80 @@ and gallery images, identifying and classifying objects at the pixel level.
 
 ## Features
 
-- Real-time camera segmentation with front/back camera support
-- Gallery image segmentation
-- CPU acceleration via LiteRT Compiled Model API
-- Segmentation mask overlay on input images
-- Performance metrics display (inference, pre-process, post-process times)
+- **Backend Switching**: Select between CPU and GPU (Metal) directly in the UI.
+- **XNNPACK Bypass**: Avoids delegate prepare allocation issues on iOS by running Builtin CPU Kernels.
+- **GPU Acceleration**: Utilizes the dynamically loaded LiteRT Metal compiler plugin.
+- **Static Verification**: Includes a bundled portrait sample image (`image.jpeg`) to immediately verify model compilation and inference on startup.
+- **Performance Metrics Display**: Live measurements of pre-process, inference, and post-process execution times in milliseconds.
 
 ## Architecture
 
-The app uses an ObjC++ bridge layer to wrap the C++ LiteRT Compiled Model API
-for Swift consumption, mirroring the Kotlin Android sample's architecture.
+The app uses a Swift SwiftUI interface that bridges directly to a lightweight Objective-C++ wrapper (`LiteRTSegmenter.mm`) around LiteRT's C Compiled Model API.
 
 | Component | File | Description |
 |-----------|------|-------------|
-| **LiteRTSegmenter** | `LiteRTSegmenter.mm` / `.h` | ObjC++ bridge wrapping LiteRT C++ API |
-| **SegmentationViewModel** | `SegmentationViewModel.swift` | State management and model lifecycle |
-| **ContentView** | `ContentView.swift` | Main UI with camera/gallery tabs |
-| **CameraManager** | `CameraManager.swift` | AVFoundation camera capture |
-| **GalleryView** | `GalleryView.swift` | Photo picker for gallery segmentation |
+| **LiteRTSegmenter** | `LiteRTSegmenter.mm` / `.h` | Objective-C++ bridge wrapping the LiteRT C API |
+| **ContentView** | `ContentView.swift` | Single-page UI displaying original vs mask images, performance timing, and accelerator selection |
+| **ImageSegmentationApp** | `ImageSegmentationApp.swift` | Swift application entry point |
+| **CLiteRT.xcframework** | `CLiteRT.xcframework` | Precompiled LiteRT C framework |
+| **libLiteRtMetalAccelerator.dylib** | `libLiteRtMetalAccelerator.dylib` | Precompiled Metal compiler plugin |
 
-### Pipeline
+---
 
-1. **Pre-process**: Resize input to 256x256, normalize pixel values to [-1, 1]
-2. **Inference**: Run model via `litert::CompiledModel::Run()`
-3. **Post-process**: Argmax across 6 channels, map to colored segmentation mask
+## Prerequisites & Setup
 
-## Model
+### 1. Xcode & Project Configuration
+1. Open the project `ImageSegmentation.xcodeproj` in Xcode.
+2. Select the **ImageSegmentation** target.
+3. In **Signing & Capabilities**, select your **Personal Team** profile. The bundle identifier is configured to `com.aravindmurali.ImageSegmentation`.
 
-- **Input**: 256x256x3 RGB image (float32)
-- **Output**: 256x256x6 segmentation mask (float32)
-- **File**: `selfie_multiclass_256x256.tflite`
-
-## Prerequisites
-
-- macOS with Xcode installed
-- [Bazel](https://bazel.build/) 7.x
-- An iOS device (for on-device testing)
-- Apple Developer account (free account works for personal device testing)
-
-> **Note**: The current version of `build_bazel_apple_support` has bugs that
-> prevent iOS ObjC/ObjC++ builds with Bazel 7.x. You may need to patch
-> `cc_toolchain_config.bzl` (add `objc_compile`/`objcpp_compile` to
-> `compiler_input_flags`, add `objc_executable` to `_DYNAMIC_LINK_ACTIONS`)
-> and `wrapped_clang.cc` (SDKROOT fallback), then point to the patched repo
-> via `--override_repository=build_bazel_apple_support=/path/to/patched` in
-> `.bazelrc.user`. These workarounds may not be needed in future versions.
-
-### Build Command
-
+### 2. Git LFS (Required for GPU Execution)
+The Metal compiler plugin (`libLiteRtMetalAccelerator.dylib`) is stored in the LiteRT repository via **Git LFS**. Before running the app, install Git LFS and pull the actual binary slices (otherwise Xcode will package Git pointer text files, and `dlopen` will fail at runtime):
 ```bash
-bazel build //compiled_model_api/image_segmentation/ios:ImageSegmentationApp \
-  --apple_platform_type=ios --cpu=ios_arm64
+# Install Git LFS via Homebrew
+brew install git-lfs
+
+# Initialize LFS in your global Git config
+git lfs install
+
+# Navigate to your LiteRT submodule and pull the binary
+cd path/to/LiteRT
+git lfs pull
 ```
 
-The output `.ipa` will be at:
-```
-bazel-bin/compiled_model_api/image_segmentation/ios/ImageSegmentationApp.ipa
-```
+---
 
-### Install on Device
+## How It Works
 
-1. Extract the `.ipa`:
-   ```bash
-   unzip -o bazel-bin/compiled_model_api/image_segmentation/ios/ImageSegmentationApp.ipa -d /tmp/ImageSegmentationApp
-   ```
-2. Open Xcode > **Window > Devices and Simulators**
-3. Select your device and click **+** under "Installed Apps"
-4. Navigate to `/tmp/ImageSegmentationApp/Payload/ImageSegmentationApp.app`
+### CPU Backend (Builtin Kernels)
+Due to a shape calculation overflow crash in the default XNNPACK delegate during the `RESIZE_NEAREST_NEIGHBOR` operator allocation, CPU compilation is configured to bypass XNNPACK. 
 
-### Device Signing
-
-For on-device builds, you need a provisioning profile. Add the following to `BUILD`:
-
-```python
-ios_application(
-    ...
-    provisioning_profile = "your_profile.mobileprovision",
-)
+The wrapper uses the internal LiteRT CPU options API to set the kernel execution mode to builtin:
+```objc
+LrtCpuOptions* cpu_opts = nullptr;
+if (LrtCreateCpuOptions(&cpu_opts) == kLiteRtStatusOk) {
+    LrtSetCpuOptionsKernelMode(cpu_opts, kLiteRtCpuKernelModeBuiltin);
+    // Serialize and add options to LiteRtOptions...
+}
 ```
 
-Update the `bundle_id` in both `BUILD` and `Info.plist` to match your provisioning profile.
+### GPU Backend (Metal)
+To compilation-verify and execute operations on GPU:
+1. **Fallback bitmask**: The compilation options set a combined bitmask of `kLiteRtHwAcceleratorGpu | kLiteRtHwAcceleratorCpu`. This instructs LiteRT to compile supported operators for Metal and fall back to CPU for unsupported operators.
+2. **Dynamic Loading**: Since the GPU registry loads accelerator plugins dynamically at runtime, the compiler plugin `libLiteRtMetalAccelerator.dylib` is bundled under the app's `Frameworks/` directory and signed.
+3. **Library Directory Tag**: During environment creation, we pass the bundle's private frameworks folder path as `kLiteRtEnvOptionTagRuntimeLibraryDir` so the loader can locate the plugin:
+```objc
+NSString *frameworksPath = [[NSBundle mainBundle] privateFrameworksPath];
+LiteRtEnvOption env_options[1];
+env_options[0].tag = kLiteRtEnvOptionTagRuntimeLibraryDir;
+env_options[0].value.type = kLiteRtAnyTypeString;
+env_options[0].value.str_value = [frameworksPath UTF8String];
+LiteRtStatus status = LiteRtCreateEnvironment(1, env_options, &_env);
+```
 
-## Key Dependencies
+---
 
-- [LiteRT](https://github.com/google-ai-edge/LiteRT) Compiled Model API (C++)
-- SwiftUI
-- AVFoundation (camera capture)
+## Model Information
+* **Name**: `selfie_multiclass_256x256.tflite`
+* **Input**: `1 x 256 x 256 x 3` (normalized float32 values in `[-1.0, 1.0]`)
+* **Output**: `1 x 256 x 256 x 6` (float32 values representing probabilities across 6 target segmentation classes)
