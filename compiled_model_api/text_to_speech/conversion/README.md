@@ -1,7 +1,6 @@
 # Matcha-TTS → LiteRT conversion
 
-Scripts that produce the four `.tflite` graphs used by the Android sample, from the
-official Matcha-TTS checkpoints, with [litert-torch](https://github.com/google-ai-edge/litert).
+Scripts that produce the four `.tflite` graphs used by the Android sample, from the official Matcha-TTS checkpoints, with [litert-torch](https://github.com/google-ai-edge/litert).
 
 ## Environment
 
@@ -20,9 +19,7 @@ python convert_final.py 512        # text encoder + CFM decoder + HiFi-GAN vocod
 python convert_g2p_matcha.py       # DeepPhonemizer G2P (fp16)
 ```
 
-Outputs `artifacts/`: `matcha_textenc_fp16.tflite`, `matcha_decoder_fp16.tflite`,
-`matcha_vocoder_fp16.tflite`, `dp_g2p_matcha_fp16.tflite`, plus the host tables
-(`emb.bin`, `g2p_dict.txt.gz`, `config.json`, `g2p_meta.json`).
+Outputs `artifacts/`: `matcha_textenc_fp16.tflite`, `matcha_decoder_fp16.tflite`, `matcha_vocoder_fp16.tflite`, `dp_g2p_matcha_fp16.tflite`, plus the host tables (`emb.bin`, `g2p_dict.txt.gz`, `config.json`, `g2p_meta.json`).
 
 ## Files
 
@@ -37,6 +34,4 @@ Outputs `artifacts/`: `matcha_textenc_fp16.tflite`, `matcha_decoder_fp16.tflite`
 
 ## Re-authoring → GPU-clean
 
-Every graph converts GPU-clean (per-graph tflite-vs-torch corr **1.000000**; end-to-end
-waveform corr ≥0.99). Fixed shapes (256 phonemes, 512 mel frames) with a runtime float mask
-let one compiled graph handle any length. See `build_matcha.py` for the op-by-op recipe.
+Every graph converts GPU-clean (per-graph tflite-vs-torch corr **1.000000**; end-to-end waveform corr ≥0.99). Fixed shapes (256 phonemes, 512 mel frames) with a runtime float mask let one compiled graph handle any length. See `build_matcha.py` for the op-by-op recipe.
