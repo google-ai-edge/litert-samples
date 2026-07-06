@@ -2,7 +2,7 @@
 
 Reproduces the `.tflite` reranker graph: a fully GPU-compatible re-authoring of [`Qwen/Qwen3-Reranker-0.6B`](https://huggingface.co/Qwen/Qwen3-Reranker-0.6B) (Apache-2.0).
 
-The reranker is the **same Qwen3-0.6B decoder** as [`Qwen3-Embedding-0.6B`](../../text-embedding/conversion), so the entire GPU-clean re-authoring is identical (host-embed input, GQA `cat`-repeat, **max-normalized SafeRMS** for the deep-stack fp16 overflow, baked RoPE / causal mask, every tensor ≤4D — see the embedding `conversion/README`). Only the head differs.
+The reranker is the **same Qwen3-0.6B decoder** as [`Qwen3-Embedding-0.6B`](../../semantic_similarity/conversion), so the entire GPU-clean re-authoring is identical (host-embed input, GQA `cat`-repeat, **max-normalized SafeRMS** for the deep-stack fp16 overflow, baked RoPE / causal mask, every tensor ≤4D — see the embedding `conversion/README`). Only the head differs.
 
 ## The reranker head
 
