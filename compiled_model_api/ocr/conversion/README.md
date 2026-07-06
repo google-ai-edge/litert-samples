@@ -1,7 +1,6 @@
 # PP-OCRv5 → LiteRT conversion
 
-Scripts that produce the two `.tflite` graphs used by the Android sample, from PP-OCRv5 (PaddleOCR 2025),
-with [litert-torch](https://github.com/google-ai-edge/litert).
+Scripts that produce the two `.tflite` graphs used by the Android sample, from PP-OCRv5 (PaddleOCR 2025), with [litert-torch](https://github.com/google-ai-edge/litert).
 
 ## Environment
 
@@ -33,17 +32,10 @@ Emits `ppocr_det_fp16.tflite` + `ppocr_rec_fp16.tflite`; push with `../kotlin_cp
 
 ## Re-authoring → GPU-clean (parity corr 1.0)
 
-PP-OCRv5 is a CNN OCR pipeline with **no autoregressive decoder** (CTC recognition head), so both stages
-ride the GPU. Two blockers, both numerically-equivalent rewrites:
+PP-OCRv5 is a CNN OCR pipeline with **no autoregressive decoder** (CTC recognition head), so both stages ride the GPU. Two blockers, both numerically-equivalent rewrites:
 
-1. **Detector DB-head `ConvTranspose2d` (2× k2s2)** → **`ZeroStuffConvT2d`** = the 2D generalization of the
-   DAC/DA3 1D zero-stuff trick: `F.interpolate` nearest ×stride × a zero-stuff mask + flipped
-   `conv2d(padding=k-1)` + crop. `TRANSPOSE_CONV` is Mali-rejected; this lowers to `RESIZE_NEAREST` + `MUL`
+1. **Detector DB-head `ConvTranspose2d` (2× k2s2)** → **`ZeroStuffConvT2d`** = the 2D generalization of the DAC/DA3 1D zero-stuff trick: `F.interpolate` nearest ×stride × a zero-stuff mask + flipped `conv2d(padding=k-1)` + crop. `TRANSPOSE_CONV` is Mali-rejected; this lowers to `RESIZE_NEAREST` + `MUL`
    + `CONV_2D`. (Guard: skip the training-only DB `thresh` branch, not hit at inference.)
-2. **Recognizer SVTR `Attention`** fused-QKV 5D reshape `(B,N,3,heads,hd)` → split q/k/v to 4D
-   `(B,heads,N,hd)`. The port already drops the NRTR autoregressive branch → pure CTC. char_num = dict
-   (18383) + blank + space = 18385; CTC layout = `['blank'] + dict + [' ']`.
+2. **Recognizer SVTR `Attention`** fused-QKV 5D reshape `(B,N,3,heads,hd)` → split q/k/v to 4D `(B,heads,N,hd)`. The port already drops the NRTR autoregressive branch → pure CTC. char_num = dict (18383) + blank + space = 18385; CTC layout = `['blank'] + dict + [' ']`.
 
-Preprocessing: detector = ImageNet mean/std, /255, NCHW, 640×640. recognizer = resize to h=48 keep-aspect,
-pad to width 320, `(img/255−0.5)/0.5`. DB box postprocess (threshold + connected components + unclip) and
-CTC greedy decode run host-side (see the Kotlin app).
+Preprocessing: detector = ImageNet mean/std, /255, NCHW, 640×640. recognizer = resize to h=48 keep-aspect, pad to width 320, `(img/255−0.5)/0.5`. DB box postprocess (threshold + connected components + unclip) and CTC greedy decode run host-side (see the Kotlin app).
