@@ -10,6 +10,7 @@
 		A1B2C3D4E5F6789012340201 /* ImageSegmentation/ImageSegmentationApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F6789012340101 /* ImageSegmentation/ImageSegmentationApp.swift */; };
 		A1B2C3D4E5F6789012340202 /* ImageSegmentation/ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F6789012340102 /* ImageSegmentation/ContentView.swift */; };
 		A1B2C3D4E5F6789012340204 /* ImageSegmentation/CameraManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F6789012340104 /* ImageSegmentation/CameraManager.swift */; };
+		A1B2C3D4E5F6789012340205 /* ImageSegmentation/ImagePicker.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F6789012340105 /* ImageSegmentation/ImagePicker.swift */; };
 		A1B2C3D4E5F6789012340207 /* ImageSegmentation/LiteRTSegmenter.mm in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F6789012340107 /* ImageSegmentation/LiteRTSegmenter.mm */; };
 		A1B2C3D4E5F678901234020A /* selfie_multiclass_256x256.tflite in Resources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F678901234010A /* selfie_multiclass_256x256.tflite */; };
 		A1B2C3D4E5F678901234020B /* CLiteRT.xcframework in Frameworks */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F678901234010B /* CLiteRT.xcframework */; };
@@ -38,6 +39,7 @@
 		A1B2C3D4E5F6789012340101 /* ImageSegmentation/ImageSegmentationApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ImageSegmentation/ImageSegmentationApp.swift; sourceTree = "<group>"; };
 		A1B2C3D4E5F6789012340102 /* ImageSegmentation/ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ImageSegmentation/ContentView.swift; sourceTree = "<group>"; };
 		A1B2C3D4E5F6789012340104 /* ImageSegmentation/CameraManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ImageSegmentation/CameraManager.swift; sourceTree = "<group>"; };
+		A1B2C3D4E5F6789012340105 /* ImageSegmentation/ImagePicker.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ImageSegmentation/ImagePicker.swift; sourceTree = "<group>"; };
 		A1B2C3D4E5F6789012340106 /* ImageSegmentation/LiteRTSegmenter.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = ImageSegmentation/LiteRTSegmenter.h; sourceTree = "<group>"; };
 		A1B2C3D4E5F6789012340107 /* ImageSegmentation/LiteRTSegmenter.mm */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.objcpp; path = ImageSegmentation/LiteRTSegmenter.mm; sourceTree = "<group>"; };
 		A1B2C3D4E5F6789012340108 /* ImageSegmentation/ImageSegmentation-Bridging-Header.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = "ImageSegmentation/ImageSegmentation-Bridging-Header.h"; sourceTree = "<group>"; };
@@ -84,6 +86,7 @@
 				A1B2C3D4E5F6789012340101 /* ImageSegmentation/ImageSegmentationApp.swift */,
 				A1B2C3D4E5F6789012340102 /* ImageSegmentation/ContentView.swift */,
 				A1B2C3D4E5F6789012340104 /* ImageSegmentation/CameraManager.swift */,
+				A1B2C3D4E5F6789012340105 /* ImageSegmentation/ImagePicker.swift */,
 				A1B2C3D4E5F6789012340106 /* ImageSegmentation/LiteRTSegmenter.h */,
 				A1B2C3D4E5F6789012340107 /* ImageSegmentation/LiteRTSegmenter.mm */,
 				A1B2C3D4E5F6789012340108 /* ImageSegmentation/ImageSegmentation-Bridging-Header.h */,
@@ -183,6 +186,7 @@
 				A1B2C3D4E5F6789012340201 /* ImageSegmentation/ImageSegmentationApp.swift in Sources */,
 				A1B2C3D4E5F6789012340202 /* ImageSegmentation/ContentView.swift in Sources */,
 				A1B2C3D4E5F6789012340204 /* ImageSegmentation/CameraManager.swift in Sources */,
+				A1B2C3D4E5F6789012340205 /* ImageSegmentation/ImagePicker.swift in Sources */,
 				A1B2C3D4E5F6789012340207 /* ImageSegmentation/LiteRTSegmenter.mm in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;

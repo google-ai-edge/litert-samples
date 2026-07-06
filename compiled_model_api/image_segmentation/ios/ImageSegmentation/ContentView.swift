@@ -13,16 +13,17 @@ enum AcceleratorOption: String, CaseIterable {
 }
 
 enum AppMode: String, CaseIterable {
-    case staticImage = "Static Image"
+    case gallery = "Gallery Image"
     case liveCamera = "Live Camera"
 }
 
 struct ContentView: View {
-    @State private var appMode: AppMode = .staticImage
+    @State private var appMode: AppMode = .gallery
     @State private var selectedAccelerator: AcceleratorOption = .cpu
     
-    // Static Mode State
+    // Gallery Mode State
     @State private var originalImage: UIImage? = nil
+    @State private var showingImagePicker = false
     
     // Common State
     @State private var segmentedMask: UIImage? = nil
@@ -91,7 +92,7 @@ struct ContentView: View {
                     cameraManager.requestPermissionAndStart()
                 } else {
                     cameraManager.stop()
-                    runSegmentationOnBundledImage()
+                    runSegmentationOnSelectedImage()
                 }
             }
             
@@ -110,7 +111,7 @@ struct ContentView: View {
             Spacer()
             
             // Display Area
-            if appMode == .staticImage {
+            if appMode == .gallery {
                 // Static image view
                 if isProcessingStatic {
                     ProgressView("Running segmentation...")
@@ -118,7 +119,7 @@ struct ContentView: View {
                 } else if let image = originalImage {
                     HStack(spacing: 12) {
                         VStack {
-                            Text("Original")
+                            Text("Selected")
                                 .font(.caption)
                                 .foregroundColor(.secondary)
                             Image(uiImage: image)
@@ -149,7 +150,7 @@ struct ContentView: View {
                     }
                     .padding(.horizontal)
                 } else {
-                    Text("No test image loaded.")
+                    Text("No image loaded.")
                         .foregroundColor(.secondary)
                 }
             } else {
@@ -237,8 +238,8 @@ struct ContentView: View {
                     }
                     .pickerStyle(.segmented)
                     .onChange(of: selectedAccelerator) { _ in
-                        if appMode == .staticImage {
-                            runSegmentationOnBundledImage()
+                        if appMode == .gallery {
+                            runSegmentationOnSelectedImage()
                         } else {
                             // Re-initialize segmenter on background thread
                             isInitializingSegmenter = true
@@ -252,11 +253,11 @@ struct ContentView: View {
                 }
                 .padding(.horizontal)
                 
-                if appMode == .staticImage {
+                if appMode == .gallery {
                     Button(action: {
-                        runSegmentationOnBundledImage()
+                        showingImagePicker = true
                     }) {
-                        Text("Re-Run Segmentation")
+                        Text(originalImage == nil ? "Select Image from Gallery" : "Change Image")
                             .bold()
                             .foregroundColor(.white)
                             .padding()
@@ -272,12 +273,18 @@ struct ContentView: View {
             .shadow(radius: 2)
         }
         .onAppear {
-            if appMode == .staticImage {
-                runSegmentationOnBundledImage()
+            if appMode == .gallery {
+                runSegmentationOnSelectedImage()
             }
         }
         .onDisappear {
             cameraManager.stop()
+        }
+        .sheet(isPresented: $showingImagePicker) {
+            ImagePicker(image: $originalImage)
+        }
+        .onChange(of: originalImage) { _ in
+            runSegmentationOnSelectedImage()
         }
     }
     
@@ -311,19 +318,31 @@ struct ContentView: View {
         }
     }
     
-    private func runSegmentationOnBundledImage() {
+    private func runSegmentationOnSelectedImage() {
         errorMessage = nil
         isProcessingStatic = true
         
-        guard let imagePath = Bundle.main.path(forResource: "image", ofType: "jpeg"),
-              let uiImage = UIImage(contentsOfFile: imagePath),
-              let cgImage = uiImage.cgImage else {
-            errorMessage = "Sample image.jpeg not found or failed to load"
-            isProcessingStatic = false
-            return
+        let cgImage: CGImage
+        if let uiImage = originalImage {
+            guard let cg = uiImage.cgImage else {
+                errorMessage = "Selected image has no CGImage backing"
+                isProcessingStatic = false
+                return
+            }
+            cgImage = cg
+        } else {
+            // Default portrait image on startup
+            guard let imagePath = Bundle.main.path(forResource: "image", ofType: "jpeg"),
+                  let uiImage = UIImage(contentsOfFile: imagePath),
+                  let cg = uiImage.cgImage else {
+                errorMessage = "Default image.jpeg not found"
+                isProcessingStatic = false
+                return
+            }
+            self.originalImage = uiImage
+            cgImage = cg
         }
         
-        self.originalImage = uiImage
         let accelerator = selectedAccelerator.liteRTAccelerator
         
         getOrInitializeSegmenter(for: accelerator) { segmenter in
