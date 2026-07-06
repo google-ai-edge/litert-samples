@@ -12,13 +12,17 @@ enum AcceleratorOption: String, CaseIterable {
     }
 }
 
-enum AppMode: String, CaseIterable {
-    case gallery = "Gallery Image"
-    case liveCamera = "Live Camera"
+enum AppTab {
+    case camera
+    case gallery
 }
 
 struct ContentView: View {
-    @State private var appMode: AppMode = .gallery
+    // Theme colors matching the Kotlin Android sample (darkBlue and teal)
+    private let primaryColor = Color(red: 2/255.0, green: 15/255.0, blue: 89/255.0)  // #020F59
+    private let accentColor = Color(red: 0/255.0, green: 201/255.0, blue: 158/255.0)  // #00C99E
+
+    @State private var activeTab: AppTab = .camera
     @State private var selectedAccelerator: AcceleratorOption = .cpu
     
     // Gallery Mode State
@@ -34,7 +38,7 @@ struct ContentView: View {
     @StateObject private var cameraManager = CameraManager()
     @State private var isProcessingLiveFrame = false
     
-    // Cached segmenter instance to avoid re-compilation on every frame
+    // Cached segmenter instance
     @State private var activeSegmenter: LiteRTSegmenter? = nil
     @State private var activeAccelerator: LiteRTAccelerator? = nil
     @State private var isInitializingSegmenter = false
@@ -44,236 +48,105 @@ struct ContentView: View {
     @State private var inferenceTime: Double = 0
     @State private var postProcessTime: Double = 0
     
+    // Bottom Sheet Drag State
+    @State private var sheetOffset: CGFloat = 0
+    @State private var isSheetExpanded = false
+    
     private let modelQueue = DispatchQueue(label: "com.litert.segmentation.queue", qos: .userInitiated)
     
     var body: some View {
-        VStack(spacing: 0) {
-            // Header
-            HStack {
-                VStack(alignment: .leading, spacing: 2) {
+        ZStack(alignment: .bottom) {
+            VStack(spacing: 0) {
+                // Custom Navigation Header
+                HStack(spacing: 8) {
+                    Image("logo")
+                        .resizable()
+                        .scaledToFit()
+                        .frame(height: 28)
                     Text("LiteRT")
-                        .font(.headline)
+                        .font(.title2)
                         .fontWeight(.bold)
-                    Text("Image Segmentation Clean")
-                        .font(.subheadline)
-                        .foregroundColor(.secondary)
-                }
-                Spacer()
-                
-                if appMode == .liveCamera && cameraManager.permissionStatus == .authorized {
-                    Button(action: {
-                        cameraManager.flipCamera()
-                    }) {
-                        Image(systemName: "camera.rotate")
-                            .font(.title2)
-                            .foregroundColor(.blue)
-                            .padding(8)
-                            .background(Color(.systemGray6))
-                            .clipShape(Circle())
-                    }
-                }
-            }
-            .padding()
-            .background(Color(.systemBackground))
-            
-            // Mode Picker
-            Picker("Mode", selection: $appMode) {
-                ForEach(AppMode.allCases, id: \.self) { mode in
-                    Text(mode.rawValue).tag(mode)
-                }
-            }
-            .pickerStyle(.segmented)
-            .padding(.horizontal)
-            .padding(.bottom, 8)
-            .onChange(of: appMode) { newMode in
-                segmentedMask = nil
-                errorMessage = nil
-                if newMode == .liveCamera {
-                    cameraManager.requestPermissionAndStart()
-                } else {
-                    cameraManager.stop()
-                    runSegmentationOnSelectedImage()
-                }
-            }
-            
-            // Error Banner
-            if let error = errorMessage {
-                Text(error)
-                    .font(.caption)
-                    .bold()
-                    .foregroundColor(.white)
-                    .padding(.vertical, 8)
-                    .padding(.horizontal, 16)
-                    .frame(maxWidth: .infinity)
-                    .background(Color.red.opacity(0.9))
-            }
-            
-            Spacer()
-            
-            // Display Area
-            if appMode == .gallery {
-                // Static image view
-                if isProcessingStatic {
-                    ProgressView("Running segmentation...")
-                        .padding()
-                } else if let image = originalImage {
-                    HStack(spacing: 12) {
-                        VStack {
-                            Text("Selected")
-                                .font(.caption)
-                                .foregroundColor(.secondary)
-                            Image(uiImage: image)
-                                .resizable()
-                                .scaledToFit()
-                                .frame(maxHeight: 250)
-                                .cornerRadius(8)
-                        }
-                        
-                        VStack {
-                            Text("Mask Overlay")
-                                .font(.caption)
-                                .foregroundColor(.secondary)
-                            ZStack {
-                                Image(uiImage: image)
-                                    .resizable()
-                                    .scaledToFit()
-                                if let mask = segmentedMask {
-                                    Image(uiImage: mask)
-                                        .resizable()
-                                        .scaledToFit()
-                                        .blendMode(.multiply)
-                                }
-                            }
-                            .frame(maxHeight: 250)
-                            .cornerRadius(8)
-                        }
-                    }
-                    .padding(.horizontal)
-                } else {
-                    Text("No image loaded.")
-                        .foregroundColor(.secondary)
-                }
-            } else {
-                // Live camera view
-                switch cameraManager.permissionStatus {
-                case .notDetermined:
-                    ProgressView("Requesting camera access...")
-                case .denied:
-                    VStack(spacing: 8) {
-                        Image(systemName: "camera.meter.lost.fill")
-                            .font(.largeTitle)
-                            .foregroundColor(.secondary)
-                        Text("Camera access denied.")
-                            .font(.headline)
-                        Text("Please allow camera access in Settings to use live mode.")
-                            .font(.subheadline)
-                            .foregroundColor(.secondary)
-                            .multilineTextAlignment(.center)
-                            .padding(.horizontal)
-                    }
-                case .authorized:
-                    if let cameraFrame = cameraManager.currentFrame {
-                        VStack {
-                            Text("Realtime Stream Overlay")
-                                .font(.caption)
-                                .foregroundColor(.secondary)
-                            ZStack {
-                                Image(decorative: cameraFrame, scale: 1.0, orientation: .up)
-                                    .resizable()
-                                    .scaledToFit()
-                                if let mask = segmentedMask {
-                                    Image(uiImage: mask)
-                                        .resizable()
-                                        .scaledToFit()
-                                        .blendMode(.multiply)
-                                }
-                            }
-                            .frame(maxHeight: 350)
-                            .cornerRadius(8)
-                            .onChange(of: cameraManager.currentFrame) { newFrame in
-                                if let frame = newFrame {
-                                    processLiveFrame(frame)
-                                }
-                            }
-                        }
-                        .padding(.horizontal)
-                    } else {
-                        ProgressView("Waiting for camera feed...")
-                    }
-                }
-            }
-            
-            // Metrics Display
-            if segmentedMask != nil {
-                VStack(alignment: .leading, spacing: 4) {
-                    Text("Performance Metrics:")
-                        .font(.subheadline)
-                        .fontWeight(.semibold)
-                    Text("Preprocess: \(String(format: "%.1f", preProcessTime)) ms")
-                    Text("Inference: \(String(format: "%.1f", inferenceTime)) ms")
-                    Text("Postprocess: \(String(format: "%.1f", postProcessTime)) ms")
-                    Text("Total: \(String(format: "%.1f", preProcessTime + inferenceTime + postProcessTime)) ms")
-                }
-                .font(.footnote)
-                .foregroundColor(.secondary)
-                .padding()
-                .background(Color(.systemGray6))
-                .cornerRadius(8)
-                .padding(.top, 16)
-            }
-            
-            Spacer()
-            
-            // Controls
-            VStack(spacing: 12) {
-                HStack {
-                    Text("Backend:")
-                        .font(.subheadline)
-                        .foregroundColor(.secondary)
+                        .foregroundColor(.white)
                     
-                    Picker("Accelerator", selection: $selectedAccelerator) {
-                        ForEach(AcceleratorOption.allCases, id: \.self) { option in
-                            Text(option.rawValue).tag(option)
-                        }
-                    }
-                    .pickerStyle(.segmented)
-                    .onChange(of: selectedAccelerator) { _ in
-                        if appMode == .gallery {
-                            runSegmentationOnSelectedImage()
-                        } else {
-                            // Re-initialize segmenter on background thread
-                            isInitializingSegmenter = true
-                            segmentedMask = nil
-                            let accelerator = selectedAccelerator.liteRTAccelerator
-                            getOrInitializeSegmenter(for: accelerator) { _ in
-                                self.isInitializingSegmenter = false
-                            }
-                        }
-                    }
+                    Spacer()
                 }
                 .padding(.horizontal)
+                .padding(.vertical, 12)
+                .background(accentColor) // Teal top bar!
                 
-                if appMode == .gallery {
+                // Tab Selection bar
+                HStack(spacing: 0) {
                     Button(action: {
-                        showingImagePicker = true
+                        activeTab = .camera
+                        cameraManager.requestPermissionAndStart()
+                        segmentedMask = nil
+                        errorMessage = nil
                     }) {
-                        Text(originalImage == nil ? "Select Image from Gallery" : "Change Image")
-                            .bold()
-                            .foregroundColor(.white)
-                            .padding()
-                            .frame(maxWidth: .infinity)
-                            .background(Color.blue)
-                            .cornerRadius(8)
+                        VStack(spacing: 8) {
+                            Text("Camera")
+                                .fontWeight(activeTab == .camera ? .bold : .regular)
+                                .foregroundColor(activeTab == .camera ? accentColor : .secondary)
+                            Rectangle()
+                                .fill(activeTab == .camera ? accentColor : Color.clear)
+                                .frame(height: 3)
+                        }
                     }
-                    .padding(.horizontal)
+                    .frame(maxWidth: .infinity)
+                    
+                    Button(action: {
+                        activeTab = .gallery
+                        cameraManager.stop()
+                        segmentedMask = nil
+                        errorMessage = nil
+                        runSegmentationOnSelectedImage()
+                    }) {
+                        VStack(spacing: 8) {
+                            Text("Gallery")
+                                .fontWeight(activeTab == .gallery ? .bold : .regular)
+                                .foregroundColor(activeTab == .gallery ? accentColor : .secondary)
+                            Rectangle()
+                                .fill(activeTab == .gallery ? accentColor : Color.clear)
+                                .frame(height: 3)
+                        }
+                    }
+                    .frame(maxWidth: .infinity)
                 }
+                .background(Color(.systemBackground))
+                
+                // Error Banner
+                if let error = errorMessage {
+                    Text(error)
+                        .font(.caption)
+                        .bold()
+                        .foregroundColor(.white)
+                        .padding(.vertical, 8)
+                        .padding(.horizontal, 16)
+                        .frame(maxWidth: .infinity)
+                        .background(Color.red.opacity(0.9))
+                }
+                
+                // Main Content Viewport
+                ZStack {
+                    Color(.systemGray6)
+                        .edgesIgnoringSafeArea(.all)
+                    
+                    if activeTab == .camera {
+                        CameraViewport()
+                    } else {
+                        GalleryViewport()
+                    }
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
-            .padding(.vertical)
-            .background(Color(.systemBackground))
-            .shadow(radius: 2)
+            .edgesIgnoringSafeArea(.bottom)
+            
+            // Bottom Sheet
+            BottomSheetView()
         }
         .onAppear {
-            if appMode == .gallery {
+            if activeTab == .camera {
+                cameraManager.requestPermissionAndStart()
+            } else {
                 runSegmentationOnSelectedImage()
             }
         }
@@ -288,7 +161,230 @@ struct ContentView: View {
         }
     }
     
-    // Core logic: Caches and returns the active segmenter instance
+    // MARK: - Viewports
+    
+    @ViewBuilder
+    private func CameraViewport() -> some View {
+        switch cameraManager.permissionStatus {
+        case .notDetermined:
+            ProgressView("Requesting camera access...")
+        case .denied:
+            VStack(spacing: 12) {
+                Image(systemName: "camera.meter.lost.fill")
+                    .font(.system(size: 48))
+                    .foregroundColor(.secondary)
+                Text("Camera Access Denied")
+                    .font(.headline)
+                Text("Please allow camera access in Settings.")
+                    .font(.subheadline)
+                    .foregroundColor(.secondary)
+                    .multilineTextAlignment(.center)
+            }
+            .padding()
+        case .authorized:
+            if let cameraFrame = cameraManager.currentFrame {
+                ZStack(alignment: .topTrailing) {
+                    // Full viewport preview
+                    ZStack {
+                        Image(decorative: cameraFrame, scale: 1.0, orientation: .up)
+                            .resizable()
+                            .scaledToFit()
+                        if let mask = segmentedMask {
+                            Image(uiImage: mask)
+                                .resizable()
+                                .scaledToFit()
+                                .blendMode(.multiply)
+                        }
+                    }
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .clipped()
+                    
+                    // Floating Camera Flip FAB
+                    Button(action: {
+                        cameraManager.flipCamera()
+                    }) {
+                        Image(systemName: "camera.rotate.fill")
+                            .font(.title3)
+                            .foregroundColor(.white)
+                            .padding(12)
+                            .background(Color.black.opacity(0.6))
+                            .clipShape(Circle())
+                            .shadow(radius: 4)
+                    }
+                    .padding()
+                }
+                .onChange(of: cameraManager.currentFrame) { newFrame in
+                    if let frame = newFrame {
+                        processLiveFrame(frame)
+                    }
+                }
+            } else {
+                ProgressView("Waiting for camera feed...")
+            }
+        }
+    }
+    
+    @ViewBuilder
+    private func GalleryViewport() -> some View {
+        ZStack(alignment: .bottomTrailing) {
+            if isProcessingStatic {
+                ProgressView("Running segmentation...")
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+            } else if let image = originalImage {
+                ZStack {
+                    Image(uiImage: image)
+                        .resizable()
+                        .scaledToFit()
+                    if let mask = segmentedMask {
+                        Image(uiImage: mask)
+                            .resizable()
+                            .scaledToFit()
+                            .blendMode(.multiply)
+                    }
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .padding(.bottom, 120) // Give bottom sheet clearance
+            } else {
+                Text("No image loaded.")
+                    .foregroundColor(.secondary)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+            }
+            
+            // Add Photo FAB
+            Button(action: {
+                showingImagePicker = true
+            }) {
+                Image(systemName: "plus")
+                    .font(.title2.bold())
+                    .foregroundColor(.white)
+                    .padding(18)
+                    .background(accentColor)
+                    .clipShape(Circle())
+                    .shadow(radius: 5)
+            }
+            .padding(.trailing, 20)
+            .padding(.bottom, 120) // Float above persistent bottom sheet
+        }
+    }
+    
+    // MARK: - Bottom Sheet Component
+    
+    @ViewBuilder
+    private func BottomSheetView() -> some View {
+        let peekHeight: CGFloat = 85
+        let expandedHeight: CGFloat = 240
+        
+        VStack(spacing: 0) {
+            // Drag Indicator & Peek Content
+            VStack(spacing: 8) {
+                RoundedRectangle(cornerRadius: 3)
+                    .fill(accentColor)
+                    .frame(width: 40, height: 5)
+                    .padding(.top, 8)
+                
+                HStack {
+                    Text("Inference Time")
+                        .font(.subheadline)
+                        .foregroundColor(.secondary)
+                    Spacer()
+                    Text(segmentedMask != nil ? "\(String(format: "%.1f", inferenceTime)) ms" : "-- ms")
+                        .font(.headline)
+                        .fontWeight(.bold)
+                        .foregroundColor(primaryColor)
+                }
+                .padding(.horizontal, 24)
+                .padding(.bottom, 10)
+            }
+            .contentShape(Rectangle())
+            .onTapGesture {
+                withAnimation(.spring()) {
+                    isSheetExpanded.toggle()
+                }
+            }
+            
+            Divider()
+            
+            // Expanded content (Metrics & Backend Controls)
+            VStack(spacing: 16) {
+                // Secondary Metrics Rows
+                VStack(spacing: 6) {
+                    HStack {
+                        Text("Preprocess Time:")
+                            .font(.footnote)
+                            .foregroundColor(.secondary)
+                        Spacer()
+                        Text(segmentedMask != nil ? "\(String(format: "%.1f", preProcessTime)) ms" : "-- ms")
+                            .font(.footnote)
+                            .bold()
+                    }
+                    HStack {
+                        Text("Postprocess Time:")
+                            .font(.footnote)
+                            .foregroundColor(.secondary)
+                        Spacer()
+                        Text(segmentedMask != nil ? "\(String(format: "%.1f", postProcessTime)) ms" : "-- ms")
+                            .font(.footnote)
+                            .bold()
+                    }
+                }
+                
+                Divider()
+                
+                // Backend Selection Dropdown/Picker
+                HStack {
+                    Text("Accelerator")
+                        .font(.subheadline)
+                        .fontWeight(.medium)
+                    
+                    Spacer()
+                    
+                    Picker("Accelerator", selection: $selectedAccelerator) {
+                        ForEach(AcceleratorOption.allCases, id: \.self) { option in
+                            Text(option.rawValue).tag(option)
+                        }
+                    }
+                    .pickerStyle(.segmented)
+                    .frame(width: 200)
+                    .onChange(of: selectedAccelerator) { _ in
+                        if activeTab == .gallery {
+                            runSegmentationOnSelectedImage()
+                        } else {
+                            isInitializingSegmenter = true
+                            segmentedMask = nil
+                            let accelerator = selectedAccelerator.liteRTAccelerator
+                            getOrInitializeSegmenter(for: accelerator) { _ in
+                                self.isInitializingSegmenter = false
+                            }
+                        }
+                    }
+                }
+            }
+            .padding(.top, 16)
+            .padding(.horizontal, 24)
+            
+            Spacer()
+        }
+        .frame(height: expandedHeight)
+        .background(Color(.systemBackground))
+        .cornerRadius(18)
+        .shadow(radius: 6)
+        .offset(y: isSheetExpanded ? 0 : expandedHeight - peekHeight)
+        .gesture(
+            DragGesture()
+                .onEnded { value in
+                    withAnimation(.spring()) {
+                        if value.translation.height < -50 {
+                            isSheetExpanded = true
+                        } else if value.translation.height > 50 {
+                            isSheetExpanded = false
+                        }
+                    }
+                }
+        )
+    }
+    
+    // MARK: - Core Processing Logic
+    
     private func getOrInitializeSegmenter(for accelerator: LiteRTAccelerator, completion: @escaping (LiteRTSegmenter?) -> Void) {
         if let segmenter = activeSegmenter, activeAccelerator == accelerator {
             completion(segmenter)
@@ -373,7 +469,7 @@ struct ContentView: View {
     
     private func processLiveFrame(_ cgImage: CGImage) {
         // Skip frame if already running inference or if setup is loading
-        guard appMode == .liveCamera, !isProcessingLiveFrame, !isInitializingSegmenter else { return }
+        guard activeTab == .camera, !isProcessingLiveFrame, !isInitializingSegmenter else { return }
         
         let accelerator = selectedAccelerator.liteRTAccelerator
         getOrInitializeSegmenter(for: accelerator) { segmenter in
@@ -385,8 +481,7 @@ struct ContentView: View {
                 do {
                     let result = try segmenter.segmentImage(cgImage)
                     DispatchQueue.main.async {
-                        // Only update UI if we are still in live mode
-                        if self.appMode == .liveCamera {
+                        if self.activeTab == .camera {
                             self.segmentedMask = result.maskImage
                             self.preProcessTime = result.preProcessTimeMs
                             self.inferenceTime = result.inferenceTimeMs

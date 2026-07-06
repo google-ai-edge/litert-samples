@@ -9,6 +9,7 @@
 /* Begin PBXBuildFile section */
 		A1B2C3D4E5F6789012340201 /* ImageSegmentation/ImageSegmentationApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F6789012340101 /* ImageSegmentation/ImageSegmentationApp.swift */; };
 		A1B2C3D4E5F6789012340202 /* ImageSegmentation/ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F6789012340102 /* ImageSegmentation/ContentView.swift */; };
+		A1B2C3D4E5F6789012340203 /* logo.png in Resources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F678901234010F /* logo.png */; };
 		A1B2C3D4E5F6789012340204 /* ImageSegmentation/CameraManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F6789012340104 /* ImageSegmentation/CameraManager.swift */; };
 		A1B2C3D4E5F6789012340205 /* ImageSegmentation/ImagePicker.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F6789012340105 /* ImageSegmentation/ImagePicker.swift */; };
 		A1B2C3D4E5F6789012340207 /* ImageSegmentation/LiteRTSegmenter.mm in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F6789012340107 /* ImageSegmentation/LiteRTSegmenter.mm */; };
@@ -48,6 +49,7 @@
 		A1B2C3D4E5F678901234010B /* CLiteRT.xcframework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.xcframework; path = CLiteRT.xcframework; sourceTree = "<group>"; };
 		A1B2C3D4E5F678901234010D /* image.jpeg */ = {isa = PBXFileReference; lastKnownFileType = image.jpeg; path = image.jpeg; sourceTree = "<group>"; };
 		A1B2C3D4E5F678901234010E /* libLiteRtMetalAccelerator.dylib */ = {isa = PBXFileReference; lastKnownFileType = "compiled.mach-o.dylib"; path = libLiteRtMetalAccelerator.dylib; sourceTree = "<group>"; };
+		A1B2C3D4E5F678901234010F /* logo.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = logo.png; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -109,6 +111,7 @@
 				A1B2C3D4E5F6789012340109 /* Info.plist */,
 				A1B2C3D4E5F678901234010A /* selfie_multiclass_256x256.tflite */,
 				A1B2C3D4E5F678901234010D /* image.jpeg */,
+				A1B2C3D4E5F678901234010F /* logo.png */,
 			);
 			name = Resources;
 			sourceTree = "<group>";
@@ -173,6 +176,7 @@
 			files = (
 				A1B2C3D4E5F678901234020A /* selfie_multiclass_256x256.tflite in Resources */,
 				A1B2C3D4E5F678901234020D /* image.jpeg in Resources */,
+				A1B2C3D4E5F6789012340203 /* logo.png in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
