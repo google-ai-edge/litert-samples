@@ -100,9 +100,13 @@ class XFeatHelper(
         }
         val mu = (mean / pixels.size).toFloat()
         var v = 0.0
-        for (g in inputFloats) v += (g - mu) * (g - mu)
+        for (g in inputFloats) {
+            v += (g - mu) * (g - mu)
+        }
         val inv = (1.0 / sqrt(v / pixels.size + 1e-5)).toFloat()
-        for (i in inputFloats.indices) inputFloats[i] = (inputFloats[i] - mu) * inv
+        for (i in inputFloats.indices) {
+            inputFloats[i] = (inputFloats[i] - mu) * inv
+        }
 
         val inBuf = m.createInputBuffers()
         val outBuf = m.createOutputBuffers()
@@ -139,7 +143,9 @@ class XFeatHelper(
             for (c in 0 until 65) {
                 val z = kpts[c * cell + o]
                 logit[c] = z
-                if (z > mx) mx = z
+                if (z > mx) {
+                    mx = z
+                }
             }
             var sum = 0f
             for (c in 0 until 65) {
@@ -171,7 +177,9 @@ class XFeatHelper(
                 n += z * z
             }
             n = (1.0 / sqrt(n + 1e-12)).toFloat()
-            for (c in 0 until DESC) d[c] *= n
+            for (c in 0 until DESC) {
+                d[c] *= n
+            }
             out.add(Feature(px, py, score, d))
         }
         out.sortByDescending { it.score }
@@ -192,7 +200,9 @@ class XFeatHelper(
             for (k in b.indices) {
                 var s = 0f
                 val db = b[k].desc
-                for (c in 0 until DESC) s += da[c] * db[c]
+                for (c in 0 until DESC) {
+                    s += da[c] * db[c]
+                }
                 if (s > bs) {
                     bs = s
                     bi = k
@@ -208,7 +218,9 @@ class XFeatHelper(
         val res = ArrayList<Pair<Int, Int>>()
         for (i in a.indices) {
             val k = a2b[i]
-            if (k >= 0 && b2a[k] == i && a2bScore[i] > minCos) res.add(i to k)
+            if (k >= 0 && b2a[k] == i && a2bScore[i] > minCos) {
+                res.add(i to k)
+            }
         }
         return res
     }

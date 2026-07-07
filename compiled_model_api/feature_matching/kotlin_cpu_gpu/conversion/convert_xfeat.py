@@ -1,4 +1,4 @@
-# Copyright 2025 The Google AI Edge Authors. All Rights Reserved.
+# Copyright 2026 The Google AI Edge Authors. All Rights Reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -22,7 +22,7 @@ run host-side (the raw-head pattern). Two re-authoring fixes:
   - `_unfold2d(x, 8)` (space-to-depth via unfold -> >4D / GATHER_ND) -> a one-hot Conv2d(1,64,k=8,s=8)
     (exact, single CONV_2D, GPU-clean; the YOLOX/PixelShuffle one-hot trick).
 
-Run: ~/clipconv/bin/python convert_xfeat.py [--nhwc]   (480x640)
+Run: python convert_xfeat.py [--nhwc]   (480x640)
 """
 import sys
 import os
