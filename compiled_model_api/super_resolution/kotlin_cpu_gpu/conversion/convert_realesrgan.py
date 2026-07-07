@@ -138,15 +138,34 @@ class Wrap(nn.Module):
 
 
 def opcheck(path, label):
-    from ai_edge_litert.interpreter import Interpreter
-    it = Interpreter(model_path=path)
-    it.allocate_tensors()
-    ops = collections.Counter(d.get("op_name", "?") for d in it._get_ops_details())
+    """Static GPU-compat scan: read the op set straight from the .tflite flatbuffer."""
+    from ai_edge_litert import schema_py_generated as schema
+    with open(path, "rb") as f:
+        model = schema.ModelT.InitFromPackedBuf(f.read(), 0)
+    names = {v: k for k, v in vars(schema.BuiltinOperator).items() if not k.startswith("_")}
+    ops = collections.Counter()
+    over = 0
+    for g in model.subgraphs:
+        for op in g.operators:
+            c = model.operatorCodes[op.opcodeIndex]
+            code = max(c.builtinCode, c.deprecatedBuiltinCode)
+            ops[c.customCode.decode() if c.customCode else names.get(code, str(code))] += 1
+        over += sum(1 for t in g.tensors if t.shape is not None and len(t.shape) > 4)
     bad = {k: v for k, v in ops.items() if k.upper() in BANNED}
-    over = sum(1 for d in it.get_tensor_details() if len(d.get("shape", [])) > 4)
     print(f"[{label}] banned:{bad or 'NONE'} >4D:{over} size {os.path.getsize(path)/1e6:.1f}MB ops:{len(ops)}")
     print(f"[{label}] top:", dict(sorted(ops.items(), key=lambda kv: -kv[1])[:10]))
-    return it
+
+
+def run_tflite(path, x):
+    """Single inference through the LiteRT CompiledModel API; returns the flat fp32 output."""
+    from ai_edge_litert.compiled_model import CompiledModel
+    model = CompiledModel.from_file(path)
+    inputs = model.create_input_buffers(0)
+    outputs = model.create_output_buffers(0)
+    inputs[0].write(np.ascontiguousarray(x, dtype=np.float32))
+    model.run_by_index(0, inputs, outputs)
+    n = model.get_output_buffer_requirements(0, 0)["buffer_size"] // np.dtype(np.float32).itemsize
+    return outputs[0].read(n, np.float32)
 
 
 def to_fp16(fp32, fp16):
@@ -184,14 +203,11 @@ def main():
     tag = "realesr_x4v3" + ("_ps" if _PS_FIX else "") + ("_nhwc" if args.nhwc else "")
     import litert_torch
     litert_torch.convert(Wrap(m, args.nhwc).eval(), (img,)).export(f"{tag}.tflite")
-    it = opcheck(f"{tag}.tflite", "realesr-fp32")
+    opcheck(f"{tag}.tflite", "realesr-fp32")
     to_fp16(f"{tag}.tflite", f"{tag}_fp16.tflite")
     opcheck(f"{tag}_fp16.tflite", "realesr-fp16")
-    di = it.get_input_details()[0]
-    it.set_tensor(di["index"], img.numpy().astype(di["dtype"]))
-    it.invoke()
-    o = it.get_tensor(it.get_output_details()[0]["index"])
-    print(f"tflite(fp32) vs torch-reauth corr {np.corrcoef(o.ravel(), ra.numpy().ravel())[0,1]:.6f}")
+    o = run_tflite(f"{tag}.tflite", img.numpy())
+    print(f"tflite(fp32) vs torch-reauth corr {np.corrcoef(o, ra.numpy().ravel())[0,1]:.6f}")
     img.numpy().astype(np.float32).tofile(f"{tag}_input.bin")
     it2 = opcheck(f"{tag}_fp16.tflite", "fix") if False else None
     o.astype(np.float32).tofile(f"{tag}_expected.bin")
