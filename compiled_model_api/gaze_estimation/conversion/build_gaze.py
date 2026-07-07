@@ -1,4 +1,4 @@
-# Copyright 2025 The Google AI Edge Authors. All Rights Reserved.
+# Copyright 2026 The Google AI Edge Authors. All Rights Reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -12,6 +12,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+"""L2CS-Net (ResNet-50, 90-bin yaw/pitch) -> LiteRT CompiledModel GPU.
+
+Model-side re-authorings (numerically equivalent): stem MaxPool -> zero-pad +
+valid max-pool, and the global average pool -> mean(3).mean(2).
+"""
 import sys
 import os
 import collections

@@ -1,5 +1,5 @@
 /*
- * Copyright 2025 The Google AI Edge Authors. All Rights Reserved.
+ * Copyright 2026 The Google AI Edge Authors. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -70,7 +70,9 @@ class GazeEstimator(ctx: Context) : Closeable {
 
     private fun expect(p: FloatArray): Float {
         var e = 0f
-        for (i in 0 until BINS) e += p[i] * i
+        for (i in 0 until BINS) {
+            e += p[i] * i
+        }
         return e * 4f - 180f
     }
 
