@@ -37,7 +37,8 @@ class BpeTokenizer(ctx: Context) {
         const val EOS_POOL = 151643            // <|endoftext|>, appended and pooled
         // Qwen pre-tokenizer split pattern (from tokenizer.json)
         private const val PAT =
-            "(?i:'s|'t|'re|'ve|'m|'ll|'d)|[^\\r\\n\\p{L}\\p{N}]?\\p{L}+|\\p{N}| ?[^\\s\\p{L}\\p{N}]+[\\r\\n]*|\\s*[\\r\\n]+|\\s+(?!\\S)|\\s+"
+            "(?i:'s|'t|'re|'ve|'m|'ll|'d)|[^\\r\\n\\p{L}\\p{N}]?\\p{L}+|\\p{N}|" +
+                " ?[^\\s\\p{L}\\p{N}]+[\\r\\n]*|\\s*[\\r\\n]+|\\s+(?!\\S)|\\s+"
     }
 
     private val pattern: Pattern = Pattern.compile(PAT)
@@ -49,7 +50,10 @@ class BpeTokenizer(ctx: Context) {
         // vocab.json: token -> id
         val vj = JSONObject(ctx.assets.open("vocab.json").bufferedReader().use { it.readText() })
         val keys = vj.keys()
-        while (keys.hasNext()) { val k = keys.next(); vocab[k] = vj.getInt(k) }
+        while (keys.hasNext()) {
+            val k = keys.next()
+            vocab[k] = vj.getInt(k)
+        }
         // merges.txt: "a b" -> rank (skip the "#version" header line)
         ctx.assets.open("merges.txt").bufferedReader().useLines { lines ->
             var rank = 0
@@ -63,27 +67,47 @@ class BpeTokenizer(ctx: Context) {
     /** GPT-2 reversible byte<->unicode map so every byte becomes a printable char. */
     private fun buildByteToUnicode(): CharArray {
         val bs = ArrayList<Int>()
-        for (i in '!'.code..'~'.code) bs.add(i)
-        for (i in '¡'.code..'¬'.code) bs.add(i)
-        for (i in '®'.code..'ÿ'.code) bs.add(i)
+        for (i in '!'.code..'~'.code) {
+            bs.add(i)
+        }
+        for (i in '¡'.code..'¬'.code) {
+            bs.add(i)
+        }
+        for (i in '®'.code..'ÿ'.code) {
+            bs.add(i)
+        }
         val cs = ArrayList<Int>(bs)
         var n = 0
-        for (b in 0..255) if (b !in bs) { bs.add(b); cs.add(256 + n); n++ }
+        for (b in 0..255) if (b !in bs) {
+            bs.add(b)
+            cs.add(256 + n)
+            n++
+        }
         val map = CharArray(256)
-        for (i in bs.indices) map[bs[i]] = cs[i].toChar()
+        for (i in bs.indices) {
+            map[bs[i]] = cs[i].toChar()
+        }
         return map
     }
 
     private fun bpe(word: String): List<String> {
         var symbols = ArrayList<String>(word.length)
-        for (c in word) symbols.add(c.toString())
+        for (c in word) {
+            symbols.add(c.toString())
+        }
         if (symbols.size < 2) return symbols
         while (true) {
             // lowest-rank adjacent bigram across the whole word
-            var bestRank = Int.MAX_VALUE; var bestA = ""; var bestB = ""
+            var bestRank = Int.MAX_VALUE
+            var bestA = ""
+            var bestB = ""
             for (i in 0 until symbols.size - 1) {
                 val r = ranks[symbols[i] + " " + symbols[i + 1]] ?: continue
-                if (r < bestRank) { bestRank = r; bestA = symbols[i]; bestB = symbols[i + 1] }
+                if (r < bestRank) {
+                    bestRank = r
+                    bestA = symbols[i]
+                    bestB = symbols[i + 1]
+                }
             }
             if (bestRank == Int.MAX_VALUE) break
             // merge every occurrence of (bestA,bestB) in one pass (GPT-2 BPE)
@@ -91,8 +115,10 @@ class BpeTokenizer(ctx: Context) {
             var i = 0
             while (i < symbols.size) {
                 if (i < symbols.size - 1 && symbols[i] == bestA && symbols[i + 1] == bestB) {
-                    merged.add(bestA + bestB); i += 2
-                } else { merged.add(symbols[i]); i++ }
+                    merged.add(bestA + bestB)
+                    i += 2
+                } else { merged.add(symbols[i])
+                i++ }
             }
             symbols = merged
         }
@@ -108,10 +134,14 @@ class BpeTokenizer(ctx: Context) {
             // byte-level: UTF-8 bytes -> mapped unicode chars
             val bytes = piece.toByteArray(Charsets.UTF_8)
             val sb = StringBuilder(bytes.size)
-            for (b in bytes) sb.append(byteToUnicode[b.toInt() and 0xFF])
+            for (b in bytes) {
+                sb.append(byteToUnicode[b.toInt() and 0xFF])
+            }
             for (tokenStr in bpe(sb.toString())) {
                 val id = vocab[tokenStr]
-                if (id != null) ids.add(id)
+                if (id != null) {
+                    ids.add(id)
+                }
             }
         }
         ids.add(EOS_POOL)

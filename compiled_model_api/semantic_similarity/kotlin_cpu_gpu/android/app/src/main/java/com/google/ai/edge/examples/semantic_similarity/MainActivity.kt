@@ -53,18 +53,30 @@ class MainActivity : Activity() {
         }
         root.addView(TextView(this).apply {
             text = "Semantic Search — Qwen3-Embedding-0.6B (GPU)"
-            textSize = 18f; setTextColor(Color.BLACK); setPadding(0, 0, 0, 24)
+            textSize = 18f
+            setTextColor(Color.BLACK)
+            setPadding(0, 0, 0, 24)
         })
         query = EditText(this).apply {
             inputType = InputType.TYPE_CLASS_TEXT
-            hint = "Type a query…"; setText("What is the capital of China?")
+            hint = "Type a query…"
+            setText("What is the capital of China?")
         }
         root.addView(query)
-        search = Button(this).apply { text = "Search"; isEnabled = false }
+        search = Button(this).apply {
+            text = "Search"
+            isEnabled = false
+        }
         root.addView(search)
-        status = TextView(this).apply { setPadding(0, 16, 0, 16); setTextColor(Color.DKGRAY) }
+        status = TextView(this).apply {
+            setPadding(0, 16, 0, 16)
+            setTextColor(Color.DKGRAY)
+        }
         root.addView(status)
-        results = TextView(this).apply { textSize = 15f; setTextColor(Color.BLACK) }
+        results = TextView(this).apply {
+            textSize = 15f
+            setTextColor(Color.BLACK)
+        }
         root.addView(results)
 
         setContentView(ScrollView(this).apply {
@@ -72,7 +84,8 @@ class MainActivity : Activity() {
         })
 
         corpus = assets.open("corpus.txt").bufferedReader().readLines().filter { it.isNotBlank() }
-        status.text = "Loading model + embedding ${corpus.size} documents (GPU compile ~40 s on first run)…"
+        status.text =
+            "Loading model + embedding ${corpus.size} documents (GPU compile ~40 s on first run)…"
 
         Thread {
             try {
@@ -80,7 +93,9 @@ class MainActivity : Activity() {
                 embedder = TextEmbedder(this)
                 corpusVecs = Array(corpus.size) { embedder.embed(corpus[it]) }
                 val dt = System.currentTimeMillis() - t0
-                Log.i("TEAPP", "READY: ${corpus.size} docs embedded in ${dt} ms (incl. one-time GPU compile)")
+                Log.i(
+                    "TEAPP",
+                    "READY: ${corpus.size} docs embedded in ${dt} ms (incl. one-time GPU compile)")
                 // auto demo search so the pipeline is verifiable headlessly (screen may be locked)
                 val q0 = query.text.toString()
                 val qt = System.currentTimeMillis()
@@ -89,7 +104,9 @@ class MainActivity : Activity() {
                     .sortedByDescending { it.second }
                 Log.i("TEAPP", "QUERY(${System.currentTimeMillis() - qt}ms): $q0")
                 ranked.forEachIndexed { r, p ->
-                    Log.i("TEAPP", String.format("  %2d. %.3f  %s", r + 1, p.second, corpus[p.first]))
+                    Log.i(
+                        "TEAPP",
+                        String.format("  %2d. %.3f  %s", r + 1, p.second, corpus[p.first]))
                 }
                 runOnUiThread {
                     status.text = "Ready — ${corpus.size} docs embedded in ${dt} ms. Enter a query."
@@ -130,6 +147,8 @@ class MainActivity : Activity() {
 
     override fun onDestroy() {
         super.onDestroy()
-        if (::embedder.isInitialized) embedder.close()
+        if (::embedder.isInitialized) {
+            embedder.close()
+        }
     }
 }

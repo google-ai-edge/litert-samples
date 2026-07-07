@@ -70,7 +70,10 @@ class TextEmbedder(private val ctx: Context) {
             val base = ids[p].toLong() * DIM * 2L        // fp16 => 2 bytes
             var o = p * DIM
             var b = base.toInt()
-            for (j in 0 until DIM) { out[o++] = Half.toFloat(embMap.getShort(b)); b += 2 }
+            for (j in 0 until DIM) {
+                out[o++] = Half.toFloat(embMap.getShort(b))
+                b += 2
+            }
         }
         return out
     }
@@ -81,11 +84,15 @@ class TextEmbedder(private val ctx: Context) {
         val ids = IntArray(L) { BpeTokenizer.EOS_POOL }   // pad with <|endoftext|>
         val poolPos: Int
         if (enc.size >= L) {
-            for (i in 0 until L - 1) ids[i] = enc[i]
+            for (i in 0 until L - 1) {
+                ids[i] = enc[i]
+            }
             ids[L - 1] = BpeTokenizer.EOS_POOL             // keep pooled EOS at the tail
             poolPos = L - 1
         } else {
-            for (i in enc.indices) ids[i] = enc[i]
+            for (i in enc.indices) {
+                ids[i] = enc[i]
+            }
             poolPos = enc.size - 1
         }
 
@@ -96,9 +103,14 @@ class TextEmbedder(private val ctx: Context) {
         val n = if (dim in 1 until DIM) dim else DIM
         val vec = FloatArray(n)
         System.arraycopy(hidden, poolPos * DIM, vec, 0, n)
-        var s = 0f; for (v in vec) s += v * v
+        var s = 0f
+        for (v in vec) {
+            s += v * v
+        }
         val inv = 1f / (sqrt(s) + 1e-9f)
-        for (i in vec.indices) vec[i] *= inv
+        for (i in vec.indices) {
+            vec[i] *= inv
+        }
         return vec
     }
 
@@ -107,13 +119,18 @@ class TextEmbedder(private val ctx: Context) {
         "Instruct: Given a web search query, retrieve relevant passages\nQuery:$query", dim)
 
     fun close() {
-        inputs.forEach { it.close() }; outputs.forEach { it.close() }
-        model.close(); embChannel.close()
+        inputs.forEach { it.close() }
+        outputs.forEach { it.close() }
+        model.close()
+        embChannel.close()
     }
 }
 
 fun cosine(a: FloatArray, b: FloatArray): Float {
-    var d = 0f; val n = minOf(a.size, b.size)
-    for (i in 0 until n) d += a[i] * b[i]
+    var d = 0f
+    val n = minOf(a.size, b.size)
+    for (i in 0 until n) {
+        d += a[i] * b[i]
+    }
     return d      // inputs are already L2-normalized
 }
