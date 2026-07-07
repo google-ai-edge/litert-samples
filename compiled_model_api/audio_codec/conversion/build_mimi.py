@@ -319,26 +319,47 @@ class DecodeGraphTapped(nn.Module):
 
 # --------------------------------------------------------------- op-check helpers
 def opcheck(path, label):
-    from ai_edge_litert.interpreter import Interpreter
-    it = Interpreter(model_path=path)
-    it.allocate_tensors()
-    ops = collections.Counter(d.get("op_name", "?") for d in it._get_ops_details())
+    """Static GPU-compat scan: read the op set straight from the .tflite flatbuffer."""
+    from ai_edge_litert import schema_py_generated as schema
+    with open(path, "rb") as f:
+        model = schema.ModelT.InitFromPackedBuf(f.read(), 0)
+    names = {v: k for k, v in vars(schema.BuiltinOperator).items() if not k.startswith("_")}
+    ops = collections.Counter()
+    over = 0
+    for g in model.subgraphs:
+        for op in g.operators:
+            c = model.operatorCodes[op.opcodeIndex]
+            code = max(c.builtinCode, c.deprecatedBuiltinCode)
+            ops[c.customCode.decode() if c.customCode else names.get(code, str(code))] += 1
+        over += sum(1 for t in g.tensors if t.shape is not None and len(t.shape) > 4)
     bad = {k: v for k, v in ops.items() if k.upper() in BANNED}
-    over = sum(1 for d in it.get_tensor_details() if len(d.get("shape", [])) > 4)
     fft = {k: v for k, v in ops.items() if any(t in k.upper() for t in ("FFT", "STFT", "COMPLEX"))}
     print(f"[{label}] ops:", dict(sorted(ops.items(), key=lambda kv: -kv[1])))
     print(f"[{label}] banned:{bad or 'NONE'} >4D:{over} FFT:{fft or 'NONE'} "
           f"size {os.path.getsize(path)/1e6:.1f}MB")
     print(f"[{label}] VERDICT:", "GPU-CLEAN" if not bad and not over and not fft else f"BLOCKERS {bad}")
-    return it, (not bad and not over and not fft)
+    return not bad and not over and not fft
 
 
-def tfl_run(it, *inputs):
-    ins = it.get_input_details()
-    for d, x in zip(ins, inputs):
-        it.set_tensor(d["index"], x.astype(d["dtype"]))
-    it.invoke()
-    return [it.get_tensor(d["index"]) for d in it.get_output_details()]
+def tfl_run(path, *inputs):
+    """Inference through the LiteRT CompiledModel API; returns shaped outputs in
+    signature order (buffer order == get_signature_list() name order)."""
+    from ai_edge_litert.compiled_model import CompiledModel
+    model = CompiledModel.from_file(path)
+    sig = model.get_signature_list()
+    key = list(sig)[0]
+    ins = model.create_input_buffers(0)
+    outs = model.create_output_buffers(0)
+    for buf, x in zip(ins, inputs):
+        buf.write(np.ascontiguousarray(x, dtype=np.float32))
+    model.run_by_index(0, ins, outs)
+    details = model.get_output_tensor_details(key)
+    result = []
+    for j, name in enumerate(sig[key]["outputs"]):
+        d = details[name]
+        n = int(np.prod(d["shape"])) if len(d["shape"]) else 1
+        result.append(outs[j].read(n, np.dtype(d["dtype"])).reshape(d["shape"]))
+    return result
 
 
 def corr(a, b):

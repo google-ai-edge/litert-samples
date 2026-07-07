@@ -157,13 +157,17 @@ def main():
     aco_Wout = aco.output_proj.weight.detach().numpy()[:, :, 0]
 
     def tfl(path, x):
-        from ai_edge_litert.interpreter import Interpreter
-        it = Interpreter(model_path=path)
-        it.allocate_tensors()
-        d = it.get_input_details()[0]
-        it.set_tensor(d["index"], x.astype(d["dtype"]))
-        it.invoke()
-        return it.get_tensor(it.get_output_details()[0]["index"])
+        # Inference through the LiteRT CompiledModel API; returns the shaped output.
+        from ai_edge_litert.compiled_model import CompiledModel
+        model = CompiledModel.from_file(path)
+        key = list(model.get_signature_list())[0]
+        oname = list(model.get_signature_list()[key]["outputs"])[0]
+        shp = tuple(model.get_output_tensor_details(key)[oname]["shape"])
+        ins = model.create_input_buffers(0)
+        outs = model.create_output_buffers(0)
+        ins[0].write(np.ascontiguousarray(x, dtype=np.float32))
+        model.run_by_index(0, ins, outs)
+        return outs[0].read(int(np.prod(shp)), np.float32).reshape(shp)
 
     feat_t = tfl(p_ec, audio.numpy())
     emb_t = tfl(p_et, np.transpose(feat_t, (0, 2, 1)))
