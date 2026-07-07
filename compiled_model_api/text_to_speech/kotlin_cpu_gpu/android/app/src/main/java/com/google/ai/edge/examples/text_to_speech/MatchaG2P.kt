@@ -211,7 +211,9 @@ class MatchaG2P(context: Context) : Closeable {
         for (i in groups.indices.reversed()) {
             if (groups[i] == 0) continue
             words.addAll(wordsUnderThousand(groups[i]))
-            if (SCALES[i].isNotEmpty()) words.add(SCALES[i])
+            if (SCALES[i].isNotEmpty()) {
+                words.add(SCALES[i])
+            }
         }
         return words
     }
