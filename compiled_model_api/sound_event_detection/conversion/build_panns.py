@@ -1,4 +1,4 @@
-# Copyright 2025 The Google AI Edge Authors. All Rights Reserved.
+# Copyright 2026 The Google AI Edge Authors. All Rights Reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -29,7 +29,7 @@ matched to torchlibrosa exactly (validated here in numpy at corr 1.0).
 Deps: the qiuqiangkong model defs (`models.py` as panns_models.py + `pytorch_utils.py`) from
 github.com/qiuqiangkong/audioset_tagging_cnn, and Cnn14_mAP=0.431.pth (Zenodo, CC-BY-4.0):
     https://zenodo.org/record/3987831/files/Cnn14_mAP%3D0.431.pth
-Run: ~/clipconv/bin/python build_panns.py
+Run: python build_panns.py
 """
 import _stub_propack  # noqa: F401  (narrow scipy _propack shim; keeps librosa real)
 import sys

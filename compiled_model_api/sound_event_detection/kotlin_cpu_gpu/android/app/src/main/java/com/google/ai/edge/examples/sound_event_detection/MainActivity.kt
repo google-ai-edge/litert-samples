@@ -1,5 +1,5 @@
 /*
- * Copyright 2025 The Google AI Edge Authors. All Rights Reserved.
+ * Copyright 2026 The Google AI Edge Authors. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -191,7 +191,9 @@ class MainActivity : Activity() {
     rec.stop()
     rec.release()
     val out = FloatArray(sr)
-    for (i in 0 until sr) out[i] = pcm[i] / 32768f   // PCM16 -> [-1,1] (PANNs uses raw scale, no peak-norm)
+    for (i in 0 until sr) {
+      out[i] = pcm[i] / 32768f   // PCM16 -> [-1,1] (PANNs uses raw scale, no peak-norm)
+    }
     return out
   }
 

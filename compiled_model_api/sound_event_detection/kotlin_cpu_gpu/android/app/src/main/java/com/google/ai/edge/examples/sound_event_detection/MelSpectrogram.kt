@@ -1,5 +1,5 @@
 /*
- * Copyright 2025 The Google AI Edge Authors. All Rights Reserved.
+ * Copyright 2026 The Google AI Edge Authors. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -98,13 +98,17 @@ class MelSpectrogram(context: Context) {
           im[i] = 0f
       }
       fft(re, im, N_FFT)
-      for (f in 0 until N_FREQS) power[f] = re[f] * re[f] + im[f] * im[f]
+      for (f in 0 until N_FREQS) {
+        power[f] = re[f] * re[f] + im[f] * im[f]
+      }
 
       val base = t * N_MELS
       for (mel in 0 until N_MELS) {
         var sum = 0f
         val wbase = mel * N_FREQS
-        for (f in 0 until N_FREQS) sum += melBasis[wbase + f] * power[f]
+        for (f in 0 until N_FREQS) {
+          sum += melBasis[wbase + f] * power[f]
+        }
         out[base + mel] = (10.0 * log10(maxOf(sum, 1e-10f).toDouble())).toFloat()
       }
     }
