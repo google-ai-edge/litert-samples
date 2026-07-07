@@ -1,5 +1,5 @@
 /*
- * Copyright 2025 The Google AI Edge Authors. All Rights Reserved.
+ * Copyright 2026 The Google AI Edge Authors. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -177,7 +177,9 @@ class MainActivity : ComponentActivity() {
     val opts = BitmapFactory.Options().apply { inJustDecodeBounds = true }
     contentResolver.openInputStream(uri)?.use { BitmapFactory.decodeStream(it, null, opts) }
     var sampleSize = 1
-    while (opts.outWidth / sampleSize > MAX_INPUT_SIZE || opts.outHeight / sampleSize > MAX_INPUT_SIZE) sampleSize *= 2
+    while (opts.outWidth / sampleSize > MAX_INPUT_SIZE || opts.outHeight / sampleSize > MAX_INPUT_SIZE) {
+      sampleSize *= 2
+    }
     val decodeOpts = BitmapFactory.Options().apply { inSampleSize = sampleSize }
     val bitmap = contentResolver.openInputStream(uri)?.use { BitmapFactory.decodeStream(it, null, decodeOpts) } ?: return null
     val rotation = contentResolver.openInputStream(uri)?.use {

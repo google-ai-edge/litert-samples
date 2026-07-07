@@ -1,4 +1,4 @@
-# Copyright 2025 The Google AI Edge Authors. All Rights Reserved.
+# Copyright 2026 The Google AI Edge Authors. All Rights Reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -26,7 +26,7 @@ so the runtime filter disappears: a plain CONV_2D with a constant filter, an inp
 and a small (c_out x c_in) matmul + rsqrt for the per-out-channel demod. All tensors <=4D.
 Everything else in the clean arch is already GPU-friendly (upsample = bilinear align_corners=False,
 no GroupNorm, no ConvTranspose -> no ZeroStuff). noise -> stored buffers (randomize_noise=False)
-so the graph is deterministic. Run: ~/clipconv/bin/python build_gfpgan.py
+so the graph is deterministic. Run: python build_gfpgan.py
 """
 import sys
 import os

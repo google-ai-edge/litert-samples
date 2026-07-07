@@ -1,5 +1,5 @@
 /*
- * Copyright 2025 The Google AI Edge Authors. All Rights Reserved.
+ * Copyright 2026 The Google AI Edge Authors. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -99,7 +99,11 @@ object FaceAligner {
     val n = 4
     for (col in 0 until n) {
       var piv = col
-      for (r in col + 1 until n) if (abs(a[r][col]) > abs(a[piv][col])) piv = r
+      for (r in col + 1 until n) {
+        if (abs(a[r][col]) > abs(a[piv][col])) {
+          piv = r
+        }
+      }
       val tmp = a[col]
       a[col] = a[piv]
       a[piv] = tmp
@@ -110,7 +114,9 @@ object FaceAligner {
       for (r in 0 until n) {
         if (r == col) continue
         val f = a[r][col] / d
-        for (c in col until n) a[r][c] -= f * a[col][c]
+        for (c in col until n) {
+          a[r][c] -= f * a[col][c]
+        }
         b[r] -= f * b[col]
       }
     }
