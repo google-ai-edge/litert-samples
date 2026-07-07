@@ -25,7 +25,7 @@ Compares three pipelines on the SAME noise z / durations:
 corr(TFL,RT) isolates conversion fidelity; corr(TFL,TRUE) is real-world fidelity
 (includes the <=3 fix_len pad-frame attention leak from dropping the mask).
 
-Run: ~/clipconv/bin/python e2e_matcha.py "Some sentence." [n_timesteps]
+Run: python e2e_matcha.py "Some sentence." [n_timesteps]
 """
 
 import _stub  # noqa: F401  (must be first: scipy / getsourcefile guards)
@@ -40,7 +40,6 @@ import torch.nn as nn
 
 import build_matcha as B
 
-os.environ.setdefault("PHONEMIZER_ESPEAK_LIBRARY", "/opt/homebrew/lib/libespeak-ng.dylib")
 LENGTH_SCALE = 0.95
 
 

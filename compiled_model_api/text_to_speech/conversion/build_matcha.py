@@ -25,7 +25,7 @@ Host (CPU) does: phoneme embedding lookup, duration -> length-regulator (expand 
 sinusoidal time-embed per ODE step, the Euler ODE loop, mel denormalize. The 3 GPU
 graphs are text_encoder(emb)->(mu,logw), decoder(x,mu,t_emb)->v, vocoder(mel)->wav.
 
-Run:  ~/clipconv/bin/python build_matcha.py [stage]
+Run:  python build_matcha.py [stage]
       stage in {opcheck, parity, e2e, all}   (default: all)
 """
 
@@ -47,8 +47,36 @@ import torch.nn.functional as F
 HERE = os.path.dirname(os.path.abspath(__file__))
 CKPT = os.path.join(HERE, "matcha_ljspeech.ckpt")
 HIFI = os.path.join(HERE, "generator_v1")
-PHON_LIB = "/opt/homebrew/lib/libespeak-ng.dylib"
-os.environ.setdefault("PHONEMIZER_ESPEAK_LIBRARY", PHON_LIB)
+
+
+def setup_espeak_library():
+    """Points phonemizer at libespeak-ng on macOS or Linux.
+
+    Only used to build the G2P assets (espeak generates the reference IPA); the
+    shipped Android app needs no espeak. Respects an existing
+    PHONEMIZER_ESPEAK_LIBRARY, then falls back to ctypes' library resolver and a
+    few common install locations. Leaves the env var unset if none is found, so
+    phonemizer can still fall back to a system espeak binary.
+    """
+    if os.environ.get("PHONEMIZER_ESPEAK_LIBRARY"):
+        return
+    import ctypes.util
+
+    found = ctypes.util.find_library("espeak-ng") or ctypes.util.find_library("espeak")
+    candidates = [
+        found,
+        "/opt/homebrew/lib/libespeak-ng.dylib",   # macOS (Homebrew, Apple silicon)
+        "/usr/local/lib/libespeak-ng.dylib",      # macOS (Homebrew, Intel)
+        "/usr/lib/x86_64-linux-gnu/libespeak-ng.so.1",  # Debian/Ubuntu
+        "/usr/lib/libespeak-ng.so.1",             # other Linux
+    ]
+    for path in candidates:
+        if path and os.path.exists(path):
+            os.environ["PHONEMIZER_ESPEAK_LIBRARY"] = path
+            return
+
+
+setup_espeak_library()
 torch.manual_seed(0)
 
 BANNED = {"GATHER", "GATHER_ND", "TOPK_V2", "GELU", "ERF", "WHERE", "SELECT",

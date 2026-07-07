@@ -25,7 +25,7 @@ Outputs (into ./artifacts/):
 Verifies fp16 graphs end-to-end (host orchestration) vs torch reference on several
 sentences -> waveform corr.
 
-Run: ~/clipconv/bin/python convert_final.py [MAX_MEL]
+Run: python convert_final.py [MAX_MEL]
 """
 
 import _stub  # noqa: F401  (must be first: scipy / getsourcefile guards)
@@ -43,7 +43,6 @@ import build_matcha as B
 from e2e_masked import host_pipeline_masked
 from e2e_matcha import g2p_ids
 
-os.environ.setdefault("PHONEMIZER_ESPEAK_LIBRARY", "/opt/homebrew/lib/libespeak-ng.dylib")
 ART = os.path.join(B.HERE, "artifacts")
 os.makedirs(ART, exist_ok=True)
 MAX_TEXT = 256

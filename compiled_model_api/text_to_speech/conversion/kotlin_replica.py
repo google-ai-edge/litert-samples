@@ -18,7 +18,7 @@ Replicates MatchaG2P + MatchaSynthesizer — per-word tflite G2P + manual assemb
 the integer length-regulator + Euler loop — and synthesizes through the same fp16
 graphs. Confirms the Android pipeline before an on-device build.
 
-Run: ~/clipconv/bin/python kotlin_replica.py
+Run: python kotlin_replica.py
 """
 
 import _stub  # noqa: F401  (must be first: scipy / getsourcefile guards)

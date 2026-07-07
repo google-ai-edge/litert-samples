@@ -18,7 +18,7 @@ Same re-authoring as the real decoder, but forward() returns
 [v, tap_resnet0, tap_attn0, tap_upsample] so one on-device run isolates the bad op
 (GN/Mish vs attention/SnakeBeta vs ZeroStuffConvT1d).
 
-Run: ~/clipconv/bin/python probe_decoder_taps.py -> artifacts/matcha_decoder_dbg.tflite
+Run: python probe_decoder_taps.py -> artifacts/matcha_decoder_dbg.tflite
 """
 
 import _stub  # noqa: F401  (must be first: scipy / getsourcefile guards)

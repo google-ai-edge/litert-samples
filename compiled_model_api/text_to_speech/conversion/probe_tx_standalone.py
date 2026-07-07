@@ -23,7 +23,7 @@ fundamentally broken on Mali and splitting won't help.
 Outputs: artifacts/tx_probe.tflite, tx_input.bin (fixed ±MAG input),
 tx_mask.bin, tx_expected.npy.
 
-Run: ~/clipconv/bin/python probe_tx_standalone.py [MAG]   (default 60)
+Run: python probe_tx_standalone.py [MAG]   (default 60)
 """
 
 import _stub  # noqa: F401  (must be first: scipy / getsourcefile guards)

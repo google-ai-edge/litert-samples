@@ -21,7 +21,7 @@ SELECT/CAST). One compiled graph per stage handles any length up to the max.
 Verifies: (1) all 3 masked graphs op-check GPU-clean; (2) corr(tflite-masked,
 torch-original-masked) ~ 1.0 (mask removes the pad-leak that drop-mask suffered).
 
-Run: ~/clipconv/bin/python e2e_masked.py "Sentence." [n_timesteps] [MAX_MEL]
+Run: python e2e_masked.py "Sentence." [n_timesteps] [MAX_MEL]
 """
 
 import _stub  # noqa: F401  (must be first: scipy / getsourcefile guards)
@@ -37,7 +37,6 @@ import torch.nn as nn
 import build_matcha as B
 from e2e_matcha import LENGTH_SCALE, g2p_ids, generate_path, sequence_mask
 
-os.environ.setdefault("PHONEMIZER_ESPEAK_LIBRARY", "/opt/homebrew/lib/libespeak-ng.dylib")
 
 
 def host_pipeline_masked(text_enc, decoder, vocoder, t_embed, emb_w, ids,
@@ -139,22 +138,26 @@ def main():
     p_dec = B.convert(dec_r, (x0, mu0, te0, m0), os.path.join(B.HERE, "m_decoder.tflite"))
     p_gen = B.convert(gen_r, (mel0,), os.path.join(B.HERE, "m_vocoder.tflite"))
     print("\n=== op-check (masked, fp32) ===")
-    it_te, clean_te = B.opcheck(p_te, "textenc")
-    it_dec, clean_dec = B.opcheck(p_dec, "decoder")
-    it_gen, clean_gen = B.opcheck(p_gen, "vocoder")
+    clean_te = B.opcheck(p_te, "textenc")
+    clean_dec = B.opcheck(p_dec, "decoder")
+    clean_gen = B.opcheck(p_gen, "vocoder")
+
+    cm_te = B.tfl_load(p_te)
+    cm_dec = B.tfl_load(p_dec)
+    cm_gen = B.tfl_load(p_gen)
 
     def tfl_te(emb_x, tmask):
-        outputs = B.tfl_run(it_te, emb_x.numpy(), tmask.numpy())
+        outputs = B.tfl_run(cm_te, emb_x.numpy(), tmask.numpy())
         a, b = outputs
         mu, logw = (a, b) if a.shape[1] == 80 else (b, a)
         return torch.from_numpy(mu), torch.from_numpy(logw)
 
     def tfl_dec(x, mu, t_emb, mask):
         return torch.from_numpy(
-            B.tfl_run(it_dec, x.numpy(), mu.numpy(), t_emb.numpy(), mask.numpy())[0])
+            B.tfl_run(cm_dec, x.numpy(), mu.numpy(), t_emb.numpy(), mask.numpy())[0])
 
     def tfl_gen(mel):
-        return B.tfl_run(it_gen, mel.numpy())[0]
+        return B.tfl_run(cm_gen, mel.numpy())[0]
 
     wav_tfl, *_ = host_pipeline_masked(tfl_te, tfl_dec, tfl_gen, t_embed, emb_w, ids,
                                        mel_mean, mel_std, n_timesteps, max_text,

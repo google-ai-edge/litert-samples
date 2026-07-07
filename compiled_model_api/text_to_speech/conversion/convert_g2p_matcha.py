@@ -27,7 +27,7 @@ Outputs:
     artifacts/g2p_meta.json  (char->id table, id->phoneme table, char_repeats,
                               MAXT) for the Kotlin port.
 
-Run: ~/clipconv/bin/python convert_g2p_matcha.py
+Run: python convert_g2p_matcha.py
 """
 
 import _stub  # noqa: F401  (must be first: scipy / getsourcefile guards)
