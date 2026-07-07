@@ -1,5 +1,5 @@
 /*
- * Copyright 2025 The Google AI Edge Authors. All Rights Reserved.
+ * Copyright 2026 The Google AI Edge Authors. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -37,10 +37,15 @@ class MainActivity : AppCompatActivity() {
 
   override fun onCreate(savedInstanceState: Bundle?) {
     super.onCreate(savedInstanceState)
-    val status = TextView(this).apply { textSize = 15f; setPadding(28, 40, 28, 20) }
+    val status = TextView(this).apply {
+        textSize = 15f
+        setPadding(28, 40, 28, 20)
+    }
     val imageView = ImageView(this).apply { adjustViewBounds = true }
     setContentView(LinearLayout(this).apply {
-      orientation = LinearLayout.VERTICAL; addView(status); addView(imageView)
+      orientation = LinearLayout.VERTICAL
+      addView(status)
+      addView(imageView)
     })
 
     executor.execute {
@@ -68,15 +73,19 @@ class MainActivity : AppCompatActivity() {
   /** Composite the object onto a transparency checkerboard using the alpha (S×S). */
   private fun cutout(image: Bitmap, alpha: FloatArray): Bitmap {
     val S = CutoutSegmenter.SIZE
-    val w = image.width; val h = image.height
-    val px = IntArray(w * h); image.copy(Bitmap.Config.ARGB_8888, false).getPixels(px, 0, w, 0, 0, w, h)
+    val w = image.width
+    val h = image.height
+    val px = IntArray(w * h)
+    image.copy(Bitmap.Config.ARGB_8888, false).getPixels(px, 0, w, 0, 0, w, h)
     val out = IntArray(w * h)
     for (y in 0 until h) {
       val ay = y * S / h
       for (x in 0 until w) {
         val a = alpha[ay * S + x * S / w]
         val p = px[y * w + x]
-        val fr = (p shr 16) and 0xFF; val fg = (p shr 8) and 0xFF; val fb = p and 0xFF
+        val fr = (p shr 16) and 0xFF
+        val fg = (p shr 8) and 0xFF
+        val fb = p and 0xFF
         val ck = if (((x / 24) + (y / 24)) % 2 == 0) 255 else 205
         out[y * w + x] = (0xFF shl 24) or
           ((fr * a + ck * (1 - a)).toInt() shl 16) or
@@ -87,5 +96,8 @@ class MainActivity : AppCompatActivity() {
     return Bitmap.createBitmap(out, w, h, Bitmap.Config.ARGB_8888)
   }
 
-  override fun onDestroy() { super.onDestroy(); executor.shutdown() }
+  override fun onDestroy() {
+      super.onDestroy()
+      executor.shutdown()
+  }
 }

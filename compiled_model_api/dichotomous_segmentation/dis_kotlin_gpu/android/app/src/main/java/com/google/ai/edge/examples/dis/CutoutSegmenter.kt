@@ -1,5 +1,5 @@
 /*
- * Copyright 2025 The Google AI Edge Authors. All Rights Reserved.
+ * Copyright 2026 The Google AI Edge Authors. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -56,7 +56,9 @@ class CutoutSegmenter(modelPath: String) : AutoCloseable {
   fun matte(bitmap: Bitmap): Pair<FloatArray, Long> {
     val t = System.nanoTime()
     Canvas(resized).drawBitmap(
-      bitmap, matrix.apply { setScale(SIZE.toFloat() / bitmap.width, SIZE.toFloat() / bitmap.height) }, paint)
+      bitmap,
+      matrix.apply { setScale(SIZE.toFloat() / bitmap.width, SIZE.toFloat() / bitmap.height) },
+      paint)
     resized.getPixels(pixels, 0, SIZE, 0, 0, SIZE, SIZE)
     val plane = SIZE * SIZE
     for (i in 0 until plane) {
@@ -72,6 +74,8 @@ class CutoutSegmenter(modelPath: String) : AutoCloseable {
 
   override fun close() {
     model.close()
-    if (!resized.isRecycled) resized.recycle()
+    if (!resized.isRecycled) {
+      resized.recycle()
+    }
   }
 }
