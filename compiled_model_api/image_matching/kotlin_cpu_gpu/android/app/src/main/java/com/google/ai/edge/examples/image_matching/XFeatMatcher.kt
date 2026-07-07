@@ -83,9 +83,10 @@ class XFeatMatcher(ctx: Context) : Closeable {
     fun extract(gray: FloatArray): Features {
         inBuf[0].writeFloat(gray)
         model.run(inBuf, outBuf)
+        // Output buffers follow the model's signature order: feats, keypoint logits, heatmap.
         val feats = outBuf[0].readFloat()      // [64, 60, 80]
-        val heat = outBuf[1].readFloat()       // [60, 80] reliability
-        val klog = outBuf[2].readFloat()       // [65, 60, 80] cell logits (64 pos + dustbin)
+        val klog = outBuf[1].readFloat()       // [65, 60, 80] cell logits (64 pos + dustbin)
+        val heat = outBuf[2].readFloat()       // [60, 80] reliability
 
         // per-cell softmax over 65 -> pixel scores * reliability
         val cand = ArrayList<Triple<Int, Int, Float>>(GW * GH)
