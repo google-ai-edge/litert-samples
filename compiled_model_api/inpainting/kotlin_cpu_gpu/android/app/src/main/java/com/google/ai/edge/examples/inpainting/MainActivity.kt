@@ -1,5 +1,5 @@
 /*
- * Copyright 2025 The Google AI Edge Authors. All Rights Reserved.
+ * Copyright 2026 The Google AI Edge Authors. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -80,7 +80,9 @@ class MainActivity : Activity() {
                 canvasView.restoreOriginal()
             }
         }
-        listOf(pick, erase, reset).forEach { row.addView(it, LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)) }
+        listOf(pick, erase, reset).forEach {
+            row.addView(it, LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f))
+        }
         canvasView = DrawView(this)
         root.addView(status)
         root.addView(row)
@@ -198,7 +200,9 @@ class MainActivity : Activity() {
 
         fun setImage(bm: Bitmap, isOriginal: Boolean = true) {
             image = bm
-            if (isOriginal) original = bm
+            if (isOriginal) {
+                original = bm
+            }
             postInvalidate()
         }
         fun restoreOriginal() {
@@ -236,7 +240,9 @@ class MainActivity : Activity() {
             canvas.translate(ox(), oy())
             canvas.scale(s, s)
             canvas.drawBitmap(bm, 0f, 0f, imgPaint)
-            for (p in strokes) canvas.drawPath(p, overlay)
+            for (p in strokes) {
+                canvas.drawPath(p, overlay)
+            }
             canvas.restore()
         }
 
@@ -254,7 +260,9 @@ class MainActivity : Activity() {
                 strokeJoin = Paint.Join.ROUND
                 isAntiAlias = false
             }
-            for (st in strokes) c.drawPath(st, p)
+            for (st in strokes) {
+                c.drawPath(st, p)
+            }
             val px = IntArray(S * S)
             mb.getPixels(px, 0, S, 0, 0, S, S)
             val mask = FloatArray(S * S) { if ((px[it] and 0xFF) > 127) 0f else 1f }  // white(painted)->0 erase
