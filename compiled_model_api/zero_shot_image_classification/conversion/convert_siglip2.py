@@ -191,21 +191,36 @@ class SigLIP2ImageEncoder(nn.Module):
 
 
 def op_hist(path):
-    from ai_edge_litert.interpreter import Interpreter
-    it = Interpreter(model_path=path)
-    it.allocate_tensors()
-    hist = collections.Counter(d["op_name"] for d in it._get_ops_details())
-    over4d = sum(1 for d in it.get_tensor_details() if len(d.get("shape", [])) > 4)
-    return hist, over4d, it
+    """Static GPU-compat scan: read the op set straight from the .tflite flatbuffer."""
+    from ai_edge_litert import schema_py_generated as schema
+    with open(path, "rb") as f:
+        model = schema.ModelT.InitFromPackedBuf(f.read(), 0)
+    names = {v: k for k, v in vars(schema.BuiltinOperator).items() if not k.startswith("_")}
+    hist = collections.Counter()
+    over4d = 0
+    for g in model.subgraphs:
+        for op in g.operators:
+            c = model.operatorCodes[op.opcodeIndex]
+            code = max(c.builtinCode, c.deprecatedBuiltinCode)
+            hist[c.customCode.decode() if c.customCode else names.get(code, str(code))] += 1
+        over4d += sum(1 for t in g.tensors if t.shape is not None and len(t.shape) > 4)
+    return hist, over4d
 
 
-def tflite_run(it, x_nchw):
-    inp = it.get_input_details()[0]
-    shp = list(inp["shape"])
+def tflite_run(path, x_nchw):
+    """Single inference through the LiteRT CompiledModel API; returns the flat output."""
+    from ai_edge_litert.compiled_model import CompiledModel
+    model = CompiledModel.from_file(path)
+    key = list(model.get_signature_list())[0]
+    shp = list(next(iter(model.get_input_tensor_details(key).values()))["shape"])
     x = x_nchw if shp[1] == 3 else np.transpose(x_nchw, (0, 2, 3, 1)).copy()
-    it.set_tensor(inp["index"], x.astype(inp["dtype"]))
-    it.invoke()
-    return it.get_tensor(it.get_output_details()[0]["index"]).astype("float64").reshape(-1)
+    ins = model.create_input_buffers(0)
+    outs = model.create_output_buffers(0)
+    ins[0].write(np.ascontiguousarray(x, dtype=np.float32))
+    model.run_by_index(0, ins, outs)
+    n = (model.get_output_buffer_requirements(0, 0)["buffer_size"]
+         // np.dtype(np.float32).itemsize)
+    return outs[0].read(n, np.float32).astype("float64")
 
 
 def main():
@@ -233,11 +248,11 @@ def main():
     import litert_torch
     litert_torch.convert(enc, (x,)).export(FP32)
 
-    hist, over4d, it = op_hist(FP32)
+    hist, over4d = op_hist(FP32)
     bad = {k: v for k, v in hist.items() if k in BANNED}
     print(f"FP32 ops: {dict(sorted(hist.items(), key=lambda kv: -kv[1]))}")
     print(f"banned: {bad or 'NONE'} | >4D tensors: {over4d}")
-    o = tflite_run(it, x.numpy())
+    o = tflite_run(FP32, x.numpy())
     print(f"PARITY tflite(fp32) vs torch: corr {np.corrcoef(ref, o)[0,1]:.6f}")
     assert not bad and over4d == 0, "GPU blockers remain -- inspect op histogram"
 
@@ -263,10 +278,10 @@ def main():
 
     s32, s16 = os.path.getsize(FP32) / 1e6, os.path.getsize(FP16) / 1e6
     print(f"SIZE fp32 {s32:.1f} MB -> fp16 {s16:.1f} MB ({s16/s32*100:.0f}%)")
-    h16, o16d, it16 = op_hist(FP16)
+    h16, o16d = op_hist(FP16)
     bad16 = {k: v for k, v in h16.items() if k in BANNED}
     print(f"FP16 banned: {bad16 or 'NONE'} | >4D: {o16d}")
-    o16 = tflite_run(it16, x.numpy())
+    o16 = tflite_run(FP16, x.numpy())
     print(f"PARITY tflite(fp16) vs torch: corr {np.corrcoef(ref, o16)[0,1]:.6f}  "
           f"fp16-vs-fp32 corr {np.corrcoef(o, o16)[0,1]:.6f}")
     print("\nDONE:", FP16)
