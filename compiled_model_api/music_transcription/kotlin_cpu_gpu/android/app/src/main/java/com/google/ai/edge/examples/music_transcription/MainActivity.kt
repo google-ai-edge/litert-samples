@@ -132,8 +132,10 @@ class MainActivity : Activity() {
         bg.execute {
             val sr = Transcriber.SR
             val min = AudioRecord.getMinBufferSize(sr, AudioFormat.CHANNEL_IN_MONO, AudioFormat.ENCODING_PCM_FLOAT)
+            // Buffer size is in BYTES and must be a multiple of the 4-byte float frame;
+            // reserve at least one second (sr frames * 4 bytes).
             val recd = AudioRecord(MediaRecorder.AudioSource.UNPROCESSED, sr, AudioFormat.CHANNEL_IN_MONO,
-                AudioFormat.ENCODING_PCM_FLOAT, maxOf(min, sr))
+                AudioFormat.ENCODING_PCM_FLOAT, maxOf(min, sr * Float.SIZE_BYTES))
             val out = FloatArray(sr * maxSeconds)
             var total = 0
             try {
