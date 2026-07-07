@@ -77,19 +77,31 @@ def quantize_fp16(fp32: str, out: str):
 
 
 def report(tflite: str, nhwc, ref):
-    from ai_edge_litert.interpreter import Interpreter
+    from ai_edge_litert import schema_py_generated as schema
+    from ai_edge_litert.compiled_model import CompiledModel
 
-    interp = Interpreter(model_path=tflite)
-    interp.allocate_tensors()
+    # Op histogram straight from the .tflite flatbuffer (static scan).
+    with open(tflite, "rb") as f:
+        model_fb = schema.ModelT.InitFromPackedBuf(f.read(), 0)
+    names = {v: k for k, v in vars(schema.BuiltinOperator).items() if not k.startswith("_")}
     hist = {}
-    for d in interp._get_ops_details():
-        hist[d["op_name"]] = hist.get(d["op_name"], 0) + 1
+    for g in model_fb.subgraphs:
+        for op in g.operators:
+            c = model_fb.operatorCodes[op.opcodeIndex]
+            code = max(c.builtinCode, c.deprecatedBuiltinCode)
+            name = c.customCode.decode() if c.customCode else names.get(code, str(code))
+            hist[name] = hist.get(name, 0) + 1
     print("ops:", dict(sorted(hist.items(), key=lambda x: -x[1])))
 
-    di, do = interp.get_input_details()[0], interp.get_output_details()[0]
-    interp.set_tensor(di["index"], nhwc.numpy().astype(di["dtype"]))
-    interp.invoke()
-    out = interp.get_tensor(do["index"]).astype("float64").reshape(-1)
+    # Fidelity run through the LiteRT CompiledModel API.
+    model = CompiledModel.from_file(tflite)
+    inputs = model.create_input_buffers(0)
+    outputs = model.create_output_buffers(0)
+    inputs[0].write(np.ascontiguousarray(nhwc.numpy(), dtype=np.float32))
+    model.run_by_index(0, inputs, outputs)
+    n_out = (model.get_output_buffer_requirements(0, 0)["buffer_size"]
+             // np.dtype(np.float32).itemsize)
+    out = outputs[0].read(n_out, np.float32).astype("float64")
     r = ref.numpy().astype("float64").reshape(-1)
     n = min(len(out), len(r))
     corr = float(np.corrcoef(out[:n], r[:n])[0, 1])

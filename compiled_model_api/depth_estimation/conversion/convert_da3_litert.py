@@ -335,16 +335,25 @@ def patch_dpt_head(net):
 
 
 def opcheck(path):
-    """Prints the banned-op / >4D report for the exported flatbuffer."""
-    from ai_edge_litert.interpreter import Interpreter
+    """Prints the banned-op / >4D report for the exported flatbuffer.
 
-    interpreter = Interpreter(model_path=path)
-    interpreter.allocate_tensors()
-    ops = collections.Counter(d.get("op_name", "?")
-                              for d in interpreter._get_ops_details())
+    Static GPU-compat scan: reads the op set straight from the .tflite flatbuffer.
+    """
+    from ai_edge_litert import schema_py_generated as schema
+
+    with open(path, "rb") as f:
+        model = schema.ModelT.InitFromPackedBuf(f.read(), 0)
+    names = {v: k for k, v in vars(schema.BuiltinOperator).items()
+             if not k.startswith("_")}
+    ops = collections.Counter()
+    over_4d = 0
+    for g in model.subgraphs:
+        for op in g.operators:
+            c = model.operatorCodes[op.opcodeIndex]
+            code = max(c.builtinCode, c.deprecatedBuiltinCode)
+            ops[c.customCode.decode() if c.customCode else names.get(code, str(code))] += 1
+        over_4d += sum(1 for t in g.tensors if t.shape is not None and len(t.shape) > 4)
     bad = {k: v for k, v in ops.items() if k in BANNED}
-    over_4d = sum(1 for d in interpreter.get_tensor_details()
-                  if len(d.get("shape", [])) > 4)
     print(f"op-check FP32: banned {bad or 'NONE'} | >4D {over_4d} | "
           f"GELU {ops.get('GELU', 0)} | SELECT_V2 {ops.get('SELECT_V2', 0)}")
     print("VERDICT:", "GPU-CLEAN" if not bad and not over_4d else "BLOCKERS REMAIN")
