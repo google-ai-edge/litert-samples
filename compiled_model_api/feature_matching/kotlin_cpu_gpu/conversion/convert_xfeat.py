@@ -97,15 +97,22 @@ class Wrap(nn.Module):
 
 
 def opcheck(path, label):
-    from ai_edge_litert.interpreter import Interpreter
-    it = Interpreter(model_path=path)
-    it.allocate_tensors()
-    ops = collections.Counter(d.get("op_name", "?") for d in it._get_ops_details())
+    """Static GPU-compat scan: read the op set straight from the .tflite flatbuffer."""
+    from ai_edge_litert import schema_py_generated as schema
+    with open(path, "rb") as f:
+        model = schema.ModelT.InitFromPackedBuf(f.read(), 0)
+    names = {v: k for k, v in vars(schema.BuiltinOperator).items() if not k.startswith("_")}
+    ops = collections.Counter()
+    over = 0
+    for g in model.subgraphs:
+        for op in g.operators:
+            c = model.operatorCodes[op.opcodeIndex]
+            code = max(c.builtinCode, c.deprecatedBuiltinCode)
+            ops[c.customCode.decode() if c.customCode else names.get(code, str(code))] += 1
+        over += sum(1 for t in g.tensors if t.shape is not None and len(t.shape) > 4)
     bad = {k: v for k, v in ops.items() if k.upper() in BANNED}
-    over = sum(1 for d in it.get_tensor_details() if len(d.get("shape", [])) > 4)
     print(f"[{label}] banned:{bad or 'NONE'} >4D:{over} size {os.path.getsize(path)/1e6:.1f}MB ops:{len(ops)}")
     print(f"[{label}] top:", dict(sorted(ops.items(), key=lambda kv: -kv[1])[:10]))
-    return it
 
 
 def to_fp16(fp32, fp16):
@@ -144,18 +151,26 @@ def main():
     tag = "xfeat" + ("_nhwc" if args.nhwc else "")
     import litert_torch
     litert_torch.convert(Wrap(net, args.nhwc).eval(), (inp,)).export(f"{tag}.tflite")
-    it = opcheck(f"{tag}.tflite", "xfeat-fp32")
+    opcheck(f"{tag}.tflite", "xfeat-fp32")
     to_fp16(f"{tag}.tflite", f"{tag}_fp16.tflite")
     opcheck(f"{tag}_fp16.tflite", "xfeat-fp16")
-    di = it.get_input_details()[0]
-    it.set_tensor(di["index"], inp.numpy().astype(di["dtype"]))
-    it.invoke()
-    od = it.get_output_details()
-    print("outputs:", [(d["name"][-20:], tuple(it.get_tensor(d["index"]).shape)) for d in od])
+    # parity run through the LiteRT CompiledModel API (same API the sample app uses)
+    from ai_edge_litert.compiled_model import CompiledModel
+    cm = CompiledModel.from_file(f"{tag}.tflite")
+    sig = cm.get_signature_list()
+    key = list(sig)[0]
+    dets = cm.get_output_tensor_details(key)
+    ins = cm.create_input_buffers(0)
+    outs = cm.create_output_buffers(0)
+    ins[0].write(np.ascontiguousarray(inp.numpy(), dtype=np.float32))
+    cm.run_by_index(0, ins, outs)
+    res = [outs[i].read(int(np.prod(dets[n]["shape"])), np.float32).reshape(dets[n]["shape"])
+           for i, n in enumerate(sig[key]["outputs"])]
+    print("outputs:", [(dets[n]["name"][-20:], tuple(o.shape)) for n, o in zip(sig[key]["outputs"], res)])
     inp.numpy().astype(np.float32).tofile(f"{tag}_input.bin")
     # dump feats (output 0-ish) expected for device compare
-    big = max(od, key=lambda d: np.prod(it.get_tensor(d["index"]).shape))
-    it.get_tensor(big["index"]).astype(np.float32).tofile(f"{tag}_expected.bin")
+    big = max(res, key=lambda o: o.size)
+    big.astype(np.float32).tofile(f"{tag}_expected.bin")
 
 
 if __name__ == "__main__":
