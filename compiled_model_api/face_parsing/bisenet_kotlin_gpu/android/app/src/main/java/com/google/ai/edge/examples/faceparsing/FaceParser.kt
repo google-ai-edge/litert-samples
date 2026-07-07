@@ -1,5 +1,5 @@
 /*
- * Copyright 2025 The Google AI Edge Authors. All Rights Reserved.
+ * Copyright 2026 The Google AI Edge Authors. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -65,7 +65,9 @@ class FaceParser(modelPath: String) : AutoCloseable {
   fun parse(bitmap: Bitmap): Pair<Bitmap, Long> {
     val t = System.nanoTime()
     Canvas(resized).drawBitmap(
-      bitmap, matrix.apply { setScale(SIZE.toFloat() / bitmap.width, SIZE.toFloat() / bitmap.height) }, paint)
+      bitmap,
+      matrix.apply { setScale(SIZE.toFloat() / bitmap.width, SIZE.toFloat() / bitmap.height) },
+      paint)
     resized.getPixels(pixels, 0, SIZE, 0, 0, SIZE, SIZE)
     val plane = SIZE * SIZE
     for (i in 0 until plane) {
@@ -79,10 +81,14 @@ class FaceParser(modelPath: String) : AutoCloseable {
     val logits = outBufs[0].readFloat()   // [19, 512, 512]
 
     for (i in 0 until plane) {
-      var best = 0; var bestV = logits[i]
+      var best = 0
+      var bestV = logits[i]
       for (c in 1 until N_CLASS) {
         val v = logits[c * plane + i]
-        if (v > bestV) { bestV = v; best = c }
+        if (v > bestV) {
+            bestV = v
+            best = c
+        }
       }
       labelPixels[i] = CelebAMaskPalette.COLORS[best]
     }
@@ -92,7 +98,11 @@ class FaceParser(modelPath: String) : AutoCloseable {
 
   override fun close() {
     model.close()
-    if (!resized.isRecycled) resized.recycle()
-    if (!labelBitmap.isRecycled) labelBitmap.recycle()
+    if (!resized.isRecycled) {
+      resized.recycle()
+    }
+    if (!labelBitmap.isRecycled) {
+      labelBitmap.recycle()
+    }
   }
 }
