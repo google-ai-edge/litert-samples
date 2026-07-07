@@ -1,11 +1,26 @@
-#!/usr/bin/env python3
+# Copyright 2025 The Google AI Edge Authors. All Rights Reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#       http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 """Speaker diarization on-device build:
   A) WeSpeaker ResNet34 embedding -> LiteRT GPU tflite (input: CMN'd kaldi-fbank [1, 500, 80])
   B) PyanNet segmentation-3.0 (SincNet+BiLSTM, GPU-hostile) -> ONNX for onnxruntime CPU
 
 Run: ~/clipconv/bin/python build_diar.py
 """
-import os, sys, collections
+import os
+import sys
+import collections
 import numpy as np
 import torch
 import torch.nn as nn
@@ -32,16 +47,36 @@ BANNED = {"GATHER", "GATHER_ND", "TOPK_V2", "GELU", "ERF", "WHERE", "SELECT", "S
 
 
 def opcheck(path, label):
-    from ai_edge_litert.interpreter import Interpreter
-    it = Interpreter(model_path=path)
-    it.allocate_tensors()
-    ops = collections.Counter(d.get("op_name", "?") for d in it._get_ops_details())
+    """Static GPU-compat scan: read the op set straight from the .tflite flatbuffer."""
+    from ai_edge_litert import schema_py_generated as schema
+    with open(path, "rb") as f:
+        model = schema.ModelT.InitFromPackedBuf(f.read(), 0)
+    names = {v: k for k, v in vars(schema.BuiltinOperator).items() if not k.startswith("_")}
+    ops = collections.Counter()
+    over = 0
+    for g in model.subgraphs:
+        for op in g.operators:
+            c = model.operatorCodes[op.opcodeIndex]
+            code = max(c.builtinCode, c.deprecatedBuiltinCode)
+            ops[c.customCode.decode() if c.customCode else names.get(code, str(code))] += 1
+        over += sum(1 for t in g.tensors if t.shape is not None and len(t.shape) > 4)
     bad = {k: v for k, v in ops.items() if k.upper() in BANNED}
-    over = sum(1 for d in it.get_tensor_details() if len(d.get("shape", [])) > 4)
     print(f"[{label}] nodes:{sum(ops.values())} banned:{bad or 'NONE'} >4D:{over} "
           f"size {os.path.getsize(path)/1e6:.1f}MB")
     print(f"[{label}] VERDICT:", "GPU-CLEAN" if not bad and not over else f"BLOCKERS {bad} >4D:{over}")
-    return it, (not bad and not over)
+    return not bad and not over
+
+
+def run_tflite(path, x):
+    """One inference through the LiteRT CompiledModel API; returns the flat fp32 output."""
+    from ai_edge_litert.compiled_model import CompiledModel
+    model = CompiledModel.from_file(path)
+    inputs = model.create_input_buffers(0)
+    outputs = model.create_output_buffers(0)
+    inputs[0].write(np.ascontiguousarray(x, dtype=np.float32))
+    model.run_by_index(0, inputs, outputs)
+    n = model.get_output_buffer_requirements(0, 0)["buffer_size"] // np.dtype(np.float32).itemsize
+    return outputs[0].read(n, np.float32)
 
 
 def to_fp16(fp32, fp16):
@@ -125,20 +160,14 @@ def main():
     import litert_torch
     fp32 = os.path.join(HERE, "wespeaker_emb.tflite")
     litert_torch.convert(g, (fb[None],)).export(fp32)
-    it32, clean = opcheck(fp32, "fp32")
-    d = it32.get_input_details()[0]
-    it32.set_tensor(d["index"], fb[None].numpy().astype(np.float32))
-    it32.invoke()
-    o32 = it32.get_tensor(it32.get_output_details()[0]["index"])
+    clean = opcheck(fp32, "fp32")
+    o32 = run_tflite(fp32, fb[None].numpy()).reshape(1, -1)
     print(f"[fp32 tflite] cosine {F.cosine_similarity(torch.from_numpy(o32), ref).item():.7f}")
 
     if clean:
         fp16 = to_fp16(fp32, os.path.join(HERE, "wespeaker_emb_fp16.tflite"))
-        it16, _ = opcheck(fp16, "fp16")
-        d = it16.get_input_details()[0]
-        it16.set_tensor(d["index"], fb[None].numpy().astype(np.float32))
-        it16.invoke()
-        o16 = it16.get_tensor(it16.get_output_details()[0]["index"])
+        opcheck(fp16, "fp16")
+        o16 = run_tflite(fp16, fb[None].numpy()).reshape(1, -1)
         print(f"[fp16 tflite] cosine {F.cosine_similarity(torch.from_numpy(o16), ref).item():.7f}")
         fb[None].numpy().astype(np.float32).tofile(os.path.join(HERE, "emb_input.bin"))
         np.save(os.path.join(HERE, "emb_ref16.npy"), o16)
