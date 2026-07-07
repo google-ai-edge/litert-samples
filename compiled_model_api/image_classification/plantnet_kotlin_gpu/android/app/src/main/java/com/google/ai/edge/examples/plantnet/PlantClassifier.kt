@@ -1,5 +1,5 @@
 /*
- * Copyright 2025 The Google AI Edge Authors. All Rights Reserved.
+ * Copyright 2026 The Google AI Edge Authors. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -81,7 +81,9 @@ class PlantClassifier(modelPath: String) : AutoCloseable {
     val idx = logits.indices.sortedByDescending { logits[it] }.take(topK)
     val mx = logits[idx.first()]
     var sum = 0.0
-    for (v in logits) sum += Math.exp((v - mx).toDouble())
+    for (v in logits) {
+      sum += Math.exp((v - mx).toDouble())
+    }
     val preds = idx.map { i ->
       PlantNetLabels.NAMES[i] to (Math.exp((logits[i] - mx).toDouble()) / sum).toFloat()
     }
@@ -90,6 +92,8 @@ class PlantClassifier(modelPath: String) : AutoCloseable {
 
   override fun close() {
     model.close()
-    if (!resized.isRecycled) resized.recycle()
+    if (!resized.isRecycled) {
+      resized.recycle()
+    }
   }
 }
