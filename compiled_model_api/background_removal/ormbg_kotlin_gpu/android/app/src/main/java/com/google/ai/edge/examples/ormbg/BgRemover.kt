@@ -1,5 +1,5 @@
 /*
- * Copyright 2025 The Google AI Edge Authors. All Rights Reserved.
+ * Copyright 2026 The Google AI Edge Authors. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -59,7 +59,9 @@ class BgRemover(modelPath: String) : AutoCloseable {
   fun matte(bitmap: Bitmap): Pair<FloatArray, Long> {
     val t = System.nanoTime()
     Canvas(resized).drawBitmap(
-      bitmap, matrix.apply { setScale(SIZE.toFloat() / bitmap.width, SIZE.toFloat() / bitmap.height) }, paint)
+      bitmap,
+      matrix.apply { setScale(SIZE.toFloat() / bitmap.width, SIZE.toFloat() / bitmap.height) },
+      paint)
     resized.getPixels(pixels, 0, SIZE, 0, 0, SIZE, SIZE)
     val plane = SIZE * SIZE
     for (i in 0 until plane) {
@@ -72,8 +74,16 @@ class BgRemover(modelPath: String) : AutoCloseable {
     model.run(inBufs, outBufs)
     val full = outBufs[0].readFloat()
 
-    var mn = Float.MAX_VALUE; var mx = -Float.MAX_VALUE
-    for (v in full) { if (v < mn) mn = v; if (v > mx) mx = v }
+    var mn = Float.MAX_VALUE
+    var mx = -Float.MAX_VALUE
+    for (v in full) {
+        if (v < mn) {
+          mn = v
+        }
+        if (v > mx) {
+          mx = v
+        }
+    }
     val inv = 1f / (mx - mn + 1e-6f)
     val alpha = FloatArray(plane) { (full[it] - mn) * inv }
     return alpha to ((System.nanoTime() - t) / 1_000_000)
@@ -81,6 +91,8 @@ class BgRemover(modelPath: String) : AutoCloseable {
 
   override fun close() {
     model.close()
-    if (!resized.isRecycled) resized.recycle()
+    if (!resized.isRecycled) {
+      resized.recycle()
+    }
   }
 }
