@@ -52,11 +52,12 @@ cv=Image.new("RGB",(512*2+8,512),(255,255,255))
 cv.paste(base,(0,0))
 cv.paste(d,(512+8,0))
 cv.save(HERE+"/mlsd_torch_demo.png")
-from ai_edge_litert.interpreter import Interpreter
-it=Interpreter(model_path=HERE+"/mlsd_fp16.tflite")
-it.allocate_tensors()
-di=it.get_input_details()[0]
-it.set_tensor(di["index"],x.astype(di["dtype"]))
-it.invoke()
-o=it.get_tensor(it.get_output_details()[0]["index"])[0]
+from ai_edge_litert.compiled_model import CompiledModel
+model=CompiledModel.from_file(HERE+"/mlsd_fp16.tflite")
+ins=model.create_input_buffers(0)
+outs=model.create_output_buffers(0)
+ins[0].write(np.ascontiguousarray(x,dtype=np.float32))
+model.run_by_index(0,ins,outs)
+n=model.get_output_buffer_requirements(0,0)["buffer_size"]//np.dtype(np.float32).itemsize
+o=outs[0].read(n,np.float32).reshape(ref.shape)
 print(f"desktop-fp16 vs torch corr {np.corrcoef(o.ravel(),ref.ravel())[0,1]:.6f}")
