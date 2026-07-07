@@ -119,18 +119,37 @@ def reauthor(model):
 
 
 def opcheck(path, label):
-    from ai_edge_litert.interpreter import Interpreter
-    it = Interpreter(model_path=path)
-    it.allocate_tensors()
-    ops = collections.Counter(d.get("op_name", "?") for d in it._get_ops_details())
+    """Static GPU-compat scan: read the op set straight from the .tflite flatbuffer."""
+    from ai_edge_litert import schema_py_generated as schema
+    with open(path, "rb") as f:
+        model = schema.ModelT.InitFromPackedBuf(f.read(), 0)
+    names = {v: k for k, v in vars(schema.BuiltinOperator).items() if not k.startswith("_")}
+    ops = collections.Counter()
+    over = 0
+    for g in model.subgraphs:
+        for op in g.operators:
+            c = model.operatorCodes[op.opcodeIndex]
+            code = max(c.builtinCode, c.deprecatedBuiltinCode)
+            ops[c.customCode.decode() if c.customCode else names.get(code, str(code))] += 1
+        over += sum(1 for t in g.tensors if t.shape is not None and len(t.shape) > 4)
     bad = {k: v for k, v in ops.items() if k.upper() in BANNED}
     flex = {k: v for k, v in ops.items() if "flex" in k.lower() or "custom" in k.lower()}
-    over = sum(1 for d in it.get_tensor_details() if len(d.get("shape", [])) > 4)
     gnd = ops.get("GATHER_ND", 0)
     print(f"[{label}] GATHER_ND:{gnd}  banned:{bad or 'NONE'}  flex/custom:{flex or 'NONE'}  "
           f">4D:{over}  size {os.path.getsize(path)/1e6:.1f}MB  ops:{len(ops)}")
     print(f"[{label}] top:", dict(sorted(ops.items(), key=lambda kv: -kv[1])[:10]))
-    return it
+
+
+def run_tflite(path, x):
+    """Single inference through the LiteRT CompiledModel API; returns the flat fp32 output."""
+    from ai_edge_litert.compiled_model import CompiledModel
+    model = CompiledModel.from_file(path)
+    inputs = model.create_input_buffers(0)
+    outputs = model.create_output_buffers(0)
+    inputs[0].write(np.ascontiguousarray(x, dtype=np.float32))
+    model.run_by_index(0, inputs, outputs)
+    n = model.get_output_buffer_requirements(0, 0)["buffer_size"] // np.dtype(np.float32).itemsize
+    return outputs[0].read(n, np.float32)
 
 
 def to_fp16(fp32, fp16):
@@ -174,20 +193,15 @@ def main():
     fp32 = f"{tag}_raw.tflite"
     import litert_torch
     litert_torch.convert(YOLOXRaw(model, args.nhwc).eval(), (img,)).export(fp32)
-    it = opcheck(fp32, f"{args.name}-fp32")
-    d = it.get_input_details()[0]
-    it.set_tensor(d["index"], img.numpy().astype(d["dtype"]))
-    it.invoke()
-    o = it.get_tensor(it.get_output_details()[0]["index"])
+    opcheck(fp32, f"{args.name}-fp32")
+    o = run_tflite(fp32, img.numpy()).reshape(ra.shape)
     print(f"tflite(fp32) vs torch: corr {np.corrcoef(o.ravel(), ra.numpy().ravel())[0,1]:.6f}  "
           f"max|d| {np.abs(o-ra.numpy()).max():.2e}")
 
     fp16 = f"{tag}_fp16.tflite"
     to_fp16(fp32, fp16)
-    it16 = opcheck(fp16, f"{args.name}-fp16")
-    it16.set_tensor(it16.get_input_details()[0]["index"], img.numpy().astype(it16.get_input_details()[0]["dtype"]))
-    it16.invoke()
-    o16 = it16.get_tensor(it16.get_output_details()[0]["index"])
+    opcheck(fp16, f"{args.name}-fp16")
+    o16 = run_tflite(fp16, img.numpy()).reshape(ra.shape)
     print(f"tflite(fp16) vs torch: corr {np.corrcoef(o16.ravel(), ra.numpy().ravel())[0,1]:.6f}  "
           f"max|d| {np.abs(o16-ra.numpy()).max():.2e}")
 
