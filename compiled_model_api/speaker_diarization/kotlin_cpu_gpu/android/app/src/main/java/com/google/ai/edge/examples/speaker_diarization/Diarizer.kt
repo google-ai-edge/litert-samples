@@ -169,13 +169,19 @@ class Diarizer(ctx: Context) {
         }
 
         while (clusters.size > 1) {
-            var bi = -1; var bj = -1; var best = Double.MAX_VALUE
+            var bi = -1
+            var bj = -1
+            var best = Double.MAX_VALUE
             val cents = clusters.map { centroid(it) }
             for (i in clusters.indices) for (j in i + 1 until clusters.size) {
                 var cos = 0.0
                 for (d in 0 until SpeakerEmbedder.DIM) cos += cents[i][d] * cents[j][d]
                 val dist = 1.0 - cos
-                if (dist < best) { best = dist; bi = i; bj = j }
+                if (dist < best) {
+                    best = dist
+                    bi = i
+                    bj = j
+                }
             }
             if (best > THRESHOLD) break
             clusters[bi].addAll(clusters[bj])
@@ -199,6 +205,7 @@ class Diarizer(ctx: Context) {
     }
 
     fun close() {
-        seg.close(); embedder.close()
+        seg.close()
+        embedder.close()
     }
 }

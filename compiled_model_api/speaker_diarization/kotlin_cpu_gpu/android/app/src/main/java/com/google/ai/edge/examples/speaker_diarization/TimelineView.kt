@@ -37,7 +37,8 @@ class TimelineView(ctx: Context) : View(ctx) {
     private var duration = 1.0
     private val paint = Paint(Paint.ANTI_ALIAS_FLAG)
     private val textPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-        color = Color.DKGRAY; textSize = 28f
+        color = Color.DKGRAY
+        textSize = 28f
     }
 
     fun set(segs: List<Diarizer.Segment>, durationSec: Double) {

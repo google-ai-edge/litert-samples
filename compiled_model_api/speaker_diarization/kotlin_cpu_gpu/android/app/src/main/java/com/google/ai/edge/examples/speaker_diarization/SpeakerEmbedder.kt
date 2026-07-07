@@ -60,6 +60,8 @@ class SpeakerEmbedder(ctx: Context, accelerator: Accelerator = Accelerator.GPU) 
     }
 
     override fun close() {
-        inBuf.forEach { it.close() }; outBuf.forEach { it.close() }; model.close()
+        inBuf.forEach { it.close() }
+        outBuf.forEach { it.close() }
+        model.close()
     }
 }

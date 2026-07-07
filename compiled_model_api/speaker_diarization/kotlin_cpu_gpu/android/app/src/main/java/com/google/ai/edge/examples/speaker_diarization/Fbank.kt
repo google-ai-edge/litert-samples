@@ -74,7 +74,10 @@ class Fbank(ctx: Context) {
                 im[i] = 0f
                 prev = cur
             }
-            for (i in WIN until NFFT) { re[i] = 0f; im[i] = 0f }
+            for (i in WIN until NFFT) {
+                re[i] = 0f
+                im[i] = 0f
+            }
             fft(re, im)
             for (k in 0 until NBIN) power[k] = re[k] * re[k] + im[k] * im[k]
             val row = out[t]
@@ -100,11 +103,18 @@ class Fbank(ctx: Context) {
         var j = 0
         for (i in 0 until n - 1) {
             if (i < j) {
-                var t = re[i]; re[i] = re[j]; re[j] = t
-                t = im[i]; im[i] = im[j]; im[j] = t
+                var t = re[i]
+                re[i] = re[j]
+                re[j] = t
+                t = im[i]
+                im[i] = im[j]
+                im[j] = t
             }
             var m = n shr 1
-            while (m in 1..j) { j -= m; m = m shr 1 }
+            while (m in 1..j) {
+                j -= m
+                m = m shr 1
+            }
             j += m
         }
         var len = 2
