@@ -36,7 +36,9 @@ object AudioDecoder {
         for (i in 0 until extractor.trackCount) {
             val f = extractor.getTrackFormat(i)
             if ((f.getString(MediaFormat.KEY_MIME) ?: "").startsWith("audio/")) {
-                track = i; format = f; break
+                track = i
+                format = f
+                break
             }
         }
         check(track >= 0 && format != null) { "No audio track in the selected file." }
@@ -72,7 +74,8 @@ object AudioDecoder {
             if (outIdx >= 0) {
                 val buf = codec.getOutputBuffer(outIdx)!!
                 val bytes = ByteArray(info.size)
-                buf.position(info.offset); buf.get(bytes)
+                buf.position(info.offset)
+                buf.get(bytes)
                 pcm.write(bytes)
                 codec.releaseOutputBuffer(outIdx, false)
                 if (info.flags and MediaCodec.BUFFER_FLAG_END_OF_STREAM != 0) sawOutEos = true
@@ -82,7 +85,9 @@ object AudioDecoder {
                 channels = f.getInteger(MediaFormat.KEY_CHANNEL_COUNT)
             }
         }
-        codec.stop(); codec.release(); extractor.release()
+        codec.stop()
+        codec.release()
+        extractor.release()
 
         // PCM16 -> mono float
         val bb = ByteBuffer.wrap(pcm.toByteArray()).order(ByteOrder.LITTLE_ENDIAN)

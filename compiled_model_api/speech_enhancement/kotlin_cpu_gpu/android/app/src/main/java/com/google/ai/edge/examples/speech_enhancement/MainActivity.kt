@@ -55,9 +55,18 @@ class MainActivity : Activity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        val root = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(36, 90, 36, 36) }
-        status = TextView(this).apply { textSize = 15f; text = "Loading…" }
-        val rec = Button(this).apply { text = "🎙  Record noisy audio"; setOnClickListener { toggleRecord(this) } }
+        val root = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(36, 90, 36, 36)
+        }
+        status = TextView(this).apply {
+            textSize = 15f
+            text = "Loading…"
+        }
+        val rec = Button(this).apply {
+            text = "🎙  Record noisy audio"
+            setOnClickListener { toggleRecord(this) }
+        }
         val pick = Button(this).apply {
             text = "📁  Pick audio / video clip"
             setOnClickListener {
@@ -68,9 +77,21 @@ class MainActivity : Activity() {
                 }, 1)
             }
         }
-        playNoisy = Button(this).apply { text = "▶  Noisy (original)"; isEnabled = false; setOnClickListener { play(noisy) } }
-        playClean = Button(this).apply { text = "✨  Enhanced"; isEnabled = false; setOnClickListener { play(clean) } }
-        root.addView(status); root.addView(rec); root.addView(pick); root.addView(playNoisy); root.addView(playClean)
+        playNoisy = Button(this).apply {
+            text = "▶  Noisy (original)"
+            isEnabled = false
+            setOnClickListener { play(noisy) }
+        }
+        playClean = Button(this).apply {
+            text = "✨  Enhanced"
+            isEnabled = false
+            setOnClickListener { play(clean) }
+        }
+        root.addView(status)
+        root.addView(rec)
+        root.addView(pick)
+        root.addView(playNoisy)
+        root.addView(playClean)
         setContentView(root)
 
         if (checkSelfPermission(Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED)
@@ -82,7 +103,10 @@ class MainActivity : Activity() {
                 runOnUiThread { status.text = "Ready — record in a noisy place, or pick a clip." }
             } catch (e: Throwable) {
                 Log.e(tag, "load", e)
-                runOnUiThread { status.setBackgroundColor(Color.rgb(0xFF, 0xCD, 0xD2)); status.text = "FAIL: ${e.message}" }
+                runOnUiThread {
+                    status.setBackgroundColor(Color.rgb(0xFF, 0xCD, 0xD2))
+                    status.text = "FAIL: ${e.message}"
+                }
             }
         }
     }
@@ -104,9 +128,13 @@ class MainActivity : Activity() {
     }
 
     private fun toggleRecord(btn: Button) {
-        if (recording) { recording = false; return }
+        if (recording) {
+            recording = false
+            return
+        }
         if (checkSelfPermission(Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
-            status.text = "Microphone permission needed."; return
+            status.text = "Microphone permission needed."
+            return
         }
         recording = true
         btn.text = "⏹  Stop & enhance"
@@ -123,9 +151,14 @@ class MainActivity : Activity() {
                 val buf = FloatArray(1600)
                 while (recording && total < out.size) {
                     val r = recd.read(buf, 0, minOf(buf.size, out.size - total), AudioRecord.READ_BLOCKING)
-                    if (r > 0) { System.arraycopy(buf, 0, out, total, r); total += r }
+                    if (r > 0) {
+                        System.arraycopy(buf, 0, out, total, r)
+                        total += r
+                    }
                 }
-            } finally { recd.stop(); recd.release(); recording = false }
+            } finally { recd.stop()
+            recd.release()
+            recording = false }
             runOnUiThread { btn.text = "🎙  Record noisy audio" }
             if (total >= sr) run(out.copyOf(total))
             else runOnUiThread { status.text = "Too short — record at least 1 s." }

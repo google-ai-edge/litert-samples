@@ -139,6 +139,8 @@ class NoiseSuppressor(ctx: Context) : Closeable {
     }
 
     override fun close() {
-        inBuf.forEach { it.close() }; outBuf.forEach { it.close() }; model.close()
+        inBuf.forEach { it.close() }
+        outBuf.forEach { it.close() }
+        model.close()
     }
 }

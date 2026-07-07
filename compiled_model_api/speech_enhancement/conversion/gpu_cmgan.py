@@ -1,4 +1,17 @@
-#!/usr/bin/env python3
+# Copyright 2025 The Google AI Edge Authors. All Rights Reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#       http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 """GPU-clean re-authoring of CMGAN TSCNet for LiteRT CompiledModel GPU (ML Drift).
 
 Numerically-exact rewrites:
@@ -107,7 +120,8 @@ class GPUAttention(nn.Module):
         hd = q.shape[1]
         k, v = kv[:, :hd], kv[:, hd:]
 
-        def fold(t):                                                    # -> [A*h, n, d]
+        def fold(t):
+            # -> [A*h, n, d]
             t = t.squeeze(0).permute(1, 0, 2)                           # [A, hd, n]
             t = t.reshape(A, self.h, self.d, n).permute(0, 1, 3, 2)     # [A, h, n, d]
             return t.reshape(A * self.h, n, self.d)
