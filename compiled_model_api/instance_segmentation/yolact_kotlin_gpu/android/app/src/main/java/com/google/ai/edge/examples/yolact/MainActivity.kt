@@ -1,5 +1,5 @@
 /*
- * Copyright 2025 The Google AI Edge Authors. All Rights Reserved.
+ * Copyright 2026 The Google AI Edge Authors. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -40,10 +40,15 @@ class MainActivity : AppCompatActivity() {
 
   override fun onCreate(savedInstanceState: Bundle?) {
     super.onCreate(savedInstanceState)
-    val status = TextView(this).apply { textSize = 15f; setPadding(28, 40, 28, 20) }
+    val status = TextView(this).apply {
+        textSize = 15f
+        setPadding(28, 40, 28, 20)
+    }
     val imageView = ImageView(this).apply { adjustViewBounds = true }
     setContentView(LinearLayout(this).apply {
-      orientation = LinearLayout.VERTICAL; addView(status); addView(imageView)
+      orientation = LinearLayout.VERTICAL
+      addView(status)
+      addView(imageView)
     })
 
     executor.execute {
@@ -74,11 +79,17 @@ class MainActivity : AppCompatActivity() {
     val out = image.copy(Bitmap.Config.ARGB_8888, true)
     val canvas = Canvas(out)
     val S = YolactSegmenter.SIZE
-    val sx = out.width.toFloat() / S; val sy = out.height.toFloat() / S
+    val sx = out.width.toFloat() / S
+    val sy = out.height.toFloat() / S
     val mp = Paint()
-    val bp = Paint().apply { style = Paint.Style.STROKE; strokeWidth = out.width / 200f }
+    val bp = Paint().apply {
+        style = Paint.Style.STROKE
+        strokeWidth = out.width / 200f
+    }
     val tp = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-      color = Color.WHITE; textSize = out.width / 28f; setShadowLayer(4f, 0f, 0f, Color.BLACK)
+      color = Color.WHITE
+      textSize = out.width / 28f
+      setShadowLayer(4f, 0f, 0f, Color.BLACK)
     }
     // masks: composite a translucent color per instance
     val row = IntArray(out.width)
@@ -90,7 +101,9 @@ class MainActivity : AppCompatActivity() {
         var started = -1
         for (xx in 0 until out.width) {
           val on = ins.mask[my * S + (xx / sx).toInt().coerceIn(0, S - 1)]
-          if (on && started < 0) started = xx
+          if (on && started < 0) {
+            started = xx
+          }
           if ((!on || xx == out.width - 1) && started >= 0) {
             canvas.drawRect(started.toFloat(), yy.toFloat(), xx.toFloat(), (yy + 1).toFloat(), mp)
             started = -1
@@ -107,5 +120,8 @@ class MainActivity : AppCompatActivity() {
     return out
   }
 
-  override fun onDestroy() { super.onDestroy(); executor.shutdown() }
+  override fun onDestroy() {
+      super.onDestroy()
+      executor.shutdown()
+  }
 }
