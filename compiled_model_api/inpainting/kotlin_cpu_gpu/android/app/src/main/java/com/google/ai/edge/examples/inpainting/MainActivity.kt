@@ -55,18 +55,35 @@ class MainActivity : Activity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        val root = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(24, 80, 24, 24) }
-        status = TextView(this).apply { textSize = 15f; text = "Loading MI-GAN on GPU…" }
+        val root = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(24, 80, 24, 24)
+        }
+        status = TextView(this).apply {
+            textSize = 15f
+            text = "Loading MI-GAN on GPU…"
+        }
         val row = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
         val pick = Button(this).apply {
-            text = "🖼 Pick"; isEnabled = false
+            text = "🖼 Pick"
+            isEnabled = false
             setOnClickListener { startActivityForResult(Intent(Intent.ACTION_GET_CONTENT).apply { type = "image/*" }, pickReq) }
         }
-        val erase = Button(this).apply { text = "✨ Erase"; setOnClickListener { runErase() } }
-        val reset = Button(this).apply { text = "↺ Reset"; setOnClickListener { canvasView.clearStrokes(); canvasView.restoreOriginal() } }
+        val erase = Button(this).apply {
+            text = "✨ Erase"
+            setOnClickListener { runErase() }
+        }
+        val reset = Button(this).apply {
+            text = "↺ Reset"
+            setOnClickListener {
+                canvasView.clearStrokes()
+                canvasView.restoreOriginal()
+            }
+        }
         listOf(pick, erase, reset).forEach { row.addView(it, LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)) }
         canvasView = DrawView(this)
-        root.addView(status); root.addView(row)
+        root.addView(status)
+        root.addView(row)
         root.addView(canvasView, LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, 980))
         setContentView(root)
 
@@ -75,14 +92,20 @@ class MainActivity : Activity() {
                 net = MiganInpainter(this)
                 try {
                     val bm = squareResize(BitmapFactory.decodeStream(assets.open("test_image.jpg")))
-                    runOnUiThread { canvasView.setImage(bm); status.text = "Paint over an object, then tap ✨ Erase." }
+                    runOnUiThread {
+                        canvasView.setImage(bm)
+                        status.text = "Paint over an object, then tap ✨ Erase."
+                    }
                 } catch (_: java.io.IOException) {
                     runOnUiThread { status.text = "Ready — pick an image, paint a region, tap Erase." }
                 }
                 runOnUiThread { pick.isEnabled = true }
             } catch (e: Throwable) {
                 Log.e(tag, "load failed", e)
-                runOnUiThread { status.setBackgroundColor(Color.rgb(0xFF, 0xCD, 0xD2)); status.text = "FAIL: ${e.message}" }
+                runOnUiThread {
+                    status.setBackgroundColor(Color.rgb(0xFF, 0xCD, 0xD2))
+                    status.text = "FAIL: ${e.message}"
+                }
             }
         }
     }
@@ -94,14 +117,21 @@ class MainActivity : Activity() {
         bg.execute {
             try {
                 val bm = squareResize(loadOriented(uri))
-                runOnUiThread { canvasView.setImage(bm); status.text = "Paint over an object, then tap ✨ Erase." }
-            } catch (e: Throwable) { Log.e(tag, "load failed", e); runOnUiThread { status.text = "Failed: ${e.message}" } }
+                runOnUiThread {
+                    canvasView.setImage(bm)
+                    status.text = "Paint over an object, then tap ✨ Erase."
+                }
+            } catch (e: Throwable) { Log.e(tag, "load failed", e)
+            runOnUiThread { status.text = "Failed: ${e.message}" } }
         }
     }
 
     private fun runErase() {
         val n = net ?: return
-        val mask = canvasView.buildMask() ?: run { runOnUiThread { status.text = "Paint a region first." }; return }
+        val mask = canvasView.buildMask() ?: run {
+            runOnUiThread { status.text = "Paint a region first." }
+            return
+        }
         val rgb = canvasView.imageRgb() ?: return
         runOnUiThread { status.text = "Erasing on GPU…" }
         bg.execute {
@@ -113,9 +143,11 @@ class MainActivity : Activity() {
                 runOnUiThread {
                     status.setBackgroundColor(Color.rgb(0xC8, 0xE6, 0xC9))
                     status.text = "On-device GPU inpaint ✓  ${ms} ms  ·  MI-GAN, CompiledModel GPU"
-                    canvasView.setImage(out, isOriginal = false); canvasView.clearStrokes()
+                    canvasView.setImage(out, isOriginal = false)
+                    canvasView.clearStrokes()
                 }
-            } catch (e: Throwable) { Log.e(tag, "inpaint failed", e); runOnUiThread { status.text = "Failed: ${e.message}" } }
+            } catch (e: Throwable) { Log.e(tag, "inpaint failed", e)
+            runOnUiThread { status.text = "Failed: ${e.message}" } }
         }
     }
 
@@ -139,7 +171,11 @@ class MainActivity : Activity() {
         return Bitmap.createScaledBitmap(crop, MiganInpainter.SIZE, MiganInpainter.SIZE, true)
     }
 
-    override fun onDestroy() { super.onDestroy(); bg.shutdown(); net?.close() }
+    override fun onDestroy() {
+        super.onDestroy()
+        bg.shutdown()
+        net?.close()
+    }
 
     /** Shows a SIZE×SIZE image and lets the user paint a mask (the region to erase) with a finger. */
     class DrawView(ctx: Context) : View(ctx) {
@@ -152,13 +188,28 @@ class MainActivity : Activity() {
 
         private val imgPaint = Paint().apply { isFilterBitmap = true }
         private val overlay = Paint().apply {
-            color = Color.argb(140, 255, 40, 40); style = Paint.Style.STROKE
-            strokeWidth = brush * 2; strokeCap = Paint.Cap.ROUND; strokeJoin = Paint.Join.ROUND; isAntiAlias = true
+            color = Color.argb(140, 255, 40, 40)
+            style = Paint.Style.STROKE
+            strokeWidth = brush * 2
+            strokeCap = Paint.Cap.ROUND
+            strokeJoin = Paint.Join.ROUND
+            isAntiAlias = true
         }
 
-        fun setImage(bm: Bitmap, isOriginal: Boolean = true) { image = bm; if (isOriginal) original = bm; postInvalidate() }
-        fun restoreOriginal() { original?.let { image = it }; postInvalidate() }
-        fun clearStrokes() { strokes.clear(); cur = null; postInvalidate() }
+        fun setImage(bm: Bitmap, isOriginal: Boolean = true) {
+            image = bm
+            if (isOriginal) original = bm
+            postInvalidate()
+        }
+        fun restoreOriginal() {
+            original?.let { image = it }
+            postInvalidate()
+        }
+        fun clearStrokes() {
+            strokes.clear()
+            cur = null
+            postInvalidate()
+        }
 
         // image-fit transform
         private fun scale() = min(width.toFloat() / S, height.toFloat() / S)
@@ -166,19 +217,24 @@ class MainActivity : Activity() {
         private fun oy() = (height - S * scale()) / 2
 
         override fun onTouchEvent(e: MotionEvent): Boolean {
-            val s = scale(); val ix = (e.x - ox()) / s; val iy = (e.y - oy()) / s
+            val s = scale()
+            val ix = (e.x - ox()) / s
+            val iy = (e.y - oy()) / s
             when (e.action) {
                 MotionEvent.ACTION_DOWN -> { cur = Path().apply { moveTo(ix, iy) }.also { strokes.add(it) } }
                 MotionEvent.ACTION_MOVE -> cur?.lineTo(ix, iy)
                 MotionEvent.ACTION_UP -> cur = null
             }
-            postInvalidate(); return true
+            postInvalidate()
+            return true
         }
 
         override fun onDraw(canvas: Canvas) {
             val bm = image ?: return
             val s = scale()
-            canvas.save(); canvas.translate(ox(), oy()); canvas.scale(s, s)
+            canvas.save()
+            canvas.translate(ox(), oy())
+            canvas.scale(s, s)
             canvas.drawBitmap(bm, 0f, 0f, imgPaint)
             for (p in strokes) canvas.drawPath(p, overlay)
             canvas.restore()
@@ -188,24 +244,33 @@ class MainActivity : Activity() {
         fun buildMask(): FloatArray? {
             if (strokes.isEmpty()) return null
             val mb = Bitmap.createBitmap(S, S, Bitmap.Config.ARGB_8888)
-            val c = Canvas(mb); c.drawColor(Color.BLACK)
+            val c = Canvas(mb)
+            c.drawColor(Color.BLACK)
             val p = Paint().apply {
-                color = Color.WHITE; style = Paint.Style.STROKE; strokeWidth = brush * 2
-                strokeCap = Paint.Cap.ROUND; strokeJoin = Paint.Join.ROUND; isAntiAlias = false
+                color = Color.WHITE
+                style = Paint.Style.STROKE
+                strokeWidth = brush * 2
+                strokeCap = Paint.Cap.ROUND
+                strokeJoin = Paint.Join.ROUND
+                isAntiAlias = false
             }
             for (st in strokes) c.drawPath(st, p)
-            val px = IntArray(S * S); mb.getPixels(px, 0, S, 0, 0, S, S)
+            val px = IntArray(S * S)
+            mb.getPixels(px, 0, S, 0, 0, S, S)
             val mask = FloatArray(S * S) { if ((px[it] and 0xFF) > 127) 0f else 1f }  // white(painted)->0 erase
-            mb.recycle(); return mask
+            mb.recycle()
+            return mask
         }
 
         fun imageRgb(): FloatArray? {
             val bm = image ?: return null
-            val px = IntArray(S * S); bm.getPixels(px, 0, S, 0, 0, S, S)
+            val px = IntArray(S * S)
+            bm.getPixels(px, 0, S, 0, 0, S, S)
             val out = FloatArray(S * S * 3)
             for (i in px.indices) {
                 val v = px[i]
-                out[i * 3] = ((v shr 16) and 0xFF).toFloat(); out[i * 3 + 1] = ((v shr 8) and 0xFF).toFloat()
+                out[i * 3] = ((v shr 16) and 0xFF).toFloat()
+                out[i * 3 + 1] = ((v shr 8) and 0xFF).toFloat()
                 out[i * 3 + 2] = (v and 0xFF).toFloat()
             }
             return out
