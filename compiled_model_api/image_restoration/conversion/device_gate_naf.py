@@ -30,11 +30,6 @@ with torch.no_grad(): ref=m(torch.from_numpy(img_np)).numpy()
 np.save(HERE+"/naf_ref.npy",ref)
 img_np.tofile(HERE+"/naf_input.bin")
 print(f"input {img_np.shape} -> naf_input.bin; ref range [{ref.min():.3f},{ref.max():.3f}]")
-from ai_edge_litert.interpreter import Interpreter
-it=Interpreter(model_path=HERE+"/nafnet_fp16.tflite")
-it.allocate_tensors()
-d=it.get_input_details()[0]
-it.set_tensor(d["index"],img_np.astype(d["dtype"]))
-it.invoke()
-o=it.get_tensor(it.get_output_details()[0]["index"])
+# desktop reference run through the LiteRT CompiledModel API (same API as on-device)
+o=B.run_tflite(HERE+"/nafnet_fp16.tflite",img_np)
 print(f"desktop-fp16 vs torch corr {np.corrcoef(o.ravel(),ref.ravel())[0,1]:.6f}")
