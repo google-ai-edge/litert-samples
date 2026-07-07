@@ -33,8 +33,11 @@ class MatchView(ctx: Context) : View(ctx) {
     private val paint = Paint(Paint.ANTI_ALIAS_FLAG)
 
     fun set(a: Bitmap, b: Bitmap, m: List<XFeatMatcher.Match>) {
-        bmA = a; bmB = b; matches = m
-        requestLayout(); invalidate()
+        bmA = a
+        bmB = b
+        matches = m
+        requestLayout()
+        invalidate()
     }
 
     override fun onMeasure(w: Int, h: Int) {

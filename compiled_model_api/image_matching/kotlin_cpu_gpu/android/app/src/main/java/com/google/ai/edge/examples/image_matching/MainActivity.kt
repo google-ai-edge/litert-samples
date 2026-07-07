@@ -47,12 +47,27 @@ class MainActivity : Activity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        val root = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(36, 90, 36, 36) }
-        status = TextView(this).apply { textSize = 15f; text = "Loading…" }
-        val pickA = Button(this).apply { text = "1️⃣  Pick first image"; setOnClickListener { pick(1) } }
-        val pickB = Button(this).apply { text = "2️⃣  Pick second image"; setOnClickListener { pick(2) } }
+        val root = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(36, 90, 36, 36)
+        }
+        status = TextView(this).apply {
+            textSize = 15f
+            text = "Loading…"
+        }
+        val pickA = Button(this).apply {
+            text = "1️⃣  Pick first image"
+            setOnClickListener { pick(1) }
+        }
+        val pickB = Button(this).apply {
+            text = "2️⃣  Pick second image"
+            setOnClickListener { pick(2) }
+        }
         view = MatchView(this)
-        root.addView(status); root.addView(pickA); root.addView(pickB); root.addView(view)
+        root.addView(status)
+        root.addView(pickA)
+        root.addView(pickB)
+        root.addView(view)
         setContentView(ScrollView(this).apply { addView(root) })
 
         bg.execute {
@@ -61,7 +76,10 @@ class MainActivity : Activity() {
                 runOnUiThread { status.text = "Ready — pick two photos of the same scene." }
             } catch (e: Throwable) {
                 Log.e(tag, "load", e)
-                runOnUiThread { status.setBackgroundColor(Color.rgb(0xFF, 0xCD, 0xD2)); status.text = "FAIL: ${e.message}" }
+                runOnUiThread {
+                    status.setBackgroundColor(Color.rgb(0xFF, 0xCD, 0xD2))
+                    status.text = "FAIL: ${e.message}"
+                }
             }
         }
     }
@@ -86,7 +104,8 @@ class MainActivity : Activity() {
             val bm = load(uri)
             if (requestCode == 1) bmA = bm else bmB = bm
             status.text = "Image $requestCode set (${bm.width}x${bm.height})."
-            val a = bmA; val b = bmB
+            val a = bmA
+            val b = bmB
             if (a != null && b != null) bg.execute { run(a, b) }
         } catch (e: Throwable) {
             Log.e(tag, "pick", e)

@@ -70,7 +70,10 @@ class XFeatMatcher(ctx: Context) : Closeable {
         }
         mean /= g.size
         var varSum = 0.0
-        for (v in g) { val d = v - mean; varSum += d * d }
+        for (v in g) {
+            val d = v - mean
+            varSum += d * d
+        }
         val inv = (1.0 / sqrt(varSum / g.size + 1e-5)).toFloat()
         for (i in g.indices) g[i] = ((g[i] - mean.toFloat()) * inv)
         return g
@@ -91,9 +94,15 @@ class XFeatMatcher(ctx: Context) : Closeable {
         for (cy in 0 until GH) {
             for (cx in 0 until GW) {
                 var mx = Float.NEGATIVE_INFINITY
-                for (c in 0 until 65) { cell[c] = klog[(c * GH + cy) * GW + cx]; if (cell[c] > mx) mx = cell[c] }
+                for (c in 0 until 65) {
+                    cell[c] = klog[(c * GH + cy) * GW + cx]
+                    if (cell[c] > mx) mx = cell[c]
+                }
                 var sum = 0f
-                for (c in 0 until 65) { cell[c] = exp(cell[c] - mx); sum += cell[c] }
+                for (c in 0 until 65) {
+                    cell[c] = exp(cell[c] - mx)
+                    sum += cell[c]
+                }
                 val rel = heat[cy * GW + cx]
                 for (c in 0 until 64) {
                     val py = cy * 8 + c / 8
@@ -109,9 +118,11 @@ class XFeatMatcher(ctx: Context) : Closeable {
                 if (s < 1e-4f) continue
                 var isMax = true
                 loop@ for (dy in -2..2) for (dx in -2..2) {
-                    val yy = y + dy; val xx = x + dx
+                    val yy = y + dy
+                    val xx = x + dx
                     if (yy in 0 until H && xx in 0 until W && scoreMap[yy * W + xx] > s) {
-                        isMax = false; break@loop
+                        isMax = false
+                        break@loop
                     }
                 }
                 if (isMax) cand.add(Triple(x, y, s))
@@ -119,16 +130,22 @@ class XFeatMatcher(ctx: Context) : Closeable {
         }
         cand.sortByDescending { it.third }
         val n = minOf(TOP_K, cand.size)
-        val xs = FloatArray(n); val ys = FloatArray(n); val sc = FloatArray(n)
+        val xs = FloatArray(n)
+        val ys = FloatArray(n)
+        val sc = FloatArray(n)
         val desc = Array(n) { FloatArray(D) }
         for (i in 0 until n) {
             val (x, y, s) = cand[i]
-            xs[i] = x.toFloat(); ys[i] = y.toFloat(); sc[i] = s
+            xs[i] = x.toFloat()
+            ys[i] = y.toFloat()
+            sc[i] = s
             // bilinear sample the [64, 60, 80] feature map at (x/8, y/8), then L2 normalize
             val fx = (x / 8f - 0.5f).coerceIn(0f, GW - 1.001f)
             val fy = (y / 8f - 0.5f).coerceIn(0f, GH - 1.001f)
-            val x0 = fx.toInt(); val y0 = fy.toInt()
-            val ax = fx - x0; val ay = fy - y0
+            val x0 = fx.toInt()
+            val y0 = fy.toInt()
+            val ax = fx - x0
+            val ay = fy - y0
             var norm = 0f
             for (d in 0 until D) {
                 val base = d * GH * GW
@@ -147,17 +164,27 @@ class XFeatMatcher(ctx: Context) : Closeable {
 
     /** Mutual-nearest-neighbor matching with a cosine-similarity floor. */
     fun match(a: Features, b: Features): List<Match> {
-        val na = a.desc.size; val nb = b.desc.size
+        val na = a.desc.size
+        val nb = b.desc.size
         if (na == 0 || nb == 0) return emptyList()
-        val bestB = IntArray(na) { -1 }; val simB = FloatArray(na) { -2f }
-        val bestA = IntArray(nb) { -1 }; val simA = FloatArray(nb) { -2f }
+        val bestB = IntArray(na) { -1 }
+        val simB = FloatArray(na) { -2f }
+        val bestA = IntArray(nb) { -1 }
+        val simA = FloatArray(nb) { -2f }
         for (i in 0 until na) {
             for (j in 0 until nb) {
                 var s = 0f
-                val da = a.desc[i]; val db = b.desc[j]
+                val da = a.desc[i]
+                val db = b.desc[j]
                 for (d in 0 until D) s += da[d] * db[d]
-                if (s > simB[i]) { simB[i] = s; bestB[i] = j }
-                if (s > simA[j]) { simA[j] = s; bestA[j] = i }
+                if (s > simB[i]) {
+                    simB[i] = s
+                    bestB[i] = j
+                }
+                if (s > simA[j]) {
+                    simA[j] = s
+                    bestA[j] = i
+                }
             }
         }
         val out = ArrayList<Match>()
@@ -170,6 +197,8 @@ class XFeatMatcher(ctx: Context) : Closeable {
     }
 
     override fun close() {
-        inBuf.forEach { it.close() }; outBuf.forEach { it.close() }; model.close()
+        inBuf.forEach { it.close() }
+        outBuf.forEach { it.close() }
+        model.close()
     }
 }
