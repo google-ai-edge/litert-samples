@@ -53,16 +53,24 @@ class MainActivity : Activity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        val root = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(24, 80, 24, 24) }
-        status = TextView(this).apply { textSize = 15f; text = "Loading CPGA-Net on GPU…" }
+        val root = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(24, 80, 24, 24)
+        }
+        status = TextView(this).apply {
+            textSize = 15f
+            text = "Loading CPGA-Net on GPU…"
+        }
         val pick = Button(this).apply {
-            text = "🖼  Pick image"; isEnabled = false
+            text = "🖼  Pick image"
+            isEnabled = false
             setOnClickListener {
                 startActivityForResult(Intent(Intent.ACTION_GET_CONTENT).apply { type = "image/*" }, pickReq)
             }
         }
         view = CompareView(this)
-        root.addView(status); root.addView(pick)
+        root.addView(status)
+        root.addView(pick)
         root.addView(view, LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, 980))
         setContentView(root)
 
@@ -77,7 +85,10 @@ class MainActivity : Activity() {
                 runOnUiThread { pick.isEnabled = true }
             } catch (e: Throwable) {
                 Log.e(tag, "load failed", e)
-                runOnUiThread { status.setBackgroundColor(Color.rgb(0xFF, 0xCD, 0xD2)); status.text = "FAIL: ${e.message}" }
+                runOnUiThread {
+                    status.setBackgroundColor(Color.rgb(0xFF, 0xCD, 0xD2))
+                    status.text = "FAIL: ${e.message}"
+                }
             }
         }
     }
@@ -89,7 +100,10 @@ class MainActivity : Activity() {
         runOnUiThread { status.text = "Enhancing…" }
         bg.execute {
             try { run(squareResize(loadOriented(uri)), warm = false) }
-            catch (e: Throwable) { Log.e(tag, "enhance failed", e); runOnUiThread { status.text = "Failed: ${e.message}" } }
+            catch (e: Throwable) {
+                Log.e(tag, "enhance failed", e)
+                runOnUiThread { status.text = "Failed: ${e.message}" }
+            }
         }
     }
 
@@ -104,7 +118,8 @@ class MainActivity : Activity() {
         runOnUiThread {
             status.setBackgroundColor(Color.rgb(0xC8, 0xE6, 0xC9))
             status.text = "On-device GPU low-light ✓  ${ms} ms  ·  hold to compare  ·  CPGA-Net, CompiledModel GPU"
-            view.set(src, enh); view.invalidate()
+            view.set(src, enh)
+            view.invalidate()
         }
     }
 
@@ -129,18 +144,24 @@ class MainActivity : Activity() {
     }
 
     private fun bitmapToRgb(bm: Bitmap): FloatArray {
-        val n = bm.width * bm.height; val px = IntArray(n)
+        val n = bm.width * bm.height
+        val px = IntArray(n)
         bm.getPixels(px, 0, bm.width, 0, 0, bm.width, bm.height)
         val out = FloatArray(n * 3)
         for (i in 0 until n) {
             val p = px[i]
-            out[i * 3] = ((p shr 16) and 0xFF).toFloat(); out[i * 3 + 1] = ((p shr 8) and 0xFF).toFloat()
+            out[i * 3] = ((p shr 16) and 0xFF).toFloat()
+            out[i * 3 + 1] = ((p shr 8) and 0xFF).toFloat()
             out[i * 3 + 2] = (p and 0xFF).toFloat()
         }
         return out
     }
 
-    override fun onDestroy() { super.onDestroy(); bg.shutdown(); net?.close() }
+    override fun onDestroy() {
+        super.onDestroy()
+        bg.shutdown()
+        net?.close()
+    }
 
     /** Shows the enhanced image; while pressed, shows the original (before/after compare). */
     class CompareView(ctx: Context) : View(ctx) {
@@ -149,20 +170,26 @@ class MainActivity : Activity() {
         private var showOriginal = false
         private val paint = Paint().apply { isFilterBitmap = true }
 
-        fun set(orig: Bitmap, enh: Bitmap) { original = orig; enhanced = enh; showOriginal = false }
+        fun set(orig: Bitmap, enh: Bitmap) {
+            original = orig
+            enhanced = enh
+            showOriginal = false
+        }
 
         override fun onTouchEvent(e: MotionEvent): Boolean {
             showOriginal = when (e.action) {
                 MotionEvent.ACTION_DOWN, MotionEvent.ACTION_MOVE -> true
                 else -> false
             }
-            invalidate(); return true
+            invalidate()
+            return true
         }
 
         override fun onDraw(canvas: Canvas) {
             val bm = (if (showOriginal) original else enhanced) ?: return
             val s = min(width.toFloat() / bm.width, height.toFloat() / bm.height)
-            val w = bm.width * s; val h = bm.height * s
+            val w = bm.width * s
+            val h = bm.height * s
             canvas.drawBitmap(bm, null, android.graphics.RectF((width - w) / 2, (height - h) / 2, (width + w) / 2, (height + h) / 2), paint)
         }
     }
