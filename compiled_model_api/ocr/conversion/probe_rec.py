@@ -49,6 +49,25 @@ class RecWrap(nn.Module):
         return o
 
 
+def opcheck(path):
+    """Static GPU-compat scan: read the op set straight from the .tflite flatbuffer."""
+    from ai_edge_litert import schema_py_generated as schema
+    with open(path, "rb") as f:
+        model = schema.ModelT.InitFromPackedBuf(f.read(), 0)
+    names = {v: k for k, v in vars(schema.BuiltinOperator).items() if not k.startswith("_")}
+    ops = collections.Counter()
+    over = 0
+    for g in model.subgraphs:
+        for op in g.operators:
+            c = model.operatorCodes[op.opcodeIndex]
+            code = max(c.builtinCode, c.deprecatedBuiltinCode)
+            ops[c.customCode.decode() if c.customCode else names.get(code, str(code))] += 1
+        over += sum(1 for t in g.tensors if t.shape is not None and len(t.shape) > 4)
+    bad = {k: v for k, v in ops.items() if k.upper() in BANNED}
+    print("  ops:", dict(sorted(ops.items(), key=lambda kv: -kv[1])))
+    print(f"  banned: {bad or 'NONE'} | >4D: {over} | size {os.path.getsize(path)/1e6:.1f}MB")
+
+
 def main():
     char_num = len(open(DICT, encoding="utf-8").read().splitlines()) + 2  # + CTC blank + space
     cfg = AnalysisConfig(W_REC, Y_REC, char_num=char_num)
@@ -65,15 +84,8 @@ def main():
     try:
         import litert_torch
         litert_torch.convert(RecWrap(m.net).eval(), (x,)).export("rec_raw.tflite")
-        from ai_edge_litert.interpreter import Interpreter
-        it = Interpreter(model_path="rec_raw.tflite")
-        it.allocate_tensors()
-        ops = collections.Counter(d.get("op_name", "?") for d in it._get_ops_details())
-        bad = {k: v for k, v in ops.items() if k.upper() in BANNED}
-        over = sum(1 for d in it.get_tensor_details() if len(d.get("shape", [])) > 4)
-        print("  ops:", dict(sorted(ops.items(), key=lambda kv: -kv[1])))
-        print(f"  banned: {bad or 'NONE'} | >4D: {over} | size {os.path.getsize('rec_raw.tflite')/1e6:.1f}MB")
-    except Exception as e:
+        opcheck("rec_raw.tflite")
+    except Exception:
         import traceback
         traceback.print_exc()
 

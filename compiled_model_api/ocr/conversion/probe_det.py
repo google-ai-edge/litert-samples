@@ -47,6 +47,25 @@ class DetWrap(nn.Module):
         return o["maps"] if isinstance(o, dict) else o
 
 
+def opcheck(path):
+    """Static GPU-compat scan: read the op set straight from the .tflite flatbuffer."""
+    from ai_edge_litert import schema_py_generated as schema
+    with open(path, "rb") as f:
+        model = schema.ModelT.InitFromPackedBuf(f.read(), 0)
+    names = {v: k for k, v in vars(schema.BuiltinOperator).items() if not k.startswith("_")}
+    ops = collections.Counter()
+    over = 0
+    for g in model.subgraphs:
+        for op in g.operators:
+            c = model.operatorCodes[op.opcodeIndex]
+            code = max(c.builtinCode, c.deprecatedBuiltinCode)
+            ops[c.customCode.decode() if c.customCode else names.get(code, str(code))] += 1
+        over += sum(1 for t in g.tensors if t.shape is not None and len(t.shape) > 4)
+    bad = {k: v for k, v in ops.items() if k.upper() in BANNED}
+    print("  ops:", dict(sorted(ops.items(), key=lambda kv: -kv[1])))
+    print(f"  banned: {bad or 'NONE'} | >4D: {over} | size {os.path.getsize(path)/1e6:.1f}MB")
+
+
 def main():
     cfg = AnalysisConfig(W_DET, Y_DET)
     m = BaseOCRV20(cfg)
@@ -63,15 +82,8 @@ def main():
     try:
         import litert_torch
         litert_torch.convert(DetWrap(m.net).eval(), (x,)).export("det_raw.tflite")
-        from ai_edge_litert.interpreter import Interpreter
-        it = Interpreter(model_path="det_raw.tflite")
-        it.allocate_tensors()
-        ops = collections.Counter(d.get("op_name", "?") for d in it._get_ops_details())
-        bad = {k: v for k, v in ops.items() if k.upper() in BANNED}
-        over = sum(1 for d in it.get_tensor_details() if len(d.get("shape", [])) > 4)
-        print("  ops:", dict(sorted(ops.items(), key=lambda kv: -kv[1])))
-        print(f"  banned: {bad or 'NONE'} | >4D: {over} | size {os.path.getsize('det_raw.tflite')/1e6:.1f}MB")
-    except Exception as e:
+        opcheck("det_raw.tflite")
+    except Exception:
         import traceback
         traceback.print_exc()
 
