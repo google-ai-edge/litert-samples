@@ -79,7 +79,6 @@ import com.google.aiedge.examples.backgroundremoval.view.ApplicationTheme
 import com.google.aiedge.examples.backgroundremoval.view.CameraScreen
 import com.google.aiedge.examples.backgroundremoval.view.GalleryScreen
 
-
 class MainActivity : ComponentActivity() {
     @OptIn(ExperimentalMaterialApi::class)
     override fun onCreate(savedInstanceState: Bundle?) {

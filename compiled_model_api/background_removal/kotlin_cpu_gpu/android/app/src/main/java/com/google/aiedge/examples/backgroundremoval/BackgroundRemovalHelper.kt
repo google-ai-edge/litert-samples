@@ -163,57 +163,72 @@ class BackgroundRemovalHelper(
         squareBitmap.getPixels(pixels, 0, INPUT_SIZE, 0, 0, INPUT_SIZE, INPUT_SIZE)
 
         val plane = INPUT_SIZE * INPUT_SIZE
-        var maxV = 1e-6f
-        val r = FloatArray(plane); val g = FloatArray(plane); val b = FloatArray(plane)
+        var maxChannel = 1e-6f
+        val red = FloatArray(plane)
+        val green = FloatArray(plane)
+        val blue = FloatArray(plane)
         for (i in pixels.indices) {
-            val p = pixels[i]
-            val rv = ((p shr 16) and 0xFF) / 255f
-            val gv = ((p shr 8) and 0xFF) / 255f
-            val bv = (p and 0xFF) / 255f
-            r[i] = rv; g[i] = gv; b[i] = bv
-            if (rv > maxV) maxV = rv; if (gv > maxV) maxV = gv; if (bv > maxV) maxV = bv
+            val pixel = pixels[i]
+            val r = ((pixel shr 16) and 0xFF) / 255f
+            val g = ((pixel shr 8) and 0xFF) / 255f
+            val b = (pixel and 0xFF) / 255f
+            red[i] = r
+            green[i] = g
+            blue[i] = b
+            if (r > maxChannel) maxChannel = r
+            if (g > maxChannel) maxChannel = g
+            if (b > maxChannel) maxChannel = b
         }
         for (i in 0 until plane) {
-            inputFloats[i] = (r[i] / maxV - MEAN[0]) / STD[0]
-            inputFloats[plane + i] = (g[i] / maxV - MEAN[1]) / STD[1]
-            inputFloats[2 * plane + i] = (b[i] / maxV - MEAN[2]) / STD[2]
+            inputFloats[i] = (red[i] / maxChannel - MEAN[0]) / STD[0]
+            inputFloats[plane + i] = (green[i] / maxChannel - MEAN[1]) / STD[1]
+            inputFloats[2 * plane + i] = (blue[i] / maxChannel - MEAN[2]) / STD[2]
         }
     }
 
     /** Foreground (original RGB) over transparency, using the upscaled mask as alpha. */
     private fun compositeCutout(bitmap: Bitmap, maskRaw: FloatArray): Bitmap {
         // Normalize mask to [0,1].
-        var lo = Float.MAX_VALUE; var hi = -Float.MAX_VALUE
-        for (v in maskRaw) { if (v < lo) lo = v; if (v > hi) hi = v }
-        val range = if (hi > lo) hi - lo else 1f
+        var minValue = Float.MAX_VALUE
+        var maxValue = -Float.MAX_VALUE
+        for (value in maskRaw) {
+            if (value < minValue) minValue = value
+            if (value > maxValue) maxValue = value
+        }
+        val range = if (maxValue > minValue) maxValue - minValue else 1f
 
         val maskArgb = IntArray(INPUT_SIZE * INPUT_SIZE)
         for (i in maskArgb.indices) {
-            val a = (((maskRaw[i] - lo) / range) * 255f).toInt().coerceIn(0, 255)
-            maskArgb[i] = a shl 24
+            val alpha = (((maskRaw[i] - minValue) / range) * 255f).toInt().coerceIn(0, 255)
+            maskArgb[i] = alpha shl 24
         }
         val small = Bitmap.createBitmap(maskArgb, INPUT_SIZE, INPUT_SIZE, Bitmap.Config.ARGB_8888)
-        val ow = bitmap.width; val oh = bitmap.height
-        val up = Bitmap.createScaledBitmap(small, ow, oh, true)
+        val width = bitmap.width
+        val height = bitmap.height
+        val upscaled = Bitmap.createScaledBitmap(small, width, height, true)
         small.recycle()
 
-        val maskPix = IntArray(ow * oh); up.getPixels(maskPix, 0, ow, 0, 0, ow, oh); up.recycle()
-        val srcPix = IntArray(ow * oh); bitmap.getPixels(srcPix, 0, ow, 0, 0, ow, oh)
-        val out = IntArray(ow * oh)
+        val maskPixels = IntArray(width * height)
+        upscaled.getPixels(maskPixels, 0, width, 0, 0, width, height)
+        upscaled.recycle()
+        val sourcePixels = IntArray(width * height)
+        bitmap.getPixels(sourcePixels, 0, width, 0, 0, width, height)
+        val out = IntArray(width * height)
         for (i in out.indices) {
-            val alpha = (maskPix[i] ushr 24) and 0xFF
-            out[i] = (alpha shl 24) or (srcPix[i] and 0x00FFFFFF)
+            val alpha = (maskPixels[i] ushr 24) and 0xFF
+            out[i] = (alpha shl 24) or (sourcePixels[i] and 0x00FFFFFF)
         }
-        return Bitmap.createBitmap(out, ow, oh, Bitmap.Config.ARGB_8888)
+        return Bitmap.createBitmap(out, width, height, Bitmap.Config.ARGB_8888)
     }
 
     private fun rotate(bitmap: Bitmap, degrees: Int): Bitmap {
-        val m = Matrix().apply { postRotate(degrees.toFloat()) }
-        return Bitmap.createBitmap(bitmap, 0, 0, bitmap.width, bitmap.height, m, true)
+        val matrix = Matrix().apply { postRotate(degrees.toFloat()) }
+        return Bitmap.createBitmap(bitmap, 0, 0, bitmap.width, bitmap.height, matrix, true)
     }
 
     enum class AcceleratorEnum {
-        CPU, GPU
+        CPU,
+        GPU,
     }
 
     enum class Model(val fileName: String) {
