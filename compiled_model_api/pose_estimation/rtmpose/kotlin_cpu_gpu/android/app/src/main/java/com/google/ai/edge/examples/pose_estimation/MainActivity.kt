@@ -1,5 +1,5 @@
 /*
- * Copyright 2025 The Google AI Edge Authors. All Rights Reserved.
+ * Copyright 2026 The Google AI Edge Authors. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -117,7 +117,9 @@ class MainActivity : Activity() {
     private fun run(crop: Bitmap, warm: Boolean) {
         val n = net!!
         val rgb = bitmapToRgb(crop)
-        if (warm) n.estimate(rgb)
+        if (warm) {
+            n.estimate(rgb)
+        }
         val t0 = System.nanoTime()
         val kpts = n.estimate(rgb)
         val ms = (System.nanoTime() - t0) / 1_000_000
@@ -212,9 +214,15 @@ class MainActivity : Activity() {
             fun px(i: Int) = ox + kpts[i].x * s
             fun py(i: Int) = oy + kpts[i].y * s
             for ((a, c) in edges) {
-                if (kpts[a].score > 0.3f && kpts[c].score > 0.3f) canvas.drawLine(px(a), py(a), px(c), py(c), bone)
+                if (kpts[a].score > 0.3f && kpts[c].score > 0.3f) {
+                    canvas.drawLine(px(a), py(a), px(c), py(c), bone)
+                }
             }
-            for (i in kpts.indices) if (kpts[i].score > 0.3f) canvas.drawCircle(px(i), py(i), 7f, joint)
+            for (i in kpts.indices) {
+                if (kpts[i].score > 0.3f) {
+                    canvas.drawCircle(px(i), py(i), 7f, joint)
+                }
+            }
         }
     }
 }

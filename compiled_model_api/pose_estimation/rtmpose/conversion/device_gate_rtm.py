@@ -1,4 +1,4 @@
-# Copyright 2025 The Google AI Edge Authors. All Rights Reserved.
+# Copyright 2026 The Google AI Edge Authors. All Rights Reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -12,7 +12,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import build_rtm as B  # reuses stubs + Wrap + cfg/ckpt
+"""Desktop gate for the exported RTMPose graph.
+
+Center-crops person.jpg to the 192x256 input, runs the mmpose PyTorch reference
+and the exported .tflite through the LiteRT CompiledModel API, and prints the
+SimCC x/y logit correlations between the two.
+"""
+import build_rtmpose as B  # reuses stubs + Wrap + cfg/ckpt
 import numpy as np
 import torch
 import os

@@ -1,4 +1,4 @@
-# Copyright 2025 The Google AI Edge Authors. All Rights Reserved.
+# Copyright 2026 The Google AI Edge Authors. All Rights Reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -12,13 +12,17 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+"""RTMPose-s (SimCC head, 256x192) -> LiteRT CompiledModel GPU.
+
+Patches applied model-side before export (numerically equivalent): ScaleNorm ->
+scale-before-square RMS (fp16-safe) and GAU attention BMM -> broadcast-reduce.
+"""
 import warnings
 warnings.filterwarnings("ignore")
 import sys
 import types
 import inspect
 _orig_gsf=inspect.getsourcefile
-inspect.getsourcefile=lambda o:(_orig_gsf(o) if True else None) if False else (lambda: (_orig_gsf(o)))()
 def _safe_gsf(o):
     try: return _orig_gsf(o)
     except Exception: return None
