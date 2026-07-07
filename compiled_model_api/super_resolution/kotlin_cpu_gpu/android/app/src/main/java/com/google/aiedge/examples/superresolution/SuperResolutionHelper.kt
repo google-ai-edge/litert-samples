@@ -125,16 +125,17 @@ class SuperResolutionHelper(
                 val outputBuffers = currentModel.createOutputBuffers()
                 inputBuffers[0].writeFloat(inputFloats)
                 currentModel.run(inputBuffers, outputBuffers)
-                val out = outputBuffers[0].readFloat() // [512*512*3] NHWC 0-1
+                val out = outputBuffers[0].readFloat() // [1,3,512,512] NCHW planar 0-1
                 inputBuffers.forEach { it.close() }
                 outputBuffers.forEach { it.close() }
                 val inferenceTime = SystemClock.uptimeMillis() - start
 
-                var o = 0
+                // The published model emits NCHW (planar R,G,B planes of OUT*OUT).
+                val plane = OUT * OUT
                 for (i in outPixels.indices) {
-                    val r = (out[o++].coerceIn(0f, 1f) * 255f).toInt()
-                    val g = (out[o++].coerceIn(0f, 1f) * 255f).toInt()
-                    val b = (out[o++].coerceIn(0f, 1f) * 255f).toInt()
+                    val r = (out[i].coerceIn(0f, 1f) * 255f).toInt()
+                    val g = (out[plane + i].coerceIn(0f, 1f) * 255f).toInt()
+                    val b = (out[2 * plane + i].coerceIn(0f, 1f) * 255f).toInt()
                     outPixels[i] = Color.argb(255, r, g, b)
                 }
                 val sr = Bitmap.createBitmap(outPixels, OUT, OUT, Bitmap.Config.ARGB_8888)
