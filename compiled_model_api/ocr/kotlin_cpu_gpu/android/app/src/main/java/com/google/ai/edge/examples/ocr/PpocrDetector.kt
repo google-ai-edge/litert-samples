@@ -78,19 +78,43 @@ class PpocrDetector(private val ctx: Context) : Closeable {
         for (start in 0 until n) {
             if (!bin[start] || label[start] != -1) continue
             // flood fill (4-connectivity)
-            var x0 = SIZE; var y0 = SIZE; var x1 = 0; var y1 = 0; var area = 0; var scoreSum = 0f
-            stack.addLast(start); label[start] = start
+            var x0 = SIZE
+            var y0 = SIZE
+            var x1 = 0
+            var y1 = 0
+            var area = 0
+            var scoreSum = 0f
+            stack.addLast(start)
+            label[start] = start
             while (stack.isNotEmpty()) {
                 val p = stack.removeLast()
-                val px = p % SIZE; val py = p / SIZE
-                if (px < x0) x0 = px; if (px > x1) x1 = px; if (py < y0) y0 = py; if (py > y1) y1 = py
-                area++; scoreSum += prob[p]
-                if (px > 0 && bin[p - 1] && label[p - 1] == -1) { label[p - 1] = start; stack.addLast(p - 1) }
-                if (px < SIZE - 1 && bin[p + 1] && label[p + 1] == -1) { label[p + 1] = start; stack.addLast(p + 1) }
-                if (py > 0 && bin[p - SIZE] && label[p - SIZE] == -1) { label[p - SIZE] = start; stack.addLast(p - SIZE) }
-                if (py < SIZE - 1 && bin[p + SIZE] && label[p + SIZE] == -1) { label[p + SIZE] = start; stack.addLast(p + SIZE) }
+                val px = p % SIZE
+                val py = p / SIZE
+                if (px < x0) x0 = px
+                if (px > x1) x1 = px
+                if (py < y0) y0 = py
+                if (py > y1) y1 = py
+                area++
+                scoreSum += prob[p]
+                if (px > 0 && bin[p - 1] && label[p - 1] == -1) {
+                    label[p - 1] = start
+                    stack.addLast(p - 1)
+                }
+                if (px < SIZE - 1 && bin[p + 1] && label[p + 1] == -1) {
+                    label[p + 1] = start
+                    stack.addLast(p + 1)
+                }
+                if (py > 0 && bin[p - SIZE] && label[p - SIZE] == -1) {
+                    label[p - SIZE] = start
+                    stack.addLast(p - SIZE)
+                }
+                if (py < SIZE - 1 && bin[p + SIZE] && label[p + SIZE] == -1) {
+                    label[p + SIZE] = start
+                    stack.addLast(p + SIZE)
+                }
             }
-            val w = x1 - x0 + 1; val h = y1 - y0 + 1
+            val w = x1 - x0 + 1
+            val h = y1 - y0 + 1
             if (w < MIN_SIZE || h < MIN_SIZE) continue
             if (scoreSum / area < BOX_THRESH) continue
             // unclip: expand by ~ a fraction of the box height (approximates DB's unclip dilation)
@@ -102,5 +126,9 @@ class PpocrDetector(private val ctx: Context) : Closeable {
         return out.sortedWith(compareBy({ it.y0 / 16 }, { it.x0 }))
     }
 
-    override fun close() { inBuf.forEach { it.close() }; outBuf.forEach { it.close() }; det.close() }
+    override fun close() {
+        inBuf.forEach { it.close() }
+        outBuf.forEach { it.close() }
+        det.close()
+    }
 }

@@ -12,14 +12,19 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-#!/usr/bin/env python3
 """PP-OCRv5 mobile detection (DBNet: PPLCNetV4 + RepLKFPN + DB head) GPU op-check.
 Run: ~/clipconv/bin/python probe_det.py [H W]
 """
 import _stub_propack
-import sys, os, collections, numpy as np, torch, torch.nn as nn
+import sys
+import os
+import collections
+import numpy as np
+import torch
+import torch.nn as nn
 REPO = os.path.join(os.path.dirname(os.path.abspath(__file__)), "PaddleOCR2Pytorch")
-sys.path.insert(0, REPO); sys.path.insert(0, os.path.join(REPO, "tools"))
+sys.path.insert(0, REPO)
+sys.path.insert(0, os.path.join(REPO, "tools"))
 from tools.infer.pytorchocr_utility import AnalysisConfig
 from pytorchocr.base_ocr_v20 import BaseOCRV20
 from safetensors.torch import load_file
@@ -34,9 +39,11 @@ BANNED = {"GATHER", "GATHER_ND", "TOPK_V2", "GELU", "ERF", "WHERE", "SELECT", "S
 
 
 class DetWrap(nn.Module):
-    def __init__(s, net): super().__init__(); s.net = net
-    def forward(s, x):
-        o = s.net(x)
+    def __init__(self, net):
+        super().__init__()
+        self.net = net
+    def forward(self, x):
+        o = self.net(x)
         return o["maps"] if isinstance(o, dict) else o
 
 
@@ -57,14 +64,16 @@ def main():
         import litert_torch
         litert_torch.convert(DetWrap(m.net).eval(), (x,)).export("det_raw.tflite")
         from ai_edge_litert.interpreter import Interpreter
-        it = Interpreter(model_path="det_raw.tflite"); it.allocate_tensors()
+        it = Interpreter(model_path="det_raw.tflite")
+        it.allocate_tensors()
         ops = collections.Counter(d.get("op_name", "?") for d in it._get_ops_details())
         bad = {k: v for k, v in ops.items() if k.upper() in BANNED}
         over = sum(1 for d in it.get_tensor_details() if len(d.get("shape", [])) > 4)
         print("  ops:", dict(sorted(ops.items(), key=lambda kv: -kv[1])))
         print(f"  banned: {bad or 'NONE'} | >4D: {over} | size {os.path.getsize('det_raw.tflite')/1e6:.1f}MB")
     except Exception as e:
-        import traceback; traceback.print_exc()
+        import traceback
+        traceback.print_exc()
 
 
 if __name__ == "__main__":

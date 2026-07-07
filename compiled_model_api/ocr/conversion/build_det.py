@@ -12,15 +12,21 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-#!/usr/bin/env python3
 """PP-OCRv5 mobile detection -> CompiledModel GPU. The DB head's 2 ConvTranspose2d (k2 s2) are the
 only blocker (TRANSPOSE_CONV, Mali-rejected) -> replace with exact ZeroStuffConvT2d. Convert + fp16 + parity.
 Run: ~/clipconv/bin/python build_det.py [stage]  stage in {opcheck,parity,all}
 """
-import _stub_propack, sys, os, collections
-import numpy as np, torch, torch.nn as nn, torch.nn.functional as F
+import _stub_propack
+import sys
+import os
+import collections
+import numpy as np
+import torch
+import torch.nn as nn
+import torch.nn.functional as F
 REPO = os.path.join(os.path.dirname(os.path.abspath(__file__)), "PaddleOCR2Pytorch")
-sys.path.insert(0, REPO); sys.path.insert(0, os.path.join(REPO, "tools"))
+sys.path.insert(0, REPO)
+sys.path.insert(0, os.path.join(REPO, "tools"))
 from tools.infer.pytorchocr_utility import AnalysisConfig
 from pytorchocr.base_ocr_v20 import BaseOCRV20
 from safetensors.torch import load_file
@@ -37,38 +43,48 @@ BANNED = {"GATHER", "GATHER_ND", "TOPK_V2", "GELU", "ERF", "WHERE", "SELECT", "S
 class ZeroStuffConvT2d(nn.Module):
     """Exact GPU-clean ConvTranspose2d (k,s, p=0, op=0): 2D nearest-upsample x stride zero-stuff mask
     + flipped conv2d + crop. Mali rejects TRANSPOSE_CONV; this is RESIZE_NEAREST + MUL + CONV_2D."""
-    def __init__(s, ct, Hin, Win):
+    def __init__(self, ct, Hin, Win):
         super().__init__()
-        s.s = ct.stride[0]; s.k = ct.kernel_size[0]; s.p = ct.padding[0]
-        s.op = ct.output_padding[0]; s.Hin = Hin; s.Win = Win
+        self.s = ct.stride[0]
+        self.k = ct.kernel_size[0]
+        self.p = ct.padding[0]
+        self.op = ct.output_padding[0]
+        self.Hin = Hin
+        self.Win = Win
         w = ct.weight.detach()                       # (Cin, Cout, k, k)
         w = w.flip(2).flip(3).permute(1, 0, 2, 3).contiguous()   # (Cout, Cin, k, k)
-        s.register_buffer("w", w)
-        s.register_buffer("b", ct.bias.detach().clone() if ct.bias is not None
+        self.register_buffer("w", w)
+        self.register_buffer("b", ct.bias.detach().clone() if ct.bias is not None
                           else torch.zeros(ct.out_channels))
-        mh = np.zeros((Hin * s.s, Win * s.s), np.float32); mh[::s.s, ::s.s] = 1.0
-        s.register_buffer("mask", torch.from_numpy(mh)[None, None])
+        mh = np.zeros((Hin * self.s, Win * self.s), np.float32)
+        mh[::self.s, ::self.s] = 1.0
+        self.register_buffer("mask", torch.from_numpy(mh)[None, None])
 
-    def forward(s, x):
-        xn = F.interpolate(x, size=(s.Hin * s.s, s.Win * s.s), mode="nearest") * s.mask
-        y = F.conv2d(xn, s.w, bias=s.b, padding=s.k - 1)
-        olH = (s.Hin - 1) * s.s + s.k - 2 * s.p + s.op
-        olW = (s.Win - 1) * s.s + s.k - 2 * s.p + s.op
-        return y[:, :, s.p:s.p + olH, s.p:s.p + olW]
+    def forward(self, x):
+        xn = F.interpolate(x, size=(self.Hin * self.s, self.Win * self.s), mode="nearest") * self.mask
+        y = F.conv2d(xn, self.w, bias=self.b, padding=self.k - 1)
+        olH = (self.Hin - 1) * self.s + self.k - 2 * self.p + self.op
+        olW = (self.Win - 1) * self.s + self.k - 2 * self.p + self.op
+        return y[:, :, self.p:self.p + olH, self.p:self.p + olW]
 
 
 class DetWrap(nn.Module):
-    def __init__(s, net): super().__init__(); s.net = net
-    def forward(s, x):
-        o = s.net(x)
+    def __init__(self, net):
+        super().__init__()
+        self.net = net
+    def forward(self, x):
+        o = self.net(x)
         return o["maps"] if isinstance(o, dict) else o
 
 
 def build(swap):
     cfg = AnalysisConfig(W_DET, Y_DET)
-    m = BaseOCRV20(cfg); m.net.load_state_dict(load_file(W_DET), strict=False); m.net.eval()
+    m = BaseOCRV20(cfg)
+    m.net.load_state_dict(load_file(W_DET), strict=False)
+    m.net.eval()
     if swap:
-        L = {}; hk = []
+        L = {}
+        hk = []
         for n, mo in m.net.named_modules():
             if isinstance(mo, nn.ConvTranspose2d):
                 hk.append(mo.register_forward_pre_hook(
@@ -78,15 +94,18 @@ def build(swap):
         for h in hk: h.remove()
         for name, mo in list(m.net.named_modules()):
             if isinstance(mo, nn.ConvTranspose2d) and name in L:   # skip training-only thresh branch
-                par = m.net; *pth, last = name.split(".")
+                par = m.net
+                *pth, last = name.split(".")
                 for q in pth: par = getattr(par, q)
-                hh, ww = L[name]; setattr(par, last, ZeroStuffConvT2d(mo, hh, ww))
+                hh, ww = L[name]
+                setattr(par, last, ZeroStuffConvT2d(mo, hh, ww))
     return m.net
 
 
 def opcheck(path, label):
     from ai_edge_litert.interpreter import Interpreter
-    it = Interpreter(model_path=path); it.allocate_tensors()
+    it = Interpreter(model_path=path)
+    it.allocate_tensors()
     ops = collections.Counter(d.get("op_name", "?") for d in it._get_ops_details())
     bad = {k: v for k, v in ops.items() if k.upper() in BANNED}
     over = sum(1 for d in it.get_tensor_details() if len(d.get("shape", [])) > 4)
@@ -105,16 +124,20 @@ def to_fp16(fp32, fp16):
             weight_tensor_config=qtyping.TensorQuantizationConfig(num_bits=16, dtype=qtyping.TensorDataType.FLOAT),
             compute_precision=qtyping.ComputePrecision.FLOAT), algorithm_key=AlgorithmName.FLOAT_CASTING)
     if os.path.exists(fp16): os.remove(fp16)
-    q = quantizer.Quantizer(float_model=fp32); q.load_quantization_recipe(rm.get_quantization_recipe())
-    q.quantize().export_model(fp16); return fp16
+    q = quantizer.Quantizer(float_model=fp32)
+    q.load_quantization_recipe(rm.get_quantization_recipe())
+    q.quantize().export_model(fp16)
+    return fp16
 
 
 def main():
     stage = sys.argv[1] if len(sys.argv) > 1 else "all"
-    orig = build(swap=False); reauth = build(swap=True)
+    orig = build(swap=False)
+    reauth = build(swap=True)
     x = torch.randn(1, 3, H, Wd)
     with torch.no_grad():
-        a = DetWrap(orig)(x); b = DetWrap(reauth)(x)
+        a = DetWrap(orig)(x)
+        b = DetWrap(reauth)(x)
     print(f"re-authored vs orig: corr {np.corrcoef(a.numpy().ravel(), b.numpy().ravel())[0,1]:.6f} "
           f"max|d| {(a-b).abs().max():.2e} shapes {tuple(a.shape)} {tuple(b.shape)}")
 
@@ -122,11 +145,14 @@ def main():
     fp32 = os.path.join(HERE, "ppocr_det.tflite")
     litert_torch.convert(DetWrap(reauth).eval(), (x,)).export(fp32)
     it = opcheck(fp32, "det")
-    d = it.get_input_details()[0]; it.set_tensor(d["index"], x.numpy().astype(d["dtype"])); it.invoke()
+    d = it.get_input_details()[0]
+    it.set_tensor(d["index"], x.numpy().astype(d["dtype"]))
+    it.invoke()
     o = it.get_tensor(it.get_output_details()[0]["index"])
     print(f"tflite vs torch: corr {np.corrcoef(o.ravel(), b.numpy().ravel())[0,1]:.6f}")
     if stage == "all":
-        to_fp16(fp32, os.path.join(HERE, "ppocr_det_fp16.tflite")); opcheck(os.path.join(HERE, "ppocr_det_fp16.tflite"), "det_fp16")
+        to_fp16(fp32, os.path.join(HERE, "ppocr_det_fp16.tflite"))
+        opcheck(os.path.join(HERE, "ppocr_det_fp16.tflite"), "det_fp16")
 
 
 if __name__ == "__main__":

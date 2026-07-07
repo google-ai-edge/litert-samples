@@ -54,32 +54,45 @@ class MainActivity : Activity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        val root = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(24, 80, 24, 24) }
-        status = TextView(this).apply { textSize = 15f; text = "Loading PP-OCRv5 on GPU…" }
+        val root = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(24, 80, 24, 24)
+        }
+        status = TextView(this).apply {
+            textSize = 15f
+            text = "Loading PP-OCRv5 on GPU…"
+        }
         val pick = Button(this).apply {
-            text = "🖼  Pick image"; isEnabled = false
+            text = "🖼  Pick image"
+            isEnabled = false
             setOnClickListener {
                 startActivityForResult(
                     Intent(Intent.ACTION_GET_CONTENT).apply { type = "image/*" }, pickReq)
             }
         }
         overlay = OverlayView(this)
-        results = TextView(this).apply { textSize = 14f; setPadding(0, 24, 0, 0) }
-        root.addView(status); root.addView(pick)
+        results = TextView(this).apply {
+            textSize = 14f
+            setPadding(0, 24, 0, 0)
+        }
+        root.addView(status)
+        root.addView(pick)
         root.addView(overlay, LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, 820))
         root.addView(ScrollView(this).apply { addView(results) })
         setContentView(root)
 
         bg.execute {
             try {
-                det = PpocrDetector(this); rec = PpocrRecognizer(this)
+                det = PpocrDetector(this)
+                rec = PpocrRecognizer(this)
                 val bundled = letterbox(BitmapFactory.decodeStream(assets.open("test_image.png")))
                 runOcr(bundled, warm = true)
                 runOnUiThread { pick.isEnabled = true }
             } catch (e: Throwable) {
                 Log.e(tag, "load failed", e)
                 runOnUiThread {
-                    status.setBackgroundColor(Color.rgb(0xFF, 0xCD, 0xD2)); status.text = "FAIL: ${e.message}"
+                    status.setBackgroundColor(Color.rgb(0xFF, 0xCD, 0xD2))
+                    status.text = "FAIL: ${e.message}"
                 }
             }
         }
@@ -102,7 +115,8 @@ class MainActivity : Activity() {
 
     /** Detect + recognize on a SIZE×SIZE bitmap and update the UI. */
     private fun runOcr(img: Bitmap, warm: Boolean) {
-        val d = det!!; val r = rec!!
+        val d = det!!
+        val r = rec!!
         val rgb = bitmapToRgb(img)
         if (warm) d.probMap(rgb)                       // warm up GPU shaders once
         val t0 = System.nanoTime()
@@ -118,7 +132,9 @@ class MainActivity : Activity() {
             status.setBackgroundColor(Color.rgb(0xC8, 0xE6, 0xC9))
             status.text = "On-device GPU OCR ✓  ${lines.size} lines · ${ms} ms\n" +
                 "detector + recognizer both on CompiledModel GPU"
-            overlay.bitmap = img; overlay.boxes = lines.map { it.first }; overlay.invalidate()
+            overlay.bitmap = img
+            overlay.boxes = lines.map { it.first }
+            overlay.invalidate()
             results.text = if (lines.isEmpty()) "(no text found)" else lines.joinToString("\n") { "• ${it.second}" }
         }
     }
@@ -142,7 +158,8 @@ class MainActivity : Activity() {
     /** Resize keeping aspect to fit SIZE, center on a white SIZE×SIZE canvas (letterbox). */
     private fun letterbox(src: Bitmap): Bitmap {
         val s = minOf(PpocrDetector.SIZE.toFloat() / src.width, PpocrDetector.SIZE.toFloat() / src.height)
-        val nw = (src.width * s).toInt().coerceAtLeast(1); val nh = (src.height * s).toInt().coerceAtLeast(1)
+        val nw = (src.width * s).toInt().coerceAtLeast(1)
+        val nh = (src.height * s).toInt().coerceAtLeast(1)
         val out = Bitmap.createBitmap(PpocrDetector.SIZE, PpocrDetector.SIZE, Bitmap.Config.ARGB_8888)
         Canvas(out).apply {
             drawColor(Color.WHITE)
@@ -153,38 +170,53 @@ class MainActivity : Activity() {
     }
 
     private fun bitmapToRgb(bm: Bitmap): FloatArray {
-        val n = bm.width * bm.height; val px = IntArray(n)
+        val n = bm.width * bm.height
+        val px = IntArray(n)
         bm.getPixels(px, 0, bm.width, 0, 0, bm.width, bm.height)
         val out = FloatArray(n * 3)
         for (i in 0 until n) {
             val p = px[i]
-            out[i * 3] = ((p shr 16) and 0xFF).toFloat(); out[i * 3 + 1] = ((p shr 8) and 0xFF).toFloat()
+            out[i * 3] = ((p shr 16) and 0xFF).toFloat()
+            out[i * 3 + 1] = ((p shr 8) and 0xFF).toFloat()
             out[i * 3 + 2] = (p and 0xFF).toFloat()
         }
         return out
     }
 
     private fun cropResize(img: Bitmap, b: PpocrDetector.Box): FloatArray {
-        val bw = b.x1 - b.x0 + 1; val bh = b.y1 - b.y0 + 1
+        val bw = b.x1 - b.x0 + 1
+        val bh = b.y1 - b.y0 + 1
         val crop = Bitmap.createBitmap(img, b.x0, b.y0, bw, bh)
         val nw = minOf((PpocrRecognizer.H.toFloat() * bw / bh).toInt(), PpocrRecognizer.W).coerceAtLeast(1)
         val rz = Bitmap.createScaledBitmap(crop, nw, PpocrRecognizer.H, true)
-        val px = IntArray(nw * PpocrRecognizer.H); rz.getPixels(px, 0, nw, 0, 0, nw, PpocrRecognizer.H)
+        val px = IntArray(nw * PpocrRecognizer.H)
+        rz.getPixels(px, 0, nw, 0, 0, nw, PpocrRecognizer.H)
         val out = FloatArray(PpocrRecognizer.H * PpocrRecognizer.W * 3)
         for (y in 0 until PpocrRecognizer.H) for (x in 0 until nw) {
-            val p = px[y * nw + x]; val o = (y * PpocrRecognizer.W + x) * 3
-            out[o] = ((p shr 16) and 0xFF).toFloat(); out[o + 1] = ((p shr 8) and 0xFF).toFloat()
+            val p = px[y * nw + x]
+            val o = (y * PpocrRecognizer.W + x) * 3
+            out[o] = ((p shr 16) and 0xFF).toFloat()
+            out[o + 1] = ((p shr 8) and 0xFF).toFloat()
             out[o + 2] = (p and 0xFF).toFloat()
         }
         return out
     }
 
-    override fun onDestroy() { super.onDestroy(); bg.shutdown(); det?.close(); rec?.close() }
+    override fun onDestroy() {
+        super.onDestroy()
+        bg.shutdown()
+        det?.close()
+        rec?.close()
+    }
 
     class OverlayView(ctx: android.content.Context) : View(ctx) {
         var bitmap: Bitmap? = null
         var boxes: List<PpocrDetector.Box> = emptyList()
-        private val stroke = Paint().apply { color = Color.RED; style = Paint.Style.STROKE; strokeWidth = 3f }
+        private val stroke = Paint().apply {
+            color = Color.RED
+            style = Paint.Style.STROKE
+            strokeWidth = 3f
+        }
         override fun onDraw(canvas: Canvas) {
             val bm = bitmap ?: return
             val s = minOf(width.toFloat() / bm.width, height.toFloat() / bm.height)

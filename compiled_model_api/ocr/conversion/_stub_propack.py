@@ -14,12 +14,16 @@
 
 """Narrow stub: ONLY shim the broken scipy `_propack` dlopen (macOS zero-fill bug), leaving
 scipy.optimize / scipy.signal REAL (librosa/torchlibrosa need them). Import FIRST."""
-import sys, types, inspect
+import sys
+import types
+import inspect
 
 
 class _D:
-    def __getattr__(self, n): return lambda *a, **k: None
-    def __call__(self, *a, **k): return None
+    def __getattr__(self, n):
+        return lambda *a, **k: None
+    def __call__(self, *a, **k):
+        return None
 
 
 _pp = types.ModuleType("scipy.sparse.linalg._propack")

@@ -71,10 +71,14 @@ class PpocrRecognizer(private val ctx: Context) : Closeable {
         val sb = StringBuilder()
         var prev = -1
         for (t in 0 until T) {
-            var best = 0; var bestV = logits[t * numClasses]
+            var best = 0
+            var bestV = logits[t * numClasses]
             for (c in 1 until numClasses) {
                 val v = logits[t * numClasses + c]
-                if (v > bestV) { bestV = v; best = c }
+                if (v > bestV) {
+                    bestV = v
+                    best = c
+                }
             }
             if (best != prev && best != 0) sb.append(chars[best])  // CTC collapse: drop repeats + blank
             prev = best
@@ -82,5 +86,9 @@ class PpocrRecognizer(private val ctx: Context) : Closeable {
         return sb.toString()
     }
 
-    override fun close() { inBuf.forEach { it.close() }; outBuf.forEach { it.close() }; rec.close() }
+    override fun close() {
+        inBuf.forEach { it.close() }
+        outBuf.forEach { it.close() }
+        rec.close()
+    }
 }
