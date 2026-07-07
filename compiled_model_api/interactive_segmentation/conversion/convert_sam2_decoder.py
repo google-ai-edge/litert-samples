@@ -225,7 +225,8 @@ def main():
         import collections
         import numpy as np
         import litert_torch
-        from ai_edge_litert.interpreter import Interpreter
+        from ai_edge_litert import schema_py_generated as schema
+        from ai_edge_litert.compiled_model import CompiledModel
         BANNED = {"GATHER_ND", "GATHER", "TOPK_V2", "FLEX_ERF", "ERF", "BROADCAST_TO", "TRANSPOSE_CONV"}
         FP32 = f"{SCRATCH}/sam2_tiny_dec_fp32.tflite"
         FP16 = f"{SCRATCH}/sam2_tiny_mask_decoder_fp16.tflite"
@@ -238,32 +239,49 @@ def main():
         litert_torch.convert(net, ex).export(FP32)
 
         def gate(path, tag):
-            it = Interpreter(model_path=path)
-            it.allocate_tensors()
-            hist = collections.Counter(d["op_name"] for d in it._get_ops_details())
-            over4d = sum(1 for d in it.get_tensor_details() if len(d.get("shape", [])) > 4)
+            # Static GPU-compat scan: read the op set straight from the .tflite flatbuffer.
+            with open(path, "rb") as f:
+                fb = schema.ModelT.InitFromPackedBuf(f.read(), 0)
+            names = {v: k for k, v in vars(schema.BuiltinOperator).items() if not k.startswith("_")}
+            hist = collections.Counter()
+            over4d = 0
+            for g in fb.subgraphs:
+                for op in g.operators:
+                    c = fb.operatorCodes[op.opcodeIndex]
+                    code = max(c.builtinCode, c.deprecatedBuiltinCode)
+                    hist[c.customCode.decode() if c.customCode else names.get(code, str(code))] += 1
+                over4d += sum(1 for t in g.tensors if t.shape is not None and len(t.shape) > 4)
             bad = {k: v for k, v in hist.items() if k in BANNED}
             print(f"[{tag}] ops: {dict(sorted(hist.items(), key=lambda kv: -kv[1]))}")
             print(f"[{tag}] banned: {bad or 'NONE'} | >4D tensors: {over4d}")
-            return it, bad, over4d
+            return bad, over4d
 
-        def parity(it, tag):
-            ins = it.get_input_details()
+        def parity(path, tag):
+            # Inference through the LiteRT CompiledModel API.
+            model = CompiledModel.from_file(path)
+            sig = model.get_signature_list()
+            key = list(sig)[0]
+            details = model.get_input_tensor_details(key)
             order = [img_emb, sparse, feat_s1, feat_s0]
+            ins = model.create_input_buffers(0)
+            obufs = model.create_output_buffers(0)
             # match each model input slot to our tensors by shape
-            for d in ins:
-                want = next(t for t in order if tuple(t.shape) == tuple(d["shape"]))
-                it.set_tensor(d["index"], want.numpy().astype(d["dtype"]))
-            it.invoke()
-            outs = [it.get_tensor(o["index"]).astype("float64").reshape(-1) for o in it.get_output_details()]
+            for i, name in enumerate(sig[key]["inputs"]):
+                shape = details[name]["shape"]
+                want = next(t for t in order if tuple(t.shape) == tuple(shape))
+                ins[i].write(np.ascontiguousarray(want.numpy(), dtype=np.float32))
+            model.run_by_index(0, ins, obufs)
+            item = np.dtype(np.float32).itemsize
+            outs = [obufs[j].read(model.get_output_buffer_requirements(j, 0)["buffer_size"] // item,
+                                  np.float32).astype("float64") for j in range(len(obufs))]
             for ro in ref_out:
                 cand = [o for o in outs if o.size == ro.size]
                 if cand:
                     c = max(np.corrcoef(ro, o)[0, 1] for o in cand)
                     print(f"[{tag}] parity corr={c:.6f} (len {ro.size})")
 
-        it32, bad, over4d = gate(FP32, "FP32")
-        parity(it32, "FP32")
+        bad, over4d = gate(FP32, "FP32")
+        parity(FP32, "FP32")
 
         print("quantizing fp16 (FLOAT_CASTING) ...")
         from ai_edge_quantizer import quantizer, recipe_manager
@@ -281,8 +299,8 @@ def main():
         qt.load_quantization_recipe(rmgr.get_quantization_recipe())
         qt.quantize().export_model(FP16)
         print(f"SIZE fp32 {os.path.getsize(FP32)/1e6:.1f} MB -> fp16 {os.path.getsize(FP16)/1e6:.1f} MB")
-        it16, bad16, over4d16 = gate(FP16, "FP16")
-        parity(it16, "FP16")
+        bad16, over4d16 = gate(FP16, "FP16")
+        parity(FP16, "FP16")
         print(f"\n{'OK -> GPU-clean' if not bad16 and over4d16 == 0 else 'BLOCKERS REMAIN'}: {FP16}")
 
 
