@@ -123,15 +123,12 @@ fun CameraPreview(
   }
 
   LaunchedEffect(lensFacing, lifecycleOwner) {
-    Log.d(TAG, "LaunchedEffect triggered for lensFacing: $lensFacing")
     val cameraProviderFuture = ProcessCameraProvider.getInstance(context)
     cameraProviderFuture.addListener(
       {
         val cameraProvider = cameraProviderFuture.get()
         try {
           cameraProvider.unbindAll()
-          Log.d(TAG, "Unbound all use cases.")
-
           bindCameraUseCases(
             lifecycleOwner = lifecycleOwner,
             cameraProvider = cameraProvider, // Pass the resolved provider
@@ -140,7 +137,6 @@ fun CameraPreview(
             onImageAnalyzed = onImageAnalyzed,
             lensFacing = lensFacing,
           )
-          Log.d(TAG, "Bound use cases for lensFacing: $lensFacing")
         } catch (exc: Exception) {
           Log.e(TAG, "Use case binding failed", exc)
           Toast.makeText(context, "Failed to switch camera: ${exc.message}", Toast.LENGTH_SHORT)
@@ -170,7 +166,6 @@ fun bindCameraUseCases(
       .setAspectRatioStrategy(AspectRatioStrategy.RATIO_4_3_FALLBACK_AUTO_STRATEGY)
       .build()
 
-  // val preview: Preview = Preview.Builder().setTargetResolution(targetSize).build()
   val preview: Preview = Preview.Builder().build()
 
   preview.setSurfaceProvider(previewView.surfaceProvider)

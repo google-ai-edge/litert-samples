@@ -129,12 +129,7 @@ fun GalleryScreen(
                     update = {
                         it.setVideoURI(uri)
                         it.setOnPreparedListener { player ->
-                            // Recheck if playing before stop/start
-                            if (player.isPlaying) {
-                                // Optionally stop if you need to restart from the beginning
-                                // player.stop()
-                                // player.prepareAsync() // or similar call to re-prepare
-                            }
+                            // start() is a no-op when the player is already playing.
                             player.start()
                         }
                     },

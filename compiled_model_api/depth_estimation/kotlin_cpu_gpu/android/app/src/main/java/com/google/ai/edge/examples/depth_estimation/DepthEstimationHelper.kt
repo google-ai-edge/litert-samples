@@ -78,10 +78,10 @@ class DepthEstimationHelper(private val context: Context) {
             null,
           )
         estimator = Estimator(compiledModel, model)
-        Log.d(TAG, "Created a depth estimator ($model, $acceleratorEnum)")
+        Log.i(TAG, "Created a depth estimator ($model, $acceleratorEnum)")
       }
     } catch (e: Exception) {
-      Log.i(TAG, "Create LiteRT from ${model.fileName} failed: ${e.message}")
+      Log.e(TAG, "Create LiteRT from ${model.fileName} failed: ${e.message}")
       _error.emit(e)
     }
   }
@@ -103,7 +103,7 @@ class DepthEstimationHelper(private val context: Context) {
         estimator?.estimate(bitmap)?.let { if (isActive) _depth.emit(it) }
       }
     } catch (e: Exception) {
-      Log.i(TAG, "Depth estimate error: ${e.message}")
+      Log.e(TAG, "Depth estimate error: ${e.message}")
       _error.emit(e)
     }
   }
