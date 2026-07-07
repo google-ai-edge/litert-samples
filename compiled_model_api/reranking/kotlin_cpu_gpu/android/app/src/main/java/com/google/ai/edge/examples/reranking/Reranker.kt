@@ -51,7 +51,8 @@ class Reranker(private val ctx: Context) {
             151644, 8948, 198, 60256, 3425, 279, 11789, 20027, 279, 8502, 3118, 389, 279, 11361,
             323, 279, 758, 1235, 3897, 13, 7036, 429, 279, 4226, 646, 1172, 387, 330, 9693, 1,
             476, 330, 2152, 3263, 151645, 198, 151644, 872, 198)
-        private val SUFFIX_IDS = intArrayOf(151645, 198, 151644, 77091, 198, 151667, 271, 151668, 271)
+        private val SUFFIX_IDS =
+            intArrayOf(151645, 198, 151644, 77091, 198, 151667, 271, 151668, 271)
         private const val MODEL = "qwen3rerank_gpu_fp16.tflite"
         private const val EMB = "embeddings_fp16.bin"
     }
@@ -75,7 +76,10 @@ class Reranker(private val ctx: Context) {
         for (p in 0 until L) {
             var b = ids[p].toLong().toInt() * DIM * 2      // fp16 => 2 bytes
             var o = p * DIM
-            for (j in 0 until DIM) { out[o++] = Half.toFloat(embMap.getShort(b)); b += 2 }
+            for (j in 0 until DIM) {
+                out[o++] = Half.toFloat(embMap.getShort(b))
+                b += 2
+            }
         }
         return out
     }
@@ -86,22 +90,32 @@ class Reranker(private val ctx: Context) {
         val ids = IntArray(L) { PAD }
         val room = L - PREFIX_IDS.size - SUFFIX_IDS.size       // budget for the content
         var k = 0
-        for (i in PREFIX_IDS) ids[k++] = i
-        for (i in 0 until minOf(cids.size, room)) ids[k++] = cids[i]   // truncate long docs
-        for (i in SUFFIX_IDS) ids[k++] = i
+        for (i in PREFIX_IDS) {
+            ids[k++] = i
+        }
+        for (i in 0 until minOf(cids.size, room)) {
+            ids[k++] = cids[i]   // truncate long docs
+        }
+        for (i in SUFFIX_IDS) {
+            ids[k++] = i
+        }
         val poolPos = k - 1                                    // last real token (end of suffix)
 
         inputs[0].writeFloat(lookup(ids))
         model.run(inputs, outputs)
         val out = outputs[0].readFloat()                       // [L*2] = [no,yes] per position
-        val no = out[poolPos * 2]; val yes = out[poolPos * 2 + 1]
+        val no = out[poolPos * 2]
+        val yes = out[poolPos * 2 + 1]
         val m = maxOf(no, yes)
-        val en = exp((no - m).toDouble()); val ey = exp((yes - m).toDouble())
+        val en = exp((no - m).toDouble())
+        val ey = exp((yes - m).toDouble())
         return (ey / (en + ey)).toFloat()
     }
 
     fun close() {
-        inputs.forEach { it.close() }; outputs.forEach { it.close() }
-        model.close(); embChannel.close()
+        inputs.forEach { it.close() }
+        outputs.forEach { it.close() }
+        model.close()
+        embChannel.close()
     }
 }

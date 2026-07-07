@@ -31,7 +31,8 @@ import android.widget.TextView
 
 /**
  * On-device RAG reranking with Qwen3-Reranker-0.6B on CompiledModel GPU.
- * Scores each bundled candidate document against a typed query by P("yes") relevance and ranks them.
+ * Scores each bundled candidate document against a typed query by P("yes") relevance and ranks
+ * them.
  */
 class MainActivity : Activity() {
 
@@ -45,22 +46,35 @@ class MainActivity : Activity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         val root = LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL; setPadding(40, 72, 40, 40)
+            orientation = LinearLayout.VERTICAL
+            setPadding(40, 72, 40, 40)
         }
         root.addView(TextView(this).apply {
             text = "RAG Reranker — Qwen3-Reranker-0.6B (GPU)"
-            textSize = 18f; setTextColor(Color.BLACK); setPadding(0, 0, 0, 24)
+            textSize = 18f
+            setTextColor(Color.BLACK)
+            setPadding(0, 0, 0, 24)
         })
         query = EditText(this).apply {
             inputType = InputType.TYPE_CLASS_TEXT
-            hint = "Type a query…"; setText("What is the capital of China?")
+            hint = "Type a query…"
+            setText("What is the capital of China?")
         }
         root.addView(query)
-        search = Button(this).apply { text = "Rerank"; isEnabled = false }
+        search = Button(this).apply {
+            text = "Rerank"
+            isEnabled = false
+        }
         root.addView(search)
-        status = TextView(this).apply { setPadding(0, 16, 0, 16); setTextColor(Color.DKGRAY) }
+        status = TextView(this).apply {
+            setPadding(0, 16, 0, 16)
+            setTextColor(Color.DKGRAY)
+        }
         root.addView(status)
-        results = TextView(this).apply { textSize = 15f; setTextColor(Color.BLACK) }
+        results = TextView(this).apply {
+            textSize = 15f
+            setTextColor(Color.BLACK)
+        }
         root.addView(results)
         setContentView(ScrollView(this).apply {
             addView(root, LinearLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT))
@@ -95,16 +109,21 @@ class MainActivity : Activity() {
         val ranked = docs.map { it to reranker.score(q, it) }.sortedByDescending { it.second }
         val dt = System.currentTimeMillis() - t0
         Log.i("RERANK", "QUERY(${dt}ms): $q")
-        ranked.forEachIndexed { r, p -> Log.i("RERANK", String.format("  %2d. %.3f  %s", r + 1, p.second, p.first)) }
+        ranked.forEachIndexed { r, p ->
+            Log.i("RERANK", String.format("  %2d. %.3f  %s", r + 1, p.second, p.first))
+        }
         runOnUiThread {
             status.text = "Reranked ${docs.size} docs in ${dt} ms"
-            results.text = ranked.joinToString("\n") { String.format("%.3f  %s", it.second, it.first) }
+            results.text = ranked.joinToString("\n") {
+                String.format("%.3f  %s", it.second, it.first) }
             search.isEnabled = true
         }
     }
 
     override fun onDestroy() {
         super.onDestroy()
-        if (::reranker.isInitialized) reranker.close()
+        if (::reranker.isInitialized) {
+            reranker.close()
+        }
     }
 }

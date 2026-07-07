@@ -1,10 +1,23 @@
-#!/usr/bin/env python3
-"""Qwen3-Embedding-0.6B -> LiteRT GPU (fully CompiledModel, fp16).
+# Copyright 2026 The Google AI Edge Authors. All Rights Reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#       http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
 
-Single graph, one forward (last-token pooling => no generation, no KV cache):
+"""Qwen3-Reranker-0.6B -> LiteRT GPU (fully CompiledModel, fp16).
+
+Single graph, one forward (last-token scoring => no generation, no KV cache):
   input : inputs_embeds [1, L, 1024]   (host does token embedding lookup)
-  output: hidden        [1, L, 1024]   (post final RMSNorm; host takes last real
-          token, L2-normalizes, optional Matryoshka truncation)
+  output: logits        [1, L, 2]      ([no, yes] rows; host takes the last real
+          token and softmaxes it into the relevance score P(yes))
 
 GPU-clean re-authoring of the 28-layer Qwen3 decoder:
   - token embed lookup is GATHER -> done on HOST, embeds fed in
@@ -15,10 +28,11 @@ GPU-clean re-authoring of the 28-layer Qwen3 decoder:
   - RMSNorm -> SafeRMS (scale-invariant down-scaled reduction, fp16-safe)
   - SwiGLU: down(silu(gate) * up), silu = x*sigmoid(x)  (GPU-clean, no GELU)
 
-Run: ~/clipconv/bin/python build_qwen3emb.py [--L 128] [--layers 28]
+Run: python build_qwen3rerank.py [--L 256] [--layers 28]
 """
-import os, sys, argparse
-import numpy as np
+import argparse
+import os
+
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
