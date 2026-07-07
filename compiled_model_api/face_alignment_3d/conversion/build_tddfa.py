@@ -29,14 +29,33 @@ print("torch param corr vs ref:", float(np.corrcoef(param, REF["param"])[0, 1]),
 import litert_torch, collections
 BANNED = {"GATHER_ND","GATHER","SELECT","SELECT_V2","NOT_EQUAL","EQUAL","GREATER","LESS","TOPK_V2","CAST","PACK","SPLIT"}
 def opcheck(path, label):
-    from ai_edge_litert.interpreter import Interpreter
-    it = Interpreter(model_path=path); it.allocate_tensors()
-    ops = collections.Counter(d.get("op_name", "?") for d in it._get_ops_details())
+    """Static GPU-compat scan: read the op set straight from the .tflite flatbuffer."""
+    from ai_edge_litert import schema_py_generated as schema
+    with open(path, "rb") as f:
+        model = schema.ModelT.InitFromPackedBuf(f.read(), 0)
+    names = {v: k for k, v in vars(schema.BuiltinOperator).items() if not k.startswith("_")}
+    ops = collections.Counter()
+    over = 0
+    for g in model.subgraphs:
+        for op in g.operators:
+            c = model.operatorCodes[op.opcodeIndex]
+            code = max(c.builtinCode, c.deprecatedBuiltinCode)
+            ops[c.customCode.decode() if c.customCode else names.get(code, str(code))] += 1
+        over += sum(1 for t in g.tensors if t.shape is not None and len(t.shape) > 4)
     bad = {k: v for k, v in ops.items() if k.upper() in BANNED or k.startswith("Flex")}
-    over = sum(1 for d in it.get_tensor_details() if len(d.get("shape", [])) > 4)
     ok = not bad and not over
     print(f"[{label}] {sum(ops.values())} ops {dict(ops)} banned:{bad or 'NONE'} >4D:{over} -> {'GPU-CLEAN' if ok else 'BLOCKERS'}")
-    return it, ok
+    return ok
+def run_tflite(path, x):
+    """Single inference through the LiteRT CompiledModel API; returns the flat fp32 output."""
+    from ai_edge_litert.compiled_model import CompiledModel
+    model = CompiledModel.from_file(path)
+    inputs = model.create_input_buffers(0)
+    outputs = model.create_output_buffers(0)
+    inputs[0].write(np.ascontiguousarray(x, dtype=np.float32))
+    model.run_by_index(0, inputs, outputs)
+    n = model.get_output_buffer_requirements(0, 0)["buffer_size"] // np.dtype(np.float32).itemsize
+    return outputs[0].read(n, np.float32)
 def to_fp16(fp32, fp16):
     from ai_edge_quantizer import quantizer, recipe_manager
     from ai_edge_quantizer.recipe import AlgorithmName, qtyping
@@ -50,16 +69,12 @@ def to_fp16(fp32, fp16):
     qt.quantize().export_model(fp16); return fp16
 fp32 = os.path.join(OUT, "tddfa_mb1.tflite")
 litert_torch.convert(model, (inp,)).export(fp32)
-it, clean = opcheck(fp32, "tddfa fp32")
+clean = opcheck(fp32, "tddfa fp32")
 if clean:
     fp16 = to_fp16(fp32, os.path.join(OUT, "tddfa_mb1_fp16.tflite"))
     opcheck(fp16, "tddfa fp16")
     # tflite parity
-    from ai_edge_litert.interpreter import Interpreter
-    itf = Interpreter(model_path=fp16); itf.allocate_tensors()
-    d = itf.get_input_details()[0]
-    itf.set_tensor(d["index"], REF["inp"].astype(np.float32)); itf.invoke()
-    o = itf.get_tensor(itf.get_output_details()[0]["index"])[0]
+    o = run_tflite(fp16, REF["inp"].astype(np.float32))
     p16 = o * tddfa.param_std + tddfa.param_mean
     print("tflite fp16 param corr vs ref:", float(np.corrcoef(p16, REF["param"])[0, 1]),
           "maxdiff", float(np.abs(p16 - REF["param"]).max()))
