@@ -150,9 +150,13 @@ class Sam2SegmentationHelper(
 
     suspend fun cleanup() {
         withContext(singleThreadDispatcher) {
-            encoder?.close(); encoder = null
-            decoder?.close(); decoder = null
-            imageEmbeddings = null; featS1 = null; featS0 = null
+            encoder?.close()
+            encoder = null
+            decoder?.close()
+            decoder = null
+            imageEmbeddings = null
+            featS1 = null
+            featS0 = null
         }
     }
 

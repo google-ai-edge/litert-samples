@@ -1,3 +1,17 @@
+# Copyright 2025 The Google AI Edge Authors. All Rights Reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#       http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 """
 SAM 2.1 (hiera-tiny) image encoder -> LiteRT GPU-clean .tflite  (Bucket 1: model-side re-authoring only)
 
@@ -11,7 +25,11 @@ Run:
   python convert_sam2.py            # eager numerical self-test vs reference (correctness gate)
   python convert_sam2.py --convert  # + litert_torch convert to fp16 .tflite
 """
-import os, sys, types, argparse, math
+import os
+import sys
+import types
+import argparse
+import math
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -21,9 +39,11 @@ import torch.nn.functional as F
 # thing litert_torch genuinely needs (scipy.sparse.csgraph.maximum_flow, for the layout min-cut) has a
 # healthy .so. So stub the two broken entrypoints: _svdp (pulls _propack) lets scipy.sparse import for
 # csgraph; a fake scipy.optimize gives transformers the linear_sum_assignment symbol (D-FINE loss, unused).
-_svdp = types.ModuleType("scipy.sparse.linalg._svdp"); _svdp._svdp = lambda *a, **k: None
+_svdp = types.ModuleType("scipy.sparse.linalg._svdp")
+_svdp._svdp = lambda *a, **k: None
 sys.modules["scipy.sparse.linalg._svdp"] = _svdp
-_opt = types.ModuleType("scipy.optimize"); _opt.linear_sum_assignment = lambda *a, **k: (None, None)
+_opt = types.ModuleType("scipy.optimize")
+_opt.linear_sum_assignment = lambda *a, **k: (None, None)
 sys.modules["scipy.optimize"] = _opt
 
 import transformers.models.sam2.modeling_sam2 as M
@@ -212,7 +232,10 @@ DEC_SCRATCH = os.environ.get("SAM2_OUT", "/tmp/sam2_out")
 def convert_v2(m, x):
     """Encoder v2: decoder-ready outputs (folds conv_s0/s1 + no_memory). Verify vs the reference
     image_embeddings captured by recon_sam2_decoder.py, then convert + op-gate + fp16."""
-    import os, collections, numpy as np, litert_torch
+    import os
+    import collections
+    import numpy as np
+    import litert_torch
     from ai_edge_litert.interpreter import Interpreter
     BANNED = {"GATHER_ND", "GATHER", "TOPK_V2", "FLEX_ERF", "ERF", "BROADCAST_TO", "TRANSPOSE_CONV"}
     FP32 = f"{DEC_SCRATCH}/sam2_tiny_enc_v2_fp32.tflite"
@@ -236,7 +259,8 @@ def convert_v2(m, x):
     litert_torch.convert(enc, (x,)).export(FP32)
 
     def gate(path, tag):
-        it = Interpreter(model_path=path); it.allocate_tensors()
+        it = Interpreter(model_path=path)
+        it.allocate_tensors()
         hist = collections.Counter(d["op_name"] for d in it._get_ops_details())
         over4d = sum(1 for d in it.get_tensor_details() if len(d.get("shape", [])) > 4)
         bad = {k: v for k, v in hist.items() if k in BANNED}
@@ -253,7 +277,8 @@ def convert_v2(m, x):
                 c = max(np.corrcoef(ro, o)[0, 1] for o in cand)
                 print(f"[{tag}] parity corr={c:.6f} (len {ro.size})")
 
-    it32, bad, over4d = gate(FP32, "FP32"); parity(it32, "FP32")
+    it32, bad, over4d = gate(FP32, "FP32")
+    parity(it32, "FP32")
     print("quantizing fp16 (FLOAT_CASTING) ...")
     from ai_edge_quantizer import quantizer, recipe_manager
     from ai_edge_quantizer.recipe import AlgorithmName, qtyping
@@ -270,7 +295,8 @@ def convert_v2(m, x):
     qt.load_quantization_recipe(rm.get_quantization_recipe())
     qt.quantize().export_model(FP16)
     print(f"SIZE fp32 {os.path.getsize(FP32)/1e6:.1f} MB -> fp16 {os.path.getsize(FP16)/1e6:.1f} MB")
-    it16, bad16, over4d16 = gate(FP16, "FP16"); parity(it16, "FP16")
+    it16, bad16, over4d16 = gate(FP16, "FP16")
+    parity(it16, "FP16")
     print(f"\n{'OK -> GPU-clean' if not bad16 and over4d16 == 0 else 'BLOCKERS REMAIN'}: {FP16}")
 
 
@@ -301,7 +327,10 @@ def main():
     print("  -> re-authoring is numerically exact ✓")
 
     if args.convert:
-        import os, collections, numpy as np, litert_torch
+        import os
+        import collections
+        import numpy as np
+        import litert_torch
         from ai_edge_litert.interpreter import Interpreter
         BANNED = {"GATHER_ND", "GATHER", "TOPK_V2", "FLEX_ERF", "ERF", "BROADCAST_TO"}
         FP32 = f"{SCRATCH}/sam2_tiny_enc_fp32.tflite"
@@ -316,7 +345,8 @@ def main():
         litert_torch.convert(enc, (x,)).export(FP32)
 
         def gate(path, tag):
-            it = Interpreter(model_path=path); it.allocate_tensors()
+            it = Interpreter(model_path=path)
+            it.allocate_tensors()
             hist = collections.Counter(d["op_name"] for d in it._get_ops_details())
             over4d = sum(1 for d in it.get_tensor_details() if len(d.get("shape", [])) > 4)
             bad = {k: v for k, v in hist.items() if k in BANNED}

@@ -1,3 +1,17 @@
+# Copyright 2025 The Google AI Edge Authors. All Rights Reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#       http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 """
 SAM 2.1 (hiera-tiny) mask decoder -> LiteRT GPU-clean .tflite  (Bucket 1: model-side re-authoring only)
 
@@ -21,15 +35,20 @@ Run:
   python convert_sam2_decoder.py            # eager parity vs transformers reference (correctness gate)
   python convert_sam2_decoder.py --convert  # + litert_torch convert + op-gate + fp16
 """
-import sys, types, argparse, math
+import sys
+import types
+import argparse
+import math
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
 # macOS scipy stub (same as convert_sam2.py)
-_svdp = types.ModuleType("scipy.sparse.linalg._svdp"); _svdp._svdp = lambda *a, **k: None
+_svdp = types.ModuleType("scipy.sparse.linalg._svdp")
+_svdp._svdp = lambda *a, **k: None
 sys.modules["scipy.sparse.linalg._svdp"] = _svdp
-_opt = types.ModuleType("scipy.optimize"); _opt.linear_sum_assignment = lambda *a, **k: (None, None)
+_opt = types.ModuleType("scipy.optimize")
+_opt.linear_sum_assignment = lambda *a, **k: (None, None)
 sys.modules["scipy.optimize"] = _opt
 
 from transformers import Sam2Model
@@ -61,7 +80,8 @@ def safe_ln(x, weight, bias, eps, sc=0.03125):
 class ZeroStuffConvT(nn.Module):
     def __init__(self, ct, H, W):
         super().__init__()
-        self.s = ct.stride[0]; self.k = ct.kernel_size[0]
+        self.s = ct.stride[0]
+        self.k = ct.kernel_size[0]
         self.register_buffer("w", ct.weight.flip(2, 3).transpose(0, 1).contiguous())
         self.register_buffer("b", ct.bias.detach().clone() if ct.bias is not None else torch.zeros(ct.out_channels))
         s = self.s
@@ -125,12 +145,14 @@ class CleanMaskDecoder(nn.Module):
             qq = queries + qpe
             queries = queries + self._attn(layer.self_attn, qq, qq, queries)
         queries = self._ln(layer.layer_norm1, queries)
-        qq = queries + qpe; kk = keys + kpe
+        qq = queries + qpe
+        kk = keys + kpe
         queries = queries + self._attn(layer.cross_attn_token_to_image, qq, kk, keys)
         queries = self._ln(layer.layer_norm2, queries)
         queries = queries + layer.mlp(queries)
         queries = self._ln(layer.layer_norm3, queries)
-        qq = queries + qpe; kk = keys + kpe
+        qq = queries + qpe
+        kk = keys + kpe
         keys = keys + self._attn(layer.cross_attn_image_to_token, kk, qq, queries)
         keys = self._ln(layer.layer_norm4, keys)
         return queries, keys
@@ -199,7 +221,10 @@ def main():
     print("  -> re-authoring is numerically exact ✓")
 
     if args.convert:
-        import os, collections, numpy as np, litert_torch
+        import os
+        import collections
+        import numpy as np
+        import litert_torch
         from ai_edge_litert.interpreter import Interpreter
         BANNED = {"GATHER_ND", "GATHER", "TOPK_V2", "FLEX_ERF", "ERF", "BROADCAST_TO", "TRANSPOSE_CONV"}
         FP32 = f"{SCRATCH}/sam2_tiny_dec_fp32.tflite"
@@ -213,7 +238,8 @@ def main():
         litert_torch.convert(net, ex).export(FP32)
 
         def gate(path, tag):
-            it = Interpreter(model_path=path); it.allocate_tensors()
+            it = Interpreter(model_path=path)
+            it.allocate_tensors()
             hist = collections.Counter(d["op_name"] for d in it._get_ops_details())
             over4d = sum(1 for d in it.get_tensor_details() if len(d.get("shape", [])) > 4)
             bad = {k: v for k, v in hist.items() if k in BANNED}
