@@ -1,5 +1,5 @@
 /*
- * Copyright 2025 The Google AI Edge Authors. All Rights Reserved.
+ * Copyright 2026 The Google AI Edge Authors. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -109,7 +109,9 @@ class MainActivity : Activity() {
     private fun run(bm: Bitmap, warm: Boolean) {
         val n = net!!
         val rgb = bitmapToRgb(bm)
-        if (warm) n.detect(rgb)
+        if (warm) {
+            n.detect(rgb)
+        }
         val t0 = System.nanoTime()
         val faces = n.detect(rgb)
         val ms = (System.nanoTime() - t0) / 1_000_000
@@ -201,7 +203,9 @@ class MainActivity : Activity() {
             canvas.drawBitmap(b, null, android.graphics.RectF(ox, oy, ox + w, oy + h), imgPaint)
             for (f in faces) {
                 canvas.drawRect(ox + f.x1 * s, oy + f.y1 * s, ox + f.x2 * s, oy + f.y2 * s, box)
-                for (j in 0 until 5) canvas.drawCircle(ox + f.landmarks[2 * j] * s, oy + f.landmarks[2 * j + 1] * s, 4f, lm)
+                for (j in 0 until 5) {
+                    canvas.drawCircle(ox + f.landmarks[2 * j] * s, oy + f.landmarks[2 * j + 1] * s, 4f, lm)
+                }
             }
         }
     }
