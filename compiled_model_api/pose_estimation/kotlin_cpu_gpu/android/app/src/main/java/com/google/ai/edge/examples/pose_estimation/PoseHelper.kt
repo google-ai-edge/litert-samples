@@ -70,10 +70,10 @@ class PoseHelper(private val context: Context) {
             null,
           )
         detector = Detector(model)
-        Log.d(TAG, "Created a pose detector ($acceleratorEnum)")
+        Log.i(TAG, "Created a pose detector ($acceleratorEnum)")
       }
     } catch (e: Exception) {
-      Log.i(TAG, "Create LiteRT from $MODEL_FILE failed: ${e.message}")
+      Log.e(TAG, "Create LiteRT from $MODEL_FILE failed: ${e.message}")
       _error.emit(e)
     }
   }
@@ -95,7 +95,7 @@ class PoseHelper(private val context: Context) {
         detector?.detect(bitmap)?.let { if (isActive) _poses.emit(it) }
       }
     } catch (e: Exception) {
-      Log.i(TAG, "Pose detect error: ${e.message}")
+      Log.e(TAG, "Pose detect error: ${e.message}")
       _error.emit(e)
     }
   }
