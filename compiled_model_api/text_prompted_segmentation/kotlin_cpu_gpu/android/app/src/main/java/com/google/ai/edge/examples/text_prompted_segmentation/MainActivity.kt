@@ -50,9 +50,18 @@ class MainActivity : Activity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        val root = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(36, 90, 36, 36) }
-        status = TextView(this).apply { textSize = 15f; text = "Loading…" }
-        val pick = Button(this).apply { text = "🖼  Pick image"; setOnClickListener { pickImage() } }
+        val root = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(36, 90, 36, 36)
+        }
+        status = TextView(this).apply {
+            textSize = 15f
+            text = "Loading…"
+        }
+        val pick = Button(this).apply {
+            text = "🖼  Pick image"
+            setOnClickListener { pickImage() }
+        }
         prompt = EditText(this).apply {
             hint = "What to segment, e.g. \"a cat\""
             inputType = InputType.TYPE_CLASS_TEXT
@@ -63,7 +72,11 @@ class MainActivity : Activity() {
             setOnClickListener { runSegment() }
         }
         imageView = ImageView(this).apply { adjustViewBounds = true }
-        root.addView(status); root.addView(pick); root.addView(prompt); root.addView(go); root.addView(imageView)
+        root.addView(status)
+        root.addView(pick)
+        root.addView(prompt)
+        root.addView(go)
+        root.addView(imageView)
         setContentView(root)
 
         bg.execute {
@@ -72,14 +85,18 @@ class MainActivity : Activity() {
                 runOnUiThread { status.text = "Ready — pick an image and type a prompt." }
             } catch (e: Throwable) {
                 Log.e(tag, "load", e)
-                runOnUiThread { status.setBackgroundColor(Color.rgb(0xFF, 0xCD, 0xD2)); status.text = "FAIL: ${e.message}" }
+                runOnUiThread {
+                    status.setBackgroundColor(Color.rgb(0xFF, 0xCD, 0xD2))
+                    status.text = "FAIL: ${e.message}"
+                }
             }
         }
     }
 
     private fun pickImage() {
         startActivityForResult(Intent(Intent.ACTION_OPEN_DOCUMENT).apply {
-            addCategory(Intent.CATEGORY_OPENABLE); type = "image/*"
+            addCategory(Intent.CATEGORY_OPENABLE)
+            type = "image/*"
         }, 1)
     }
 
@@ -99,7 +116,10 @@ class MainActivity : Activity() {
 
     private fun runSegment() {
         val s = seg ?: return
-        val bm = bitmap ?: run { status.text = "Pick an image first."; return }
+        val bm = bitmap ?: run {
+            status.text = "Pick an image first."
+            return
+        }
         val text = prompt.text.toString().ifBlank { "object" }
         runOnUiThread { status.text = "Segmenting \"$text\" on GPU…" }
         bg.execute {
@@ -114,23 +134,27 @@ class MainActivity : Activity() {
                     imageView.setImageBitmap(overlay)
                 }
             } catch (e: Throwable) {
-                Log.e(tag, "segment", e); runOnUiThread { status.text = "Failed: ${e.message}" }
+                Log.e(tag, "segment", e)
+                runOnUiThread { status.text = "Failed: ${e.message}" }
             }
         }
     }
 
     /** Blend a red mask over the image (mask is 352x352, resized to the display bitmap). */
     private fun overlay(bm: Bitmap, mask: FloatArray): Bitmap {
-        val w = bm.width; val h = bm.height
+        val w = bm.width
+        val h = bm.height
         val out = bm.copy(Bitmap.Config.ARGB_8888, true)
-        val px = IntArray(w * h); out.getPixels(px, 0, w, 0, 0, w, h)
+        val px = IntArray(w * h)
+        out.getPixels(px, 0, w, 0, 0, w, h)
         for (y in 0 until h) {
             for (x in 0 until w) {
                 val mx = (x * ClipSeg.SIZE / w).coerceIn(0, ClipSeg.SIZE - 1)
                 val my = (y * ClipSeg.SIZE / h).coerceIn(0, ClipSeg.SIZE - 1)
                 val m = mask[my * ClipSeg.SIZE + mx]
                 if (m > 0.1f) {
-                    val i = y * w + x; val p = px[i]
+                    val i = y * w + x
+                    val p = px[i]
                     val a = (m * 0.6f).coerceIn(0f, 0.6f)
                     val r = (((p shr 16) and 0xFF) * (1 - a) + 255 * a).toInt()
                     val g = (((p shr 8) and 0xFF) * (1 - a)).toInt()
@@ -143,5 +167,9 @@ class MainActivity : Activity() {
         return out
     }
 
-    override fun onDestroy() { super.onDestroy(); bg.shutdown(); seg?.close() }
+    override fun onDestroy() {
+        super.onDestroy()
+        bg.shutdown()
+        seg?.close()
+    }
 }

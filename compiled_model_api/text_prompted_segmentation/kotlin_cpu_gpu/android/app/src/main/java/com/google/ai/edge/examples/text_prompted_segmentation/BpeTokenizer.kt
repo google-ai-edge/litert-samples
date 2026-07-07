@@ -39,22 +39,36 @@ class BpeTokenizer(ctx: Context) {
 
     init {
         val vocab = JSONObject(File(ctx.filesDir, "vocab.json").readText())
-        for (k in vocab.keys()) encoder[k] = vocab.getInt(k)
+        for (k in vocab.keys()) {
+            encoder[k] = vocab.getInt(k)
+        }
         File(ctx.filesDir, "merges.txt").readLines().drop(1).forEachIndexed { i, line ->
             val p = line.trim().split(" ")
             if (p.size == 2) ranks[Pair(p[0], p[1])] = i
         }
         // GPT-2 byte-to-unicode table
         val bs = ArrayList<Int>()
-        for (c in '!'.code..'~'.code) bs.add(c)
-        for (c in 0xA1..0xAC) bs.add(c)
-        for (c in 0xAE..0xFF) bs.add(c)
+        for (c in '!'.code..'~'.code) {
+            bs.add(c)
+        }
+        for (c in 0xA1..0xAC) {
+            bs.add(c)
+        }
+        for (c in 0xAE..0xFF) {
+            bs.add(c)
+        }
         val cs = ArrayList(bs)
         var n = 0
         for (b in 0..255) {
-            if (b !in bs) { bs.add(b); cs.add(256 + n); n++ }
+            if (b !in bs) {
+                bs.add(b)
+                cs.add(256 + n)
+                n++
+            }
         }
-        for (i in bs.indices) byteToUnicode[bs[i]] = cs[i].toChar()
+        for (i in bs.indices) {
+            byteToUnicode[bs[i]] = cs[i].toChar()
+        }
     }
 
     private fun bpe(tokenIn: String): List<String> {
@@ -66,15 +80,20 @@ class BpeTokenizer(ctx: Context) {
             var bestRank = Int.MAX_VALUE
             for (i in 0 until word.size - 1) {
                 val r = ranks[Pair(word[i], word[i + 1])] ?: continue
-                if (r < bestRank) { bestRank = r; best = Pair(word[i], word[i + 1]) }
+                if (r < bestRank) {
+                    bestRank = r
+                    best = Pair(word[i], word[i + 1])
+                }
             }
             val b = best ?: break
             val merged = ArrayList<String>(word.size)
             var i = 0
             while (i < word.size) {
                 if (i < word.size - 1 && word[i] == b.first && word[i + 1] == b.second) {
-                    merged.add(b.first + b.second); i += 2
-                } else { merged.add(word[i]); i++ }
+                    merged.add(b.first + b.second)
+                    i += 2
+                } else { merged.add(word[i])
+                i++ }
             }
             word = merged
         }
@@ -96,7 +115,9 @@ class BpeTokenizer(ctx: Context) {
         val out = IntArray(MAX_LEN) { EOT }
         out[0] = BOS
         val n = minOf(ids.size, MAX_LEN - 2)
-        for (i in 0 until n) out[i + 1] = ids[i]
+        for (i in 0 until n) {
+            out[i + 1] = ids[i]
+        }
         return Pair(out, n + 1)   // eotPos = index of the first EOT
     }
 }

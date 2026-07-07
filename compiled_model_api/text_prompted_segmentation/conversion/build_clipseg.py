@@ -1,4 +1,17 @@
-#!/usr/bin/env python3
+# Copyright 2026 The Google AI Edge Authors. All Rights Reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#       http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 """CLIPSeg -> LiteRT GPU, 2 graphs:
   A) vision+decoder: pixel_values [1,3,352,352] + cond [1,512] -> logits [1,352,352]
   B) text encoder:   token embeddings [1,77,512] (host lookup) -> final hidden [1,77,512]
@@ -6,7 +19,8 @@
 
 Run: ~/clipconv/bin/python build_clipseg.py
 """
-import os, sys
+import os
+import sys
 import numpy as np
 import torch
 import torch.nn as nn
@@ -175,7 +189,8 @@ def main():
     print(f"[graphB torch] cond corr {corr(my_cond.numpy(), cond.numpy()):.7f}")
 
     if min(corr(logits[i].numpy(), ref[i].numpy()) for i in range(3)) < 0.999:
-        print("PARITY FAIL"); return
+        print("PARITY FAIL")
+        return
 
     import litert_torch
     a32 = os.path.join(HERE, "clipseg_visdec.tflite")

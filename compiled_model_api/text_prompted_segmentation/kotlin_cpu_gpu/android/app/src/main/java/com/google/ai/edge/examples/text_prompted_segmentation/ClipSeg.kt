@@ -71,16 +71,24 @@ class ClipSeg(private val ctx: Context) : Closeable {
         val n = bytes.size / 2
         val bb = ByteBuffer.wrap(bytes).order(ByteOrder.LITTLE_ENDIAN)
         val out = FloatArray(n)
-        for (i in 0 until n) out[i] = halfToFloat(bb.short.toInt() and 0xFFFF)
+        for (i in 0 until n) {
+            out[i] = halfToFloat(bb.short.toInt() and 0xFFFF)
+        }
         return out
     }
 
     private fun halfToFloat(h: Int): Float {
-        val s = (h ushr 15) and 0x1; val e = (h ushr 10) and 0x1F; val m = h and 0x3FF
+        val s = (h ushr 15) and 0x1
+        val e = (h ushr 10) and 0x1F
+        val m = h and 0x3FF
         val bits = when {
             e == 0 -> if (m == 0) s shl 31 else {
-                var mant = m; var exp = -1
-                do { mant = mant shl 1; exp++ } while (mant and 0x400 == 0)
+                var mant = m
+                var exp = -1
+                do {
+                    mant = mant shl 1
+                    exp++
+                } while (mant and 0x400 == 0)
                 (s shl 31) or ((127 - 15 - exp) shl 23) or ((mant and 0x3FF) shl 13)
             }
             e == 0x1F -> (s shl 31) or (0xFF shl 23) or (m shl 13)
@@ -93,7 +101,9 @@ class ClipSeg(private val ctx: Context) : Closeable {
     private fun conditional(prompt: String): FloatArray {
         val (ids, eot) = tokenizer.encode(prompt)
         val emb = FloatArray(TOK * TDIM)
-        for (t in 0 until TOK) System.arraycopy(tokEmb, ids[t] * TDIM, emb, t * TDIM, TDIM)
+        for (t in 0 until TOK) {
+            System.arraycopy(tokEmb, ids[t] * TDIM, emb, t * TDIM, TDIM)
+        }
         textIn[0].writeFloat(emb)
         textModel.run(textIn, textOut)
         val hid = textOut[0].readFloat()                        // [77*512]
@@ -102,7 +112,9 @@ class ClipSeg(private val ctx: Context) : Closeable {
         val cond = FloatArray(PROJ)
         for (o in 0 until PROJ) {
             var acc = 0f
-            for (i in 0 until TDIM) acc += eotRow[i] * textProj[i * PROJ + o]
+            for (i in 0 until TDIM) {
+                acc += eotRow[i] * textProj[i * PROJ + o]
+            }
             cond[o] = acc
         }
         return cond
@@ -110,7 +122,8 @@ class ClipSeg(private val ctx: Context) : Closeable {
 
     private fun preprocess(bm: Bitmap): FloatArray {
         val s = Bitmap.createScaledBitmap(bm, SIZE, SIZE, true)
-        val px = IntArray(SIZE * SIZE); s.getPixels(px, 0, SIZE, 0, 0, SIZE, SIZE)
+        val px = IntArray(SIZE * SIZE)
+        s.getPixels(px, 0, SIZE, 0, 0, SIZE, SIZE)
         val out = FloatArray(3 * SIZE * SIZE)
         val plane = SIZE * SIZE
         for (i in px.indices) {
@@ -138,7 +151,9 @@ class ClipSeg(private val ctx: Context) : Closeable {
         if (cachedKey === bm) return
         visIn[0].writeFloat(preprocess(bm))
         visModel.run(visIn, visOut)
-        t3 = visOut[0].readFloat(); t6 = visOut[1].readFloat(); t9 = visOut[2].readFloat()
+        t3 = visOut[0].readFloat()
+        t6 = visOut[1].readFloat()
+        t9 = visOut[2].readFloat()
         cachedKey = bm
     }
 
@@ -146,17 +161,28 @@ class ClipSeg(private val ctx: Context) : Closeable {
     fun segment(bm: Bitmap, prompt: String): FloatArray {
         runVision(bm)
         val cond = conditional(prompt)
-        decIn[0].writeFloat(t3); decIn[1].writeFloat(t6); decIn[2].writeFloat(t9); decIn[3].writeFloat(cond)
+        decIn[0].writeFloat(t3)
+        decIn[1].writeFloat(t6)
+        decIn[2].writeFloat(t9)
+        decIn[3].writeFloat(cond)
         decModel.run(decIn, decOut)
         val logits = decOut[0].readFloat()                      // [352*352]
         val mask = FloatArray(logits.size)
-        for (i in logits.indices) mask[i] = 1f / (1f + kotlin.math.exp(-logits[i]))
+        for (i in logits.indices) {
+            mask[i] = 1f / (1f + kotlin.math.exp(-logits[i]))
+        }
         return mask
     }
 
     override fun close() {
-        textIn.forEach { it.close() }; textOut.forEach { it.close() }; textModel.close()
-        visIn.forEach { it.close() }; visOut.forEach { it.close() }; visModel.close()
-        decIn.forEach { it.close() }; decOut.forEach { it.close() }; decModel.close()
+        textIn.forEach { it.close() }
+        textOut.forEach { it.close() }
+        textModel.close()
+        visIn.forEach { it.close() }
+        visOut.forEach { it.close() }
+        visModel.close()
+        decIn.forEach { it.close() }
+        decOut.forEach { it.close() }
+        decModel.close()
     }
 }
