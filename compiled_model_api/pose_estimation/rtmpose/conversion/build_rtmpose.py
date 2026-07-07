@@ -107,15 +107,22 @@ def to_fp16(fp32,fp16):
     return fp16
 
 def opcheck(p,l):
-    from ai_edge_litert.interpreter import Interpreter
-    it=Interpreter(model_path=p)
-    it.allocate_tensors()
-    ops=collections.Counter(d.get("op_name","?") for d in it._get_ops_details())
+    """Static GPU-compat scan: read the op set straight from the .tflite flatbuffer."""
+    from ai_edge_litert import schema_py_generated as schema
+    with open(p,"rb") as f:
+        model=schema.ModelT.InitFromPackedBuf(f.read(),0)
+    names={v:k for k,v in vars(schema.BuiltinOperator).items() if not k.startswith("_")}
+    ops=collections.Counter()
+    over=0
+    for g in model.subgraphs:
+        for op in g.operators:
+            c=model.operatorCodes[op.opcodeIndex]
+            code=max(c.builtinCode,c.deprecatedBuiltinCode)
+            ops[c.customCode.decode() if c.customCode else names.get(code,str(code))]+=1
+        over+=sum(1 for t in g.tensors if t.shape is not None and len(t.shape)>4)
     bad={k:v for k,v in ops.items() if k.upper() in BANNED}
-    over=sum(1 for d in it.get_tensor_details() if len(d.get("shape",[]))>4)
     print(f"[{l}] ops:",dict(sorted(ops.items(),key=lambda kv:-kv[1])))
     print(f"[{l}] banned:{bad or 'NONE'} >4D:{over} size {os.path.getsize(p)/1e6:.1f}MB","GPU-CLEAN" if not bad and not over else "BLOCKERS")
-    return it
 if __name__=="__main__":
     m=init_model(cfg,ckpt,device="cpu").eval()
     w=Wrap(m).eval()
@@ -127,13 +134,19 @@ if __name__=="__main__":
     litert_torch.convert(w,(img,)).export(fp32)
     to_fp16(fp32, os.path.join(HERE,"rtm_fp16.tflite"))
     opcheck(os.path.join(HERE,"rtm_fp16.tflite"),"rtm_fp16")
-    it=opcheck(fp32,"rtm")
-    d=it.get_input_details()[0]
-    it.set_tensor(d["index"],img.numpy().astype(d["dtype"]))
-    it.invoke()
-    od=it.get_output_details()
-    o0=it.get_tensor(od[0]["index"])
-    o1=it.get_tensor(od[1]["index"])
+    opcheck(fp32,"rtm")
+    # parity run through the LiteRT CompiledModel API (same API the sample app uses)
+    from ai_edge_litert.compiled_model import CompiledModel
+    cm=CompiledModel.from_file(fp32)
+    sig=cm.get_signature_list()
+    key=list(sig)[0]
+    dets=cm.get_output_tensor_details(key)
+    ins=cm.create_input_buffers(0)
+    outs=cm.create_output_buffers(0)
+    ins[0].write(np.ascontiguousarray(img.numpy(),dtype=np.float32))
+    cm.run_by_index(0,ins,outs)
+    o0,o1=[outs[i].read(int(np.prod(dets[n]["shape"])),np.float32).reshape(dets[n]["shape"])
+           for i,n in enumerate(sig[key]["outputs"])]
     refs=[sx.numpy(),sy.numpy()]
     # match outputs by shape
     for o in (o0,o1):

@@ -60,14 +60,19 @@ def draw(kp,name):
     d.save(name)
 draw(kp,HERE+"/rtm_torch.png")
 print(f"input {img_np.shape}; torch decoded {int((kp[:,2]>0.3).sum())}/17 kpts conf>0.3")
-from ai_edge_litert.interpreter import Interpreter
-it=Interpreter(model_path=HERE+"/rtm_fp16.tflite")
-it.allocate_tensors()
-d=it.get_input_details()[0]
-it.set_tensor(d["index"],img_np.astype(d["dtype"]))
-it.invoke()
-od=it.get_output_details()
-outs={tuple(o["shape"]):it.get_tensor(o["index"])[0] for o in od}
+# desktop fp16 parity through the LiteRT CompiledModel API (same API the sample app uses)
+from ai_edge_litert.compiled_model import CompiledModel
+cm=CompiledModel.from_file(HERE+"/rtm_fp16.tflite")
+sig=cm.get_signature_list()
+key=list(sig)[0]
+dets=cm.get_output_tensor_details(key)
+ins=cm.create_input_buffers(0)
+obuf=cm.create_output_buffers(0)
+ins[0].write(np.ascontiguousarray(img_np,dtype=np.float32))
+cm.run_by_index(0,ins,obuf)
+# match outputs by shape, as before
+outs={tuple(dets[n]["shape"]):obuf[i].read(int(np.prod(dets[n]["shape"])),np.float32).reshape(dets[n]["shape"])[0]
+      for i,n in enumerate(sig[key]["outputs"])}
 ox=outs[(1,17,384)]
 oy=outs[(1,17,512)]
 print(f"desktop-fp16 vs torch corr x {np.corrcoef(ox.ravel(),sx.ravel())[0,1]:.5f} y {np.corrcoef(oy.ravel(),sy.ravel())[0,1]:.5f}")
