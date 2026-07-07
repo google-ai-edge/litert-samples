@@ -1,4 +1,4 @@
-# Copyright 2025 The Google AI Edge Authors. All Rights Reserved.
+# Copyright 2026 The Google AI Edge Authors. All Rights Reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -21,7 +21,7 @@ Re-author:
       [enabled with PS_FIX=1; default keeps nn.PixelShuffle to measure the >4D impact first]
 Input 128x128 -> output 512x512 (x4). Tiny (~1.2M).
 
-Run: ~/clipconv/bin/python convert_realesrgan.py [--nhwc]
+Run: python convert_realesrgan.py [--nhwc]
 """
 import sys
 import os

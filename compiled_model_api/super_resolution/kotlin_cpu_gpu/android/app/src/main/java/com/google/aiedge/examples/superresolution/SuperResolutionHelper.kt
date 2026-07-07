@@ -140,7 +140,9 @@ class SuperResolutionHelper(
                 }
                 val sr = Bitmap.createBitmap(outPixels, OUT, OUT, Bitmap.Config.ARGB_8888)
                 val bicubic = Bitmap.createScaledBitmap(tile, OUT, OUT, true) // before (bilinear ×4)
-                if (isActive) _result.emit(Result(sr, bicubic, inferenceTime))
+                if (isActive) {
+                    _result.emit(Result(sr, bicubic, inferenceTime))
+                }
             }
         } catch (e: Exception) {
             Log.e(TAG, "Super-resolution error: ${e.message}")

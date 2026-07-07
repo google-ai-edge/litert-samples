@@ -88,7 +88,9 @@ class MainActivity : ComponentActivity() {
                 if (uri != null) {
                     contentResolver.openInputStream(uri)?.use {
                         val bmp = BitmapFactory.decodeStream(it)
-                        if (bmp != null) viewModel.superResolve(bmp)
+                        if (bmp != null) {
+                            viewModel.superResolve(bmp)
+                        }
                     }
                 }
             }
