@@ -1,5 +1,5 @@
 /*
- * Copyright 2025 The Google AI Edge Authors. All Rights Reserved.
+ * Copyright 2026 The Google AI Edge Authors. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -64,7 +64,9 @@ class Matter(modelPath: String) : AutoCloseable {
   fun matte(bitmap: Bitmap, bgColor: Int): Pair<Bitmap, Long> {
     val t = System.nanoTime()
     Canvas(resized).drawBitmap(
-      bitmap, matrix.apply { setScale(SIZE.toFloat() / bitmap.width, SIZE.toFloat() / bitmap.height) }, paint)
+      bitmap,
+      matrix.apply { setScale(SIZE.toFloat() / bitmap.width, SIZE.toFloat() / bitmap.height) },
+      paint)
     resized.getPixels(pixels, 0, SIZE, 0, 0, SIZE, SIZE)
     val plane = SIZE * SIZE
     for (i in 0 until plane) {
@@ -77,9 +79,13 @@ class Matter(modelPath: String) : AutoCloseable {
     model.run(inBufs, outBufs)
     val matte = outBufs[0].readFloat()   // [512*512] alpha 0..1
 
-    val bgR = (bgColor shr 16) and 0xFF; val bgG = (bgColor shr 8) and 0xFF; val bgB = bgColor and 0xFF
+    val bgR = (bgColor shr 16) and 0xFF
+    val bgG = (bgColor shr 8) and 0xFF
+    val bgB = bgColor and 0xFF
     for (i in 0 until plane) {
-      val a = matte[i].coerceIn(0f, 1f); val ia = 1f - a; val p = pixels[i]
+      val a = matte[i].coerceIn(0f, 1f)
+      val ia = 1f - a
+      val p = pixels[i]
       val r = (((p shr 16) and 0xFF) * a + bgR * ia).toInt()
       val g = (((p shr 8) and 0xFF) * a + bgG * ia).toInt()
       val b = ((p and 0xFF) * a + bgB * ia).toInt()

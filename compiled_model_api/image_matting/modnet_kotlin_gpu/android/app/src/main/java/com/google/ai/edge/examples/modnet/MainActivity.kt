@@ -1,5 +1,5 @@
 /*
- * Copyright 2025 The Google AI Edge Authors. All Rights Reserved.
+ * Copyright 2026 The Google AI Edge Authors. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -38,11 +38,15 @@ class MainActivity : AppCompatActivity() {
 
   override fun onCreate(savedInstanceState: Bundle?) {
     super.onCreate(savedInstanceState)
-    val status = TextView(this).apply { textSize = 15f; setPadding(28, 40, 28, 20) }
+    val status = TextView(this).apply {
+        textSize = 15f
+        setPadding(28, 40, 28, 20)
+    }
     val imageView = ImageView(this).apply { adjustViewBounds = true }
     setContentView(LinearLayout(this).apply {
       orientation = LinearLayout.VERTICAL
-      addView(status); addView(imageView)
+      addView(status)
+      addView(imageView)
     })
 
     executor.execute {
@@ -59,7 +63,8 @@ class MainActivity : AppCompatActivity() {
       Matter(modelFile.absolutePath).use { matter ->
         val (composite, ms) = matter.matte(input, Color.rgb(0, 177, 64))  // green-screen bg
         runOnUiThread {
-          status.text = "MODNet  ·  trimap-free portrait matting  ·  CompiledModel GPU  ·  ${ms} ms"
+          status.text =
+            "MODNet  ·  trimap-free portrait matting  ·  CompiledModel GPU  ·  ${ms} ms"
           imageView.setImageBitmap(composite.copy(android.graphics.Bitmap.Config.ARGB_8888, false))
         }
       }
