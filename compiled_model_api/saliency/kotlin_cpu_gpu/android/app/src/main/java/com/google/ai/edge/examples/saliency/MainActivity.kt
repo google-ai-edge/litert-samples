@@ -52,16 +52,24 @@ class MainActivity : Activity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        val root = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(24, 80, 24, 24) }
-        status = TextView(this).apply { textSize = 15f; text = "Loading UniSal on GPU…" }
+        val root = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(24, 80, 24, 24)
+        }
+        status = TextView(this).apply {
+            textSize = 15f
+            text = "Loading UniSal on GPU…"
+        }
         val pick = Button(this).apply {
-            text = "🖼  Pick image"; isEnabled = false
+            text = "🖼  Pick image"
+            isEnabled = false
             setOnClickListener {
                 startActivityForResult(Intent(Intent.ACTION_GET_CONTENT).apply { type = "image/*" }, pickReq)
             }
         }
         view = SaliencyView(this)
-        root.addView(status); root.addView(pick)
+        root.addView(status)
+        root.addView(pick)
         root.addView(view, LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, 980))
         setContentView(root)
 
@@ -76,7 +84,10 @@ class MainActivity : Activity() {
                 runOnUiThread { pick.isEnabled = true }
             } catch (e: Throwable) {
                 Log.e(tag, "load failed", e)
-                runOnUiThread { status.setBackgroundColor(Color.rgb(0xFF, 0xCD, 0xD2)); status.text = "FAIL: ${e.message}" }
+                runOnUiThread {
+                    status.setBackgroundColor(Color.rgb(0xFF, 0xCD, 0xD2))
+                    status.text = "FAIL: ${e.message}"
+                }
             }
         }
     }
@@ -88,7 +99,10 @@ class MainActivity : Activity() {
         runOnUiThread { status.text = "Predicting saliency…" }
         bg.execute {
             try { run(squareResize(loadOriented(uri)), warm = false) }
-            catch (e: Throwable) { Log.e(tag, "predict failed", e); runOnUiThread { status.text = "Failed: ${e.message}" } }
+            catch (e: Throwable) {
+                Log.e(tag, "predict failed", e)
+                runOnUiThread { status.text = "Failed: ${e.message}" }
+            }
         }
     }
 
@@ -104,7 +118,8 @@ class MainActivity : Activity() {
         runOnUiThread {
             status.setBackgroundColor(Color.rgb(0xC8, 0xE6, 0xC9))
             status.text = "On-device GPU saliency ✓  ${ms} ms  ·  UniSal, CompiledModel GPU"
-            view.bitmap = heat; view.invalidate()
+            view.bitmap = heat
+            view.invalidate()
         }
     }
 
@@ -112,7 +127,8 @@ class MainActivity : Activity() {
     private fun overlay(bm: Bitmap, sal: FloatArray): Bitmap {
         val s = SaliencyPredictor.SIZE
         val src = if (bm.width == s && bm.height == s) bm else Bitmap.createScaledBitmap(bm, s, s, true)
-        val px = IntArray(s * s); src.getPixels(px, 0, s, 0, 0, s, s)
+        val px = IntArray(s * s)
+        src.getPixels(px, 0, s, 0, 0, s, s)
         val out = IntArray(s * s)
         for (i in px.indices) {
             val v = sal[i]
@@ -158,18 +174,24 @@ class MainActivity : Activity() {
     }
 
     private fun bitmapToRgb(bm: Bitmap): FloatArray {
-        val n = bm.width * bm.height; val px = IntArray(n)
+        val n = bm.width * bm.height
+        val px = IntArray(n)
         bm.getPixels(px, 0, bm.width, 0, 0, bm.width, bm.height)
         val out = FloatArray(n * 3)
         for (i in 0 until n) {
             val p = px[i]
-            out[i * 3] = ((p shr 16) and 0xFF).toFloat(); out[i * 3 + 1] = ((p shr 8) and 0xFF).toFloat()
+            out[i * 3] = ((p shr 16) and 0xFF).toFloat()
+            out[i * 3 + 1] = ((p shr 8) and 0xFF).toFloat()
             out[i * 3 + 2] = (p and 0xFF).toFloat()
         }
         return out
     }
 
-    override fun onDestroy() { super.onDestroy(); bg.shutdown(); net?.close() }
+    override fun onDestroy() {
+        super.onDestroy()
+        bg.shutdown()
+        net?.close()
+    }
 
     class SaliencyView(ctx: Context) : View(ctx) {
         var bitmap: Bitmap? = null
@@ -177,7 +199,8 @@ class MainActivity : Activity() {
         override fun onDraw(canvas: Canvas) {
             val bm = bitmap ?: return
             val s = min(width.toFloat() / bm.width, height.toFloat() / bm.height)
-            val w = bm.width * s; val h = bm.height * s
+            val w = bm.width * s
+            val h = bm.height * s
             canvas.drawBitmap(bm, null, android.graphics.RectF((width - w) / 2, (height - h) / 2, (width + w) / 2, (height + h) / 2), paint)
         }
     }

@@ -58,13 +58,22 @@ class SaliencyPredictor(ctx: Context, accelerator: Accelerator = Accelerator.GPU
         inBuf[0].writeFloat(chw)
         model.run(inBuf, outBuf)
         val sal = outBuf[0].readFloat()            // [hw]
-        var mn = Float.MAX_VALUE; var mx = -Float.MAX_VALUE
-        for (v in sal) { val r = if (v > 0f) v else 0f; if (r < mn) mn = r; if (r > mx) mx = r }
+        var mn = Float.MAX_VALUE
+        var mx = -Float.MAX_VALUE
+        for (v in sal) {
+            val r = if (v > 0f) v else 0f
+            if (r < mn) mn = r
+            if (r > mx) mx = r
+        }
         val range = (mx - mn).coerceAtLeast(1e-6f)
         val out = FloatArray(hw)
         for (i in 0 until hw) out[i] = ((if (sal[i] > 0f) sal[i] else 0f) - mn) / range
         return out
     }
 
-    override fun close() { inBuf.forEach { it.close() }; outBuf.forEach { it.close() }; model.close() }
+    override fun close() {
+        inBuf.forEach { it.close() }
+        outBuf.forEach { it.close() }
+        model.close()
+    }
 }
