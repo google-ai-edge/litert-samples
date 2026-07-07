@@ -1,8 +1,25 @@
-#!/usr/bin/env python3
+# Copyright 2025 The Google AI Edge Authors. All Rights Reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#       http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 """Pixel 8a device-gate fixtures for Metric3D v2, using a REAL image (depth structure).
 Writes probe_input.bin (NCHW LE f32), torch_ref.npy (re-authored), orig_ref.npy (original Metric3D).
 Prints original-vs-reauthored and desktop-fp16-vs-reauthored corr."""
-import load_m3d, numpy as np, torch, os, glob
+import load_m3d
+import numpy as np
+import torch
+import os
+import glob
 import torch.nn.functional as F
 from PIL import Image
 import build_m3d as B
@@ -40,7 +57,10 @@ print(f"original depth [{orig.min():.2f},{orig.max():.2f}]m  reauth [{ref.min():
       f"orig-vs-reauth corr {np.corrcoef(orig.ravel(), ref.ravel())[0,1]:.6f}")
 
 from ai_edge_litert.interpreter import Interpreter
-it = Interpreter(model_path=os.path.join(HERE, "m3d_fp16.tflite")); it.allocate_tensors()
-d = it.get_input_details()[0]; it.set_tensor(d["index"], img_np.astype(d["dtype"])); it.invoke()
+it = Interpreter(model_path=os.path.join(HERE, "m3d_fp16.tflite"))
+it.allocate_tensors()
+d = it.get_input_details()[0]
+it.set_tensor(d["index"], img_np.astype(d["dtype"]))
+it.invoke()
 o = it.get_tensor(it.get_output_details()[0]["index"])
 print(f"desktop-fp16 vs reauth corr {np.corrcoef(o.ravel(), ref.ravel())[0,1]:.6f}  vs orig {np.corrcoef(o.ravel(), orig.ravel())[0,1]:.6f}")

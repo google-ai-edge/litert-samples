@@ -1,4 +1,17 @@
-#!/usr/bin/env python3
+# Copyright 2025 The Google AI Edge Authors. All Rights Reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#       http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 """Metric3D v2 (ViT-Small) -> LiteRT CompiledModel GPU.
 
 Metric3D v2 = DINOv2 ViT-S/14 (+register tokens) encoder + RAFT-DPT decoder (4 iters),
@@ -20,8 +33,15 @@ Re-authoring (all numerically-equivalent unless noted):
 Run: ~/clipconv/bin/python build_m3d.py [opcheck|parity|all]
 """
 import load_m3d                       # stubs mmcv, patches inspect; provides load()
-import sys, os, math, types, collections
-import numpy as np, torch, torch.nn as nn, torch.nn.functional as F
+import sys
+import os
+import math
+import types
+import collections
+import numpy as np
+import torch
+import torch.nn as nn
+import torch.nn.functional as F
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 INPUT = 448                            # 32 patches * 14 ; divisible by 28 and by 4
@@ -37,14 +57,19 @@ class ZeroStuffConvT2d(nn.Module):
     mask + flipped conv2d + crop. RESIZE_NEAREST + MUL + CONV_2D (no TRANSPOSE_CONV)."""
     def __init__(s, ct, Hin, Win):
         super().__init__()
-        s.s = ct.stride[0]; s.k = ct.kernel_size[0]; s.p = ct.padding[0]
-        s.op = ct.output_padding[0]; s.Hin = Hin; s.Win = Win
+        s.s = ct.stride[0]
+        s.k = ct.kernel_size[0]
+        s.p = ct.padding[0]
+        s.op = ct.output_padding[0]
+        s.Hin = Hin
+        s.Win = Win
         w = ct.weight.detach()                                     # (Cin, Cout, k, k)
         w = w.flip(2).flip(3).permute(1, 0, 2, 3).contiguous()     # (Cout, Cin, k, k)
         s.register_buffer("w", w)
         s.register_buffer("b", ct.bias.detach().clone() if ct.bias is not None
                           else torch.zeros(ct.out_channels))
-        mh = np.zeros((Hin * s.s, Win * s.s), np.float32); mh[::s.s, ::s.s] = 1.0
+        mh = np.zeros((Hin * s.s, Win * s.s), np.float32)
+        mh[::s.s, ::s.s] = 1.0
         s.register_buffer("mask", torch.from_numpy(mh)[None, None])
 
     def forward(s, x):
@@ -96,7 +121,8 @@ def patch_encoder(enc):
     for mod in enc.modules():
         for cn, ch in list(mod.named_children()):
             if isinstance(ch, nn.GELU):
-                setattr(mod, cn, _GELU()); n_gelu += 1
+                setattr(mod, cn, _GELU())
+                n_gelu += 1
 
     # 2) decompose fused qkv -> q/k/v, manual 4D attention
     def decompose(attn):
@@ -107,15 +133,20 @@ def patch_encoder(enc):
         attn.v_lin = nn.Linear(C, C, bias=b is not None)
         with torch.no_grad():
             w = attn.qkv.weight
-            attn.q_lin.weight.copy_(w[:C]); attn.k_lin.weight.copy_(w[C:2*C]); attn.v_lin.weight.copy_(w[2*C:])
+            attn.q_lin.weight.copy_(w[:C])
+            attn.k_lin.weight.copy_(w[C:2*C])
+            attn.v_lin.weight.copy_(w[2*C:])
             if b is not None:
-                attn.q_lin.bias.copy_(b[:C]); attn.k_lin.bias.copy_(b[C:2*C]); attn.v_lin.bias.copy_(b[2*C:])
+                attn.q_lin.bias.copy_(b[:C])
+                attn.k_lin.bias.copy_(b[C:2*C])
+                attn.v_lin.bias.copy_(b[2*C:])
 
     use_sdpa = os.environ.get("M3D_ATTN", "manual") == "sdpa"
 
     def attn_forward(self, x, attn_bias=None):
         B, N, C = x.shape
-        h = self.num_heads; hd = C // h
+        h = self.num_heads
+        hd = C // h
         q = self.q_lin(x).reshape(B, N, h, hd).permute(0, 2, 1, 3)
         k = self.k_lin(x).reshape(B, N, h, hd).permute(0, 2, 1, 3)
         v = self.v_lin(x).reshape(B, N, h, hd).permute(0, 2, 1, 3)
@@ -131,7 +162,8 @@ def patch_encoder(enc):
     n_attn = 0
     for mod in enc.modules():
         if isinstance(mod, V.Attention):
-            decompose(mod); n_attn += 1
+            decompose(mod)
+            n_attn += 1
     V.Attention.forward = attn_forward
     V.MemEffAttention.forward = attn_forward   # ensure subclass uses 4D path too
 
@@ -145,17 +177,21 @@ def patch_encoder(enc):
             with torch.no_grad():
                 blk.attn.proj.weight.data.mul_(g.unsqueeze(1))
                 if blk.attn.proj.bias is not None: blk.attn.proj.bias.data.mul_(g)
-            blk.ls1 = nn.Identity(); n_ls += 1
+            blk.ls1 = nn.Identity()
+            n_ls += 1
         if isinstance(blk.ls2, V.LayerScale):
             g = blk.ls2.gamma.data.squeeze()
             last = None
             for ch in reversed(list(blk.mlp.children())):
-                if isinstance(ch, nn.Linear): last = ch; break
+                if isinstance(ch, nn.Linear):
+                    last = ch
+                    break
             if last is not None:
                 with torch.no_grad():
                     last.weight.data.mul_(g.unsqueeze(1))
                     if last.bias is not None: last.bias.data.mul_(g)
-            blk.ls2 = nn.Identity(); n_ls += 1
+            blk.ls2 = nn.Identity()
+            n_ls += 1
 
     # 4) bake the (otherwise-bicubic) interpolated pos-embed for the fixed grid
     hp = wp = INPUT // PATCH
@@ -186,7 +222,8 @@ def patch_decoder(dec):
     for mod in dec.modules():
         for cn, ch in list(mod.named_children()):
             if isinstance(ch, nn.GELU):
-                setattr(mod, cn, _GELU()); ng += 1
+                setattr(mod, cn, _GELU())
+                ng += 1
 
     # kill the autocast-wrapped interpolate helpers -> plain fixed-size interpolate
     R.interpolate_float32 = lambda x, size=None, scale_factor=None, mode="nearest", align_corners=None: \
@@ -215,7 +252,8 @@ def patch_decoder(dec):
     R.ConvBlock.forward = conv_block_forward
 
     # ConvTranspose2d -> ZeroStuffConvT2d (detect input H,W by a probe forward)
-    L = {}; hks = []
+    L = {}
+    hks = []
     for n, mo in dec.named_modules():
         if isinstance(mo, nn.ConvTranspose2d):
             hks.append(mo.register_forward_pre_hook(
@@ -274,7 +312,8 @@ def patch_decoder(dec):
 class M3DWrap(nn.Module):
     """Input [1,3,448,448] (canonical, ImageNet-normed inside encoder); output depth [1,1,448,448] meters."""
     def __init__(s, m):
-        super().__init__(); s.m = m
+        super().__init__()
+        s.m = m
     def forward(s, img):
         return s.m({"input": img})[0]
 
@@ -288,9 +327,12 @@ def finalize_zsct(dec, wrap):
     n = 0
     for name, mo in list(dec.named_modules()):
         if isinstance(mo, nn.ConvTranspose2d) and name in L:
-            par = dec; *pth, last = name.split(".")
+            par = dec
+            *pth, last = name.split(".")
             for q in pth: par = getattr(par, q)
-            hh, ww = L[name]; setattr(par, last, ZeroStuffConvT2d(mo, int(hh), int(ww))); n += 1
+            hh, ww = L[name]
+            setattr(par, last, ZeroStuffConvT2d(mo, int(hh), int(ww)))
+            n += 1
     del dec._zsct_pending
     print(f"  decoder: swapped {n} ConvTranspose2d -> ZeroStuffConvT2d")
 
@@ -309,7 +351,8 @@ def build():
 
 def opcheck(path, label):
     from ai_edge_litert.interpreter import Interpreter
-    it = Interpreter(model_path=path); it.allocate_tensors()
+    it = Interpreter(model_path=path)
+    it.allocate_tensors()
     ops = collections.Counter(d.get("op_name", "?") for d in it._get_ops_details())
     bad = {k: v for k, v in ops.items() if k.upper() in BANNED}
     over = sum(1 for d in it.get_tensor_details() if len(d.get("shape", [])) > 4)
@@ -328,8 +371,10 @@ def to_fp16(fp32, fp16):
             weight_tensor_config=qtyping.TensorQuantizationConfig(num_bits=16, dtype=qtyping.TensorDataType.FLOAT),
             compute_precision=qtyping.ComputePrecision.FLOAT), algorithm_key=AlgorithmName.FLOAT_CASTING)
     if os.path.exists(fp16): os.remove(fp16)
-    q = quantizer.Quantizer(float_model=fp32); q.load_quantization_recipe(rm.get_quantization_recipe())
-    q.quantize().export_model(fp16); return fp16
+    q = quantizer.Quantizer(float_model=fp32)
+    q.load_quantization_recipe(rm.get_quantization_recipe())
+    q.quantize().export_model(fp16)
+    return fp16
 
 
 def main():
@@ -349,7 +394,8 @@ def main():
     litert_torch.convert(wrap, (img,)).export(fp32)
     it = opcheck(fp32, "m3d")
     d = it.get_input_details()[0]
-    it.set_tensor(d["index"], img.numpy().astype(d["dtype"])); it.invoke()
+    it.set_tensor(d["index"], img.numpy().astype(d["dtype"]))
+    it.invoke()
     o = it.get_tensor(it.get_output_details()[0]["index"])
     corr = np.corrcoef(o.ravel(), ref.numpy().ravel())[0, 1]
     print(f"tflite vs torch: corr {corr:.6f} max|d| {np.abs(o - ref.numpy()).max():.3e}")
