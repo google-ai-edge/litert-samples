@@ -1,4 +1,17 @@
-#!/usr/bin/env python3
+# Copyright 2025 The Google AI Edge Authors. All Rights Reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#       http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 """XFeat (Accelerated Features, Apache, ~1.5M pure CNN) -> CompiledModel GPU.
 
 Lightweight local feature extraction for image matching (SLAM/AR/registration). The CNN emits dense
@@ -11,11 +24,19 @@ run host-side (the raw-head pattern). Two re-authoring fixes:
 
 Run: ~/clipconv/bin/python convert_xfeat.py [--nhwc]   (480x640)
 """
-import sys, os, types, collections, argparse
-import numpy as np, torch, torch.nn as nn, torch.nn.functional as F
+import sys
+import os
+import types
+import collections
+import argparse
+import numpy as np
+import torch
+import torch.nn as nn
+import torch.nn.functional as F
 
 class _D:
-    def __getattr__(s, n): return lambda *a, **k: None
+    def __getattr__(s, n):
+        return lambda *a, **k: None
 _pp = types.ModuleType("scipy.sparse.linalg._propack")
 for n in ("_spropack", "_dpropack", "_cpropack", "_zpropack"): setattr(_pp, n, _D())
 sys.modules["scipy.sparse.linalg._propack"] = _pp
@@ -65,7 +86,10 @@ def host_normalize(x_gray):
 
 
 class Wrap(nn.Module):
-    def __init__(self, net, nhwc=False): super().__init__(); self.net = net; self.nhwc = nhwc
+    def __init__(self, net, nhwc=False):
+        super().__init__()
+        self.net = net
+        self.nhwc = nhwc
     def forward(self, x):
         if self.nhwc:
             x = x.permute(0, 3, 1, 2)
@@ -73,14 +97,37 @@ class Wrap(nn.Module):
 
 
 def opcheck(path, label):
-    from ai_edge_litert.interpreter import Interpreter
-    it = Interpreter(model_path=path); it.allocate_tensors()
-    ops = collections.Counter(d.get("op_name", "?") for d in it._get_ops_details())
+    """Static GPU-compat scan: read the op set straight from the .tflite flatbuffer."""
+    from ai_edge_litert import schema_py_generated as schema
+    with open(path, "rb") as f:
+        model = schema.ModelT.InitFromPackedBuf(f.read(), 0)
+    names = {v: k for k, v in vars(schema.BuiltinOperator).items() if not k.startswith("_")}
+    ops = collections.Counter()
+    over = 0
+    for g in model.subgraphs:
+        for op in g.operators:
+            c = model.operatorCodes[op.opcodeIndex]
+            code = max(c.builtinCode, c.deprecatedBuiltinCode)
+            ops[c.customCode.decode() if c.customCode else names.get(code, str(code))] += 1
+        over += sum(1 for t in g.tensors if t.shape is not None and len(t.shape) > 4)
     bad = {k: v for k, v in ops.items() if k.upper() in BANNED}
-    over = sum(1 for d in it.get_tensor_details() if len(d.get("shape", [])) > 4)
     print(f"[{label}] banned:{bad or 'NONE'} >4D:{over} size {os.path.getsize(path)/1e6:.1f}MB ops:{len(ops)}")
     print(f"[{label}] top:", dict(sorted(ops.items(), key=lambda kv: -kv[1])[:10]))
-    return it
+
+
+def run_tflite(path, x):
+    """One inference through the LiteRT CompiledModel API; returns flat fp32 outputs."""
+    from ai_edge_litert.compiled_model import CompiledModel
+    model = CompiledModel.from_file(path)
+    inputs = model.create_input_buffers(0)
+    outputs = model.create_output_buffers(0)
+    inputs[0].write(np.ascontiguousarray(x, dtype=np.float32))
+    model.run_by_index(0, inputs, outputs)
+    result = []
+    for i, buf in enumerate(outputs):
+        n = model.get_output_buffer_requirements(0, i)["buffer_size"] // np.dtype(np.float32).itemsize
+        result.append(buf.read(n, np.float32))
+    return result
 
 
 def to_fp16(fp32, fp16):
@@ -92,12 +139,16 @@ def to_fp16(fp32, fp16):
             weight_tensor_config=qtyping.TensorQuantizationConfig(num_bits=16, dtype=qtyping.TensorDataType.FLOAT),
             compute_precision=qtyping.ComputePrecision.FLOAT), algorithm_key=AlgorithmName.FLOAT_CASTING)
     if os.path.exists(fp16): os.remove(fp16)
-    q = quantizer.Quantizer(float_model=fp32); q.load_quantization_recipe(rm.get_quantization_recipe())
-    q.quantize().export_model(fp16); return fp16
+    q = quantizer.Quantizer(float_model=fp32)
+    q.load_quantization_recipe(rm.get_quantization_recipe())
+    q.quantize().export_model(fp16)
+    return fp16
 
 
 def main():
-    ap = argparse.ArgumentParser(); ap.add_argument("--nhwc", action="store_true"); args = ap.parse_args()
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--nhwc", action="store_true")
+    args = ap.parse_args()
     xf = torch.hub.load('verlab/accelerated_features', 'XFeat', pretrained=True, top_k=4096)
     net = xf.net.eval()
     raw = torch.rand(1, 1, H, W)            # raw grayscale image (gray = mean over 1 ch = identity)
@@ -115,15 +166,14 @@ def main():
     tag = "xfeat" + ("_nhwc" if args.nhwc else "")
     import litert_torch
     litert_torch.convert(Wrap(net, args.nhwc).eval(), (inp,)).export(f"{tag}.tflite")
-    it = opcheck(f"{tag}.tflite", "xfeat-fp32")
-    to_fp16(f"{tag}.tflite", f"{tag}_fp16.tflite"); opcheck(f"{tag}_fp16.tflite", "xfeat-fp16")
-    di = it.get_input_details()[0]; it.set_tensor(di["index"], inp.numpy().astype(di["dtype"])); it.invoke()
-    od = it.get_output_details()
-    print("outputs:", [(d["name"][-20:], tuple(it.get_tensor(d["index"]).shape)) for d in od])
+    opcheck(f"{tag}.tflite", "xfeat-fp32")
+    to_fp16(f"{tag}.tflite", f"{tag}_fp16.tflite")
+    opcheck(f"{tag}_fp16.tflite", "xfeat-fp16")
+    outs = run_tflite(f"{tag}.tflite", inp.numpy())
+    print("outputs (flat sizes):", [o.size for o in outs])
     inp.numpy().astype(np.float32).tofile(f"{tag}_input.bin")
-    # dump feats (output 0-ish) expected for device compare
-    big = max(od, key=lambda d: np.prod(it.get_tensor(d["index"]).shape))
-    it.get_tensor(big["index"]).astype(np.float32).tofile(f"{tag}_expected.bin")
+    # Dump the largest output (feats) as the expected tensor for the device compare.
+    max(outs, key=lambda o: o.size).astype(np.float32).tofile(f"{tag}_expected.bin")
 
 
 if __name__ == "__main__":
