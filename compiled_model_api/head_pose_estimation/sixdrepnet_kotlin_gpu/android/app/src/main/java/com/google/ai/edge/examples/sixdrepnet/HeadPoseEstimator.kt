@@ -1,5 +1,5 @@
 /*
- * Copyright 2025 The Google AI Edge Authors. All Rights Reserved.
+ * Copyright 2026 The Google AI Edge Authors. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -62,7 +62,9 @@ class HeadPoseEstimator(modelPath: String) : AutoCloseable {
   fun estimate(faceCrop: Bitmap): Pair<HeadPose, Long> {
     val t = System.nanoTime()
     Canvas(resized).drawBitmap(
-      faceCrop, matrix.apply { setScale(SIZE.toFloat() / faceCrop.width, SIZE.toFloat() / faceCrop.height) }, paint)
+      faceCrop,
+      matrix.apply { setScale(SIZE.toFloat() / faceCrop.width, SIZE.toFloat() / faceCrop.height) },
+      paint)
     resized.getPixels(pixels, 0, SIZE, 0, 0, SIZE, SIZE)
     val plane = SIZE * SIZE
     for (i in 0 until plane) {
@@ -76,9 +78,14 @@ class HeadPoseEstimator(modelPath: String) : AutoCloseable {
     val v = outBufs[0].readFloat()   // 6D
 
     val x = normalize(v[0], v[1], v[2])
-    var z = cross(x[0], x[1], x[2], v[3], v[4], v[5]); z = normalize(z[0], z[1], z[2])
+    var z = cross(x[0], x[1], x[2], v[3], v[4], v[5])
+    z = normalize(z[0], z[1], z[2])
     val y = cross(z[0], z[1], z[2], x[0], x[1], x[2])
-    val r00 = x[0]; val r10 = x[1]; val r20 = x[2]; val r21 = y[2]; val r22 = z[2]
+    val r00 = x[0]
+    val r10 = x[1]
+    val r20 = x[2]
+    val r21 = y[2]
+    val r22 = z[2]
     val sy = sqrt(r00 * r00 + r10 * r10)
     val pitch = Math.toDegrees(atan2(r21, r22).toDouble()).toFloat()
     val yaw = Math.toDegrees(atan2(-r20, sy).toDouble()).toFloat()
@@ -96,6 +103,8 @@ class HeadPoseEstimator(modelPath: String) : AutoCloseable {
 
   override fun close() {
     model.close()
-    if (!resized.isRecycled) resized.recycle()
+    if (!resized.isRecycled) {
+      resized.recycle()
+    }
   }
 }

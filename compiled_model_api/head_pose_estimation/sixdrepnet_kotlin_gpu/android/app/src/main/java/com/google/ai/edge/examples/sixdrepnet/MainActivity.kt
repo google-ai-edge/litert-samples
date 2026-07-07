@@ -1,5 +1,5 @@
 /*
- * Copyright 2025 The Google AI Edge Authors. All Rights Reserved.
+ * Copyright 2026 The Google AI Edge Authors. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -42,10 +42,15 @@ class MainActivity : AppCompatActivity() {
 
   override fun onCreate(savedInstanceState: Bundle?) {
     super.onCreate(savedInstanceState)
-    val status = TextView(this).apply { textSize = 15f; setPadding(28, 40, 28, 20) }
+    val status = TextView(this).apply {
+        textSize = 15f
+        setPadding(28, 40, 28, 20)
+    }
     val imageView = ImageView(this).apply { adjustViewBounds = true }
     setContentView(LinearLayout(this).apply {
-      orientation = LinearLayout.VERTICAL; addView(status); addView(imageView)
+      orientation = LinearLayout.VERTICAL
+      addView(status)
+      addView(imageView)
     })
 
     executor.execute {
@@ -54,7 +59,8 @@ class MainActivity : AppCompatActivity() {
         runOnUiThread {
           status.text = "Model not found at:\n${modelFile.absolutePath}\n\n" +
             "Push it first:  ./install_to_device.sh <dir-with-6drepnet.tflite>\n" +
-            "(build with ../conversion or download from\n litert-community/6DRepNet-HeadPose-LiteRT)"
+            "(build with ../conversion or download from\n" +
+            " litert-community/6DRepNet-HeadPose-LiteRT)"
         }
         return@execute
       }
@@ -78,7 +84,9 @@ class MainActivity : AppCompatActivity() {
   private fun drawAxis(face: Bitmap, hp: HeadPose): Bitmap {
     val out = face.copy(Bitmap.Config.ARGB_8888, true)
     val canvas = Canvas(out)
-    val cx = out.width / 2f; val cy = out.height / 2f; val size = out.width * 0.3f
+    val cx = out.width / 2f
+    val cy = out.height / 2f
+    val size = out.width * 0.3f
     val p = Math.toRadians(hp.pitch.toDouble())
     val ya = Math.toRadians(-hp.yaw.toDouble())
     val r = Math.toRadians(hp.roll.toDouble())
@@ -90,9 +98,13 @@ class MainActivity : AppCompatActivity() {
     canvas.drawLine(cx, cy, size * (-cos(ya) * sin(r)).toFloat() + cx,
       size * (cos(p) * cos(r) - sin(p) * sin(ya) * sin(r)).toFloat() + cy, paint)
     paint.color = Color.rgb(70, 130, 255)
-    canvas.drawLine(cx, cy, size * sin(ya).toFloat() + cx, size * (-cos(ya) * sin(p)).toFloat() + cy, paint)
+    canvas.drawLine(
+      cx, cy, size * sin(ya).toFloat() + cx, size * (-cos(ya) * sin(p)).toFloat() + cy, paint)
     return out
   }
 
-  override fun onDestroy() { super.onDestroy(); executor.shutdown() }
+  override fun onDestroy() {
+      super.onDestroy()
+      executor.shutdown()
+  }
 }
