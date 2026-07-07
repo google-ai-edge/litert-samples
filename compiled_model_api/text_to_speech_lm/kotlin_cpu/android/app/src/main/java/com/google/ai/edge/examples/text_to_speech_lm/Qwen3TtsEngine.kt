@@ -145,7 +145,9 @@ class Qwen3TtsEngine(private val dir: File) {
         }
         // control embeds | speaker | pad,bos  -> [C+3, 1024]
         val codecPre = ArrayList<FloatArray>()
-        for (id in control) codecPre.add(codecRow(id))
+        for (id in control) {
+            codecPre.add(codecRow(id))
+        }
         codecPre.add(spk.copyOf())
         codecPre.add(codecRow(PAD_ID))
         codecPre.add(codecRow(BOS_ID))
@@ -173,7 +175,9 @@ class Qwen3TtsEngine(private val dir: File) {
 
         // ---- frame loop ----
         val suppress = FloatArray(CODEC_VOCAB)
-        for (i in 2048 until CODEC_VOCAB) suppress[i] = NEG
+        for (i in 2048 until CODEC_VOCAB) {
+            suppress[i] = NEG
+        }
         suppress[EOS] = 0f
 
         val frames = ArrayList<IntArray>()
@@ -182,7 +186,9 @@ class Qwen3TtsEngine(private val dir: File) {
         var mtpNs = 0L
         while (frames.size < MAX_FRAMES) {
             val scores = FloatArray(CODEC_VOCAB) { step.logits[it] + suppress[it] }
-            if (frames.size < 2) scores[EOS] = NEG // min_new_tokens = 2
+            if (frames.size < 2) {
+                scores[EOS] = NEG // min_new_tokens = 2
+            }
             for (t in history) {
                 scores[t] = if (scores[t] > 0) scores[t] / 1.05f else scores[t] * 1.05f
             }
@@ -194,17 +200,24 @@ class Qwen3TtsEngine(private val dir: File) {
             val residual = mtpFrame(step.hidden, cb0, greedy, rnd)
             mtpNs += System.nanoTime() - t0
 
-            val frame = IntArray(16); frame[0] = cb0
-            for (i in 0 until 15) frame[i + 1] = residual[i]
+            val frame = IntArray(16)
+            frame[0] = cb0
+            for (i in 0 until 15) {
+                frame[i + 1] = residual[i]
+            }
             frames.add(frame)
             progress?.onFrame(frames.size)
 
             // next input embed = sum of 16 codebook embeds + text conditioning
             val embed = codecRow(cb0)
-            for (i in 0 until 15) addMtpRow(embed, i, residual[i])
+            for (i in 0 until 15) {
+                addMtpRow(embed, i, residual[i])
+            }
             val stepIdx = frames.size - 1
             val cond = if (stepIdx < trailing.size) trailing[stepIdx] else ttsPad
-            for (i in 0 until HIDDEN) embed[i] += cond[i]
+            for (i in 0 until HIDDEN) {
+                embed[i] += cond[i]
+            }
 
             pos += 1
             t0 = System.nanoTime()
@@ -247,7 +260,9 @@ class Qwen3TtsEngine(private val dir: File) {
             val maskFlat = FloatArray(32 * CACHE) { NEG }
             for (row in 0 until 32) {
                 val allowed = min(row, p - 1) + 1
-                for (c in 0 until allowed) maskFlat[row * CACHE + c] = 0f
+                for (c in 0 until allowed) {
+                    maskFlat[row * CACHE + c] = 0f
+                }
             }
             val inputs = HashMap<String, TensorBuffer>()
             inputs["embeddings"] = talker.createInputBuffer("embeddings", "prefill_32")
@@ -263,24 +278,32 @@ class Qwen3TtsEngine(private val dir: File) {
             }
             talker.run(inputs, setA.mapValues { it.value }, "prefill_32")
             current = setA
-            for (buffer in inputs.values) buffer.close()
+            for (buffer in inputs.values) {
+                buffer.close()
+            }
         }
 
         fun decode(embed: FloatArray, pos: Int): Step {
             embIn.writeFloat(embed)
             posIn.writeInt(intArrayOf(pos))
             mask.fill(NEG)
-            for (c in 0..pos) mask[c] = 0f
+            for (c in 0..pos) {
+                mask[c] = 0f
+            }
             maskIn.writeFloat(mask)
             val next = if (current === setA) setB else setA
             val inputs = HashMap<String, TensorBuffer>(64)
             inputs["embeddings"] = embIn
             inputs["input_pos"] = posIn
             inputs["mask"] = maskIn
-            for (name in kvNames) inputs[name] = current.getValue(name)
+            for (name in kvNames) {
+                inputs[name] = current.getValue(name)
+            }
             val outputs = HashMap<String, TensorBuffer>(64)
             outputs["logits"] = logitsOut
-            for (name in kvNames) outputs[name] = next.getValue(name)
+            for (name in kvNames) {
+                outputs[name] = next.getValue(name)
+            }
             talker.run(inputs, outputs, "decode")
             current = next
             val logits = logitsOut.readFloat() // [4096] = codec logits | hidden
@@ -360,7 +383,9 @@ class Qwen3TtsEngine(private val dir: File) {
             val buf = IntArray(16 * CODEC_CHUNK)
             for (t in 0 until n) {
                 val frame = frames[i - ctx + t]
-                for (q in 0 until 16) buf[q * CODEC_CHUNK + t] = frame[q]
+                for (q in 0 until 16) {
+                    buf[q * CODEC_CHUNK + t] = frame[q]
+                }
             }
             codecIn[0].writeInt(buf)
             codec.run(codecIn, codecOut)
@@ -369,10 +394,15 @@ class Qwen3TtsEngine(private val dir: File) {
             i = j
         }
         var total = 0
-        for (p in pieces) total += p.size
+        for (p in pieces) {
+            total += p.size
+        }
         val out = FloatArray(total)
         var off = 0
-        for (p in pieces) { System.arraycopy(p, 0, out, off, p.size); off += p.size }
+        for (p in pieces) {
+            System.arraycopy(p, 0, out, off, p.size)
+            off += p.size
+        }
         return out
     }
 
@@ -388,13 +418,17 @@ class Qwen3TtsEngine(private val dir: File) {
     private fun mtpRow(table: Int, id: Int): FloatArray {
         val out = FloatArray(HIDDEN)
         val base = (table * MTP_VOCAB + id) * HIDDEN
-        for (i in 0 until HIDDEN) out[i] = Npy.halfToFloat(mtpEmb.get(base + i))
+        for (i in 0 until HIDDEN) {
+            out[i] = Npy.halfToFloat(mtpEmb.get(base + i))
+        }
         return out
     }
 
     private fun addMtpRow(acc: FloatArray, table: Int, id: Int) {
         val base = (table * MTP_VOCAB + id) * HIDDEN
-        for (i in 0 until HIDDEN) acc[i] += Npy.halfToFloat(mtpEmb.get(base + i))
+        for (i in 0 until HIDDEN) {
+            acc[i] += Npy.halfToFloat(mtpEmb.get(base + i))
+        }
     }
 
     private fun add(a: FloatArray, b: FloatArray): FloatArray =
@@ -402,24 +436,32 @@ class Qwen3TtsEngine(private val dir: File) {
 
     /** text_embedding lookup + the 2048->1024 SiLU projection MLP. */
     private fun embedText(ids: IntArray): Array<FloatArray> {
-        val w1 = proj.getValue("w1"); val b1 = proj.getValue("b1")
-        val w2 = proj.getValue("w2"); val b2 = proj.getValue("b2")
+        val w1 = proj.getValue("w1")
+        val b1 = proj.getValue("b1")
+        val w2 = proj.getValue("w2")
+        val b2 = proj.getValue("b2")
         return Array(ids.size) { n ->
             val x = FloatArray(2048)
             val base = ids[n] * 2048
-            for (i in 0 until 2048) x[i] = Npy.halfToFloat(textEmb.get(base + i))
+            for (i in 0 until 2048) {
+                x[i] = Npy.halfToFloat(textEmb.get(base + i))
+            }
             val h = FloatArray(2048)
             for (r in 0 until 2048) {
                 var acc = b1[r]
                 val wBase = r * 2048
-                for (c in 0 until 2048) acc += w1[wBase + c] * x[c]
+                for (c in 0 until 2048) {
+                    acc += w1[wBase + c] * x[c]
+                }
                 h[r] = acc / (1f + exp(-acc)) // SiLU
             }
             val y = FloatArray(HIDDEN)
             for (r in 0 until HIDDEN) {
                 var acc = b2[r]
                 val wBase = r * 2048
-                for (c in 0 until 2048) acc += w2[wBase + c] * h[c]
+                for (c in 0 until 2048) {
+                    acc += w2[wBase + c] * h[c]
+                }
                 y[r] = acc
             }
             y
@@ -430,7 +472,11 @@ class Qwen3TtsEngine(private val dir: File) {
     private fun pick(logits: FloatArray, greedy: Boolean, rnd: Random): Int {
         if (greedy) {
             var best = 0
-            for (i in logits.indices) if (logits[i] > logits[best]) best = i
+            for (i in logits.indices) {
+                if (logits[i] > logits[best]) {
+                    best = i
+                }
+            }
             return best
         }
         val k = 50
@@ -451,6 +497,8 @@ class Qwen3TtsEngine(private val dir: File) {
     }
 
     fun close() {
-        talker.close(); mtp.close(); codec.close()
+        talker.close()
+        mtp.close()
+        codec.close()
     }
 }

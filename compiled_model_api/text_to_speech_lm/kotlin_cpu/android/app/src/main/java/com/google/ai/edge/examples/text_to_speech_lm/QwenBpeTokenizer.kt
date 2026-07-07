@@ -56,7 +56,9 @@ class QwenBpeTokenizer(vocabFile: File, mergesFile: File) {
         }
 
         val json = JSONObject(vocabFile.readText())
-        for (key in json.keys()) vocab[key] = json.getInt(key)
+        for (key in json.keys()) {
+            vocab[key] = json.getInt(key)
+        }
 
         var rank = 0
         mergesFile.forEachLine { line ->
@@ -85,7 +87,9 @@ class QwenBpeTokenizer(vocabFile: File, mergesFile: File) {
         for (match in pretokenize.findAll(normalized)) {
             val bytes = match.value.toByteArray(Charsets.UTF_8)
             val mapped = StringBuilder(bytes.size)
-            for (b in bytes) mapped.append(byteToChar[b.toInt() and 0xFF])
+            for (b in bytes) {
+                mapped.append(byteToChar[b.toInt() and 0xFF])
+            }
             bpe(mapped.toString(), out)
         }
         return out.toIntArray()
@@ -105,13 +109,18 @@ class QwenBpeTokenizer(vocabFile: File, mergesFile: File) {
                 val a = vocab[pieces[i]] ?: continue
                 val b = vocab[pieces[i + 1]] ?: continue
                 val r = ranks[pairKey(a, b)] ?: continue
-                if (r < bestRank) { bestRank = r; bestIdx = i }
+                if (r < bestRank) {
+                    bestRank = r
+                    bestIdx = i
+                }
             }
             if (bestIdx < 0) break
             val merged = pieces[bestIdx] + pieces[bestIdx + 1]
             pieces = pieces.subList(0, bestIdx) + listOf(merged) +
                 pieces.subList(bestIdx + 2, pieces.size)
         }
-        for (p in pieces) out.add(vocab[p] ?: error("piece not in vocab: $p"))
+        for (p in pieces) {
+            out.add(vocab[p] ?: error("piece not in vocab: $p"))
+        }
     }
 }

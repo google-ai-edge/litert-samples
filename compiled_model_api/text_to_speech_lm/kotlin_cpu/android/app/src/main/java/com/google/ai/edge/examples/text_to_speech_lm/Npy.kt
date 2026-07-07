@@ -83,7 +83,9 @@ object Npy {
         val out = FloatArray(h.count)
         if (h.isHalf) {
             val sb = buf.asShortBuffer()
-            for (i in 0 until h.count) out[i] = halfToFloat(sb.get(i))
+            for (i in 0 until h.count) {
+                out[i] = halfToFloat(sb.get(i))
+            }
         } else {
             buf.asFloatBuffer().get(out)
         }
@@ -131,7 +133,10 @@ object Npy {
                 } else { // subnormal
                     var m = mant
                     var e = -1
-                    while (m and 0x400 == 0) { m = m shl 1; e++ }
+                    while (m and 0x400 == 0) {
+                        m = m shl 1
+                        e++
+                    }
                     m = m and 0x3FF
                     Float.fromBits(sign or ((127 - 15 - e) shl 23) or (m shl 13))
                 }
