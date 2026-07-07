@@ -109,31 +109,27 @@ def main():
     for name, module, inputs in specs:
         p32 = B.convert(module, inputs, os.path.join(ART, f"matcha_{name}.tflite"))
         p16 = B.to_fp16(p32, os.path.join(ART, f"matcha_{name}_fp16.tflite"))
-        _, clean = B.opcheck(p16, name + "_fp16")
+        clean = B.opcheck(p16, name + "_fp16")
         size32, size16 = os.path.getsize(p32) / 1e6, os.path.getsize(p16) / 1e6
         print(f"  {name}: fp32 {size32:.1f}MB -> fp16 {size16:.1f}MB  GPU-clean={clean}")
         fp16[name] = p16
 
-    from ai_edge_litert.interpreter import Interpreter
-    it_te = Interpreter(model_path=fp16["textenc"])
-    it_te.allocate_tensors()
-    it_dec = Interpreter(model_path=fp16["decoder"])
-    it_dec.allocate_tensors()
-    it_gen = Interpreter(model_path=fp16["vocoder"])
-    it_gen.allocate_tensors()
+    cm_te = B.tfl_load(fp16["textenc"])
+    cm_dec = B.tfl_load(fp16["decoder"])
+    cm_gen = B.tfl_load(fp16["vocoder"])
 
     def tfl_te(emb_x, tmask):
-        outputs = B.tfl_run(it_te, emb_x.numpy(), tmask.numpy())
+        outputs = B.tfl_run(cm_te, emb_x.numpy(), tmask.numpy())
         a, b = outputs
         mu, logw = (a, b) if a.shape[1] == 80 else (b, a)
         return torch.from_numpy(mu.copy()), torch.from_numpy(logw.copy())
 
     def tfl_dec(x, mu, t_emb, mask):
         return torch.from_numpy(
-            B.tfl_run(it_dec, x.numpy(), mu.numpy(), t_emb.numpy(), mask.numpy())[0].copy())
+            B.tfl_run(cm_dec, x.numpy(), mu.numpy(), t_emb.numpy(), mask.numpy())[0].copy())
 
     def tfl_gen(mel):
-        return B.tfl_run(it_gen, mel.numpy())[0]
+        return B.tfl_run(cm_gen, mel.numpy())[0]
 
     print("\n=== end-to-end fp16 parity (waveform corr vs torch) ===")
     for sentence in SENTENCES:

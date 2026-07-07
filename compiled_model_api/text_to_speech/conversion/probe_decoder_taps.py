@@ -121,11 +121,11 @@ def main():
     import litert_torch
     litert_torch.convert(wrapped, (x, mu, t_emb, mask)).export(out)
 
-    from ai_edge_litert.interpreter import Interpreter
-    interpreter = Interpreter(model_path=out)
-    interpreter.allocate_tensors()
+    from ai_edge_litert.compiled_model import CompiledModel
+    model = CompiledModel.from_file(out)
+    key = list(model.get_signature_list())[0]
     print("DBG decoder outputs (index, name, shape):")
-    for detail in interpreter.get_output_details():
+    for detail in model.get_output_tensor_details(key).values():
         print("  ", detail["index"], detail["name"], list(detail["shape"]))
     print("wrote", out, os.path.getsize(out) // 1_000_000, "MB")
 

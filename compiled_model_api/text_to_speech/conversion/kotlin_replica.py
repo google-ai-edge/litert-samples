@@ -31,7 +31,7 @@ import re
 import numpy as np
 
 import build_matcha as B
-from ai_edge_litert.interpreter import Interpreter
+from ai_edge_litert.compiled_model import CompiledModel
 
 ART = os.path.join(B.HERE, "artifacts")
 MAX_TEXT = 256
@@ -68,26 +68,32 @@ with open(os.path.join(ART, "g2p_dict.txt"), encoding="utf-8") as _f:
             _word, _ipa = _line.rstrip("\n").split("\t", 1)
             DICT[_word] = _ipa
 
-g2p = Interpreter(model_path=os.path.join(ART, "dp_g2p_matcha_fp16.tflite"))
-g2p.allocate_tensors()
-te = Interpreter(model_path=os.path.join(ART, "matcha_textenc_fp16.tflite"))
-te.allocate_tensors()
-dec = Interpreter(model_path=os.path.join(ART, "matcha_decoder_fp16.tflite"))
-dec.allocate_tensors()
-voc = Interpreter(model_path=os.path.join(ART, "matcha_vocoder_fp16.tflite"))
-voc.allocate_tensors()
+g2p = CompiledModel.from_file(os.path.join(ART, "dp_g2p_matcha_fp16.tflite"))
+te = CompiledModel.from_file(os.path.join(ART, "matcha_textenc_fp16.tflite"))
+dec = CompiledModel.from_file(os.path.join(ART, "matcha_decoder_fp16.tflite"))
+voc = CompiledModel.from_file(os.path.join(ART, "matcha_vocoder_fp16.tflite"))
 
 WORD = re.compile(r"[a-z']+")
 TOKEN = re.compile(r"[a-z']+|[.,!?;:—…\"]")
 
 
-def run(interpreter, *inputs):
-    """Runs a tflite interpreter on numpy inputs and returns all outputs."""
-    details = interpreter.get_input_details()
-    for detail, x in zip(details, inputs):
-        interpreter.set_tensor(detail["index"], x.astype(detail["dtype"]))
-    interpreter.invoke()
-    return [interpreter.get_tensor(o["index"]) for o in interpreter.get_output_details()]
+def run(model, *inputs):
+    """Runs a LiteRT CompiledModel on numpy inputs and returns all shaped outputs."""
+    signatures = model.get_signature_list()
+    key = list(signatures)[0]
+    in_details = model.get_input_tensor_details(key)
+    out_details = model.get_output_tensor_details(key)
+    input_buffers = model.create_input_buffers(0)
+    output_buffers = model.create_output_buffers(0)
+    for name, buffer, x in zip(signatures[key]["inputs"], input_buffers, inputs):
+        buffer.write(np.ascontiguousarray(x, dtype=np.dtype(in_details[name]["dtype"])))
+    model.run_by_index(0, input_buffers, output_buffers)
+    outputs = []
+    for name, buffer in zip(signatures[key]["outputs"], output_buffers):
+        detail = out_details[name]
+        outputs.append(buffer.read(int(np.prod(detail["shape"])),
+                                   np.dtype(detail["dtype"])).reshape(detail["shape"]))
+    return outputs
 
 
 def phon_word(word: str) -> str:

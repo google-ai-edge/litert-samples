@@ -208,26 +208,22 @@ def main():
     p_dec = B.convert(dec_r, (x0, mu0, te0), os.path.join(B.HERE, "e2e_decoder.tflite"))
     p_gen = B.convert(gen_r, (mel0,), os.path.join(B.HERE, "e2e_vocoder.tflite"))
 
-    from ai_edge_litert.interpreter import Interpreter
-    it_te = Interpreter(model_path=p_te)
-    it_te.allocate_tensors()
-    it_dec = Interpreter(model_path=p_dec)
-    it_dec.allocate_tensors()
-    it_gen = Interpreter(model_path=p_gen)
-    it_gen.allocate_tensors()
+    cm_te = B.tfl_load(p_te)
+    cm_dec = B.tfl_load(p_dec)
+    cm_gen = B.tfl_load(p_gen)
 
     def tfl_te(emb_x):
-        outputs = B.tfl_run(it_te, emb_x.numpy())
+        outputs = B.tfl_run(cm_te, emb_x.numpy())
         # Order outputs as (mu, logw) by shape: mu has 80 channels, logw has 1.
         a, b = outputs
         mu, logw = (a, b) if a.shape[1] == 80 else (b, a)
         return torch.from_numpy(mu), torch.from_numpy(logw)
 
     def tfl_dec(x, mu, t_emb):
-        return torch.from_numpy(B.tfl_run(it_dec, x.numpy(), mu.numpy(), t_emb.numpy())[0])
+        return torch.from_numpy(B.tfl_run(cm_dec, x.numpy(), mu.numpy(), t_emb.numpy())[0])
 
     def tfl_gen(mel):
-        return B.tfl_run(it_gen, mel.numpy())[0]
+        return B.tfl_run(cm_gen, mel.numpy())[0]
 
     wav_tfl, *_ = host_pipeline(tfl_te, tfl_dec, tfl_gen, t_embed, emb_w, ids,
                                 mel_mean, mel_std, n_timesteps, z_full=z, use_mask=False)

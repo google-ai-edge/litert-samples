@@ -127,21 +127,22 @@ def main():
     litert_torch.convert(wrap, (torch.from_numpy(dummy),)).export(OUT)
     print("wrote", OUT, os.path.getsize(OUT) // 1_000_000, "MB")
 
-    from ai_edge_litert.interpreter import Interpreter
+    from ai_edge_litert.compiled_model import CompiledModel
 
-    interpreter = Interpreter(model_path=OUT)
-    interpreter.allocate_tensors()
-    input_detail = interpreter.get_input_details()[0]
-    output_detail = interpreter.get_output_details()[0]
+    compiled = CompiledModel.from_file(OUT)
+    input_buffers = compiled.create_input_buffers(0)
+    output_buffers = compiled.create_output_buffers(0)
+    n_out = (compiled.get_output_buffer_requirements(0, 0)["buffer_size"]
+             // np.dtype(np.float32).itemsize)
     matches = 0
     words = ["hello", "matcha", "depth", "anything", "github", "anthropic",
              "daisuke", "kubernetes"]
     for word in words:
         tensor, length = padded(word)
-        interpreter.set_tensor(input_detail["index"], tensor)
-        interpreter.invoke()
-        got = decode(
-            interpreter.get_tensor(output_detail["index"])[0].argmax(-1).tolist()[:length])
+        input_buffers[0].write(np.ascontiguousarray(tensor))
+        compiled.run_by_index(0, input_buffers, output_buffers)
+        logits = output_buffers[0].read(n_out, np.float32).reshape(MAXT, -1)
+        got = decode(logits.argmax(-1).tolist()[:length])
         reference = phonemizer(word, lang="en_us")
         matches += got == reference
         print(f"  {'ok ' if got == reference else 'DIFF'} {word}: "

@@ -86,16 +86,18 @@ def main():
     np.save(os.path.join(ART, "tx_expected.npy"), expected)
 
     # Desktop tflite (CPU) sanity check.
-    from ai_edge_litert.interpreter import Interpreter
-    interpreter = Interpreter(model_path=out)
-    interpreter.allocate_tensors()
-    details = interpreter.get_input_details()
-    for detail, value in zip(details, [hidden, mask]):
-        interpreter.set_tensor(detail["index"], value.astype(detail["dtype"]))
-    interpreter.invoke()
-    got = interpreter.get_tensor(interpreter.get_output_details()[0]["index"])
+    from ai_edge_litert.compiled_model import CompiledModel
+    model = CompiledModel.from_file(out)
+    input_buffers = model.create_input_buffers(0)
+    output_buffers = model.create_output_buffers(0)
+    for buffer, value in zip(input_buffers, [hidden, mask]):
+        buffer.write(np.ascontiguousarray(value))
+    model.run_by_index(0, input_buffers, output_buffers)
+    n = (model.get_output_buffer_requirements(0, 0)["buffer_size"]
+         // np.dtype(np.float32).itemsize)
+    got = output_buffers[0].read(n, np.float32)
     print(f"desktop-CPU tflite vs torch corr "
-          f"{np.corrcoef(got.ravel(), expected.ravel())[0, 1]:.6f}")
+          f"{np.corrcoef(got, expected.ravel())[0, 1]:.6f}")
     print("wrote tx_probe.tflite, tx_input.bin, tx_mask.bin, tx_expected.npy")
 
 

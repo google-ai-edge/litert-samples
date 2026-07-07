@@ -458,14 +458,21 @@ def reauth_hifigan(generator, T):
 
 
 def opcheck(path, label):
-    """Prints the op histogram and returns (interpreter, is_gpu_clean)."""
-    from ai_edge_litert.interpreter import Interpreter
+    """Static GPU-compat scan of the .tflite flatbuffer; returns is_gpu_clean."""
+    from ai_edge_litert import schema_py_generated as schema
 
-    interpreter = Interpreter(model_path=path)
-    interpreter.allocate_tensors()
-    ops = collections.Counter(d.get("op_name", "?") for d in interpreter._get_ops_details())
+    with open(path, "rb") as f:
+        model = schema.ModelT.InitFromPackedBuf(f.read(), 0)
+    names = {v: k for k, v in vars(schema.BuiltinOperator).items() if not k.startswith("_")}
+    ops = collections.Counter()
+    over_4d = 0
+    for g in model.subgraphs:
+        for op in g.operators:
+            c = model.operatorCodes[op.opcodeIndex]
+            code = max(c.builtinCode, c.deprecatedBuiltinCode)
+            ops[c.customCode.decode() if c.customCode else names.get(code, str(code))] += 1
+        over_4d += sum(1 for t in g.tensors if t.shape is not None and len(t.shape) > 4)
     bad = {k: v for k, v in ops.items() if k.upper() in BANNED}
-    over_4d = sum(1 for d in interpreter.get_tensor_details() if len(d.get("shape", [])) > 4)
     fft = {k: v for k, v in ops.items()
            if any(term in k.upper() for term in ("FFT", "STFT", "COMPLEX"))}
     print(f"[{label}] ops:", dict(sorted(ops.items(), key=lambda kv: -kv[1])))
@@ -473,15 +480,33 @@ def opcheck(path, label):
           f"size {os.path.getsize(path) / 1e6:.1f}MB")
     clean = not bad and not over_4d and not fft
     print(f"[{label}] VERDICT: {'GPU-CLEAN' if clean else f'BLOCKERS {bad}'}")
-    return interpreter, clean
+    return clean
 
 
-def tfl_run(interpreter, *inputs):
-    """Runs a tflite interpreter on numpy inputs and returns all outputs."""
-    for detail, x in zip(interpreter.get_input_details(), inputs):
-        interpreter.set_tensor(detail["index"], x.astype(detail["dtype"]))
-    interpreter.invoke()
-    return [interpreter.get_tensor(d["index"]) for d in interpreter.get_output_details()]
+def tfl_load(path):
+    """Loads a .tflite as a LiteRT CompiledModel."""
+    from ai_edge_litert.compiled_model import CompiledModel
+
+    return CompiledModel.from_file(path)
+
+
+def tfl_run(model, *inputs):
+    """Runs a LiteRT CompiledModel on numpy inputs and returns all shaped outputs."""
+    signatures = model.get_signature_list()
+    key = list(signatures)[0]
+    in_details = model.get_input_tensor_details(key)
+    out_details = model.get_output_tensor_details(key)
+    input_buffers = model.create_input_buffers(0)
+    output_buffers = model.create_output_buffers(0)
+    for name, buffer, x in zip(signatures[key]["inputs"], input_buffers, inputs):
+        buffer.write(np.ascontiguousarray(x, dtype=np.dtype(in_details[name]["dtype"])))
+    model.run_by_index(0, input_buffers, output_buffers)
+    outputs = []
+    for name, buffer in zip(signatures[key]["outputs"], output_buffers):
+        detail = out_details[name]
+        outputs.append(buffer.read(int(np.prod(detail["shape"])),
+                                   np.dtype(detail["dtype"])).reshape(detail["shape"]))
+    return outputs
 
 
 def convert(module, example_inputs, out):
@@ -571,9 +596,9 @@ def main():
         te_path = convert(te_r, (ex,), os.path.join(HERE, "matcha_textenc.tflite"))
         dec_path = convert(dec_r, (x, mu, t_emb), os.path.join(HERE, "matcha_decoder.tflite"))
         gen_path = convert(gen_r, (mel_in,), os.path.join(HERE, "matcha_vocoder.tflite"))
-        it_te, clean_te = opcheck(te_path, "textenc")
-        it_dec, clean_dec = opcheck(dec_path, "decoder")
-        it_gen, clean_gen = opcheck(gen_path, "vocoder")
+        clean_te = opcheck(te_path, "textenc")
+        clean_dec = opcheck(dec_path, "decoder")
+        clean_gen = opcheck(gen_path, "vocoder")
 
         print("\n=== (b) tflite == re-authored torch ===")
 
@@ -581,12 +606,12 @@ def main():
             n = min(a.size, b.size)
             return np.corrcoef(a.ravel()[:n], b.ravel()[:n])[0, 1]
 
-        out = tfl_run(it_te, ex.numpy())
+        out = tfl_run(tfl_load(te_path), ex.numpy())
         print(f"textenc tflite vs torch: mu corr {corr(out[0], mu1.numpy()):.6f}  "
               f"logw corr {corr(out[1], logw1.numpy()):.6f}")
-        out = tfl_run(it_dec, x.numpy(), mu.numpy(), t_emb.numpy())
+        out = tfl_run(tfl_load(dec_path), x.numpy(), mu.numpy(), t_emb.numpy())
         print(f"decoder tflite vs torch: corr {corr(out[0], v1.numpy()):.6f}")
-        out = tfl_run(it_gen, mel_in.numpy())
+        out = tfl_run(tfl_load(gen_path), mel_in.numpy())
         print(f"vocoder tflite vs torch: corr {corr(out[0], w1.numpy()):.6f}")
         print("\nGPU-CLEAN ALL:", clean_te and clean_dec and clean_gen)
 
