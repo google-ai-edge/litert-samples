@@ -74,7 +74,9 @@ class MatchaG2P(context: Context) : Closeable {
         val meta = JSONObject(context.assets.open("g2p_meta.json").readBytes().decodeToString())
         val char2idx = meta.getJSONObject("char2idx")
         for (key in char2idx.keys()) {
-            if (key.length == 1) charToIndex[key[0]] = char2idx.getInt(key)
+            if (key.length == 1) {
+                charToIndex[key[0]] = char2idx.getInt(key)
+            }
         }
         val idx2ph = meta.getJSONObject("idx2ph")
         for (key in idx2ph.keys()) {
@@ -93,14 +95,18 @@ class MatchaG2P(context: Context) : Closeable {
         val symbols = config.getJSONArray("symbols")
         for (i in 0 until symbols.length()) {
             val symbol = symbols.getString(i)
-            if (symbol.length == 1) symbolToId[symbol[0]] = i
+            if (symbol.length == 1) {
+                symbolToId[symbol[0]] = i
+            }
         }
 
         // espeak-IPA dictionary (primary G2P): word<TAB>ipa per line.
         BufferedReader(InputStreamReader(context.assets.open(DICT_ASSET), Charsets.UTF_8)).use { reader ->
             reader.forEachLine { line ->
                 val tab = line.indexOf('\t')
-                if (tab > 0) dictionary[line.substring(0, tab)] = line.substring(tab + 1)
+                if (tab > 0) {
+                    dictionary[line.substring(0, tab)] = line.substring(tab + 1)
+                }
             }
         }
     }
@@ -116,25 +122,37 @@ class MatchaG2P(context: Context) : Closeable {
         var first = true
         fun append(phonemes: String) {
             if (phonemes.isEmpty()) return
-            if (!first) ipa.append(' ')
+            if (!first) {
+                ipa.append(' ')
+            }
             ipa.append(phonemes)
             first = false
         }
         for (match in TOKEN.findAll(text)) {
             val token = match.value
             when {
-                ACRONYM.matches(token) ->
+                ACRONYM.matches(token) -> {
                     append(token.lowercase().mapNotNull { LETTER_IPA[it] }.joinToString(""))
-                token[0].isDigit() ->
-                    for (word in numberToWords(token)) append(dictionary[word] ?: phonemizeWord(word))
-                WORD.matches(token) ->
+                }
+                token[0].isDigit() -> {
+                    for (word in numberToWords(token)) {
+                        append(dictionary[word] ?: phonemizeWord(word))
+                    }
+                }
+                WORD.matches(token) -> {
                     // Dictionary is primary; the neural G2P handles out-of-dictionary words.
                     append(dictionary[token.lowercase()] ?: phonemizeWord(token.lowercase()))
-                else -> ipa.append(token) // Punctuation: attach to the preceding word.
+                }
+                else -> {
+                    // Punctuation: attach to the preceding word.
+                    ipa.append(token)
+                }
             }
         }
         val ids = ArrayList<Int>(ipa.length)
-        for (ch in ipa) symbolToId[ch]?.let { ids.add(it) }
+        for (ch in ipa) {
+            symbolToId[ch]?.let { ids.add(it) }
+        }
         return ids.toIntArray()
     }
 
@@ -149,7 +167,9 @@ class MatchaG2P(context: Context) : Closeable {
                     .toMutableList()
             words.add("point")
             for (digit in parts[1]) {
-                if (digit.isDigit()) words.add(ONES[digit - '0'])
+                if (digit.isDigit()) {
+                    words.add(ONES[digit - '0'])
+                }
             }
             return words
         }
@@ -168,7 +188,9 @@ class MatchaG2P(context: Context) : Closeable {
             words.add(TENS[n / 10])
             n %= 10
         }
-        if (n > 0) words.add(ONES[n])
+        if (n > 0) {
+            words.add(ONES[n])
+        }
         return words
     }
 
@@ -226,7 +248,9 @@ class MatchaG2P(context: Context) : Closeable {
             val phoneme = indexToPhoneme[best] ?: continue
             if (phoneme in specialTokens || best == 0) continue
             for (ch in phoneme) {
-                if (ch != '-') result.append(ch) // Strip acronym hyphens.
+                if (ch != '-') { // Strip acronym hyphens.
+                    result.append(ch)
+                }
             }
         }
         return result.toString()

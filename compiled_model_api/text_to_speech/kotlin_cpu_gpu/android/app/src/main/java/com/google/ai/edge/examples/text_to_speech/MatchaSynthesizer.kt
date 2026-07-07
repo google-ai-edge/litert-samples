@@ -124,8 +124,12 @@ class MatchaSynthesizer(private val context: Context) : Closeable {
         val muY = FloatArray(N_FEATS * MAX_MEL)
         var phonemeIndex = 0
         for (frame in 0 until melLength) {
-            while (phonemeIndex < MAX_TEXT - 1 && cumulative[phonemeIndex] <= frame) phonemeIndex++
-            for (c in 0 until N_FEATS) muY[c * MAX_MEL + frame] = mu[c * MAX_TEXT + phonemeIndex]
+            while (phonemeIndex < MAX_TEXT - 1 && cumulative[phonemeIndex] <= frame) {
+                phonemeIndex++
+            }
+            for (c in 0 until N_FEATS) {
+                muY[c * MAX_MEL + frame] = mu[c * MAX_TEXT + phonemeIndex]
+            }
         }
         val melMask = FloatArray(MAX_MEL) { if (it < melLength) 1f else 0f }
 
@@ -146,7 +150,9 @@ class MatchaSynthesizer(private val context: Context) : Closeable {
             decoderInputs[3].writeFloat(melMask)
             decoder.run(decoderInputs, decoderOutputs)
             val velocity = decoderOutputs[0].readFloat()
-            for (i in x.indices) x[i] += dt * velocity[i]
+            for (i in x.indices) {
+                x[i] += dt * velocity[i]
+            }
             time += dt
         }
 
