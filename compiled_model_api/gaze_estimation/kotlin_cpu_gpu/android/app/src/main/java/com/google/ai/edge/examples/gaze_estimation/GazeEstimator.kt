@@ -74,5 +74,9 @@ class GazeEstimator(ctx: Context) : Closeable {
         return e * 4f - 180f
     }
 
-    override fun close() { inBuf.forEach { it.close() }; outBuf.forEach { it.close() }; model.close() }
+    override fun close() {
+        inBuf.forEach { it.close() }
+        outBuf.forEach { it.close() }
+        model.close()
+    }
 }

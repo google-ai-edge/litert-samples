@@ -1,27 +1,65 @@
-import build_gaze as B, numpy as np, torch, os
+# Copyright 2025 The Google AI Edge Authors. All Rights Reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#       http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+import build_gaze as B
+import numpy as np
+import torch
+import os
 from PIL import Image, ImageDraw
 import math
-HERE=os.path.dirname(os.path.abspath(__file__)); S=B.SIZE
-MEAN=np.array([0.485,0.456,0.406],np.float32); STD=np.array([0.229,0.224,0.225],np.float32)
-im=Image.open(f"{HERE}/face.jpg").convert("RGB"); s=min(im.size)
+HERE=os.path.dirname(os.path.abspath(__file__))
+S=B.SIZE
+MEAN=np.array([0.485,0.456,0.406],np.float32)
+STD=np.array([0.229,0.224,0.225],np.float32)
+im=Image.open(f"{HERE}/face.jpg").convert("RGB")
+s=min(im.size)
 im=im.crop(((im.width-s)//2,(im.height-s)//2,(im.width+s)//2,(im.height+s)//2)).resize((S,S),Image.BILINEAR)
 x=(((np.asarray(im).astype(np.float32)/255-MEAN)/STD).transpose(2,0,1)[None]).copy()
 m=B.build()
-with torch.no_grad(): y,p=m(torch.from_numpy(x)); y,p=y.numpy()[0],p.numpy()[0]
-np.save(f"{HERE}/gz_y.npy",y); np.save(f"{HERE}/gz_p.npy",p); x.tofile(f"{HERE}/gz_input.bin")
+with torch.no_grad():
+    y,p=m(torch.from_numpy(x))
+    y,p=y.numpy()[0],p.numpy()[0]
+np.save(f"{HERE}/gz_y.npy",y)
+np.save(f"{HERE}/gz_p.npy",p)
+x.tofile(f"{HERE}/gz_input.bin")
 def decode(y,p):
-    idx=np.arange(90); yaw=(y*idx).sum()*4-180; pit=(p*idx).sum()*4-180
+    idx=np.arange(90)
+    yaw=(y*idx).sum()*4-180
+    pit=(p*idx).sum()*4-180
     return yaw, pit
 def draw(y,p,name):
-    yaw,pit=decode(y,p); yr,pr=math.radians(yaw),math.radians(pit)
-    d=im.copy(); dr=ImageDraw.Draw(d); cx,cy=S//2,S//2; L=S*0.3
-    dx=-L*math.sin(yr)*math.cos(pr); dy=-L*math.sin(pr)
+    yaw,pit=decode(y,p)
+    yr,pr=math.radians(yaw),math.radians(pit)
+    d=im.copy()
+    dr=ImageDraw.Draw(d)
+    cx,cy=S//2,S//2
+    L=S*0.3
+    dx=-L*math.sin(yr)*math.cos(pr)
+    dy=-L*math.sin(pr)
     dr.line([cx,cy,cx+dx,cy+dy],fill=(255,40,40),width=6)
-    dr.ellipse([cx-6,cy-6,cx+6,cy+6],fill=(0,200,0)); d.save(name); return yaw,pit
-yaw,pit=draw(y,p,f"{HERE}/gz_torch.png"); im.save(f"{HERE}/gz_face.png")
+    dr.ellipse([cx-6,cy-6,cx+6,cy+6],fill=(0,200,0))
+    d.save(name)
+    return yaw,pit
+yaw,pit=draw(y,p,f"{HERE}/gz_torch.png")
+im.save(f"{HERE}/gz_face.png")
 print(f"input {x.shape}; torch gaze yaw {yaw:.1f} pitch {pit:.1f} deg")
 from ai_edge_litert.interpreter import Interpreter
-it=Interpreter(model_path=f"{HERE}/gaze_fp16.tflite"); it.allocate_tensors()
-d=it.get_input_details()[0]; it.set_tensor(d["index"],x.astype(d["dtype"])); it.invoke()
-od=it.get_output_details(); o0=it.get_tensor(od[0]["index"])[0]
+it=Interpreter(model_path=f"{HERE}/gaze_fp16.tflite")
+it.allocate_tensors()
+d=it.get_input_details()[0]
+it.set_tensor(d["index"],x.astype(d["dtype"]))
+it.invoke()
+od=it.get_output_details()
+o0=it.get_tensor(od[0]["index"])[0]
 print(f"desktop-fp16 vs torch yaw corr {np.corrcoef(o0,y)[0,1]:.6f}")
