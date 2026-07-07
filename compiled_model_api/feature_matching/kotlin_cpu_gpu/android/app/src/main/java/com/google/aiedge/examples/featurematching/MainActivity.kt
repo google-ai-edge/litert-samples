@@ -125,10 +125,14 @@ class MainActivity : ComponentActivity() {
             val halfW = size.width / 2f
             val sa = min(halfW / a.width, size.height / a.height)
             val sb = min(halfW / b.width, size.height / b.height)
-            val aw = a.width * sa; val ah = a.height * sa
-            val bw = b.width * sb; val bh = b.height * sb
-            val aox = (halfW - aw) / 2f; val aoy = (size.height - ah) / 2f
-            val box = halfW + (halfW - bw) / 2f; val boy = (size.height - bh) / 2f
+            val aw = a.width * sa
+            val ah = a.height * sa
+            val bw = b.width * sb
+            val bh = b.height * sb
+            val aox = (halfW - aw) / 2f
+            val aoy = (size.height - ah) / 2f
+            val box = halfW + (halfW - bw) / 2f
+            val boy = (size.height - bh) / 2f
             drawImage(
                 a.asImageBitmap(),
                 dstOffset = IntOffset(aox.roundToInt(), aoy.roundToInt()),

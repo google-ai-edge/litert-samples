@@ -58,11 +58,15 @@ class MainViewModel(private val helper: XFeatHelper) : ViewModel() {
     fun setDelegate(d: XFeatHelper.AcceleratorEnum) {
         helper.setDelegate(d)
         _uiState.update { it.copy(delegate = d) }
-        viewModelScope.launch { helper.init(); runMatch() }
+        viewModelScope.launch {
+            helper.init()
+            runMatch()
+        }
     }
 
     private fun runMatch() {
-        val a = imageA; val b = imageB
+        val a = imageA
+        val b = imageB
         if (a == null || b == null) return
         viewModelScope.launch {
             try {

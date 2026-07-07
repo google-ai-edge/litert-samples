@@ -78,7 +78,10 @@ class XFeatHelper(
         }
     }
 
-    suspend fun cleanup() = withContext(dispatcher) { model?.close(); model = null }
+    suspend fun cleanup() = withContext(dispatcher) {
+        model?.close()
+        model = null
+    }
 
     fun setDelegate(d: AcceleratorEnum) { delegate = d }
 
@@ -92,7 +95,8 @@ class XFeatHelper(
         for (i in pixels.indices) {
             val p = pixels[i]
             val g = (0.299f * Color.red(p) + 0.587f * Color.green(p) + 0.114f * Color.blue(p)) / 255f
-            inputFloats[i] = g; mean += g
+            inputFloats[i] = g
+            mean += g
         }
         val mu = (mean / pixels.size).toFloat()
         var v = 0.0
@@ -100,11 +104,14 @@ class XFeatHelper(
         val inv = (1.0 / sqrt(v / pixels.size + 1e-5)).toFloat()
         for (i in inputFloats.indices) inputFloats[i] = (inputFloats[i] - mu) * inv
 
-        val inBuf = m.createInputBuffers(); val outBuf = m.createOutputBuffers()
+        val inBuf = m.createInputBuffers()
+        val outBuf = m.createOutputBuffers()
         inBuf[0].writeFloat(inputFloats)
         m.run(inBuf, outBuf)
         // identify outputs by length: 64*GH*GW feats, 65*GH*GW keypoints, GH*GW heatmap
-        var feats = FloatArray(0); var kpts = FloatArray(0); var heat = FloatArray(0)
+        var feats = FloatArray(0)
+        var kpts = FloatArray(0)
+        var heat = FloatArray(0)
         for (b in outBuf) {
             val a = b.readFloat()
             when (a.size) {
@@ -113,7 +120,8 @@ class XFeatHelper(
                 GH * GW -> heat = a
             }
         }
-        inBuf.forEach { it.close() }; outBuf.forEach { it.close() }
+        inBuf.forEach { it.close() }
+        outBuf.forEach { it.close() }
 
         val sx = bitmap.width.toFloat() / IN_W
         val sy = bitmap.height.toFloat() / IN_H
@@ -128,18 +136,40 @@ class XFeatHelper(
         for (cy in 0 until GH) for (cx in 0 until GW) {
             val o = cy * GW + cx
             var mx = Float.NEGATIVE_INFINITY
-            for (c in 0 until 65) { val z = kpts[c * cell + o]; logit[c] = z; if (z > mx) mx = z }
-            var sum = 0f; for (c in 0 until 65) { val e = exp((logit[c] - mx).toDouble()).toFloat(); logit[c] = e; sum += e }
+            for (c in 0 until 65) {
+                val z = kpts[c * cell + o]
+                logit[c] = z
+                if (z > mx) mx = z
+            }
+            var sum = 0f
+            for (c in 0 until 65) {
+                val e = exp((logit[c] - mx).toDouble()).toFloat()
+                logit[c] = e
+                sum += e
+            }
             // best non-dustbin sub-cell (channels 0..63 = i*8+j)
-            var best = 0; var bestP = -1f
-            for (c in 0 until 64) { val p = logit[c] / sum; if (p > bestP) { bestP = p; best = c } }
+            var best = 0
+            var bestP = -1f
+            for (c in 0 until 64) {
+                val p = logit[c] / sum
+                if (p > bestP) {
+                    bestP = p
+                    best = c
+                }
+            }
             val score = bestP * heat[o]   // reliability-weighted
             if (score <= 0f) continue
-            val i = best / 8; val j = best % 8
+            val i = best / 8
+            val j = best % 8
             val px = (cx * 8 + j) * sx
             val py = (cy * 8 + i) * sy
-            val d = FloatArray(DESC); var n = 0f
-            for (c in 0 until DESC) { val z = feats[c * cell + o]; d[c] = z; n += z * z }
+            val d = FloatArray(DESC)
+            var n = 0f
+            for (c in 0 until DESC) {
+                val z = feats[c * cell + o]
+                d[c] = z
+                n += z * z
+            }
             n = (1.0 / sqrt(n + 1e-12)).toFloat()
             for (c in 0 until DESC) d[c] *= n
             out.add(Feature(px, py, score, d))
@@ -151,18 +181,29 @@ class XFeatHelper(
     /** Mutual-nearest-neighbour cosine matching (descriptors are L2-normalized → dot = cosine). */
     fun match(a: List<Feature>, b: List<Feature>, minCos: Float = MIN_COSSIM): List<Pair<Int, Int>> {
         if (a.isEmpty() || b.isEmpty()) return emptyList()
-        val a2b = IntArray(a.size); val a2bScore = FloatArray(a.size)
-        val b2a = IntArray(b.size) { -1 }; val b2aScore = FloatArray(b.size) { -1f }
+        val a2b = IntArray(a.size)
+        val a2bScore = FloatArray(a.size)
+        val b2a = IntArray(b.size) { -1 }
+        val b2aScore = FloatArray(b.size) { -1f }
         for (i in a.indices) {
-            var bi = -1; var bs = -1f
+            var bi = -1
+            var bs = -1f
             val da = a[i].desc
             for (k in b.indices) {
-                var s = 0f; val db = b[k].desc
+                var s = 0f
+                val db = b[k].desc
                 for (c in 0 until DESC) s += da[c] * db[c]
-                if (s > bs) { bs = s; bi = k }
-                if (s > b2aScore[k]) { b2aScore[k] = s; b2a[k] = i }
+                if (s > bs) {
+                    bs = s
+                    bi = k
+                }
+                if (s > b2aScore[k]) {
+                    b2aScore[k] = s
+                    b2a[k] = i
+                }
             }
-            a2b[i] = bi; a2bScore[i] = bs
+            a2b[i] = bi
+            a2bScore[i] = bs
         }
         val res = ArrayList<Pair<Int, Int>>()
         for (i in a.indices) {
