@@ -385,8 +385,10 @@ class Qwen3TtsPipeline:
         pieces = []
         i = 0
         while i < len(codes):
-            j = min(i + chunk, len(codes))
             c = min(ctx, i)
+            # Window = left context + new frames must fit the fixed-T graph, so
+            # advance by at most (chunk - c) new frames per step.
+            j = min(i + chunk - c, len(codes))
             window = codes[i - c:j]
             buf = np.zeros((1, _NUM_CODE_GROUPS, chunk), np.int32)
             buf[0, :, :len(window)] = window.T

@@ -377,9 +377,11 @@ class Qwen3TtsEngine(private val dir: File) {
         val pieces = ArrayList<FloatArray>()
         var i = 0
         while (i < frames.size) {
-            val j = min(i + CODEC_CHUNK, frames.size)
             val ctx = min(CODEC_CTX, i)
-            val n = j - (i - ctx)
+            // Window = left context + new frames must fit the fixed-T graph, so
+            // advance by at most CODEC_CHUNK - ctx new frames per chunk.
+            val j = min(i + CODEC_CHUNK - ctx, frames.size)
+            val n = j - (i - ctx) // = new frames + ctx, always <= CODEC_CHUNK
             val buf = IntArray(16 * CODEC_CHUNK)
             for (t in 0 until n) {
                 val frame = frames[i - ctx + t]
