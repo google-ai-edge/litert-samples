@@ -93,22 +93,34 @@ def numpy_logmel(wav, melW):
 
 
 def opcheck(path, label):
-    from ai_edge_litert.interpreter import Interpreter
-    it = Interpreter(model_path=path)
-    it.allocate_tensors()
-    ops = collections.Counter(d.get("op_name", "?") for d in it._get_ops_details())
+    """Static GPU-compat scan: read the op set straight from the .tflite flatbuffer."""
+    from ai_edge_litert import schema_py_generated as schema
+    with open(path, "rb") as f:
+        model = schema.ModelT.InitFromPackedBuf(f.read(), 0)
+    names = {v: k for k, v in vars(schema.BuiltinOperator).items() if not k.startswith("_")}
+    ops = collections.Counter()
+    over = 0
+    for g in model.subgraphs:
+        for op in g.operators:
+            c = model.operatorCodes[op.opcodeIndex]
+            code = max(c.builtinCode, c.deprecatedBuiltinCode)
+            ops[c.customCode.decode() if c.customCode else names.get(code, str(code))] += 1
+        over += sum(1 for t in g.tensors if t.shape is not None and len(t.shape) > 4)
     bad = {k: v for k, v in ops.items() if k.upper() in BANNED}
-    over = sum(1 for d in it.get_tensor_details() if len(d.get("shape", [])) > 4)
     print(f"[{label}] banned:{bad or 'NONE'} >4D:{over} size {os.path.getsize(path)/1e6:.1f}MB "
           f"VERDICT {'GPU-CLEAN' if not bad and not over else bad}")
-    return it
 
 
-def tfl(it, x):
-    d = it.get_input_details()[0]
-    it.set_tensor(d["index"], x.astype(d["dtype"]))
-    it.invoke()
-    return it.get_tensor(it.get_output_details()[0]["index"])
+def run_tflite(path, x):
+    """Single inference through the LiteRT CompiledModel API; returns the flat fp32 output."""
+    from ai_edge_litert.compiled_model import CompiledModel
+    model = CompiledModel.from_file(path)
+    inputs = model.create_input_buffers(0)
+    outputs = model.create_output_buffers(0)
+    inputs[0].write(np.ascontiguousarray(x, dtype=np.float32))
+    model.run_by_index(0, inputs, outputs)
+    n = model.get_output_buffer_requirements(0, 0)["buffer_size"] // np.dtype(np.float32).itemsize
+    return outputs[0].read(n, np.float32)
 
 
 def to_fp16(fp32, fp16):
@@ -150,12 +162,12 @@ def main():
     import litert_torch
     fp32 = os.path.join(HERE, "cnn14_audioset.tflite")
     litert_torch.convert(LogmelCNN(m).eval(), (logmel,)).export(fp32)
-    it32 = opcheck(fp32, "fp32")
-    o32 = tfl(it32, logmel.numpy()).ravel()
+    opcheck(fp32, "fp32")
+    o32 = run_tflite(fp32, logmel.numpy())
     print(f"[fp32] tflite-vs-torch corr {np.corrcoef(o32, y)[0,1]:.6f}")
     fp16 = to_fp16(fp32, os.path.join(HERE, "cnn14_audioset_fp16.tflite"))
-    it16 = opcheck(fp16, "fp16")
-    o16 = tfl(it16, logmel.numpy()).ravel()
+    opcheck(fp16, "fp16")
+    o16 = run_tflite(fp16, logmel.numpy())
     print(f"[fp16] tflite-vs-torch corr {np.corrcoef(o16, y)[0,1]:.6f}")
 
     # assets + fixtures
