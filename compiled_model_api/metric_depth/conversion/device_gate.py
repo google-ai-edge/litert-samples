@@ -56,11 +56,6 @@ img_np.astype(np.float32).tofile(os.path.join(HERE, "probe_input.bin"))
 print(f"original depth [{orig.min():.2f},{orig.max():.2f}]m  reauth [{ref.min():.2f},{ref.max():.2f}]m  "
       f"orig-vs-reauth corr {np.corrcoef(orig.ravel(), ref.ravel())[0,1]:.6f}")
 
-from ai_edge_litert.interpreter import Interpreter
-it = Interpreter(model_path=os.path.join(HERE, "m3d_fp16.tflite"))
-it.allocate_tensors()
-d = it.get_input_details()[0]
-it.set_tensor(d["index"], img_np.astype(d["dtype"]))
-it.invoke()
-o = it.get_tensor(it.get_output_details()[0]["index"])
+# desktop reference run through the LiteRT CompiledModel API (same API as on-device)
+o = B.run_tflite(os.path.join(HERE, "m3d_fp16.tflite"), img_np)
 print(f"desktop-fp16 vs reauth corr {np.corrcoef(o.ravel(), ref.ravel())[0,1]:.6f}  vs orig {np.corrcoef(o.ravel(), orig.ravel())[0,1]:.6f}")
