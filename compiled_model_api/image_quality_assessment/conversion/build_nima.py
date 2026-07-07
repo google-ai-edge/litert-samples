@@ -15,6 +15,17 @@ def build(weights):
     x = Dense(10, activation="softmax")(Dropout(0.0)(base.output))
     m = Model(base.inputs, x); m.load_weights(weights); return m
 
+def run_tflite(path, x):
+    """Single inference through the LiteRT CompiledModel API; returns the flat fp32 output."""
+    from ai_edge_litert.compiled_model import CompiledModel
+    model = CompiledModel.from_file(path)
+    inputs = model.create_input_buffers(0)
+    outputs = model.create_output_buffers(0)
+    inputs[0].write(np.ascontiguousarray(x, dtype=np.float32))
+    model.run_by_index(0, inputs, outputs)
+    n = model.get_output_buffer_requirements(0, 0)["buffer_size"] // np.dtype(np.float32).itemsize
+    return outputs[0].read(n, np.float32)
+
 for kind, tag in [("aesthetic", "07"), ("technical", "11")]:
     m = build(os.path.join(REPO, f"weights_mobilenet_{kind}_0.{tag}.hdf5"))
     conv = tf.lite.TFLiteConverter.from_keras_model(m)
@@ -25,10 +36,7 @@ for kind, tag in [("aesthetic", "07"), ("technical", "11")]:
     open(path, "wb").write(tfl)
     # parity: tflite vs keras on the ref input
     ref = np.load(os.path.join(HERE, f"ref_{kind}.npz"))
-    it = tf.lite.Interpreter(model_content=tfl); it.allocate_tensors()
-    ind, outd = it.get_input_details()[0], it.get_output_details()[0]
-    it.set_tensor(ind["index"], ref["x"].astype(np.float32)); it.invoke()
-    p = it.get_tensor(outd["index"])[0]
+    p = run_tflite(path, ref["x"])
     score = float(np.sum((np.arange(10) + 1) * p))
     corr = float(np.corrcoef(p, ref["p"])[0, 1])
     print(f"[{kind}] {os.path.getsize(path)/1e6:.1f}MB  tflite score {score:.3f} vs ref {float(ref['score']):.3f}  corr {corr:.6f}")
