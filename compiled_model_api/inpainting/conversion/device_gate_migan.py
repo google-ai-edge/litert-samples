@@ -49,11 +49,5 @@ masked=((imgc*maskc)[0].transpose(1,2,0)*0.5+0.5)*255
 Image.fromarray(masked.clip(0,255).astype(np.uint8)).save(f"{HERE}/mg_masked.png")
 im.save(f"{HERE}/mg_in.png")
 print(f"input {x.shape}; torch out range [{out.min():.2f},{out.max():.2f}]")
-from ai_edge_litert.interpreter import Interpreter
-it=Interpreter(model_path=f"{HERE}/migan_fp16.tflite")
-it.allocate_tensors()
-dd=it.get_input_details()[0]
-it.set_tensor(dd["index"],x.astype(dd["dtype"]))
-it.invoke()
-o=it.get_tensor(it.get_output_details()[0]["index"])
-print(f"desktop-fp16 vs torch corr {np.corrcoef(o.ravel(),out.ravel())[0,1]:.6f}")
+o=B.run_tflite(f"{HERE}/migan_fp16.tflite",x)
+print(f"desktop-fp16 vs torch corr {np.corrcoef(o,out.ravel())[0,1]:.6f}")
