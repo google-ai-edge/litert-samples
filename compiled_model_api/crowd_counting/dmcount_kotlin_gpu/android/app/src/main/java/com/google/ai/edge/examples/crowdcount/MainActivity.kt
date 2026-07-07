@@ -101,7 +101,9 @@ class MainActivity : AppCompatActivity() {
     val side = CrowdCounter.OUT
     var maxV = 1e-5f
     for (v in density) {
-      if (v > maxV) maxV = v
+      if (v > maxV) {
+        maxV = v
+      }
     }
     val heatPixels = IntArray(side * side)
     for (i in heatPixels.indices) {

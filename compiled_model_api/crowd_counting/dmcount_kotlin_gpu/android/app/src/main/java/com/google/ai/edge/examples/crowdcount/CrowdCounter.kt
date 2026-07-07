@@ -89,6 +89,8 @@ class CrowdCounter(modelPath: String) : AutoCloseable {
 
   override fun close() {
     model.close()
-    if (!resized.isRecycled) resized.recycle()
+    if (!resized.isRecycled) {
+      resized.recycle()
+    }
   }
 }
