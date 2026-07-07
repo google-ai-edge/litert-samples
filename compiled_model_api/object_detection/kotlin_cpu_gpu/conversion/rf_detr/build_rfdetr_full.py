@@ -1,4 +1,4 @@
-# Copyright 2025 The Google AI Edge Authors. All Rights Reserved.
+# Copyright 2026 The Google AI Edge Authors. All Rights Reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -12,6 +12,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+"""RF-DETR Nano single-graph export.
+
+Imports build_rfdetr_bb (backbone patches) and adds export-friction fixes
+(fixed-res _shape_as_tensor, no-op _assert). The shipped path is the 2-graph
+split in build_rfdetr_split.py.
+"""
 import sys
 import os
 import collections

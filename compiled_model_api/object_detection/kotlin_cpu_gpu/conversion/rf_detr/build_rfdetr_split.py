@@ -1,4 +1,4 @@
-# Copyright 2025 The Google AI Edge Authors. All Rights Reserved.
+# Copyright 2026 The Google AI Edge Authors. All Rights Reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -12,14 +12,15 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# RF-DETR Nano 2-graph split for CompiledModel GPU (final ship path).
-#   Graph A (GPU) = backbone(encoder+projector) + flatten + proposal-grid + enc heads
-#                   -> enc_class[1,576,91], enc_coord[1,576,4], memory[1,576,256]   (NO topk/gather/mask)
-#   host (Kotlin)  = scores=max(enc_class,-1) -> topk-300 -> gather enc_coord -> refpoint_embed_ts[1,300,4]
-#   Graph B (GPU) = two-stage reparam combine + decoder(query_feat, memory, refpoints) + bbox/class heads
-#                   -> boxes[1,300,4], logits[1,300,91]
-# Importing build_rfdetr_full applies every GPU patch (grid_sample tent-matmul, sine-embed bake,
-# MSDeformAttn <=4D forward, windowed-DINOv2 backbone, tanh-GELU, torch.export friction fixes).
+"""RF-DETR Nano 2-graph split for CompiledModel GPU (final ship path).
+  Graph A (GPU) = backbone(encoder+projector) + flatten + proposal-grid + enc heads
+                  -> enc_class[1,576,91], enc_coord[1,576,4], memory[1,576,256]   (NO topk/gather/mask)
+  host (Kotlin)  = scores=max(enc_class,-1) -> topk-300 -> gather enc_coord -> refpoint_embed_ts[1,300,4]
+  Graph B (GPU) = two-stage reparam combine + decoder(query_feat, memory, refpoints) + bbox/class heads
+                  -> boxes[1,300,4], logits[1,300,91]
+Importing build_rfdetr_full applies every GPU patch (grid_sample tent-matmul, sine-embed bake,
+MSDeformAttn <=4D forward, windowed-DINOv2 backbone, tanh-GELU, torch.export friction fixes).
+"""
 import sys
 import os
 import collections

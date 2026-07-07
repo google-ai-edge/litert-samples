@@ -300,7 +300,9 @@ class ObjectDetectorHelper(
             val base = p * RFDETR_NCLS
             for (c in 0 until RFDETR_NCLS) {
                 val v = encClass[base + c]
-                if (v > m) m = v
+                if (v > m) {
+                    m = v
+                }
             }
             maxScore[p] = m
         }
