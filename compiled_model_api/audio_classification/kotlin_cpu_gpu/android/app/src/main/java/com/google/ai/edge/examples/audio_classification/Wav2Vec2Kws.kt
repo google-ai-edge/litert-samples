@@ -1,5 +1,5 @@
 /*
- * Copyright 2025 The Google AI Edge Authors. All Rights Reserved.
+ * Copyright 2026 The Google AI Edge Authors. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -79,7 +79,11 @@ class Wav2Vec2Kws(private val context: Context) : Closeable {
         val logits = hdOut[0].readFloat()      // [12]
         val ms = (System.nanoTime() - t0) / 1_000_000
         var best = 0
-        for (i in logits.indices) if (logits[i] > logits[best]) best = i
+        for (i in logits.indices) {
+            if (logits[i] > logits[best]) {
+                best = i
+            }
+        }
         return Result(LABELS[best], best, logits, ms)
     }
 

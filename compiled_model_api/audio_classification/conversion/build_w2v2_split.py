@@ -1,4 +1,4 @@
-# Copyright 2025 The Google AI Edge Authors. All Rights Reserved.
+# Copyright 2026 The Google AI Edge Authors. All Rights Reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -24,7 +24,7 @@ logits use a softmax-weighted combination of ALL 13 layer outputs, not just the 
 flips predictions (corr 0.54). Re-authoring (GELU->tanh, GroupNorm->GN4D, weight_norm fold, mask->None)
 from build_w2v2.
 
-Run: ~/clipconv/bin/python build_w2v2_split.py
+Run: python build_w2v2_split.py
 """
 import _stub  # noqa: F401  (must import first: env guards)
 import os

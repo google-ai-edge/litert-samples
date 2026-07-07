@@ -1,4 +1,4 @@
-# Copyright 2025 The Google AI Edge Authors. All Rights Reserved.
+# Copyright 2026 The Google AI Edge Authors. All Rights Reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -15,12 +15,15 @@
 """Shared scipy/_propack + getsourcefile stub for macOS probes.
 
 Import this FIRST (before transformers / litert_torch) in any probe script:
+
     import _stub  # noqa: F401
-Mirrors the guards baked into probe_convert.py so raw-module probes can run too.
+
+Import guards that let the conversion scripts import transformers / litert_torch
+on machines where scipy's optional native extensions fail to load.
 """
+import inspect
 import sys
 import types
-import inspect
 
 
 class _D:

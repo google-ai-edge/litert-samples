@@ -1,5 +1,5 @@
 /*
- * Copyright 2025 The Google AI Edge Authors. All Rights Reserved.
+ * Copyright 2026 The Google AI Edge Authors. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -177,8 +177,12 @@ class MainActivity : Activity() {
         rec.release()
         val out = FloatArray(sr)
         var peak = 1f
-        for (i in 0 until sr) peak = maxOf(peak, kotlin.math.abs(pcm[i].toFloat()))
-        for (i in 0 until sr) out[i] = pcm[i] / peak * 0.5f
+        for (i in 0 until sr) {
+            peak = maxOf(peak, kotlin.math.abs(pcm[i].toFloat()))
+        }
+        for (i in 0 until sr) {
+            out[i] = pcm[i] / peak * 0.5f
+        }
         return out
     }
 

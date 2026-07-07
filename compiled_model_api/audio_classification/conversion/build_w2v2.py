@@ -1,4 +1,4 @@
-# Copyright 2025 The Google AI Edge Authors. All Rights Reserved.
+# Copyright 2026 The Google AI Edge Authors. All Rights Reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -23,7 +23,7 @@ Graph: waveform[1,16000] -> feature_extractor(conv) -> feature_projection -> enc
 Re-authoring (all numerically-equivalent): GELU->tanh-GELU; feature-extractor GroupNorm->GN4D
 (kills GATHER_ND); attention_mask=None so pooling is a plain mean (no masked-pool SELECT/BROADCAST).
 
-Run: ~/clipconv/bin/python build_w2v2.py [stage]   stage in {opcheck,parity,all}
+Run: python build_w2v2.py [stage]   stage in {opcheck,parity,all}
 """
 import _stub  # noqa: F401  (must import first: env guards)
 import sys
