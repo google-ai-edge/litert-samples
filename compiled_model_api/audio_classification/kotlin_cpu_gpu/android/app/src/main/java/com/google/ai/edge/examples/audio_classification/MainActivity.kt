@@ -50,35 +50,54 @@ class MainActivity : Activity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        val root = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(48, 110, 48, 40) }
-        status = TextView(this).apply { textSize = 14f; text = "Loading wav2vec2 KWS on GPU…" }
+        val root = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(48, 110, 48, 40)
+        }
+        status = TextView(this).apply {
+            textSize = 14f
+            text = "Loading wav2vec2 KWS on GPU…"
+        }
         val howto = TextView(this).apply {
             textSize = 15f
             setPadding(0, 36, 0, 8)
             text = "Tap Record, then immediately say ONE English word:"
         }
         val words = TextView(this).apply {
-            textSize = 20f; setTextColor(Color.rgb(0x15, 0x65, 0xC0))
-            gravity = Gravity.CENTER; setPadding(0, 8, 0, 8); text = keywords
+            textSize = 20f
+            setTextColor(Color.rgb(0x15, 0x65, 0xC0))
+            gravity = Gravity.CENTER
+            setPadding(0, 8, 0, 8)
+            text = keywords
         }
         val note = TextView(this).apply {
-            textSize = 12f; setTextColor(Color.GRAY)
+            textSize = 12f
+            setTextColor(Color.GRAY)
             text = "(fixed 10-word command set — not free dictation; anything else → \"_unknown_\")"
         }
         result = TextView(this).apply {
-            textSize = 34f; gravity = Gravity.CENTER; setPadding(0, 56, 0, 56); text = "—"
+            textSize = 34f
+            gravity = Gravity.CENTER
+            setPadding(0, 56, 0, 56)
+            text = "—"
         }
         record = Button(this).apply {
-            text = "🎤  Record & say a word"; isEnabled = false
+            text = "🎤  Record & say a word"
+            isEnabled = false
             setOnClickListener { ensureMicThenRecord() }
         }
-        root.addView(status); root.addView(howto); root.addView(words); root.addView(note)
-        root.addView(result); root.addView(record)
+        root.addView(status)
+        root.addView(howto)
+        root.addView(words)
+        root.addView(note)
+        root.addView(result)
+        root.addView(record)
         setContentView(root)
 
         bg.execute {
             try {
-                val k = Wav2Vec2Kws(this); kws = k
+                val k = Wav2Vec2Kws(this)
+                kws = k
                 val clip = readFloats(assets.open("test_audio.bin").readBytes())
                 k.classify(clip)                       // warm up GPU
                 val r = k.classify(clip)
@@ -91,7 +110,8 @@ class MainActivity : Activity() {
             } catch (e: Throwable) {
                 Log.e(tag, "load failed", e)
                 runOnUiThread {
-                    status.setBackgroundColor(Color.rgb(0xFF, 0xCD, 0xD2)); status.text = "FAIL: ${e.message}"
+                    status.setBackgroundColor(Color.rgb(0xFF, 0xCD, 0xD2))
+                    status.text = "FAIL: ${e.message}"
                 }
             }
         }
@@ -99,7 +119,8 @@ class MainActivity : Activity() {
 
     private fun ensureMicThenRecord() {
         if (checkSelfPermission(Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
-            requestPermissions(arrayOf(Manifest.permission.RECORD_AUDIO), 1); return
+            requestPermissions(arrayOf(Manifest.permission.RECORD_AUDIO), 1)
+            return
         }
         recordAndClassify()
     }
@@ -112,7 +133,8 @@ class MainActivity : Activity() {
     private fun recordAndClassify() {
         record.isEnabled = false
         runOnUiThread {
-            result.setTextColor(Color.rgb(0xD3, 0x2F, 0x2F)); result.text = "🔴 Listening… say a word NOW"
+            result.setTextColor(Color.rgb(0xD3, 0x2F, 0x2F))
+            result.text = "🔴 Listening… say a word NOW"
         }
         bg.execute {
             try {
@@ -127,7 +149,10 @@ class MainActivity : Activity() {
                 }
             } catch (e: Throwable) {
                 Log.e(tag, "record failed", e)
-                runOnUiThread { result.text = "Record failed: ${e.message}"; record.isEnabled = true }
+                runOnUiThread {
+                    result.text = "Record failed: ${e.message}"
+                    record.isEnabled = true
+                }
             }
         }
     }
@@ -143,9 +168,15 @@ class MainActivity : Activity() {
         val pcm = ShortArray(sr)
         rec.startRecording()
         var off = 0
-        while (off < sr) { val n = rec.read(pcm, off, sr - off); if (n <= 0) break; off += n }
-        rec.stop(); rec.release()
-        val out = FloatArray(sr); var peak = 1f
+        while (off < sr) {
+            val n = rec.read(pcm, off, sr - off)
+            if (n <= 0) break
+            off += n
+        }
+        rec.stop()
+        rec.release()
+        val out = FloatArray(sr)
+        var peak = 1f
         for (i in 0 until sr) peak = maxOf(peak, kotlin.math.abs(pcm[i].toFloat()))
         for (i in 0 until sr) out[i] = pcm[i] / peak * 0.5f
         return out
@@ -156,5 +187,9 @@ class MainActivity : Activity() {
         return FloatArray(b.size / 4) { bb.float }
     }
 
-    override fun onDestroy() { super.onDestroy(); bg.shutdown(); kws?.close() }
+    override fun onDestroy() {
+        super.onDestroy()
+        bg.shutdown()
+        kws?.close()
+    }
 }

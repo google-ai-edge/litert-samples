@@ -84,8 +84,11 @@ class Wav2Vec2Kws(private val context: Context) : Closeable {
     }
 
     override fun close() {
-        feIn.forEach { it.close() }; feOut.forEach { it.close() }
-        hdIn.forEach { it.close() }; hdOut.forEach { it.close() }
-        frontend.close(); head.close()
+        feIn.forEach { it.close() }
+        feOut.forEach { it.close() }
+        hdIn.forEach { it.close() }
+        hdOut.forEach { it.close() }
+        frontend.close()
+        head.close()
     }
 }

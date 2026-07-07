@@ -12,7 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-#!/usr/bin/env python3
 """wav2vec2 keyword-spotting -> CompiledModel GPU: re-authoring + parity + fp16.
 
 All-GPU (no hybrid): the transformer residual peaks at |x|~3.2 (vs Mimi's 27), so there is no
@@ -26,8 +25,14 @@ Re-authoring (all numerically-equivalent): GELU->tanh-GELU; feature-extractor Gr
 
 Run: ~/clipconv/bin/python build_w2v2.py [stage]   stage in {opcheck,parity,all}
 """
-import _stub, sys, os, math, collections
-import numpy as np, torch, torch.nn as nn
+import _stub  # noqa: F401  (must import first: env guards)
+import sys
+import os
+import math
+import collections
+import numpy as np
+import torch
+import torch.nn as nn
 from transformers import Wav2Vec2ForSequenceClassification
 from transformers.activations import GELUActivation
 
@@ -42,20 +47,24 @@ BANNED = {"GATHER", "GATHER_ND", "TOPK_V2", "GELU", "ERF", "WHERE", "SELECT", "S
 
 class TanhGELU(nn.Module):
     C = math.sqrt(2.0 / math.pi)
-    def forward(s, x):
-        return 0.5 * x * (1.0 + torch.tanh(s.C * (x + 0.044715 * x * x * x)))
+    def forward(self, x):
+        return 0.5 * x * (1.0 + torch.tanh(self.C * (x + 0.044715 * x * x * x)))
 
 
 class GN4D(nn.Module):
     """GroupNorm w/o GATHER_ND: reshape (B,G,C//G,T), mean/var over (2,3). Matches Mimi/DAC."""
-    def __init__(s, gn):
-        super().__init__(); s.g = gn.num_groups; s.eps = gn.eps
-        s.register_buffer("w", gn.weight.detach().reshape(1, -1, 1))
-        s.register_buffer("b", gn.bias.detach().reshape(1, -1, 1))
-    def forward(s, x):
-        b, c, t = x.shape; x = x.reshape(b, s.g, c // s.g, t)
-        m = x.mean((2, 3), keepdim=True); v = (x - m).pow(2).mean((2, 3), keepdim=True)
-        return (((x - m) * torch.rsqrt(v + s.eps)).reshape(b, c, t)) * s.w + s.b
+    def __init__(self, gn):
+        super().__init__()
+        self.g = gn.num_groups
+        self.eps = gn.eps
+        self.register_buffer("w", gn.weight.detach().reshape(1, -1, 1))
+        self.register_buffer("b", gn.bias.detach().reshape(1, -1, 1))
+    def forward(self, x):
+        b, c, t = x.shape
+        x = x.reshape(b, self.g, c // self.g, t)
+        m = x.mean((2, 3), keepdim=True)
+        v = (x - m).pow(2).mean((2, 3), keepdim=True)
+        return (((x - m) * torch.rsqrt(v + self.eps)).reshape(b, c, t)) * self.w + self.b
 
 
 def swap(m):
@@ -93,13 +102,17 @@ def patch_mask():
 
 class KWS(nn.Module):
     """waveform -> logits, attention_mask=None (fixed-length, no padding -> clean mean-pool)."""
-    def __init__(s, m): super().__init__(); s.m = m
-    def forward(s, x): return s.m(x, attention_mask=None).logits
+    def __init__(self, m):
+        super().__init__()
+        self.m = m
+    def forward(self, x):
+        return self.m(x, attention_mask=None).logits
 
 
 def opcheck(path, label):
     from ai_edge_litert.interpreter import Interpreter
-    it = Interpreter(model_path=path); it.allocate_tensors()
+    it = Interpreter(model_path=path)
+    it.allocate_tensors()
     ops = collections.Counter(d.get("op_name", "?") for d in it._get_ops_details())
     bad = {k: v for k, v in ops.items() if k.upper() in BANNED}
     over = sum(1 for d in it.get_tensor_details() if len(d.get("shape", [])) > 4)
@@ -111,7 +124,9 @@ def opcheck(path, label):
 
 
 def tfl_run(it, x):
-    d = it.get_input_details()[0]; it.set_tensor(d["index"], x.astype(d["dtype"])); it.invoke()
+    d = it.get_input_details()[0]
+    it.set_tensor(d["index"], x.astype(d["dtype"]))
+    it.invoke()
     return it.get_tensor(it.get_output_details()[0]["index"])
 
 
@@ -124,8 +139,10 @@ def to_fp16(fp32, fp16):
             weight_tensor_config=qtyping.TensorQuantizationConfig(num_bits=16, dtype=qtyping.TensorDataType.FLOAT),
             compute_precision=qtyping.ComputePrecision.FLOAT), algorithm_key=AlgorithmName.FLOAT_CASTING)
     if os.path.exists(fp16): os.remove(fp16)
-    qt = quantizer.Quantizer(float_model=fp32); qt.load_quantization_recipe(rm.get_quantization_recipe())
-    qt.quantize().export_model(fp16); return fp16
+    qt = quantizer.Quantizer(float_model=fp32)
+    qt.load_quantization_recipe(rm.get_quantization_recipe())
+    qt.quantize().export_model(fp16)
+    return fp16
 
 
 def main():
