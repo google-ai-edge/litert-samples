@@ -64,7 +64,8 @@ class RtmFaceEstimator(ctx: Context, accelerator: Accelerator = Accelerator.GPU)
         model.run(inBuf, outBuf)
         val sx = outBuf[0].readFloat()   // [K * W * SPLIT]
         val sy = outBuf[1].readFloat()   // [K * H * SPLIT]
-        val xBins = W * SPLIT; val yBins = H * SPLIT
+        val xBins = W * SPLIT
+        val yBins = H * SPLIT
         val out = ArrayList<Point>(K)
         for (k in 0 until K) {
             val (xi, xv) = argmax(sx, k * xBins, xBins)
@@ -75,10 +76,21 @@ class RtmFaceEstimator(ctx: Context, accelerator: Accelerator = Accelerator.GPU)
     }
 
     private fun argmax(a: FloatArray, off: Int, n: Int): Pair<Int, Float> {
-        var bi = 0; var bv = a[off]
-        for (i in 1 until n) { val v = a[off + i]; if (v > bv) { bv = v; bi = i } }
+        var bi = 0
+        var bv = a[off]
+        for (i in 1 until n) {
+            val v = a[off + i]
+            if (v > bv) {
+                bv = v
+                bi = i
+            }
+        }
         return bi to bv
     }
 
-    override fun close() { inBuf.forEach { it.close() }; outBuf.forEach { it.close() }; model.close() }
+    override fun close() {
+        inBuf.forEach { it.close() }
+        outBuf.forEach { it.close() }
+        model.close()
+    }
 }

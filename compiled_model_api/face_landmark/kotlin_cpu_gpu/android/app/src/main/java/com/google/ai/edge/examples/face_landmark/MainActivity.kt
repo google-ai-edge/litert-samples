@@ -66,16 +66,24 @@ class MainActivity : Activity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        val root = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(24, 80, 24, 24) }
-        status = TextView(this).apply { textSize = 15f; text = "Loading RTMPose-Face on GPU…" }
+        val root = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(24, 80, 24, 24)
+        }
+        status = TextView(this).apply {
+            textSize = 15f
+            text = "Loading RTMPose-Face on GPU…"
+        }
         val pick = Button(this).apply {
-            text = "🖼  Pick image"; isEnabled = false
+            text = "🖼  Pick image"
+            isEnabled = false
             setOnClickListener {
                 startActivityForResult(Intent(Intent.ACTION_GET_CONTENT).apply { type = "image/*" }, pickReq)
             }
         }
         meshView = MeshView(this)
-        root.addView(status); root.addView(pick)
+        root.addView(status)
+        root.addView(pick)
         root.addView(meshView, LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, 960))
         setContentView(root)
 
@@ -90,7 +98,10 @@ class MainActivity : Activity() {
                 runOnUiThread { pick.isEnabled = true }
             } catch (e: Throwable) {
                 Log.e(tag, "load failed", e)
-                runOnUiThread { status.setBackgroundColor(Color.rgb(0xFF, 0xCD, 0xD2)); status.text = "FAIL: ${e.message}" }
+                runOnUiThread {
+                    status.setBackgroundColor(Color.rgb(0xFF, 0xCD, 0xD2))
+                    status.text = "FAIL: ${e.message}"
+                }
             }
         }
     }
@@ -102,7 +113,10 @@ class MainActivity : Activity() {
         runOnUiThread { status.text = "Estimating landmarks…" }
         bg.execute {
             try { run(cropSquare(loadOriented(uri)), warm = false) }
-            catch (e: Throwable) { Log.e(tag, "estimate failed", e); runOnUiThread { status.text = "Failed: ${e.message}" } }
+            catch (e: Throwable) {
+                Log.e(tag, "estimate failed", e)
+                runOnUiThread { status.text = "Failed: ${e.message}" }
+            }
         }
     }
 
@@ -117,7 +131,8 @@ class MainActivity : Activity() {
         runOnUiThread {
             status.setBackgroundColor(Color.rgb(0xC8, 0xE6, 0xC9))
             status.text = "On-device GPU face mesh ✓  ${ms} ms  ·  98 landmarks  ·  RTMPose-m WFLW, CompiledModel GPU"
-            meshView.set(crop, pts, groups); meshView.invalidate()
+            meshView.set(crop, pts, groups)
+            meshView.invalidate()
         }
     }
 
@@ -142,34 +157,54 @@ class MainActivity : Activity() {
     }
 
     private fun bitmapToRgb(bm: Bitmap): FloatArray {
-        val n = bm.width * bm.height; val px = IntArray(n)
+        val n = bm.width * bm.height
+        val px = IntArray(n)
         bm.getPixels(px, 0, bm.width, 0, 0, bm.width, bm.height)
         val out = FloatArray(n * 3)
         for (i in 0 until n) {
             val p = px[i]
-            out[i * 3] = ((p shr 16) and 0xFF).toFloat(); out[i * 3 + 1] = ((p shr 8) and 0xFF).toFloat()
+            out[i * 3] = ((p shr 16) and 0xFF).toFloat()
+            out[i * 3 + 1] = ((p shr 8) and 0xFF).toFloat()
             out[i * 3 + 2] = (p and 0xFF).toFloat()
         }
         return out
     }
 
-    override fun onDestroy() { super.onDestroy(); bg.shutdown(); net?.close() }
+    override fun onDestroy() {
+        super.onDestroy()
+        bg.shutdown()
+        net?.close()
+    }
 
     class MeshView(ctx: Context) : View(ctx) {
         private var bm: Bitmap? = null
         private var pts: List<RtmFaceEstimator.Point> = emptyList()
         private var groups: Array<Pair<List<Int>, Boolean>> = emptyArray()
-        private val line = Paint().apply { color = Color.rgb(0, 230, 0); strokeWidth = 2.5f; style = Paint.Style.STROKE; isAntiAlias = true }
-        private val dot = Paint().apply { color = Color.rgb(255, 40, 40); isAntiAlias = true }
+        private val line = Paint().apply {
+            color = Color.rgb(0, 230, 0)
+            strokeWidth = 2.5f
+            style = Paint.Style.STROKE
+            isAntiAlias = true
+        }
+        private val dot = Paint().apply {
+            color = Color.rgb(255, 40, 40)
+            isAntiAlias = true
+        }
         private val imgPaint = Paint().apply { isFilterBitmap = true }
 
-        fun set(b: Bitmap, p: List<RtmFaceEstimator.Point>, g: Array<Pair<List<Int>, Boolean>>) { bm = b; pts = p; groups = g }
+        fun set(b: Bitmap, p: List<RtmFaceEstimator.Point>, g: Array<Pair<List<Int>, Boolean>>) {
+            bm = b
+            pts = p
+            groups = g
+        }
 
         override fun onDraw(canvas: Canvas) {
             val b = bm ?: return
             val s = min(width.toFloat() / b.width, height.toFloat() / b.height)
-            val w = b.width * s; val h = b.height * s
-            val ox = (width - w) / 2; val oy = (height - h) / 2
+            val w = b.width * s
+            val h = b.height * s
+            val ox = (width - w) / 2
+            val oy = (height - h) / 2
             canvas.drawBitmap(b, null, android.graphics.RectF(ox, oy, ox + w, oy + h), imgPaint)
             fun px(i: Int) = ox + pts[i].x * s
             fun py(i: Int) = oy + pts[i].y * s
