@@ -1,5 +1,5 @@
 /*
- * Copyright 2025 The Google AI Edge Authors. All Rights Reserved.
+ * Copyright 2026 The Google AI Edge Authors. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -83,10 +83,14 @@ class PIDNet(modelPath: String) : AutoCloseable {
 
     val hw = OUT * OUT
     for (i in 0 until hw) {
-      var best = 0; var bestV = logits[i]
+      var best = 0
+      var bestV = logits[i]
       for (c in 1 until N_CLASS) {
         val v = logits[c * hw + i]
-        if (v > bestV) { bestV = v; best = c }
+        if (v > bestV) {
+            bestV = v
+            best = c
+        }
       }
       labelPixels[i] = CityscapesPalette.COLORS[best]
     }
