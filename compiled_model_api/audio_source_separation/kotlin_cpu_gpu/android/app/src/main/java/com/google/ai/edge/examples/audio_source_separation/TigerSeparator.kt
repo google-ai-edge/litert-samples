@@ -82,7 +82,9 @@ class TigerSeparator(private val ctx: Context) : Closeable {
                     }
                 }
             } finally {
-                inBuf.forEach { it.close() }; outBuf.forEach { it.close() }; model.close()
+                inBuf.forEach { it.close() }
+                outBuf.forEach { it.close() }
+                model.close()
             }
             for (i in out.indices) if (weight[i] > 1f) out[i] /= weight[i]
             stems.add(out)

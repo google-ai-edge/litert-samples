@@ -57,10 +57,17 @@ class MainActivity : Activity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        val root = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(36, 90, 36, 36) }
-        status = TextView(this).apply { textSize = 15f; text = "Loading…" }
+        val root = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(36, 90, 36, 36)
+        }
+        status = TextView(this).apply {
+            textSize = 15f
+            text = "Loading…"
+        }
         progress = ProgressBar(this, null, android.R.attr.progressBarStyleHorizontal).apply {
-            max = 100; visibility = android.view.View.GONE
+            max = 100
+            visibility = android.view.View.GONE
         }
         val pick = Button(this).apply {
             text = "🎬  Pick audio / video clip"
@@ -76,14 +83,25 @@ class MainActivity : Activity() {
             text = "🎙  Record 15 s"
             setOnClickListener { toggleRecord(this) }
         }
-        root.addView(status); root.addView(pick); root.addView(rec); root.addView(progress)
+        root.addView(status)
+        root.addView(pick)
+        root.addView(rec)
+        root.addView(progress)
 
-        val label = TextView(this).apply { textSize = 14f; text = "Stems (first ${maxSeconds}s):"; setPadding(0, 36, 0, 8) }
+        val label = TextView(this).apply {
+            textSize = 14f
+            text = "Stems (first ${maxSeconds}s):"
+            setPadding(0, 36, 0, 8)
+        }
         root.addView(label)
         val names = mapOf("mixture" to "▶  Mixture", "dialog" to "🗣  Dialogue",
                           "effect" to "💥  Sound effects", "music" to "🎵  Music")
         for ((key, title) in names) {
-            val b = Button(this).apply { text = title; isEnabled = false; setOnClickListener { play(key, this) } }
+            val b = Button(this).apply {
+                text = title
+                isEnabled = false
+                setOnClickListener { play(key, this) }
+            }
             stemButtons[key] = b
             root.addView(b)
         }
@@ -98,7 +116,10 @@ class MainActivity : Activity() {
                 // fail fast if models are missing
                 runOnUiThread { status.text = "Ready — pick a clip (movie scene, game, vlog…) to separate." }
             } catch (e: Throwable) {
-                runOnUiThread { status.setBackgroundColor(Color.rgb(0xFF, 0xCD, 0xD2)); status.text = "FAIL: ${e.message}" }
+                runOnUiThread {
+                    status.setBackgroundColor(Color.rgb(0xFF, 0xCD, 0xD2))
+                    status.text = "FAIL: ${e.message}"
+                }
             }
         }
     }
@@ -108,7 +129,10 @@ class MainActivity : Activity() {
         if (requestCode != 1 || resultCode != RESULT_OK) return
         bg.execute {
             try {
-                runOnUiThread { status.text = "Decoding…"; setStemsEnabled(false) }
+                runOnUiThread {
+                    status.text = "Decoding…"
+                    setStemsEnabled(false)
+                }
                 val pcm = AudioDecoder.decode(this, uri, maxSeconds)
                 check(pcm.size >= TigerSeparator.SR) { "Clip too short (need ≥1 s of audio)." }
                 runSeparation(pcm)
@@ -120,9 +144,13 @@ class MainActivity : Activity() {
     }
 
     private fun toggleRecord(btn: Button) {
-        if (recording) { recording = false; return }
+        if (recording) {
+            recording = false
+            return
+        }
         if (checkSelfPermission(Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
-            status.text = "Microphone permission needed."; return
+            status.text = "Microphone permission needed."
+            return
         }
         recording = true
         btn.text = "⏹  Stop"
@@ -139,9 +167,14 @@ class MainActivity : Activity() {
                 val buf = FloatArray(4410)
                 while (recording && total < out.size) {
                     val r = recd.read(buf, 0, minOf(buf.size, out.size - total), AudioRecord.READ_BLOCKING)
-                    if (r > 0) { System.arraycopy(buf, 0, out, total, r); total += r }
+                    if (r > 0) {
+                        System.arraycopy(buf, 0, out, total, r)
+                        total += r
+                    }
                 }
-            } finally { recd.stop(); recd.release(); recording = false }
+            } finally { recd.stop()
+            recd.release()
+            recording = false }
             runOnUiThread { btn.text = "🎙  Record 15 s" }
             if (total >= sr) runSeparation(out.copyOf(total))
             else runOnUiThread { status.text = "Too short — record at least 1 s." }

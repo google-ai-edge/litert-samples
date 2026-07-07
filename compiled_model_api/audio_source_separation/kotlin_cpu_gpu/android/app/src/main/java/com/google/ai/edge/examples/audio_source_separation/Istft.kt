@@ -91,11 +91,18 @@ object Istft {
         var j = 0
         for (i in 0 until n - 1) {
             if (i < j) {
-                var tmp = re[i]; re[i] = re[j]; re[j] = tmp
-                tmp = im[i]; im[i] = im[j]; im[j] = tmp
+                var tmp = re[i]
+                re[i] = re[j]
+                re[j] = tmp
+                tmp = im[i]
+                im[i] = im[j]
+                im[j] = tmp
             }
             var m = n shr 1
-            while (m in 1..j) { j -= m; m = m shr 1 }
+            while (m in 1..j) {
+                j -= m
+                m = m shr 1
+            }
             j += m
         }
         var len = 2
