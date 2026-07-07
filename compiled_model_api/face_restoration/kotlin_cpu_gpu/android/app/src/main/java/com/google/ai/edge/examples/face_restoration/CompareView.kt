@@ -38,13 +38,19 @@ class CompareView(context: Context) : View(context) {
 
   private val paint = Paint(Paint.FILTER_BITMAP_FLAG)
   private val dividerPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-    color = 0xFFFFFFFF.toInt(); strokeWidth = 4f; style = Paint.Style.STROKE
+    color = 0xFFFFFFFF.toInt()
+    strokeWidth = 4f
+    style = Paint.Style.STROKE
   }
   private val handlePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-    color = 0xFFFFFFFF.toInt(); style = Paint.Style.FILL; setShadowLayer(8f, 0f, 0f, 0xFF000000.toInt())
+    color = 0xFFFFFFFF.toInt()
+    style = Paint.Style.FILL
+    setShadowLayer(8f, 0f, 0f, 0xFF000000.toInt())
   }
   private val labelPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-    color = 0xFFFFFFFF.toInt(); textSize = 32f; setShadowLayer(4f, 0f, 0f, 0xFF000000.toInt())
+    color = 0xFFFFFFFF.toInt()
+    textSize = 32f
+    setShadowLayer(4f, 0f, 0f, 0xFF000000.toInt())
   }
 
   private val srcRect = Rect()
@@ -52,14 +58,19 @@ class CompareView(context: Context) : View(context) {
   private val clipRect = RectF()
 
   fun setImages(before: Bitmap, after: Bitmap) {
-    beforeBitmap = before; afterBitmap = after; dividerRatio = 0.5f; invalidate()
+    beforeBitmap = before
+    afterBitmap = after
+    dividerRatio = 0.5f
+    invalidate()
   }
 
   private fun getImageRect(): RectF {
     val bmp = afterBitmap ?: beforeBitmap ?: return RectF()
     val scale = minOf(width.toFloat() / bmp.width, height.toFloat() / bmp.height)
-    val imgW = bmp.width * scale; val imgH = bmp.height * scale
-    val left = (width - imgW) / 2f; val top = (height - imgH) / 2f
+    val imgW = bmp.width * scale
+    val imgH = bmp.height * scale
+    val left = (width - imgW) / 2f
+    val top = (height - imgH) / 2f
     return RectF(left, top, left + imgW, top + imgH)
   }
 
@@ -84,7 +95,10 @@ class CompareView(context: Context) : View(context) {
     canvas.drawLine(dividerX, imgRect.top, dividerX, imgRect.bottom, dividerPaint)
     val cy = imgRect.centerY()
     canvas.drawCircle(dividerX, cy, 20f, handlePaint)
-    val arrowPaint = Paint(handlePaint).apply { textSize = 28f; textAlign = Paint.Align.CENTER }
+    val arrowPaint = Paint(handlePaint).apply {
+        textSize = 28f
+        textAlign = Paint.Align.CENTER
+    }
     canvas.drawText("◀", dividerX - 6f, cy + 10f, arrowPaint)
     canvas.drawText("▶", dividerX + 6f, cy + 10f, arrowPaint)
 

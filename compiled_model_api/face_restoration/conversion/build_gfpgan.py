@@ -1,4 +1,17 @@
-#!/usr/bin/env python3
+# Copyright 2025 The Google AI Edge Authors. All Rights Reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#       http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 """GFPGAN v1.4 (blind face restoration, Apache-2.0) -> LiteRT CompiledModel GPU.
 
 Crux: StyleGAN2 ModulatedConv2d uses a 5D weight (b,c_out,c_in,k,k) built at runtime from the
@@ -15,8 +28,16 @@ Everything else in the clean arch is already GPU-friendly (upsample = bilinear a
 no GroupNorm, no ConvTranspose -> no ZeroStuff). noise -> stored buffers (randomize_noise=False)
 so the graph is deterministic. Run: ~/clipconv/bin/python build_gfpgan.py
 """
-import sys, os, types, importlib.util, collections, urllib.request
-import numpy as np, torch, torch.nn as nn, torch.nn.functional as F
+import sys
+import os
+import types
+import importlib.util
+import collections
+import urllib.request
+import numpy as np
+import torch
+import torch.nn as nn
+import torch.nn.functional as F
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 GARCH = os.path.join(HERE, "GFPGAN", "gfpgan", "archs")
@@ -35,8 +56,10 @@ def _stub_basicsr():
             return lambda c: c
 
     def _mod(name, **attrs):
-        m = types.ModuleType(name); [setattr(m, k, v) for k, v in attrs.items()]
-        sys.modules[name] = m; return m
+        m = types.ModuleType(name)
+        [setattr(m, k, v) for k, v in attrs.items()]
+        sys.modules[name] = m
+        return m
 
     _mod("basicsr")
     _mod("basicsr.utils")
@@ -54,12 +77,16 @@ def _load_arch():
     `from .stylegan2_clean_arch import ...` resolves."""
     for name, path in [("gfpgan", os.path.join(HERE, "GFPGAN", "gfpgan")), ("gfpgan.archs", GARCH)]:
         if name not in sys.modules:
-            p = types.ModuleType(name); p.__path__ = [path]; sys.modules[name] = p
+            p = types.ModuleType(name)
+            p.__path__ = [path]
+            sys.modules[name] = p
 
     def _load(name, fn):
         spec = importlib.util.spec_from_file_location(name, os.path.join(GARCH, fn))
-        mod = importlib.util.module_from_spec(spec); sys.modules[name] = mod
-        spec.loader.exec_module(mod); return mod
+        mod = importlib.util.module_from_spec(spec)
+        sys.modules[name] = mod
+        spec.loader.exec_module(mod)
+        return mod
 
     _load("gfpgan.archs.stylegan2_clean_arch", "stylegan2_clean_arch.py")
     gf = _load("gfpgan.archs.gfpganv1_clean_arch", "gfpganv1_clean_arch.py")
@@ -136,7 +163,9 @@ def build():
 
 class GFPGANWrap(nn.Module):
     """x in [-1,1] (1,3,512,512) -> restored image in [-1,1]. Deterministic (stored noise)."""
-    def __init__(s, m): super().__init__(); s.m = m
+    def __init__(s, m):
+        super().__init__()
+        s.m = m
     def forward(s, x):
         img, _ = s.m(x, return_rgb=False, randomize_noise=False)
         return img
@@ -144,7 +173,8 @@ class GFPGANWrap(nn.Module):
 
 def opcheck(p, l):
     from ai_edge_litert.interpreter import Interpreter
-    it = Interpreter(model_path=p); it.allocate_tensors()
+    it = Interpreter(model_path=p)
+    it.allocate_tensors()
     ops = collections.Counter(d.get("op_name", "?") for d in it._get_ops_details())
     bad = {k: v for k, v in ops.items() if k.upper() in BANNED}
     over = sum(1 for d in it.get_tensor_details() if len(d.get("shape", [])) > 4)
@@ -163,8 +193,10 @@ def to_fp16(fp32, fp16):
             weight_tensor_config=qtyping.TensorQuantizationConfig(num_bits=16, dtype=qtyping.TensorDataType.FLOAT),
             compute_precision=qtyping.ComputePrecision.FLOAT), algorithm_key=AlgorithmName.FLOAT_CASTING)
     if os.path.exists(fp16): os.remove(fp16)
-    q = quantizer.Quantizer(float_model=fp32); q.load_quantization_recipe(rm.get_quantization_recipe())
-    q.quantize().export_model(fp16); return fp16
+    q = quantizer.Quantizer(float_model=fp32)
+    q.load_quantization_recipe(rm.get_quantization_recipe())
+    q.quantize().export_model(fp16)
+    return fp16
 
 
 if __name__ == "__main__":
@@ -185,10 +217,14 @@ if __name__ == "__main__":
     try:
         litert_torch.convert(GFPGANWrap(m).eval(), (x,)).export(fp32)
         it = opcheck(fp32, "gfpgan")
-        d = it.get_input_details()[0]; it.set_tensor(d["index"], x.numpy().astype(d["dtype"])); it.invoke()
+        d = it.get_input_details()[0]
+        it.set_tensor(d["index"], x.numpy().astype(d["dtype"]))
+        it.invoke()
         o = it.get_tensor(it.get_output_details()[0]["index"])
         print(f"tflite vs torch corr {np.corrcoef(o.ravel(), ra.numpy().ravel())[0,1]:.6f}")
         to_fp16(fp32, os.path.join(HERE, "gfpgan_fp16.tflite"))
         opcheck(os.path.join(HERE, "gfpgan_fp16.tflite"), "gfpgan_fp16")
     except Exception as e:
-        import traceback; traceback.print_exc(); print("CONVERT FAIL:", repr(e)[:200])
+        import traceback
+        traceback.print_exc()
+        print("CONVERT FAIL:", repr(e)[:200])

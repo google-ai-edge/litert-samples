@@ -59,12 +59,21 @@ object FaceAligner {
    */
   private fun similarity(src: FloatArray, dst: FloatArray): FloatArray {
     val n = src.size / 2
-    var sd = 0.0; var sx = 0.0; var sy = 0.0
-    var c0 = 0.0; var c1 = 0.0; var c2 = 0.0; var c3 = 0.0
+    var sd = 0.0
+    var sx = 0.0
+    var sy = 0.0
+    var c0 = 0.0
+    var c1 = 0.0
+    var c2 = 0.0
+    var c3 = 0.0
     for (i in 0 until n) {
-      val x = src[2 * i].toDouble(); val y = src[2 * i + 1].toDouble()
-      val bx = dst[2 * i].toDouble(); val by = dst[2 * i + 1].toDouble()
-      sd += x * x + y * y; sx += x; sy += y
+      val x = src[2 * i].toDouble()
+      val y = src[2 * i + 1].toDouble()
+      val bx = dst[2 * i].toDouble()
+      val by = dst[2 * i + 1].toDouble()
+      sd += x * x + y * y
+      sx += x
+      sy += y
       c0 += x * bx + y * by
       c1 += x * by - y * bx
       c2 += bx
@@ -91,8 +100,12 @@ object FaceAligner {
     for (col in 0 until n) {
       var piv = col
       for (r in col + 1 until n) if (abs(a[r][col]) > abs(a[piv][col])) piv = r
-      val tmp = a[col]; a[col] = a[piv]; a[piv] = tmp
-      val tb = b[col]; b[col] = b[piv]; b[piv] = tb
+      val tmp = a[col]
+      a[col] = a[piv]
+      a[piv] = tmp
+      val tb = b[col]
+      b[col] = b[piv]
+      b[piv] = tb
       val d = a[col][col]
       for (r in 0 until n) {
         if (r == col) continue

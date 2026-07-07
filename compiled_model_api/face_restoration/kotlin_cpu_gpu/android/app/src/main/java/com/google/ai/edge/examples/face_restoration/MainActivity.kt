@@ -57,11 +57,20 @@ class MainActivity : ComponentActivity() {
   override fun onCreate(savedInstanceState: Bundle?) {
     super.onCreate(savedInstanceState)
 
-    val root = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(0, 48, 0, 0) }
-    statusText = TextView(this).apply { textSize = 16f; setPadding(24, 8, 24, 8); text = "Loading model..." }
+    val root = LinearLayout(this).apply {
+        orientation = LinearLayout.VERTICAL
+        setPadding(0, 48, 0, 0)
+    }
+    statusText = TextView(this).apply {
+        textSize = 16f
+        setPadding(24, 8, 24, 8)
+        text = "Loading model..."
+    }
     root.addView(statusText)
     pickButton = Button(this).apply {
-      text = "Select Face Photo"; isEnabled = false; setOnClickListener { imagePicker.launch("image/*") }
+      text = "Select Face Photo"
+      isEnabled = false
+      setOnClickListener { imagePicker.launch("image/*") }
     }
     root.addView(
       pickButton,
@@ -78,9 +87,13 @@ class MainActivity : ComponentActivity() {
       try {
         restorer = FaceRestorer(this)
         detector = try { FaceDetector(this) } catch (e: Exception) {
-          Log.w(TAG, "Face detector unavailable, using center crop", e); null
+          Log.w(TAG, "Face detector unavailable, using center crop", e)
+          null
         }
-        runOnUiThread { statusText.text = "Ready — select a face photo"; pickButton.isEnabled = true }
+        runOnUiThread {
+            statusText.text = "Ready — select a face photo"
+            pickButton.isEnabled = true
+        }
       } catch (e: Exception) {
         Log.e(TAG, "Model load failed", e)
         runOnUiThread { statusText.text = "Failed: ${e.message}" }
@@ -109,7 +122,10 @@ class MainActivity : ComponentActivity() {
         }
       } catch (e: Exception) {
         Log.e(TAG, "Restore failed", e)
-        runOnUiThread { statusText.text = "Error: ${e.message}"; pickButton.isEnabled = true }
+        runOnUiThread {
+            statusText.text = "Error: ${e.message}"
+            pickButton.isEnabled = true
+        }
       }
       isProcessing = false
     }
@@ -134,9 +150,13 @@ class MainActivity : ComponentActivity() {
         det.recycle()
         val face = d.detect(rgb).maxByOrNull { it.score }
         if (face != null) {
-          val sx = src.width.toFloat() / sz; val sy = src.height.toFloat() / sz
+          val sx = src.width.toFloat() / sz
+          val sy = src.height.toFloat() / sz
           val lm = FloatArray(10)
-          for (j in 0 until 5) { lm[2 * j] = face.landmarks[2 * j] * sx; lm[2 * j + 1] = face.landmarks[2 * j + 1] * sy }
+          for (j in 0 until 5) {
+              lm[2 * j] = face.landmarks[2 * j] * sx
+              lm[2 * j + 1] = face.landmarks[2 * j + 1] * sy
+          }
           Log.i(TAG, "Face detected (score ${"%.2f".format(face.score)}), FFHQ-aligned")
           return FaceAligner.align(src, lm)
         }
