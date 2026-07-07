@@ -1,5 +1,5 @@
 /*
- * Copyright 2025 The Google AI Edge Authors. All Rights Reserved.
+ * Copyright 2026 The Google AI Edge Authors. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -39,10 +39,12 @@ class Upscaler(context: Context, modelFileName: String = "edsr.tflite") : AutoCl
 
   companion object {
     private const val TAG = "EDSR"
-    const val LR = 128; const val HR = 512
+    const val LR = 128
+    const val HR = 512
   }
 
-  private val model = CompiledModel.create(context.assets, modelFileName, CompiledModel.Options(Accelerator.GPU), null)
+  private val model = CompiledModel.create(
+    context.assets, modelFileName, CompiledModel.Options(Accelerator.GPU), null)
   private val inBufs: List<TensorBuffer> = model.createInputBuffers()
   private val outBufs: List<TensorBuffer> = model.createOutputBuffers()
 
@@ -58,7 +60,9 @@ class Upscaler(context: Context, modelFileName: String = "edsr.tflite") : AutoCl
   fun upscale(bitmap: Bitmap): Pair<Bitmap, Long> {
     val t = System.nanoTime()
     Canvas(lrBitmap).drawBitmap(
-      bitmap, matrix.apply { setScale(LR.toFloat() / bitmap.width, LR.toFloat() / bitmap.height) }, paint)
+      bitmap,
+      matrix.apply { setScale(LR.toFloat() / bitmap.width, LR.toFloat() / bitmap.height) },
+      paint)
     lrBitmap.getPixels(lrPixels, 0, LR, 0, 0, LR, LR)
     val plane = LR * LR
     for (i in 0 until plane) {
@@ -83,6 +87,8 @@ class Upscaler(context: Context, modelFileName: String = "edsr.tflite") : AutoCl
 
   override fun close() {
     model.close()
-    if (!lrBitmap.isRecycled) lrBitmap.recycle()
+    if (!lrBitmap.isRecycled) {
+      lrBitmap.recycle()
+    }
   }
 }

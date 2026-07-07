@@ -1,5 +1,5 @@
 /*
- * Copyright 2025 The Google AI Edge Authors. All Rights Reserved.
+ * Copyright 2026 The Google AI Edge Authors. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -36,16 +36,27 @@ class MainActivity : AppCompatActivity() {
 
   override fun onCreate(savedInstanceState: Bundle?) {
     super.onCreate(savedInstanceState)
-    val status = TextView(this).apply { textSize = 15f; setPadding(28, 40, 28, 16) }
+    val status = TextView(this).apply {
+        textSize = 15f
+        setPadding(28, 40, 28, 16)
+    }
     val bicubicView = ImageView(this).apply { adjustViewBounds = true }
     val srView = ImageView(this).apply { adjustViewBounds = true }
     setContentView(LinearLayout(this).apply {
       orientation = LinearLayout.VERTICAL
       addView(status)
       addView(TextView(this@MainActivity).apply { text = "Bicubic ×4"; setPadding(28, 8, 28, 4) })
-      addView(bicubicView, LinearLayout.LayoutParams(512, 512).apply { gravity = Gravity.CENTER_HORIZONTAL })
-      addView(TextView(this@MainActivity).apply { text = "EDSR ×4 (GPU)"; setPadding(28, 16, 28, 4) })
-      addView(srView, LinearLayout.LayoutParams(512, 512).apply { gravity = Gravity.CENTER_HORIZONTAL })
+      addView(
+        bicubicView,
+        LinearLayout.LayoutParams(512, 512).apply { gravity = Gravity.CENTER_HORIZONTAL })
+      addView(
+        TextView(this@MainActivity).apply {
+          text = "EDSR ×4 (GPU)"
+          setPadding(28, 16, 28, 4)
+        })
+      addView(
+        srView,
+        LinearLayout.LayoutParams(512, 512).apply { gravity = Gravity.CENTER_HORIZONTAL })
     })
 
     executor.execute {
@@ -54,7 +65,8 @@ class MainActivity : AppCompatActivity() {
         val (hr, ms) = u.upscale(lr)
         val bicubic = Bitmap.createScaledBitmap(lr, Upscaler.HR, Upscaler.HR, true)
         runOnUiThread {
-          status.text = "EDSR ×4 super-resolution  ·  CompiledModel GPU  ·  ${ms} ms  ·  128 → 512"
+          status.text =
+            "EDSR ×4 super-resolution  ·  CompiledModel GPU  ·  ${ms} ms  ·  128 → 512"
           bicubicView.setImageBitmap(bicubic)
           srView.setImageBitmap(hr)
         }
@@ -62,5 +74,8 @@ class MainActivity : AppCompatActivity() {
     }
   }
 
-  override fun onDestroy() { super.onDestroy(); executor.shutdown() }
+  override fun onDestroy() {
+      super.onDestroy()
+      executor.shutdown()
+  }
 }
