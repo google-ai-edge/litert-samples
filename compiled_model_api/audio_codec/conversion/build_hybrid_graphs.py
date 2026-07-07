@@ -1,4 +1,4 @@
-# Copyright 2025 The Google AI Edge Authors. All Rights Reserved.
+# Copyright 2026 The Google AI Edge Authors. All Rights Reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -27,7 +27,7 @@ Graphs (fixed length; module rebuilds per duration or pads):
   mimi_deconly.tflite    (GPU)  conv_in(1,512,seq) -> audio(1,1,L)
   mimi_rvq.bin           (CPU/Kotlin)  RVQ encode+decode weights
 
-  ~/clipconv/bin/python build_hybrid_graphs.py
+  python build_hybrid_graphs.py
 """
 import _stub
 import os

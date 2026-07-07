@@ -1,4 +1,4 @@
-# Copyright 2025 The Google AI Edge Authors. All Rights Reserved.
+# Copyright 2026 The Google AI Edge Authors. All Rights Reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -20,7 +20,7 @@ hidden; emb = semantic_out + acoustic_out.
 
   decode: codes[1,32,T] -> emb[1,512,T]   (== m.quantizer.decode; feeds mimi_decode.tflite)
 
-Run: ~/clipconv/bin/python mimi_rvq_validate_export.py
+Run: python mimi_rvq_validate_export.py
 """
 import _stub  # noqa: F401
 import os

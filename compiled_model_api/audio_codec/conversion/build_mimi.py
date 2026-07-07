@@ -1,4 +1,4 @@
-# Copyright 2025 The Google AI Edge Authors. All Rights Reserved.
+# Copyright 2026 The Google AI Edge Authors. All Rights Reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -30,7 +30,7 @@ Re-authoring recipe (all proven C-patterns; numerically equivalent except sigmoi
 Also exports the decoder_transformer STANDALONE (graph a) + the full fused decode (graph b)
 so Pixel 8a can run the C33 test: standalone-correct-but-fused-collapse => C33 generalizes.
 
-Run:  ~/clipconv/bin/python build_mimi.py [stage]   stage in {opcheck,parity,c33,all}
+Run:  python build_mimi.py [stage]   stage in {opcheck,parity,c33,all}
 """
 import _stub  # FIRST: scipy/_propack + getsourcefile guards
 import sys

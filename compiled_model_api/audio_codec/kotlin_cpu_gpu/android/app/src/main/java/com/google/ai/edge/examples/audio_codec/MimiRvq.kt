@@ -1,5 +1,5 @@
 /*
- * Copyright 2025 The Google AI Edge Authors. All Rights Reserved.
+ * Copyright 2026 The Google AI Edge Authors. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -64,10 +64,18 @@ class MimiRvq(binPath: String) {
         fill(acoWin)
         fill(semWout)
         fill(acoWout)
-        for (i in 0 until N_SEM) fill(semCB[i])
-        for (i in 0 until N_ACO) fill(acoCB[i])
-        for (i in 0 until N_SEM) sqNorms(semCB[i], semCBnorm[i])
-        for (i in 0 until N_ACO) sqNorms(acoCB[i], acoCBnorm[i])
+        for (i in 0 until N_SEM) {
+            fill(semCB[i])
+        }
+        for (i in 0 until N_ACO) {
+            fill(acoCB[i])
+        }
+        for (i in 0 until N_SEM) {
+            sqNorms(semCB[i], semCBnorm[i])
+        }
+        for (i in 0 until N_ACO) {
+            sqNorms(acoCB[i], acoCBnorm[i])
+        }
     }
 
     private fun sqNorms(cb: FloatArray, out: FloatArray) {
@@ -87,7 +95,9 @@ class MimiRvq(binPath: String) {
         for (d in 0 until DIM) {
             var s = 0f
             val wr = d * HID
-            for (c in 0 until HID) s += w[wr + c] * emb[c * T + t]
+            for (c in 0 until HID) {
+                s += w[wr + c] * emb[c * T + t]
+            }
             proj[d] = s
         }
     }
@@ -99,7 +109,9 @@ class MimiRvq(binPath: String) {
         for (k in 0 until SIZE) {
             var dot = 0f
             val r = k * DIM
-            for (d in 0 until DIM) dot += proj[d] * cb[r + d]
+            for (d in 0 until DIM) {
+                dot += proj[d] * cb[r + d]
+            }
             val dist = cbn[k] - 2f * dot
             if (dist < best) {
                 best = dist
@@ -124,7 +136,9 @@ class MimiRvq(binPath: String) {
                 val code = nearest(res, acoCB[i], acoCBnorm[i])
                 codes[(N_SEM + i) * T + t] = code
                 val r = code * DIM
-                for (d in 0 until DIM) res[d] -= acoCB[i][r + d]
+                for (d in 0 until DIM) {
+                    res[d] -= acoCB[i][r + d]
+                }
             }
         }
         return codes
@@ -137,16 +151,24 @@ class MimiRvq(binPath: String) {
         val qAco = FloatArray(DIM)
         for (t in 0 until T) {
             val sr = codes[t] * DIM
-            for (d in 0 until DIM) qSem[d] = semCB[0][sr + d]
-            for (d in 0 until DIM) qAco[d] = 0f
+            for (d in 0 until DIM) {
+                qSem[d] = semCB[0][sr + d]
+            }
+            for (d in 0 until DIM) {
+                qAco[d] = 0f
+            }
             for (i in 0 until N_ACO) {
                 val r = codes[(N_SEM + i) * T + t] * DIM
-                for (d in 0 until DIM) qAco[d] += acoCB[i][r + d]
+                for (d in 0 until DIM) {
+                    qAco[d] += acoCB[i][r + d]
+                }
             }
             for (c in 0 until HID) {
                 var s = 0f
                 val wr = c * DIM
-                for (d in 0 until DIM) s += semWout[wr + d] * qSem[d] + acoWout[wr + d] * qAco[d]
+                for (d in 0 until DIM) {
+                    s += semWout[wr + d] * qSem[d] + acoWout[wr + d] * qAco[d]
+                }
                 emb[c * T + t] = s
             }
         }

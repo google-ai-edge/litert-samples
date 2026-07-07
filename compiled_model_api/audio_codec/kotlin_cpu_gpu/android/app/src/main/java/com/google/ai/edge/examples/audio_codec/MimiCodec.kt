@@ -1,5 +1,5 @@
 /*
- * Copyright 2025 The Google AI Edge Authors. All Rights Reserved.
+ * Copyright 2026 The Google AI Edge Authors. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -81,7 +81,11 @@ class MimiCodec(private val context: Context) : Closeable {
     /** (1,512,Se) channel-major c*Se+t  ->  (1,Se,512) time-major t*512+c (enc_tx input layout). */
     private fun transposeCT(x: FloatArray, c: Int, t: Int): FloatArray {
         val o = FloatArray(x.size)
-        for (cc in 0 until c) for (tt in 0 until t) o[tt * c + cc] = x[cc * t + tt]
+        for (cc in 0 until c) {
+            for (tt in 0 until t) {
+                o[tt * c + cc] = x[cc * t + tt]
+            }
+        }
         return o
     }
 
