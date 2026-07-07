@@ -160,15 +160,35 @@ def build():
     print(f"  RFDETR full; net params {sum(p.numel() for p in net.parameters())/1e6:.1f}M")
     return Wrap().eval()
 def opcheck(p,l):
-    from ai_edge_litert.interpreter import Interpreter
-    it=Interpreter(model_path=p)
-    it.allocate_tensors()
-    ops=collections.Counter(d.get("op_name","?") for d in it._get_ops_details())
+    """Static GPU-compat scan: read the op set straight from the .tflite flatbuffer."""
+    from ai_edge_litert import schema_py_generated as schema
+    with open(p,"rb") as f:
+        model=schema.ModelT.InitFromPackedBuf(f.read(),0)
+    names={v:k for k,v in vars(schema.BuiltinOperator).items() if not k.startswith("_")}
+    ops=collections.Counter()
+    over=0
+    for g in model.subgraphs:
+        for op in g.operators:
+            c=model.operatorCodes[op.opcodeIndex]
+            code=max(c.builtinCode,c.deprecatedBuiltinCode)
+            ops[c.customCode.decode() if c.customCode else names.get(code,str(code))]+=1
+        over+=sum(1 for t in g.tensors if t.shape is not None and len(t.shape)>4)
     bad={k:v for k,v in ops.items() if k.upper() in BANNED}
-    over=sum(1 for d in it.get_tensor_details() if len(d.get("shape",[]))>4)
     print(f"[{l}] ops:",dict(sorted(ops.items(),key=lambda kv:-kv[1])))
     print(f"[{l}] banned:{bad or 'NONE'} >4D:{over} size {os.path.getsize(p)/1e6:.1f}MB","GPU-CLEAN" if not bad and not over else "BLOCKERS")
-    return it
+def run_tflite(path,x):
+    """Single-input inference through the LiteRT CompiledModel API; returns the flat fp32 outputs in signature order."""
+    from ai_edge_litert.compiled_model import CompiledModel
+    model=CompiledModel.from_file(path)
+    inputs=model.create_input_buffers(0)
+    outputs=model.create_output_buffers(0)
+    inputs[0].write(np.ascontiguousarray(x,dtype=np.float32))
+    model.run_by_index(0,inputs,outputs)
+    outs=[]
+    for j in range(len(outputs)):
+        n=model.get_output_buffer_requirements(j,0)["buffer_size"]//np.dtype(np.float32).itemsize
+        outs.append(outputs[j].read(n,np.float32))
+    return outs
 if __name__=="__main__":
     g=build()
     x=torch.randn(1,3,R,R)*0.5
@@ -179,14 +199,10 @@ if __name__=="__main__":
     fp32=f"{HERE}/rffull.tflite"
     try:
         litert_torch.convert(g,(x,)).export(fp32)
-        it=opcheck(fp32,"rffull")
-        d=it.get_input_details()[0]
-        it.set_tensor(d["index"],x.numpy().astype(d["dtype"]))
-        it.invoke()
-        for oi,od in enumerate(it.get_output_details()):
-            o=it.get_tensor(od["index"])
+        opcheck(fp32,"rffull")
+        for oi,o in enumerate(run_tflite(fp32,x.numpy())):
             r=ref[oi].numpy() if isinstance(ref,(list,tuple)) else ref.numpy()
-            if o.size==r.size: print(f"  out{oi} corr {np.corrcoef(o.ravel(),r.ravel())[0,1]:.5f}")
+            if o.size==r.size: print(f"  out{oi} corr {np.corrcoef(o,r.ravel())[0,1]:.5f}")
     except Exception as e:
         import traceback
         traceback.print_exc()

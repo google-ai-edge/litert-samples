@@ -168,35 +168,52 @@ def host_select(enc_class, enc_coord):
 
 
 def opcheck(p, l):
-    from ai_edge_litert.interpreter import Interpreter
-    it = Interpreter(model_path=p)
-    it.allocate_tensors()
-    ops = collections.Counter(d.get("op_name", "?") for d in it._get_ops_details())
+    """Static GPU-compat scan: read the op set straight from the .tflite flatbuffer."""
+    from ai_edge_litert import schema_py_generated as schema
+    with open(p, "rb") as f:
+        model = schema.ModelT.InitFromPackedBuf(f.read(), 0)
+    names = {v: k for k, v in vars(schema.BuiltinOperator).items() if not k.startswith("_")}
+    ops = collections.Counter()
+    over = 0
+    for g in model.subgraphs:
+        for op in g.operators:
+            c = model.operatorCodes[op.opcodeIndex]
+            code = max(c.builtinCode, c.deprecatedBuiltinCode)
+            ops[c.customCode.decode() if c.customCode else names.get(code, str(code))] += 1
+        over += sum(1 for t in g.tensors if t.shape is not None and len(t.shape) > 4)
     bad = {k: v for k, v in ops.items() if k.upper() in BANNED}
-    over = sum(1 for d in it.get_tensor_details() if len(d.get("shape", [])) > 4)
     print(f"[{l}] ops:", dict(sorted(ops.items(), key=lambda kv: -kv[1])))
     print(f"[{l}] banned:{bad or 'NONE'} >4D:{over} size {os.path.getsize(p)/1e6:.1f}MB",
           "GPU-CLEAN" if not bad and not over else "BLOCKERS")
-    return it, (not bad and not over)
+    return not bad and not over
 
 
 def run_tflite(path, inputs):
-    from ai_edge_litert.interpreter import Interpreter
-    it = Interpreter(model_path=path)
-    it.allocate_tensors()
-    ins = it.get_input_details()
-    # match inputs to interpreter slots by shape
-    for d in ins:
-        shp = tuple(d["shape"])
+    """Multi-input inference through the LiteRT CompiledModel API; returns all shaped outputs."""
+    from ai_edge_litert.compiled_model import CompiledModel
+    model = CompiledModel.from_file(path)
+    key = list(model.get_signature_list())[0]
+    sig = model.get_signature_list()[key]
+    in_det = model.get_input_tensor_details(key)
+    out_det = model.get_output_tensor_details(key)
+    bufs_in = model.create_input_buffers(0)
+    bufs_out = model.create_output_buffers(0)
+    # match inputs to model slots by shape
+    for i, name in enumerate(sig["inputs"]):
+        shp = tuple(in_det[name]["shape"])
         matched = None
         for arr in inputs:
             if tuple(arr.shape) == shp:
                 matched = arr
                 break
-        assert matched is not None, f"no input for slot {d['name']} shape {shp}"
-        it.set_tensor(d["index"], matched.astype(d["dtype"]))
-    it.invoke()
-    return [it.get_tensor(od["index"]) for od in it.get_output_details()]
+        assert matched is not None, f"no input for slot {name} shape {shp}"
+        bufs_in[i].write(np.ascontiguousarray(matched, dtype=np.float32))
+    model.run_by_index(0, bufs_in, bufs_out)
+    outs = []
+    for j, name in enumerate(sig["outputs"]):
+        shp = tuple(out_det[name]["shape"])
+        outs.append(bufs_out[j].read(int(np.prod(shp)), np.float32).reshape(shp))
+    return outs
 
 
 if __name__ == "__main__":
@@ -223,7 +240,7 @@ if __name__ == "__main__":
     # ---- Graph A ----
     pa = f"{HERE}/rfA.tflite"
     litert_torch.convert(ga, (x,)).export(pa)
-    ita, okA = opcheck(pa, "rfA")
+    okA = opcheck(pa, "rfA")
     oa = run_tflite(pa, [x.numpy().astype(np.float32)])
     # order outputs by shape
     def by_shape(outs, shp):
@@ -238,7 +255,7 @@ if __name__ == "__main__":
     # ---- Graph B ---- (feed torch memory + torch ts so B is tested in isolation)
     pb = f"{HERE}/rfB.tflite"
     litert_torch.convert(gb, (mem, ts)).export(pb)
-    itb, okB = opcheck(pb, "rfB")
+    okB = opcheck(pb, "rfB")
     ob = run_tflite(pb, [mem.numpy().astype(np.float32), ts.numpy().astype(np.float32)])
     tb_boxes = by_shape(ob, tuple(sb.shape))
     tb_logits = by_shape(ob, tuple(sl.shape))

@@ -90,16 +90,11 @@ def main():
     corr = np.corrcoef(mine.ravel(), dec[0].numpy().ravel())[0, 1]
     print(f"[decode] host vs built-in: corr {corr:.6f}  max|d| {np.abs(mine - dec[0].numpy()).max():.2e}")
 
-    # (2) end-to-end on a real image through the fp16 tflite
-    from ai_edge_litert.interpreter import Interpreter
+    # (2) end-to-end on a real image through the fp16 tflite (CompiledModel API)
     tag = args.name.replace("yolox-", "yolox_")
-    it = Interpreter(model_path=f"{tag}_fp16.tflite")
-    it.allocate_tensors()
     img = cv2.imread(os.path.join(HERE, "YOLOX/assets/dog.jpg"))
     inp, r = preproc(img, S)
-    it.set_tensor(it.get_input_details()[0]["index"], inp[None])
-    it.invoke()
-    raw_tf = it.get_tensor(it.get_output_details()[0]["index"])[0]   # [n_anchors, 85]
+    raw_tf = B.run_tflite(f"{tag}_fp16.tflite", inp[None]).reshape(-1, 85)   # [n_anchors, 85]
     dec_tf = host_decode(raw_tf, hw, model.head.strides)
     out = postprocess(torch.from_numpy(dec_tf)[None], 80, conf_thre=0.3, nms_thre=0.45)[0]
 
