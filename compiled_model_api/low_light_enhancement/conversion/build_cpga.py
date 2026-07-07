@@ -1,4 +1,4 @@
-# Copyright 2025 The Google AI Edge Authors. All Rights Reserved.
+# Copyright 2026 The Google AI Edge Authors. All Rights Reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -12,6 +12,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+"""CPGA-Net (low-light enhancement) -> LiteRT CompiledModel GPU.
+
+Model-side re-authoring (numerically exact): pow(x, g) -> exp(g * log(x)) so
+the graph avoids the GPU-rejected POW op.
+"""
 import sys
 import os
 import collections
