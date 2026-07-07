@@ -1,5 +1,5 @@
 /*
- * Copyright 2025 The Google AI Edge Authors. All Rights Reserved.
+ * Copyright 2026 The Google AI Edge Authors. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -40,10 +40,15 @@ class MainActivity : AppCompatActivity() {
 
   override fun onCreate(savedInstanceState: Bundle?) {
     super.onCreate(savedInstanceState)
-    val status = TextView(this).apply { textSize = 15f; setPadding(28, 40, 28, 20) }
+    val status = TextView(this).apply {
+        textSize = 15f
+        setPadding(28, 40, 28, 20)
+    }
     val imageView = ImageView(this).apply { adjustViewBounds = true }
     setContentView(LinearLayout(this).apply {
-      orientation = LinearLayout.VERTICAL; addView(status); addView(imageView)
+      orientation = LinearLayout.VERTICAL
+      addView(status)
+      addView(imageView)
     })
 
     executor.execute {
@@ -70,7 +75,8 @@ class MainActivity : AppCompatActivity() {
 
   /** Green = drivable area, red = lane lines, scaled from the 640×360 masks. */
   private fun render(image: Bitmap, da: ByteArray, ll: ByteArray): Bitmap {
-    val W = TwinLiteSegmenter.W; val H = TwinLiteSegmenter.H
+    val W = TwinLiteSegmenter.W
+    val H = TwinLiteSegmenter.H
     val out = image.copy(Bitmap.Config.ARGB_8888, true)
     val px = IntArray(out.width * out.height)
     out.getPixels(px, 0, out.width, 0, 0, out.width, out.height)
@@ -82,8 +88,13 @@ class MainActivity : AppCompatActivity() {
         px[y * out.width + x] = when {
           ll[mi].toInt() == 1 -> Color.rgb(255, 48, 48)
           da[mi].toInt() == 1 -> {
-            val r = (p shr 16) and 0xFF; val g = (p shr 8) and 0xFF; val b = p and 0xFF
-            Color.rgb((r * 0.45f + 40 * 0.55f).toInt(), (g * 0.45f + 220 * 0.55f).toInt(), (b * 0.45f + 90 * 0.55f).toInt())
+            val r = (p shr 16) and 0xFF
+            val g = (p shr 8) and 0xFF
+            val b = p and 0xFF
+            Color.rgb(
+              (r * 0.45f + 40 * 0.55f).toInt(),
+              (g * 0.45f + 220 * 0.55f).toInt(),
+              (b * 0.45f + 90 * 0.55f).toInt())
           }
           else -> p
         }
@@ -92,5 +103,8 @@ class MainActivity : AppCompatActivity() {
     return Bitmap.createBitmap(px, out.width, out.height, Bitmap.Config.ARGB_8888)
   }
 
-  override fun onDestroy() { super.onDestroy(); executor.shutdown() }
+  override fun onDestroy() {
+      super.onDestroy()
+      executor.shutdown()
+  }
 }

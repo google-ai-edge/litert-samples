@@ -1,5 +1,5 @@
 /*
- * Copyright 2025 The Google AI Edge Authors. All Rights Reserved.
+ * Copyright 2026 The Google AI Edge Authors. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -37,7 +37,8 @@ class TwinLiteSegmenter(modelPath: String) : AutoCloseable {
 
   companion object {
     private const val TAG = "TwinLiteNet"
-    const val W = 640; const val H = 360
+    const val W = 640
+    const val H = 360
   }
 
   private val model = CompiledModel.create(modelPath, CompiledModel.Options(Accelerator.GPU), null)
@@ -58,7 +59,9 @@ class TwinLiteSegmenter(modelPath: String) : AutoCloseable {
   fun segment(bitmap: Bitmap): Triple<ByteArray, ByteArray, Long> {
     val t = System.nanoTime()
     Canvas(resized).drawBitmap(
-      bitmap, matrix.apply { setScale(W.toFloat() / bitmap.width, H.toFloat() / bitmap.height) }, paint)
+      bitmap,
+      matrix.apply { setScale(W.toFloat() / bitmap.width, H.toFloat() / bitmap.height) },
+      paint)
     resized.getPixels(pixels, 0, W, 0, 0, W, H)
     val plane = W * H
     for (i in 0 until plane) {
@@ -69,7 +72,8 @@ class TwinLiteSegmenter(modelPath: String) : AutoCloseable {
     }
     inBufs[0].writeFloat(inputFloats)
     model.run(inBufs, outBufs)
-    val da = outBufs[0].readFloat(); val ll = outBufs[1].readFloat()
+    val da = outBufs[0].readFloat()
+    val ll = outBufs[1].readFloat()
     for (i in 0 until plane) {
       daMask[i] = if (da[plane + i] > da[i]) 1 else 0
       llMask[i] = if (ll[plane + i] > ll[i]) 1 else 0
@@ -79,6 +83,8 @@ class TwinLiteSegmenter(modelPath: String) : AutoCloseable {
 
   override fun close() {
     model.close()
-    if (!resized.isRecycled) resized.recycle()
+    if (!resized.isRecycled) {
+      resized.recycle()
+    }
   }
 }
