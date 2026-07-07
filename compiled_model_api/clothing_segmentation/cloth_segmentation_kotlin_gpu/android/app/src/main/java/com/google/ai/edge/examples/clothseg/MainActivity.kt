@@ -1,5 +1,5 @@
 /*
- * Copyright 2025 The Google AI Edge Authors. All Rights Reserved.
+ * Copyright 2026 The Google AI Edge Authors. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -36,14 +36,20 @@ class MainActivity : AppCompatActivity() {
 
   private val executor = Executors.newSingleThreadExecutor()
   // 0 bg (keep), 1 upper (cyan), 2 lower (orange), 3 full (magenta)
-  private val colors = intArrayOf(0, Color.rgb(0, 200, 255), Color.rgb(255, 150, 0), Color.rgb(230, 0, 200))
+  private val colors =
+    intArrayOf(0, Color.rgb(0, 200, 255), Color.rgb(255, 150, 0), Color.rgb(230, 0, 200))
 
   override fun onCreate(savedInstanceState: Bundle?) {
     super.onCreate(savedInstanceState)
-    val status = TextView(this).apply { textSize = 15f; setPadding(28, 40, 28, 20) }
+    val status = TextView(this).apply {
+        textSize = 15f
+        setPadding(28, 40, 28, 20)
+    }
     val imageView = ImageView(this).apply { adjustViewBounds = true }
     setContentView(LinearLayout(this).apply {
-      orientation = LinearLayout.VERTICAL; addView(status); addView(imageView)
+      orientation = LinearLayout.VERTICAL
+      addView(status)
+      addView(imageView)
     })
 
     executor.execute {
@@ -52,7 +58,8 @@ class MainActivity : AppCompatActivity() {
         runOnUiThread {
           status.text = "Model not found at:\n${modelFile.absolutePath}\n\n" +
             "Push it first:  ./install_to_device.sh <dir-with-clothseg.tflite>\n" +
-            "(build with ../conversion or download from\n litert-community/Cloth-Segmentation-U2Net-LiteRT)"
+            "(build with ../conversion or download from\n" +
+            " litert-community/Cloth-Segmentation-U2Net-LiteRT)"
         }
         return@execute
       }
@@ -78,7 +85,8 @@ class MainActivity : AppCompatActivity() {
       for (x in 0 until out.width) {
         val c = cls[my * O + (x * O / out.width)].toInt()
         if (c != 0) {
-          val p = px[y * out.width + x]; val col = colors[c]
+          val p = px[y * out.width + x]
+          val col = colors[c]
           val r = (((p shr 16) and 0xFF) * 0.4f + ((col shr 16) and 0xFF) * 0.6f).toInt()
           val g = (((p shr 8) and 0xFF) * 0.4f + ((col shr 8) and 0xFF) * 0.6f).toInt()
           val b = ((p and 0xFF) * 0.4f + (col and 0xFF) * 0.6f).toInt()
@@ -89,5 +97,8 @@ class MainActivity : AppCompatActivity() {
     return Bitmap.createBitmap(px, out.width, out.height, Bitmap.Config.ARGB_8888)
   }
 
-  override fun onDestroy() { super.onDestroy(); executor.shutdown() }
+  override fun onDestroy() {
+      super.onDestroy()
+      executor.shutdown()
+  }
 }

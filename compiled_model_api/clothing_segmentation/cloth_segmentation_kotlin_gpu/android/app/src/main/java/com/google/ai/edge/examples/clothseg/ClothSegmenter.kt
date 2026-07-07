@@ -1,5 +1,5 @@
 /*
- * Copyright 2025 The Google AI Edge Authors. All Rights Reserved.
+ * Copyright 2026 The Google AI Edge Authors. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -37,7 +37,9 @@ class ClothSegmenter(modelPath: String) : AutoCloseable {
 
   companion object {
     private const val TAG = "ClothSeg"
-    const val S = 768; const val OUT = 256; const val NC = 4
+    const val S = 768
+    const val OUT = 256
+    const val NC = 4
   }
 
   private val model = CompiledModel.create(modelPath, CompiledModel.Options(Accelerator.GPU), null)
@@ -57,7 +59,9 @@ class ClothSegmenter(modelPath: String) : AutoCloseable {
   fun segment(bitmap: Bitmap): Pair<ByteArray, Long> {
     val t = System.nanoTime()
     Canvas(resized).drawBitmap(
-      bitmap, matrix.apply { setScale(S.toFloat() / bitmap.width, S.toFloat() / bitmap.height) }, paint)
+      bitmap,
+      matrix.apply { setScale(S.toFloat() / bitmap.width, S.toFloat() / bitmap.height) },
+      paint)
     resized.getPixels(pixels, 0, S, 0, 0, S, S)
     val plane = S * S
     for (i in 0 until plane) {
@@ -73,8 +77,15 @@ class ClothSegmenter(modelPath: String) : AutoCloseable {
     for (y in 0 until OUT) {
       for (x in 0 until OUT) {
         val idx = (y * step) * S + (x * step)
-        var best = 0; var bv = o[idx]
-        for (c in 1 until NC) { val v = o[c * plane + idx]; if (v > bv) { bv = v; best = c } }
+        var best = 0
+        var bv = o[idx]
+        for (c in 1 until NC) {
+            val v = o[c * plane + idx]
+            if (v > bv) {
+                bv = v
+                best = c
+            }
+        }
         classMap[y * OUT + x] = best.toByte()
       }
     }
@@ -83,6 +94,8 @@ class ClothSegmenter(modelPath: String) : AutoCloseable {
 
   override fun close() {
     model.close()
-    if (!resized.isRecycled) resized.recycle()
+    if (!resized.isRecycled) {
+      resized.recycle()
+    }
   }
 }
