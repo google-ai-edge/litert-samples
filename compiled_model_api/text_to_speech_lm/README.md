@@ -10,7 +10,7 @@ The model runs as **three LiteRT graphs orchestrated by a host-side loop** (the 
 
 Everything between the graphs — BPE tokenization, prompt embedding assembly (control tokens, speaker x-vector, streamed per-frame text conditioning), 16-codebook embedding aggregation, sampling with repetition penalty and control-token suppression, and chunked codec decoding — is plain NumPy in `python/qwen3_tts_pipeline.py`. This host loop is exactly the piece a future LiteRT-LM Engine "audio-LM" session type would absorb; see the conversion report linked below for the concrete list of Engine capabilities this maps to.
 
-## Quick start
+## Quick start (Python, desktop)
 
 ```bash
 cd python
@@ -25,16 +25,28 @@ The first run downloads ~1.4 GB of model files from [litert-community/Qwen3-TTS-
 - `--greedy`: deterministic decoding. With `--talker fp32 --greedy` the pipeline reproduces the PyTorch reference implementation **token-for-token** (waveform correlation 1.0) — this is the correctness gate used during conversion.
 - `--talker int4` (default): the blockwise-int4 talker (256 MB vs 1.8 GB fp32). Its sampled output differs from fp32 but transcribes identically under an ASR round-trip check.
 
-## Performance (Apple M4 Max, CPU/XNNPACK)
+## Android app (`kotlin_cpu/android`)
 
-| Stage | per 80 ms frame |
-|---|---|
-| Talker decode (8 threads) | 45–50 ms |
-| MTP inner loop (17 invokes, 1 thread) | ~148 ms |
-| Codec decode (amortized) | ~10 ms |
-| **Total** | **~205 ms → RTF ≈ 2.5** |
+A Kotlin port of the same host loop (Compiled Model API, CPU): byte-level BPE tokenizer (verified against reference token ids by a startup self-test, including Japanese input), memory-mapped fp16 embedding tables, the talker/MTP/codec loop with ping-pong KV-cache buffers (no per-step cache copies), and AudioTrack playback.
 
-Not yet realtime: the MTP inner loop dominates because a 78 M-parameter model streams its weights 17 times per frame. The two known levers (folding the 15-step loop into a single unrolled graph with in-graph sampling, and a calibrated low-bit MTP) are engineering work, not converter gaps — see the feasibility report in the model card for the analysis.
+```bash
+cd kotlin_cpu/android
+./gradlew :app:installDebug        # or open in Android Studio
+./install_to_device.sh             # downloads ~1.4 GB from Hugging Face, adb-pushes it
+```
+
+Launch the app, type text, pick a language, tap Speak.
+
+## Performance
+
+| Stage (per 80 ms frame) | M4 Max CPU (Python) | Pixel 8a (Kotlin) |
+|---|---|---|
+| Talker decode | 45–50 ms | ~60 ms |
+| MTP inner loop (17 invokes) | ~148 ms | ~370 ms |
+| Codec decode (amortized) | ~10 ms | ~98 ms |
+| **Total** | **~205 ms → RTF ≈ 2.5** | **~530 ms → RTF ≈ 6.7** |
+
+Measured end to end on Pixel 8a: 4.16 s of audio in 28.0 s (prefill 585 ms, talker 3.1 s, MTP 19.2 s, codec 5.1 s). Not yet realtime: the MTP inner loop dominates because a 78 M-parameter model streams its weights 17 times per frame. The two known levers (folding the 15-step loop into a single unrolled graph with in-graph sampling, and a calibrated low-bit MTP) are engineering work, not converter gaps — see the feasibility report in the model card for the analysis.
 
 ## Conversion
 
