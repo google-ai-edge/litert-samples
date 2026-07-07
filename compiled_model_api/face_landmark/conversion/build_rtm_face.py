@@ -1,4 +1,4 @@
-# Copyright 2025 The Google AI Edge Authors. All Rights Reserved.
+# Copyright 2026 The Google AI Edge Authors. All Rights Reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -12,6 +12,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+"""RTMPose-Face (SimCC head, dense face landmarks) -> LiteRT CompiledModel GPU.
+
+Same model-side re-authorings as the body RTMPose build (numerically
+equivalent): ScaleNorm -> scale-before-square RMS and GAU BMM -> broadcast-reduce.
+"""
 import warnings
 warnings.filterwarnings("ignore")
 import sys

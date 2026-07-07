@@ -1,5 +1,5 @@
 /*
- * Copyright 2025 The Google AI Edge Authors. All Rights Reserved.
+ * Copyright 2026 The Google AI Edge Authors. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -123,7 +123,9 @@ class MainActivity : Activity() {
     private fun run(crop: Bitmap, warm: Boolean) {
         val n = net!!
         val rgb = bitmapToRgb(crop)
-        if (warm) n.estimate(rgb)
+        if (warm) {
+            n.estimate(rgb)
+        }
         val t0 = System.nanoTime()
         val pts = n.estimate(rgb)
         val ms = (System.nanoTime() - t0) / 1_000_000
@@ -209,10 +211,16 @@ class MainActivity : Activity() {
             fun px(i: Int) = ox + pts[i].x * s
             fun py(i: Int) = oy + pts[i].y * s
             for ((ids, closed) in groups) {
-                for (j in 0 until ids.size - 1) canvas.drawLine(px(ids[j]), py(ids[j]), px(ids[j + 1]), py(ids[j + 1]), line)
-                if (closed && ids.size > 1) canvas.drawLine(px(ids.last()), py(ids.last()), px(ids.first()), py(ids.first()), line)
+                for (j in 0 until ids.size - 1) {
+                    canvas.drawLine(px(ids[j]), py(ids[j]), px(ids[j + 1]), py(ids[j + 1]), line)
+                }
+                if (closed && ids.size > 1) {
+                    canvas.drawLine(px(ids.last()), py(ids.last()), px(ids.first()), py(ids.first()), line)
+                }
             }
-            for (i in pts.indices) canvas.drawCircle(px(i), py(i), 2.5f, dot)
+            for (i in pts.indices) {
+                canvas.drawCircle(px(i), py(i), 2.5f, dot)
+            }
         }
     }
 }
