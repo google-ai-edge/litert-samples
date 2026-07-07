@@ -31,14 +31,17 @@ class NimaScorer(ctx: Context) {
   companion object { const val SIZE = 224 }
 
   private val aesthetic = CompiledModel.create(ctx.assets, "nima_aesthetic_fp16.tflite", CompiledModel.Options(Accelerator.GPU), null)
-  private val aIn = aesthetic.createInputBuffers(); private val aOut = aesthetic.createOutputBuffers()
+  private val aIn = aesthetic.createInputBuffers()
+  private val aOut = aesthetic.createOutputBuffers()
   private val technical = CompiledModel.create(ctx.assets, "nima_technical_fp16.tflite", CompiledModel.Options(Accelerator.GPU), null)
-  private val tIn = technical.createInputBuffers(); private val tOut = technical.createOutputBuffers()
+  private val tIn = technical.createInputBuffers()
+  private val tOut = technical.createOutputBuffers()
 
   /** MobileNet preprocessing: resize 224², RGB, NHWC, scaled to [-1, 1]. */
   private fun preprocess(bm: Bitmap): FloatArray {
     val s = Bitmap.createScaledBitmap(bm, SIZE, SIZE, true)
-    val px = IntArray(SIZE * SIZE); s.getPixels(px, 0, SIZE, 0, 0, SIZE, SIZE)
+    val px = IntArray(SIZE * SIZE)
+    s.getPixels(px, 0, SIZE, 0, 0, SIZE, SIZE)
     val out = FloatArray(SIZE * SIZE * 3)
     for (i in 0 until SIZE * SIZE) {
       val p = px[i]
@@ -50,17 +53,26 @@ class NimaScorer(ctx: Context) {
   }
 
   private fun meanScore(dist: FloatArray): Float {
-    var s = 0f; for (i in dist.indices) s += (i + 1) * dist[i]; return s
+    var s = 0f
+    for (i in dist.indices) {
+        s += (i + 1) * dist[i]
+    }
+    return s
   }
 
   data class Scores(val aesthetic: Float, val technical: Float)
 
   fun score(bm: Bitmap): Scores {
     val x = preprocess(bm)
-    aIn[0].writeFloat(x); aesthetic.run(aIn, aOut)
-    tIn[0].writeFloat(x); technical.run(tIn, tOut)
+    aIn[0].writeFloat(x)
+    aesthetic.run(aIn, aOut)
+    tIn[0].writeFloat(x)
+    technical.run(tIn, tOut)
     return Scores(meanScore(aOut[0].readFloat()), meanScore(tOut[0].readFloat()))
   }
 
-  fun close() { aesthetic.close(); technical.close() }
+  fun close() {
+      aesthetic.close()
+      technical.close()
+  }
 }

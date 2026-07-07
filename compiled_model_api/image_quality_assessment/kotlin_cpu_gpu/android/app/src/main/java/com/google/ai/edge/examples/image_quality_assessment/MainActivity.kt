@@ -46,29 +46,51 @@ class MainActivity : Activity() {
 
   override fun onCreate(savedInstanceState: Bundle?) {
     super.onCreate(savedInstanceState)
-    val root = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(40, 100, 40, 40) }
-    status = TextView(this).apply { textSize = 15f; text = "Loading NIMA…" }
-    val pick = Button(this).apply { text = "🖼  Pick image"; setOnClickListener { pickImage() } }
+    val root = LinearLayout(this).apply {
+        orientation = LinearLayout.VERTICAL
+        setPadding(40, 100, 40, 40)
+    }
+    status = TextView(this).apply {
+        textSize = 15f
+        text = "Loading NIMA…"
+    }
+    val pick = Button(this).apply {
+        text = "🖼  Pick image"
+        setOnClickListener { pickImage() }
+    }
     imageView = ImageView(this).apply { adjustViewBounds = true }
-    scoreView = TextView(this).apply { textSize = 22f; setPadding(0, 24, 0, 0) }
-    root.addView(status); root.addView(pick); root.addView(imageView); root.addView(scoreView)
+    scoreView = TextView(this).apply {
+        textSize = 22f
+        setPadding(0, 24, 0, 0)
+    }
+    root.addView(status)
+    root.addView(pick)
+    root.addView(imageView)
+    root.addView(scoreView)
     setContentView(ScrollView(this).apply { addView(root) })
 
     bg.execute {
       try {
         scorer = NimaScorer(this)
         bitmap = assets.open("test_image.jpg").use { BitmapFactory.decodeStream(it) }
-        runOnUiThread { imageView.setImageBitmap(bitmap); status.text = "Ready — scoring sample…" }
+        runOnUiThread {
+            imageView.setImageBitmap(bitmap)
+            status.text = "Ready — scoring sample…"
+        }
         runScore()
       } catch (e: Throwable) {
         Log.e("NIMA", "load", e)
-        runOnUiThread { status.setBackgroundColor(Color.rgb(0xFF, 0xCD, 0xD2)); status.text = "FAIL: ${e.message}" }
+        runOnUiThread {
+            status.setBackgroundColor(Color.rgb(0xFF, 0xCD, 0xD2))
+            status.text = "FAIL: ${e.message}"
+        }
       }
     }
   }
 
   private fun pickImage() = startActivityForResult(Intent(Intent.ACTION_OPEN_DOCUMENT).apply {
-    addCategory(Intent.CATEGORY_OPENABLE); type = "image/*" }, 1)
+    addCategory(Intent.CATEGORY_OPENABLE)
+    type = "image/*" }, 1)
 
   override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
     val uri: Uri = data?.data ?: return
@@ -79,7 +101,8 @@ class MainActivity : Activity() {
   }
 
   private fun runScore() {
-    val sc = scorer ?: return; val bm = bitmap ?: return
+    val sc = scorer ?: return
+    val bm = bitmap ?: return
     runOnUiThread { status.text = "Scoring on GPU…" }
     bg.execute {
       try {
@@ -94,10 +117,17 @@ class MainActivity : Activity() {
         }
       } catch (e: Throwable) {
         Log.e("NIMA", "score", e)
-        runOnUiThread { status.setBackgroundColor(Color.rgb(0xFF, 0xCD, 0xD2)); status.text = "Failed: ${e.message}" }
+        runOnUiThread {
+            status.setBackgroundColor(Color.rgb(0xFF, 0xCD, 0xD2))
+            status.text = "Failed: ${e.message}"
+        }
       }
     }
   }
 
-  override fun onDestroy() { super.onDestroy(); bg.shutdown(); scorer?.close() }
+  override fun onDestroy() {
+      super.onDestroy()
+      bg.shutdown()
+      scorer?.close()
+  }
 }
