@@ -1,5 +1,5 @@
 /*
- * Copyright 2025 The Google AI Edge Authors. All Rights Reserved.
+ * Copyright 2026 The Google AI Edge Authors. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -69,8 +69,16 @@ class PortraitSketcher(modelPath: String) : AutoCloseable {
     inBufs[0].writeFloat(inputFloats)
     model.run(inBufs, outBufs)
     val d = outBufs[0].readFloat()
-    var mn = Float.MAX_VALUE; var mx = -Float.MAX_VALUE
-    for (v in d) { if (v < mn) mn = v; if (v > mx) mx = v }
+    var mn = Float.MAX_VALUE
+    var mx = -Float.MAX_VALUE
+    for (v in d) {
+        if (v < mn) {
+          mn = v
+        }
+        if (v > mx) {
+          mx = v
+        }
+    }
     val inv = 1f / (mx - mn + 1e-6f)
     for (i in 0 until plane) {
       val g = (255f * (1f - (d[i] - mn) * inv)).toInt().coerceIn(0, 255)
@@ -82,6 +90,8 @@ class PortraitSketcher(modelPath: String) : AutoCloseable {
 
   override fun close() {
     model.close()
-    if (!resized.isRecycled) resized.recycle()
+    if (!resized.isRecycled) {
+      resized.recycle()
+    }
   }
 }

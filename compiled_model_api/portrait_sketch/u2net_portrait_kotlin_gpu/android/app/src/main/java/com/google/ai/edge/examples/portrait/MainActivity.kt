@@ -1,5 +1,5 @@
 /*
- * Copyright 2025 The Google AI Edge Authors. All Rights Reserved.
+ * Copyright 2026 The Google AI Edge Authors. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -38,16 +38,27 @@ class MainActivity : AppCompatActivity() {
 
   override fun onCreate(savedInstanceState: Bundle?) {
     super.onCreate(savedInstanceState)
-    val status = TextView(this).apply { textSize = 15f; setPadding(28, 40, 28, 16) }
+    val status = TextView(this).apply {
+        textSize = 15f
+        setPadding(28, 40, 28, 16)
+    }
     val inputView = ImageView(this).apply { adjustViewBounds = true }
     val sketchView = ImageView(this).apply { adjustViewBounds = true }
     setContentView(LinearLayout(this).apply {
       orientation = LinearLayout.VERTICAL
       addView(status)
       addView(TextView(this@MainActivity).apply { text = "Input"; setPadding(28, 8, 28, 4) })
-      addView(inputView, LinearLayout.LayoutParams(420, 420).apply { gravity = Gravity.CENTER_HORIZONTAL })
-      addView(TextView(this@MainActivity).apply { text = "Pencil portrait (GPU)"; setPadding(28, 16, 28, 4) })
-      addView(sketchView, LinearLayout.LayoutParams(420, 420).apply { gravity = Gravity.CENTER_HORIZONTAL })
+      addView(
+        inputView,
+        LinearLayout.LayoutParams(420, 420).apply { gravity = Gravity.CENTER_HORIZONTAL })
+      addView(
+        TextView(this@MainActivity).apply {
+          text = "Pencil portrait (GPU)"
+          setPadding(28, 16, 28, 4)
+        })
+      addView(
+        sketchView,
+        LinearLayout.LayoutParams(420, 420).apply { gravity = Gravity.CENTER_HORIZONTAL })
     })
 
     executor.execute {
@@ -56,7 +67,8 @@ class MainActivity : AppCompatActivity() {
         runOnUiThread {
           status.text = "Model not found at:\n${modelFile.absolutePath}\n\n" +
             "Push it first:  ./install_to_device.sh <dir-with-portrait.tflite>\n" +
-            "(build with ../conversion or download from\n litert-community/U2Net-Portrait-Sketch-LiteRT)"
+            "(build with ../conversion or download from\n" +
+            " litert-community/U2Net-Portrait-Sketch-LiteRT)"
         }
         return@execute
       }
@@ -64,7 +76,8 @@ class MainActivity : AppCompatActivity() {
       PortraitSketcher(modelFile.absolutePath).use { s ->
         val (sketch, ms) = s.sketch(input)
         runOnUiThread {
-          status.text = "U²-Net portrait  ·  photo → pencil sketch  ·  CompiledModel GPU  ·  ${ms} ms"
+          status.text =
+            "U²-Net portrait  ·  photo → pencil sketch  ·  CompiledModel GPU  ·  ${ms} ms"
           inputView.setImageBitmap(input)
           sketchView.setImageBitmap(sketch)
         }
@@ -72,5 +85,8 @@ class MainActivity : AppCompatActivity() {
     }
   }
 
-  override fun onDestroy() { super.onDestroy(); executor.shutdown() }
+  override fun onDestroy() {
+      super.onDestroy()
+      executor.shutdown()
+  }
 }
