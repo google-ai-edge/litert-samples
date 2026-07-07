@@ -1,5 +1,5 @@
 /*
- * Copyright 2025 The Google AI Edge Authors. All Rights Reserved.
+ * Copyright 2026 The Google AI Edge Authors. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -146,9 +146,15 @@ class MainActivity : Activity() {
       val minBuf = AudioRecord.getMinBufferSize(sr, AudioFormat.CHANNEL_IN_MONO, AudioFormat.ENCODING_PCM_16BIT)
       // UNPROCESSED keeps AGC/NS off for accurate pitch; fall back to MIC if unavailable.
       val rec = try {
-        AudioRecord(MediaRecorder.AudioSource.UNPROCESSED, sr, AudioFormat.CHANNEL_IN_MONO, AudioFormat.ENCODING_PCM_16BIT, maxOf(minBuf, sr))
+        AudioRecord(
+          MediaRecorder.AudioSource.UNPROCESSED, sr, AudioFormat.CHANNEL_IN_MONO,
+          AudioFormat.ENCODING_PCM_16BIT, maxOf(minBuf, sr)
+        )
       } catch (e: Throwable) {
-        AudioRecord(MediaRecorder.AudioSource.MIC, sr, AudioFormat.CHANNEL_IN_MONO, AudioFormat.ENCODING_PCM_16BIT, maxOf(minBuf, sr))
+        AudioRecord(
+          MediaRecorder.AudioSource.MIC, sr, AudioFormat.CHANNEL_IN_MONO,
+          AudioFormat.ENCODING_PCM_16BIT, maxOf(minBuf, sr)
+        )
       }
       val ring = FloatArray(win)                       // rolling latest-1024-sample window
       val chunk = ShortArray(512)
@@ -156,7 +162,9 @@ class MainActivity : Activity() {
         if (n <= 0) return
         val k = minOf(n, win)
         System.arraycopy(ring, k, ring, 0, win - k)
-        for (i in 0 until k) ring[win - k + i] = chunk[n - k + i] / 32768f
+        for (i in 0 until k) {
+          ring[win - k + i] = chunk[n - k + i] / 32768f
+        }
       }
       try {
         rec.startRecording()

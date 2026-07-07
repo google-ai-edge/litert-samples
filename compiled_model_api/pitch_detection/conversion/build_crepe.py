@@ -1,4 +1,4 @@
-# Copyright 2025 The Google AI Edge Authors. All Rights Reserved.
+# Copyright 2026 The Google AI Edge Authors. All Rights Reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -19,7 +19,7 @@ permute/reshape (<=4D) + Linear + sigmoid -> 360 pitch-bin activations. Pure CNN
 per-frame-normalized input (values ~O(1)) so no fp16 wall. Host-side (Kotlin): frame the 16 kHz
 audio into 1024-sample windows, per-frame normalize (mean/std), and decode 360 bins -> cents -> Hz.
 
-Run: ~/clipconv/bin/python build_crepe.py
+Run: python build_crepe.py
 """
 import os
 import collections

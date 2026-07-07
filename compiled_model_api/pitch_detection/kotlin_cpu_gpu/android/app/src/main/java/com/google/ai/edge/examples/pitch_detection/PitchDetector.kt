@@ -1,5 +1,5 @@
 /*
- * Copyright 2025 The Google AI Edge Authors. All Rights Reserved.
+ * Copyright 2026 The Google AI Edge Authors. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -63,7 +63,9 @@ class PitchDetector(context: Context) : Closeable {
   fun detect(frame: FloatArray): Pitch {
     val x = FloatArray(WINDOW)
     var mean = 0f
-    for (i in 0 until WINDOW) mean += frame[i]
+    for (i in 0 until WINDOW) {
+      mean += frame[i]
+    }
     mean /= WINDOW
     var v = 0f
     for (i in 0 until WINDOW) {
@@ -71,7 +73,9 @@ class PitchDetector(context: Context) : Closeable {
         v += d * d
     }
     val std = maxOf(sqrt(v / WINDOW), 1e-10f)
-    for (i in 0 until WINDOW) x[i] = (frame[i] - mean) / std
+    for (i in 0 until WINDOW) {
+      x[i] = (frame[i] - mean) / std
+    }
 
     inBuf[0].writeFloat(x)
     model.run(inBuf, outBuf)
@@ -79,7 +83,11 @@ class PitchDetector(context: Context) : Closeable {
 
     // weighted average of cents over ±4 bins around the peak (torchcrepe 'weighted_argmax')
     var c = 0
-    for (i in 1 until BINS) if (act[i] > act[c]) c = i
+    for (i in 1 until BINS) {
+      if (act[i] > act[c]) {
+        c = i
+      }
+    }
     val s = maxOf(0, c - 4)
     val e = minOf(BINS, c + 5)
     var num = 0.0
