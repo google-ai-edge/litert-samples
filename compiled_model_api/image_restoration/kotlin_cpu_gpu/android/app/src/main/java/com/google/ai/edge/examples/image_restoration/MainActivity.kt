@@ -53,19 +53,29 @@ class MainActivity : Activity() {
 
   override fun onCreate(savedInstanceState: Bundle?) {
     super.onCreate(savedInstanceState)
-    val root = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(24, 80, 24, 24) }
-    status = TextView(this).apply { textSize = 15f; text = "Loading NAFNet on GPU…" }
+    val root = LinearLayout(this).apply {
+        orientation = LinearLayout.VERTICAL
+        setPadding(24, 80, 24, 24)
+    }
+    status = TextView(this).apply {
+        textSize = 15f
+        text = "Loading NAFNet on GPU…"
+    }
     val pick = Button(this).apply {
-      text = "🖼  Pick image"; isEnabled = false
+      text = "🖼  Pick image"
+      isEnabled = false
       setOnClickListener {
         startActivityForResult(Intent(Intent.ACTION_GET_CONTENT).apply { type = "image/*" }, pickReq)
       }
     }
-    inputView = ImgView(this); outView = ImgView(this)
+    inputView = ImgView(this)
+    outView = ImgView(this)
     val row = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
     row.addView(inputView, LinearLayout.LayoutParams(0, 760, 1f))
     row.addView(outView, LinearLayout.LayoutParams(0, 760, 1f))
-    root.addView(status); root.addView(pick); root.addView(row)
+    root.addView(status)
+    root.addView(pick)
+    root.addView(row)
     setContentView(root)
 
     bg.execute {
@@ -77,7 +87,8 @@ class MainActivity : Activity() {
       } catch (e: Throwable) {
         Log.e(tag, "load failed", e)
         runOnUiThread {
-          status.setBackgroundColor(Color.rgb(0xFF, 0xCD, 0xD2)); status.text = "FAIL: ${e.message}"
+          status.setBackgroundColor(Color.rgb(0xFF, 0xCD, 0xD2))
+          status.text = "FAIL: ${e.message}"
         }
       }
     }
@@ -92,7 +103,8 @@ class MainActivity : Activity() {
       try {
         run(squareResize(loadOriented(uri)), warm = false)
       } catch (e: Throwable) {
-        Log.e(tag, "restore failed", e); runOnUiThread { status.text = "Failed: ${e.message}" }
+        Log.e(tag, "restore failed", e)
+        runOnUiThread { status.text = "Failed: ${e.message}" }
       }
     }
   }
@@ -110,8 +122,10 @@ class MainActivity : Activity() {
       status.setBackgroundColor(Color.rgb(0xC8, 0xE6, 0xC9))
       status.text = "On-device GPU restoration ✓  ${ms} ms\n" +
         "NAFNet-GoPro (deblur), fully on CompiledModel GPU"
-      inputView.bitmap = img; inputView.invalidate()
-      outView.bitmap = outBmp; outView.invalidate()
+      inputView.bitmap = img
+      inputView.invalidate()
+      outView.bitmap = outBmp
+      outView.invalidate()
     }
   }
 
@@ -136,12 +150,14 @@ class MainActivity : Activity() {
   }
 
   private fun bitmapToRgb(bm: Bitmap): FloatArray {
-    val n = bm.width * bm.height; val px = IntArray(n)
+    val n = bm.width * bm.height
+    val px = IntArray(n)
     bm.getPixels(px, 0, bm.width, 0, 0, bm.width, bm.height)
     val out = FloatArray(n * 3)
     for (i in 0 until n) {
       val p = px[i]
-      out[i * 3] = ((p shr 16) and 0xFF).toFloat(); out[i * 3 + 1] = ((p shr 8) and 0xFF).toFloat()
+      out[i * 3] = ((p shr 16) and 0xFF).toFloat()
+      out[i * 3 + 1] = ((p shr 8) and 0xFF).toFloat()
       out[i * 3 + 2] = (p and 0xFF).toFloat()
     }
     return out
@@ -156,7 +172,11 @@ class MainActivity : Activity() {
     return Bitmap.createBitmap(px, size, size, Bitmap.Config.ARGB_8888)
   }
 
-  override fun onDestroy() { super.onDestroy(); bg.shutdown(); net?.close() }
+  override fun onDestroy() {
+      super.onDestroy()
+      bg.shutdown()
+      net?.close()
+  }
 
   class ImgView(ctx: Context) : View(ctx) {
     var bitmap: Bitmap? = null
@@ -164,7 +184,8 @@ class MainActivity : Activity() {
     override fun onDraw(canvas: Canvas) {
       val bm = bitmap ?: return
       val s = min(width.toFloat() / bm.width, height.toFloat() / bm.height)
-      val w = bm.width * s; val h = bm.height * s
+      val w = bm.width * s
+      val h = bm.height * s
       canvas.drawBitmap(
         bm, null,
         android.graphics.RectF((width - w) / 2, (height - h) / 2, (width + w) / 2, (height + h) / 2), paint,

@@ -68,5 +68,9 @@ class NafnetRestorer(ctx: Context, accelerator: Accelerator = Accelerator.GPU) :
     return rgbOut
   }
 
-  override fun close() { inBuf.forEach { it.close() }; outBuf.forEach { it.close() }; model.close() }
+  override fun close() {
+      inBuf.forEach { it.close() }
+      outBuf.forEach { it.close() }
+      model.close()
+  }
 }
