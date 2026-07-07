@@ -1,5 +1,5 @@
 /*
- * Copyright 2025 The Google AI Edge Authors. All Rights Reserved.
+ * Copyright 2026 The Google AI Edge Authors. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -109,7 +109,9 @@ class MainActivity : Activity() {
     private fun run(img: Bitmap, warm: Boolean) {
         val n = net!!
         val rgb = bitmapToRgb(img)
-        if (warm) n.detect(rgb, img.width.toFloat(), img.height.toFloat())
+        if (warm) {
+            n.detect(rgb, img.width.toFloat(), img.height.toFloat())
+        }
         val t0 = System.nanoTime()
         val lines = n.detect(rgb, img.width.toFloat(), img.height.toFloat())
         val ms = (System.nanoTime() - t0) / 1_000_000
@@ -185,7 +187,9 @@ class MainActivity : Activity() {
             val ox = (width - w) / 2
             val oy = (height - h) / 2
             canvas.drawBitmap(b, null, android.graphics.RectF(ox, oy, ox + w, oy + h), imgPaint)
-            for (l in lines) canvas.drawLine(ox + l.x1 * s, oy + l.y1 * s, ox + l.x2 * s, oy + l.y2 * s, paint)
+            for (l in lines) {
+                canvas.drawLine(ox + l.x1 * s, oy + l.y1 * s, ox + l.x2 * s, oy + l.y2 * s, paint)
+            }
         }
     }
 }
