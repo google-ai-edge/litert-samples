@@ -30,7 +30,10 @@ class PianoRollView(ctx: Context) : View(ctx) {
     private var loNote = 21
     private var hiNote = 108
     private val paint = Paint(Paint.ANTI_ALIAS_FLAG)
-    private val text = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = Color.GRAY; textSize = 24f }
+    private val text = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        color = Color.GRAY
+        textSize = 24f
+    }
     private val names = arrayOf("C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B")
 
     fun set(events: List<Transcriber.Note>, durationSec: Double) {

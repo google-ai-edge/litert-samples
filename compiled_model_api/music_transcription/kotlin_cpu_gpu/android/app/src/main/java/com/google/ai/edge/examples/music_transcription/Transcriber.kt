@@ -94,7 +94,8 @@ class Transcriber(ctx: Context) : Closeable {
             for (k in 0 until N_NOTES) {
                 val on = active[k] >= 0
                 if (!on && onset[t][k] >= onsetTh && note[t][k] >= frameTh) {
-                    active[k] = t; peak[k] = note[t][k]
+                    active[k] = t
+                    peak[k] = note[t][k]
                 } else if (on) {
                     if (note[t][k] < frameTh) {
                         if (t - active[k] >= minFrames)
@@ -110,6 +111,8 @@ class Transcriber(ctx: Context) : Closeable {
     }
 
     override fun close() {
-        inBuf.forEach { it.close() }; outBuf.forEach { it.close() }; model.close()
+        inBuf.forEach { it.close() }
+        outBuf.forEach { it.close() }
+        model.close()
     }
 }
