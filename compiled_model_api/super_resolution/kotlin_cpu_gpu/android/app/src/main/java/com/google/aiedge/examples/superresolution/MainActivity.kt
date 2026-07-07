@@ -219,7 +219,8 @@ class MainActivity : ComponentActivity() {
                 DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
                     options.forEach {
                         DropdownMenuItem(content = { Text(it, fontSize = 15.sp) }, onClick = {
-                            onSelected(it); expanded = false
+                            onSelected(it)
+                            expanded = false
                         })
                     }
                 }

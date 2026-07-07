@@ -92,12 +92,16 @@ class SuperResolutionHelper(
                 Log.i(TAG, "Created CompiledModel ${options.model.fileName} on ${options.delegate}")
             }
         } catch (e: Exception) {
-            Log.e(TAG, "Create CompiledModel failed: ${e.message}"); _error.emit(e)
+            Log.e(TAG, "Create CompiledModel failed: ${e.message}")
+            _error.emit(e)
         }
     }
 
     suspend fun cleanup() {
-        withContext(singleThreadDispatcher) { model?.close(); model = null }
+        withContext(singleThreadDispatcher) {
+            model?.close()
+            model = null
+        }
     }
 
     fun setOptions(options: Options) { this.options = options }
@@ -122,7 +126,8 @@ class SuperResolutionHelper(
                 inputBuffers[0].writeFloat(inputFloats)
                 currentModel.run(inputBuffers, outputBuffers)
                 val out = outputBuffers[0].readFloat() // [512*512*3] NHWC 0-1
-                inputBuffers.forEach { it.close() }; outputBuffers.forEach { it.close() }
+                inputBuffers.forEach { it.close() }
+                outputBuffers.forEach { it.close() }
                 val inferenceTime = SystemClock.uptimeMillis() - start
 
                 var o = 0
@@ -137,7 +142,8 @@ class SuperResolutionHelper(
                 if (isActive) _result.emit(Result(sr, bicubic, inferenceTime))
             }
         } catch (e: Exception) {
-            Log.e(TAG, "Super-resolution error: ${e.message}"); _error.emit(e)
+            Log.e(TAG, "Super-resolution error: ${e.message}")
+            _error.emit(e)
         }
     }
 

@@ -1,4 +1,17 @@
-#!/usr/bin/env python3
+# Copyright 2025 The Google AI Edge Authors. All Rights Reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#       http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 """Real-ESRGAN-General-x4v3 (SRVGGNetCompact) -> CompiledModel GPU. Pure CNN (both GPU gates).
 
 Stock patch-free convert is NOT GPU-clean: PReLU->GREATER+SELECT+MUL (C6) and PixelShuffle->6D (C7).
@@ -10,11 +23,19 @@ Input 128x128 -> output 512x512 (x4). Tiny (~1.2M).
 
 Run: ~/clipconv/bin/python convert_realesrgan.py [--nhwc]
 """
-import sys, os, argparse, collections, types
-import numpy as np, torch, torch.nn as nn, torch.nn.functional as F
+import sys
+import os
+import argparse
+import collections
+import types
+import numpy as np
+import torch
+import torch.nn as nn
+import torch.nn.functional as F
 
 class _D:
-    def __getattr__(s, n): return lambda *a, **k: None
+    def __getattr__(s, n):
+        return lambda *a, **k: None
 _p = types.ModuleType("scipy.sparse.linalg._propack")
 for n in ("_spropack", "_dpropack", "_cpropack", "_zpropack"): setattr(_p, n, _D())
 sys.modules["scipy.sparse.linalg._propack"] = _p
@@ -61,14 +82,17 @@ class ZeroStuffConvT(nn.Module):
     """ConvTranspose2d(k=s,stride=s) == zero-stuff(nearest x top-left mask) + Conv2d(flipped w)."""
     def __init__(self, ct, H, W):
         super().__init__()
-        self.s = ct.stride[0]; self.k = ct.kernel_size[0]
+        self.s = ct.stride[0]
+        self.k = ct.kernel_size[0]
         self.register_buffer("w", ct.weight.flip(2, 3).transpose(0, 1).contiguous())
         self.register_buffer("b", ct.bias.detach().clone() if ct.bias is not None else torch.zeros(ct.out_channels))
         s = self.s
-        mk = torch.zeros(H * s, W * s); mk[::s, ::s] = 1.0
+        mk = torch.zeros(H * s, W * s)
+        mk[::s, ::s] = 1.0
         self.register_buffer("mask", mk[None, None])
     def forward(self, x):
-        H, W = x.shape[-2], x.shape[-1]; s, k = self.s, self.k
+        H, W = x.shape[-2], x.shape[-1]
+        s, k = self.s, self.k
         xn = F.interpolate(x, size=(H * s, W * s), mode="nearest")
         return F.conv2d(xn * self.mask, self.w, bias=self.b, padding=k - 1)[:, :, :H * s, :W * s]
 
@@ -78,7 +102,8 @@ def subpixel_to_convT(conv, r):
     then ZeroStuffConvT. conv: Conv2d(F, C*r*r, 3, p=1). Returns ZeroStuffConvT producing [B,C,rH,rW]."""
     # Build an equivalent ConvTranspose2d(F, C, kernel=r, stride=r) is NOT exact for k=3 sub-pixel;
     # instead realize PixelShuffle exactly via ConvTranspose with a one-hot rearrange kernel.
-    Fin = conv.in_channels; Cout = conv.out_channels // (r * r);
+    Fin = conv.in_channels
+    Cout = conv.out_channels // (r * r)
     # PixelShuffle is a pure rearrange of conv's output -> express as ConvTranspose(Cr2->C, k=r, s=r)
     # with a fixed one-hot weight, applied to conv(x). w[oc, ic, i, j] = 1 iff ic == (oc? ...).
     ct = nn.ConvTranspose2d(conv.out_channels, Cout, kernel_size=r, stride=r, bias=False)
@@ -102,7 +127,10 @@ def reauthor(model):
 
 
 class Wrap(nn.Module):
-    def __init__(self, m, nhwc=False): super().__init__(); self.m = m; self.nhwc = nhwc
+    def __init__(self, m, nhwc=False):
+        super().__init__()
+        self.m = m
+        self.nhwc = nhwc
     def forward(self, x):
         if self.nhwc:
             x = x.permute(0, 3, 1, 2).contiguous()
@@ -111,7 +139,8 @@ class Wrap(nn.Module):
 
 def opcheck(path, label):
     from ai_edge_litert.interpreter import Interpreter
-    it = Interpreter(model_path=path); it.allocate_tensors()
+    it = Interpreter(model_path=path)
+    it.allocate_tensors()
     ops = collections.Counter(d.get("op_name", "?") for d in it._get_ops_details())
     bad = {k: v for k, v in ops.items() if k.upper() in BANNED}
     over = sum(1 for d in it.get_tensor_details() if len(d.get("shape", [])) > 4)
@@ -129,14 +158,19 @@ def to_fp16(fp32, fp16):
             weight_tensor_config=qtyping.TensorQuantizationConfig(num_bits=16, dtype=qtyping.TensorDataType.FLOAT),
             compute_precision=qtyping.ComputePrecision.FLOAT), algorithm_key=AlgorithmName.FLOAT_CASTING)
     if os.path.exists(fp16): os.remove(fp16)
-    q = quantizer.Quantizer(float_model=fp32); q.load_quantization_recipe(rm.get_quantization_recipe())
-    q.quantize().export_model(fp16); return fp16
+    q = quantizer.Quantizer(float_model=fp32)
+    q.load_quantization_recipe(rm.get_quantization_recipe())
+    q.quantize().export_model(fp16)
+    return fp16
 
 
 def main():
-    ap = argparse.ArgumentParser(); ap.add_argument("--nhwc", action="store_true"); args = ap.parse_args()
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--nhwc", action="store_true")
+    args = ap.parse_args()
     m = SRVGGNetCompact()
-    m.load_state_dict(torch.load(WEIGHTS, map_location="cpu")["params"], strict=True); m.eval()
+    m.load_state_dict(torch.load(WEIGHTS, map_location="cpu")["params"], strict=True)
+    m.eval()
     img = torch.rand(1, S, S, 3) if args.nhwc else torch.rand(1, 3, S, S)
     with torch.no_grad():
         ref = Wrap(m, args.nhwc)(img)
@@ -151,8 +185,11 @@ def main():
     import litert_torch
     litert_torch.convert(Wrap(m, args.nhwc).eval(), (img,)).export(f"{tag}.tflite")
     it = opcheck(f"{tag}.tflite", "realesr-fp32")
-    to_fp16(f"{tag}.tflite", f"{tag}_fp16.tflite"); opcheck(f"{tag}_fp16.tflite", "realesr-fp16")
-    di = it.get_input_details()[0]; it.set_tensor(di["index"], img.numpy().astype(di["dtype"])); it.invoke()
+    to_fp16(f"{tag}.tflite", f"{tag}_fp16.tflite")
+    opcheck(f"{tag}_fp16.tflite", "realesr-fp16")
+    di = it.get_input_details()[0]
+    it.set_tensor(di["index"], img.numpy().astype(di["dtype"]))
+    it.invoke()
     o = it.get_tensor(it.get_output_details()[0]["index"])
     print(f"tflite(fp32) vs torch-reauth corr {np.corrcoef(o.ravel(), ra.numpy().ravel())[0,1]:.6f}")
     img.numpy().astype(np.float32).tofile(f"{tag}_input.bin")
