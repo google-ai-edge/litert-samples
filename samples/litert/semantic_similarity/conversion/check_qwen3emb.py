@@ -17,17 +17,25 @@ BANNED = {"GATHER", "GATHER_ND", "TOPK_V2", "GELU", "ERF", "WHERE", "SELECT", "S
 
 
 def opcheck(path, label):
-    from ai_edge_litert.interpreter import Interpreter
-    it = Interpreter(model_path=path)
-    it.allocate_tensors()
-    ops = collections.Counter(d.get("op_name", "?") for d in it._get_ops_details())
+    """Static GPU-compat scan: read the op set straight from the .tflite flatbuffer."""
+    from ai_edge_litert import schema_py_generated as schema
+    with open(path, "rb") as f:
+        model = schema.ModelT.InitFromPackedBuf(f.read(), 0)
+    names = {v: k for k, v in vars(schema.BuiltinOperator).items() if not k.startswith("_")}
+    ops = collections.Counter()
+    over = 0
+    for g in model.subgraphs:
+        for op in g.operators:
+            c = model.operatorCodes[op.opcodeIndex]
+            code = max(c.builtinCode, c.deprecatedBuiltinCode)
+            ops[c.customCode.decode() if c.customCode else names.get(code, str(code))] += 1
+        over += sum(1 for t in g.tensors if t.shape is not None and len(t.shape) > 4)
     bad = {k: v for k, v in ops.items() if k.upper() in BANNED}
-    over = sum(1 for d in it.get_tensor_details() if len(d.get("shape", [])) > 4)
     print(f"[{label}] nodes:{sum(ops.values())} banned:{bad or 'NONE'} >4D:{over} "
           f"size {os.path.getsize(path)/1e6:.1f}MB")
     print(f"[{label}] ops: {dict(sorted(ops.items(), key=lambda kv: -kv[1]))}")
     print(f"[{label}] VERDICT:", "GPU-CLEAN" if not bad and not over else f"BLOCKERS {bad} >4D:{over}")
-    return it, (not bad and not over)
+    return not bad and not over
 
 
 def to_fp16(fp32, fp16):
