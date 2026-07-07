@@ -98,15 +98,20 @@ def main() -> None:
     print('converted ->', path)
 
     if ref is not None:
-        from ai_edge_litert.interpreter import Interpreter
+        from ai_edge_litert.compiled_model import CompiledModel
 
-        runner = Interpreter(model_path=path).get_signature_runner()
+        tfl = CompiledModel.from_file(path)
+        inputs = tfl.create_input_buffers(0)
+        outputs = tfl.create_output_buffers(0)
         t_ref = ref['codes'].shape[-1]
         padded = np.concatenate(
             [ref['codes'],
              np.zeros((1, 16, T - t_ref), ref['codes'].dtype)],
             -1).astype(np.int32)
-        wav = next(iter(runner(args_0=padded).values()))[..., :t_ref * 1920]
+        inputs[0].write(np.ascontiguousarray(padded))
+        tfl.run_by_index(0, inputs, outputs)
+        wav = outputs[0].read(T * 1920, np.float32).reshape(
+            1, 1, T * 1920)[..., :t_ref * 1920]
         print(f'tflite vs reference: corr {corr(wav, ref["wav"]):.8f} '
               f'max|d| {np.abs(wav - ref["wav"]).max():.3e}')
 

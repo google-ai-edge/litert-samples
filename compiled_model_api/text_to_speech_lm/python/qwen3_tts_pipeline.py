@@ -36,7 +36,9 @@ import time
 import numpy as np
 import tokenizers
 
-from ai_edge_litert.interpreter import Interpreter
+from ai_edge_litert.compiled_model import CompiledModel
+from ai_edge_litert.options import CpuOptions
+from ai_edge_litert.options import Options
 
 # Talker codec-token vocabulary layout (ids >= 2048 are control tokens).
 _CODEC_VOCAB = 3072
@@ -109,7 +111,7 @@ class Qwen3TtsPipeline:
     """Host-orchestrated Qwen3-TTS pipeline over three LiteRT graphs.
 
     The pipeline owns the tokenizer, the embedding tables (kept host-side as
-    NumPy arrays) and three interpreters: talker (prefill_32 + decode
+    NumPy arrays) and three compiled models: talker (prefill_32 + decode
     signatures with an explicit KV cache), MTP decode step, and the codec
     decoder. `synthesize()` runs the full text-to-waveform loop.
     """
@@ -146,24 +148,25 @@ class Qwen3TtsPipeline:
         self._proj_w1, self._proj_b1 = proj['w1'], proj['b1']
         self._proj_w2, self._proj_b2 = proj['w2'], proj['b2']
 
-        talker = Interpreter(model_path=f'{model_dir}/{talker_file}',
-                             num_threads=num_threads)
-        self._prefill = talker.get_signature_runner('prefill_32')
-        self._decode = talker.get_signature_runner('decode')
+        talker = CompiledModel.from_file(f'{model_dir}/{talker_file}',
+                                         options=_cpu_options(num_threads))
+        self._prefill = _SignatureRunner(talker, 'prefill_32')
+        self._decode = _SignatureRunner(talker, 'decode')
         self._kv_names = [n for n in self._decode.get_input_details()
                           if n.startswith('kv_cache')]
         self._cache_len = self._decode.get_input_details()['mask']['shape'][-1]
 
-        mtp = Interpreter(model_path=f'{model_dir}/mtp_fp32.tflite',
-                          num_threads=mtp_threads)
-        self._mtp = mtp.get_signature_runner()
+        mtp = CompiledModel.from_file(f'{model_dir}/mtp_fp32.tflite',
+                                      options=_cpu_options(mtp_threads))
+        self._mtp = _SignatureRunner(mtp)
         self._mtp_cache_len = self._mtp.get_input_details()['args_2'][
             'shape'][-1]
         self._mtp_kv_shape = self._mtp.get_input_details()['args_3']['shape']
 
-        codec = Interpreter(model_path=f'{model_dir}/codec_decoder_fp32.tflite',
-                            num_threads=num_threads)
-        self._codec = codec.get_signature_runner()
+        codec = CompiledModel.from_file(
+            f'{model_dir}/codec_decoder_fp32.tflite',
+            options=_cpu_options(num_threads))
+        self._codec = _SignatureRunner(codec)
         self._codec_chunk = self._codec.get_input_details()['args_0'][
             'shape'][-1]
 
@@ -392,6 +395,52 @@ class Qwen3TtsPipeline:
             pieces.append(wav[c * _UPSAMPLE:len(window) * _UPSAMPLE])
             i = j
         return np.concatenate(pieces)
+
+
+class _SignatureRunner:
+    """Callable wrapper over one CompiledModel signature.
+
+    Runs a signature as a plain function call (NumPy arrays in by input name,
+    dict of NumPy arrays out by output name) on top of the CompiledModel
+    named-buffer API. The tensor buffers are created once and rewritten on
+    every invocation, which keeps the per-step decode loops allocation-free.
+    """
+
+    def __init__(self, model: CompiledModel,
+                 signature_key: str | None = None):
+        if signature_key is None:
+            signature_key = next(iter(model.get_signature_list()))
+        self._model = model
+        self._signature_key = signature_key
+        self._input_details = model.get_input_tensor_details(signature_key)
+        self._output_details = model.get_output_tensor_details(signature_key)
+        self._input_buffers = {
+            name: model.create_input_buffer_by_name(signature_key, name)
+            for name in self._input_details}
+        self._output_buffers = {
+            name: model.create_output_buffer_by_name(signature_key, name)
+            for name in self._output_details}
+
+    def get_input_details(self) -> dict:
+        """Returns input tensor details (shape, dtype) keyed by input name."""
+        return self._input_details
+
+    def __call__(self, **inputs: np.ndarray) -> dict[str, np.ndarray]:
+        for name, array in inputs.items():
+            self._input_buffers[name].write(np.ascontiguousarray(array))
+        self._model.run_by_name(self._signature_key, self._input_buffers,
+                                self._output_buffers)
+        outputs = {}
+        for name, detail in self._output_details.items():
+            shape = detail['shape']
+            outputs[name] = self._output_buffers[name].read(
+                int(np.prod(shape)), np.dtype(detail['dtype'])).reshape(shape)
+        return outputs
+
+
+def _cpu_options(num_threads: int) -> Options:
+    """Builds CPU compilation options with the given XNNPACK thread count."""
+    return Options(cpu_options=CpuOptions(num_threads=num_threads))
 
 
 def _load_fp32(path: str) -> np.ndarray:

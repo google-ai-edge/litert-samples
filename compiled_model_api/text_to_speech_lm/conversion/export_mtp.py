@@ -199,15 +199,22 @@ def main() -> None:
     print('converted ->', f'{OUT}/mtp_step.tflite')
 
     if ref is not None:
-        from ai_edge_litert.interpreter import Interpreter
+        from ai_edge_litert.compiled_model import CompiledModel
 
-        runner = Interpreter(
-            model_path=f'{OUT}/mtp_step.tflite').get_signature_runner()
+        tfl = CompiledModel.from_file(f'{OUT}/mtp_step.tflite')
+        ins = tfl.create_input_buffers(0)
+        outs = tfl.create_output_buffers(0)
+        kv_shape = (LAYERS, 1, KV_HEADS, CACHE, HEAD_DIM)
+        kv_size = LAYERS * KV_HEADS * CACHE * HEAD_DIM
 
         def tfl_step(embed, pos, mask, k_all, v_all):
-            out = runner(args_0=embed, args_1=pos, args_2=mask,
-                         args_3=k_all, args_4=v_all)
-            return out['output_0'], out['output_1'], out['output_2']
+            # Buffer order == signature order == forward() argument order.
+            for buf, array in zip(ins, (embed, pos, mask, k_all, v_all)):
+                buf.write(np.ascontiguousarray(array))
+            tfl.run_by_index(0, ins, outs)
+            return (outs[0].read(15 * VOCAB, np.float32).reshape(15, VOCAB),
+                    outs[1].read(kv_size, np.float32).reshape(kv_shape),
+                    outs[2].read(kv_size, np.float32).reshape(kv_shape))
 
         codes = _run_frame(tfl_step, ref['past_hidden'],
                            ref['last_id_hidden'], mtp_embeddings)
