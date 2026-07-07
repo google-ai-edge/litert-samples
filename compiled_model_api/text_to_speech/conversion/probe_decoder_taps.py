@@ -12,75 +12,122 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-#!/usr/bin/env python3
-"""Build a DEBUG decoder graph that outputs intermediate taps, to pinpoint where the
-NaN first appears on the Mali ML Drift delegate. Same re-authoring as the real decoder,
-but forward() returns [v, tap_resnet0, tap_attn0, tap_upsample] so one on-device run
-isolates the bad op (GN/Mish vs attention/SnakeBeta vs ZeroStuffConvT1d).
-Run: ~/clipconv/bin/python probe_decoder_taps.py   ->  artifacts/matcha_decoder_dbg.tflite
+"""Builds a DEBUG decoder graph with intermediate taps to localize the Mali NaN.
+
+Same re-authoring as the real decoder, but forward() returns
+[v, tap_resnet0, tap_attn0, tap_upsample] so one on-device run isolates the bad op
+(GN/Mish vs attention/SnakeBeta vs ZeroStuffConvT1d).
+
+Run: ~/clipconv/bin/python probe_decoder_taps.py -> artifacts/matcha_decoder_dbg.tflite
 """
-import _stub, os, types as _t, numpy as np, torch, torch.nn as nn
-import build_matcha as B
+
+import _stub  # noqa: F401  (must be first: scipy / getsourcefile guards)
+
+import os
+import types
+
+import numpy as np  # noqa: F401  (kept for parity with sibling probes)
+import torch
+import torch.nn as nn
 from einops import pack, rearrange
+
+import build_matcha as B
 
 T = 512
 
 
 def dbg_forward(self, x, mask, mu, t):
+    """Decoder.forward copy that also returns intermediate taps."""
+
     def dec2(m):
-        b, c, L = m.shape
-        return m.reshape(b, c, L // 2, 2)[:, :, :, 0]
+        b, c, length = m.shape
+        return m.reshape(b, c, length // 2, 2)[:, :, :, 0]
+
     taps = {}
-    t = self.time_embeddings(t); t = self.time_mlp(t)
+    t = self.time_embeddings(t)
+    t = self.time_mlp(t)
     x = pack([x, mu], "b * t")[0]
-    hiddens = []; masks = [mask]
-    for bi, (resnet, tbs, downsample) in enumerate(self.down_blocks):
-        md = masks[-1]
-        x = resnet(x, md, t)
-        if bi == 0: taps["resnet0"] = x
-        x = rearrange(x, "b c t -> b t c"); md = rearrange(md, "b 1 t -> b t")
-        for tb in tbs:
-            x = tb(hidden_states=x, attention_mask=md, timestep=t)
-        if bi == 0: taps["attn0"] = rearrange(x, "b t c -> b c t")
-        x = rearrange(x, "b t c -> b c t"); md = rearrange(md, "b t -> b 1 t")
-        hiddens.append(x); x = downsample(x * md); masks.append(dec2(md))
-    masks = masks[:-1]; mm = masks[-1]
-    for resnet, tbs in self.mid_blocks:
-        x = resnet(x, mm, t); x = rearrange(x, "b c t -> b t c"); mm = rearrange(mm, "b 1 t -> b t")
-        for tb in tbs: x = tb(hidden_states=x, attention_mask=mm, timestep=t)
-        x = rearrange(x, "b t c -> b c t"); mm = rearrange(mm, "b t -> b 1 t")
-    for ui, (resnet, tbs, upsample) in enumerate(self.up_blocks):
-        mu_ = masks.pop()
-        x = resnet(pack([x, hiddens.pop()], "b * t")[0], mu_, t)
-        if ui == 1: taps["up1_resnet"] = x
-        x = rearrange(x, "b c t -> b t c"); mu_ = rearrange(mu_, "b 1 t -> b t")
-        for tb in tbs: x = tb(hidden_states=x, attention_mask=mu_, timestep=t)
-        if ui == 1: taps["up1_attn"] = rearrange(x, "b t c -> b c t")
-        x = rearrange(x, "b t c -> b c t"); mu_ = rearrange(mu_, "b t -> b 1 t")
-        x = upsample(x * mu_)
-    out = self.final_block(x, mu_); out = self.final_proj(out * mu_) * mask
+    hiddens = []
+    masks = [mask]
+    for block_index, (resnet, transformer_blocks, downsample) in enumerate(self.down_blocks):
+        mask_down = masks[-1]
+        x = resnet(x, mask_down, t)
+        if block_index == 0:
+            taps["resnet0"] = x
+        x = rearrange(x, "b c t -> b t c")
+        mask_down = rearrange(mask_down, "b 1 t -> b t")
+        for tb in transformer_blocks:
+            x = tb(hidden_states=x, attention_mask=mask_down, timestep=t)
+        if block_index == 0:
+            taps["attn0"] = rearrange(x, "b t c -> b c t")
+        x = rearrange(x, "b t c -> b c t")
+        mask_down = rearrange(mask_down, "b t -> b 1 t")
+        hiddens.append(x)
+        x = downsample(x * mask_down)
+        masks.append(dec2(mask_down))
+    masks = masks[:-1]
+    mask_mid = masks[-1]
+    for resnet, transformer_blocks in self.mid_blocks:
+        x = resnet(x, mask_mid, t)
+        x = rearrange(x, "b c t -> b t c")
+        mask_mid = rearrange(mask_mid, "b 1 t -> b t")
+        for tb in transformer_blocks:
+            x = tb(hidden_states=x, attention_mask=mask_mid, timestep=t)
+        x = rearrange(x, "b t c -> b c t")
+        mask_mid = rearrange(mask_mid, "b t -> b 1 t")
+    for block_index, (resnet, transformer_blocks, upsample) in enumerate(self.up_blocks):
+        mask_up = masks.pop()
+        x = resnet(pack([x, hiddens.pop()], "b * t")[0], mask_up, t)
+        if block_index == 1:
+            taps["up1_resnet"] = x
+        x = rearrange(x, "b c t -> b t c")
+        mask_up = rearrange(mask_up, "b 1 t -> b t")
+        for tb in transformer_blocks:
+            x = tb(hidden_states=x, attention_mask=mask_up, timestep=t)
+        if block_index == 1:
+            taps["up1_attn"] = rearrange(x, "b t c -> b c t")
+        x = rearrange(x, "b t c -> b c t")
+        mask_up = rearrange(mask_up, "b t -> b 1 t")
+        x = upsample(x * mask_up)
+    out = self.final_block(x, mask_up)
+    out = self.final_proj(out * mask_up) * mask
     return out, taps["up1_resnet"], taps["up1_attn"], x  # x = up1 upsample out
+
+
+class DecoderWrap(nn.Module):
+    """Reorders inputs to (x, mu, t_emb, mask) to match the shipped graph."""
+
+    def __init__(self, decoder):
+        super().__init__()
+        self.decoder = decoder
+
+    def forward(self, x, mu, t_emb, mask):
+        return self.decoder(x, mask, mu, t_emb)
 
 
 def main():
     sd = B.load_sd()
-    dec = B.reauth_decoder_masked(B.build_decoder(sd), T).d   # unwrap DecWrapM -> the Decoder
-    dec.forward = _t.MethodType(dbg_forward, dec)
+    # Unwrap DecWrapM -> the Decoder itself.
+    decoder = B.reauth_decoder_masked(B.build_decoder(sd), T).d
+    decoder.forward = types.MethodType(dbg_forward, decoder)
+    wrapped = DecoderWrap(decoder).eval()
 
-    class W(nn.Module):
-        def __init__(s, d): super().__init__(); s.d = d
-        def forward(s, x, mu, t_emb, mask): return s.d(x, mask, mu, t_emb)
-    w = W(dec).eval()
-    x = torch.randn(1, 80, T); mu = torch.randn(1, 80, T); te = B.sin_pos_emb(torch.zeros(1), 160)
+    x = torch.randn(1, 80, T)
+    mu = torch.randn(1, 80, T)
+    t_emb = B.sin_pos_emb(torch.zeros(1), 160)
     mask = torch.ones(1, 1, T)
     out = os.path.join(B.HERE, "artifacts", "matcha_decoder_dbg.tflite")
+
     import litert_torch
-    litert_torch.convert(w, (x, mu, te, mask)).export(out)
+    litert_torch.convert(wrapped, (x, mu, t_emb, mask)).export(out)
+
     from ai_edge_litert.interpreter import Interpreter
-    it = Interpreter(model_path=out); it.allocate_tensors()
+    interpreter = Interpreter(model_path=out)
+    interpreter.allocate_tensors()
     print("DBG decoder outputs (index, name, shape):")
-    for d in it.get_output_details(): print("  ", d["index"], d["name"], list(d["shape"]))
-    print("wrote", out, os.path.getsize(out)//1_000_000, "MB")
+    for detail in interpreter.get_output_details():
+        print("  ", detail["index"], detail["name"], list(detail["shape"]))
+    print("wrote", out, os.path.getsize(out) // 1_000_000, "MB")
 
 
 if __name__ == "__main__":

@@ -23,6 +23,7 @@ import java.io.Closeable
 import java.io.File
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
+import java.util.Random
 import kotlin.math.ceil
 import kotlin.math.cos
 import kotlin.math.exp
@@ -34,17 +35,167 @@ import kotlin.math.sin
  * everything stochastic/sequential runs host-side here (no FFT anywhere — Matcha's HiFi-GAN
  * vocoder is a time-domain GAN, which is what lets the whole synthesis path stay on the GPU).
  *
- *   phoneme ids --(host: embed + pad)--> text_encoder(GPU) --> mu, logw
- *               --(host: durations + length-regulator)--> mu_y[1,80,T]
- *               --(host: Euler ODE loop, N steps)-->
- *                   decoder(GPU) x N  (x_t, mu_y, sin_emb(t), mask) --> v
- *               --(host: denormalize)--> mel --> vocoder(GPU) --> waveform[T*256]
+ * ```
+ * phoneme ids --(host: embed + pad)--> text_encoder(GPU) --> mu, logw
+ *             --(host: durations + length-regulator)--> mu_y[1,80,T]
+ *             --(host: Euler ODE loop, N steps)-->
+ *                 decoder(GPU) x N  (x_t, mu_y, sin_emb(t), mask) --> v
+ *             --(host: denormalize)--> mel --> vocoder(GPU) --> waveform[T*256]
+ * ```
  *
- * Fixed shapes (MAX_TEXT phonemes, MAX_MEL frames); a runtime float mask makes the padded
+ * Fixed shapes ([MAX_TEXT] phonemes, [MAX_MEL] frames); a runtime float mask makes the padded
  * positions a no-op (additive attention bias), so one compiled graph handles any length.
  * Graphs are loaded from filesDir (push via scripts/install_to_device.sh).
  */
 class MatchaSynthesizer(private val context: Context) : Closeable {
+
+    /** One synthesis result: float PCM plus timing metadata for the demo UI. */
+    data class Result(val audio: FloatArray, val frames: Int, val steps: Int, val ms: Long)
+
+    private val embeddingTable: FloatArray =
+        readFloats(context.assets.open("emb.bin").readBytes()) // [178 * N_CHANNELS]
+
+    private val textEncoder = loadModel(TEXT_ENCODER_MODEL)
+
+    // Decoder on CPU: the diffusers transformer blocks are mis-fused on the Mali ML Drift
+    // delegate (residual collapses to corr 0.006 in the full graph, though the SAME
+    // transformer is corr 0.98 as a standalone graph -> a fusion bug, not the ops). On CPU
+    // the decoder is exact; RTF stays realtime (~0.93). Text encoder + vocoder run on GPU.
+    private val decoder = loadModel(DECODER_MODEL, Accelerator.CPU)
+    private val vocoder = loadModel(VOCODER_MODEL)
+
+    private val textEncoderInputs = textEncoder.createInputBuffers()
+    private val textEncoderOutputs = textEncoder.createOutputBuffers()
+    private val decoderInputs = decoder.createInputBuffers()
+    private val decoderOutputs = decoder.createOutputBuffers()
+    private val vocoderInputs = vocoder.createInputBuffers()
+    private val vocoderOutputs = vocoder.createOutputBuffers()
+
+    private fun loadModel(name: String, accelerator: Accelerator = Accelerator.GPU): CompiledModel {
+        val file = File(context.filesDir, name)
+        check(file.exists()) { "Model not found: $name. Push it first:\n  scripts/install_to_device.sh" }
+        return CompiledModel.create(file.absolutePath, CompiledModel.Options(accelerator), null)
+    }
+
+    /**
+     * Synthesizes speech from matcha symbol ids (NOT yet interspersed with blanks).
+     *
+     * @param phonemeIds matcha symbol ids from [MatchaG2P.phonemize].
+     * @param nSteps number of Euler ODE steps (more = higher quality, slower).
+     * @param seed optional fixed noise seed for reproducible output.
+     */
+    fun synthesize(phonemeIds: IntArray, nSteps: Int = DEFAULT_STEPS, seed: Long? = null): Result {
+        val startNanos = System.nanoTime()
+
+        // Intersperse blanks (id 0), pad to MAX_TEXT, build the text mask.
+        val textLength = minOf(phonemeIds.size * 2 + 1, MAX_TEXT)
+        val ids = IntArray(MAX_TEXT)
+        var writeIndex = 1
+        for (id in phonemeIds) {
+            if (writeIndex >= MAX_TEXT) break
+            ids[writeIndex] = id
+            writeIndex += 2
+        }
+        val textMask = FloatArray(MAX_TEXT) { if (it < textLength) 1f else 0f }
+
+        // Host phoneme-embedding lookup -> [1, MAX_TEXT, N_CHANNELS].
+        val embedded = FloatArray(MAX_TEXT * N_CHANNELS)
+        for (t in 0 until MAX_TEXT) {
+            System.arraycopy(embeddingTable, ids[t] * N_CHANNELS, embedded, t * N_CHANNELS, N_CHANNELS)
+        }
+
+        // Text encoder (GPU) -> mu[1,80,T], logw[1,1,T].
+        textEncoderInputs[0].writeFloat(embedded)
+        textEncoderInputs[1].writeFloat(textMask)
+        textEncoder.run(textEncoderInputs, textEncoderOutputs)
+        val mu = textEncoderOutputs[0].readFloat() // [N_FEATS * MAX_TEXT], channel-major
+        val logDurations = textEncoderOutputs[1].readFloat() // [MAX_TEXT]
+
+        // Durations -> cumulative -> length regulator (mu_y).
+        val durations = FloatArray(MAX_TEXT) { ceil(exp(logDurations[it]) * textMask[it]) * LENGTH_SCALE }
+        val cumulative = FloatArray(MAX_TEXT)
+        var total = 0f
+        for (i in 0 until MAX_TEXT) {
+            total += durations[i]
+            cumulative[i] = total
+        }
+        val melLength = minOf(maxOf(total.toInt(), 1), MAX_MEL)
+
+        val muY = FloatArray(N_FEATS * MAX_MEL)
+        var phonemeIndex = 0
+        for (frame in 0 until melLength) {
+            while (phonemeIndex < MAX_TEXT - 1 && cumulative[phonemeIndex] <= frame) phonemeIndex++
+            for (c in 0 until N_FEATS) muY[c * MAX_MEL + frame] = mu[c * MAX_TEXT + phonemeIndex]
+        }
+        val melMask = FloatArray(MAX_MEL) { if (it < melLength) 1f else 0f }
+
+        // Euler ODE: x_{k+1} = x_k + dt * decoder(x_k, mu_y, sin_emb(t), mask).
+        val random = if (seed != null) Random(seed) else Random()
+        val x = FloatArray(N_FEATS * MAX_MEL)
+        for (c in 0 until N_FEATS) {
+            for (frame in 0 until melLength) {
+                x[c * MAX_MEL + frame] = random.nextGaussian().toFloat()
+            }
+        }
+        val dt = 1f / nSteps
+        var time = 0f
+        repeat(nSteps) {
+            decoderInputs[0].writeFloat(x)
+            decoderInputs[1].writeFloat(muY)
+            decoderInputs[2].writeFloat(sinusoidalPositionEmbedding(time))
+            decoderInputs[3].writeFloat(melMask)
+            decoder.run(decoderInputs, decoderOutputs)
+            val velocity = decoderOutputs[0].readFloat()
+            for (i in x.indices) x[i] += dt * velocity[i]
+            time += dt
+        }
+
+        // Denormalize + zero pad -> mel -> vocoder (GPU) -> waveform.
+        val mel = FloatArray(N_FEATS * MAX_MEL)
+        for (c in 0 until N_FEATS) {
+            for (frame in 0 until melLength) {
+                val i = c * MAX_MEL + frame
+                mel[i] = x[i] * MEL_STD + MEL_MEAN
+            }
+        }
+        vocoderInputs[0].writeFloat(mel)
+        vocoder.run(vocoderInputs, vocoderOutputs)
+        val waveform = vocoderOutputs[0].readFloat() // [MAX_MEL * HOP]
+        val sampleCount = melLength * HOP
+        val audio = FloatArray(sampleCount) { waveform[it].coerceIn(-1f, 1f) }
+
+        return Result(audio, melLength, nSteps, (System.nanoTime() - startNanos) / 1_000_000)
+    }
+
+    /** Matcha SinusoidalPosEmb (weight-free): t -> [TIME_DIM] = [sin(...) | cos(...)]. */
+    private fun sinusoidalPositionEmbedding(t: Float, scale: Float = 1000f): FloatArray {
+        val half = TIME_DIM / 2
+        val embedding = FloatArray(TIME_DIM)
+        val logScale = -ln(10000.0) / (half - 1)
+        for (i in 0 until half) {
+            val angle = scale * t * exp(i * logScale).toFloat()
+            embedding[i] = sin(angle)
+            embedding[half + i] = cos(angle)
+        }
+        return embedding
+    }
+
+    private fun readFloats(bytes: ByteArray): FloatArray {
+        val buffer = ByteBuffer.wrap(bytes).order(ByteOrder.LITTLE_ENDIAN)
+        return FloatArray(bytes.size / 4) { buffer.float }
+    }
+
+    override fun close() {
+        textEncoderInputs.forEach { it.close() }
+        textEncoderOutputs.forEach { it.close() }
+        decoderInputs.forEach { it.close() }
+        decoderOutputs.forEach { it.close() }
+        vocoderInputs.forEach { it.close() }
+        vocoderOutputs.forEach { it.close() }
+        textEncoder.close()
+        decoder.close()
+        vocoder.close()
+    }
 
     companion object {
         const val MAX_TEXT = 256
@@ -58,125 +209,10 @@ class MatchaSynthesizer(private val context: Context) : Closeable {
         const val MEL_STD = 2.116101f
         const val TIME_DIM = 160
         const val DEFAULT_STEPS = 10
-        const val TEXTENC = "matcha_textenc_fp16.tflite"
-        const val DECODER = "matcha_decoder_fp16.tflite"
-        const val VOCODER = "matcha_vocoder_fp16.tflite"
         const val MAX_SAMPLES = MAX_MEL * HOP
-    }
 
-    private fun load(name: String, acc: Accelerator = Accelerator.GPU): CompiledModel {
-        val f = File(context.filesDir, name)
-        check(f.exists()) { "Model not found: $name. Push it first:\n  scripts/install_to_device.sh" }
-        return CompiledModel.create(f.absolutePath, CompiledModel.Options(acc), null)
-    }
-
-    private val embTable: FloatArray = readFloats(context.assets.open("emb.bin").readBytes()) // [178*192]
-
-    private val textenc = load(TEXTENC)
-    // decoder on CPU: the diffusers transformer blocks are mis-fused on the Mali ML Drift
-    // delegate (residual collapses to corr 0.006 in the full graph, though the SAME
-    // transformer is corr 0.98 as a standalone graph -> a fusion bug, not the ops). On CPU
-    // the decoder is exact; RTF stays realtime (~0.93). textenc + vocoder run on GPU.
-    private val decoder = load(DECODER, Accelerator.CPU)
-    private val vocoder = load(VOCODER)
-    private val teIn = textenc.createInputBuffers();  private val teOut = textenc.createOutputBuffers()
-    private val decIn = decoder.createInputBuffers();  private val decOut = decoder.createOutputBuffers()
-    private val vocIn = vocoder.createInputBuffers();  private val vocOut = vocoder.createOutputBuffers()
-
-    data class Result(val audio: FloatArray, val frames: Int, val steps: Int, val ms: Long)
-
-    /** phonemeIds: matcha symbol ids (NOT yet interspersed with blanks). */
-    fun synthesize(phonemeIds: IntArray, nSteps: Int = DEFAULT_STEPS, seed: Long? = null): Result {
-        val t0 = System.nanoTime()
-
-        // ---- intersperse blanks (id 0), pad to MAX_TEXT, build text mask ----
-        val tx = minOf(phonemeIds.size * 2 + 1, MAX_TEXT)
-        val ids = IntArray(MAX_TEXT)
-        run { var i = 1; for (p in phonemeIds) { if (i >= MAX_TEXT) break; ids[i] = p; i += 2 } }
-        val tmask = FloatArray(MAX_TEXT) { if (it < tx) 1f else 0f }
-
-        // ---- host phoneme-embedding lookup -> [1, MAX_TEXT, 192] ----
-        val embX = FloatArray(MAX_TEXT * N_CHANNELS)
-        for (t in 0 until MAX_TEXT) {
-            val src = ids[t] * N_CHANNELS
-            System.arraycopy(embTable, src, embX, t * N_CHANNELS, N_CHANNELS)
-        }
-
-        // ---- text encoder (GPU) -> mu[1,80,T], logw[1,1,T] ----
-        teIn[0].writeFloat(embX); teIn[1].writeFloat(tmask)
-        textenc.run(teIn, teOut)
-        val mu = teOut[0].readFloat()    // [80*MAX_TEXT], channel-major
-        val logw = teOut[1].readFloat()  // [MAX_TEXT]
-
-        // ---- durations -> cumulative -> length regulator (mu_y) ----
-        val wceil = FloatArray(MAX_TEXT) { ceil(exp(logw[it]) * tmask[it]) * LENGTH_SCALE }
-        val cum = FloatArray(MAX_TEXT)
-        var acc = 0f
-        for (i in 0 until MAX_TEXT) { acc += wceil[i]; cum[i] = acc }
-        val yLen = minOf(maxOf(acc.toInt(), 1), MAX_MEL)
-
-        val muY = FloatArray(N_FEATS * MAX_MEL)
-        run {
-            var p = 0
-            for (f in 0 until yLen) {
-                while (p < MAX_TEXT - 1 && cum[p] <= f) p++
-                for (c in 0 until N_FEATS) muY[c * MAX_MEL + f] = mu[c * MAX_TEXT + p]
-            }
-        }
-        val ymask = FloatArray(MAX_MEL) { if (it < yLen) 1f else 0f }
-
-        // ---- Euler ODE: x_{k+1} = x_k + dt * decoder(x_k, mu_y, sin_emb(t), mask) ----
-        val rnd = if (seed != null) java.util.Random(seed) else java.util.Random()
-        val x = FloatArray(N_FEATS * MAX_MEL)
-        for (c in 0 until N_FEATS) for (f in 0 until yLen) x[c * MAX_MEL + f] = rnd.nextGaussian().toFloat()
-        val dt = 1f / nSteps
-        var tcur = 0f
-        for (step in 0 until nSteps) {
-            decIn[0].writeFloat(x)
-            decIn[1].writeFloat(muY)
-            decIn[2].writeFloat(sinPosEmb(tcur))
-            decIn[3].writeFloat(ymask)
-            decoder.run(decIn, decOut)
-            val v = decOut[0].readFloat()
-            for (i in x.indices) x[i] += dt * v[i]
-            tcur += dt
-        }
-
-        // ---- denormalize + zero pad -> mel -> vocoder (GPU) -> waveform ----
-        val mel = FloatArray(N_FEATS * MAX_MEL)
-        for (c in 0 until N_FEATS) for (f in 0 until yLen) {
-            val i = c * MAX_MEL + f; mel[i] = x[i] * MEL_STD + MEL_MEAN
-        }
-        vocIn[0].writeFloat(mel)
-        vocoder.run(vocIn, vocOut)
-        val wavFull = vocOut[0].readFloat()    // [MAX_MEL*HOP]
-        val n = yLen * HOP
-        val audio = FloatArray(n) { wavFull[it].coerceIn(-1f, 1f) }
-
-        return Result(audio, yLen, nSteps, (System.nanoTime() - t0) / 1_000_000)
-    }
-
-    /** matcha SinusoidalPosEmb (weight-free): t -> [TIME_DIM] = [sin(...) | cos(...)]. */
-    private fun sinPosEmb(t: Float, scale: Float = 1000f): FloatArray {
-        val half = TIME_DIM / 2
-        val out = FloatArray(TIME_DIM)
-        val k = -ln(10000.0) / (half - 1)
-        for (i in 0 until half) {
-            val e = scale * t * exp(i * k).toFloat()
-            out[i] = sin(e); out[half + i] = cos(e)
-        }
-        return out
-    }
-
-    private fun readFloats(b: ByteArray): FloatArray {
-        val bb = ByteBuffer.wrap(b).order(ByteOrder.LITTLE_ENDIAN)
-        return FloatArray(b.size / 4) { bb.float }
-    }
-
-    override fun close() {
-        teIn.forEach { it.close() }; teOut.forEach { it.close() }
-        decIn.forEach { it.close() }; decOut.forEach { it.close() }
-        vocIn.forEach { it.close() }; vocOut.forEach { it.close() }
-        textenc.close(); decoder.close(); vocoder.close()
+        private const val TEXT_ENCODER_MODEL = "matcha_textenc_fp16.tflite"
+        private const val DECODER_MODEL = "matcha_decoder_fp16.tflite"
+        private const val VOCODER_MODEL = "matcha_vocoder_fp16.tflite"
     }
 }

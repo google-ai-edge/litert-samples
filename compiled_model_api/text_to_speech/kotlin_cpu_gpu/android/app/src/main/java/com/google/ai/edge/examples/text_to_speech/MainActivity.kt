@@ -37,79 +37,101 @@ import java.util.concurrent.Executors
  */
 class MainActivity : Activity() {
 
-    private val tag = "Matcha"
-    private val bg = Executors.newSingleThreadExecutor()
+    private val backgroundExecutor = Executors.newSingleThreadExecutor()
     private var g2p: MatchaG2P? = null
-    private var tts: MatchaSynthesizer? = null
+    private var synthesizer: MatchaSynthesizer? = null
 
-    private lateinit var status: TextView
-    private lateinit var input: EditText
-    private lateinit var speak: Button
+    private lateinit var statusText: TextView
+    private lateinit var inputText: EditText
+    private lateinit var speakButton: Button
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         val root = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            setPadding(56, 120, 56, 56)
+            setPadding(PADDING_PX, PADDING_TOP_PX, PADDING_PX, PADDING_PX)
         }
-        status = TextView(this).apply { textSize = 15f; text = "Loading Matcha-TTS on GPU…" }
-        input = EditText(this).apply {
+        statusText = TextView(this).apply {
+            textSize = 15f
+            text = "Loading Matcha-TTS on GPU…"
+        }
+        inputText = EditText(this).apply {
             setText("Hello, this is Matcha running on the mobile GPU.")
             textSize = 16f
         }
-        speak = Button(this).apply {
-            text = "▶ Speak"; isEnabled = false
-            setOnClickListener { synth(input.text.toString()) }
+        speakButton = Button(this).apply {
+            text = "▶ Speak"
+            isEnabled = false
+            setOnClickListener { synthesizeAndPlay(inputText.text.toString()) }
         }
-        root.addView(status); root.addView(input); root.addView(speak)
+        root.addView(statusText)
+        root.addView(inputText)
+        root.addView(speakButton)
         setContentView(root)
 
-        bg.execute {
+        backgroundExecutor.execute { loadModels() }
+    }
+
+    /** Loads the G2P and synthesizer models, then warms up the GPU with a short utterance. */
+    private fun loadModels() {
+        try {
+            val loadedG2p = MatchaG2P(this)
+            g2p = loadedG2p
+            val loadedSynthesizer = MatchaSynthesizer(this)
+            synthesizer = loadedSynthesizer
+            loadedSynthesizer.synthesize(loadedG2p.phonemize("warm up"), nSteps = WARM_UP_STEPS)
+            runOnUiThread {
+                statusText.setBackgroundColor(STATUS_OK_COLOR)
+                statusText.text =
+                    "On-device Matcha-TTS ✓ (GPU graphs + CPU G2P)\nType text and tap Speak."
+                speakButton.isEnabled = true
+            }
+        } catch (e: Throwable) {
+            Log.e(TAG, "Model load failed", e)
+            runOnUiThread {
+                statusText.setBackgroundColor(STATUS_ERROR_COLOR)
+                statusText.text =
+                    "FAIL: ${e.message}\n\nPush models first:\n  scripts/install_to_device.sh"
+            }
+        }
+    }
+
+    /** Phonemizes [text], synthesizes it off the UI thread, and plays the result. */
+    private fun synthesizeAndPlay(text: String) {
+        val loadedG2p = g2p ?: return
+        val loadedSynthesizer = synthesizer ?: return
+        speakButton.isEnabled = false
+        statusText.text = "Synthesizing…"
+        backgroundExecutor.execute {
             try {
-                val gp = MatchaG2P(this); g2p = gp
-                val t = MatchaSynthesizer(this); tts = t
-                // warm up GPU + JIT
-                t.synthesize(gp.phonemize("warm up"), nSteps = 2)
+                val phonemeIds = loadedG2p.phonemize(text)
+                val result = loadedSynthesizer.synthesize(phonemeIds)
+                val durationSec = result.audio.size.toDouble() / MatchaSynthesizer.SAMPLE_RATE
+                val realTimeFactor = result.ms / 1000.0 / durationSec
+                Log.i(
+                    TAG,
+                    "phonemes=${phonemeIds.size} frames=${result.frames} steps=${result.steps} " +
+                        "${result.ms}ms rtf=$realTimeFactor",
+                )
                 runOnUiThread {
-                    status.setBackgroundColor(Color.rgb(0xC8, 0xE6, 0xC9))
-                    status.text = "On-device Matcha-TTS ✓ (GPU graphs + CPU G2P)\nType text and tap Speak."
-                    speak.isEnabled = true
+                    statusText.text =
+                        "Spoke ${"%.2f".format(durationSec)} s in ${result.ms} ms · " +
+                            "RTF ${"%.2f".format(realTimeFactor)} " +
+                            "(${result.steps} ODE steps, ${phonemeIds.size} phonemes)"
+                    speakButton.isEnabled = true
                 }
+                play(result.audio)
             } catch (e: Throwable) {
-                Log.e(tag, "load failed", e)
+                Log.e(TAG, "Synthesis failed", e)
                 runOnUiThread {
-                    status.setBackgroundColor(Color.rgb(0xFF, 0xCD, 0xD2))
-                    status.text = "FAIL: ${e.message}\n\nPush models first:\n  scripts/install_to_device.sh"
+                    statusText.text = "FAIL: ${e.message}"
+                    speakButton.isEnabled = true
                 }
             }
         }
     }
 
-    private fun synth(text: String) {
-        val gp = g2p ?: return
-        val t = tts ?: return
-        speak.isEnabled = false
-        status.text = "Synthesizing…"
-        bg.execute {
-            try {
-                val ids = gp.phonemize(text)
-                val r = t.synthesize(ids)
-                val dur = r.audio.size.toDouble() / MatchaSynthesizer.SAMPLE_RATE
-                val rtf = r.ms / 1000.0 / dur
-                Log.i(tag, "phonemes=${ids.size} frames=${r.frames} steps=${r.steps} ${r.ms}ms rtf=$rtf")
-                runOnUiThread {
-                    status.text = "Spoke ${"%.2f".format(dur)} s in ${r.ms} ms · RTF ${"%.2f".format(rtf)} " +
-                        "(${r.steps} ODE steps, ${ids.size} phonemes)"
-                    speak.isEnabled = true
-                }
-                play(r.audio)
-            } catch (e: Throwable) {
-                Log.e(tag, "synth failed", e)
-                runOnUiThread { status.text = "FAIL: ${e.message}"; speak.isEnabled = true }
-            }
-        }
-    }
-
+    /** Plays mono float PCM at [MatchaSynthesizer.SAMPLE_RATE] and blocks until done. */
     private fun play(audio: FloatArray) {
         try {
             val track = AudioTrack(
@@ -119,20 +141,35 @@ class MainActivity : Activity() {
                     .setEncoding(AudioFormat.ENCODING_PCM_FLOAT)
                     .setChannelMask(AudioFormat.CHANNEL_OUT_MONO)
                     .build(),
-                audio.size * 4, AudioTrack.MODE_STATIC, AudioManager.AUDIO_SESSION_ID_GENERATE,
+                audio.size * BYTES_PER_FLOAT,
+                AudioTrack.MODE_STATIC,
+                AudioManager.AUDIO_SESSION_ID_GENERATE,
             )
             track.write(audio, 0, audio.size, AudioTrack.WRITE_BLOCKING)
             track.play()
-            Thread.sleep((audio.size * 1000L / MatchaSynthesizer.SAMPLE_RATE) + 250)
+            Thread.sleep((audio.size * 1000L / MatchaSynthesizer.SAMPLE_RATE) + PLAYBACK_TAIL_MS)
             track.release()
         } catch (e: Throwable) {
-            Log.e(tag, "play failed: ${e.message}")
+            Log.e(TAG, "Playback failed: ${e.message}")
         }
     }
 
     override fun onDestroy() {
         super.onDestroy()
-        bg.shutdown()
-        tts?.close(); g2p?.close()
+        backgroundExecutor.shutdown()
+        synthesizer?.close()
+        g2p?.close()
+    }
+
+    companion object {
+        private const val TAG = "Matcha"
+        private const val PADDING_PX = 56
+        private const val PADDING_TOP_PX = 120
+        private const val WARM_UP_STEPS = 2
+        private const val BYTES_PER_FLOAT = 4
+        /** Extra wait after the nominal audio duration so the tail is not cut off. */
+        private const val PLAYBACK_TAIL_MS = 250L
+        private val STATUS_OK_COLOR = Color.rgb(0xC8, 0xE6, 0xC9)
+        private val STATUS_ERROR_COLOR = Color.rgb(0xFF, 0xCD, 0xD2)
     }
 }

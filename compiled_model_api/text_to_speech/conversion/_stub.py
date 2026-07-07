@@ -15,42 +15,50 @@
 """Shared scipy/_propack + getsourcefile stub for macOS probes.
 
 Import this FIRST (before transformers / litert_torch) in any probe script:
+
     import _stub  # noqa: F401
+
 Mirrors the guards baked into probe_convert.py so raw-module probes can run too.
 """
-import sys, types, inspect
+
+import inspect
+import sys
+import types
 
 
-class _D:
-    def __getattr__(self, n):
-        return lambda *a, **k: None
+class _Dummy:
+    """Absorbs any attribute access or call and returns None."""
 
-    def __call__(self, *a, **k):
+    def __getattr__(self, name):
+        return lambda *args, **kwargs: None
+
+    def __call__(self, *args, **kwargs):
         return None
 
 
-_pp = types.ModuleType("scipy.sparse.linalg._propack")
-_pp.__file__ = "<stub:scipy._propack>"
-_pp.__spec__ = None
-for _nm in ("_spropack", "_dpropack", "_cpropack", "_zpropack"):
-    setattr(_pp, _nm, _D())
-sys.modules["scipy.sparse.linalg._propack"] = _pp
+_propack = types.ModuleType("scipy.sparse.linalg._propack")
+_propack.__file__ = "<stub:scipy._propack>"
+_propack.__spec__ = None
+for _name in ("_spropack", "_dpropack", "_cpropack", "_zpropack"):
+    setattr(_propack, _name, _Dummy())
+sys.modules["scipy.sparse.linalg._propack"] = _propack
 
-_opt = types.ModuleType("scipy.optimize")
-_opt.__file__ = "<stub:scipy.optimize>"
-_opt.__spec__ = None
-_opt.linear_sum_assignment = lambda *a, **k: None
-sys.modules["scipy.optimize"] = _opt
+_optimize = types.ModuleType("scipy.optimize")
+_optimize.__file__ = "<stub:scipy.optimize>"
+_optimize.__spec__ = None
+_optimize.linear_sum_assignment = lambda *args, **kwargs: None
+sys.modules["scipy.optimize"] = _optimize
 
-_orig_gsf = inspect.getsourcefile
+_original_getsourcefile = inspect.getsourcefile
 
 
 def _safe_getsourcefile(obj):
+    """Returns the source file like inspect.getsourcefile, but never raises."""
     try:
-        return _orig_gsf(obj)
+        return _original_getsourcefile(obj)
     except (AttributeError, TypeError):
-        nm = getattr(obj, "__name__", repr(obj))
-        sys.stderr.write(f"[probe] guarded getsourcefile crash on module {nm!r}\n")
+        name = getattr(obj, "__name__", repr(obj))
+        sys.stderr.write(f"[probe] guarded getsourcefile crash on module {name!r}\n")
         return None
 
 
