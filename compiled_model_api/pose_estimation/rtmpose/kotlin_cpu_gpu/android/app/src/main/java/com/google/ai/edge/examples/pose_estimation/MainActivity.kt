@@ -58,16 +58,24 @@ class MainActivity : Activity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        val root = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(24, 80, 24, 24) }
-        status = TextView(this).apply { textSize = 15f; text = "Loading RTMPose on GPU…" }
+        val root = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(24, 80, 24, 24)
+        }
+        status = TextView(this).apply {
+            textSize = 15f
+            text = "Loading RTMPose on GPU…"
+        }
         val pick = Button(this).apply {
-            text = "🖼  Pick image"; isEnabled = false
+            text = "🖼  Pick image"
+            isEnabled = false
             setOnClickListener {
                 startActivityForResult(Intent(Intent.ACTION_GET_CONTENT).apply { type = "image/*" }, pickReq)
             }
         }
         poseView = PoseView(this)
-        root.addView(status); root.addView(pick)
+        root.addView(status)
+        root.addView(pick)
         root.addView(poseView, LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, 960))
         setContentView(root)
 
@@ -85,7 +93,8 @@ class MainActivity : Activity() {
             } catch (e: Throwable) {
                 Log.e(tag, "load failed", e)
                 runOnUiThread {
-                    status.setBackgroundColor(Color.rgb(0xFF, 0xCD, 0xD2)); status.text = "FAIL: ${e.message}"
+                    status.setBackgroundColor(Color.rgb(0xFF, 0xCD, 0xD2))
+                    status.text = "FAIL: ${e.message}"
                 }
             }
         }
@@ -98,7 +107,10 @@ class MainActivity : Activity() {
         runOnUiThread { status.text = "Estimating pose…" }
         bg.execute {
             try { run(cropPerson(loadOriented(uri)), warm = false) }
-            catch (e: Throwable) { Log.e(tag, "estimate failed", e); runOnUiThread { status.text = "Failed: ${e.message}" } }
+            catch (e: Throwable) {
+                Log.e(tag, "estimate failed", e)
+                runOnUiThread { status.text = "Failed: ${e.message}" }
+            }
         }
     }
 
@@ -114,7 +126,8 @@ class MainActivity : Activity() {
         runOnUiThread {
             status.setBackgroundColor(Color.rgb(0xC8, 0xE6, 0xC9))
             status.text = "On-device GPU pose ✓  ${ms} ms  ·  $visible/17 keypoints  ·  RTMPose-s, CompiledModel GPU"
-            poseView.set(crop, kpts, skeleton); poseView.invalidate()
+            poseView.set(crop, kpts, skeleton)
+            poseView.invalidate()
         }
     }
 
@@ -135,44 +148,66 @@ class MainActivity : Activity() {
     /** Center-crop to the model's 3:4 (192x256) aspect, then resize. */
     private fun cropPerson(src: Bitmap): Bitmap {
         val ar = RtmPoseEstimator.W.toFloat() / RtmPoseEstimator.H
-        val w = src.width; val h = src.height
+        val w = src.width
+        val h = src.height
         val crop = if (w.toFloat() / h > ar) {
-            val nw = (h * ar).toInt(); Bitmap.createBitmap(src, (w - nw) / 2, 0, nw, h)
+            val nw = (h * ar).toInt()
+            Bitmap.createBitmap(src, (w - nw) / 2, 0, nw, h)
         } else {
-            val nh = (w / ar).toInt(); Bitmap.createBitmap(src, 0, (h - nh) / 2, w, nh)
+            val nh = (w / ar).toInt()
+            Bitmap.createBitmap(src, 0, (h - nh) / 2, w, nh)
         }
         return Bitmap.createScaledBitmap(crop, RtmPoseEstimator.W, RtmPoseEstimator.H, true)
     }
 
     private fun bitmapToRgb(bm: Bitmap): FloatArray {
-        val n = bm.width * bm.height; val px = IntArray(n)
+        val n = bm.width * bm.height
+        val px = IntArray(n)
         bm.getPixels(px, 0, bm.width, 0, 0, bm.width, bm.height)
         val out = FloatArray(n * 3)
         for (i in 0 until n) {
             val p = px[i]
-            out[i * 3] = ((p shr 16) and 0xFF).toFloat(); out[i * 3 + 1] = ((p shr 8) and 0xFF).toFloat()
+            out[i * 3] = ((p shr 16) and 0xFF).toFloat()
+            out[i * 3 + 1] = ((p shr 8) and 0xFF).toFloat()
             out[i * 3 + 2] = (p and 0xFF).toFloat()
         }
         return out
     }
 
-    override fun onDestroy() { super.onDestroy(); bg.shutdown(); net?.close() }
+    override fun onDestroy() {
+        super.onDestroy()
+        bg.shutdown()
+        net?.close()
+    }
 
     class PoseView(ctx: Context) : View(ctx) {
         private var bm: Bitmap? = null
         private var kpts: List<RtmPoseEstimator.Keypoint> = emptyList()
         private var edges: Array<Pair<Int, Int>> = emptyArray()
-        private val bone = Paint().apply { color = Color.rgb(0, 230, 0); strokeWidth = 6f; isAntiAlias = true }
-        private val joint = Paint().apply { color = Color.rgb(255, 40, 40); isAntiAlias = true }
+        private val bone = Paint().apply {
+            color = Color.rgb(0, 230, 0)
+            strokeWidth = 6f
+            isAntiAlias = true
+        }
+        private val joint = Paint().apply {
+            color = Color.rgb(255, 40, 40)
+            isAntiAlias = true
+        }
         private val imgPaint = Paint().apply { isFilterBitmap = true }
 
-        fun set(b: Bitmap, k: List<RtmPoseEstimator.Keypoint>, e: Array<Pair<Int, Int>>) { bm = b; kpts = k; edges = e }
+        fun set(b: Bitmap, k: List<RtmPoseEstimator.Keypoint>, e: Array<Pair<Int, Int>>) {
+            bm = b
+            kpts = k
+            edges = e
+        }
 
         override fun onDraw(canvas: Canvas) {
             val b = bm ?: return
             val s = minOf(width.toFloat() / b.width, height.toFloat() / b.height)
-            val w = b.width * s; val h = b.height * s
-            val ox = (width - w) / 2; val oy = (height - h) / 2
+            val w = b.width * s
+            val h = b.height * s
+            val ox = (width - w) / 2
+            val oy = (height - h) / 2
             canvas.drawBitmap(b, null, android.graphics.RectF(ox, oy, ox + w, oy + h), imgPaint)
             fun px(i: Int) = ox + kpts[i].x * s
             fun py(i: Int) = oy + kpts[i].y * s

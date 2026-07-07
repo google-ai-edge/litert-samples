@@ -1,5 +1,22 @@
-import warnings; warnings.filterwarnings("ignore")
-import sys, types, inspect
+# Copyright 2025 The Google AI Edge Authors. All Rights Reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#       http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+import warnings
+warnings.filterwarnings("ignore")
+import sys
+import types
+import inspect
 _orig_gsf=inspect.getsourcefile
 inspect.getsourcefile=lambda o:(_orig_gsf(o) if True else None) if False else (lambda: (_orig_gsf(o)))()
 def _safe_gsf(o):
@@ -7,20 +24,28 @@ def _safe_gsf(o):
     except Exception: return None
 inspect.getsourcefile=_safe_gsf
 class _Stub(types.ModuleType):
-    __file__="<stub>"; __spec__=None; __path__=[]
+    __file__="<stub>"
+    __spec__=None
+    __path__=[]
     def __getattr__(s,n):
         if n.startswith("__"): raise AttributeError(n)
         return lambda *a,**k: None
 def _mk(name, **attrs):
     m=_Stub(name)
     for k,v in attrs.items(): setattr(m,k,v)
-    sys.modules[name]=m; return m
+    sys.modules[name]=m
+    return m
 for n in ["mmdet","mmdet.models","mmdet.models.utils","mmdet.structures","mmdet.structures.bbox","mmcv.ops"]: _mk(n)
 _mk("mmdet.utils", ConfigType=dict, OptConfigType=dict, MultiConfig=dict, reduce_mean=(lambda x:x), InstanceList=list, OptInstanceList=list)
 for n in ["chumpy"]:
     try: __import__(n)
     except Exception: _mk(n)
-import os, mmpose, torch, torch.nn as nn, collections, numpy as np
+import os
+import mmpose
+import torch
+import torch.nn as nn
+import collections
+import numpy as np
 from mmpose.apis import init_model
 
 # --- ScaleNorm: torch.norm lowers to an ABS/MAXIMUM/DIV path Mali mis-computes (x/inf=0); use manual sum-of-squares ---
@@ -60,9 +85,14 @@ root=os.path.dirname(mmpose.__file__)
 cfg=os.path.join(root,".mim/configs/body_2d_keypoint/rtmpose/coco/rtmpose-s_8xb256-420e_aic-coco-256x192.py")
 ckpt="https://download.openmmlab.com/mmpose/v1/projects/rtmposev1/rtmpose-s_simcc-aic-coco_pt-aic-coco_420e-256x192-fcb2599b_20230126.pth"
 class Wrap(nn.Module):
-    def __init__(s,m): super().__init__(); s.b=m.backbone; s.h=m.head
+    def __init__(s,m):
+        super().__init__()
+        s.b=m.backbone
+        s.h=m.head
     def forward(s,x):
-        f=s.b(x); sx,sy=s.h(f if isinstance(f,(list,tuple)) else (f,)); return sx,sy
+        f=s.b(x)
+        sx,sy=s.h(f if isinstance(f,(list,tuple)) else (f,))
+        return sx,sy
 
 def to_fp16(fp32,fp16):
     from ai_edge_quantizer import quantizer, recipe_manager
@@ -71,11 +101,15 @@ def to_fp16(fp32,fp16):
     rm.add_quantization_config(regex=".*",operation_name=qtyping.TFLOperationName.ALL_SUPPORTED,op_config=qtyping.OpQuantizationConfig(weight_tensor_config=qtyping.TensorQuantizationConfig(num_bits=16,dtype=qtyping.TensorDataType.FLOAT),compute_precision=qtyping.ComputePrecision.FLOAT),algorithm_key=AlgorithmName.FLOAT_CASTING)
     import os
     if os.path.exists(fp16): os.remove(fp16)
-    q=quantizer.Quantizer(float_model=fp32); q.load_quantization_recipe(rm.get_quantization_recipe()); q.quantize().export_model(fp16); return fp16
+    q=quantizer.Quantizer(float_model=fp32)
+    q.load_quantization_recipe(rm.get_quantization_recipe())
+    q.quantize().export_model(fp16)
+    return fp16
 
 def opcheck(p,l):
     from ai_edge_litert.interpreter import Interpreter
-    it=Interpreter(model_path=p); it.allocate_tensors()
+    it=Interpreter(model_path=p)
+    it.allocate_tensors()
     ops=collections.Counter(d.get("op_name","?") for d in it._get_ops_details())
     bad={k:v for k,v in ops.items() if k.upper() in BANNED}
     over=sum(1 for d in it.get_tensor_details() if len(d.get("shape",[]))>4)
@@ -83,17 +117,23 @@ def opcheck(p,l):
     print(f"[{l}] banned:{bad or 'NONE'} >4D:{over} size {os.path.getsize(p)/1e6:.1f}MB","GPU-CLEAN" if not bad and not over else "BLOCKERS")
     return it
 if __name__=="__main__":
-    m=init_model(cfg,ckpt,device="cpu").eval(); w=Wrap(m).eval()
+    m=init_model(cfg,ckpt,device="cpu").eval()
+    w=Wrap(m).eval()
     img=torch.randn(1,3,256,192)
     with torch.no_grad(): sx,sy=w(img)
     print("out simcc_x",tuple(sx.shape),"simcc_y",tuple(sy.shape))
     import litert_torch
-    fp32=os.path.join(HERE,"rtm.tflite"); litert_torch.convert(w,(img,)).export(fp32)
-    to_fp16(fp32, os.path.join(HERE,"rtm_fp16.tflite")); opcheck(os.path.join(HERE,"rtm_fp16.tflite"),"rtm_fp16")
+    fp32=os.path.join(HERE,"rtm.tflite")
+    litert_torch.convert(w,(img,)).export(fp32)
+    to_fp16(fp32, os.path.join(HERE,"rtm_fp16.tflite"))
+    opcheck(os.path.join(HERE,"rtm_fp16.tflite"),"rtm_fp16")
     it=opcheck(fp32,"rtm")
-    d=it.get_input_details()[0]; it.set_tensor(d["index"],img.numpy().astype(d["dtype"])); it.invoke()
+    d=it.get_input_details()[0]
+    it.set_tensor(d["index"],img.numpy().astype(d["dtype"]))
+    it.invoke()
     od=it.get_output_details()
-    o0=it.get_tensor(od[0]["index"]); o1=it.get_tensor(od[1]["index"])
+    o0=it.get_tensor(od[0]["index"])
+    o1=it.get_tensor(od[1]["index"])
     refs=[sx.numpy(),sy.numpy()]
     # match outputs by shape
     for o in (o0,o1):

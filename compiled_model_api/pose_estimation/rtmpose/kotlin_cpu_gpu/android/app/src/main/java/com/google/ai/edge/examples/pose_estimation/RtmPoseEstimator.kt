@@ -69,8 +69,10 @@ class RtmPoseEstimator(ctx: Context, accelerator: Accelerator = Accelerator.GPU)
         inBuf[0].writeFloat(chw)
         model.run(inBuf, outBuf)
         // Outputs are simcc_x [K*W*SPLIT] and simcc_y [K*H*SPLIT]; pick each by length.
-        val a = outBuf[0].readFloat(); val b = outBuf[1].readFloat()
-        val xBins = W * SPLIT; val yBins = H * SPLIT
+        val a = outBuf[0].readFloat()
+        val b = outBuf[1].readFloat()
+        val xBins = W * SPLIT
+        val yBins = H * SPLIT
         val sx = if (a.size == K * xBins) a else b
         val sy = if (a.size == K * yBins) a else b
         val out = ArrayList<Keypoint>(K)
@@ -83,10 +85,21 @@ class RtmPoseEstimator(ctx: Context, accelerator: Accelerator = Accelerator.GPU)
     }
 
     private fun argmax(a: FloatArray, off: Int, n: Int): Pair<Int, Float> {
-        var bi = 0; var bv = a[off]
-        for (i in 1 until n) { val v = a[off + i]; if (v > bv) { bv = v; bi = i } }
+        var bi = 0
+        var bv = a[off]
+        for (i in 1 until n) {
+            val v = a[off + i]
+            if (v > bv) {
+                bv = v
+                bi = i
+            }
+        }
         return bi to bv
     }
 
-    override fun close() { inBuf.forEach { it.close() }; outBuf.forEach { it.close() }; model.close() }
+    override fun close() {
+        inBuf.forEach { it.close() }
+        outBuf.forEach { it.close() }
+        model.close()
+    }
 }
