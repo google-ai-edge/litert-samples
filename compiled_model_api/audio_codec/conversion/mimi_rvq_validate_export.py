@@ -12,7 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-#!/usr/bin/env python3
 """Validate a numpy reimplementation of Mimi's SPLIT RVQ decode (the host/Kotlin glue) against
 torch, and export the weights. RVQ is the only non-GPU decode part (int64 CAST + EMBEDDING_LOOKUP
 fail on Mali, cf. DAC). Split = 1 semantic + 31 acoustic codebooks; each group sums its codebook
@@ -24,7 +23,9 @@ hidden; emb = semantic_out + acoustic_out.
 Run: ~/clipconv/bin/python mimi_rvq_validate_export.py
 """
 import _stub  # noqa: F401
-import os, numpy as np, torch
+import os
+import numpy as np
+import torch
 from transformers import MimiModel
 
 HERE = os.path.dirname(os.path.abspath(__file__))

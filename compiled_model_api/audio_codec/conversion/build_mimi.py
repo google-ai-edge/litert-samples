@@ -12,7 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-#!/usr/bin/env python3
 """Mimi (Kyutai 2024 codec) DECODE path -> CompiledModel GPU: re-authoring + parity.
 
 Decode path (host RVQ -> GPU graph):
@@ -34,8 +33,14 @@ so Pixel 8a can run the C33 test: standalone-correct-but-fused-collapse => C33 g
 Run:  ~/clipconv/bin/python build_mimi.py [stage]   stage in {opcheck,parity,c33,all}
 """
 import _stub  # FIRST: scipy/_propack + getsourcefile guards
-import sys, os, math, collections
-import numpy as np, torch, torch.nn as nn, torch.nn.functional as F
+import sys
+import os
+import math
+import collections
+import numpy as np
+import torch
+import torch.nn as nn
+import torch.nn.functional as F
 from transformers import MimiModel
 from transformers.models.mimi.modeling_mimi import rotate_half
 
@@ -52,31 +57,37 @@ class ZeroStuffConvT1d(nn.Module):
     """Exact GPU-clean ConvTranspose1d (DAC C20/C32), GROUPED-aware: 2D nearest upsample
     x const zero-stuff mask + flipped grouped conv1d + crop. Replaces nn.ConvTranspose1d
     in-place so the MimiConvTranspose1d wrapper's trim still applies on the result."""
-    def __init__(s, ct, L):
+    def __init__(self, ct, L):
         super().__init__()
-        s.s = ct.stride[0]; s.k = ct.kernel_size[0]; s.p = ct.padding[0]
-        s.op = ct.output_padding[0]; s.L = L; s.g = ct.groups
+        self.s = ct.stride[0]
+        self.k = ct.kernel_size[0]
+        self.p = ct.padding[0]
+        self.op = ct.output_padding[0]
+        self.L = L
+        self.g = ct.groups
         Cin, Cout, G = ct.in_channels, ct.out_channels, ct.groups
         # ConvT weight (Cin, Cout//G, K) -> grouped conv1d weight (Cout, Cin//G, K), flipped
         w = ct.weight.detach()
-        w = w.view(G, Cin // G, Cout // G, s.k).permute(0, 2, 1, 3).reshape(Cout, Cin // G, s.k)
-        s.register_buffer("w", w.flip(2).contiguous())
-        s.register_buffer("b", ct.bias.detach().clone() if ct.bias is not None
+        w = w.view(G, Cin // G, Cout // G, self.k).permute(0, 2, 1, 3).reshape(Cout, Cin // G, self.k)
+        self.register_buffer("w", w.flip(2).contiguous())
+        self.register_buffer("b", ct.bias.detach().clone() if ct.bias is not None
                           else torch.zeros(Cout))
-        mk = np.zeros((L * s.s,), np.float32); mk[::s.s] = 1.0
-        s.register_buffer("mask", torch.from_numpy(mk)[None, None])
+        mk = np.zeros((L * self.s,), np.float32)
+        mk[::self.s] = 1.0
+        self.register_buffer("mask", torch.from_numpy(mk)[None, None])
 
-    def forward(s, x):
-        xn = F.interpolate(x.unsqueeze(2), size=(1, s.L * s.s), mode="nearest").squeeze(2) * s.mask
-        y = F.conv1d(xn, s.w, bias=s.b, padding=s.k - 1, groups=s.g)
-        ol = (s.L - 1) * s.s + s.k - 2 * s.p + s.op
-        return y[:, :, s.p:s.p + ol]
+    def forward(self, x):
+        xn = F.interpolate(x.unsqueeze(2), size=(1, self.L * self.s), mode="nearest").squeeze(2) * self.mask
+        y = F.conv1d(xn, self.w, bias=self.b, padding=self.k - 1, groups=self.g)
+        ol = (self.L - 1) * self.s + self.k - 2 * self.p + self.op
+        return y[:, :, self.p:self.p + ol]
 
 
 def swap_convtranspose(model, lengths):
     for name, mod in list(model.named_modules()):
         if isinstance(mod, nn.ConvTranspose1d):
-            par = model; *pth, last = name.split(".")
+            par = model
+            *pth, last = name.split(".")
             for q in pth: par = getattr(par, q)
             setattr(par, last, ZeroStuffConvT1d(mod, lengths[name]))
 
@@ -115,20 +126,20 @@ class TanhGELU(nn.Module):
     closest GPU-clean form: 0.5x(1+tanh(sqrt(2/pi)(x+0.044715 x^3)))."""
     C = math.sqrt(2.0 / math.pi)
 
-    def forward(s, x):
-        return 0.5 * x * (1.0 + torch.tanh(s.C * (x + 0.044715 * x * x * x)))
+    def forward(self, x):
+        return 0.5 * x * (1.0 + torch.tanh(self.C * (x + 0.044715 * x * x * x)))
 
 
 class SigmoidGELU(nn.Module):
     """GELU -> x*sigmoid(1.702x). No x^3 term -> no fp16 overflow risk (the hardened variant)."""
-    def forward(s, x):
+    def forward(self, x):
         return x * torch.sigmoid(1.702 * x)
 
 
 class CleanELU(nn.Module):
     """nn.ELU(alpha=1) lowers to SELECT (banned). Exact SELECT-free identity:
     ELU(x) = relu(x) - relu(1 - exp(min(x,0))). min(x,0) keeps exp from fp16-overflowing."""
-    def forward(s, x):
+    def forward(self, x):
         xm = -torch.relu(-x)                     # = min(x, 0)
         return torch.relu(x) - torch.relu(1.0 - torch.exp(xm))
 
@@ -146,18 +157,19 @@ class SafeLayerNorm(nn.Module):
     large (|x|~27)^2 values. LN is scale-invariant, so the result is identical (eps*scale^2 keeps
     even the eps exact). On-device ML Drift computes fp16 internally regardless of stored precision,
     so this is the only lever for the large-magnitude residual stream."""
-    def __init__(s, ln, scale=0.03125):
+    def __init__(self, ln, scale=0.03125):
         super().__init__()
-        s.eps = ln.eps * scale * scale; s.scale = scale
-        s.register_buffer("w", ln.weight.detach().clone())
-        s.register_buffer("b", ln.bias.detach().clone())
+        self.eps = ln.eps * scale * scale
+        self.scale = scale
+        self.register_buffer("w", ln.weight.detach().clone())
+        self.register_buffer("b", ln.bias.detach().clone())
 
-    def forward(s, x):
-        xs = x * s.scale
+    def forward(self, x):
+        xs = x * self.scale
         mu = xs.mean(-1, keepdim=True)
         d = xs - mu
         var = (d * d).mean(-1, keepdim=True)
-        return d * torch.rsqrt(var + s.eps) * s.w + s.b
+        return d * torch.rsqrt(var + self.eps) * self.w + self.b
 
 
 def rope_cos_sin(seq, head_dim, base=10000.0):
@@ -170,7 +182,8 @@ def rope_cos_sin(seq, head_dim, base=10000.0):
 
 
 def causal_bias(seq, sliding_window=None, neg=-1e9):
-    i = torch.arange(seq)[:, None]; j = torch.arange(seq)[None, :]
+    i = torch.arange(seq)[:, None]
+    j = torch.arange(seq)[None, :]
     mask = j <= i
     if sliding_window is not None:
         mask = mask & (j > i - sliding_window)
@@ -204,7 +217,8 @@ def reauth_transformer(tr, cfg, seq, harden=False):
     import types
     for lyr in tr.layers:
         a = lyr.self_attn
-        a.register_buffer("bcos", bcos); a.register_buffer("bsin", bsin)
+        a.register_buffer("bcos", bcos)
+        a.register_buffer("bsin", bsin)
         a.register_buffer("cbias", cbias)
         a.forward = types.MethodType(make_clean_attn(cfg.num_attention_heads, cfg.head_dim, scaling), a)
         lyr.mlp.activation_fn = SigmoidGELU() if harden else TanhGELU()
@@ -234,48 +248,54 @@ def reauth_transformer(tr, cfg, seq, harden=False):
 # ------------------------------------------------------------------ graph wrappers
 class TransGraph(nn.Module):
     """(a) standalone re-authored decoder_transformer. in/out (1,seq,512)."""
-    def __init__(s, tr_forward):
-        super().__init__(); s.fn = tr_forward
+    def __init__(self, tr_forward):
+        super().__init__()
+        self.fn = tr_forward
 
-    def forward(s, x):
-        return s.fn(x)
+    def forward(self, x):
+        return self.fn(x)
 
 
 class DecodeGraph(nn.Module):
     """(b) full fused decode: emb(1,512,T) -> upsample -> dectrans -> decoder -> audio(1,1,L)."""
-    def __init__(s, upsample, tr_forward, decoder):
+    def __init__(self, upsample, tr_forward, decoder):
         super().__init__()
-        s.upsample = upsample; s.fn = tr_forward; s.decoder = decoder
+        self.upsample = upsample
+        self.fn = tr_forward
+        self.decoder = decoder
 
-    def forward(s, emb):
-        x = s.upsample(emb)              # (1,512,2T)
+    def forward(self, emb):
+        x = self.upsample(emb)              # (1,512,2T)
         x = x.transpose(1, 2)           # (1,2T,512)
-        x = s.fn(x)                     # transformer
+        x = self.fn(x)                     # transformer
         x = x.transpose(1, 2)           # (1,512,2T)
-        return s.decoder(x)             # (1,1,L)
+        return self.decoder(x)             # (1,1,L)
 
 
 class EncodeGraph(nn.Module):
     """encode: audio(1,1,L) -> encoder(SEANet) -> encoder_transformer -> downsample -> emb(1,512,T).
     emb then feeds host RVQ encode -> codes (Euclidean argmin, int64 -> host like DAC)."""
-    def __init__(s, encoder, tr_forward, downsample):
+    def __init__(self, encoder, tr_forward, downsample):
         super().__init__()
-        s.encoder = encoder; s.fn = tr_forward; s.downsample = downsample
+        self.encoder = encoder
+        self.fn = tr_forward
+        self.downsample = downsample
 
-    def forward(s, audio):
-        x = s.encoder(audio)            # (1,512,Senc)
-        x = s.fn(x.transpose(1, 2))     # encoder_transformer
-        return s.downsample(x.transpose(1, 2))   # (1,512,T)
+    def forward(self, audio):
+        x = self.encoder(audio)            # (1,512,Senc)
+        x = self.fn(x.transpose(1, 2))     # encoder_transformer
+        return self.downsample(x.transpose(1, 2))   # (1,512,T)
 
 
 class DecOnlyGraph(nn.Module):
     """SEANet decoder only (no transformer): trans_out(1,seq,512) -> audio(1,1,L). Tests whether
     the convs are fp16-exact on Mali => validates a CPU-transformer + GPU-conv hybrid (Matcha precedent)."""
-    def __init__(s, decoder):
-        super().__init__(); s.decoder = decoder
+    def __init__(self, decoder):
+        super().__init__()
+        self.decoder = decoder
 
-    def forward(s, trans_out):
-        return s.decoder(trans_out.transpose(1, 2))
+    def forward(self, trans_out):
+        return self.decoder(trans_out.transpose(1, 2))
 
 
 class DecodeGraphTapped(nn.Module):
@@ -284,21 +304,24 @@ class DecodeGraphTapped(nn.Module):
     SEANet decoder. On device, in-context tap == standalone => fusion is fine; tap collapses
     while standalone is correct => C33 (transformer-residual-collapse-when-fused) generalizes.
     Returns (trans_out(1,2T,512), audio(1,1,L))."""
-    def __init__(s, upsample, tr_forward, decoder):
+    def __init__(self, upsample, tr_forward, decoder):
         super().__init__()
-        s.upsample = upsample; s.fn = tr_forward; s.decoder = decoder
+        self.upsample = upsample
+        self.fn = tr_forward
+        self.decoder = decoder
 
-    def forward(s, emb):
-        x = s.upsample(emb).transpose(1, 2)   # (1,2T,512)
-        tap = s.fn(x)                         # transformer output (the C33 tap)
-        audio = s.decoder(tap.transpose(1, 2))
+    def forward(self, emb):
+        x = self.upsample(emb).transpose(1, 2)   # (1,2T,512)
+        tap = self.fn(x)                         # transformer output (the C33 tap)
+        audio = self.decoder(tap.transpose(1, 2))
         return tap, audio
 
 
 # --------------------------------------------------------------- op-check helpers
 def opcheck(path, label):
     from ai_edge_litert.interpreter import Interpreter
-    it = Interpreter(model_path=path); it.allocate_tensors()
+    it = Interpreter(model_path=path)
+    it.allocate_tensors()
     ops = collections.Counter(d.get("op_name", "?") for d in it._get_ops_details())
     bad = {k: v for k, v in ops.items() if k.upper() in BANNED}
     over = sum(1 for d in it.get_tensor_details() if len(d.get("shape", [])) > 4)
@@ -391,7 +414,9 @@ def main():
     tr_fwd = reauth_transformer(m2.decoder_transformer, cfg, seq)
     # capture input lengths for ConvTranspose1d (swap) AND MimiConv1d (bake pads), one pass
     from transformers.models.mimi.modeling_mimi import MimiConv1d
-    L = {}; LC = {}; hk = []
+    L = {}
+    LC = {}
+    hk = []
     for n, mo in m2.named_modules():
         if isinstance(mo, nn.ConvTranspose1d):
             hk.append(mo.register_forward_pre_hook(
@@ -400,7 +425,8 @@ def main():
             hk.append(mo.register_forward_pre_hook(
                 (lambda nm: (lambda mod, i: LC.__setitem__(nm, i[0].shape[-1])))(n)))
     with torch.no_grad():
-        _u = m2.upsample(emb); _ = m2.decoder(_u)  # exercise upsample + all decoder convs
+        _u = m2.upsample(emb)
+        _ = m2.decoder(_u)  # exercise upsample + all decoder convs
     for h in hk: h.remove()
     bake_mimi_convs(m2, LC)
     swap_convtranspose(m2, L)
@@ -486,7 +512,9 @@ def main():
         me = MimiModel.from_pretrained("kyutai/mimi").eval()
         etr_fwd = reauth_transformer(me.encoder_transformer, cfg, Se)
         from transformers.models.mimi.modeling_mimi import MimiConv1d as _MC
-        L2 = {}; LC2 = {}; hk2 = []
+        L2 = {}
+        LC2 = {}
+        hk2 = []
         for n, mo in me.named_modules():
             if isinstance(mo, nn.ConvTranspose1d):
                 hk2.append(mo.register_forward_pre_hook(
@@ -495,7 +523,8 @@ def main():
                 hk2.append(mo.register_forward_pre_hook(
                     (lambda nm: (lambda mod, i: LC2.__setitem__(nm, i[0].shape[-1])))(n)))
         with torch.no_grad():
-            _x = me.encoder(audio); me.downsample(_x)          # exercise encoder + downsample convs
+            _x = me.encoder(audio)
+            me.downsample(_x)          # exercise encoder + downsample convs
         for h in hk2: h.remove()
         bake_mimi_convs(me, LC2)
         swap_elu(me.encoder)

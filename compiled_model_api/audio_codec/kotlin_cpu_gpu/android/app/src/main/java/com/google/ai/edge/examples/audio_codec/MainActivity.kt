@@ -51,22 +51,31 @@ class MainActivity : Activity() {
             orientation = LinearLayout.VERTICAL
             setPadding(56, 120, 56, 56)
         }
-        status = TextView(this).apply { textSize = 15f; text = "Loading Mimi codec (GPU convs + CPU transformers)…" }
+        status = TextView(this).apply {
+            textSize = 15f
+            text = "Loading Mimi codec (GPU convs + CPU transformers)…"
+        }
         val playOrig = Button(this).apply {
-            text = "▶ Play original"; isEnabled = false; setOnClickListener { play(original) }
+            text = "▶ Play original"
+            isEnabled = false
+            setOnClickListener { play(original) }
         }
         val playRecon = Button(this).apply {
-            text = "▶ Play reconstructed (codec)"; isEnabled = false
+            text = "▶ Play reconstructed (codec)"
+            isEnabled = false
             setOnClickListener { recon?.let { play(it) } }
         }
-        root.addView(status); root.addView(playOrig); root.addView(playRecon)
+        root.addView(status)
+        root.addView(playOrig)
+        root.addView(playRecon)
         setContentView(root)
 
         original = readFloats(assets.open("test_audio.bin").readBytes())
 
         bg.execute {
             try {
-                val c = MimiCodec(this); codec = c
+                val c = MimiCodec(this)
+                codec = c
                 c.roundTrip(original)            // warm up GPU + JIT the RVQ
                 val r = c.roundTrip(original)    // measured
                 recon = r.audio
@@ -78,7 +87,8 @@ class MainActivity : Activity() {
                         "encode ${r.encodeMs} ms · decode ${r.decodeMs} ms · RTF ${"%.2f".format(rtf)}\n" +
                         "${MimiRvq.NQ} codebooks × ${MimiCodec.TC} frames = ${r.codes.size} ints · 24 kHz\n\n" +
                         "Playing reconstructed… tap to A/B."
-                    playOrig.isEnabled = true; playRecon.isEnabled = true
+                    playOrig.isEnabled = true
+                    playRecon.isEnabled = true
                     play(r.audio)
                 }
             } catch (e: Throwable) {

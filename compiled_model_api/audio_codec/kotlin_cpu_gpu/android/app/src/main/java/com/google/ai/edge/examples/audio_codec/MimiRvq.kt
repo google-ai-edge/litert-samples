@@ -60,7 +60,10 @@ class MimiRvq(binPath: String) {
         val bytes = File(binPath).readBytes()
         val buf = ByteBuffer.wrap(bytes).order(ByteOrder.LITTLE_ENDIAN)
         fun fill(a: FloatArray) { for (i in a.indices) a[i] = buf.float }
-        fill(semWin); fill(acoWin); fill(semWout); fill(acoWout)
+        fill(semWin)
+        fill(acoWin)
+        fill(semWout)
+        fill(acoWout)
         for (i in 0 until N_SEM) fill(semCB[i])
         for (i in 0 until N_ACO) fill(acoCB[i])
         for (i in 0 until N_SEM) sqNorms(semCB[i], semCBnorm[i])
@@ -69,8 +72,12 @@ class MimiRvq(binPath: String) {
 
     private fun sqNorms(cb: FloatArray, out: FloatArray) {
         for (k in 0 until SIZE) {
-            var n = 0f; val r = k * DIM
-            for (d in 0 until DIM) { val v = cb[r + d]; n += v * v }
+            var n = 0f
+            val r = k * DIM
+            for (d in 0 until DIM) {
+                val v = cb[r + d]
+                n += v * v
+            }
             out[k] = n
         }
     }
@@ -78,7 +85,8 @@ class MimiRvq(binPath: String) {
     /** in_proj: W[DIM*HID] applied to emb[c*T+t] -> proj[DIM] at time t. */
     private fun project(w: FloatArray, emb: FloatArray, t: Int, T: Int, proj: FloatArray) {
         for (d in 0 until DIM) {
-            var s = 0f; val wr = d * HID
+            var s = 0f
+            val wr = d * HID
             for (c in 0 until HID) s += w[wr + c] * emb[c * T + t]
             proj[d] = s
         }
@@ -86,12 +94,17 @@ class MimiRvq(binPath: String) {
 
     /** argmin_k ||proj - cb[k]||^2 == argmin_k (||cb[k]||^2 - 2 proj.cb[k]). */
     private fun nearest(proj: FloatArray, cb: FloatArray, cbn: FloatArray): Int {
-        var best = Float.MAX_VALUE; var code = 0
+        var best = Float.MAX_VALUE
+        var code = 0
         for (k in 0 until SIZE) {
-            var dot = 0f; val r = k * DIM
+            var dot = 0f
+            val r = k * DIM
             for (d in 0 until DIM) dot += proj[d] * cb[r + d]
             val dist = cbn[k] - 2f * dot
-            if (dist < best) { best = dist; code = k }
+            if (dist < best) {
+                best = dist
+                code = k
+            }
         }
         return code
     }
@@ -131,7 +144,8 @@ class MimiRvq(binPath: String) {
                 for (d in 0 until DIM) qAco[d] += acoCB[i][r + d]
             }
             for (c in 0 until HID) {
-                var s = 0f; val wr = c * DIM
+                var s = 0f
+                val wr = c * DIM
                 for (d in 0 until DIM) s += semWout[wr + d] * qSem[d] + acoWout[wr + d] * qAco[d]
                 emb[c * T + t] = s
             }

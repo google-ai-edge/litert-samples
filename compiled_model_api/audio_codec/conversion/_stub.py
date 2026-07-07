@@ -18,7 +18,9 @@ Import this FIRST (before transformers / litert_torch) in any probe script:
     import _stub  # noqa: F401
 Mirrors the guards baked into probe_convert.py so raw-module probes can run too.
 """
-import sys, types, inspect
+import inspect
+import sys
+import types
 
 
 class _D:

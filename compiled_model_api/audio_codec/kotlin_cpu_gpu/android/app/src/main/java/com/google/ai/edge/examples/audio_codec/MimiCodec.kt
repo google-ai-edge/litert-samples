@@ -67,10 +67,14 @@ class MimiCodec(private val context: Context) : Closeable {
     private val deconly = load(DECONLY, Accelerator.GPU)
     private val rvq = MimiRvq(File(context.filesDir, RVQ_BIN).absolutePath)
 
-    private val ecIn = encConv.createInputBuffers();  private val ecOut = encConv.createOutputBuffers()
-    private val etIn = encTx.createInputBuffers();     private val etOut = encTx.createOutputBuffers()
-    private val dtIn = decTx.createInputBuffers();     private val dtOut = decTx.createOutputBuffers()
-    private val doIn = deconly.createInputBuffers();   private val doOut = deconly.createOutputBuffers()
+    private val ecIn = encConv.createInputBuffers()
+    private val ecOut = encConv.createOutputBuffers()
+    private val etIn = encTx.createInputBuffers()
+    private val etOut = encTx.createOutputBuffers()
+    private val dtIn = decTx.createInputBuffers()
+    private val dtOut = decTx.createOutputBuffers()
+    private val doIn = deconly.createInputBuffers()
+    private val doOut = deconly.createOutputBuffers()
 
     data class Result(val audio: FloatArray, val codes: IntArray, val encodeMs: Long, val decodeMs: Long)
 
@@ -84,16 +88,20 @@ class MimiCodec(private val context: Context) : Closeable {
     /** Full encode -> quantize -> decode round-trip of a SAMPLES-length clip. */
     fun roundTrip(audio: FloatArray): Result {
         val t0 = System.nanoTime()
-        ecIn[0].writeFloat(audio); encConv.run(ecIn, ecOut)
+        ecIn[0].writeFloat(audio)
+        encConv.run(ecIn, ecOut)
         val feat = ecOut[0].readFloat()                       // (1,512,Se) c-major
-        etIn[0].writeFloat(transposeCT(feat, HID, SE)); encTx.run(etIn, etOut)
+        etIn[0].writeFloat(transposeCT(feat, HID, SE))
+        encTx.run(etIn, etOut)
         val emb = etOut[0].readFloat()                        // (1,512,Tc) c-major
         val codes = rvq.encode(emb, TC)
         val t1 = System.nanoTime()
         val embBack = rvq.decode(codes, TC)
-        dtIn[0].writeFloat(embBack); decTx.run(dtIn, dtOut)
+        dtIn[0].writeFloat(embBack)
+        decTx.run(dtIn, dtOut)
         val convIn = dtOut[0].readFloat()                     // (1,512,seq) c-major
-        doIn[0].writeFloat(convIn); deconly.run(doIn, doOut)
+        doIn[0].writeFloat(convIn)
+        deconly.run(doIn, doOut)
         val out = doOut[0].readFloat()                        // (1,1,L)
         val t2 = System.nanoTime()
         return Result(out, codes, (t1 - t0) / 1_000_000, (t2 - t1) / 1_000_000)
@@ -101,6 +109,9 @@ class MimiCodec(private val context: Context) : Closeable {
 
     override fun close() {
         listOf(ecIn, ecOut, etIn, etOut, dtIn, dtOut, doIn, doOut).forEach { bs -> bs.forEach { it.close() } }
-        encConv.close(); encTx.close(); decTx.close(); deconly.close()
+        encConv.close()
+        encTx.close()
+        decTx.close()
+        deconly.close()
     }
 }
