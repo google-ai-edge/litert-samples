@@ -1,4 +1,4 @@
-# Copyright 2025 The Google AI Edge Authors. All Rights Reserved.
+# Copyright 2026 The Google AI Edge Authors. All Rights Reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -30,7 +30,7 @@ Re-authoring (all numerically-equivalent unless noted):
     - nn.GELU in DPT Readout  -> x*sigmoid(1.702x)
     - dynamic-scale interpolate / bicubic / align_corners=True -> fixed-size bilinear align_corners=False
 
-Run: ~/clipconv/bin/python build_m3d.py [opcheck|parity|all]
+Run: python build_m3d.py [opcheck|parity|all]
 """
 import load_m3d                       # stubs mmcv, patches inspect; provides load()
 import sys

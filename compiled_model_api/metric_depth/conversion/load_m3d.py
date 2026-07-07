@@ -1,4 +1,4 @@
-# Copyright 2025 The Google AI Edge Authors. All Rights Reserved.
+# Copyright 2026 The Google AI Edge Authors. All Rights Reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -12,6 +12,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+"""Import-time stubs that let Metric3D's torch-hub hubconf load without mmcv.
+
+Patches inspect.getsourcefile (probed with builtins during hub load) and forces
+hubconf's try-mmcv Config/DictAction import to fall back to mmengine.
+"""
 import sys
 import types
 import inspect
