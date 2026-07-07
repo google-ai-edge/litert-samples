@@ -1,4 +1,4 @@
-# Copyright 2025 The Google AI Edge Authors. All Rights Reserved.
+# Copyright 2026 The Google AI Edge Authors. All Rights Reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -12,6 +12,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+"""Desktop gate for the exported NAFNet graph.
+
+Builds the PyTorch reference, saves one demo input (naf_input.bin) and its
+reference output (naf_ref.npy) for the on-device parity check, then runs
+nafnet_fp16.tflite through the LiteRT CompiledModel API and prints the
+desktop-fp16 vs torch correlation.
+"""
 import build_nafnet as B
 import numpy as np
 import torch

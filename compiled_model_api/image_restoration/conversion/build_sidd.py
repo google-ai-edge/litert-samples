@@ -1,4 +1,4 @@
-# Copyright 2025 The Google AI Edge Authors. All Rights Reserved.
+# Copyright 2026 The Google AI Edge Authors. All Rights Reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -23,7 +23,7 @@ all numerically exact:
   - upsample `Conv2d(1x1) + PixelShuffle(2)` -> Conv2d + depth-to-space `ZeroStuffConvT2d`
     (PixelShuffle lowers to a 6D reshape; ZeroStuffConvT2d is RESIZE_NEAREST + MUL + CONV_2D)
 
-Default = NAFNet-GoPro-width32 (deblur, 17M). Run: ~/clipconv/bin/python build_nafnet.py [opcheck|parity|all]
+Default = NAFNet-SIDD-width32 (denoise). Run: python build_sidd.py [opcheck|parity|all]
 """
 import sys
 import os

@@ -1,5 +1,5 @@
 /*
- * Copyright 2025 The Google AI Edge Authors. All Rights Reserved.
+ * Copyright 2026 The Google AI Edge Authors. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -112,7 +112,9 @@ class MainActivity : Activity() {
   private fun run(img: Bitmap, warm: Boolean) {
     val n = net!!
     val rgb = bitmapToRgb(img)
-    if (warm) n.restore(rgb)
+    if (warm) {
+      n.restore(rgb)
+    }
     val t0 = System.nanoTime()
     val out = n.restore(rgb)
     val ms = (System.nanoTime() - t0) / 1_000_000
