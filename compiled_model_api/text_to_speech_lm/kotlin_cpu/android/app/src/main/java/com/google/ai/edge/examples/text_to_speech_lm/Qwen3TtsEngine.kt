@@ -18,6 +18,7 @@ package com.google.ai.edge.examples.text_to_speech_lm
 
 import com.google.ai.edge.litert.Accelerator
 import com.google.ai.edge.litert.CompiledModel
+import com.google.ai.edge.litert.TensorBuffer
 import java.io.File
 import java.nio.ShortBuffer
 import java.util.Random
@@ -248,7 +249,7 @@ class Qwen3TtsEngine(private val dir: File) {
                 val allowed = min(row, p - 1) + 1
                 for (c in 0 until allowed) maskFlat[row * CACHE + c] = 0f
             }
-            val inputs = HashMap<String, com.google.ai.edge.litert.TensorBuffer>()
+            val inputs = HashMap<String, TensorBuffer>()
             inputs["embeddings"] = talker.createInputBuffer("embeddings", "prefill_32")
                 .also { it.writeFloat(flat) }
             inputs["input_pos"] = talker.createInputBuffer("input_pos", "prefill_32")
@@ -268,16 +269,16 @@ class Qwen3TtsEngine(private val dir: File) {
         fun decode(embed: FloatArray, pos: Int): Step {
             embIn.writeFloat(embed)
             posIn.writeInt(intArrayOf(pos))
-            java.util.Arrays.fill(mask, NEG)
+            mask.fill(NEG)
             for (c in 0..pos) mask[c] = 0f
             maskIn.writeFloat(mask)
             val next = if (current === setA) setB else setA
-            val inputs = HashMap<String, com.google.ai.edge.litert.TensorBuffer>(64)
+            val inputs = HashMap<String, TensorBuffer>(64)
             inputs["embeddings"] = embIn
             inputs["input_pos"] = posIn
             inputs["mask"] = maskIn
             for (name in kvNames) inputs[name] = current.getValue(name)
-            val outputs = HashMap<String, com.google.ai.edge.litert.TensorBuffer>(64)
+            val outputs = HashMap<String, TensorBuffer>(64)
             outputs["logits"] = logitsOut
             for (name in kvNames) outputs[name] = next.getValue(name)
             talker.run(inputs, outputs, "decode")

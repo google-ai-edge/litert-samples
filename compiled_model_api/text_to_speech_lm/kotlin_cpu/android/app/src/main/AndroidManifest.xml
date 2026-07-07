@@ -21,7 +21,7 @@
         android:label="Qwen3 TTS"
         android:largeHeap="true"
         android:supportsRtl="true"
-        android:theme="@android:style/Theme.Material.Light">
+        android:theme="@android:style/Theme.Material.Light.NoActionBar">
         <activity
             android:name=".MainActivity"
             android:exported="true">

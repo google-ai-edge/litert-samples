@@ -29,6 +29,7 @@ import android.widget.LinearLayout
 import android.widget.Spinner
 import android.widget.TextView
 import java.util.concurrent.Executors
+import org.json.JSONArray
 
 /**
  * Qwen3-TTS demo: type text, synthesize it fully on device with the LiteRT
@@ -72,10 +73,18 @@ class MainActivity : Activity() {
             isEnabled = false
             setOnClickListener { synthesize() }
         }
-        root.addView(status)
-        root.addView(input)
-        root.addView(language)
-        root.addView(speak)
+        // Stack with explicit vertical gaps (the default programmatic layout
+        // lets the EditText's underline crowd the status line above it).
+        val params = {
+            LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT,
+            ).apply { topMargin = 40 }
+        }
+        root.addView(status, params())
+        root.addView(input, params())
+        root.addView(language, params())
+        root.addView(speak, params())
         setContentView(root)
 
         bg.execute {
@@ -103,7 +112,7 @@ class MainActivity : Activity() {
         return try {
             val json = assets.open("tokenizer_test_vectors.json")
                 .bufferedReader().readText()
-            val cases = org.json.JSONArray(json)
+            val cases = JSONArray(json)
             var ok = true
             for (i in 0 until cases.length()) {
                 val case = cases.getJSONObject(i)
@@ -138,11 +147,10 @@ class MainActivity : Activity() {
                     text, language = lang,
                     progress = object : Qwen3TtsEngine.Progress {
                         override fun onFrame(frame: Int) {
-                            if (frame % 5 == 0) {
-                                runOnUiThread {
-                                    status.text =
-                                        "Generating… $frame frames (${"%.1f".format(frame / 12.5)}s)"
-                                }
+                            if (frame % 5 != 0) return
+                            val secs = "%.1f".format(frame / 12.5)
+                            runOnUiThread {
+                                status.text = "Generating… $frame frames (${secs}s)"
                             }
                         }
                     })
@@ -152,10 +160,12 @@ class MainActivity : Activity() {
                 Log.i(tag, "frames=${result.frames} prefill=${result.prefillMs}ms " +
                     "talker=${result.talkerMs}ms mtp=${result.mtpMs}ms " +
                     "codec=${result.codecMs}ms")
-                runOnUiThread {
-                    status.text = "Spoke %.2fs in %.1fs (RTF %.1f) — talker %dms, mtp %dms, codec %dms"
+                val summary =
+                    "Spoke %.2fs in %.1fs (RTF %.1f) — talker %dms, mtp %dms, codec %dms"
                         .format(seconds, wall / 1000.0, wall / 1000.0 / seconds,
                             result.talkerMs, result.mtpMs, result.codecMs)
+                runOnUiThread {
+                    status.text = summary
                     speak.isEnabled = true
                 }
                 play(result.audio)

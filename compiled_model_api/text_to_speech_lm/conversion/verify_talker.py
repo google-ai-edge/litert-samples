@@ -67,9 +67,10 @@ def main() -> None:
         kv = result
     outs = np.stack(outs)
     top1 = (outs[:, :3072].argmax(-1) == ref_logits[0].argmax(-1)).mean()
-    print(f'tflite decode sweep: codec corr {corr(outs[:, :3072], ref_logits[0]):.8f} '
-          f'hidden corr {corr(outs[:, 3072:], ref_hidden[0]):.8f} '
-          f'top1 {top1:.2%}')
+    codec_corr = corr(outs[:, :3072], ref_logits[0])
+    hidden_corr = corr(outs[:, 3072:], ref_hidden[0])
+    print(f'tflite decode sweep: codec corr {codec_corr:.8f} '
+          f'hidden corr {hidden_corr:.8f} top1 {top1:.2%}')
 
 
 if __name__ == '__main__':

@@ -17,6 +17,7 @@
 package com.google.ai.edge.examples.text_to_speech_lm
 
 import java.io.File
+import java.text.Normalizer
 import org.json.JSONObject
 
 /**
@@ -79,8 +80,7 @@ class QwenBpeTokenizer(vocabFile: File, mergesFile: File) {
     /** Encodes plain text (no special tokens) to token ids. */
     fun encode(text: String): IntArray {
         // The reference tokenizer applies NFC normalization first.
-        val normalized = java.text.Normalizer.normalize(
-            text, java.text.Normalizer.Form.NFC)
+        val normalized = Normalizer.normalize(text, Normalizer.Form.NFC)
         val out = ArrayList<Int>(normalized.length / 3 + 8)
         for (match in pretokenize.findAll(normalized)) {
             val bytes = match.value.toByteArray(Charsets.UTF_8)
