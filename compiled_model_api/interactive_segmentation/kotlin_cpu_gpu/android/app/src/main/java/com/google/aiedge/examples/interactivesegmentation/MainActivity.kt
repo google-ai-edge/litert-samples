@@ -83,7 +83,9 @@ class MainActivity : ComponentActivity() {
             var mediaUri: Uri by remember { mutableStateOf(Uri.EMPTY) }
             val galleryLauncher =
                 rememberLauncherForActivityResult(ActivityResultContracts.PickVisualMedia()) { uri ->
-                    if (uri != null) mediaUri = uri
+                    if (uri != null) {
+                        mediaUri = uri
+                    }
                 }
 
             val uiState by viewModel.uiState.collectAsStateWithLifecycle()
@@ -92,7 +94,9 @@ class MainActivity : ComponentActivity() {
             LaunchedEffect(mediaUri) {
                 if (mediaUri != Uri.EMPTY) {
                     val bitmap = withContext(Dispatchers.IO) { loadBitmap(mediaUri) }
-                    if (bitmap != null) viewModel.onImagePicked(bitmap)
+                    if (bitmap != null) {
+                        viewModel.onImagePicked(bitmap)
+                    }
                 }
             }
 

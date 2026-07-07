@@ -139,7 +139,9 @@ class Sam2SegmentationHelper(
                     CompiledModel.Options(Accelerator.CPU), null
                 )
                 // A new model means stale features; the caller must re-encode the current image.
-                imageEmbeddings = null; featS1 = null; featS0 = null
+                imageEmbeddings = null
+                featS1 = null
+                featS0 = null
                 Log.i(TAG, "Created encoder + decoder CompiledModels on ${options.delegate}")
             }
         } catch (e: Exception) {
@@ -218,7 +220,11 @@ class Sam2SegmentationHelper(
                 outputBuffers.forEach { it.close() }
 
                 var best = 0
-                for (i in 1 until NUM_MASKS) if (iou[i] > iou[best]) best = i
+                for (i in 1 until NUM_MASKS) {
+                    if (iou[i] > iou[best]) {
+                        best = i
+                    }
+                }
                 val maskBitmap = buildMaskBitmap(masks, best)
                 val decodeTime = SystemClock.uptimeMillis() - start
                 _segmentation.emit(SegmentationResult(maskBitmap, iou[best], decodeTime))
@@ -247,7 +253,9 @@ class Sam2SegmentationHelper(
             inputFloats[planeSize + i] = (g - MEAN[1]) / STD[1]
             inputFloats[2 * planeSize + i] = (b - MEAN[2]) / STD[2]
         }
-        if (resized !== bitmap) resized.recycle()
+        if (resized !== bitmap) {
+            resized.recycle()
+        }
     }
 
     /**
@@ -265,7 +273,9 @@ class Sam2SegmentationHelper(
             sparse[EMBED_DIM / 2 + k] = cos(coord) + pointEmbed[EMBED_DIM / 2 + k]
         }
         // token1 (the padding point, label -1): the learned "not a point" embedding.
-        for (j in 0 until EMBED_DIM) sparse[EMBED_DIM + j] = notAPoint[j]
+        for (j in 0 until EMBED_DIM) {
+            sparse[EMBED_DIM + j] = notAPoint[j]
+        }
         return sparse
     }
 
