@@ -93,7 +93,10 @@ class MelSpectrogram(context: Context) {
 
     for (t in 0 until N_FRAMES) {
       val off = t * HOP
-      for (i in 0 until N_FFT) { re[i] = padded[off + i] * window[i]; im[i] = 0f }
+      for (i in 0 until N_FFT) {
+          re[i] = padded[off + i] * window[i]
+          im[i] = 0f
+      }
       fft(re, im, N_FFT)
       for (f in 0 until N_FREQS) power[f] = re[f] * re[f] + im[f] * im[f]
 
@@ -113,11 +116,18 @@ class MelSpectrogram(context: Context) {
     var j = 0
     for (i in 0 until n - 1) {
       if (i < j) {
-        var tmp = real[i]; real[i] = real[j]; real[j] = tmp
-        tmp = imag[i]; imag[i] = imag[j]; imag[j] = tmp
+        var tmp = real[i]
+        real[i] = real[j]
+        real[j] = tmp
+        tmp = imag[i]
+        imag[i] = imag[j]
+        imag[j] = tmp
       }
       var k = n / 2
-      while (k <= j) { j -= k; k /= 2 }
+      while (k <= j) {
+          j -= k
+          k /= 2
+      }
       j += k
     }
     var step = 2
@@ -133,8 +143,10 @@ class MelSpectrogram(context: Context) {
           val i2 = i1 + half
           val tr = wr * real[i2] - wi * imag[i2]
           val ti = wr * imag[i2] + wi * real[i2]
-          real[i2] = real[i1] - tr; imag[i2] = imag[i1] - ti
-          real[i1] = real[i1] + tr; imag[i1] = imag[i1] + ti
+          real[i2] = real[i1] - tr
+          imag[i2] = imag[i1] - ti
+          real[i1] = real[i1] + tr
+          imag[i1] = imag[i1] + ti
         }
       }
       step *= 2

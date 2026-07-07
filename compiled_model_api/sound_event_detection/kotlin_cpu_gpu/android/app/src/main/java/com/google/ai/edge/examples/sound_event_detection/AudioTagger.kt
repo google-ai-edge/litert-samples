@@ -77,7 +77,8 @@ class AudioTagger(private val context: Context) : Closeable {
   }
 
   override fun close() {
-    inBuf.forEach { it.close() }; outBuf.forEach { it.close() }
+    inBuf.forEach { it.close() }
+    outBuf.forEach { it.close() }
     model.close()
   }
 }

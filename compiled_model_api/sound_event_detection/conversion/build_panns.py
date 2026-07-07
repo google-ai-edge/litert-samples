@@ -1,4 +1,17 @@
-#!/usr/bin/env python3
+# Copyright 2025 The Google AI Edge Authors. All Rights Reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#       http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 """PANNs CNN14 (AudioSet 527-tag) -> LiteRT CompiledModel GPU.
 
 Deployment = host-side log-mel + a single GPU graph for the CNN body:
@@ -19,7 +32,14 @@ github.com/qiuqiangkong/audioset_tagging_cnn, and Cnn14_mAP=0.431.pth (Zenodo, C
 Run: ~/clipconv/bin/python build_panns.py
 """
 import _stub_propack  # noqa: F401  (narrow scipy _propack shim; keeps librosa real)
-import sys, os, csv, collections, numpy as np, torch, torch.nn as nn, torch.nn.functional as F
+import sys
+import os
+import csv
+import collections
+import numpy as np
+import torch
+import torch.nn as nn
+import torch.nn.functional as F
 sys.path.insert(0, ".")
 from panns_models import Cnn14
 
@@ -38,10 +58,14 @@ BANNED = {"GATHER", "GATHER_ND", "TOPK_V2", "GELU", "ERF", "WHERE", "SELECT", "S
 
 class LogmelCNN(nn.Module):
     """The GPU graph: logmel[B,1,T,64] -> clipwise_output[B,527]. Mirrors Cnn14.forward after logmel."""
-    def __init__(s, m): super().__init__(); s.m = m
+    def __init__(s, m):
+        super().__init__()
+        s.m = m
     def forward(s, x):
         m = s.m
-        x = x.transpose(1, 3); x = m.bn0(x); x = x.transpose(1, 3)
+        x = x.transpose(1, 3)
+        x = m.bn0(x)
+        x = x.transpose(1, 3)
         x = m.conv_block1(x, pool_size=(2, 2), pool_type='avg')
         x = m.conv_block2(x, pool_size=(2, 2), pool_type='avg')
         x = m.conv_block3(x, pool_size=(2, 2), pool_type='avg')
@@ -49,7 +73,8 @@ class LogmelCNN(nn.Module):
         x = m.conv_block5(x, pool_size=(2, 2), pool_type='avg')
         x = m.conv_block6(x, pool_size=(1, 1), pool_type='avg')
         x = torch.mean(x, dim=3)
-        (x1, _) = torch.max(x, dim=2); x2 = torch.mean(x, dim=2)
+        (x1, _) = torch.max(x, dim=2)
+        x2 = torch.mean(x, dim=2)
         x = x1 + x2
         x = F.relu_(m.fc1(x))
         return torch.sigmoid(m.fc_audioset(x))
@@ -69,7 +94,8 @@ def numpy_logmel(wav, melW):
 
 def opcheck(path, label):
     from ai_edge_litert.interpreter import Interpreter
-    it = Interpreter(model_path=path); it.allocate_tensors()
+    it = Interpreter(model_path=path)
+    it.allocate_tensors()
     ops = collections.Counter(d.get("op_name", "?") for d in it._get_ops_details())
     bad = {k: v for k, v in ops.items() if k.upper() in BANNED}
     over = sum(1 for d in it.get_tensor_details() if len(d.get("shape", [])) > 4)
@@ -79,7 +105,9 @@ def opcheck(path, label):
 
 
 def tfl(it, x):
-    d = it.get_input_details()[0]; it.set_tensor(d["index"], x.astype(d["dtype"])); it.invoke()
+    d = it.get_input_details()[0]
+    it.set_tensor(d["index"], x.astype(d["dtype"]))
+    it.invoke()
     return it.get_tensor(it.get_output_details()[0]["index"])
 
 
@@ -92,8 +120,10 @@ def to_fp16(fp32, fp16):
             weight_tensor_config=qtyping.TensorQuantizationConfig(num_bits=16, dtype=qtyping.TensorDataType.FLOAT),
             compute_precision=qtyping.ComputePrecision.FLOAT), algorithm_key=AlgorithmName.FLOAT_CASTING)
     if os.path.exists(fp16): os.remove(fp16)
-    qt = quantizer.Quantizer(float_model=fp32); qt.load_quantization_recipe(rm.get_quantization_recipe())
-    qt.quantize().export_model(fp16); return fp16
+    qt = quantizer.Quantizer(float_model=fp32)
+    qt.load_quantization_recipe(rm.get_quantization_recipe())
+    qt.quantize().export_model(fp16)
+    return fp16
 
 
 def main():
@@ -120,10 +150,12 @@ def main():
     import litert_torch
     fp32 = os.path.join(HERE, "cnn14_audioset.tflite")
     litert_torch.convert(LogmelCNN(m).eval(), (logmel,)).export(fp32)
-    it32 = opcheck(fp32, "fp32"); o32 = tfl(it32, logmel.numpy()).ravel()
+    it32 = opcheck(fp32, "fp32")
+    o32 = tfl(it32, logmel.numpy()).ravel()
     print(f"[fp32] tflite-vs-torch corr {np.corrcoef(o32, y)[0,1]:.6f}")
     fp16 = to_fp16(fp32, os.path.join(HERE, "cnn14_audioset_fp16.tflite"))
-    it16 = opcheck(fp16, "fp16"); o16 = tfl(it16, logmel.numpy()).ravel()
+    it16 = opcheck(fp16, "fp16")
+    o16 = tfl(it16, logmel.numpy()).ravel()
     print(f"[fp16] tflite-vs-torch corr {np.corrcoef(o16, y)[0,1]:.6f}")
 
     # assets + fixtures

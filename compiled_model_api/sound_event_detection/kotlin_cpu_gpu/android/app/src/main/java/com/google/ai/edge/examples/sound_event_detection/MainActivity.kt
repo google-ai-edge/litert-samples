@@ -50,31 +50,47 @@ class MainActivity : Activity() {
 
   override fun onCreate(savedInstanceState: Bundle?) {
     super.onCreate(savedInstanceState)
-    val root = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(48, 110, 48, 40) }
-    status = TextView(this).apply { textSize = 14f; text = "Loading PANNs CNN14 on GPU…" }
+    val root = LinearLayout(this).apply {
+        orientation = LinearLayout.VERTICAL
+        setPadding(48, 110, 48, 40)
+    }
+    status = TextView(this).apply {
+        textSize = 14f
+        text = "Loading PANNs CNN14 on GPU…"
+    }
     val howto = TextView(this).apply {
-      textSize = 15f; setPadding(0, 36, 0, 8)
+      textSize = 15f
+      setPadding(0, 36, 0, 8)
       text = "Tap Record, then let it listen for 10 seconds to any sound — speech, music, an " +
         "instrument, an animal, a vehicle, an alarm, an appliance…"
     }
     val note = TextView(this).apply {
-      textSize = 12f; setTextColor(Color.GRAY)
+      textSize = 12f
+      setTextColor(Color.GRAY)
       text = "527 AudioSet sound-event classes · multi-label (several tags can be high)"
     }
     result = TextView(this).apply {
-      textSize = 18f; setPadding(0, 44, 0, 44); text = "—"; typeface = Typeface.MONOSPACE
+      textSize = 18f
+      setPadding(0, 44, 0, 44)
+      text = "—"
+      typeface = Typeface.MONOSPACE
     }
     record = Button(this).apply {
-      text = "🎤  Record 10 s & tag"; isEnabled = false
+      text = "🎤  Record 10 s & tag"
+      isEnabled = false
       setOnClickListener { ensureMicThenRecord() }
     }
-    root.addView(status); root.addView(howto); root.addView(note)
-    root.addView(result); root.addView(record)
+    root.addView(status)
+    root.addView(howto)
+    root.addView(note)
+    root.addView(result)
+    root.addView(record)
     setContentView(root)
 
     bg.execute {
       try {
-        val t = AudioTagger(this); tagger = t
+        val t = AudioTagger(this)
+        tagger = t
         val clip = readFloats(assets.open("test_audio.bin").readBytes())
         t.tag(clip)                            // warm up GPU
         val r = t.tag(clip)
@@ -88,7 +104,8 @@ class MainActivity : Activity() {
       } catch (e: Throwable) {
         Log.e(tag, "load failed", e)
         runOnUiThread {
-          status.setBackgroundColor(Color.rgb(0xFF, 0xCD, 0xD2)); status.text = "FAIL: ${e.message}"
+          status.setBackgroundColor(Color.rgb(0xFF, 0xCD, 0xD2))
+          status.text = "FAIL: ${e.message}"
         }
       }
     }
@@ -96,7 +113,8 @@ class MainActivity : Activity() {
 
   private fun ensureMicThenRecord() {
     if (checkSelfPermission(Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
-      requestPermissions(arrayOf(Manifest.permission.RECORD_AUDIO), 1); return
+      requestPermissions(arrayOf(Manifest.permission.RECORD_AUDIO), 1)
+      return
     }
     recordAndTag()
   }
@@ -125,7 +143,10 @@ class MainActivity : Activity() {
         }
       } catch (e: Throwable) {
         Log.e(tag, "record failed", e)
-        runOnUiThread { result.text = "Record failed: ${e.message}"; record.isEnabled = true }
+        runOnUiThread {
+            result.text = "Record failed: ${e.message}"
+            record.isEnabled = true
+        }
       }
     }
   }
@@ -162,9 +183,13 @@ class MainActivity : Activity() {
       if (n <= 0) break
       off += n
       val secLeft = (sr - off + MelSpectrogram.SAMPLE_RATE - 1) / MelSpectrogram.SAMPLE_RATE  // ceil, 10→0
-      if (secLeft != lastTick) { onTick(secLeft); lastTick = secLeft }
+      if (secLeft != lastTick) {
+          onTick(secLeft)
+          lastTick = secLeft
+      }
     }
-    rec.stop(); rec.release()
+    rec.stop()
+    rec.release()
     val out = FloatArray(sr)
     for (i in 0 until sr) out[i] = pcm[i] / 32768f   // PCM16 -> [-1,1] (PANNs uses raw scale, no peak-norm)
     return out
@@ -175,5 +200,9 @@ class MainActivity : Activity() {
     return FloatArray(b.size / 4) { bb.float }
   }
 
-  override fun onDestroy() { super.onDestroy(); bg.shutdown(); tagger?.close() }
+  override fun onDestroy() {
+      super.onDestroy()
+      bg.shutdown()
+      tagger?.close()
+  }
 }
