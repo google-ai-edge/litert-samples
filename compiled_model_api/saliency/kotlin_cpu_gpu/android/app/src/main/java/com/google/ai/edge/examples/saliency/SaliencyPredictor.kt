@@ -1,5 +1,5 @@
 /*
- * Copyright 2025 The Google AI Edge Authors. All Rights Reserved.
+ * Copyright 2026 The Google AI Edge Authors. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -62,8 +62,12 @@ class SaliencyPredictor(ctx: Context, accelerator: Accelerator = Accelerator.GPU
         var mx = -Float.MAX_VALUE
         for (v in sal) {
             val r = if (v > 0f) v else 0f
-            if (r < mn) mn = r
-            if (r > mx) mx = r
+            if (r < mn) {
+                mn = r
+            }
+            if (r > mx) {
+                mx = r
+            }
         }
         val range = (mx - mn).coerceAtLeast(1e-6f)
         val out = FloatArray(hw)

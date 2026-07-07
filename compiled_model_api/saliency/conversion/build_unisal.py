@@ -1,4 +1,4 @@
-# Copyright 2025 The Google AI Edge Authors. All Rights Reserved.
+# Copyright 2026 The Google AI Edge Authors. All Rights Reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -12,6 +12,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+"""UniSal (image saliency) -> LiteRT CompiledModel GPU.
+
+Model-side re-authoring (numerically equivalent): the odd-size strided slice is
+replaced with an avg_pool(1, 2) step so the graph stays GPU-clean.
+"""
 import sys
 import os
 import collections
