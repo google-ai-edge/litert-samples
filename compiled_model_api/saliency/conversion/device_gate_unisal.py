@@ -40,11 +40,5 @@ def overlay(sal,name):
     Image.fromarray(out).save(name)
 overlay((ref-ref.min())/(ref.max()-ref.min()+1e-6),f"{HERE}/us_torch.png")
 print(f"input {x.shape}; torch saliency range [{ref.min():.2f},{ref.max():.2f}]")
-from ai_edge_litert.interpreter import Interpreter
-it=Interpreter(model_path=f"{HERE}/unisal_fp16.tflite")
-it.allocate_tensors()
-d=it.get_input_details()[0]
-it.set_tensor(d["index"],x.astype(d["dtype"]))
-it.invoke()
-o=it.get_tensor(it.get_output_details()[0]["index"]).ravel()
+o=B.run_tflite(f"{HERE}/unisal_fp16.tflite",x)
 print(f"desktop-fp16 vs torch corr {np.corrcoef(o,ref.ravel())[0,1]:.6f}")
