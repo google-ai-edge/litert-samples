@@ -46,15 +46,22 @@ def build():
     print(f"  loaded {VARIANT}; missing {len(miss)} unexpected {len(unexp)}; params {sum(p.numel() for p in m.parameters())/1e6:.3f}M")
     return Wrap(m).eval()
 def opcheck(p,l):
-    from ai_edge_litert.interpreter import Interpreter
-    it=Interpreter(model_path=p)
-    it.allocate_tensors()
-    ops=collections.Counter(d.get("op_name","?") for d in it._get_ops_details())
+    """Static GPU-compat scan: read the op set straight from the .tflite flatbuffer."""
+    from ai_edge_litert import schema_py_generated as schema
+    with open(p,"rb") as f: model=schema.ModelT.InitFromPackedBuf(f.read(),0)
+    names={v:k for k,v in vars(schema.BuiltinOperator).items() if not k.startswith("_")}
+    ops=collections.Counter()
+    over=0
+    for g in model.subgraphs:
+        for op in g.operators:
+            c=model.operatorCodes[op.opcodeIndex]
+            code=max(c.builtinCode,c.deprecatedBuiltinCode)
+            ops[c.customCode.decode() if c.customCode else names.get(code,str(code))]+=1
+        over+=sum(1 for t in g.tensors if t.shape is not None and len(t.shape)>4)
     bad={k:v for k,v in ops.items() if k.upper() in BANNED}
-    over=sum(1 for d in it.get_tensor_details() if len(d.get("shape",[]))>4)
+    nouts=len(model.subgraphs[0].outputs)
     print(f"[{l}] ops:",dict(sorted(ops.items(),key=lambda kv:-kv[1])))
-    print(f"[{l}] banned:{bad or 'NONE'} >4D:{over} size {os.path.getsize(p)/1e6:.1f}MB outs:{len(it.get_output_details())}","GPU-CLEAN" if not bad and not over else "BLOCKERS")
-    return it
+    print(f"[{l}] banned:{bad or 'NONE'} >4D:{over} size {os.path.getsize(p)/1e6:.1f}MB outs:{nouts}","GPU-CLEAN" if not bad and not over else "BLOCKERS")
 def to_fp16(fp32,fp16):
     from ai_edge_quantizer import quantizer, recipe_manager
     from ai_edge_quantizer.recipe import AlgorithmName, qtyping
@@ -75,7 +82,7 @@ if __name__=="__main__":
     fp32=f"{HERE}/yunet.tflite"
     try:
         litert_torch.convert(m,(x,)).export(fp32)
-        it=opcheck(fp32,"yunet")
+        opcheck(fp32,"yunet")
         to_fp16(fp32,f"{HERE}/yunet_fp16.tflite")
         opcheck(f"{HERE}/yunet_fp16.tflite","yunet_fp16")
     except Exception as e:

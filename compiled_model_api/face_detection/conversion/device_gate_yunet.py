@@ -87,14 +87,16 @@ td=nms(tb,ts,tk)
 print(f"input {x.shape} (BGR); torch faces {draw(td,f'{HERE}/yn_torch.png')}")
 for i,y in enumerate(ys): np.save(f"{HERE}/yn_t{i}.npy",y)
 # desktop fp16 + establish tflite output order vs torch
-from ai_edge_litert.interpreter import Interpreter
-it=Interpreter(model_path=f"{HERE}/yunet_fp16.tflite")
-it.allocate_tensors()
-d=it.get_input_details()[0]
-it.set_tensor(d["index"],x.astype(d["dtype"]))
-it.invoke()
-od=it.get_output_details()
-outs=[it.get_tensor(o["index"]) for o in od]
+from ai_edge_litert.compiled_model import CompiledModel
+model=CompiledModel.from_file(f"{HERE}/yunet_fp16.tflite")
+sig=model.get_signature_list()
+key=list(sig)[0]
+det=model.get_output_tensor_details(key)
+ins=model.create_input_buffers(0)
+ob=model.create_output_buffers(0)
+ins[0].write(np.ascontiguousarray(x,dtype=np.float32))
+model.run_by_index(0,ins,ob)
+outs=[ob[i].read(int(np.prod(det[n]["shape"])),np.float32).reshape(det[n]["shape"]) for i,n in enumerate(sig[key]["outputs"])]
 # map each tflite output to torch ref by shape+corr
 order=[]
 for o in outs:
