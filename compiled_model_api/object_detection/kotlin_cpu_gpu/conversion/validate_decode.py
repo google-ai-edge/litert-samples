@@ -1,4 +1,17 @@
-#!/usr/bin/env python3
+# Copyright 2025 The Google AI Edge Authors. All Rights Reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#       http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 """Prove the raw-head + host-decode pipeline. Two checks:
   (1) numeric: my numpy decode(raw heads) == YOLOX built-in decode_outputs (corr/max|d|).
   (2) end-to-end: tflite(fp16) raw heads -> host decode -> NMS on assets/dog.jpg, vs stock
@@ -7,11 +20,16 @@ Host decode mirrors yolo_head.decode_outputs: box_xy=(raw_xy+grid)*stride, wh=ex
 
 Run: ~/.pyenv/versions/lama-cml/bin/python validate_decode.py [yolox-s|yolox-tiny]
 """
-import sys, os, argparse, types
-import numpy as np, torch
+import sys
+import os
+import argparse
+import types
+import numpy as np
+import torch
 
 class _D:
-    def __getattr__(self, n): return lambda *a, **k: None
+    def __getattr__(self, n):
+        return lambda *a, **k: None
 _pp = types.ModuleType("scipy.sparse.linalg._propack")
 for _nm in ("_spropack", "_dpropack", "_cpropack", "_zpropack"): setattr(_pp, _nm, _D())
 sys.modules["scipy.sparse.linalg._propack"] = _pp
@@ -30,7 +48,8 @@ def host_grids(hw, strides):
     for (h, w), st in zip(hw, strides):
         yv, xv = np.meshgrid(np.arange(h), np.arange(w), indexing="ij")
         grid = np.stack((xv, yv), -1).reshape(-1, 2)
-        g.append(grid); s.append(np.full((grid.shape[0], 1), st, np.float32))
+        g.append(grid)
+        s.append(np.full((grid.shape[0], 1), st, np.float32))
     return np.concatenate(g, 0).astype(np.float32), np.concatenate(s, 0)
 
 
@@ -74,7 +93,8 @@ def main():
     # (2) end-to-end on a real image through the fp16 tflite
     from ai_edge_litert.interpreter import Interpreter
     tag = args.name.replace("yolox-", "yolox_")
-    it = Interpreter(model_path=f"{tag}_fp16.tflite"); it.allocate_tensors()
+    it = Interpreter(model_path=f"{tag}_fp16.tflite")
+    it.allocate_tensors()
     img = cv2.imread(os.path.join(HERE, "YOLOX/assets/dog.jpg"))
     inp, r = preproc(img, S)
     it.set_tensor(it.get_input_details()[0]["index"], inp[None])
@@ -85,7 +105,8 @@ def main():
 
     print(f"[e2e] tflite(fp16) + host decode + NMS on dog.jpg ({args.name}, {S}px):")
     if out is None:
-        print("  no detections"); return
+        print("  no detections")
+        return
     out = out.numpy()
     for d in out:
         x0, y0, x1, y1, obj, cls_conf, cls = d

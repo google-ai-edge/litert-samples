@@ -1,4 +1,17 @@
-#!/usr/bin/env python3
+# Copyright 2025 The Google AI Edge Authors. All Rights Reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#       http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 """YOLOX -> CompiledModel GPU: re-authoring + op-check + parity (litert_torch path).
 
 The only GPU blocker in YOLOX is the Focus stem: litert_torch lowers its stride-2
@@ -13,12 +26,20 @@ meshgrid/exp/gather/topk out of the graph.
 
 Run: ~/.pyenv/versions/lama-cml/bin/python build_yolox.py [yolox-s|yolox-tiny]
 """
-import sys, os, math, collections, argparse, types
-import numpy as np, torch, torch.nn as nn
+import sys
+import os
+import math
+import collections
+import argparse
+import types
+import numpy as np
+import torch
+import torch.nn as nn
 
 # --- workaround: broken scipy _propack dlopen on Darwin 27 (unrelated to YOLOX) ---
 class _D:
-    def __getattr__(self, n): return lambda *a, **k: None
+    def __getattr__(self, n):
+        return lambda *a, **k: None
 _pp = types.ModuleType("scipy.sparse.linalg._propack")
 for _nm in ("_spropack", "_dpropack", "_cpropack", "_zpropack"): setattr(_pp, _nm, _D())
 sys.modules["scipy.sparse.linalg._propack"] = _pp
@@ -70,7 +91,10 @@ class YOLOXRaw(nn.Module):
     nhwc=True: graph input is NHWC [B,H,W,3] (drop-in for Android Bitmap pixel writes /
     litert-samples convention); a single leading TRANSPOSE -> NCHW, GPU-delegated. Channel
     order stays BGR 0-255 (YOLOX-native, no normalization)."""
-    def __init__(self, m, nhwc=False): super().__init__(); self.m = m; self.nhwc = nhwc
+    def __init__(self, m, nhwc=False):
+        super().__init__()
+        self.m = m
+        self.nhwc = nhwc
     def forward(self, x):
         if self.nhwc:
             x = x.permute(0, 3, 1, 2).contiguous()
@@ -96,7 +120,8 @@ def reauthor(model):
 
 def opcheck(path, label):
     from ai_edge_litert.interpreter import Interpreter
-    it = Interpreter(model_path=path); it.allocate_tensors()
+    it = Interpreter(model_path=path)
+    it.allocate_tensors()
     ops = collections.Counter(d.get("op_name", "?") for d in it._get_ops_details())
     bad = {k: v for k, v in ops.items() if k.upper() in BANNED}
     flex = {k: v for k, v in ops.items() if "flex" in k.lower() or "custom" in k.lower()}
@@ -151,7 +176,8 @@ def main():
     litert_torch.convert(YOLOXRaw(model, args.nhwc).eval(), (img,)).export(fp32)
     it = opcheck(fp32, f"{args.name}-fp32")
     d = it.get_input_details()[0]
-    it.set_tensor(d["index"], img.numpy().astype(d["dtype"])); it.invoke()
+    it.set_tensor(d["index"], img.numpy().astype(d["dtype"]))
+    it.invoke()
     o = it.get_tensor(it.get_output_details()[0]["index"])
     print(f"tflite(fp32) vs torch: corr {np.corrcoef(o.ravel(), ra.numpy().ravel())[0,1]:.6f}  "
           f"max|d| {np.abs(o-ra.numpy()).max():.2e}")

@@ -218,10 +218,14 @@ class ObjectDetectorHelper(
         for (stride in STRIDES) {
             val n = size / stride
             for (yy in 0 until n) for (xx in 0 until n) {
-                gx.add(xx); gy.add(yy); gs.add(stride)
+                gx.add(xx)
+                gy.add(yy)
+                gs.add(stride)
             }
         }
-        gridX = gx.toIntArray(); gridY = gy.toIntArray(); gridStride = gs.toIntArray()
+        gridX = gx.toIntArray()
+        gridY = gy.toIntArray()
+        gridStride = gs.toIntArray()
     }
 
     /**
@@ -413,7 +417,10 @@ class ObjectDetectorHelper(
             var bestScore = 0f
             for (c in 0 until 80) {
                 val s = raw[base + 5 + c]
-                if (s > bestScore) { bestScore = s; bestCls = c }
+                if (s > bestScore) {
+                    bestScore = s
+                    bestCls = c
+                }
             }
             val score = obj * bestScore
             if (score < threshold) continue
@@ -458,8 +465,10 @@ class ObjectDetectorHelper(
     }
 
     private fun iou(a: Detection, b: Detection): Float {
-        val x1 = max(a.xMin, b.xMin); val y1 = max(a.yMin, b.yMin)
-        val x2 = min(a.xMax, b.xMax); val y2 = min(a.yMax, b.yMax)
+        val x1 = max(a.xMin, b.xMin)
+        val y1 = max(a.yMin, b.yMin)
+        val x2 = min(a.xMax, b.xMax)
+        val y2 = min(a.yMax, b.yMax)
         val inter = max(0f, x2 - x1) * max(0f, y2 - y1)
         val areaA = (a.xMax - a.xMin) * (a.yMax - a.yMin)
         val areaB = (b.xMax - b.xMin) * (b.yMax - b.yMin)

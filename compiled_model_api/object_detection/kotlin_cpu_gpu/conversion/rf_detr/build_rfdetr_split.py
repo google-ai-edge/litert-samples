@@ -1,3 +1,17 @@
+# Copyright 2025 The Google AI Edge Authors. All Rights Reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#       http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 # RF-DETR Nano 2-graph split for CompiledModel GPU (final ship path).
 #   Graph A (GPU) = backbone(encoder+projector) + flatten + proposal-grid + enc heads
 #                   -> enc_class[1,576,91], enc_coord[1,576,4], memory[1,576,256]   (NO topk/gather/mask)
@@ -6,13 +20,21 @@
 #                   -> boxes[1,300,4], logits[1,300,91]
 # Importing build_rfdetr_full applies every GPU patch (grid_sample tent-matmul, sine-embed bake,
 # MSDeformAttn <=4D forward, windowed-DINOv2 backbone, tanh-GELU, torch.export friction fixes).
-import sys, os, collections
-import numpy as np, torch, torch.nn as nn, torch.nn.functional as F
+import sys
+import os
+import collections
+import numpy as np
+import torch
+import torch.nn as nn
+import torch.nn.functional as F
 import build_rfdetr_full as FULL          # <- applies ALL patches on import (also pulls in build_rfdetr_bb)
 B = FULL.B
-R = int(os.environ.get("RF_RES", "384")); HERE = os.path.dirname(os.path.abspath(__file__))
+R = int(os.environ.get("RF_RES", "384"))
+HERE = os.path.dirname(os.path.abspath(__file__))
 BANNED = B.BANNED
-NQ = 300; NCLS = 91; HID = 256
+NQ = 300
+NCLS = 91
+HID = 256
 GH = GW = R // 16                          # 24x24 single deformable level
 
 # ---- fp16-SAFE projector LayerNorm (NAFNet SafeLayerNorm) -------------------------------------------
@@ -24,14 +46,14 @@ GH = GW = R // 16                          # 24x24 single deformable level
 # permutes->F.layer_norm->permute; we replace it with the same math, channel-dim reduce, down-scaled.
 from rfdetr.models.backbone import projector as _PROJ
 _LN_S = 128.0
-def _safe_ln_proj_forward(s, x):
+def _safe_ln_proj_forward(self, x):
     xs = x * (1.0 / _LN_S)                              # down-scale before any reduction
     mu = xs.mean(1, keepdim=True)                       # sum_c (x/S): fp16-safe
     d = xs - mu                                         # (x - mu)/S
     var = (d * d).mean(1, keepdim=True) * (_LN_S * _LN_S)   # sum_c (x/S)^2 safe, then rescale to true var
     d = d * _LN_S                                       # back to (x - mu)
-    y = d * torch.rsqrt(var + s.eps)                    # exact original LayerNorm
-    return y * s.weight[None, :, None, None] + s.bias[None, :, None, None]
+    y = d * torch.rsqrt(var + self.eps)                    # exact original LayerNorm
+    return y * self.weight[None, :, None, None] + self.bias[None, :, None, None]
 _PROJ.LayerNorm.forward = _safe_ln_proj_forward
 
 # ---- fp16-SAFE nn.LayerNorm (channels-last, ADAPTIVE scale) ----------------------------------------
@@ -80,24 +102,26 @@ def _gen_proposals_nomask(memory, h, w):
 
 class GraphA(nn.Module):
     """image -> enc_class, enc_coord, memory."""
-    def __init__(s, net):
-        super().__init__(); s.net = net; s.tr = net.transformer
-        s.bb0 = net.backbone[0]            # Backbone (encoder=DinoV2 + projector=MultiScaleProjector)
+    def __init__(self, net):
+        super().__init__()
+        self.net = net
+        self.tr = net.transformer
+        self.bb0 = net.backbone[0]            # Backbone (encoder=DinoV2 + projector=MultiScaleProjector)
         # Bake the fixed proposal grid as a constant buffer (image-independent) so meshgrid never
         # enters the traced graph (it would lower to BROADCAST_TO, a Mali blocker).
         _, prop = _gen_proposals_nomask(torch.zeros(1, GH * GW, 1), GH, GW)
-        s.register_buffer("proposals", prop, persistent=False)          # [1, 576, 4]
+        self.register_buffer("proposals", prop, persistent=False)          # [1, 576, 4]
 
-    def forward(s, x):
-        raw = s.bb0.encoder(x)             # DinoV2.forward -> list of feature maps [B,384,24,24]
-        feats = s.bb0.projector(raw)       # MultiScaleProjector -> [ [B,256,24,24] ]
+    def forward(self, x):
+        raw = self.bb0.encoder(x)             # DinoV2.forward -> list of feature maps [B,384,24,24]
+        feats = self.bb0.projector(raw)       # MultiScaleProjector -> [ [B,256,24,24] ]
         src = feats[0]
         memory = src.flatten(2).transpose(1, 2)                          # bs,hw,c
         output_memory = memory
-        output_proposals = s.proposals                                  # baked constant
-        om = s.tr.enc_output_norm[0](s.tr.enc_output[0](output_memory))  # enc_output + norm
-        enc_class = s.tr.enc_out_class_embed[0](om)                      # bs,hw,91
-        delta = s.tr.enc_out_bbox_embed[0](om)                          # bs,hw,4 (reparam delta)
+        output_proposals = self.proposals                                  # baked constant
+        om = self.tr.enc_output_norm[0](self.tr.enc_output[0](output_memory))  # enc_output + norm
+        enc_class = self.tr.enc_out_class_embed[0](om)                      # bs,hw,91
+        delta = self.tr.enc_out_bbox_embed[0](om)                          # bs,hw,4 (reparam delta)
         cxcy = delta[..., :2] * output_proposals[..., 2:] + output_proposals[..., :2]
         wh = delta[..., 2:].exp() * output_proposals[..., 2:]
         enc_coord = torch.cat([cxcy, wh], -1)                          # bs,hw,4
@@ -106,30 +130,32 @@ class GraphA(nn.Module):
 
 class GraphB(nn.Module):
     """(memory, refpoint_embed_ts) -> boxes, logits."""
-    def __init__(s, net):
-        super().__init__(); s.net = net; s.tr = net.transformer
-        s.register_buffer("ss", torch.tensor([[GH, GW]], dtype=torch.long), persistent=False)
-        s.register_buffer("lsi", torch.tensor([0], dtype=torch.long), persistent=False)
+    def __init__(self, net):
+        super().__init__()
+        self.net = net
+        self.tr = net.transformer
+        self.register_buffer("ss", torch.tensor([[GH, GW]], dtype=torch.long), persistent=False)
+        self.register_buffer("lsi", torch.tensor([0], dtype=torch.long), persistent=False)
 
-    def forward(s, memory, refpoint_embed_ts):
+    def forward(self, memory, refpoint_embed_ts):
         bs = memory.shape[0]
-        qf = s.net.query_feat.weight[:NQ]                               # baked learned query feats
-        rp = s.net.refpoint_embed.weight[:NQ]                           # baked learned refpoints (zero-init)
+        qf = self.net.query_feat.weight[:NQ]                               # baked learned query feats
+        rp = self.net.refpoint_embed.weight[:NQ]                           # baked learned refpoints (zero-init)
         tgt = qf.unsqueeze(0).expand(bs, -1, -1).contiguous()
         rp = rp.unsqueeze(0).expand(bs, -1, -1).contiguous()
         ts = refpoint_embed_ts
         cxcy = rp[..., :2] * ts[..., 2:] + ts[..., :2]                 # two-stage reparam combine
         wh = rp[..., 2:].exp() * ts[..., 2:]
         refpoint = torch.cat([cxcy, wh], -1)
-        dec = s.tr.decoder(tgt, memory, memory_key_padding_mask=None, pos=None,
-                           refpoints_unsigmoid=refpoint, level_start_index=s.lsi,
-                           spatial_shapes=s.ss, valid_ratios=None)
+        dec = self.tr.decoder(tgt, memory, memory_key_padding_mask=None, pos=None,
+                           refpoints_unsigmoid=refpoint, level_start_index=self.lsi,
+                           spatial_shapes=self.ss, valid_ratios=None)
         hs, ref = dec[:2]                                              # export: hs[bs,300,256], ref=refpoint
-        delta = s.net.bbox_embed(hs)
+        delta = self.net.bbox_embed(hs)
         bcxcy = delta[..., :2] * ref[..., 2:] + ref[..., :2]
         bwh = delta[..., 2:].exp() * ref[..., 2:]
         boxes = torch.cat([bcxcy, bwh], -1)
-        logits = s.net.class_embed(hs)
+        logits = self.net.class_embed(hs)
         return boxes, logits
 
 
@@ -143,7 +169,8 @@ def host_select(enc_class, enc_coord):
 
 def opcheck(p, l):
     from ai_edge_litert.interpreter import Interpreter
-    it = Interpreter(model_path=p); it.allocate_tensors()
+    it = Interpreter(model_path=p)
+    it.allocate_tensors()
     ops = collections.Counter(d.get("op_name", "?") for d in it._get_ops_details())
     bad = {k: v for k, v in ops.items() if k.upper() in BANNED}
     over = sum(1 for d in it.get_tensor_details() if len(d.get("shape", [])) > 4)
@@ -155,13 +182,17 @@ def opcheck(p, l):
 
 def run_tflite(path, inputs):
     from ai_edge_litert.interpreter import Interpreter
-    it = Interpreter(model_path=path); it.allocate_tensors()
+    it = Interpreter(model_path=path)
+    it.allocate_tensors()
     ins = it.get_input_details()
     # match inputs to interpreter slots by shape
     for d in ins:
-        shp = tuple(d["shape"]); matched = None
+        shp = tuple(d["shape"])
+        matched = None
         for arr in inputs:
-            if tuple(arr.shape) == shp: matched = arr; break
+            if tuple(arr.shape) == shp:
+                matched = arr
+                break
         assert matched is not None, f"no input for slot {d['name']} shape {shp}"
         it.set_tensor(d["index"], matched.astype(d["dtype"]))
     it.invoke()
@@ -195,8 +226,11 @@ if __name__ == "__main__":
     ita, okA = opcheck(pa, "rfA")
     oa = run_tflite(pa, [x.numpy().astype(np.float32)])
     # order outputs by shape
-    def by_shape(outs, shp): return next(o for o in outs if tuple(o.shape) == shp)
-    ta_ec = by_shape(oa, tuple(ec.shape)); ta_eco = by_shape(oa, tuple(eco.shape)); ta_mem = by_shape(oa, tuple(mem.shape))
+    def by_shape(outs, shp):
+        return next(o for o in outs if tuple(o.shape) == shp)
+    ta_ec = by_shape(oa, tuple(ec.shape))
+    ta_eco = by_shape(oa, tuple(eco.shape))
+    ta_mem = by_shape(oa, tuple(mem.shape))
     print(f"  A enc_class corr {np.corrcoef(ta_ec.ravel(), ec.numpy().ravel())[0,1]:.6f}")
     print(f"  A enc_coord corr {np.corrcoef(ta_eco.ravel(), eco.numpy().ravel())[0,1]:.6f}")
     print(f"  A memory    corr {np.corrcoef(ta_mem.ravel(), mem.numpy().ravel())[0,1]:.6f}")
@@ -206,24 +240,30 @@ if __name__ == "__main__":
     litert_torch.convert(gb, (mem, ts)).export(pb)
     itb, okB = opcheck(pb, "rfB")
     ob = run_tflite(pb, [mem.numpy().astype(np.float32), ts.numpy().astype(np.float32)])
-    tb_boxes = by_shape(ob, tuple(sb.shape)); tb_logits = by_shape(ob, tuple(sl.shape))
+    tb_boxes = by_shape(ob, tuple(sb.shape))
+    tb_logits = by_shape(ob, tuple(sl.shape))
     print(f"  B boxes  corr {np.corrcoef(tb_boxes.ravel(), sb.numpy().ravel())[0,1]:.6f}")
     print(f"  B logits corr {np.corrcoef(tb_logits.ravel(), sl.numpy().ravel())[0,1]:.6f}")
 
     # ---- end-to-end tflite chain vs torch reference ----
     ts_t, _ = host_select(torch.from_numpy(ta_ec), torch.from_numpy(ta_eco))
     ob2 = run_tflite(pb, [ta_mem.astype(np.float32), ts_t.numpy().astype(np.float32)])
-    e2e_b = by_shape(ob2, tuple(sb.shape)); e2e_l = by_shape(ob2, tuple(sl.shape))
+    e2e_b = by_shape(ob2, tuple(sb.shape))
+    e2e_l = by_shape(ob2, tuple(sl.shape))
     print(f"  E2E boxes  corr {np.corrcoef(e2e_b.ravel(), ref_coord.numpy().ravel())[0,1]:.6f}")
     print(f"  E2E logits corr {np.corrcoef(e2e_l.ravel(), ref_cls.numpy().ravel())[0,1]:.6f}")
 
     if cmd == "fp16" or cmd == "all":
-        B.to_fp16(pa, f"{HERE}/rfA_fp16.tflite"); opcheck(f"{HERE}/rfA_fp16.tflite", "rfA_fp16")
-        B.to_fp16(pb, f"{HERE}/rfB_fp16.tflite"); opcheck(f"{HERE}/rfB_fp16.tflite", "rfB_fp16")
+        B.to_fp16(pa, f"{HERE}/rfA_fp16.tflite")
+        opcheck(f"{HERE}/rfA_fp16.tflite", "rfA_fp16")
+        B.to_fp16(pb, f"{HERE}/rfB_fp16.tflite")
+        opcheck(f"{HERE}/rfB_fp16.tflite", "rfB_fp16")
         # device-probe artifacts
         x.numpy().astype(np.float32).tofile(f"{HERE}/rfA_in.bin")
         mem.numpy().astype(np.float32).tofile(f"{HERE}/rfB_in_memory.bin")
         ts.numpy().astype(np.float32).tofile(f"{HERE}/rfB_in_ts.bin")
-        np.save(f"{HERE}/rfA_ec.npy", ec.numpy()); np.save(f"{HERE}/rfA_eco.npy", eco.numpy())
-        np.save(f"{HERE}/rfB_boxes.npy", sb.numpy()); np.save(f"{HERE}/rfB_logits.npy", sl.numpy())
+        np.save(f"{HERE}/rfA_ec.npy", ec.numpy())
+        np.save(f"{HERE}/rfA_eco.npy", eco.numpy())
+        np.save(f"{HERE}/rfB_boxes.npy", sb.numpy())
+        np.save(f"{HERE}/rfB_logits.npy", sl.numpy())
         print("saved fp16 + device-probe artifacts")
