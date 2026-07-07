@@ -1,5 +1,5 @@
 /*
- * Copyright 2025 The Google AI Edge Authors. All Rights Reserved.
+ * Copyright 2026 The Google AI Edge Authors. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -53,7 +53,8 @@ class MainActivity : AppCompatActivity() {
       if (!modelFile.exists()) {
         log("Model not found at:\n${modelFile.absolutePath}\n")
         log("Push it first:\n  ./install_to_device.sh <dir-with-tflite>\n")
-        log("(build with ../conversion or download from\n litert-community/MoViNet-A0-Stream-LiteRT)")
+        log(
+          "(build with ../conversion or download from\n litert-community/MoViNet-A0-Stream-LiteRT)")
         return@execute
       }
       val labels = assets.open("kinetics600_labels.txt").bufferedReader().readLines()
@@ -70,7 +71,9 @@ class MainActivity : AppCompatActivity() {
           log("frame %2d  ->  %s".format(t, labels[top1]))
         }
         log("\nFinal top-5:")
-        for (p in topK(last, 5)) log("  %-28s %4.1f%%".format(labels[p.first], p.second * 100))
+        for (p in topK(last, 5)) {
+          log("  %-28s %4.1f%%".format(labels[p.first], p.second * 100))
+        }
       }
     }
   }
@@ -81,7 +84,10 @@ class MainActivity : AppCompatActivity() {
     val fb = ByteBuffer.wrap(bytes).order(ByteOrder.LITTLE_ENDIAN).asFloatBuffer()
     val len = 3 * MoViNet.INPUT_SIZE * MoViNet.INPUT_SIZE
     return (0 until fb.limit() / len).map { i ->
-      val a = FloatArray(len); fb.position(i * len); fb.get(a, 0, len); a
+      val a = FloatArray(len)
+      fb.position(i * len)
+      fb.get(a, 0, len)
+      a
     }
   }
 
@@ -90,7 +96,9 @@ class MainActivity : AppCompatActivity() {
     val idx = logits.indices.sortedByDescending { logits[it] }.take(k)
     val mx = logits[idx.first()]
     var sum = 0.0
-    for (v in logits) sum += Math.exp((v - mx).toDouble())
+    for (v in logits) {
+      sum += Math.exp((v - mx).toDouble())
+    }
     return idx.map { it to (Math.exp((logits[it] - mx).toDouble()) / sum).toFloat() }
   }
 

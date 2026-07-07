@@ -1,5 +1,5 @@
 /*
- * Copyright 2025 The Google AI Edge Authors. All Rights Reserved.
+ * Copyright 2026 The Google AI Edge Authors. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -68,15 +68,22 @@ class MoViNet(modelPath: String) : AutoCloseable {
   init {
     Log.i(TAG, "GPU compiled OK — ${inBufs.size} inputs / ${outBufs.size} outputs")
     var off = 1
-    for (c in STREAM_DIMS.indices) { streamOffset[c] = off; off += STREAM_DIMS[c] }
-    for (i in 0 until N_POOL) poolSums[i] = FloatArray(inBufs[29 + i].readFloat().size)
+    for (c in STREAM_DIMS.indices) {
+        streamOffset[c] = off
+        off += STREAM_DIMS[c]
+    }
+    for (i in 0 until N_POOL) {
+      poolSums[i] = FloatArray(inBufs[29 + i].readFloat().size)
+    }
     inBufs[ONE_IN].writeFloat(floatArrayOf(1f))
     reset()
   }
 
   /** Zero all recurrent state (start a fresh clip). */
   fun reset() {
-    for (k in 1..28) inBufs[k].writeFloat(FloatArray(inBufs[k].readFloat().size))
+    for (k in 1..28) {
+      inBufs[k].writeFloat(FloatArray(inBufs[k].readFloat().size))
+    }
     for (i in 0 until N_POOL) {
       java.util.Arrays.fill(poolSums[i], 0f)
       inBufs[29 + i].writeFloat(poolSums[i])
@@ -96,14 +103,18 @@ class MoViNet(modelPath: String) : AutoCloseable {
       val s = outBufs[1 + c].readFloat()
       val base = streamOffset[c]
       val dp = STREAM_DIMS[c]
-      for (i in 0 until dp - 1) inBufs[base + i].writeFloat(inBufs[base + i + 1].readFloat())
+      for (i in 0 until dp - 1) {
+        inBufs[base + i].writeFloat(inBufs[base + i + 1].readFloat())
+      }
       inBufs[base + dp - 1].writeFloat(s)
     }
     // pooling: accumulate running sum host-side
     for (i in 0 until N_POOL) {
       val mean = outBufs[12 + i].readFloat()
       val sum = poolSums[i]
-      for (j in sum.indices) sum[j] += mean[j]
+      for (j in sum.indices) {
+        sum[j] += mean[j]
+      }
       inBufs[29 + i].writeFloat(sum)
     }
     return logits

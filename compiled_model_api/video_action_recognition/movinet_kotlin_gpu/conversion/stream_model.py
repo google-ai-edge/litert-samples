@@ -1,3 +1,17 @@
+# Copyright 2026 The Google AI Edge Authors. All Rights Reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#       http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 """
 MoViNet-A0 streaming, re-authored as a single-frame, 4D-only functional forward
 for LiteRT CompiledModel GPU. Reuses the pretrained submodules of the original
@@ -56,14 +70,20 @@ def tf_avg_pool_2d(x):
         x = F.avg_pool2d(x, (3, 3), stride=(2, 2), padding=(1, 1),
                          count_include_pad=True)          # divides by 9
         h, w = x.shape[-2], x.shape[-1]
-        rs = torch.ones(h, device=x.device); rs[0] = 1.5; rs[-1] = 1.5
-        cs = torch.ones(w, device=x.device); cs[0] = 1.5; cs[-1] = 1.5
+        rs = torch.ones(h, device=x.device)
+        rs[0] = 1.5
+        rs[-1] = 1.5
+        cs = torch.ones(w, device=x.device)
+        cs[0] = 1.5
+        cs[-1] = 1.5
         return x * torch.outer(rs, cs).view(1, 1, h, w)   # 9/valid at edges
     x = F.pad(x, (0, 1, 0, 1))
     x = F.avg_pool2d(x, (3, 3), stride=(2, 2))   # count_include_pad=True -> /9
     h, w = x.shape[-2], x.shape[-1]
-    rs = torch.ones(h, device=x.device); rs[-1] = 9.0 / 6.0
-    cs = torch.ones(w, device=x.device); cs[-1] = 9.0 / 6.0
+    rs = torch.ones(h, device=x.device)
+    rs[-1] = 9.0 / 6.0
+    cs = torch.ones(w, device=x.device)
+    cs[-1] = 9.0 / 6.0
     mask = torch.outer(rs, cs).view(1, 1, h, w)  # corner = (9/6)^2, edges = 9/6
     return x * mask
 
@@ -201,8 +221,10 @@ class MoViNetA0Stream(nn.Module):
             idx += dp
         pool = {}
         for name in POOL_SPEC:
-            pool[name] = states[idx]; idx += 1
-        inv_count = states[idx]; idx += 1        # 1 / current frame number, [1,1,1,1]
+            pool[name] = states[idx]
+            idx += 1
+        inv_count = states[idx]                  # 1 / current frame number, [1,1,1,1]
+        idx += 1
         one = states[idx]                        # constant 1.0 [1,1,1,1] (decoupler)
 
         cur = {}                                 # current post-spatial frame / conv
