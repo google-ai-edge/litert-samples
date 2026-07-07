@@ -1,27 +1,49 @@
+# Copyright 2026 The Google AI Edge Authors. All Rights Reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#       http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 """Phase 2b: split the Swin encoder for the device-verified hybrid.
   G1 (GPU): image -> feat[1,144,1536]   (patch_embed + stages 0-2)   -- device corr 0.998
   C2 (CPU): feat  -> image_embeds[1,145,512]  (stage 3 + norm + cls + image_proj) -- fp16-fragile on GPU
 Run in ~/clipconv:  python build_hybrid.py"""
-import os, sys
+import os
+import sys
 import numpy as np
 import torch
 import torch.nn as nn
 from ram_load import load_ram_plus
 from build_swin import patch_gpu_clean, SwinEncoder, corr
-WORK = os.path.dirname(os.path.abspath(__file__)); OUT = os.path.join(WORK, "out")
+WORK = os.path.dirname(os.path.abspath(__file__))
+OUT = os.path.join(WORK, "out")
 REF = np.load(os.path.join(WORK, "ref", "ref_demo1.npz"))
 
 class SwinS012(nn.Module):
-    def __init__(self, model): super().__init__(); self.ve = model.visual_encoder
+    def __init__(self, model):
+        super().__init__()
+        self.ve = model.visual_encoder
     def forward(self, image):
         ve = self.ve
         x = ve.pos_drop(ve.patch_embed(image))
-        x = ve.layers[0](x); x = ve.layers[1](x); x = ve.layers[2](x)
+        x = ve.layers[0](x)
+        x = ve.layers[1](x)
+        x = ve.layers[2](x)
         return x                                       # [1,144,1536]
 
 class Stage3Tail(nn.Module):
     def __init__(self, model):
-        super().__init__(); self.ve = model.visual_encoder; self.image_proj = model.image_proj
+        super().__init__()
+        self.ve = model.visual_encoder
+        self.image_proj = model.image_proj
     def forward(self, feat):
         ve = self.ve
         x = ve.layers[3](feat)
@@ -30,8 +52,10 @@ class Stage3Tail(nn.Module):
         return self.image_proj(x)                            # [1,145,512]
 
 def main():
-    model = load_ram_plus(384); patch_gpu_clean(model)
-    g1 = SwinS012(model).eval(); c2 = Stage3Tail(model).eval()
+    model = load_ram_plus(384)
+    patch_gpu_clean(model)
+    g1 = SwinS012(model).eval()
+    c2 = Stage3Tail(model).eval()
     enc = SwinEncoder(model).eval()
     image = torch.from_numpy(REF["image"])
     with torch.no_grad():

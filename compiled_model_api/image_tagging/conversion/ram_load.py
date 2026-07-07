@@ -1,6 +1,21 @@
+# Copyright 2026 The Google AI Edge Authors. All Rights Reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#       http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 """Shared loader for RAM++ (transformers 5.x compat shims) — used by build/validate scripts.
 Loads the vendored model with weights; conversion scripts then monkeypatch GPU-clean forwards."""
-import os, sys
+import os
+import sys
 from types import ModuleType
 import torch
 
@@ -11,12 +26,17 @@ def _install_shims():
     sys.path.insert(0, REPO)
     # stub fairscale (imported by ram/vit.py; unused for swin_l)
     def _stub(name):
-        m = ModuleType(name); sys.modules[name] = m; return m
-    _stub("fairscale"); _stub("fairscale.nn"); _stub("fairscale.nn.checkpoint")
+        m = ModuleType(name)
+        sys.modules[name] = m
+        return m
+    _stub("fairscale")
+    _stub("fairscale.nn")
+    _stub("fairscale.nn.checkpoint")
     _cp = _stub("fairscale.nn.checkpoint.checkpoint_activations")
     _cp.checkpoint_wrapper = lambda m=None, *a, **k: m
     # transformers 5.x moved/removed names the vendored bert.py imports
-    import transformers.modeling_utils as _mu, transformers.pytorch_utils as _pu
+    import transformers.modeling_utils as _mu
+    import transformers.pytorch_utils as _pu
     _mu.apply_chunking_to_forward = _pu.apply_chunking_to_forward
     _mu.prune_linear_layer = _pu.prune_linear_layer
     _mu.find_pruneable_heads_and_indices = getattr(
@@ -39,7 +59,8 @@ def _install_shims():
 
 def load_ram_plus(image_size=384):
     _install_shims()
-    cwd = os.getcwd(); os.chdir(REPO)
+    cwd = os.getcwd()
+    os.chdir(REPO)
     try:
         from ram.models import ram_plus
         model = ram_plus(pretrained=WEIGHTS, image_size=image_size, vit="swin_l")

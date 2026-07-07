@@ -1,13 +1,29 @@
+# Copyright 2026 The Google AI Edge Authors. All Rights Reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#       http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 """Phase 1a: re-author RAM++ Swin-L encoder GPU-clean, verify torch parity, convert to LiteRT fp16.
 Run in ~/clipconv.  Usage: python build_swin.py [parity|convert]"""
-import os, sys
+import os
+import sys
 import numpy as np
 import torch
 import torch.nn as nn
 
 from ram_load import load_ram_plus, REPO
 WORK = os.path.dirname(os.path.abspath(__file__))
-OUT = os.path.join(WORK, "out"); os.makedirs(OUT, exist_ok=True)
+OUT = os.path.join(WORK, "out")
+os.makedirs(OUT, exist_ok=True)
 REF = np.load(os.path.join(WORK, "ref", "ref_demo1.npz"))
 
 # ------------------- GPU-clean building blocks -------------------
@@ -29,13 +45,15 @@ def safe_ln(self, x):
     if self.bias is not None:   y = y + self.bias
     return y
 
-def wp4d(x, ws, H, W):            # [1,H,W,C] -> [nW, ws, ws, C], order [hi,wi,c]
+def wp4d(x, ws, H, W):
+    # [1,H,W,C] -> [nW, ws, ws, C], order [hi,wi,c]
     C = x.shape[-1]
     x = x.reshape(H // ws, ws, W // ws, ws * C)
     x = x.permute(0, 2, 1, 3)
     return x.reshape((H // ws) * (W // ws), ws, ws, C)
 
-def wr4d(x, ws, H, W):            # [nW, ws, ws, C] -> [1,H,W,C]
+def wr4d(x, ws, H, W):
+    # [nW, ws, ws, C] -> [1,H,W,C]
     C = x.shape[-1]
     x = x.reshape(H // ws, W // ws, ws, ws * C)
     x = x.permute(0, 2, 1, 3)
@@ -43,7 +61,8 @@ def wr4d(x, ws, H, W):            # [nW, ws, ws, C] -> [1,H,W,C]
 
 def attn_forward(self, x, mask=None):
     Bn, N, C = x.shape
-    nH = self.num_heads; hd = C // nH
+    nH = self.num_heads
+    hd = C // nH
     qkv = self.qkv(x)                                  # [Bn,N,3C]
     q = qkv[:, :, :C].reshape(Bn, N, nH, hd).permute(0, 2, 1, 3)
     k = qkv[:, :, C:2 * C].reshape(Bn, N, nH, hd).permute(0, 2, 1, 3)
@@ -58,7 +77,9 @@ def attn_forward(self, x, mask=None):
 
 def block_forward(self, x):
     H, W = self.input_resolution
-    C = x.shape[-1]; ws = self.window_size; s = self.shift_size
+    C = x.shape[-1]
+    ws = self.window_size
+    s = self.shift_size
     shortcut = x
     x = self.norm1(x).view(1, H, W, C)
     if s > 0:
@@ -76,13 +97,15 @@ def block_forward(self, x):
     return x
 
 def merge_forward(self, x):
-    H, W = self.input_resolution; C = x.shape[-1]
+    H, W = self.input_resolution
+    C = x.shape[-1]
     x = x.view(1, H, W, C).reshape(H // 2, 2, W, C)
     r0, r1 = x[:, 0, :, :], x[:, 1, :, :]              # even/odd rows [H//2,W,C]
     def sc(t):
         t = t.reshape(H // 2, W // 2, 2, C)
         return t[:, :, 0, :], t[:, :, 1, :]
-    x00, x01 = sc(r0); x10, x11 = sc(r1)
+    x00, x01 = sc(r0)
+    x10, x11 = sc(r1)
     x = torch.cat([x00, x10, x01, x11], dim=-1)        # [H//2,W//2,4C]
     x = x.reshape(1, (H // 2) * (W // 2), 4 * C)
     return self.reduction(self.norm(x))
@@ -136,7 +159,8 @@ class SwinEncoderTapped(nn.Module):
         return outs[0], outs[1], outs[2], outs[3]   # [1,2304,384][1,576,768][1,144,1536][1,144,1536]
 
 def corr(a, b):
-    a = a.flatten().astype(np.float64); b = b.flatten().astype(np.float64)
+    a = a.flatten().astype(np.float64)
+    b = b.flatten().astype(np.float64)
     return float(np.corrcoef(a, b)[0, 1])
 
 def main():

@@ -1,7 +1,23 @@
+# Copyright 2026 The Google AI Edge Authors. All Rights Reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#       http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 """Phase 1b: re-author RAM++ reweight + Query2Label tagging head GPU-clean, torch parity vs
 reference logits. Fed with REF image_embeds so head correctness is isolated from the Swin encoder.
 Run in ~/clipconv:  python build_head.py [parity|convert]"""
-import os, sys, math
+import os
+import sys
+import math
 import numpy as np
 import torch
 import torch.nn as nn
@@ -9,7 +25,8 @@ import torch.nn as nn
 from ram_load import load_ram_plus
 from build_swin import tanh_gelu, corr
 WORK = os.path.dirname(os.path.abspath(__file__))
-OUT = os.path.join(WORK, "out"); os.makedirs(OUT, exist_ok=True)
+OUT = os.path.join(WORK, "out")
+os.makedirs(OUT, exist_ok=True)
 REF = np.load(os.path.join(WORK, "ref", "ref_demo1.npz"))
 
 def safe_ln_mod(x, ln, eps_floor=1e-4):
@@ -31,7 +48,8 @@ class TagHeadGPU(nn.Module):
             ca = layer.crossattention
             s = ca.self
             nH, hd = s.num_attention_heads, s.attention_head_size
-            Nq = h.shape[1]; Nk = image_embeds.shape[1]
+            Nq = h.shape[1]
+            Nk = image_embeds.shape[1]
             q = s.query(h).reshape(1, Nq, nH, hd).permute(0, 2, 1, 3)
             k = s.key(image_embeds).reshape(1, Nk, nH, hd).permute(0, 2, 1, 3)
             v = s.value(image_embeds).reshape(1, Nk, nH, hd).permute(0, 2, 1, 3)
@@ -70,7 +88,8 @@ class RamHead(nn.Module):
         self.register_buffer("label_embed", model.label_embed.detach())
         self.scale = float(model.reweight_scale.exp())
 
-    def reweight(self, cls):                                   # cls [1,512]
+    def reweight(self, cls):
+        # cls [1,512]
         cls_n = cls / cls.norm(dim=-1, keepdim=True)
         le = self.label_embed                                 # [C*51, 512]
         lpi = (self.scale * cls_n @ le.t()).view(1, self.num_class, -1)   # [1,C,51]
@@ -86,7 +105,8 @@ class RamHead(nn.Module):
             ca = layer.crossattention
             s = ca.self
             nH, hd = s.num_attention_heads, s.attention_head_size
-            Nq = h.shape[1]; Nk = image_embeds.shape[1]
+            Nq = h.shape[1]
+            Nk = image_embeds.shape[1]
             q = s.query(h).reshape(1, Nq, nH, hd).permute(0, 2, 1, 3)
             k = s.key(image_embeds).reshape(1, Nk, nH, hd).permute(0, 2, 1, 3)
             v = s.value(image_embeds).reshape(1, Nk, nH, hd).permute(0, 2, 1, 3)
@@ -110,7 +130,8 @@ def main():
           "maxabsdiff:", float(np.abs(logits - ref).max()))
     # tag agreement (the ship metric): compare thresholded predicted-tag sets
     thr = np.load(os.path.join(WORK, "ref", "class_threshold.npy"))
-    def tags(l): return set(np.where(1/(1+np.exp(-l[0])) > thr)[0].tolist())
+    def tags(l):
+        return set(np.where(1/(1+np.exp(-l[0])) > thr)[0].tolist())
     ta, tb = tags(logits), tags(ref)
     print(f"tags mine={len(ta)} ref={len(tb)} inter={len(ta & tb)} jaccard={len(ta&tb)/max(1,len(ta|tb)):.4f}")
 
@@ -127,7 +148,8 @@ def main():
               "maxabsdiff:", float(np.abs(logits_full - ref).max()))
         thr = np.load(os.path.join(WORK, "ref", "class_threshold.npy"))
         tl = __import__("json").load(open(os.path.join(WORK, "ref", "tag_list.json")))
-        def tagset(l): return set(np.where(1/(1+np.exp(-l[0])) > thr)[0].tolist())
+        def tagset(l):
+            return set(np.where(1/(1+np.exp(-l[0])) > thr)[0].tolist())
         ta, tb = tagset(logits_full), tagset(ref)
         print(f"[full] tags mine={len(ta)} ref={len(tb)} inter={len(ta&tb)} jaccard={len(ta&tb)/max(1,len(ta|tb)):.4f}")
         print("  missed:", [tl[i] for i in sorted(tb - ta)])
