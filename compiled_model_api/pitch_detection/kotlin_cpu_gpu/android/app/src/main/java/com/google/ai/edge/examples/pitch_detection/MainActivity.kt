@@ -55,28 +55,50 @@ class MainActivity : Activity() {
 
   override fun onCreate(savedInstanceState: Bundle?) {
     super.onCreate(savedInstanceState)
-    val root = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(48, 110, 48, 40) }
-    status = TextView(this).apply { textSize = 14f; text = "Loading CREPE on GPU…" }
+    val root = LinearLayout(this).apply {
+        orientation = LinearLayout.VERTICAL
+        setPadding(48, 110, 48, 40)
+    }
+    status = TextView(this).apply {
+        textSize = 14f
+        text = "Loading CREPE on GPU…"
+    }
     noteView = TextView(this).apply {
-      textSize = 96f; gravity = Gravity.CENTER; setPadding(0, 56, 0, 8); text = "—"
+      textSize = 96f
+      gravity = Gravity.CENTER
+      setPadding(0, 56, 0, 8)
+      text = "—"
       typeface = Typeface.DEFAULT_BOLD
     }
     centsBar = TextView(this).apply {
-      textSize = 22f; gravity = Gravity.CENTER; typeface = Typeface.MONOSPACE; text = " "
+      textSize = 22f
+      gravity = Gravity.CENTER
+      typeface = Typeface.MONOSPACE
+      text = " "
     }
     hzView = TextView(this).apply {
-      textSize = 18f; gravity = Gravity.CENTER; setTextColor(Color.GRAY); setPadding(0, 24, 0, 56); text = " "
+      textSize = 18f
+      gravity = Gravity.CENTER
+      setTextColor(Color.GRAY)
+      setPadding(0, 24, 0, 56)
+      text = " "
     }
     listen = Button(this).apply {
-      text = "🎤  Start tuner"; isEnabled = false
+      text = "🎤  Start tuner"
+      isEnabled = false
       setOnClickListener { toggle() }
     }
-    root.addView(status); root.addView(noteView); root.addView(centsBar); root.addView(hzView); root.addView(listen)
+    root.addView(status)
+    root.addView(noteView)
+    root.addView(centsBar)
+    root.addView(hzView)
+    root.addView(listen)
     setContentView(root)
 
     bg.execute {
       try {
-        val d = PitchDetector(this); detector = d
+        val d = PitchDetector(this)
+        detector = d
         // self-test: synthesize a 440 Hz sine (A4) and confirm the pipeline (no mic needed)
         val t = FloatArray(PitchDetector.WINDOW) { sin(2.0 * Math.PI * 440.0 * it / PitchDetector.SAMPLE_RATE).toFloat() }
         d.detect(t)                                  // warm up GPU
@@ -90,16 +112,22 @@ class MainActivity : Activity() {
       } catch (e: Throwable) {
         Log.e(tag, "load failed", e)
         runOnUiThread {
-          status.setBackgroundColor(Color.rgb(0xFF, 0xCD, 0xD2)); status.text = "FAIL: ${e.message}"
+          status.setBackgroundColor(Color.rgb(0xFF, 0xCD, 0xD2))
+          status.text = "FAIL: ${e.message}"
         }
       }
     }
   }
 
   private fun toggle() {
-    if (listening.get()) { listening.set(false); listen.text = "🎤  Start tuner"; return }
+    if (listening.get()) {
+        listening.set(false)
+        listen.text = "🎤  Start tuner"
+        return
+    }
     if (checkSelfPermission(Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
-      requestPermissions(arrayOf(Manifest.permission.RECORD_AUDIO), 1); return
+      requestPermissions(arrayOf(Manifest.permission.RECORD_AUDIO), 1)
+      return
     }
     startListening()
   }
@@ -110,7 +138,8 @@ class MainActivity : Activity() {
   }
 
   private fun startListening() {
-    listening.set(true); listen.text = "■  Stop"
+    listening.set(true)
+    listen.text = "■  Stop"
     bg.execute {
       val sr = PitchDetector.SAMPLE_RATE
       val win = PitchDetector.WINDOW
@@ -152,8 +181,10 @@ class MainActivity : Activity() {
 
   private fun render(p: PitchDetector.Pitch) {
     if (p.confidence < 0.5f) {                            // no clear pitch / silence
-      noteView.text = "—"; noteView.setTextColor(Color.LTGRAY)
-      centsBar.text = " "; hzView.text = "listening…"
+      noteView.text = "—"
+      noteView.setTextColor(Color.LTGRAY)
+      centsBar.text = " "
+      hzView.text = "listening…"
       return
     }
     noteView.text = "${p.note}${p.octave}"
@@ -170,6 +201,9 @@ class MainActivity : Activity() {
   }
 
   override fun onDestroy() {
-    super.onDestroy(); listening.set(false); bg.shutdown(); detector?.close()
+    super.onDestroy()
+    listening.set(false)
+    bg.shutdown()
+    detector?.close()
   }
 }

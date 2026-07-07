@@ -1,4 +1,17 @@
-#!/usr/bin/env python3
+# Copyright 2025 The Google AI Edge Authors. All Rights Reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#       http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 """CREPE pitch detection (marl/crepe via torchcrepe, MIT) -> LiteRT CompiledModel GPU.
 
 The whole model rides one GPU graph: 6x {zero-pad -> Conv2d -> ReLU -> BatchNorm -> MaxPool} +
@@ -8,7 +21,11 @@ audio into 1024-sample windows, per-frame normalize (mean/std), and decode 360 b
 
 Run: ~/clipconv/bin/python build_crepe.py
 """
-import os, collections, numpy as np, torch, torch.nn as nn
+import os
+import collections
+import numpy as np
+import torch
+import torch.nn as nn
 import torchcrepe
 
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -33,15 +50,18 @@ def norm_frame(frame):
 
 def decode(act):
     """360 activations -> Hz (local weighted average around argmax, torchcrepe 'weighted_argmax')."""
-    c = int(np.argmax(act)); s, e = max(0, c - 4), min(BINS, c + 5)
-    w = act[s:e]; b = np.arange(s, e)
+    c = int(np.argmax(act))
+    s, e = max(0, c - 4), min(BINS, c + 5)
+    w = act[s:e]
+    b = np.arange(s, e)
     cents = CENTS_PER_BIN * (np.sum(w * b) / np.sum(w)) + CENTS_OFFSET
     return 10.0 * 2 ** (cents / 1200.0)
 
 
 def opcheck(path, label):
     from ai_edge_litert.interpreter import Interpreter
-    it = Interpreter(model_path=path); it.allocate_tensors()
+    it = Interpreter(model_path=path)
+    it.allocate_tensors()
     ops = collections.Counter(d.get("op_name", "?") for d in it._get_ops_details())
     bad = {k: v for k, v in ops.items() if k.upper() in BANNED}
     over = sum(1 for d in it.get_tensor_details() if len(d.get("shape", [])) > 4)
@@ -51,7 +71,9 @@ def opcheck(path, label):
 
 
 def tfl(it, x):
-    d = it.get_input_details()[0]; it.set_tensor(d["index"], x.astype(d["dtype"])); it.invoke()
+    d = it.get_input_details()[0]
+    it.set_tensor(d["index"], x.astype(d["dtype"]))
+    it.invoke()
     return it.get_tensor(it.get_output_details()[0]["index"])
 
 
@@ -64,8 +86,10 @@ def to_fp16(fp32, fp16):
             weight_tensor_config=qtyping.TensorQuantizationConfig(num_bits=16, dtype=qtyping.TensorDataType.FLOAT),
             compute_precision=qtyping.ComputePrecision.FLOAT), algorithm_key=AlgorithmName.FLOAT_CASTING)
     if os.path.exists(fp16): os.remove(fp16)
-    qt = quantizer.Quantizer(float_model=fp32); qt.load_quantization_recipe(rm.get_quantization_recipe())
-    qt.quantize().export_model(fp16); return fp16
+    qt = quantizer.Quantizer(float_model=fp32)
+    qt.load_quantization_recipe(rm.get_quantization_recipe())
+    qt.quantize().export_model(fp16)
+    return fp16
 
 
 def main():
@@ -90,11 +114,13 @@ def main():
     import litert_torch
     fp32 = os.path.join(HERE, "crepe_full.tflite")
     litert_torch.convert(m, (x,)).export(fp32)
-    it32 = opcheck(fp32, "fp32"); o32 = tfl(it32, x.numpy()).ravel()
+    it32 = opcheck(fp32, "fp32")
+    o32 = tfl(it32, x.numpy()).ravel()
     print(f"[fp32] tflite-vs-torch corr {np.corrcoef(o32, ref)[0,1]:.6f}  decoded {decode(o32):.1f} Hz")
 
     fp16 = to_fp16(fp32, os.path.join(HERE, "crepe_full_fp16.tflite"))
-    it16 = opcheck(fp16, "fp16"); o16 = tfl(it16, x.numpy()).ravel()
+    it16 = opcheck(fp16, "fp16")
+    o16 = tfl(it16, x.numpy()).ravel()
     print(f"[fp16] tflite-vs-torch corr {np.corrcoef(o16, ref)[0,1]:.6f}  decoded {decode(o16):.1f} Hz")
 
     x.numpy().astype(np.float32).tofile(os.path.join(HERE, "crepe_input.bin"))

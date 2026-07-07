@@ -66,7 +66,10 @@ class PitchDetector(context: Context) : Closeable {
     for (i in 0 until WINDOW) mean += frame[i]
     mean /= WINDOW
     var v = 0f
-    for (i in 0 until WINDOW) { val d = frame[i] - mean; v += d * d }
+    for (i in 0 until WINDOW) {
+        val d = frame[i] - mean
+        v += d * d
+    }
     val std = maxOf(sqrt(v / WINDOW), 1e-10f)
     for (i in 0 until WINDOW) x[i] = (frame[i] - mean) / std
 
@@ -77,9 +80,14 @@ class PitchDetector(context: Context) : Closeable {
     // weighted average of cents over ±4 bins around the peak (torchcrepe 'weighted_argmax')
     var c = 0
     for (i in 1 until BINS) if (act[i] > act[c]) c = i
-    val s = maxOf(0, c - 4); val e = minOf(BINS, c + 5)
-    var num = 0.0; var den = 0.0
-    for (i in s until e) { num += act[i].toDouble() * i; den += act[i].toDouble() }
+    val s = maxOf(0, c - 4)
+    val e = minOf(BINS, c + 5)
+    var num = 0.0
+    var den = 0.0
+    for (i in s until e) {
+        num += act[i].toDouble() * i
+        den += act[i].toDouble()
+    }
     val cents = CENTS_PER_BIN * (num / den) + CENTS_OFFSET
     val hz = (10.0 * Math.pow(2.0, cents / 1200.0)).toFloat()
 
@@ -91,7 +99,8 @@ class PitchDetector(context: Context) : Closeable {
   }
 
   override fun close() {
-    inBuf.forEach { it.close() }; outBuf.forEach { it.close() }
+    inBuf.forEach { it.close() }
+    outBuf.forEach { it.close() }
     model.close()
   }
 }
