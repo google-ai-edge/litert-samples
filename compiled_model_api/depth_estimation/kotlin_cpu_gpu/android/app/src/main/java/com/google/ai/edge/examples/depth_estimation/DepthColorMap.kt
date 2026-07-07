@@ -1,5 +1,5 @@
 /*
- * Copyright 2025 The Google AI Edge Authors. All Rights Reserved.
+ * Copyright 2026 The Google AI Edge Authors. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -29,8 +29,12 @@ object DepthColorMap {
     var min = Float.MAX_VALUE
     var max = -Float.MAX_VALUE
     for (v in depth) {
-      if (v < min) min = v
-      if (v > max) max = v
+      if (v < min) {
+        min = v
+      }
+      if (v > max) {
+        max = v
+      }
     }
     val range = (max - min).coerceAtLeast(1e-8f)
     val pixels = IntArray(width * height)
