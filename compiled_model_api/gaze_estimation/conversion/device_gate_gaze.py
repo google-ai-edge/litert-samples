@@ -54,12 +54,12 @@ def draw(y,p,name):
 yaw,pit=draw(y,p,f"{HERE}/gz_torch.png")
 im.save(f"{HERE}/gz_face.png")
 print(f"input {x.shape}; torch gaze yaw {yaw:.1f} pitch {pit:.1f} deg")
-from ai_edge_litert.interpreter import Interpreter
-it=Interpreter(model_path=f"{HERE}/gaze_fp16.tflite")
-it.allocate_tensors()
-d=it.get_input_details()[0]
-it.set_tensor(d["index"],x.astype(d["dtype"]))
-it.invoke()
-od=it.get_output_details()
-o0=it.get_tensor(od[0]["index"])[0]
+from ai_edge_litert.compiled_model import CompiledModel
+model=CompiledModel.from_file(f"{HERE}/gaze_fp16.tflite")
+ins=model.create_input_buffers(0)
+outs=model.create_output_buffers(0)
+ins[0].write(np.ascontiguousarray(x,dtype=np.float32))
+model.run_by_index(0,ins,outs)
+n=model.get_output_buffer_requirements(0,0)["buffer_size"]//np.dtype(np.float32).itemsize
+o0=outs[0].read(n,np.float32)
 print(f"desktop-fp16 vs torch yaw corr {np.corrcoef(o0,y)[0,1]:.6f}")

@@ -53,14 +53,30 @@ def build():
     print(f"  loaded gaze360 resnet50; missing {len(miss)} unexpected {len(unexp)}; params {sum(p.numel() for p in g.parameters())/1e6:.2f}M")
     return Wrap(g).eval()
 def opcheck(p,l):
-    from ai_edge_litert.interpreter import Interpreter
-    it=Interpreter(model_path=p)
-    it.allocate_tensors()
-    ops=collections.Counter(d.get("op_name","?") for d in it._get_ops_details())
+    """Static GPU-compat scan: read the op set straight from the .tflite flatbuffer."""
+    from ai_edge_litert import schema_py_generated as schema
+    with open(p,"rb") as f: model=schema.ModelT.InitFromPackedBuf(f.read(),0)
+    names={v:k for k,v in vars(schema.BuiltinOperator).items() if not k.startswith("_")}
+    ops=collections.Counter()
+    over=0
+    for g in model.subgraphs:
+        for op in g.operators:
+            c=model.operatorCodes[op.opcodeIndex]
+            code=max(c.builtinCode,c.deprecatedBuiltinCode)
+            ops[c.customCode.decode() if c.customCode else names.get(code,str(code))]+=1
+        over+=sum(1 for t in g.tensors if t.shape is not None and len(t.shape)>4)
     bad={k:v for k,v in ops.items() if k.upper() in BANNED}
-    over=sum(1 for d in it.get_tensor_details() if len(d.get("shape",[]))>4)
     print(f"[{l}] banned:{bad or 'NONE'} >4D:{over} size {os.path.getsize(p)/1e6:.1f}MB","GPU-CLEAN" if not bad and not over else "BLOCKERS")
-    return it
+def run_tflite(p,x):
+    """Single inference through the LiteRT CompiledModel API; returns the flat fp32 first output."""
+    from ai_edge_litert.compiled_model import CompiledModel
+    model=CompiledModel.from_file(p)
+    ins=model.create_input_buffers(0)
+    outs=model.create_output_buffers(0)
+    ins[0].write(np.ascontiguousarray(x,dtype=np.float32))
+    model.run_by_index(0,ins,outs)
+    n=model.get_output_buffer_requirements(0,0)["buffer_size"]//np.dtype(np.float32).itemsize
+    return outs[0].read(n,np.float32)
 def to_fp16(fp32,fp16):
     from ai_edge_quantizer import quantizer, recipe_manager
     from ai_edge_quantizer.recipe import AlgorithmName, qtyping
@@ -80,12 +96,8 @@ if __name__=="__main__":
     import litert_torch
     fp32=f"{HERE}/gaze.tflite"
     litert_torch.convert(m,(x,)).export(fp32)
-    it=opcheck(fp32,"gaze")
-    d=it.get_input_details()[0]
-    it.set_tensor(d["index"],x.numpy().astype(d["dtype"]))
-    it.invoke()
-    od=it.get_output_details()
-    o0=it.get_tensor(od[0]["index"])
-    print(f"tflite vs torch yaw corr {np.corrcoef(o0.ravel(),y.numpy().ravel())[0,1]:.6f}")
+    opcheck(fp32,"gaze")
+    o0=run_tflite(fp32,x.numpy())
+    print(f"tflite vs torch yaw corr {np.corrcoef(o0,y.numpy().ravel())[0,1]:.6f}")
     to_fp16(fp32,f"{HERE}/gaze_fp16.tflite")
     opcheck(f"{HERE}/gaze_fp16.tflite","gaze_fp16")
