@@ -175,9 +175,15 @@ class BackgroundRemovalHelper(
             red[i] = r
             green[i] = g
             blue[i] = b
-            if (r > maxChannel) maxChannel = r
-            if (g > maxChannel) maxChannel = g
-            if (b > maxChannel) maxChannel = b
+            if (r > maxChannel) {
+                maxChannel = r
+            }
+            if (g > maxChannel) {
+                maxChannel = g
+            }
+            if (b > maxChannel) {
+                maxChannel = b
+            }
         }
         for (i in 0 until plane) {
             inputFloats[i] = (red[i] / maxChannel - MEAN[0]) / STD[0]
@@ -192,8 +198,12 @@ class BackgroundRemovalHelper(
         var minValue = Float.MAX_VALUE
         var maxValue = -Float.MAX_VALUE
         for (value in maskRaw) {
-            if (value < minValue) minValue = value
-            if (value > maxValue) maxValue = value
+            if (value < minValue) {
+                minValue = value
+            }
+            if (value > maxValue) {
+                maxValue = value
+            }
         }
         val range = if (maxValue > minValue) maxValue - minValue else 1f
 
