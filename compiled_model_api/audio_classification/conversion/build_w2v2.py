@@ -110,24 +110,37 @@ class KWS(nn.Module):
 
 
 def opcheck(path, label):
-    from ai_edge_litert.interpreter import Interpreter
-    it = Interpreter(model_path=path)
-    it.allocate_tensors()
-    ops = collections.Counter(d.get("op_name", "?") for d in it._get_ops_details())
+    """Static GPU-compat scan: read the op set straight from the .tflite flatbuffer."""
+    from ai_edge_litert import schema_py_generated as schema
+    with open(path, "rb") as f:
+        model = schema.ModelT.InitFromPackedBuf(f.read(), 0)
+    names = {v: k for k, v in vars(schema.BuiltinOperator).items() if not k.startswith("_")}
+    ops = collections.Counter()
+    over = 0
+    for g in model.subgraphs:
+        for op in g.operators:
+            c = model.operatorCodes[op.opcodeIndex]
+            code = max(c.builtinCode, c.deprecatedBuiltinCode)
+            ops[c.customCode.decode() if c.customCode else names.get(code, str(code))] += 1
+        over += sum(1 for t in g.tensors if t.shape is not None and len(t.shape) > 4)
     bad = {k: v for k, v in ops.items() if k.upper() in BANNED}
-    over = sum(1 for d in it.get_tensor_details() if len(d.get("shape", [])) > 4)
     fft = {k: v for k, v in ops.items() if any(t in k.upper() for t in ("FFT", "STFT", "COMPLEX"))}
     print(f"[{label}] ops:", dict(sorted(ops.items(), key=lambda kv: -kv[1])))
     print(f"[{label}] banned:{bad or 'NONE'} >4D:{over} FFT:{fft or 'NONE'} size {os.path.getsize(path)/1e6:.1f}MB")
     print(f"[{label}] VERDICT:", "GPU-CLEAN" if not bad and not over and not fft else f"BLOCKERS {bad}")
-    return it, (not bad and not over and not fft)
+    return not bad and not over and not fft
 
 
-def tfl_run(it, x):
-    d = it.get_input_details()[0]
-    it.set_tensor(d["index"], x.astype(d["dtype"]))
-    it.invoke()
-    return it.get_tensor(it.get_output_details()[0]["index"])
+def run_tflite(path, x):
+    """Single inference through the LiteRT CompiledModel API; returns the flat fp32 output."""
+    from ai_edge_litert.compiled_model import CompiledModel
+    model = CompiledModel.from_file(path)
+    inputs = model.create_input_buffers(0)
+    outputs = model.create_output_buffers(0)
+    inputs[0].write(np.ascontiguousarray(x, dtype=np.float32))
+    model.run_by_index(0, inputs, outputs)
+    n = model.get_output_buffer_requirements(0, 0)["buffer_size"] // np.dtype(np.float32).itemsize
+    return outputs[0].read(n, np.float32)
 
 
 def to_fp16(fp32, fp16):
@@ -166,15 +179,15 @@ def main():
     import litert_torch
     fp32 = os.path.join(HERE, "w2v2_kws.tflite")
     litert_torch.convert(g, (x,)).export(fp32)
-    it, clean = opcheck(fp32, "kws")
-    o = tfl_run(it, x.numpy())
+    clean = opcheck(fp32, "kws")
+    o = run_tflite(fp32, x.numpy())
     print(f"tflite vs torch: logits corr {np.corrcoef(o.ravel(), ra.numpy().ravel())[0,1]:.6f}  "
           f"argmax tflite={o.argmax()} ({id2label[int(o.argmax())]})")
 
     if stage == "all" and clean:
         f16 = to_fp16(fp32, os.path.join(HERE, "w2v2_kws_fp16.tflite"))
-        it16, _ = opcheck(f16, "kws_fp16")
-        o16 = tfl_run(it16, x.numpy())
+        opcheck(f16, "kws_fp16")
+        o16 = run_tflite(f16, x.numpy())
         print(f"fp16 tflite vs torch: logits corr {np.corrcoef(o16.ravel(), ra.numpy().ravel())[0,1]:.6f}")
 
 
