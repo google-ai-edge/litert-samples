@@ -52,16 +52,24 @@ class MainActivity : Activity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        val root = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(24, 80, 24, 24) }
-        status = TextView(this).apply { textSize = 15f; text = "Loading YuNet on GPU…" }
+        val root = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(24, 80, 24, 24)
+        }
+        status = TextView(this).apply {
+            textSize = 15f
+            text = "Loading YuNet on GPU…"
+        }
         val pick = Button(this).apply {
-            text = "🖼  Pick image"; isEnabled = false
+            text = "🖼  Pick image"
+            isEnabled = false
             setOnClickListener {
                 startActivityForResult(Intent(Intent.ACTION_GET_CONTENT).apply { type = "image/*" }, pickReq)
             }
         }
         faceView = FaceView(this)
-        root.addView(status); root.addView(pick)
+        root.addView(status)
+        root.addView(pick)
         root.addView(faceView, LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, 980))
         setContentView(root)
 
@@ -76,7 +84,10 @@ class MainActivity : Activity() {
                 runOnUiThread { pick.isEnabled = true }
             } catch (e: Throwable) {
                 Log.e(tag, "load failed", e)
-                runOnUiThread { status.setBackgroundColor(Color.rgb(0xFF, 0xCD, 0xD2)); status.text = "FAIL: ${e.message}" }
+                runOnUiThread {
+                    status.setBackgroundColor(Color.rgb(0xFF, 0xCD, 0xD2))
+                    status.text = "FAIL: ${e.message}"
+                }
             }
         }
     }
@@ -88,7 +99,10 @@ class MainActivity : Activity() {
         runOnUiThread { status.text = "Detecting…" }
         bg.execute {
             try { run(squareResize(loadOriented(uri)), warm = false) }
-            catch (e: Throwable) { Log.e(tag, "detect failed", e); runOnUiThread { status.text = "Failed: ${e.message}" } }
+            catch (e: Throwable) {
+                Log.e(tag, "detect failed", e)
+                runOnUiThread { status.text = "Failed: ${e.message}" }
+            }
         }
     }
 
@@ -103,7 +117,8 @@ class MainActivity : Activity() {
         runOnUiThread {
             status.setBackgroundColor(Color.rgb(0xC8, 0xE6, 0xC9))
             status.text = "On-device GPU faces ✓  ${ms} ms  ·  ${faces.size} face(s)  ·  YuNet, CompiledModel GPU"
-            faceView.set(bm, faces); faceView.invalidate()
+            faceView.set(bm, faces)
+            faceView.invalidate()
         }
     }
 
@@ -125,41 +140,64 @@ class MainActivity : Activity() {
     private fun squareResize(src: Bitmap): Bitmap {
         val sz = FaceDetector.SIZE
         val s = min(sz.toFloat() / src.width, sz.toFloat() / src.height)
-        val nw = (src.width * s).toInt(); val nh = (src.height * s).toInt()
+        val nw = (src.width * s).toInt()
+        val nh = (src.height * s).toInt()
         val scaled = Bitmap.createScaledBitmap(src, nw, nh, true)
         val out = Bitmap.createBitmap(sz, sz, Bitmap.Config.ARGB_8888)
-        Canvas(out).apply { drawColor(Color.BLACK); drawBitmap(scaled, ((sz - nw) / 2).toFloat(), ((sz - nh) / 2).toFloat(), null) }
+        Canvas(out).apply {
+            drawColor(Color.BLACK)
+            drawBitmap(scaled, ((sz - nw) / 2).toFloat(), ((sz - nh) / 2).toFloat(), null)
+        }
         return out
     }
 
     private fun bitmapToRgb(bm: Bitmap): FloatArray {
-        val n = bm.width * bm.height; val px = IntArray(n)
+        val n = bm.width * bm.height
+        val px = IntArray(n)
         bm.getPixels(px, 0, bm.width, 0, 0, bm.width, bm.height)
         val out = FloatArray(n * 3)
         for (i in 0 until n) {
             val p = px[i]
-            out[i * 3] = ((p shr 16) and 0xFF).toFloat(); out[i * 3 + 1] = ((p shr 8) and 0xFF).toFloat()
+            out[i * 3] = ((p shr 16) and 0xFF).toFloat()
+            out[i * 3 + 1] = ((p shr 8) and 0xFF).toFloat()
             out[i * 3 + 2] = (p and 0xFF).toFloat()
         }
         return out
     }
 
-    override fun onDestroy() { super.onDestroy(); bg.shutdown(); net?.close() }
+    override fun onDestroy() {
+        super.onDestroy()
+        bg.shutdown()
+        net?.close()
+    }
 
     class FaceView(ctx: Context) : View(ctx) {
         private var bm: Bitmap? = null
         private var faces: List<FaceDetector.Face> = emptyList()
-        private val box = Paint().apply { color = Color.rgb(0, 230, 0); style = Paint.Style.STROKE; strokeWidth = 4f; isAntiAlias = true }
-        private val lm = Paint().apply { color = Color.rgb(255, 40, 40); isAntiAlias = true }
+        private val box = Paint().apply {
+            color = Color.rgb(0, 230, 0)
+            style = Paint.Style.STROKE
+            strokeWidth = 4f
+            isAntiAlias = true
+        }
+        private val lm = Paint().apply {
+            color = Color.rgb(255, 40, 40)
+            isAntiAlias = true
+        }
         private val imgPaint = Paint().apply { isFilterBitmap = true }
 
-        fun set(b: Bitmap, f: List<FaceDetector.Face>) { bm = b; faces = f }
+        fun set(b: Bitmap, f: List<FaceDetector.Face>) {
+            bm = b
+            faces = f
+        }
 
         override fun onDraw(canvas: Canvas) {
             val b = bm ?: return
             val s = min(width.toFloat() / b.width, height.toFloat() / b.height)
-            val w = b.width * s; val h = b.height * s
-            val ox = (width - w) / 2; val oy = (height - h) / 2
+            val w = b.width * s
+            val h = b.height * s
+            val ox = (width - w) / 2
+            val oy = (height - h) / 2
             canvas.drawBitmap(b, null, android.graphics.RectF(ox, oy, ox + w, oy + h), imgPaint)
             for (f in faces) {
                 canvas.drawRect(ox + f.x1 * s, oy + f.y1 * s, ox + f.x2 * s, oy + f.y2 * s, box)
