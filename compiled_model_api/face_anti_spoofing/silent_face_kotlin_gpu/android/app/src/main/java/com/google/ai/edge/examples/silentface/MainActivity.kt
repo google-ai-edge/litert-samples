@@ -1,5 +1,5 @@
 /*
- * Copyright 2025 The Google AI Edge Authors. All Rights Reserved.
+ * Copyright 2026 The Google AI Edge Authors. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -39,10 +39,15 @@ class MainActivity : AppCompatActivity() {
 
   override fun onCreate(savedInstanceState: Bundle?) {
     super.onCreate(savedInstanceState)
-    val status = TextView(this).apply { textSize = 15f; setPadding(28, 40, 28, 20) }
+    val status = TextView(this).apply {
+        textSize = 15f
+        setPadding(28, 40, 28, 20)
+    }
     val imageView = ImageView(this).apply { adjustViewBounds = true }
     setContentView(LinearLayout(this).apply {
-      orientation = LinearLayout.VERTICAL; addView(status); addView(imageView)
+      orientation = LinearLayout.VERTICAL
+      addView(status)
+      addView(imageView)
     })
 
     executor.execute {
@@ -64,14 +69,23 @@ class MainActivity : AppCompatActivity() {
     val out = image.copy(Bitmap.Config.ARGB_8888, true)
     val c = Canvas(out)
     val col = if (live) Color.rgb(50, 220, 100) else Color.rgb(240, 70, 70)
-    val box = Paint().apply { style = Paint.Style.STROKE; strokeWidth = out.width / 90f; color = col }
+    val box = Paint().apply {
+        style = Paint.Style.STROKE
+        strokeWidth = out.width / 90f
+        color = col
+    }
     c.drawRect(4f, 4f, out.width - 4f, out.height - 4f, box)
     val tp = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-      color = col; textSize = out.width / 8f; setShadowLayer(6f, 0f, 0f, Color.BLACK)
+      color = col
+      textSize = out.width / 8f
+      setShadowLayer(6f, 0f, 0f, Color.BLACK)
     }
     c.drawText(if (live) "LIVE" else "SPOOF", 20f, tp.textSize + 20f, tp)
     return out
   }
 
-  override fun onDestroy() { super.onDestroy(); executor.shutdown() }
+  override fun onDestroy() {
+      super.onDestroy()
+      executor.shutdown()
+  }
 }

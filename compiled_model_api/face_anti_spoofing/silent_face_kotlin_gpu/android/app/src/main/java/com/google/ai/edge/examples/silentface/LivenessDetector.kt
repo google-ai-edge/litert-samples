@@ -1,5 +1,5 @@
 /*
- * Copyright 2025 The Google AI Edge Authors. All Rights Reserved.
+ * Copyright 2026 The Google AI Edge Authors. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -34,11 +34,18 @@ import com.google.ai.edge.litert.TensorBuffer
  *
  * MiniFASNetV2 — pure CNN, fully on the GPU delegate (PReLU lowers to relu ops, zero patches).
  */
-class LivenessDetector(context: Context, modelFileName: String = "silentface.tflite") : AutoCloseable {
+class LivenessDetector(
+  context: Context,
+  modelFileName: String = "silentface.tflite",
+) : AutoCloseable {
 
-  companion object { private const val TAG = "SilentFace"; const val SIZE = 80 }
+  companion object {
+      private const val TAG = "SilentFace"
+      const val SIZE = 80
+  }
 
-  private val model = CompiledModel.create(context.assets, modelFileName, CompiledModel.Options(Accelerator.GPU), null)
+  private val model = CompiledModel.create(
+    context.assets, modelFileName, CompiledModel.Options(Accelerator.GPU), null)
   private val inBufs: List<TensorBuffer> = model.createInputBuffers()
   private val outBufs: List<TensorBuffer> = model.createOutputBuffers()
   private val inputFloats = FloatArray(3 * SIZE * SIZE)
@@ -67,5 +74,10 @@ class LivenessDetector(context: Context, modelFileName: String = "silentface.tfl
     return outBufs[0].readFloat() to ((System.nanoTime() - t) / 1_000_000)
   }
 
-  override fun close() { model.close(); if (!resized.isRecycled) resized.recycle() }
+  override fun close() {
+      model.close()
+      if (!resized.isRecycled) {
+        resized.recycle()
+      }
+  }
 }
