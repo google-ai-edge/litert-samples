@@ -1,4 +1,4 @@
-# Copyright 2025 The Google AI Edge Authors. All Rights Reserved.
+# Copyright 2026 The Google AI Edge Authors. All Rights Reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -36,7 +36,6 @@ import torch.nn as nn
 
 import build_matcha as B
 from e2e_matcha import LENGTH_SCALE, g2p_ids, generate_path, sequence_mask
-
 
 
 def host_pipeline_masked(text_enc, decoder, vocoder, t_embed, emb_w, ids,
