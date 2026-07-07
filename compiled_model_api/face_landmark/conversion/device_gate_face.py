@@ -52,15 +52,7 @@ def draw(kp,name):
 draw(decode(sx,sy),f"{HERE}/fc_torch.png")
 im.save(f"{HERE}/fc_in.png")
 print(f"input {x.shape}; 98 landmarks decoded")
-from ai_edge_litert.interpreter import Interpreter
-it=Interpreter(model_path=f"{HERE}/rtm_face_fp16.tflite")
-it.allocate_tensors()
-d=it.get_input_details()[0]
-it.set_tensor(d["index"],x.astype(d["dtype"]))
-it.invoke()
-od=it.get_output_details()
-o0=it.get_tensor(od[0]["index"])[0]
-o1=it.get_tensor(od[1]["index"])[0]
+o0,o1=(o[0] for o in B.run_tflite(f"{HERE}/rtm_face_fp16.tflite",x))
 csx=np.corrcoef(o0.ravel(),sx.ravel())[0,1]
 ox,oy=(o0,o1) if csx>0.9 else (o1,o0)
 print(f"desktop-fp16 corr sx {np.corrcoef(ox.ravel(),sx.ravel())[0,1]:.5f} sy {np.corrcoef(oy.ravel(),sy.ravel())[0,1]:.5f}; out0_is_sx {csx>0.9}")
