@@ -1,5 +1,5 @@
 /*
- * Copyright 2025 The Google AI Edge Authors. All Rights Reserved.
+ * Copyright 2026 The Google AI Edge Authors. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -42,8 +42,11 @@ class LaneDetector(modelPath: String) : AutoCloseable {
 
   companion object {
     private const val TAG = "UFLD"
-    const val W = 800; const val H = 288
-    const val GRIDING = 200; const val ROWS = 18; const val LANES = 4
+    const val W = 800
+    const val H = 288
+    const val GRIDING = 200
+    const val ROWS = 18
+    const val LANES = 4
     private val ROW_ANCHOR = intArrayOf(
       121, 131, 141, 150, 160, 170, 180, 189, 199, 209, 219, 228, 238, 248, 258, 267, 277, 287)
     private val MEAN = floatArrayOf(0.485f, 0.456f, 0.406f)
@@ -65,7 +68,9 @@ class LaneDetector(modelPath: String) : AutoCloseable {
   fun detect(bitmap: Bitmap): Pair<List<LanePoint>, Long> {
     val t = System.nanoTime()
     Canvas(resized).drawBitmap(
-      bitmap, matrix.apply { setScale(W.toFloat() / bitmap.width, H.toFloat() / bitmap.height) }, paint)
+      bitmap,
+      matrix.apply { setScale(W.toFloat() / bitmap.width, H.toFloat() / bitmap.height) },
+      paint)
     resized.getPixels(pixels, 0, W, 0, 0, W, H)
     val plane = W * H
     for (i in 0 until plane) {
@@ -82,16 +87,22 @@ class LaneDetector(modelPath: String) : AutoCloseable {
     val colStep = (W - 1f) / (GRIDING - 1)
     for (lane in 0 until LANES) {
       for (row in 0 until ROWS) {
-        var maxV = -Float.MAX_VALUE; var maxIdx = 0
+        var maxV = -Float.MAX_VALUE
+        var maxIdx = 0
         for (g in 0..GRIDING) {
           val v = o[((g * ROWS) + row) * LANES + lane]
-          if (v > maxV) { maxV = v; maxIdx = g }
+          if (v > maxV) {
+              maxV = v
+              maxIdx = g
+          }
         }
         if (maxIdx == GRIDING) continue   // no lane at this row
-        var sum = 0f; var wsum = 0f
+        var sum = 0f
+        var wsum = 0f
         for (g in 0 until GRIDING) {
           val e = exp(o[((g * ROWS) + row) * LANES + lane] - maxV)
-          sum += e; wsum += e * (g + 1)
+          sum += e
+          wsum += e * (g + 1)
         }
         val col = wsum / sum
         pts.add(LanePoint(lane, ((col - 1) * colStep) / W, ROW_ANCHOR[row].toFloat() / H))
@@ -102,6 +113,8 @@ class LaneDetector(modelPath: String) : AutoCloseable {
 
   override fun close() {
     model.close()
-    if (!resized.isRecycled) resized.recycle()
+    if (!resized.isRecycled) {
+      resized.recycle()
+    }
   }
 }

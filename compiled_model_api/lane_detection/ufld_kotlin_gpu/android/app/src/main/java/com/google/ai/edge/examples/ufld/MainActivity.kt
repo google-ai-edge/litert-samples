@@ -1,5 +1,5 @@
 /*
- * Copyright 2025 The Google AI Edge Authors. All Rights Reserved.
+ * Copyright 2026 The Google AI Edge Authors. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -43,10 +43,15 @@ class MainActivity : AppCompatActivity() {
 
   override fun onCreate(savedInstanceState: Bundle?) {
     super.onCreate(savedInstanceState)
-    val status = TextView(this).apply { textSize = 15f; setPadding(28, 40, 28, 20) }
+    val status = TextView(this).apply {
+        textSize = 15f
+        setPadding(28, 40, 28, 20)
+    }
     val imageView = ImageView(this).apply { adjustViewBounds = true }
     setContentView(LinearLayout(this).apply {
-      orientation = LinearLayout.VERTICAL; addView(status); addView(imageView)
+      orientation = LinearLayout.VERTICAL
+      addView(status)
+      addView(imageView)
     })
 
     executor.execute {
@@ -55,7 +60,8 @@ class MainActivity : AppCompatActivity() {
         runOnUiThread {
           status.text = "Model not found at:\n${modelFile.absolutePath}\n\n" +
             "Push it first:  ./install_to_device.sh <dir-with-ufld.tflite>\n" +
-            "(build with ../conversion or download from\n litert-community/Ultra-Fast-Lane-Detection-LiteRT)"
+            "(build with ../conversion or download from\n" +
+            " litert-community/Ultra-Fast-Lane-Detection-LiteRT)"
         }
         return@execute
       }
@@ -64,7 +70,8 @@ class MainActivity : AppCompatActivity() {
         val (points, ms) = det.detect(input)
         val out = draw(input, points)
         runOnUiThread {
-          status.text = "UFLD  ·  lane detection  ·  CompiledModel GPU  ·  ${ms} ms  ·  ${points.size} points"
+          status.text =
+            "UFLD  ·  lane detection  ·  CompiledModel GPU  ·  ${ms} ms  ·  ${points.size} points"
           imageView.setImageBitmap(out)
         }
       }
@@ -83,5 +90,8 @@ class MainActivity : AppCompatActivity() {
     return out
   }
 
-  override fun onDestroy() { super.onDestroy(); executor.shutdown() }
+  override fun onDestroy() {
+      super.onDestroy()
+      executor.shutdown()
+  }
 }
