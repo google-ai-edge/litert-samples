@@ -80,23 +80,33 @@ class MlsdDetector(ctx: Context) : Closeable {
             loop@ while (dy <= 1) {
                 var dx = -1
                 while (dx <= 1) {
-                    val ny = y + dy; val nx = x + dx
+                    val ny = y + dy
+                    val nx = x + dx
                     if ((dy != 0 || dx != 0) && ny in 0 until OUT && nx in 0 until OUT) {
-                        if (sigmoid(out[ny * OUT + nx]) > c) { isMax = false; break@loop }
+                        if (sigmoid(out[ny * OUT + nx]) > c) {
+                            isMax = false
+                            break@loop
+                        }
                     }
                     dx++
                 }
                 dy++
             }
-            if (isMax) { cand.add(intArrayOf(y, x)); scores.add(c) }
+            if (isMax) {
+                cand.add(intArrayOf(y, x))
+                scores.add(c)
+            }
         }
         val order = scores.indices.sortedByDescending { scores[it] }.take(200)
-        val sx = scaleW / SIZE; val sy = scaleH / SIZE     // tpMap*2 -> 512, then -> display
+        val sx = scaleW / SIZE
+        val sy = scaleH / SIZE     // tpMap*2 -> 512, then -> display
         val lines = ArrayList<Line>()
         for (idx in order) {
             val (y, x) = cand[idx]
-            val dxs = out[1 * o + y * OUT + x]; val dys = out[2 * o + y * OUT + x]
-            val dxe = out[3 * o + y * OUT + x]; val dye = out[4 * o + y * OUT + x]
+            val dxs = out[1 * o + y * OUT + x]
+            val dys = out[2 * o + y * OUT + x]
+            val dxe = out[3 * o + y * OUT + x]
+            val dye = out[4 * o + y * OUT + x]
             if (hypot((dxs - dxe).toDouble(), (dys - dye).toDouble()) <= distThr) continue
             lines.add(Line((x + dxs) * 2 * sx, (y + dys) * 2 * sy, (x + dxe) * 2 * sx, (y + dye) * 2 * sy, scores[idx]))
         }
@@ -105,5 +115,9 @@ class MlsdDetector(ctx: Context) : Closeable {
 
     private fun sigmoid(v: Float) = 1f / (1f + exp(-v))
 
-    override fun close() { inBuf.forEach { it.close() }; outBuf.forEach { it.close() }; model.close() }
+    override fun close() {
+        inBuf.forEach { it.close() }
+        outBuf.forEach { it.close() }
+        model.close()
+    }
 }

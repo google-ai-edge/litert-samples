@@ -52,16 +52,24 @@ class MainActivity : Activity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        val root = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(24, 80, 24, 24) }
-        status = TextView(this).apply { textSize = 15f; text = "Loading M-LSD on GPU…" }
+        val root = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(24, 80, 24, 24)
+        }
+        status = TextView(this).apply {
+            textSize = 15f
+            text = "Loading M-LSD on GPU…"
+        }
         val pick = Button(this).apply {
-            text = "🖼  Pick image"; isEnabled = false
+            text = "🖼  Pick image"
+            isEnabled = false
             setOnClickListener {
                 startActivityForResult(Intent(Intent.ACTION_GET_CONTENT).apply { type = "image/*" }, pickReq)
             }
         }
         lineView = LineView(this)
-        root.addView(status); root.addView(pick)
+        root.addView(status)
+        root.addView(pick)
         root.addView(lineView, LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, 1000))
         setContentView(root)
 
@@ -76,7 +84,10 @@ class MainActivity : Activity() {
                 runOnUiThread { pick.isEnabled = true }
             } catch (e: Throwable) {
                 Log.e(tag, "load failed", e)
-                runOnUiThread { status.setBackgroundColor(Color.rgb(0xFF, 0xCD, 0xD2)); status.text = "FAIL: ${e.message}" }
+                runOnUiThread {
+                    status.setBackgroundColor(Color.rgb(0xFF, 0xCD, 0xD2))
+                    status.text = "FAIL: ${e.message}"
+                }
             }
         }
     }
@@ -88,7 +99,10 @@ class MainActivity : Activity() {
         runOnUiThread { status.text = "Detecting lines…" }
         bg.execute {
             try { run(squareResize(loadOriented(uri)), warm = false) }
-            catch (e: Throwable) { Log.e(tag, "detect failed", e); runOnUiThread { status.text = "Failed: ${e.message}" } }
+            catch (e: Throwable) {
+                Log.e(tag, "detect failed", e)
+                runOnUiThread { status.text = "Failed: ${e.message}" }
+            }
         }
     }
 
@@ -103,7 +117,8 @@ class MainActivity : Activity() {
         runOnUiThread {
             status.setBackgroundColor(Color.rgb(0xC8, 0xE6, 0xC9))
             status.text = "On-device GPU line detection ✓  ${ms} ms  ·  ${lines.size} segments  ·  M-LSD-tiny, CompiledModel GPU"
-            lineView.set(img, lines); lineView.invalidate()
+            lineView.set(img, lines)
+            lineView.invalidate()
         }
     }
 
@@ -128,32 +143,47 @@ class MainActivity : Activity() {
     }
 
     private fun bitmapToRgb(bm: Bitmap): FloatArray {
-        val n = bm.width * bm.height; val px = IntArray(n)
+        val n = bm.width * bm.height
+        val px = IntArray(n)
         bm.getPixels(px, 0, bm.width, 0, 0, bm.width, bm.height)
         val out = FloatArray(n * 3)
         for (i in 0 until n) {
             val p = px[i]
-            out[i * 3] = ((p shr 16) and 0xFF).toFloat(); out[i * 3 + 1] = ((p shr 8) and 0xFF).toFloat()
+            out[i * 3] = ((p shr 16) and 0xFF).toFloat()
+            out[i * 3 + 1] = ((p shr 8) and 0xFF).toFloat()
             out[i * 3 + 2] = (p and 0xFF).toFloat()
         }
         return out
     }
 
-    override fun onDestroy() { super.onDestroy(); bg.shutdown(); net?.close() }
+    override fun onDestroy() {
+        super.onDestroy()
+        bg.shutdown()
+        net?.close()
+    }
 
     class LineView(ctx: Context) : View(ctx) {
         private var bm: Bitmap? = null
         private var lines: List<MlsdDetector.Line> = emptyList()
-        private val paint = Paint().apply { color = Color.rgb(255, 40, 40); strokeWidth = 3f; isAntiAlias = true }
+        private val paint = Paint().apply {
+            color = Color.rgb(255, 40, 40)
+            strokeWidth = 3f
+            isAntiAlias = true
+        }
         private val imgPaint = Paint().apply { isFilterBitmap = true }
 
-        fun set(b: Bitmap, l: List<MlsdDetector.Line>) { bm = b; lines = l }
+        fun set(b: Bitmap, l: List<MlsdDetector.Line>) {
+            bm = b
+            lines = l
+        }
 
         override fun onDraw(canvas: Canvas) {
             val b = bm ?: return
             val s = min(width.toFloat() / b.width, height.toFloat() / b.height)
-            val w = b.width * s; val h = b.height * s
-            val ox = (width - w) / 2; val oy = (height - h) / 2
+            val w = b.width * s
+            val h = b.height * s
+            val ox = (width - w) / 2
+            val oy = (height - h) / 2
             canvas.drawBitmap(b, null, android.graphics.RectF(ox, oy, ox + w, oy + h), imgPaint)
             for (l in lines) canvas.drawLine(ox + l.x1 * s, oy + l.y1 * s, ox + l.x2 * s, oy + l.y2 * s, paint)
         }
