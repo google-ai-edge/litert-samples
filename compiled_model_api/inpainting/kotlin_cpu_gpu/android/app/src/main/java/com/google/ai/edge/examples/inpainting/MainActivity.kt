@@ -39,9 +39,10 @@ import java.util.concurrent.Executors
 import kotlin.math.min
 
 /**
- * MI-GAN object-removal ("magic eraser") demo, fully on the CompiledModel GPU. Paint over what you want to
- * remove, tap Erase, and the masked region is inpainted on device. Works on a bundled image and any image
- * picked from the gallery.
+ * MI-GAN object-removal ("magic eraser") demo, fully on the
+ * CompiledModel GPU. Paint over what you want to remove, tap Erase, and
+ * the masked region is inpainted on device. Works on a bundled image
+ * and any image picked from the gallery.
  */
 class MainActivity : Activity() {
 
@@ -67,7 +68,12 @@ class MainActivity : Activity() {
         val pick = Button(this).apply {
             text = "🖼 Pick"
             isEnabled = false
-            setOnClickListener { startActivityForResult(Intent(Intent.ACTION_GET_CONTENT).apply { type = "image/*" }, pickReq) }
+            setOnClickListener {
+                val intent = Intent(Intent.ACTION_GET_CONTENT).apply {
+                    type = "image/*"
+                }
+                startActivityForResult(intent, pickReq)
+            }
         }
         val erase = Button(this).apply {
             text = "✨ Erase"
@@ -81,12 +87,22 @@ class MainActivity : Activity() {
             }
         }
         listOf(pick, erase, reset).forEach {
-            row.addView(it, LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f))
+            row.addView(
+                it,
+                LinearLayout.LayoutParams(
+                    0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f
+                )
+            )
         }
         canvasView = DrawView(this)
         root.addView(status)
         root.addView(row)
-        root.addView(canvasView, LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, 980))
+        root.addView(
+            canvasView,
+            LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT, 980
+            )
+        )
         setContentView(root)
 
         bg.execute {
@@ -99,7 +115,10 @@ class MainActivity : Activity() {
                         status.text = "Paint over an object, then tap ✨ Erase."
                     }
                 } catch (_: java.io.IOException) {
-                    runOnUiThread { status.text = "Ready — pick an image, paint a region, tap Erase." }
+                    runOnUiThread {
+                        status.text =
+                            "Ready — pick an image, paint a region, tap Erase."
+                    }
                 }
                 runOnUiThread { pick.isEnabled = true }
             } catch (e: Throwable) {
@@ -144,7 +163,9 @@ class MainActivity : Activity() {
                 Log.i(tag, "inpaint ${ms}ms")
                 runOnUiThread {
                     status.setBackgroundColor(Color.rgb(0xC8, 0xE6, 0xC9))
-                    status.text = "On-device GPU inpaint ✓  ${ms} ms  ·  MI-GAN, CompiledModel GPU"
+                    status.text =
+                        "On-device GPU inpaint ✓  ${ms} ms  ·  " +
+                            "MI-GAN, CompiledModel GPU"
                     canvasView.setImage(out, isOriginal = false)
                     canvasView.clearStrokes()
                 }
@@ -154,7 +175,9 @@ class MainActivity : Activity() {
     }
 
     private fun loadOriented(uri: Uri): Bitmap {
-        val bm = contentResolver.openInputStream(uri).use { BitmapFactory.decodeStream(it) } ?: error("cannot decode image")
+        val bm = contentResolver.openInputStream(uri).use {
+            BitmapFactory.decodeStream(it)
+        } ?: error("cannot decode image")
         val rot = contentResolver.openInputStream(uri).use {
             when (ExifInterface(it!!).getAttributeInt(ExifInterface.TAG_ORIENTATION, 1)) {
                 ExifInterface.ORIENTATION_ROTATE_90 -> 90f
@@ -164,7 +187,10 @@ class MainActivity : Activity() {
             }
         }
         if (rot == 0f) return bm
-        return Bitmap.createBitmap(bm, 0, 0, bm.width, bm.height, Matrix().apply { postRotate(rot) }, true)
+        return Bitmap.createBitmap(
+            bm, 0, 0, bm.width, bm.height,
+            Matrix().apply { postRotate(rot) }, true
+        )
     }
 
     private fun squareResize(src: Bitmap): Bitmap {
@@ -179,10 +205,14 @@ class MainActivity : Activity() {
         net?.close()
     }
 
-    /** Shows a SIZE×SIZE image and lets the user paint a mask (the region to erase) with a finger. */
+    /**
+     * Shows a SIZE×SIZE image and lets the user paint a mask (the region
+     * to erase) with a finger.
+     */
     class DrawView(ctx: Context) : View(ctx) {
         private val S = MiganInpainter.SIZE
-        private var image: Bitmap? = null      // current working image (original or inpainted result)
+        // current working image (original or inpainted result)
+        private var image: Bitmap? = null
         private var original: Bitmap? = null   // the last-loaded image (for Reset)
         private val strokes = ArrayList<Path>()
         private var cur: Path? = null
@@ -225,7 +255,10 @@ class MainActivity : Activity() {
             val ix = (e.x - ox()) / s
             val iy = (e.y - oy()) / s
             when (e.action) {
-                MotionEvent.ACTION_DOWN -> { cur = Path().apply { moveTo(ix, iy) }.also { strokes.add(it) } }
+                MotionEvent.ACTION_DOWN -> {
+                    cur = Path().apply { moveTo(ix, iy) }
+                        .also { strokes.add(it) }
+                }
                 MotionEvent.ACTION_MOVE -> cur?.lineTo(ix, iy)
                 MotionEvent.ACTION_UP -> cur = null
             }
@@ -246,7 +279,10 @@ class MainActivity : Activity() {
             canvas.restore()
         }
 
-        /** Rasterize the painted strokes to a SIZE×SIZE mask: 1 = keep, 0 = erase. null if nothing painted. */
+        /**
+         * Rasterize the painted strokes to a SIZE×SIZE mask: 1 = keep,
+         * 0 = erase. null if nothing painted.
+         */
         fun buildMask(): FloatArray? {
             if (strokes.isEmpty()) return null
             val mb = Bitmap.createBitmap(S, S, Bitmap.Config.ARGB_8888)
@@ -265,7 +301,10 @@ class MainActivity : Activity() {
             }
             val px = IntArray(S * S)
             mb.getPixels(px, 0, S, 0, 0, S, S)
-            val mask = FloatArray(S * S) { if ((px[it] and 0xFF) > 127) 0f else 1f }  // white(painted)->0 erase
+            // white(painted)->0 erase
+            val mask = FloatArray(S * S) {
+                if ((px[it] and 0xFF) > 127) 0f else 1f
+            }
             mb.recycle()
             return mask
         }
