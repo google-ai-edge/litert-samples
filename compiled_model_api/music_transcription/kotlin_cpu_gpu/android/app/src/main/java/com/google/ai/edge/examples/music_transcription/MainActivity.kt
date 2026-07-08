@@ -84,13 +84,17 @@ class MainActivity : Activity() {
         root.addView(summary)
         setContentView(ScrollView(this).apply { addView(root) })
 
-        if (checkSelfPermission(Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED)
+        if (checkSelfPermission(Manifest.permission.RECORD_AUDIO) !=
+                PackageManager.PERMISSION_GRANTED)
             requestPermissions(arrayOf(Manifest.permission.RECORD_AUDIO), 1)
 
         bg.execute {
             try {
                 transcriber = Transcriber(this)
-                runOnUiThread { status.text = "Ready — play some notes and record, or pick a clip." }
+                runOnUiThread {
+                    status.text =
+                        "Ready — play some notes and record, or pick a clip."
+                }
             } catch (e: Throwable) {
                 Log.e(tag, "load", e)
                 runOnUiThread {
@@ -122,7 +126,8 @@ class MainActivity : Activity() {
             recording = false
             return
         }
-        if (checkSelfPermission(Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
+        if (checkSelfPermission(Manifest.permission.RECORD_AUDIO) !=
+                PackageManager.PERMISSION_GRANTED) {
             status.text = "Microphone permission needed."
             return
         }
@@ -131,10 +136,12 @@ class MainActivity : Activity() {
         status.text = "● Recording (up to ${maxSeconds}s)…"
         bg.execute {
             val sr = Transcriber.SR
-            val min = AudioRecord.getMinBufferSize(sr, AudioFormat.CHANNEL_IN_MONO, AudioFormat.ENCODING_PCM_FLOAT)
+            val min = AudioRecord.getMinBufferSize(
+                sr, AudioFormat.CHANNEL_IN_MONO, AudioFormat.ENCODING_PCM_FLOAT)
             // Buffer size is in BYTES and must be a multiple of the 4-byte float frame;
             // reserve at least one second (sr frames * 4 bytes).
-            val recd = AudioRecord(MediaRecorder.AudioSource.UNPROCESSED, sr, AudioFormat.CHANNEL_IN_MONO,
+            val recd = AudioRecord(
+                MediaRecorder.AudioSource.UNPROCESSED, sr, AudioFormat.CHANNEL_IN_MONO,
                 AudioFormat.ENCODING_PCM_FLOAT, maxOf(min, sr * Float.SIZE_BYTES))
             val out = FloatArray(sr * maxSeconds)
             var total = 0
@@ -142,7 +149,9 @@ class MainActivity : Activity() {
                 recd.startRecording()
                 val buf = FloatArray(2205)
                 while (recording && total < out.size) {
-                    val r = recd.read(buf, 0, minOf(buf.size, out.size - total), AudioRecord.READ_BLOCKING)
+                    val r = recd.read(
+                        buf, 0, minOf(buf.size, out.size - total),
+                        AudioRecord.READ_BLOCKING)
                     if (r > 0) {
                         System.arraycopy(buf, 0, out, total, r)
                         total += r
@@ -168,7 +177,9 @@ class MainActivity : Activity() {
         Log.i(tag, "transcribed ${x.size / Transcriber.SR}s in ${ms}ms: ${events.size} notes")
         runOnUiThread {
             status.setBackgroundColor(Color.rgb(0xC8, 0xE6, 0xC9))
-            status.text = "✓ ${events.size} notes from ${x.size / Transcriber.SR}s in ${ms / 1000.0}s · Basic Pitch, CompiledModel GPU"
+            status.text =
+                "✓ ${events.size} notes from ${x.size / Transcriber.SR}s " +
+                    "in ${ms / 1000.0}s · Basic Pitch, CompiledModel GPU"
             roll.set(events, x.size.toDouble() / Transcriber.SR)
             summary.text = events.take(24).joinToString("  ") {
                 "${roll.noteName(it.midi)}@%.1fs".format(it.startSec)

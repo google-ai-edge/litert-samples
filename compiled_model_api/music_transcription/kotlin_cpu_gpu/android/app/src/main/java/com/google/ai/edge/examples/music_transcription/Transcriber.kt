@@ -52,7 +52,10 @@ class Transcriber(ctx: Context) : Closeable {
     private val outBuf = model.createOutputBuffers()
 
     /** pcm mono 22 050 Hz -> full-track note/onset posteriorgrams [framesTotal][88]. */
-    fun posteriorgrams(pcm: FloatArray, onProgress: (Int, Int) -> Unit): Pair<Array<FloatArray>, Array<FloatArray>> {
+    fun posteriorgrams(
+        pcm: FloatArray,
+        onProgress: (Int, Int) -> Unit
+    ): Pair<Array<FloatArray>, Array<FloatArray>> {
         val nWin = if (pcm.size <= N_SAMPLES) 1 else 1 + ((pcm.size - N_SAMPLES) + HOP - 1) / HOP
         // official stitching: keep the CENTER frames of each window (drop overlap/2 at joints)
         val framesTotal = (pcm.size.toDouble() / FFT_HOP).toInt() + 1
@@ -99,7 +102,9 @@ class Transcriber(ctx: Context) : Closeable {
                 } else if (on) {
                     if (note[t][k] < frameTh) {
                         if (t - active[k] >= minFrames)
-                            events.add(Note(active[k] * FRAME_SEC, t * FRAME_SEC, k + MIDI_OFFSET, peak[k]))
+                            events.add(Note(
+                                active[k] * FRAME_SEC, t * FRAME_SEC,
+                                k + MIDI_OFFSET, peak[k]))
                         active[k] = -1
                     } else if (note[t][k] > peak[k]) peak[k] = note[t][k]
                 }
