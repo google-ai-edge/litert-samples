@@ -19,7 +19,8 @@ to this script as Silent-Face-Anti-Spoofing/ (the released checkpoint ships in
 its resources/anti_spoof_models/). Zero graph patches needed (PReLU is clean).
 
 Run: python build_silentface.py
-  # -> silentface.tflite ([1,3,80,80] -> [1,3] live/print/replay probs) + ref fixtures
+  # -> silentface.tflite ([1,3,80,80] -> [1,3] live/print/replay probs)
+  #    + ref fixtures
 """
 import os
 import sys
@@ -28,7 +29,8 @@ import numpy as np
 import torch
 import torch.nn as nn
 
-REPO = os.path.join(os.path.dirname(os.path.abspath(__file__)), "Silent-Face-Anti-Spoofing")
+REPO = os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                    "Silent-Face-Anti-Spoofing")
 sys.path.insert(0, REPO)
 from src.model_lib.MiniFASNet import MiniFASNetV2
 from src.utility import get_kernel
@@ -46,11 +48,13 @@ class Wrap(nn.Module):
 
 
 def main():
+    """Builds silentface.tflite from the released MiniFASNetV2 weights."""
     kernel = get_kernel(80, 80)   # (5,5)
     net = MiniFASNetV2(conv6_kernel=kernel, num_classes=3).eval()
     # load weights (repo strips 'module.' prefix)
     sd = torch.load(
-        os.path.join(REPO, "resources", "anti_spoof_models", "2.7_80x80_MiniFASNetV2.pth"),
+        os.path.join(REPO, "resources", "anti_spoof_models",
+                     "2.7_80x80_MiniFASNetV2.pth"),
         map_location="cpu")
     if next(iter(sd)).startswith('module.'):
         sd = {k[7:]: v for k, v in sd.items()}
