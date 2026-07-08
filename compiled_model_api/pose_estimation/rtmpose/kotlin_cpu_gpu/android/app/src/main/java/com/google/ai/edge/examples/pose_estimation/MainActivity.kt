@@ -36,9 +36,10 @@ import android.widget.TextView
 import java.util.concurrent.Executors
 
 /**
- * RTMPose-s 2D human pose demo, fully on the CompiledModel GPU. Top-down: center-crops the image to a
- * 192x256 (3:4) person box, estimates 17 COCO keypoints, and draws the skeleton. Works on a bundled image
- * at launch and any image picked from the gallery.
+ * RTMPose-s 2D human pose demo, fully on the CompiledModel GPU.
+ * Top-down: center-crops the image to a 192x256 (3:4) person box,
+ * estimates 17 COCO keypoints, and draws the skeleton. Works on a
+ * bundled image at launch and any image picked from the gallery.
  */
 class MainActivity : Activity() {
 
@@ -70,13 +71,21 @@ class MainActivity : Activity() {
             text = "🖼  Pick image"
             isEnabled = false
             setOnClickListener {
-                startActivityForResult(Intent(Intent.ACTION_GET_CONTENT).apply { type = "image/*" }, pickReq)
+                val intent = Intent(Intent.ACTION_GET_CONTENT).apply {
+                    type = "image/*"
+                }
+                startActivityForResult(intent, pickReq)
             }
         }
         poseView = PoseView(this)
         root.addView(status)
         root.addView(pick)
-        root.addView(poseView, LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, 960))
+        root.addView(
+            poseView,
+            LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT, 960
+            )
+        )
         setContentView(root)
 
         bg.execute {
@@ -84,7 +93,11 @@ class MainActivity : Activity() {
                 net = RtmPoseEstimator(this)
                 // Optional bundled demo image; if absent just wait for a picked image.
                 try {
-                    val bundled = cropPerson(BitmapFactory.decodeStream(assets.open("test_image.jpg")))
+                    val bundled = cropPerson(
+                        BitmapFactory.decodeStream(
+                            assets.open("test_image.jpg")
+                        )
+                    )
                     run(bundled, warm = true)
                 } catch (_: java.io.IOException) {
                     runOnUiThread { status.text = "Ready — pick an image to estimate pose." }
@@ -127,14 +140,18 @@ class MainActivity : Activity() {
         Log.i(tag, "estimate ${ms}ms visible=$visible/17")
         runOnUiThread {
             status.setBackgroundColor(Color.rgb(0xC8, 0xE6, 0xC9))
-            status.text = "On-device GPU pose ✓  ${ms} ms  ·  $visible/17 keypoints  ·  RTMPose-s, CompiledModel GPU"
+            status.text =
+                "On-device GPU pose ✓  ${ms} ms  ·  $visible/17 keypoints  ·  " +
+                    "RTMPose-s, CompiledModel GPU"
             poseView.set(crop, kpts, skeleton)
             poseView.invalidate()
         }
     }
 
     private fun loadOriented(uri: Uri): Bitmap {
-        val bm = contentResolver.openInputStream(uri).use { BitmapFactory.decodeStream(it) } ?: error("cannot decode image")
+        val bm = contentResolver.openInputStream(uri).use {
+            BitmapFactory.decodeStream(it)
+        } ?: error("cannot decode image")
         val rot = contentResolver.openInputStream(uri).use {
             when (ExifInterface(it!!).getAttributeInt(ExifInterface.TAG_ORIENTATION, 1)) {
                 ExifInterface.ORIENTATION_ROTATE_90 -> 90f
@@ -144,7 +161,10 @@ class MainActivity : Activity() {
             }
         }
         if (rot == 0f) return bm
-        return Bitmap.createBitmap(bm, 0, 0, bm.width, bm.height, Matrix().apply { postRotate(rot) }, true)
+        return Bitmap.createBitmap(
+            bm, 0, 0, bm.width, bm.height,
+            Matrix().apply { postRotate(rot) }, true
+        )
     }
 
     /** Center-crop to the model's 3:4 (192x256) aspect, then resize. */

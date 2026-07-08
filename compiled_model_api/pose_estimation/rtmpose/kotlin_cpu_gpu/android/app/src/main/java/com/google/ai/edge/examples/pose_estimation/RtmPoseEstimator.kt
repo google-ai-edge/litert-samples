@@ -26,11 +26,14 @@ import java.io.File
  * RTMPose-s (mmpose, CSPNeXt + RTMCC/SimCC head) 2D human pose on the LiteRT CompiledModel GPU.
  *   image[1,3,256,192] (ImageNet 0-255 normalized) -> simcc_x[1,17,384], simcc_y[1,17,512]
  *
- * Top-down: expects a single person, roughly centered, in a 192x256 (WxH) crop. SimCC decodes each of the
- * 17 COCO keypoints by argmax over its 1D x/y bins (bins = pixels x split=2). ~4 ms on a Pixel 8a, fully GPU.
+ * Top-down: expects a single person, roughly centered, in a 192x256
+ * (WxH) crop. SimCC decodes each of the 17 COCO keypoints by argmax over
+ * its 1D x/y bins (bins = pixels x split=2). ~4 ms on a Pixel 8a, fully
+ * GPU.
  *
  * Two GPU re-authorings (both numerically exact, baked into the .tflite):
- *  - RTMCC ScaleNorm (RMS): its input reaches ~|274|, so sum(x^2) overflows fp16 (65504) on the Mali delegate
+ *  - RTMCC ScaleNorm (RMS): its input reaches ~|274|, so sum(x^2)
+ *    overflows fp16 (65504) on the Mali delegate
  *    -> norm=inf -> x/inf=0 (all-zero head). Fixed by scaling x down before squaring (SafeRMSNorm).
  *  - GAU attention act@act BMM -> broadcast-multiply + reduce-sum (Mali mis-computes act@act BMM).
  */

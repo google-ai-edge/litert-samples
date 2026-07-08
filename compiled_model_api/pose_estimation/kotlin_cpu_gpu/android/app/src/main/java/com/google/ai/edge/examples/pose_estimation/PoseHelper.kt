@@ -48,7 +48,10 @@ class PoseHelper(private val context: Context) {
     get() = _poses
 
   private val _poses =
-    MutableSharedFlow<PoseResult>(extraBufferCapacity = 64, onBufferOverflow = BufferOverflow.DROP_OLDEST)
+    MutableSharedFlow<PoseResult>(
+      extraBufferCapacity = 64,
+      onBufferOverflow = BufferOverflow.DROP_OLDEST
+    )
 
   val error: SharedFlow<Throwable?>
     get() = _error
