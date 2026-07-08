@@ -12,7 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Emit device probe fixture: probe_input.bin (inputs_embeds) + ref_out.npy (CPU wrapper).
+"""Emit device probe fixture: probe_input.bin (inputs_embeds) +
+ref_out.npy (CPU wrapper).
 
 Run: python make_fixture.py
 """
@@ -30,16 +31,20 @@ SENT = "The capital of France is Paris."
 
 
 def main():
-    base = AutoModel.from_pretrained(MODEL_DIR, torch_dtype=torch.float32).eval()
+    """Writes probe_input.bin, ref_out.npy, and meta.txt fixtures."""
+    base = AutoModel.from_pretrained(
+        MODEL_DIR, torch_dtype=torch.float32).eval()
     tok = AutoTokenizer.from_pretrained(MODEL_DIR)
-    enc = tok(SENT, return_tensors="pt", padding="max_length", truncation=True, max_length=L)
+    enc = tok(SENT, return_tensors="pt", padding="max_length",
+              truncation=True, max_length=L)
     real_len = int(enc.attention_mask.sum())
     with torch.no_grad():
         embeds = base.embed_tokens(enc.input_ids)       # [1,L,1024] host lookup
         net = Qwen3EmbGPU(base, L, 28).eval()
         out = net(embeds)                                # [1,L,1024]
 
-    embeds[0].numpy().astype("<f4").tofile(os.path.join(HERE, "probe_input.bin"))
+    embeds[0].numpy().astype("<f4").tofile(
+        os.path.join(HERE, "probe_input.bin"))
     np.save(os.path.join(HERE, "ref_out.npy"), out[0].numpy())
     with open(os.path.join(HERE, "meta.txt"), "w") as f:
         f.write(f"real_len={real_len}\nL={L}\nsent={SENT}\n")

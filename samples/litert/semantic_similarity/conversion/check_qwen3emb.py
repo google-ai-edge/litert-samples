@@ -23,35 +23,59 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 FP32 = os.path.join(HERE, "qwen3emb_gpu.tflite")
 FP16 = os.path.join(HERE, "qwen3emb_gpu_fp16.tflite")
 
-BANNED = {"GATHER", "GATHER_ND", "TOPK_V2", "GELU", "ERF", "WHERE", "SELECT", "SELECT_V2",
-          "BROADCAST_TO", "POW", "TRANSPOSE_CONV", "CAST", "EMBEDDING_LOOKUP", "PACK",
-          "RFFT2D", "FFT", "STFT", "COMPLEX", "RFFT", "IRFFT", "CUMSUM", "SPLIT", "SPLIT_V",
+BANNED = {"GATHER", "GATHER_ND", "TOPK_V2", "GELU", "ERF", "WHERE",
+          "SELECT", "SELECT_V2", "BROADCAST_TO", "POW", "TRANSPOSE_CONV",
+          "CAST", "EMBEDDING_LOOKUP", "PACK", "RFFT2D", "FFT", "STFT",
+          "COMPLEX", "RFFT", "IRFFT", "CUMSUM", "SPLIT", "SPLIT_V",
           "NOT_EQUAL", "EQUAL", "GREATER", "LESS"}
 
 
 def opcheck(path, label):
-    """Static GPU-compat scan: read the op set straight from the .tflite flatbuffer."""
+    """Static GPU-compat scan of the op set in the .tflite flatbuffer.
+
+    Args:
+        path: Path to the .tflite file to scan.
+        label: Tag prepended to the printed report lines.
+
+    Returns:
+        True when no banned op or >4-D tensor is present.
+    """
     from ai_edge_litert import schema_py_generated as schema
     with open(path, "rb") as f:
         model = schema.ModelT.InitFromPackedBuf(f.read(), 0)
-    names = {v: k for k, v in vars(schema.BuiltinOperator).items() if not k.startswith("_")}
+    names = {v: k for k, v in vars(schema.BuiltinOperator).items()
+             if not k.startswith("_")}
     ops = collections.Counter()
     over = 0
     for g in model.subgraphs:
         for op in g.operators:
             c = model.operatorCodes[op.opcodeIndex]
             code = max(c.builtinCode, c.deprecatedBuiltinCode)
-            ops[c.customCode.decode() if c.customCode else names.get(code, str(code))] += 1
-        over += sum(1 for t in g.tensors if t.shape is not None and len(t.shape) > 4)
+            ops[c.customCode.decode() if c.customCode
+                else names.get(code, str(code))] += 1
+        over += sum(1 for t in g.tensors
+                    if t.shape is not None and len(t.shape) > 4)
     bad = {k: v for k, v in ops.items() if k.upper() in BANNED}
-    print(f"[{label}] nodes:{sum(ops.values())} banned:{bad or 'NONE'} >4D:{over} "
+    print(f"[{label}] nodes:{sum(ops.values())} "
+          f"banned:{bad or 'NONE'} >4D:{over} "
           f"size {os.path.getsize(path)/1e6:.1f}MB")
     print(f"[{label}] ops: {dict(sorted(ops.items(), key=lambda kv: -kv[1]))}")
-    print(f"[{label}] VERDICT:", "GPU-CLEAN" if not bad and not over else f"BLOCKERS {bad} >4D:{over}")
+    print(f"[{label}] VERDICT:",
+          "GPU-CLEAN" if not bad and not over
+          else f"BLOCKERS {bad} >4D:{over}")
     return not bad and not over
 
 
 def to_fp16(fp32, fp16):
+    """fp16 weights via AI Edge Quantizer FLOAT_CASTING.
+
+    Args:
+        fp32: Source fp32 .tflite path.
+        fp16: Destination fp16 .tflite path.
+
+    Returns:
+        The fp16 path.
+    """
     from ai_edge_quantizer import quantizer, recipe_manager
     from ai_edge_quantizer.recipe import AlgorithmName, qtyping
     rm = recipe_manager.RecipeManager()
