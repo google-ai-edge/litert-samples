@@ -86,9 +86,10 @@ class YolactSegmenter(context: Context, modelPath: String) : AutoCloseable {
     val b = context.assets.open("priors.bin").use { it.readBytes() }
     val fb = java.nio.ByteBuffer.wrap(b).order(java.nio.ByteOrder.LITTLE_ENDIAN).asFloatBuffer()
     priors = FloatArray(fb.limit()).also { fb.get(it) }
+    val priorCount = priors.size / 4
     Log.i(
       TAG,
-      "GPU compiled OK — loc=$iLoc conf=$iConf mask=$iMask proto=$iProto, priors=${priors.size / 4}")
+      "GPU compiled OK — loc=$iLoc conf=$iConf mask=$iMask proto=$iProto, priors=$priorCount")
   }
 
   fun segment(bitmap: Bitmap): Pair<List<Instance>, Long> {
