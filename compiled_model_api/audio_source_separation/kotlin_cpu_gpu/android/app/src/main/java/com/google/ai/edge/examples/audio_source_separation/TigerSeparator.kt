@@ -60,7 +60,9 @@ class TigerSeparator(private val ctx: Context) : Closeable {
      * @return stems in STEMS order, each the same length as pcm
      */
     fun separate(pcm: FloatArray, onProgress: (String, Int, Int) -> Unit): List<FloatArray> {
-        val nChunks = if (pcm.size <= CHUNK) 1 else 1 + ((pcm.size - CHUNK) + HOP_CHUNK - 1) / HOP_CHUNK
+        val nChunks =
+            if (pcm.size <= CHUNK) 1
+            else 1 + ((pcm.size - CHUNK) + HOP_CHUNK - 1) / HOP_CHUNK
         val stems = ArrayList<FloatArray>(3)
         for (stem in STEMS) {
             val out = FloatArray(pcm.size)

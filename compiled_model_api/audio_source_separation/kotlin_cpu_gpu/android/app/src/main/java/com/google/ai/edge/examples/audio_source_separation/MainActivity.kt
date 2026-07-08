@@ -107,14 +107,17 @@ class MainActivity : Activity() {
         }
         setContentView(root)
 
-        if (checkSelfPermission(Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED)
+        if (checkSelfPermission(Manifest.permission.RECORD_AUDIO)
+            != PackageManager.PERMISSION_GRANTED)
             requestPermissions(arrayOf(Manifest.permission.RECORD_AUDIO), 1)
 
         bg.execute {
             try {
                 sep = TigerSeparator(this)
                 // fail fast if models are missing
-                runOnUiThread { status.text = "Ready — pick a clip (movie scene, game, vlog…) to separate." }
+                runOnUiThread {
+                    status.text = "Ready — pick a clip (movie scene, game, vlog…) to separate."
+                }
             } catch (e: Throwable) {
                 runOnUiThread {
                     status.setBackgroundColor(Color.rgb(0xFF, 0xCD, 0xD2))
@@ -148,7 +151,8 @@ class MainActivity : Activity() {
             recording = false
             return
         }
-        if (checkSelfPermission(Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
+        if (checkSelfPermission(Manifest.permission.RECORD_AUDIO)
+            != PackageManager.PERMISSION_GRANTED) {
             status.text = "Microphone permission needed."
             return
         }
@@ -157,7 +161,8 @@ class MainActivity : Activity() {
         status.text = "● Recording (up to 15 s)…"
         bg.execute {
             val sr = TigerSeparator.SR
-            val min = AudioRecord.getMinBufferSize(sr, AudioFormat.CHANNEL_IN_MONO, AudioFormat.ENCODING_PCM_FLOAT)
+            val min = AudioRecord.getMinBufferSize(
+                sr, AudioFormat.CHANNEL_IN_MONO, AudioFormat.ENCODING_PCM_FLOAT)
             val recd = AudioRecord(MediaRecorder.AudioSource.MIC, sr, AudioFormat.CHANNEL_IN_MONO,
                 AudioFormat.ENCODING_PCM_FLOAT, maxOf(min, sr * 2))
             val out = FloatArray(sr * 15)
@@ -166,7 +171,8 @@ class MainActivity : Activity() {
                 recd.startRecording()
                 val buf = FloatArray(4410)
                 while (recording && total < out.size) {
-                    val r = recd.read(buf, 0, minOf(buf.size, out.size - total), AudioRecord.READ_BLOCKING)
+                    val r = recd.read(buf, 0, minOf(buf.size, out.size - total),
+                        AudioRecord.READ_BLOCKING)
                     if (r > 0) {
                         System.arraycopy(buf, 0, out, total, r)
                         total += r
@@ -201,7 +207,8 @@ class MainActivity : Activity() {
         runOnUiThread {
             progress.visibility = android.view.View.GONE
             status.setBackgroundColor(Color.rgb(0xC8, 0xE6, 0xC9))
-            status.text = "Separated ${pcm.size / TigerSeparator.SR}s in ${ms / 1000.0}s · TIGER-DnR, CompiledModel GPU"
+            status.text = "Separated ${pcm.size / TigerSeparator.SR}s in ${ms / 1000.0}s" +
+                " · TIGER-DnR, CompiledModel GPU"
             setStemsEnabled(true)
         }
     }
@@ -217,9 +224,11 @@ class MainActivity : Activity() {
             else -> stems?.getOrNull(TigerSeparator.STEMS.indexOf(key))
         } ?: return
         val track = AudioTrack.Builder()
-            .setAudioAttributes(AudioAttributes.Builder().setUsage(AudioAttributes.USAGE_MEDIA).build())
+            .setAudioAttributes(
+                AudioAttributes.Builder().setUsage(AudioAttributes.USAGE_MEDIA).build())
             .setAudioFormat(AudioFormat.Builder().setEncoding(AudioFormat.ENCODING_PCM_FLOAT)
-                .setSampleRate(TigerSeparator.SR).setChannelMask(AudioFormat.CHANNEL_OUT_MONO).build())
+                .setSampleRate(TigerSeparator.SR)
+                .setChannelMask(AudioFormat.CHANNEL_OUT_MONO).build())
             .setBufferSizeInBytes(data.size * 4)
             .setTransferMode(AudioTrack.MODE_STATIC)
             .build()
