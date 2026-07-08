@@ -14,10 +14,11 @@
 
 """Convert lightweight-OpenPose to LiteRT for this sample.
 
-The model is a MobileNet-based heatmap pose network. We export ONLY the final-stage
-keypoint heatmaps and do the keypoint decode (argmax) in Kotlin, so the graph stays
-pure-conv and fully GPU-resident -- unlike MoveNet's official tflite, whose baked-in
-decode (GATHER_ND) the GPU delegate can't run.
+The model is a MobileNet-based heatmap pose network. We export ONLY the
+final-stage keypoint heatmaps and do the keypoint decode (argmax) in Kotlin,
+so the graph stays pure-conv and fully GPU-resident -- unlike MoveNet's
+official tflite, whose baked-in decode (GATHER_ND) the GPU delegate can't
+run.
 
 Weights: Daniil-Osokin/lightweight-human-pose-estimation.pytorch (Apache-2.0).
 
@@ -44,7 +45,24 @@ WEIGHTS_URL = (
 )
 
 
-def conv(in_c, out_c, k=3, p=1, bn=True, dilation=1, stride=1, relu=True, bias=True):
+def conv(in_c, out_c, k=3, p=1, bn=True, dilation=1, stride=1, relu=True,
+         bias=True):
+    """Conv2d block: conv + optional BatchNorm2d + optional ReLU.
+
+    Args:
+        in_c: Input channels.
+        out_c: Output channels.
+        k: Kernel size.
+        p: Padding.
+        bn: Whether to append BatchNorm2d.
+        dilation: Conv dilation.
+        stride: Conv stride.
+        relu: Whether to append ReLU.
+        bias: Whether the conv has a bias.
+
+    Returns:
+        nn.Sequential of the assembled layers.
+    """
     m = [nn.Conv2d(in_c, out_c, k, stride, p, dilation, bias=bias)]
     if bn:
         m.append(nn.BatchNorm2d(out_c))
@@ -54,8 +72,23 @@ def conv(in_c, out_c, k=3, p=1, bn=True, dilation=1, stride=1, relu=True, bias=T
 
 
 def conv_dw(in_c, out_c, k=3, p=1, stride=1, dilation=1):
+    """Depthwise-separable conv block with BatchNorm2d + ReLU.
+
+    Args:
+        in_c: Input channels.
+        out_c: Output channels.
+        k: Depthwise kernel size.
+        p: Depthwise padding.
+        stride: Depthwise stride.
+        dilation: Depthwise dilation.
+
+    Returns:
+        nn.Sequential of depthwise conv + BN + ReLU + pointwise conv + BN
+        + ReLU.
+    """
     return nn.Sequential(
-        nn.Conv2d(in_c, in_c, k, stride, p, dilation=dilation, groups=in_c, bias=False),
+        nn.Conv2d(in_c, in_c, k, stride, p, dilation=dilation, groups=in_c,
+                  bias=False),
         nn.BatchNorm2d(in_c), nn.ReLU(inplace=True),
         nn.Conv2d(in_c, out_c, 1, 1, 0, bias=False),
         nn.BatchNorm2d(out_c), nn.ReLU(inplace=True),
@@ -63,8 +96,22 @@ def conv_dw(in_c, out_c, k=3, p=1, stride=1, dilation=1):
 
 
 def conv_dw_no_bn(in_c, out_c, k=3, p=1, stride=1, dilation=1):
+    """Depthwise-separable conv block with ELU and no BatchNorm.
+
+    Args:
+        in_c: Input channels.
+        out_c: Output channels.
+        k: Depthwise kernel size.
+        p: Depthwise padding.
+        stride: Depthwise stride.
+        dilation: Depthwise dilation.
+
+    Returns:
+        nn.Sequential of depthwise conv + ELU + pointwise conv + ELU.
+    """
     return nn.Sequential(
-        nn.Conv2d(in_c, in_c, k, stride, p, dilation=dilation, groups=in_c, bias=False),
+        nn.Conv2d(in_c, in_c, k, stride, p, dilation=dilation, groups=in_c,
+                  bias=False),
         nn.ELU(inplace=True),
         nn.Conv2d(in_c, out_c, 1, 1, 0, bias=False),
         nn.ELU(inplace=True),
@@ -75,8 +122,9 @@ class Cpm(nn.Module):
     def __init__(self, in_c, out_c):
         super().__init__()
         self.align = conv(in_c, out_c, k=1, p=0, bn=False)
-        self.trunk = nn.Sequential(conv_dw_no_bn(out_c, out_c), conv_dw_no_bn(out_c, out_c),
-                                    conv_dw_no_bn(out_c, out_c))
+        self.trunk = nn.Sequential(conv_dw_no_bn(out_c, out_c),
+                                   conv_dw_no_bn(out_c, out_c),
+                                   conv_dw_no_bn(out_c, out_c))
         self.conv = conv(out_c, out_c, bn=False)
 
     def forward(self, x):
@@ -87,9 +135,15 @@ class Cpm(nn.Module):
 class InitialStage(nn.Module):
     def __init__(self, nc, nh, npa):
         super().__init__()
-        self.trunk = nn.Sequential(conv(nc, nc, bn=False), conv(nc, nc, bn=False), conv(nc, nc, bn=False))
-        self.heatmaps = nn.Sequential(conv(nc, 512, k=1, p=0, bn=False), conv(512, nh, k=1, p=0, bn=False, relu=False))
-        self.pafs = nn.Sequential(conv(nc, 512, k=1, p=0, bn=False), conv(512, npa, k=1, p=0, bn=False, relu=False))
+        self.trunk = nn.Sequential(conv(nc, nc, bn=False),
+                                   conv(nc, nc, bn=False),
+                                   conv(nc, nc, bn=False))
+        self.heatmaps = nn.Sequential(
+            conv(nc, 512, k=1, p=0, bn=False),
+            conv(512, nh, k=1, p=0, bn=False, relu=False))
+        self.pafs = nn.Sequential(
+            conv(nc, 512, k=1, p=0, bn=False),
+            conv(512, npa, k=1, p=0, bn=False, relu=False))
 
     def forward(self, x):
         t = self.trunk(x)
@@ -100,7 +154,8 @@ class RefinementStageBlock(nn.Module):
     def __init__(self, in_c, out_c):
         super().__init__()
         self.initial = conv(in_c, out_c, k=1, p=0, bn=False)
-        self.trunk = nn.Sequential(conv(out_c, out_c), conv(out_c, out_c, dilation=2, p=2))
+        self.trunk = nn.Sequential(conv(out_c, out_c),
+                                   conv(out_c, out_c, dilation=2, p=2))
 
     def forward(self, x):
         i = self.initial(x)
@@ -110,9 +165,15 @@ class RefinementStageBlock(nn.Module):
 class RefinementStage(nn.Module):
     def __init__(self, in_c, out_c, nh, npa):
         super().__init__()
-        self.trunk = nn.Sequential(*[RefinementStageBlock(in_c if i == 0 else out_c, out_c) for i in range(5)])
-        self.heatmaps = nn.Sequential(conv(out_c, out_c, k=1, p=0, bn=False), conv(out_c, nh, k=1, p=0, bn=False, relu=False))
-        self.pafs = nn.Sequential(conv(out_c, out_c, k=1, p=0, bn=False), conv(out_c, npa, k=1, p=0, bn=False, relu=False))
+        self.trunk = nn.Sequential(
+            *[RefinementStageBlock(in_c if i == 0 else out_c, out_c)
+              for i in range(5)])
+        self.heatmaps = nn.Sequential(
+            conv(out_c, out_c, k=1, p=0, bn=False),
+            conv(out_c, nh, k=1, p=0, bn=False, relu=False))
+        self.pafs = nn.Sequential(
+            conv(out_c, out_c, k=1, p=0, bn=False),
+            conv(out_c, npa, k=1, p=0, bn=False, relu=False))
 
     def forward(self, x):
         t = self.trunk(x)
@@ -123,14 +184,17 @@ class PoseEstimationWithMobileNet(nn.Module):
     def __init__(self, num_refinement_stages=1, nc=128, nh=19, npa=38):
         super().__init__()
         self.model = nn.Sequential(
-            conv(3, 32, stride=2, bias=False), conv_dw(32, 64), conv_dw(64, 128, stride=2),
-            conv_dw(128, 128), conv_dw(128, 256, stride=2), conv_dw(256, 256), conv_dw(256, 512),
-            conv_dw(512, 512, dilation=2, p=2), conv_dw(512, 512), conv_dw(512, 512),
-            conv_dw(512, 512), conv_dw(512, 512))
+            conv(3, 32, stride=2, bias=False), conv_dw(32, 64),
+            conv_dw(64, 128, stride=2), conv_dw(128, 128),
+            conv_dw(128, 256, stride=2), conv_dw(256, 256),
+            conv_dw(256, 512), conv_dw(512, 512, dilation=2, p=2),
+            conv_dw(512, 512), conv_dw(512, 512), conv_dw(512, 512),
+            conv_dw(512, 512))
         self.cpm = Cpm(512, nc)
         self.initial_stage = InitialStage(nc, nh, npa)
         self.refinement_stages = nn.ModuleList(
-            [RefinementStage(nc + nh + npa, nc, nh, npa) for _ in range(num_refinement_stages)])
+            [RefinementStage(nc + nh + npa, nc, nh, npa)
+             for _ in range(num_refinement_stages)])
 
     def forward(self, x):
         backbone = self.cpm(self.model(x))
@@ -152,6 +216,11 @@ class PoseHeatmaps(nn.Module):
 
 
 def fp16_recipe():
+    """Builds the fp16-weights FLOAT_CASTING quantization recipe.
+
+    Returns:
+        The quantization recipe from the configured RecipeManager.
+    """
     rm = recipe_manager.RecipeManager()
     rm.add_quantization_config(
         regex=".*", operation_name=qtyping.TFLOperationName.ALL_SUPPORTED,
@@ -164,6 +233,7 @@ def fp16_recipe():
 
 
 def main():
+    """Converts lightweight-OpenPose to fp32 + fp16 .tflite files."""
     out_dir = sys.argv[1] if len(sys.argv) > 1 else "."
     size = int(sys.argv[2]) if len(sys.argv) > 2 else 256
     os.makedirs(out_dir, exist_ok=True)
@@ -177,7 +247,8 @@ def main():
     ck = torch.load(weights, map_location="cpu", weights_only=False)
     sd = ck["state_dict"] if "state_dict" in ck else ck
     sd = {k.replace("module.", ""): v for k, v in sd.items()}
-    net.load_state_dict(sd, strict=False)  # checkpoint has extra refinement stages
+    # checkpoint has extra refinement stages
+    net.load_state_dict(sd, strict=False)
     model = PoseHeatmaps(net).eval()
 
     nchw = torch.rand(1, 3, size, size)
