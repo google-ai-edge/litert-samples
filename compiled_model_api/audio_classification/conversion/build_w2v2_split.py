@@ -117,10 +117,10 @@ def main():
     fb = os.path.join(HERE, "w2v2_head.tflite")
     litert_torch.convert(fe, (x,)).export(fa)
     litert_torch.convert(hd, (feat,)).export(fb)
-    ia, ca = B.opcheck(fa, "frontend")
-    ib, cb = B.opcheck(fb, "head")
-    oa = B.tfl_run(ia, x.numpy())
-    ob = B.tfl_run(ib, feat.numpy())
+    ca = B.opcheck(fa, "frontend")
+    cb = B.opcheck(fb, "head")
+    oa = B.run_tflite(fa, x.numpy())
+    ob = B.run_tflite(fb, feat.numpy())
     print(f"frontend tflite vs torch corr "
           f"{np.corrcoef(oa.ravel(), feat.numpy().ravel())[0,1]:.6f}")
     print(f"head tflite vs torch corr "
