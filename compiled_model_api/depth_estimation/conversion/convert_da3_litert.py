@@ -12,33 +12,39 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Converts Depth Anything 3 (Small) monocular depth to a GPU-clean LiteRT .tflite.
+"""Converts Depth Anything 3 (Small) monocular depth to a GPU-clean
+LiteRT .tflite.
 
-Reproduces litert-community/Depth-Anything-3-Small/da3_small_gpu_fp16.tflite. DA3 is
-NOT GPU-clean out of the box; this applies exact, weights-verbatim rewrites so the
-DINOv2-RoPE backbone + DPT head ride the ML Drift GPU delegate:
+Reproduces litert-community/Depth-Anything-3-Small/da3_small_gpu_fp16.tflite.
+DA3 is NOT GPU-clean out of the box; this applies exact, weights-verbatim
+rewrites so the DINOv2-RoPE backbone + DPT head ride the ML Drift GPU
+delegate:
 
   * checkpoint key-prefix fix (strip the leading "model.")
   * C14  RoPE data-dependent int max_position -> constant table
-  * C12  fused-qkv 5D head-split -> separate q/k/v Linears, manual 4D attention
-  * LayerScale folded into the preceding Linear (else the token dim is mis-laid-out
-    on GPU: fully_connected {1,1,N,C} vs {N,1,1,C} -> compile fails)
-  * pos_embed bicubic-resized and baked to a constant (interpolating a constant
-    emits a runtime-less RESIZE_BILINEAR the delegate rejects)
-  * ConvTranspose2d -> zero-stuff nearest-upsample + Conv2d (exact ~1e-7; Pixel 8a
-    rejects TRANSPOSE_CONV)
-  * camera-token in-place index-assign -> torch.cat (else SELECT_V2 with a broadcast
-    'else' shape the delegate rejects)
+  * C12  fused-qkv 5D head-split -> separate q/k/v Linears, manual 4D
+    attention
+  * LayerScale folded into the preceding Linear (else the token dim is
+    mis-laid-out on GPU: fully_connected {1,1,N,C} vs {N,1,1,C} -> compile
+    fails)
+  * pos_embed bicubic-resized and baked to a constant (interpolating a
+    constant emits a runtime-less RESIZE_BILINEAR the delegate rejects)
+  * ConvTranspose2d -> zero-stuff nearest-upsample + Conv2d (exact ~1e-7;
+    Pixel 8a rejects TRANSPOSE_CONV)
+  * camera-token in-place index-assign -> torch.cat (else SELECT_V2 with a
+    broadcast 'else' shape the delegate rejects)
   * DPT head resize align_corners=True -> False (banned) + drop the UV sincos
     pos-embed-again (BROADCAST_TO)
 
-Measures depth corr vs the ORIGINAL (all-stock) model, op-checks the graph, then
-FP16-quantizes. Needs the upstream DA3 source on the path (clone
-github.com/ByteDance-Seed/Depth-Anything-3 and run this from its root so `src/` and
-`depth_anything_3` import).
+Measures depth corr vs the ORIGINAL (all-stock) model, op-checks the graph,
+then FP16-quantizes. Needs the upstream DA3 source on the path (clone
+github.com/ByteDance-Seed/Depth-Anything-3 and run this from its root so
+`src/` and `depth_anything_3` import).
 
-    pip install litert-torch ai-edge-quantizer torch timm safetensors huggingface_hub pillow
-    python convert_da3_litert.py [image] [H] [W]   # H,W default to the shipped 896x504
+    pip install litert-torch ai-edge-quantizer torch timm safetensors
+    pip install huggingface_hub pillow
+    # H,W default to the shipped 896x504
+    python convert_da3_litert.py [image] [H] [W]
 """
 
 import collections
@@ -78,7 +84,8 @@ from PIL import Image  # noqa: E402
 from huggingface_hub import hf_hub_download  # noqa: E402
 from safetensors.torch import load_file  # noqa: E402
 from depth_anything_3.cfg import create_object  # noqa: E402
-from depth_anything_3.model.dinov2.layers.attention import Attention  # noqa: E402
+from depth_anything_3.model.dinov2.layers.attention import (  # noqa: E402
+    Attention)
 import depth_anything_3.model.dinov2.layers.rope as _rope  # noqa: E402
 import depth_anything_3.model.dinov2.vision_transformer as _vt  # noqa: E402
 import depth_anything_3.model.utils.head_utils as _hu  # noqa: E402
@@ -96,9 +103,18 @@ def _rope_forward(self, tokens, positions):
     Stock RoPE computes max_position = int(positions.max()) + 1, which is
     data-dependent and aborts torch.export. A constant 128 covers the 33 rows a
     518 grid needs; extra table rows are unused -> numerically identical.
+
+    Args:
+        self: RotaryPositionEmbedding2D instance (patched onto the class).
+        tokens: Attention tokens [..., dim] to rotate.
+        positions: Patch (row, col) positions [..., 2].
+
+    Returns:
+        Tokens with 2D RoPE applied, same shape as `tokens`.
     """
     half_dim = tokens.size(-1) // 2
-    cos, sin = self._compute_frequency_components(half_dim, 128, tokens.device, tokens.dtype)
+    cos, sin = self._compute_frequency_components(
+        half_dim, 128, tokens.device, tokens.dtype)
     vertical, horizontal = tokens.chunk(2, dim=-1)
     vertical = self._apply_1d_rope(vertical, positions[..., 0], cos, sin)
     horizontal = self._apply_1d_rope(horizontal, positions[..., 1], cos, sin)
@@ -106,7 +122,17 @@ def _rope_forward(self, tokens, positions):
 
 
 def _attention_forward(self, x, pos=None, attn_mask=None):
-    """C12: manual 4D attention over the decomposed q/k/v Linears."""
+    """C12: manual 4D attention over the decomposed q/k/v Linears.
+
+    Args:
+        self: Attention module instance (patched onto the class).
+        x: Token tensor [B, N, C].
+        pos: Optional RoPE patch positions [..., 2].
+        attn_mask: Unused; kept for signature compatibility.
+
+    Returns:
+        Attention output [B, N, C].
+    """
     B, N, C = x.shape
     heads = self.num_heads
     head_dim = C // heads
@@ -119,11 +145,18 @@ def _attention_forward(self, x, pos=None, attn_mask=None):
         k = self.rope(k, pos)
     q = q * self.scale
     attn = (q @ k.transpose(-2, -1)).softmax(-1)
-    return self.proj_drop(self.proj((attn @ v).transpose(1, 2).reshape(B, N, C)))
+    return self.proj_drop(
+        self.proj((attn @ v).transpose(1, 2).reshape(B, N, C)))
 
 
 def decompose_qkv(net):
-    """C12: split each fused qkv Linear into separate q/k/v Linears (weights verbatim)."""
+    """C12: splits each fused qkv Linear into separate q/k/v Linears.
+
+    Weights are copied verbatim, so the decomposition is exact.
+
+    Args:
+        net: Model whose Attention modules get q_lin/k_lin/v_lin added.
+    """
     for mod in net.modules():
         if isinstance(mod, Attention):
             C = mod.qkv.in_features
@@ -140,15 +173,22 @@ def decompose_qkv(net):
 
 
 def bake_layerscale(model):
-    """Folds ls1/ls2 gamma into attn.proj / mlp.fc2 and replaces them with Identity.
+    """Folds ls1/ls2 gamma into attn.proj / mlp.fc2 (LayerScale -> Identity).
 
-    The LayerScale MUL (FC output [N,C] * gamma [C]) makes ML Drift mis-lay-out the
-    token dim ({1,1,1025,384} vs {1025,1,1,384}) -> GPU compile fails. Baking
-    eliminates the MUL. (MoGe's fix.)
+    The LayerScale MUL (FC output [N,C] * gamma [C]) makes ML Drift
+    mis-lay-out the token dim ({1,1,1025,384} vs {1025,1,1,384}) -> GPU
+    compile fails. Baking eliminates the MUL. (MoGe's fix.)
+
+    Args:
+        model: Model whose LayerScale modules are folded in place.
+
+    Returns:
+        Number of LayerScale modules baked.
     """
     count = 0
     for block in model.modules():
-        if hasattr(block, "ls1") and hasattr(block.ls1, "gamma") and hasattr(block, "attn"):
+        if (hasattr(block, "ls1") and hasattr(block.ls1, "gamma")
+                and hasattr(block, "attn")):
             gamma = block.ls1.gamma.data.squeeze()
             with torch.no_grad():
                 block.attn.proj.weight.data.mul_(gamma.unsqueeze(1))
@@ -156,7 +196,8 @@ def bake_layerscale(model):
                     block.attn.proj.bias.data.mul_(gamma)
             block.ls1 = nn.Identity()
             count += 1
-        if hasattr(block, "ls2") and hasattr(block.ls2, "gamma") and hasattr(block, "mlp"):
+        if (hasattr(block, "ls2") and hasattr(block.ls2, "gamma")
+                and hasattr(block, "mlp")):
             gamma = block.ls2.gamma.data.squeeze()
             last = None
             for child in reversed(list(block.mlp.children())):
@@ -181,9 +222,15 @@ def bake_pos_embed(net, grid_h, grid_w):
 
     Interpolating the constant pos_embed emits RESIZE_BILINEAR with 0 runtime
     inputs, which the GPU delegate rejects.
+
+    Args:
+        net: Model whose pos_embed-bearing module is patched in place.
+        grid_h: Patch-grid height (input H // 14).
+        grid_w: Patch-grid width (input W // 14).
     """
     for mod in net.modules():
-        if hasattr(mod, "interpolate_pos_encoding") and hasattr(mod, "pos_embed"):
+        if (hasattr(mod, "interpolate_pos_encoding")
+                and hasattr(mod, "pos_embed")):
             with torch.no_grad():
                 n_patches = mod.pos_embed.shape[1] - 1
                 side = int(math.sqrt(n_patches))
@@ -192,21 +239,37 @@ def bake_pos_embed(net, grid_h, grid_w):
                 cls_token = pe[:, 0]
                 patch = pe[:, 1:]
                 # bicubic = match official (baked const).
-                patch = F.interpolate(patch.reshape(1, side, side, dim).permute(0, 3, 1, 2),
-                                      size=(grid_h, grid_w), mode="bicubic", antialias=False)
+                patch = F.interpolate(
+                    patch.reshape(1, side, side, dim).permute(0, 3, 1, 2),
+                    size=(grid_h, grid_w), mode="bicubic", antialias=False)
                 patch = patch.permute(0, 2, 3, 1).view(1, -1, dim)
+                # [1, N+1, dim]
                 baked = torch.cat((cls_token.unsqueeze(0), patch),
-                                  dim=1).to(mod.pos_embed.dtype)  # [1, N+1, dim]
+                                  dim=1).to(mod.pos_embed.dtype)
             mod.register_buffer("_baked_pos", baked)
             mod.interpolate_pos_encoding = types.MethodType(
                 lambda self, x, w, h: self._baked_pos, mod)
 
 
-def _patched_get_intermediate_layers(self, x, n=1, export_feat_layers=(), **kwargs):
-    """SELECT_V2 fix: copy of _get_intermediate_layers_not_chunked with the camera-token
-    in-place index-assign `x[:, :, 0] = cam_token` replaced by an equivalent torch.cat
-    (exact, GPU-clean). alt_start must stay on — the camera-token / global-attn path
-    DOES affect mono depth."""
+def _patched_get_intermediate_layers(self, x, n=1, export_feat_layers=(),
+                                     **kwargs):
+    """SELECT_V2 fix: intermediate-layer walk without in-place index-assign.
+
+    Copy of _get_intermediate_layers_not_chunked with the camera-token
+    in-place index-assign `x[:, :, 0] = cam_token` replaced by an equivalent
+    torch.cat (exact, GPU-clean). alt_start must stay on — the camera-token /
+    global-attn path DOES affect mono depth.
+
+    Args:
+        self: DinoVisionTransformer instance (patched onto the class).
+        x: Image batch [B, S, 3, H, W].
+        n: Number (or iterable) of final blocks to take outputs from.
+        export_feat_layers: Block indices whose features are also returned.
+        **kwargs: Optional cam_token / attn_mask / ref_view_strategy.
+
+    Returns:
+        Tuple (output, aux_output) matching the stock implementation.
+    """
     B, S, _, H, W = x.shape
     x = self.prepare_tokens_with_masks(x)
     output, total_block_len, aux_output = [], len(self.blocks), []
@@ -243,8 +306,8 @@ def _patched_get_intermediate_layers(self, x, n=1, export_feat_layers=(), **kwar
             local_x = x
         if i in blocks_to_take:
             out_x = torch.cat([local_x, x], dim=-1) if self.cat_token else x
-            if (x.shape[1] >= _vt.THRESH_FOR_REF_SELECTION and self.alt_start != -1
-                    and "b_idx" in locals()):
+            if (x.shape[1] >= _vt.THRESH_FOR_REF_SELECTION
+                    and self.alt_start != -1 and "b_idx" in locals()):
                 out_x = _vt.restore_original_order(out_x, b_idx)
             output.append((out_x[:, :, 0], out_x))
         if i in export_feat_layers:
@@ -253,18 +316,23 @@ def _patched_get_intermediate_layers(self, x, n=1, export_feat_layers=(), **kwar
 
 
 class ZeroStuffConvT(nn.Module):
-    """Exact GPU-clean ConvTranspose2d(k=s, stride=s) replacement (Pixel 8a rejects
-    TRANSPOSE_CONV): zero-stuff (nearest-upsample x top-left constant mask) + Conv2d
-    with the flipped weight. Matches the learned upsampler to ~1e-7, so depth stays
-    as sharp as the original (a bilinear approximation blurred it)."""
+    """Exact GPU-clean ConvTranspose2d(k=s, stride=s) replacement.
+
+    Pixel 8a rejects TRANSPOSE_CONV. Zero-stuff (nearest-upsample x top-left
+    constant mask) + Conv2d with the flipped weight matches the learned
+    upsampler to ~1e-7, so depth stays as sharp as the original (a bilinear
+    approximation blurred it).
+    """
 
     def __init__(self, ct, height, width):
         super().__init__()
         self.stride = ct.stride[0]
         self.kernel = ct.kernel_size[0]
-        self.register_buffer("w", ct.weight.flip(2, 3).transpose(0, 1).contiguous())
-        self.register_buffer("b", ct.bias.detach().clone() if ct.bias is not None
-                             else torch.zeros(ct.out_channels))
+        self.register_buffer(
+            "w", ct.weight.flip(2, 3).transpose(0, 1).contiguous())
+        self.register_buffer(
+            "b", ct.bias.detach().clone() if ct.bias is not None
+            else torch.zeros(ct.out_channels))
         s = self.stride
         mask = np.zeros((height * s, width * s), np.float32)
         mask[::s, ::s] = 1.0
@@ -279,8 +347,14 @@ class ZeroStuffConvT(nn.Module):
 
 
 def swap_convtranspose(net, run_dummy):
-    """Discovers each ConvTranspose2d input size via a dry run, then swaps in the
-    exact ZeroStuffConvT equivalent."""
+    """Swaps each ConvTranspose2d for its exact ZeroStuffConvT equivalent.
+
+    Discovers each ConvTranspose2d input size via a dry run first.
+
+    Args:
+        net: Model whose ConvTranspose2d modules are replaced in place.
+        run_dummy: Zero-arg callable that runs one forward pass on net.
+    """
     ct_sizes, hooks = {}, []
 
     def make_hook(name):
@@ -309,18 +383,24 @@ def swap_convtranspose(net, run_dummy):
 
 
 def patch_dpt_head(net):
-    """DPT head: align_corners=True -> False (banned RESIZE_BILINEAR variant) and
-    drop the UV sincos pos-embed-again (make_sincos broadcast emits BROADCAST_TO).
+    """DPT head: align_corners=False resize + no UV sincos pos-embed-again.
 
-    Baking the UV sincos as constants matches official ~0.0002 better but adds
-    ~64 MB (full [1,C,H,W] per shape) — not worth it; the ratio-0.1 UV refinement
-    is negligible vs the size cost."""
+    align_corners=True is a banned RESIZE_BILINEAR variant, and the UV sincos
+    make_sincos broadcast emits BROADCAST_TO.
+
+    Baking the UV sincos as constants matches official ~0.0002 better but
+    adds ~64 MB (full [1,C,H,W] per shape) — not worth it; the ratio-0.1 UV
+    refinement is negligible vs the size cost.
+
+    Args:
+        net: Model whose DualDPT head modules are patched in place.
+    """
     original_interpolate = _hu.custom_interpolate
 
-    def interpolate_no_align_corners(x, size=None, scale_factor=None, mode="bilinear",
-                                     align_corners=True):
-        return original_interpolate(x, size=size, scale_factor=scale_factor, mode=mode,
-                                    align_corners=False)
+    def interpolate_no_align_corners(x, size=None, scale_factor=None,
+                                     mode="bilinear", align_corners=True):
+        return original_interpolate(x, size=size, scale_factor=scale_factor,
+                                    mode=mode, align_corners=False)
 
     _hu.custom_interpolate = interpolate_no_align_corners
     _dd.custom_interpolate = interpolate_no_align_corners
@@ -337,7 +417,11 @@ def patch_dpt_head(net):
 def opcheck(path):
     """Prints the banned-op / >4D report for the exported flatbuffer.
 
-    Static GPU-compat scan: reads the op set straight from the .tflite flatbuffer.
+    Static GPU-compat scan: reads the op set straight from the .tflite
+    flatbuffer.
+
+    Args:
+        path: Path of the .tflite file to scan.
     """
     from ai_edge_litert import schema_py_generated as schema
 
@@ -351,17 +435,26 @@ def opcheck(path):
         for op in g.operators:
             c = model.operatorCodes[op.opcodeIndex]
             code = max(c.builtinCode, c.deprecatedBuiltinCode)
-            ops[c.customCode.decode() if c.customCode else names.get(code, str(code))] += 1
-        over_4d += sum(1 for t in g.tensors if t.shape is not None and len(t.shape) > 4)
+            ops[c.customCode.decode() if c.customCode
+                else names.get(code, str(code))] += 1
+        over_4d += sum(1 for t in g.tensors
+                       if t.shape is not None and len(t.shape) > 4)
     bad = {k: v for k, v in ops.items() if k in BANNED}
     print(f"op-check FP32: banned {bad or 'NONE'} | >4D {over_4d} | "
           f"GELU {ops.get('GELU', 0)} | SELECT_V2 {ops.get('SELECT_V2', 0)}")
-    print("VERDICT:", "GPU-CLEAN" if not bad and not over_4d else "BLOCKERS REMAIN")
+    print("VERDICT:",
+          "GPU-CLEAN" if not bad and not over_4d else "BLOCKERS REMAIN")
 
 
 def quantize_fp16(fp32_path, fp16_path):
-    """FP16 weights via AI Edge Quantizer FLOAT_CASTING: half size, native on the
-    GPU delegate, FP32 == FP16 here."""
+    """FP16 weights via AI Edge Quantizer FLOAT_CASTING.
+
+    Half size, native on the GPU delegate, FP32 == FP16 here.
+
+    Args:
+        fp32_path: Input FP32 .tflite path.
+        fp16_path: Output FP16 .tflite path.
+    """
     from ai_edge_quantizer import quantizer, recipe_manager
     from ai_edge_quantizer.recipe import AlgorithmName, qtyping
 
@@ -384,7 +477,10 @@ def quantize_fp16(fp32_path, fp16_path):
 
 
 class Mono(nn.Module):
-    """Single-image wrapper: (1,3,H,W) -> depth map (backbone + DPT head only)."""
+    """Single-image wrapper: (1,3,H,W) -> depth map.
+
+    Uses the backbone + DPT head only.
+    """
 
     def __init__(self, net):
         super().__init__()
@@ -398,32 +494,35 @@ class Mono(nn.Module):
 
 
 def main():
+    """Converts DA3-Small, checks parity + GPU-cleanliness, quantizes."""
     # C14 RoPE patch must be in place before the first forward pass.
     _rope.RotaryPositionEmbedding2D.forward = _rope_forward
 
     with open(hf_hub_download("depth-anything/DA3-SMALL", "config.json")) as f:
         cfg = json.load(f)
     net = create_object(cfg["config"]).eval()
-    sd = load_file(hf_hub_download("depth-anything/DA3-SMALL", "model.safetensors"))
+    sd = load_file(
+        hf_hub_download("depth-anything/DA3-SMALL", "model.safetensors"))
     net.load_state_dict({(k[6:] if k.startswith("model.") else k): v
                          for k, v in sd.items()}, strict=False)
     mono = Mono(net).eval()
 
-    # Input H,W (multiples of 14). argv[2]=H, argv[3]=W. Default = the shipped
-    # 896x504 (portrait native aspect; DA3 runs at the image's native aspect, no
-    # padding — a square letterbox drops fidelity to corr ~0.977 as padding leaks
-    # through global attention).
+    # Input H,W (multiples of 14). argv[2]=H, argv[3]=W. Default = the
+    # shipped 896x504 (portrait native aspect; DA3 runs at the image's
+    # native aspect, no padding — a square letterbox drops fidelity to corr
+    # ~0.977 as padding leaks through global attention).
     height_in = int(sys.argv[2]) if len(sys.argv) > 2 else 896
     width_in = int(sys.argv[3]) if len(sys.argv) > 3 else 504
 
     # argv[1] image gives a meaningful depth-corr check; without one a random
     # tensor still validates eager parity + the GPU-clean op-check.
     if len(sys.argv) > 1 and os.path.isfile(sys.argv[1]):
-        img = Image.open(sys.argv[1]).convert("RGB").resize((width_in, height_in),
-                                                            Image.BILINEAR)
+        img = Image.open(sys.argv[1]).convert("RGB").resize(
+            (width_in, height_in), Image.BILINEAR)
         arr = ((np.asarray(img, np.float32) / 255.0 - [0.485, 0.456, 0.406])
                / [0.229, 0.224, 0.225])
-        x_img = torch.from_numpy(np.transpose(arr, (2, 0, 1))[None].astype(np.float32))
+        x_img = torch.from_numpy(
+            np.transpose(arr, (2, 0, 1))[None].astype(np.float32))
     else:
         print("no image given -> random input (op-check + eager parity only; "
               "depth corr not meaningful)")
@@ -462,7 +561,8 @@ def main():
 
     fp16_path = "da3_small_gpu_fp16.tflite"  # This is what the app downloads.
     quantize_fp16("da3_small_gpu.tflite", fp16_path)
-    print("FP16 size %.1f MB -> %s" % (os.path.getsize(fp16_path) / 1e6, fp16_path))
+    print("FP16 size %.1f MB -> %s"
+          % (os.path.getsize(fp16_path) / 1e6, fp16_path))
 
 
 if __name__ == "__main__":

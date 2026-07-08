@@ -12,7 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Convert MiDaS_small (monocular depth) to LiteRT for the depth_estimation sample.
+"""Convert MiDaS_small (monocular depth) to LiteRT for the
+depth_estimation sample.
 
 Self-contained: PyTorch -> litert-torch (channel-last NHWC I/O) -> fp16 weights,
 then prints the op histogram and a numerical fidelity check. The CNN MiDaS
@@ -34,17 +35,28 @@ import torch
 
 
 def convert(out_dir: str, size: int):
+    """Exports MiDaS_small to a fp32 .tflite with NHWC I/O.
+
+    Args:
+        out_dir: Directory the .tflite is written into.
+        size: Square input size (input tensor is [1, size, size, 3]).
+
+    Returns:
+        Tuple (fp32 path, NHWC input tensor, reference NCHW torch output).
+    """
     import litert_torch
 
     os.makedirs(out_dir, exist_ok=True)
-    model = torch.hub.load("intel-isl/MiDaS", "MiDaS_small", trust_repo=True).eval()
+    model = torch.hub.load(
+        "intel-isl/MiDaS", "MiDaS_small", trust_repo=True).eval()
 
     nchw = torch.randn(1, 3, size, size)
     with torch.no_grad():
         ref = model(nchw)  # native NCHW signature -> reference output
 
-    # Channel-last I/O so the exported model takes NHWC (1,H,W,3): GPU-friendlier
-    # and matches the interleaved-RGB input the Android sample feeds.
+    # Channel-last I/O so the exported model takes NHWC (1,H,W,3):
+    # GPU-friendlier and matches the interleaved-RGB input the Android
+    # sample feeds.
     clio = litert_torch.to_channel_last_io(model, args=[0])
     nhwc = nchw.permute(0, 2, 3, 1).contiguous()
     fp32 = os.path.join(out_dir, f"midas_small_{size}.tflite")
@@ -54,6 +66,12 @@ def convert(out_dir: str, size: int):
 
 
 def quantize_fp16(fp32: str, out: str):
+    """FP16-quantizes the fp32 model via AI Edge Quantizer FLOAT_CASTING.
+
+    Args:
+        fp32: Input fp32 .tflite path.
+        out: Output fp16 .tflite path.
+    """
     from ai_edge_quantizer import quantizer, recipe_manager
     from ai_edge_quantizer.recipe import AlgorithmName, qtyping
 
@@ -77,19 +95,28 @@ def quantize_fp16(fp32: str, out: str):
 
 
 def report(tflite: str, nhwc, ref):
+    """Prints the op histogram and a fidelity check vs the torch output.
+
+    Args:
+        tflite: Path of the .tflite to inspect and run.
+        nhwc: NHWC input tensor [1, size, size, 3] fed to the model.
+        ref: Reference torch output from the original NCHW model.
+    """
     from ai_edge_litert import schema_py_generated as schema
     from ai_edge_litert.compiled_model import CompiledModel
 
     # Op histogram straight from the .tflite flatbuffer (static scan).
     with open(tflite, "rb") as f:
         model_fb = schema.ModelT.InitFromPackedBuf(f.read(), 0)
-    names = {v: k for k, v in vars(schema.BuiltinOperator).items() if not k.startswith("_")}
+    names = {v: k for k, v in vars(schema.BuiltinOperator).items()
+             if not k.startswith("_")}
     hist = {}
     for g in model_fb.subgraphs:
         for op in g.operators:
             c = model_fb.operatorCodes[op.opcodeIndex]
             code = max(c.builtinCode, c.deprecatedBuiltinCode)
-            name = c.customCode.decode() if c.customCode else names.get(code, str(code))
+            name = (c.customCode.decode() if c.customCode
+                    else names.get(code, str(code)))
             hist[name] = hist.get(name, 0) + 1
     print("ops:", dict(sorted(hist.items(), key=lambda x: -x[1])))
 
@@ -105,10 +132,12 @@ def report(tflite: str, nhwc, ref):
     r = ref.numpy().astype("float64").reshape(-1)
     n = min(len(out), len(r))
     corr = float(np.corrcoef(out[:n], r[:n])[0, 1])
-    print(f"fidelity vs PyTorch: corr {corr:.7f}  max|diff| {np.max(np.abs(out[:n]-r[:n])):.2e}")
+    max_diff = np.max(np.abs(out[:n] - r[:n]))
+    print(f"fidelity vs PyTorch: corr {corr:.7f}  max|diff| {max_diff:.2e}")
 
 
 def main():
+    """Converts, reports on, and fp16-quantizes MiDaS_small."""
     out_dir = sys.argv[1] if len(sys.argv) > 1 else "out"
     size = int(sys.argv[2]) if len(sys.argv) > 2 else 256
     fp32, nhwc, ref = convert(out_dir, size)
