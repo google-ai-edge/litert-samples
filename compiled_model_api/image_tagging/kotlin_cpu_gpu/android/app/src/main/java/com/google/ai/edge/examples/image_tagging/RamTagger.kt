@@ -47,16 +47,20 @@ class RamTagger(private val ctx: Context) {
     check(it.exists()) { "Missing ${it.name}. Run install_to_device.sh first." }
   }
 
-  private val g1 = CompiledModel.create(f("ram_swin_s012_fp16.tflite").absolutePath, CompiledModel.Options(Accelerator.GPU), null)
+  private val g1 = CompiledModel.create(f("ram_swin_s012_fp16.tflite").absolutePath,
+    CompiledModel.Options(Accelerator.GPU), null)
   private val g1In = g1.createInputBuffers()
   private val g1Out = g1.createOutputBuffers()
-  private val c2 = CompiledModel.create(f("ram_stage3_tail_fp16.tflite").absolutePath, CompiledModel.Options(Accelerator.CPU), null)
+  private val c2 = CompiledModel.create(f("ram_stage3_tail_fp16.tflite").absolutePath,
+    CompiledModel.Options(Accelerator.CPU), null)
   private val c2In = c2.createInputBuffers()
   private val c2Out = c2.createOutputBuffers()
-  private val rw = CompiledModel.create(f("ram_reweight_fp16.tflite").absolutePath, CompiledModel.Options(Accelerator.CPU), null)
+  private val rw = CompiledModel.create(f("ram_reweight_fp16.tflite").absolutePath,
+    CompiledModel.Options(Accelerator.CPU), null)
   private val rwIn = rw.createInputBuffers()
   private val rwOut = rw.createOutputBuffers()
-  private val th = CompiledModel.create(f("ram_taghead_fp16.tflite").absolutePath, CompiledModel.Options(Accelerator.GPU), null)
+  private val th = CompiledModel.create(f("ram_taghead_fp16.tflite").absolutePath,
+    CompiledModel.Options(Accelerator.GPU), null)
   private val thIn = th.createInputBuffers()
   private val thOut = th.createOutputBuffers()
 

@@ -33,8 +33,8 @@ import java.util.concurrent.Executors
 
 /**
  * RAM++ multi-label image tagging. Pick a photo (or use the bundled sample) and get its tags. The
- * Swin encoder stages 0-2 and the Query2Label tag head run on the CompiledModel GPU; the fp16-fragile
- * deep Swin block and the 479 MB frozen tag bank run on CPU.
+ * Swin encoder stages 0-2 and the Query2Label tag head run on the CompiledModel GPU; the
+ * fp16-fragile deep Swin block and the 479 MB frozen tag bank run on CPU.
  */
 class MainActivity : Activity() {
 
