@@ -12,8 +12,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Extract every initializer from the official basic-pitch ONNX into bp_weights.npz,
-plus a readable manifest (name -> shape) for the torch re-implementation."""
+"""Extract every initializer from the official basic-pitch ONNX.
+
+Writes bp_weights.npz plus a readable manifest (name -> shape) for the
+torch re-implementation.
+"""
 import numpy as np
 import onnx
 from onnx import numpy_helper
@@ -37,6 +40,10 @@ with open("bp_consumers.txt", "w") as f:
     for n in g.node:
         used = [i for i in n.input if i in inits and weights[i].size >= 36]
         if used:
-            attrs = {a.name: list(a.ints) for a in n.attribute if a.name in ("strides", "pads", "kernel_shape")}
-            f.write(f"{n.op_type:>10} {n.name[-60:]:62} {attrs} {[ (u[-40:], list(weights[u].shape)) for u in used]}\n")
+            attrs = {
+                a.name: list(a.ints) for a in n.attribute
+                if a.name in ("strides", "pads", "kernel_shape")}
+            f.write(
+                f"{n.op_type:>10} {n.name[-60:]:62} {attrs} "
+                f"{[ (u[-40:], list(weights[u].shape)) for u in used]}\n")
 print("manifest + consumers written")
