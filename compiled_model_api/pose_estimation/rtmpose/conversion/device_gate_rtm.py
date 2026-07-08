@@ -50,23 +50,44 @@ np.save(HERE+"/rtm_sx.npy",sx)
 np.save(HERE+"/rtm_sy.npy",sy)
 img_np.tofile(HERE+"/rtm_input.bin")
 def decode(sx,sy):
+    """Decodes SimCC x/y logits into keypoints.
+
+    Args:
+        sx: SimCC x logits, shape [17, W].
+        sy: SimCC y logits, shape [17, H].
+
+    Returns:
+        Array [17, 3] of (x, y, confidence) per keypoint.
+    """
     xb=sx.argmax(1)/2.0
     yb=sy.argmax(1)/2.0  # split=2 -> pixel
     conf=(sx.max(1)+sy.max(1))/2
     return np.stack([xb,yb,conf],1)  # [17,3]
 kp=decode(sx,sy)
-SK=[(5,7),(7,9),(6,8),(8,10),(11,13),(13,15),(12,14),(14,16),(5,6),(11,12),(5,11),(6,12),(0,1),(0,2),(1,3),(2,4),(0,5),(0,6)]
+SK=[(5,7),(7,9),(6,8),(8,10),(11,13),(13,15),(12,14),(14,16),(5,6),
+    (11,12),(5,11),(6,12),(0,1),(0,2),(1,3),(2,4),(0,5),(0,6)]
 def draw(kp,name):
+    """Draws the skeleton and keypoints on the crop and saves it.
+
+    Args:
+        kp: Keypoint array [17, 3] of (x, y, confidence).
+        name: Output image file path.
+    """
     d=im.copy()
     dr=ImageDraw.Draw(d)
     for a,b in SK:
-        if kp[a,2]>0.3 and kp[b,2]>0.3: dr.line([tuple(kp[a,:2]),tuple(kp[b,:2])],fill=(0,255,0),width=3)
+        if kp[a,2]>0.3 and kp[b,2]>0.3:
+            dr.line([tuple(kp[a,:2]),tuple(kp[b,:2])],
+                    fill=(0,255,0),width=3)
     for x,y,c in kp:
-        if c>0.3: dr.ellipse([x-3,y-3,x+3,y+3],fill=(255,40,40))
+        if c>0.3:
+            dr.ellipse([x-3,y-3,x+3,y+3],fill=(255,40,40))
     d.save(name)
 draw(kp,HERE+"/rtm_torch.png")
-print(f"input {img_np.shape}; torch decoded {int((kp[:,2]>0.3).sum())}/17 kpts conf>0.3")
-# desktop fp16 parity through the LiteRT CompiledModel API (same API the sample app uses)
+n_kpts=int((kp[:,2]>0.3).sum())
+print(f"input {img_np.shape}; torch decoded {n_kpts}/17 kpts conf>0.3")
+# desktop fp16 parity through the LiteRT CompiledModel API (same API the
+# sample app uses)
 from ai_edge_litert.compiled_model import CompiledModel
 cm=CompiledModel.from_file(HERE+"/rtm_fp16.tflite")
 sig=cm.get_signature_list()
@@ -77,8 +98,13 @@ obuf=cm.create_output_buffers(0)
 ins[0].write(np.ascontiguousarray(img_np,dtype=np.float32))
 cm.run_by_index(0,ins,obuf)
 # match outputs by shape, as before
-outs={tuple(dets[n]["shape"]):obuf[i].read(int(np.prod(dets[n]["shape"])),np.float32).reshape(dets[n]["shape"])[0]
-      for i,n in enumerate(sig[key]["outputs"])}
+outs={
+    tuple(dets[n]["shape"]): obuf[i].read(
+        int(np.prod(dets[n]["shape"])),
+        np.float32).reshape(dets[n]["shape"])[0]
+    for i,n in enumerate(sig[key]["outputs"])}
 ox=outs[(1,17,384)]
 oy=outs[(1,17,512)]
-print(f"desktop-fp16 vs torch corr x {np.corrcoef(ox.ravel(),sx.ravel())[0,1]:.5f} y {np.corrcoef(oy.ravel(),sy.ravel())[0,1]:.5f}")
+corr_x=np.corrcoef(ox.ravel(),sx.ravel())[0,1]
+corr_y=np.corrcoef(oy.ravel(),sy.ravel())[0,1]
+print(f"desktop-fp16 vs torch corr x {corr_x:.5f} y {corr_y:.5f}")
