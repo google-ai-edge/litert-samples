@@ -12,12 +12,14 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Build GPU-compatible MODNet (trimap-free portrait matting) tflite via litert-torch.
+"""Build GPU-compatible MODNet (trimap-free portrait matting) tflite.
 
-Two GPU re-authoring patches:
-  1. SE block: Linear channel-attention -> 1x1 conv (avoids a NCHW/NHWC broadcast-mul mismatch).
-  2. IBNorm: InstanceNorm2d -> fp16-safe hierarchical-mean instance norm (the stock instance-norm
-     variance overflows fp16 over large spatial maps on the Mali GPU delegate, degrading the matte).
+Converted with litert-torch. Two GPU re-authoring patches:
+  1. SE block: Linear channel-attention -> 1x1 conv (avoids a NCHW/NHWC
+     broadcast-mul mismatch).
+  2. IBNorm: InstanceNorm2d -> fp16-safe hierarchical-mean instance norm
+     (the stock instance-norm variance overflows fp16 over large spatial
+     maps on the Mali GPU delegate, degrading the matte).
 
 Setup:
     pip install torch litert-torch huggingface_hub
@@ -25,7 +27,8 @@ Setup:
 
 Run:
     MODNET_REPO=./MODNet python build_modnet.py
-    # -> modnet.tflite  (26 MB, [1,3,512,512] -> [1,1,512,512] alpha, 0 banned ops)
+    # -> modnet.tflite  (26 MB, [1,3,512,512] -> [1,1,512,512] alpha,
+    #    0 banned ops)
 """
 import os
 import sys
@@ -40,8 +43,17 @@ from src.models.modnet import MODNet, SEBlock, IBNorm
 
 
 def _hier_mean(t):
-    """Exact global spatial mean via a cascade of /2 average-pools — magnitude-safe
-    (each stage averages 4 values) unlike one big SUM that overflows fp16 on Mali."""
+    """Exact global spatial mean via a cascade of /2 average-pools.
+
+    Magnitude-safe (each stage averages 4 values) unlike one big SUM that
+    overflows fp16 on Mali.
+
+    Args:
+        t: Input tensor (B, C, H, W).
+
+    Returns:
+        Tensor (B, C, 1, 1) holding the per-channel spatial mean.
+    """
     while t.shape[-1] > 1 or t.shape[-2] > 1:
         kh = 2 if t.shape[-2] > 1 else 1
         kw = 2 if t.shape[-1] > 1 else 1
@@ -50,7 +62,11 @@ def _hier_mean(t):
 
 
 def patch_se(se):
-    """Rewrite the SE block's Linear attention as 1x1 convs (GPU-friendly)."""
+    """Rewrite the SE block's Linear attention as 1x1 convs (GPU-friendly).
+
+    Args:
+        se: SEBlock module patched in place.
+    """
     lin1, lin2 = se.fc[0], se.fc[2]
     ci, cm, co = lin1.in_features, lin1.out_features, lin2.out_features
     c1 = nn.Conv2d(ci, cm, 1, bias=False)
@@ -62,7 +78,12 @@ def patch_se(se):
 
 
 def patch_ibnorm(ib, eps=1e-5):
-    """Replace InstanceNorm2d with the fp16-safe hierarchical-mean formulation."""
+    """Replace InstanceNorm2d with the fp16-safe hierarchical-mean form.
+
+    Args:
+        ib: IBNorm module patched in place.
+        eps: Variance epsilon of the instance-norm denominator.
+    """
     bc = ib.bnorm_channels
     def fwd(x):
         bn_x = ib.bnorm(x[:, :bc].contiguous())
@@ -86,11 +107,13 @@ class Wrap(nn.Module):
 
 
 def main():
+    """Loads MODNet weights, applies the GPU patches, exports .tflite."""
     ckpt = hf_hub_download("DavG25/modnet-pretrained-models",
                            "models/modnet_photographic_portrait_matting.ckpt")
     m = MODNet(backbone_pretrained=False).eval()
     sd = {k.replace("module.", ""): v
-          for k, v in torch.load(ckpt, map_location="cpu", weights_only=True).items()}
+          for k, v in torch.load(ckpt, map_location="cpu",
+                                 weights_only=True).items()}
     m.load_state_dict(sd)
     n_se = n_ib = 0
     for mod in m.modules():
@@ -103,8 +126,11 @@ def main():
     print(f"patched {n_se} SE blocks, {n_ib} IBNorms")
 
     import litert_torch
-    litert_torch.convert(Wrap(m).eval(), (torch.randn(1, 3, 512, 512),)).export("modnet.tflite")
-    print("saved modnet.tflite (%.1f MB)" % (os.path.getsize("modnet.tflite") / 1e6))
+    litert_torch.convert(
+        Wrap(m).eval(),
+        (torch.randn(1, 3, 512, 512),)).export("modnet.tflite")
+    print("saved modnet.tflite (%.1f MB)"
+          % (os.path.getsize("modnet.tflite") / 1e6))
 
 
 if __name__ == "__main__":
