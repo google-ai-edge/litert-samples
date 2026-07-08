@@ -28,8 +28,10 @@ class UiState(
 
 @Immutable
 data class Setting(
-    val model: ZeroShotImageClassificationHelper.Model = ZeroShotImageClassificationHelper.DEFAULT_MODEL,
-    val delegate: ZeroShotImageClassificationHelper.AcceleratorEnum = ZeroShotImageClassificationHelper.DEFAULT_DELEGATE,
+    val model: ZeroShotImageClassificationHelper.Model =
+        ZeroShotImageClassificationHelper.DEFAULT_MODEL,
+    val delegate: ZeroShotImageClassificationHelper.AcceleratorEnum =
+        ZeroShotImageClassificationHelper.DEFAULT_DELEGATE,
     val resultCount: Int = ZeroShotImageClassificationHelper.DEFAULT_RESULT_COUNT,
     val threshold: Float = ZeroShotImageClassificationHelper.DEFAULT_THRESHOLD,
     val threadCount: Int = ZeroShotImageClassificationHelper.DEFAULT_THREAD_COUNT

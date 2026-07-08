@@ -119,7 +119,10 @@ class MainViewModel(private val imageClassificationHelper: ZeroShotImageClassifi
         classificationJob?.cancel()
     }
 
-    /** Set [ZeroShotImageClassificationHelper.AcceleratorEnum] (CPU/GPU) for ZeroShotImageClassificationHelper*/
+    /**
+     * Set [ZeroShotImageClassificationHelper.AcceleratorEnum] (CPU/GPU) for
+     * ZeroShotImageClassificationHelper
+     */
     fun setAccelerator(delegate: ZeroShotImageClassificationHelper.AcceleratorEnum) {
         viewModelScope.launch {
             setting.update { it.copy(delegate = delegate) }

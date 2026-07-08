@@ -94,7 +94,8 @@ class MainActivity : ComponentActivity() {
             }
             // Register ActivityResult handler
             val galleryLauncher =
-                rememberLauncherForActivityResult(ActivityResultContracts.PickVisualMedia()) { uri ->
+                rememberLauncherForActivityResult(
+                    ActivityResultContracts.PickVisualMedia()) { uri ->
                     mediaUriState = uri ?: Uri.EMPTY
                 }
 
@@ -269,7 +270,8 @@ class MainActivity : ComponentActivity() {
             })
             Spacer(modifier = Modifier.height(20.dp))
             OptionMenu(label = stringResource(id = R.string.delegate),
-                options = ZeroShotImageClassificationHelper.AcceleratorEnum.entries.map { it.name }) {
+                options =
+                    ZeroShotImageClassificationHelper.AcceleratorEnum.entries.map { it.name }) {
                 onDelegateSelected(ZeroShotImageClassificationHelper.AcceleratorEnum.valueOf(it))
             }
             Spacer(modifier = Modifier.height(10.dp))
@@ -368,7 +370,8 @@ class MainActivity : ComponentActivity() {
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     RadioButton(
-                        colors = RadioButtonDefaults.colors(selectedColor = MaterialTheme.colors.primary),
+                        colors = RadioButtonDefaults.colors(
+                            selectedColor = MaterialTheme.colors.primary),
                         selected = (option == selectedOption),
                         onClick = {
                             if (selectedOption == option) return@RadioButton

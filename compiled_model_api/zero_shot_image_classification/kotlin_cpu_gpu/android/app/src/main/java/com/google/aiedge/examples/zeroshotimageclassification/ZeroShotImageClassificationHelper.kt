@@ -42,10 +42,11 @@ import kotlin.math.min
  * tower: Perception Encoder (PE-Core-B16-224, 1024-d) or SigLIP 2 (ViT-B/16, 768-d).
  *
  * The image encoder is converted with litert-torch and runs fully on the GPU delegate (LITERT_CL,
- * no CPU fallback). It maps an image to an L2-normalized embedding. Text embeddings for the candidate
- * labels are pre-computed on the host with the matching text encoder (prompt: "a photo of a {label}")
- * and bundled as a per-model binary asset, so no text model runs on device. The predicted label is
- * the one whose text embedding has the highest cosine similarity to the image embedding.
+ * no CPU fallback). It maps an image to an L2-normalized embedding. Text embeddings for the
+ * candidate labels are pre-computed on the host with the matching text encoder (prompt: "a photo
+ * of a {label}") and bundled as a per-model binary asset, so no text model runs on device. The
+ * predicted label is the one whose text embedding has the highest cosine similarity to the image
+ * embedding.
  */
 class ZeroShotImageClassificationHelper(
     private val context: Context,
@@ -132,7 +133,9 @@ class ZeroShotImageClassificationHelper(
                 Log.i(TAG, "Created CompiledModel from ${options.model.fileName}")
             }
         } catch (e: Exception) {
-            Log.e(TAG, "Failed to create CompiledModel from ${options.model.fileName}: ${e.message}")
+            Log.e(
+                TAG,
+                "Failed to create CompiledModel from ${options.model.fileName}: ${e.message}")
             _error.emit(e)
         }
     }
@@ -166,7 +169,9 @@ class ZeroShotImageClassificationHelper(
                 outputBuffers.forEach { it.close() }
 
                 val categories = scoreLabels(imageEmbedding)
-                    .map { if (it.score < options.probabilityThreshold) it.copy(score = 0f) else it }
+                    .map {
+                        if (it.score < options.probabilityThreshold) it.copy(score = 0f) else it
+                    }
                     .take(options.resultCount)
 
                 val inferenceTime = SystemClock.uptimeMillis() - startTime
