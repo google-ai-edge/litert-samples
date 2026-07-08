@@ -34,7 +34,8 @@ import kotlinx.coroutines.withContext
  * Real-ESRGAN ×4 super-resolution on LiteRT CompiledModel (CPU / GPU).
  *
  * Model = Real-ESRGAN realesr-general-x4v3 (SRVGGNetCompact, BSD-3) re-authored GPU-clean via
- * litert_torch: PReLU -> relu(x)-a*relu(-x), PixelShuffle -> one-hot ConvTranspose -> ZeroStuffConvT.
+ * litert_torch: PReLU -> relu(x)-a*relu(-x), PixelShuffle -> one-hot ConvTranspose ->
+ * ZeroStuffConvT.
  * Full LITERT_CL residency on the Pixel 8a (211/211 nodes, ~1 ms).
  *
  *   input : images [1, 128, 128, 3]  NHWC, RGB, 0-1 float (no normalization)
@@ -106,7 +107,10 @@ class SuperResolutionHelper(
 
     fun setOptions(options: Options) { this.options = options }
 
-    /** Resize [bitmap] to one 128×128 tile, ×4 super-resolve, emit the 512×512 result + bicubic baseline. */
+    /**
+     * Resize [bitmap] to one 128×128 tile, ×4 super-resolve, emit the 512×512 result +
+     * bicubic baseline.
+     */
     suspend fun superResolve(bitmap: Bitmap) {
         try {
             withContext(singleThreadDispatcher) {
@@ -139,7 +143,8 @@ class SuperResolutionHelper(
                     outPixels[i] = Color.argb(255, r, g, b)
                 }
                 val sr = Bitmap.createBitmap(outPixels, OUT, OUT, Bitmap.Config.ARGB_8888)
-                val bicubic = Bitmap.createScaledBitmap(tile, OUT, OUT, true) // before (bilinear ×4)
+                // before (bilinear ×4)
+                val bicubic = Bitmap.createScaledBitmap(tile, OUT, OUT, true)
                 if (isActive) {
                     _result.emit(Result(sr, bicubic, inferenceTime))
                 }

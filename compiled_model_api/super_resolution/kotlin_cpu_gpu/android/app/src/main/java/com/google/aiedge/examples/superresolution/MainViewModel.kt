@@ -43,7 +43,8 @@ class MainViewModel(private val helper: SuperResolutionHelper) : ViewModel() {
     private val setting = MutableStateFlow(Setting()).apply {
         viewModelScope.launch {
             collect {
-                helper.setOptions(SuperResolutionHelper.Options(model = it.model, delegate = it.delegate))
+                helper.setOptions(
+                    SuperResolutionHelper.Options(model = it.model, delegate = it.delegate))
                 helper.initModel()
             }
         }

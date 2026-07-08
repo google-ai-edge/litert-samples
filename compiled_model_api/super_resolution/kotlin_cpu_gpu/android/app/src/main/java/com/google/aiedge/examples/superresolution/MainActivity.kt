@@ -97,7 +97,8 @@ class MainActivity : ComponentActivity() {
 
             LaunchedEffect(uiState.errorMessage) {
                 if (uiState.errorMessage != null) {
-                    Toast.makeText(this@MainActivity, "${uiState.errorMessage}", Toast.LENGTH_SHORT).show()
+                    Toast.makeText(
+                        this@MainActivity, "${uiState.errorMessage}", Toast.LENGTH_SHORT).show()
                     viewModel.errorMessageShown()
                 }
             }
@@ -105,13 +106,16 @@ class MainActivity : ComponentActivity() {
             ApplicationTheme {
                 BottomSheetScaffold(
                     sheetPeekHeight = 130.dp,
-                    sheetContent = { BottomSheet(uiState, onDelegate = { viewModel.setAccelerator(it) }) },
+                    sheetContent = {
+                        BottomSheet(uiState, onDelegate = { viewModel.setAccelerator(it) })
+                    },
                     floatingActionButton = {
                         FloatingActionButton(
                             backgroundColor = MaterialTheme.colors.secondary, shape = CircleShape,
                             onClick = {
                                 galleryLauncher.launch(
-                                    PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
+                                    PickVisualMediaRequest(
+                                        ActivityResultContracts.PickVisualMedia.ImageOnly)
                                 )
                             },
                         ) { Icon(Icons.Filled.Add, contentDescription = "Pick image") }
@@ -166,7 +170,10 @@ class MainActivity : ComponentActivity() {
                     }
                 }
         ) {
-            Image(before.asImageBitmap(), "bicubic", Modifier.fillMaxSize(), contentScale = ContentScale.Fit)
+            Image(
+                before.asImageBitmap(), "bicubic", Modifier.fillMaxSize(),
+                contentScale = ContentScale.Fit,
+            )
             Image(
                 after.asImageBitmap(), "Real-ESRGAN",
                 Modifier
@@ -182,18 +189,28 @@ class MainActivity : ComponentActivity() {
                     .drawWithContent {
                         drawContent()
                         val x = size.width * frac
-                        drawLine(Color.White, Offset(x, 0f), Offset(x, size.height), strokeWidth = 4f)
+                        drawLine(
+                            Color.White, Offset(x, 0f), Offset(x, size.height), strokeWidth = 4f)
                     }
             )
-            Text("bicubic", Modifier.align(Alignment.TopStart).padding(8.dp), color = Color.White, fontSize = 13.sp)
-            Text("Real-ESRGAN", Modifier.align(Alignment.TopEnd).padding(8.dp), color = Color.White, fontSize = 13.sp)
+            Text(
+                "bicubic", Modifier.align(Alignment.TopStart).padding(8.dp),
+                color = Color.White, fontSize = 13.sp,
+            )
+            Text(
+                "Real-ESRGAN", Modifier.align(Alignment.TopEnd).padding(8.dp),
+                color = Color.White, fontSize = 13.sp,
+            )
         }
     }
 
     @Composable
     fun BottomSheet(uiState: UiState, onDelegate: (SuperResolutionHelper.AcceleratorEnum) -> Unit) {
         Column(Modifier.padding(horizontal = 20.dp, vertical = 8.dp)) {
-            Text("Real-ESRGAN ×4 — drag to compare", fontWeight = FontWeight.SemiBold, fontSize = 15.sp)
+            Text(
+                "Real-ESRGAN ×4 — drag to compare",
+                fontWeight = FontWeight.SemiBold, fontSize = 15.sp,
+            )
             Spacer(Modifier.height(12.dp))
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text("Inference Time", Modifier.weight(0.5f))
@@ -209,12 +226,20 @@ class MainActivity : ComponentActivity() {
     }
 
     @Composable
-    fun OptionMenu(label: String, options: List<String>, selected: String, onSelected: (String) -> Unit) {
+    fun OptionMenu(
+        label: String,
+        options: List<String>,
+        selected: String,
+        onSelected: (String) -> Unit,
+    ) {
         var expanded by remember { mutableStateOf(false) }
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text(label, Modifier.weight(0.5f), fontSize = 15.sp)
             Box {
-                Row(Modifier.clickable { expanded = true }, verticalAlignment = Alignment.CenterVertically) {
+                Row(
+                    Modifier.clickable { expanded = true },
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
                     Text(selected, fontSize = 15.sp)
                     Icon(Icons.Default.ArrowDropDown, contentDescription = null)
                 }
