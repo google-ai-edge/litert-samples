@@ -12,7 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""3DDFA_V2 reference run: detect face, regress 62 params, reconstruct 68 landmarks.
+"""3DDFA_V2 reference run: detect face, regress 62 params, reconstruct 68
+landmarks.
 
 Expects the 3DDFA_V2 repository checked out next to this script. Shims a
 pure-python NMS so FaceBoxes runs without building the Cython extension, and
@@ -32,7 +33,17 @@ os.chdir(REPO)
 
 # --- pure-python NMS shim so FaceBoxes runs without building cpu_nms.pyx ---
 def _py_nms(dets, thresh):
-    x1, y1, x2, y2, sc = dets[:, 0], dets[:, 1], dets[:, 2], dets[:, 3], dets[:, 4]
+    """Pure-python IoU non-maximum suppression over detection boxes.
+
+    Args:
+        dets: Array of shape [N, 5] as [x1, y1, x2, y2, score].
+        thresh: IoU threshold above which boxes are suppressed.
+
+    Returns:
+        A list of kept detection indices.
+    """
+    x1, y1, x2, y2, sc = (
+        dets[:, 0], dets[:, 1], dets[:, 2], dets[:, 3], dets[:, 4])
     areas = (x2 - x1 + 1) * (y2 - y1 + 1)
     order = sc.argsort()[::-1]
     keep = []
@@ -62,6 +73,7 @@ from TDDFA import TDDFA
 
 
 def main():
+    """Detects a face, regresses params, and saves reference fixtures."""
     cfg = yaml.load(open("configs/mb1_120x120.yml"), Loader=yaml.SafeLoader)
     tddfa = TDDFA(gpu_mode=False, **cfg)
     fb = FaceBoxes()
@@ -72,28 +84,42 @@ def main():
     print("faces detected:", len(boxes), "-> using first")
     box = boxes[0]
     param_lst, roi_box_lst = tddfa(img, [box])
-    param = param_lst[0]                                  # 62 (de-normalized already)
-    ver = tddfa.recon_vers(param_lst, roi_box_lst, dense_flag=False)[0]   # [3, 68]
+    # 62 (de-normalized already)
+    param = param_lst[0]
+    # [3, 68]
+    ver = tddfa.recon_vers(param_lst, roi_box_lst, dense_flag=False)[0]
     print("param[:6]", np.round(param[:6], 3), "... shape", param.shape)
-    print("landmarks 68 x/y range:", ver[0].min(), ver[0].max(), "/", ver[1].min(), ver[1].max())
+    print("landmarks 68 x/y range:",
+          ver[0].min(), ver[0].max(), "/", ver[1].min(), ver[1].max())
 
-    # save reference: the exact 120x120 input the regressor saw + 62 params + landmarks
+    # save reference: the exact 120x120 input the regressor saw + 62
+    # params + landmarks
     roi = roi_box_lst[0]
     out_dir = os.path.join(os.path.dirname(REPO), "ref")
     os.makedirs(out_dir, exist_ok=True)
-    # rebuild the exact 120x120 normalized NCHW input the regressor saw (crop->resize->(x-127.5)/128)
+    # rebuild the exact 120x120 normalized NCHW input the regressor saw
+    # (crop->resize->(x-127.5)/128)
     from utils.functions import crop_img
     img_crop = crop_img(img, roi)
-    inp_img = cv2.resize(img_crop, dsize=(120, 120), interpolation=cv2.INTER_LINEAR)
-    inp = ((inp_img.transpose(2, 0, 1).astype(np.float32) - 127.5) / 128.0)[None]   # [1,3,120,120]
-    np.savez(os.path.join(out_dir, "ref_emma.npz"), param=param, ver=ver, roi=np.array(roi),
-             box=np.array(box[:4]), inp=inp)
+    inp_img = cv2.resize(
+        img_crop, dsize=(120, 120), interpolation=cv2.INTER_LINEAR)
+    # [1,3,120,120]
+    inp = ((inp_img.transpose(2, 0, 1).astype(np.float32) - 127.5)
+           / 128.0)[None]
+    np.savez(
+        os.path.join(out_dir, "ref_emma.npz"),
+        param=param, ver=ver, roi=np.array(roi),
+        box=np.array(box[:4]), inp=inp)
     # also export BFM 68-kpt bases + param mean/std for the Kotlin recon
     bfm = tddfa.bfm
-    np.savez(os.path.join(out_dir, "recon_assets.npz"),
-             u_base=bfm.u_base.reshape(-1), w_shp_base=bfm.w_shp_base, w_exp_base=bfm.w_exp_base,
-             param_mean=tddfa.param_mean, param_std=tddfa.param_std)
-    print("u_base", bfm.u_base.shape, "w_shp_base", bfm.w_shp_base.shape, "w_exp_base", bfm.w_exp_base.shape)
+    np.savez(
+        os.path.join(out_dir, "recon_assets.npz"),
+        u_base=bfm.u_base.reshape(-1), w_shp_base=bfm.w_shp_base,
+        w_exp_base=bfm.w_exp_base,
+        param_mean=tddfa.param_mean, param_std=tddfa.param_std)
+    print("u_base", bfm.u_base.shape,
+          "w_shp_base", bfm.w_shp_base.shape,
+          "w_exp_base", bfm.w_exp_base.shape)
     print("saved refs to", out_dir)
 
 
