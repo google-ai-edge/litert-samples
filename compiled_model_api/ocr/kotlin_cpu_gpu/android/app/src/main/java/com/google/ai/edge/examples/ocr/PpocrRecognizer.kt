@@ -80,7 +80,8 @@ class PpocrRecognizer(private val ctx: Context) : Closeable {
                     best = c
                 }
             }
-            if (best != prev && best != 0) sb.append(chars[best])  // CTC collapse: drop repeats + blank
+            // CTC collapse: drop repeats + blank
+            if (best != prev && best != 0) sb.append(chars[best])
             prev = best
         }
         return sb.toString()

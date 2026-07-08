@@ -77,7 +77,8 @@ class MainActivity : Activity() {
         }
         root.addView(status)
         root.addView(pick)
-        root.addView(overlay, LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, 820))
+        root.addView(
+            overlay, LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, 820))
         root.addView(ScrollView(this).apply { addView(results) })
         setContentView(root)
 
@@ -135,7 +136,9 @@ class MainActivity : Activity() {
             overlay.bitmap = img
             overlay.boxes = lines.map { it.first }
             overlay.invalidate()
-            results.text = if (lines.isEmpty()) "(no text found)" else lines.joinToString("\n") { "• ${it.second}" }
+            results.text =
+                if (lines.isEmpty()) "(no text found)"
+                else lines.joinToString("\n") { "• ${it.second}" }
         }
     }
 
@@ -152,15 +155,18 @@ class MainActivity : Activity() {
             }
         }
         if (rot == 0f) return bm
-        return Bitmap.createBitmap(bm, 0, 0, bm.width, bm.height, Matrix().apply { postRotate(rot) }, true)
+        return Bitmap.createBitmap(
+            bm, 0, 0, bm.width, bm.height, Matrix().apply { postRotate(rot) }, true)
     }
 
     /** Resize keeping aspect to fit SIZE, center on a white SIZE×SIZE canvas (letterbox). */
     private fun letterbox(src: Bitmap): Bitmap {
-        val s = minOf(PpocrDetector.SIZE.toFloat() / src.width, PpocrDetector.SIZE.toFloat() / src.height)
+        val s = minOf(
+            PpocrDetector.SIZE.toFloat() / src.width, PpocrDetector.SIZE.toFloat() / src.height)
         val nw = (src.width * s).toInt().coerceAtLeast(1)
         val nh = (src.height * s).toInt().coerceAtLeast(1)
-        val out = Bitmap.createBitmap(PpocrDetector.SIZE, PpocrDetector.SIZE, Bitmap.Config.ARGB_8888)
+        val out = Bitmap.createBitmap(
+            PpocrDetector.SIZE, PpocrDetector.SIZE, Bitmap.Config.ARGB_8888)
         Canvas(out).apply {
             drawColor(Color.WHITE)
             drawBitmap(Bitmap.createScaledBitmap(src, nw, nh, true),
@@ -187,7 +193,8 @@ class MainActivity : Activity() {
         val bw = b.x1 - b.x0 + 1
         val bh = b.y1 - b.y0 + 1
         val crop = Bitmap.createBitmap(img, b.x0, b.y0, bw, bh)
-        val nw = minOf((PpocrRecognizer.H.toFloat() * bw / bh).toInt(), PpocrRecognizer.W).coerceAtLeast(1)
+        val nw = minOf((PpocrRecognizer.H.toFloat() * bw / bh).toInt(), PpocrRecognizer.W)
+            .coerceAtLeast(1)
         val rz = Bitmap.createScaledBitmap(crop, nw, PpocrRecognizer.H, true)
         val px = IntArray(nw * PpocrRecognizer.H)
         rz.getPixels(px, 0, nw, 0, 0, nw, PpocrRecognizer.H)
@@ -220,7 +227,8 @@ class MainActivity : Activity() {
         override fun onDraw(canvas: Canvas) {
             val bm = bitmap ?: return
             val s = minOf(width.toFloat() / bm.width, height.toFloat() / bm.height)
-            canvas.drawBitmap(bm, null, android.graphics.RectF(0f, 0f, bm.width * s, bm.height * s), null)
+            canvas.drawBitmap(
+                bm, null, android.graphics.RectF(0f, 0f, bm.width * s, bm.height * s), null)
             for (b in boxes) canvas.drawRect(b.x0 * s, b.y0 * s, b.x1 * s, b.y1 * s, stroke)
         }
     }

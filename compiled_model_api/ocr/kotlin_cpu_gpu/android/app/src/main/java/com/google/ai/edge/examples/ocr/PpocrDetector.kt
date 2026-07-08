@@ -68,7 +68,10 @@ class PpocrDetector(private val ctx: Context) : Closeable {
         return outBuf[0].readFloat()           // [SIZE*SIZE]
     }
 
-    /** Threshold the prob map, find connected text regions, return unclipped boxes (in SIZE space). */
+    /**
+     * Threshold the prob map, find connected text regions, return unclipped
+     * boxes (in SIZE space).
+     */
     fun boxes(prob: FloatArray): List<Box> {
         val n = SIZE * SIZE
         val bin = BooleanArray(n) { prob[it] > THRESH }
