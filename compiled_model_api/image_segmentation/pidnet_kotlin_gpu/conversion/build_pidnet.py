@@ -16,8 +16,8 @@
 
 Loads the trained PIDNet-S weights (from the ONNX mirror whose initializer names
 match the original XuJiacong/PIDNet PyTorch keys), verifies they load 1:1, and
-converts to a LiteRT CompiledModel-GPU .tflite with litert-torch. PIDNet is a pure
-CNN with align_corners=False interpolation -> zero GPU patches needed.
+converts to a LiteRT CompiledModel-GPU .tflite with litert-torch. PIDNet is a
+pure CNN with align_corners=False interpolation -> zero GPU patches needed.
 
 Setup:
     pip install torch litert-torch onnx huggingface_hub
@@ -25,7 +25,8 @@ Setup:
 
 Run:
     PIDNET_REPO=./PIDNet python build_pidnet.py
-    # -> pidnet_s.tflite  (30 MB, [1,3,1024,1024] -> [1,19,128,128], 0 banned ops)
+    # -> pidnet_s.tflite  (30 MB, [1,3,1024,1024] -> [1,19,128,128],
+    #    0 banned ops)
 """
 import os
 import sys
@@ -53,6 +54,7 @@ class Wrap(nn.Module):
 
 
 def main():
+    """Loads the ONNX-mirror weights into PIDNet-S and exports .tflite."""
     onnx_path = hf_hub_download("oenpu/PIDNet_S_enlight_friendly_onnx",
                                 "PIDNet_S_enlight_friendly.onnx")
     w = {i.name: torch.from_numpy(numpy_helper.to_array(i).copy())
@@ -61,7 +63,8 @@ def main():
     net = P.get_pred_model("pidnet_s", 19).eval()
     sd = net.state_dict()
     matched = {k: w[k] for k in sd if k in w}
-    assert len(matched) == len(sd), f"only {len(matched)}/{len(sd)} weights matched"
+    assert len(matched) == len(sd), (
+        f"only {len(matched)}/{len(sd)} weights matched")
     net.load_state_dict(matched, strict=False)
     print(f"loaded {len(matched)}/{len(sd)} weights")
 
@@ -69,7 +72,8 @@ def main():
     dummy = torch.randn(1, 3, 1024, 1024)
     import litert_torch
     litert_torch.convert(wrapped, (dummy,)).export("pidnet_s.tflite")
-    print("saved pidnet_s.tflite (%.1f MB)" % (os.path.getsize("pidnet_s.tflite") / 1e6))
+    print("saved pidnet_s.tflite (%.1f MB)"
+          % (os.path.getsize("pidnet_s.tflite") / 1e6))
 
 
 if __name__ == "__main__":
