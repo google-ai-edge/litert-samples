@@ -12,8 +12,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Narrow stub: ONLY shim the broken scipy `_propack` dlopen (macOS zero-fill bug), leaving
-scipy.optimize / scipy.signal REAL (librosa/torchlibrosa need them). Import FIRST."""
+"""Narrow stub: ONLY shim the broken scipy `_propack` dlopen (macOS
+zero-fill bug), leaving scipy.optimize / scipy.signal REAL
+(librosa/torchlibrosa need them). Import FIRST."""
 import sys
 import types
 import inspect
@@ -37,6 +38,14 @@ _orig = inspect.getsourcefile
 
 
 def _safe(obj):
+    """Returns the source file of ``obj`` or None when unavailable.
+
+    Args:
+        obj: Object forwarded to ``inspect.getsourcefile``.
+
+    Returns:
+        The source path string, or None when it cannot be determined.
+    """
     try:
         return _orig(obj)
     except (AttributeError, TypeError):
