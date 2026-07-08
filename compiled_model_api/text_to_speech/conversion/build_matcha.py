@@ -490,6 +490,8 @@ def _decoder_forward_clean(self, x, mask, mu, t, spks=None, cond=None):
     if spks is not None:
         spks = repeat(spks, "b c -> b c t", t=x.shape[-1])
         x = pack([x, spks], "b * t")[0]
+
+    # Down blocks.
     hiddens = []
     masks = [mask]
     for resnet, transformer_blocks, downsample in self.down_blocks:
@@ -504,6 +506,8 @@ def _decoder_forward_clean(self, x, mask, mu, t, spks=None, cond=None):
         hiddens.append(x)
         x = downsample(x * mask_down)
         masks.append(dec2(mask_down))
+
+    # Mid blocks.
     masks = masks[:-1]
     mask_mid = masks[-1]
     for resnet, transformer_blocks in self.mid_blocks:
@@ -514,6 +518,8 @@ def _decoder_forward_clean(self, x, mask, mu, t, spks=None, cond=None):
             x = tb(hidden_states=x, attention_mask=mask_mid, timestep=t)
         x = rearrange(x, "b t c -> b c t")
         mask_mid = rearrange(mask_mid, "b t -> b 1 t")
+
+    # Up blocks.
     for resnet, transformer_blocks, upsample in self.up_blocks:
         mask_up = masks.pop()
         x = resnet(pack([x, hiddens.pop()], "b * t")[0], mask_up, t)
@@ -524,6 +530,8 @@ def _decoder_forward_clean(self, x, mask, mu, t, spks=None, cond=None):
         x = rearrange(x, "b t c -> b c t")
         mask_up = rearrange(mask_up, "b t -> b 1 t")
         x = upsample(x * mask_up)
+
+    # Final projection.
     x = self.final_block(x, mask_up)
     output = self.final_proj(x * mask_up)
     return output * mask

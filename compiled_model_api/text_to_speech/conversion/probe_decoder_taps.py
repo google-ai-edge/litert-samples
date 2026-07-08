@@ -58,6 +58,8 @@ def dbg_forward(self, x, mask, mu, t):
     t = self.time_embeddings(t)
     t = self.time_mlp(t)
     x = pack([x, mu], "b * t")[0]
+
+    # Down blocks.
     hiddens = []
     masks = [mask]
     down_blocks = enumerate(self.down_blocks)
@@ -77,6 +79,8 @@ def dbg_forward(self, x, mask, mu, t):
         hiddens.append(x)
         x = downsample(x * mask_down)
         masks.append(dec2(mask_down))
+
+    # Mid blocks.
     masks = masks[:-1]
     mask_mid = masks[-1]
     for resnet, transformer_blocks in self.mid_blocks:
@@ -87,6 +91,8 @@ def dbg_forward(self, x, mask, mu, t):
             x = tb(hidden_states=x, attention_mask=mask_mid, timestep=t)
         x = rearrange(x, "b t c -> b c t")
         mask_mid = rearrange(mask_mid, "b t -> b 1 t")
+
+    # Up blocks (tap the up1 stages that collapse on device).
     up_blocks = enumerate(self.up_blocks)
     for block_index, (resnet, transformer_blocks, upsample) in up_blocks:
         mask_up = masks.pop()
@@ -102,6 +108,8 @@ def dbg_forward(self, x, mask, mu, t):
         x = rearrange(x, "b t c -> b c t")
         mask_up = rearrange(mask_up, "b t -> b 1 t")
         x = upsample(x * mask_up)
+
+    # Final projection.
     out = self.final_block(x, mask_up)
     out = self.final_proj(out * mask_up) * mask
     return out, taps["up1_resnet"], taps["up1_attn"], x  # x = up1 upsample out

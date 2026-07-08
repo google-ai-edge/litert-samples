@@ -67,7 +67,8 @@ class MatchaG2P(context: Context) : Closeable {
             "G2P model not found: $MODEL_FILE. Push it first:\n  scripts/install_to_device.sh"
         }
         g2pModel =
-            CompiledModel.create(modelFile.absolutePath, CompiledModel.Options(Accelerator.CPU), null)
+            CompiledModel.create(
+                modelFile.absolutePath, CompiledModel.Options(Accelerator.CPU), null)
         g2pInputs = g2pModel.createInputBuffers()
         g2pOutputs = g2pModel.createOutputBuffers()
 
@@ -101,7 +102,8 @@ class MatchaG2P(context: Context) : Closeable {
         }
 
         // espeak-IPA dictionary (primary G2P): word<TAB>ipa per line.
-        BufferedReader(InputStreamReader(context.assets.open(DICT_ASSET), Charsets.UTF_8)).use { reader ->
+        val dictStream = InputStreamReader(context.assets.open(DICT_ASSET), Charsets.UTF_8)
+        BufferedReader(dictStream).use { reader ->
             reader.forEachLine { line ->
                 val tab = line.indexOf('\t')
                 if (tab > 0) {
@@ -278,11 +280,12 @@ class MatchaG2P(context: Context) : Closeable {
 
         // espeak letter-name IPA — acronyms are spelled out (e.g. "GPU" -> dʒˈiːpˈiːjˈuː).
         private val LETTER_IPA = mapOf(
-            'a' to "ˈeɪ", 'b' to "bˈiː", 'c' to "sˈiː", 'd' to "dˈiː", 'e' to "ˈiː", 'f' to "ˈɛf",
-            'g' to "dʒˈiː", 'h' to "ˈeɪtʃ", 'i' to "ˈaɪ", 'j' to "dʒˈeɪ", 'k' to "kˈeɪ", 'l' to "ˈɛl",
-            'm' to "ˈɛm", 'n' to "ˈɛn", 'o' to "ˈoʊ", 'p' to "pˈiː", 'q' to "kjˈuː", 'r' to "ˈɑːɹ",
-            's' to "ˈɛs", 't' to "tˈiː", 'u' to "jˈuː", 'v' to "vˈiː", 'w' to "dˈʌbəljˌuː",
-            'x' to "ˈɛks", 'y' to "wˈaɪ", 'z' to "zˈiː",
+            'a' to "ˈeɪ", 'b' to "bˈiː", 'c' to "sˈiː", 'd' to "dˈiː", 'e' to "ˈiː",
+            'f' to "ˈɛf", 'g' to "dʒˈiː", 'h' to "ˈeɪtʃ", 'i' to "ˈaɪ", 'j' to "dʒˈeɪ",
+            'k' to "kˈeɪ", 'l' to "ˈɛl", 'm' to "ˈɛm", 'n' to "ˈɛn", 'o' to "ˈoʊ",
+            'p' to "pˈiː", 'q' to "kjˈuː", 'r' to "ˈɑːɹ", 's' to "ˈɛs", 't' to "tˈiː",
+            'u' to "jˈuː", 'v' to "vˈiː", 'w' to "dˈʌbəljˌuː", 'x' to "ˈɛks",
+            'y' to "wˈaɪ", 'z' to "zˈiː",
         )
         private val ONES = arrayOf(
             "zero", "one", "two", "three", "four", "five", "six", "seven", "eight", "nine", "ten",

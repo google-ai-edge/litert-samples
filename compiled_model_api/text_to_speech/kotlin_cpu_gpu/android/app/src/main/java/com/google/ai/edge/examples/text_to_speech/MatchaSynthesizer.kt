@@ -73,7 +73,9 @@ class MatchaSynthesizer(private val context: Context) : Closeable {
 
     private fun loadModel(name: String, accelerator: Accelerator = Accelerator.GPU): CompiledModel {
         val file = File(context.filesDir, name)
-        check(file.exists()) { "Model not found: $name. Push it first:\n  scripts/install_to_device.sh" }
+        check(file.exists()) {
+            "Model not found: $name. Push it first:\n  scripts/install_to_device.sh"
+        }
         return CompiledModel.create(file.absolutePath, CompiledModel.Options(accelerator), null)
     }
 
@@ -101,7 +103,8 @@ class MatchaSynthesizer(private val context: Context) : Closeable {
         // Host phoneme-embedding lookup -> [1, MAX_TEXT, N_CHANNELS].
         val embedded = FloatArray(MAX_TEXT * N_CHANNELS)
         for (t in 0 until MAX_TEXT) {
-            System.arraycopy(embeddingTable, ids[t] * N_CHANNELS, embedded, t * N_CHANNELS, N_CHANNELS)
+            System.arraycopy(
+                embeddingTable, ids[t] * N_CHANNELS, embedded, t * N_CHANNELS, N_CHANNELS)
         }
 
         // Text encoder (GPU) -> mu[1,80,T], logw[1,1,T].
@@ -112,7 +115,9 @@ class MatchaSynthesizer(private val context: Context) : Closeable {
         val logDurations = textEncoderOutputs[1].readFloat() // [MAX_TEXT]
 
         // Durations -> cumulative -> length regulator (mu_y).
-        val durations = FloatArray(MAX_TEXT) { ceil(exp(logDurations[it]) * textMask[it]) * LENGTH_SCALE }
+        val durations = FloatArray(MAX_TEXT) {
+            ceil(exp(logDurations[it]) * textMask[it]) * LENGTH_SCALE
+        }
         val cumulative = FloatArray(MAX_TEXT)
         var total = 0f
         for (i in 0 until MAX_TEXT) {
