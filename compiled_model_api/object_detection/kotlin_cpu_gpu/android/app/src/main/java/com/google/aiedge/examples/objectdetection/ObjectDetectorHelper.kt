@@ -92,7 +92,8 @@ class ObjectDetectorHelper(
         private const val RFDETR_NQ = 300 // decoder queries
         private const val RFDETR_NCLS = 91 // COCO category-id space (index == COCO category id)
         private const val RFDETR_HID = 256
-        private const val RFDETR_IOU_THRESHOLD = 0.6f // light NMS — cleans fp16 near-duplicate queries
+        // light NMS — cleans fp16 near-duplicate queries
+        private const val RFDETR_IOU_THRESHOLD = 0.6f
         private val RFDETR_MEAN = floatArrayOf(0.485f, 0.456f, 0.406f)
         private val RFDETR_STD = floatArrayOf(0.229f, 0.224f, 0.225f)
 
@@ -115,7 +116,8 @@ class ObjectDetectorHelper(
     private val _error = MutableSharedFlow<Throwable?>()
 
     private var model: CompiledModel? = null // YOLOX graph, or RF-DETR graph A
-    private var modelB: CompiledModel? = null // RF-DETR graph B (decoder); null for single-graph models
+    // RF-DETR graph B (decoder); null for single-graph models
+    private var modelB: CompiledModel? = null
     private val singleThreadDispatcher = Dispatchers.IO.limitedParallelism(1, "ModelDispatcher")
 
     // Per-anchor grid origin + stride, precomputed once per model input size (YOLOX only).
@@ -167,7 +169,8 @@ class ObjectDetectorHelper(
                 if (graphBFile == null) {
                     buildGrids(inputSize)
                 } else {
-                    val graphB = CompiledModel.create(context.assets, graphBFile, compiledOptions, null)
+                    val graphB = CompiledModel.create(
+                        context.assets, graphBFile, compiledOptions, null)
                     modelB = graphB
                     rfInA = model!!.createInputBuffers()
                     rfOutA = model!!.createOutputBuffers()
@@ -293,7 +296,8 @@ class ObjectDetectorHelper(
         val encCoord = rfOutA[slotAEncCoord].readFloat() // [576*4]
         val memory = rfOutA[slotAMemory].readFloat() // [576*256]
 
-        // Host: top-300 proposals by max class logit, gather their coords (descending = torch.topk).
+        // Host: top-300 proposals by max class logit, gather their coords
+        // (descending = torch.topk).
         val maxScore = FloatArray(RFDETR_NPROP)
         for (p in 0 until RFDETR_NPROP) {
             var m = -Float.MAX_VALUE

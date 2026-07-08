@@ -89,7 +89,9 @@ class MainActivity : ComponentActivity() {
 
             var mediaUriState: Uri by remember { mutableStateOf(Uri.EMPTY) }
             val galleryLauncher =
-                rememberLauncherForActivityResult(ActivityResultContracts.PickVisualMedia()) { uri ->
+                rememberLauncherForActivityResult(
+                    ActivityResultContracts.PickVisualMedia()
+                ) { uri ->
                     mediaUriState = uri ?: Uri.EMPTY
                 }
 
@@ -320,7 +322,8 @@ class MainActivity : ComponentActivity() {
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     RadioButton(
-                        colors = RadioButtonDefaults.colors(selectedColor = MaterialTheme.colors.primary),
+                        colors = RadioButtonDefaults.colors(
+                            selectedColor = MaterialTheme.colors.primary),
                         selected = (model == selected),
                         onClick = {
                             if (model == selected) return@RadioButton
