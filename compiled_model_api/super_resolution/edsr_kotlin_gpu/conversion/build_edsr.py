@@ -36,7 +36,8 @@ from super_image import EdsrModel
 
 
 class ZeroStuffConvT2d(nn.Module):
-    """Exact GPU-clean ConvTranspose2d: nearest-upsample x stride zero-stuff + flipped conv2d + crop."""
+    """Exact GPU-clean ConvTranspose2d: nearest-upsample x stride
+    zero-stuff + flipped conv2d + crop."""
 
     def __init__(self, ct, h_in, w_in):
         super().__init__()
@@ -49,13 +50,17 @@ class ZeroStuffConvT2d(nn.Module):
         w = ct.weight.detach().flip(2).flip(3).permute(1, 0, 2, 3).contiguous()
         self.register_buffer("w", w)
         self.register_buffer(
-            "b", ct.bias.detach().clone() if ct.bias is not None else torch.zeros(ct.out_channels))
+            "b",
+            ct.bias.detach().clone() if ct.bias is not None
+            else torch.zeros(ct.out_channels))
         mh = np.zeros((h_in * self.s, w_in * self.s), np.float32)
         mh[::self.s, ::self.s] = 1.0
         self.register_buffer("mask", torch.from_numpy(mh)[None, None])
 
     def forward(self, x):
-        xn = F.interpolate(x, size=(self.h_in * self.s, self.w_in * self.s), mode="nearest") * self.mask
+        xn = F.interpolate(
+            x, size=(self.h_in * self.s, self.w_in * self.s),
+            mode="nearest") * self.mask
         y = F.conv2d(xn, self.w, bias=self.b, padding=self.k - 1)
         out_h = (self.h_in - 1) * self.s + self.k - 2 * self.p + self.op
         out_w = (self.w_in - 1) * self.s + self.k - 2 * self.p + self.op
@@ -63,8 +68,18 @@ class ZeroStuffConvT2d(nn.Module):
 
 
 def pixelshuffle_to_convt(r, c_out):
-    """Fixed-weight ConvTranspose2d that exactly reproduces PixelShuffle(r)."""
-    ct = nn.ConvTranspose2d(c_out * r * r, c_out, kernel_size=r, stride=r, bias=False)
+    """Fixed-weight ConvTranspose2d that exactly reproduces PixelShuffle(r).
+
+    Args:
+        r: Upscale factor of the PixelShuffle being replaced.
+        c_out: Number of output channels after the shuffle.
+
+    Returns:
+        An nn.ConvTranspose2d(c_out*r*r -> c_out, kernel r, stride r)
+        whose fixed weights reproduce PixelShuffle(r) exactly.
+    """
+    ct = nn.ConvTranspose2d(c_out * r * r, c_out, kernel_size=r, stride=r,
+                            bias=False)
     w = torch.zeros(c_out * r * r, c_out, r, r)
     for c in range(c_out):
         for p in range(r):
@@ -86,16 +101,19 @@ class Wrap(nn.Module):
 
 
 def main():
+    """Builds edsr.tflite from the pretrained EDSR-base x4 checkpoint."""
     m = EdsrModel.from_pretrained('eugenesiow/edsr-base', scale=4).eval()
 
-    # 1) replace PixelShuffle with the equivalent fixed ConvTranspose2d (capture Cout via hook)
+    # 1) replace PixelShuffle with the equivalent fixed ConvTranspose2d
+    #    (capture Cout via hook)
     info = {}
     hooks = []
     for n, mo in m.named_modules():
         if isinstance(mo, nn.PixelShuffle):
             hooks.append(mo.register_forward_pre_hook(
                 (lambda nm, r=mo.upscale_factor:
-                 (lambda mod, i: info.__setitem__(nm, (r, i[0].shape[1] // (r * r)))))(n)))
+                 (lambda mod, i: info.__setitem__(
+                     nm, (r, i[0].shape[1] // (r * r)))))(n)))
     with torch.no_grad():
         m(torch.rand(1, 3, 128, 128))
     for h in hooks:
@@ -113,7 +131,8 @@ def main():
     for n, mo in m.named_modules():
         if isinstance(mo, nn.ConvTranspose2d):
             hooks.append(mo.register_forward_pre_hook(
-                (lambda nm: (lambda mod, i: sizes.__setitem__(nm, i[0].shape[-2:])))(n)))
+                (lambda nm: (lambda mod, i: sizes.__setitem__(
+                    nm, i[0].shape[-2:])))(n)))
     with torch.no_grad():
         m(torch.rand(1, 3, 128, 128))
     for h in hooks:
