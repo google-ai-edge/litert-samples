@@ -36,6 +36,7 @@ Graphs (fixed length; module rebuilds per duration or pads):
 """
 import _stub
 import os
+import sys
 import wave
 import numpy as np
 import torch
@@ -45,7 +46,10 @@ from transformers import MimiModel
 from transformers.models.mimi.modeling_mimi import MimiConv1d as MC
 
 HERE = B.HERE
-WAV = os.path.expanduser("~/Downloads/meeting/A_true_kokoro.wav")
+# Validation clip: any short 24 kHz mono 16-bit PCM WAV works. Pass a path
+# as argv[1] or drop sample_24k.wav next to this script.
+WAV = (sys.argv[1] if len(sys.argv) > 1
+       else os.path.join(HERE, "sample_24k.wav"))
 SECS = 2.0
 
 
@@ -185,7 +189,7 @@ def main():
                      os.path.join(HERE, "mimi_deconly.tflite"))
     for p, lab, gpu in [(p_ec, "enc_conv", 1), (p_et, "enc_tx", 0),
                         (p_dt, "dec_tx", 0), (p_do, "deconly", 1)]:
-        _, clean = B.opcheck(p, lab + (" [GPU]" if gpu else " [CPU]"))
+        B.opcheck(p, lab + (" [GPU]" if gpu else " [CPU]"))
         B.to_fp16(p, p.replace(".tflite", "_fp16.tflite"))
 
     # ---------- full round-trip via tflite (CPU interp) + numpy RVQ ----------

@@ -686,9 +686,9 @@ def main():
         print("\n=== convert + op-check (fp32) ===")
         dec_p = convert(decode_g, (emb,),
                         os.path.join(HERE, "mimi_decode.tflite"))
-        it_dec, c_dec = opcheck(dec_p, "decode")
+        opcheck(dec_p, "decode")
         print("\n=== (b) tflite decode vs re-authored torch ===")
-        o = tfl_run(it_dec, emb.numpy())
+        o = tfl_run(dec_p, emb.numpy())
         print(f"decode tflite vs torch: "
               f"corr {corr(o[0], ra_audio.numpy()):.6f}")
         print(f"decode tflite vs ORIG torch: "
@@ -700,14 +700,14 @@ def main():
         tr_p = convert(
             trans_g, (ref_trans_in,),
             os.path.join(HERE, "mimi_dectrans_standalone.tflite"))
-        it_tr, c_tr = opcheck(tr_p, "dectrans_standalone")
-        o = tfl_run(it_tr, ref_trans_in.numpy())
+        opcheck(tr_p, "dectrans_standalone")
+        o = tfl_run(tr_p, ref_trans_in.numpy())
         print(f"standalone transformer tflite vs torch: "
               f"corr {corr(o[0], ra_trans.numpy()):.6f}")
         tap_p = convert(tapped_g, (emb,),
                         os.path.join(HERE, "mimi_decode_tapped.tflite"))
-        it_tap, c_tap = opcheck(tap_p, "decode_tapped")
-        ot = tfl_run(it_tap, emb.numpy())
+        opcheck(tap_p, "decode_tapped")
+        ot = tfl_run(tap_p, emb.numpy())
         # outputs may be returned in any order; match by shape
         tap_t = next(a for a in ot if a.ndim == 3 and a.shape[1] == seq)
         aud_t = next(a for a in ot if a.shape[-1] == ra_audio.shape[-1])
@@ -798,8 +798,8 @@ def main():
               f"max|d| {(enc_emb_mine-enc_emb_ref).abs().max():.2e}")
         enc_p = convert(enc_g, (audio,),
                         os.path.join(HERE, "mimi_encode.tflite"))
-        it_enc, c_enc = opcheck(enc_p, "encode")
-        oe = tfl_run(it_enc, audio.numpy())
+        opcheck(enc_p, "encode")
+        oe = tfl_run(enc_p, audio.numpy())
         print(f"encode tflite vs torch: "
               f"corr {corr(oe[0], enc_emb_ref.numpy()):.6f}")
 
