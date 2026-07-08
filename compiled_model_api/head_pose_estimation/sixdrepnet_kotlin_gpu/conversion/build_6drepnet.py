@@ -34,7 +34,10 @@ from sixdrepnet.model import SixDRepNet
 
 
 class Wrap(nn.Module):
-    """Backbone + GAP + 6D regression head only (skips the in-graph rotation decode)."""
+    """Backbone + GAP + 6D regression head only.
+
+    Skips the in-graph rotation decode.
+    """
 
     def __init__(self, n):
         super().__init__()
@@ -52,11 +55,15 @@ class Wrap(nn.Module):
 
 
 def main():
+    """Converts 6DRepNet to 6drepnet.tflite and saves fixtures."""
     net = SixDRepNet(backbone_name='RepVGG-B1g2', backbone_file='', deploy=True,
                      pretrained=False).eval()
-    sd = torch.load(hf_hub_download("osanseviero/6DRepNet_300W_LP_AFLW2000", "model.pth"),
-                    map_location="cpu")
-    sd = sd.get('model_state_dict', sd.get('state_dict', sd)) if isinstance(sd, dict) else sd
+    sd = torch.load(
+        hf_hub_download("osanseviero/6DRepNet_300W_LP_AFLW2000",
+                        "model.pth"),
+        map_location="cpu")
+    sd = (sd.get('model_state_dict', sd.get('state_dict', sd))
+          if isinstance(sd, dict) else sd)
     sd = {k[7:] if k.startswith('module.') else k: v for k, v in sd.items()}
     print("load:", net.load_state_dict(sd, strict=False))
 
