@@ -1,0 +1,8 @@
+// Fetch the DINOv2 fp16 model (45 MB) from Hugging Face into the app assets at
+// build time; it is not committed to the repo.
+tasks.register('downloadDinov2Model', Download) {
+    src 'https://huggingface.co/litert-community/DINOv2-ViT-S14-LiteRT/resolve/main/dinov2_s_fp16.tflite'
+    dest project.ext.ASSET_DIR + '/dinov2_s_fp16.tflite'
+    overwrite false
+}
+preBuild.dependsOn downloadDinov2Model
