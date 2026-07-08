@@ -65,7 +65,8 @@ class MainActivity : Activity() {
       text = "🖼  Pick image"
       isEnabled = false
       setOnClickListener {
-        startActivityForResult(Intent(Intent.ACTION_GET_CONTENT).apply { type = "image/*" }, pickReq)
+        startActivityForResult(
+          Intent(Intent.ACTION_GET_CONTENT).apply { type = "image/*" }, pickReq)
       }
     }
     inputView = ImgView(this)
@@ -132,7 +133,8 @@ class MainActivity : Activity() {
   }
 
   private fun loadOriented(uri: Uri): Bitmap {
-    val bm = contentResolver.openInputStream(uri).use { BitmapFactory.decodeStream(it) } ?: error("cannot decode image")
+    val bm = contentResolver.openInputStream(uri).use { BitmapFactory.decodeStream(it) }
+      ?: error("cannot decode image")
     val rot = contentResolver.openInputStream(uri).use {
       when (ExifInterface(it!!).getAttributeInt(ExifInterface.TAG_ORIENTATION, 1)) {
         ExifInterface.ORIENTATION_ROTATE_90 -> 90f
@@ -142,7 +144,8 @@ class MainActivity : Activity() {
       }
     }
     if (rot == 0f) return bm
-    return Bitmap.createBitmap(bm, 0, 0, bm.width, bm.height, Matrix().apply { postRotate(rot) }, true)
+    return Bitmap.createBitmap(
+      bm, 0, 0, bm.width, bm.height, Matrix().apply { postRotate(rot) }, true)
   }
 
   private fun squareResize(src: Bitmap): Bitmap {
@@ -190,7 +193,9 @@ class MainActivity : Activity() {
       val h = bm.height * s
       canvas.drawBitmap(
         bm, null,
-        android.graphics.RectF((width - w) / 2, (height - h) / 2, (width + w) / 2, (height + h) / 2), paint,
+        android.graphics.RectF(
+          (width - w) / 2, (height - h) / 2, (width + w) / 2, (height + h) / 2),
+        paint,
       )
     }
   }
