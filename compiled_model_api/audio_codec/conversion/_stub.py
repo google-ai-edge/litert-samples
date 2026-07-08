@@ -51,11 +51,20 @@ _orig_gsf = inspect.getsourcefile
 
 
 def _safe_getsourcefile(obj):
+    """Wraps inspect.getsourcefile to swallow crashes on stub modules.
+
+    Args:
+        obj: Object whose source file is looked up.
+
+    Returns:
+        The source file path, or None when the lookup raises.
+    """
     try:
         return _orig_gsf(obj)
     except (AttributeError, TypeError):
         nm = getattr(obj, "__name__", repr(obj))
-        sys.stderr.write(f"[probe] guarded getsourcefile crash on module {nm!r}\n")
+        sys.stderr.write(
+            f"[probe] guarded getsourcefile crash on module {nm!r}\n")
         return None
 
 
