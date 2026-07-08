@@ -31,7 +31,15 @@ from movinets.models import same_padding, tfAvgPool3D
 # ---- primitive block ops on 4D NCHW tensors -------------------------------
 
 def spatial(cb, x):
-    """ConvBlock3D spatial part (conv_1) with tf 'same' padding. 4D in/out."""
+    """ConvBlock3D spatial part (conv_1) with tf 'same' padding. 4D in/out.
+
+    Args:
+        cb: The ConvBlock3D submodule.
+        x: 4D NCHW input tensor.
+
+    Returns:
+        The conv_1 output tensor.
+    """
     if cb.tf_like:
         x = same_padding(x, x.shape[-2], x.shape[-1],
                          cb.stride[-2], cb.stride[-1],
@@ -40,15 +48,25 @@ def spatial(cb, x):
 
 
 def temporal(cb, s, buf):
-    """Causal temporal depthwise conv (conv_2, kernel (kt,1)) as a weighted sum
-    of the buffered post-spatial frames. buf = list of dim_pad prior frames
-    (oldest first); s = current post-spatial frame. Returns (out, s).
+    """Causal temporal depthwise conv (conv_2, kernel (kt,1)) as a weighted
+    sum of the buffered post-spatial frames. buf = list of dim_pad prior
+    frames (oldest first); s = current post-spatial frame. Returns (out, s).
 
     The returned `s` (the current post-spatial frame) is emitted as a graph
-    output so the host can maintain the shift register; the buffered input frames
-    are consumed ONLY here (never passed through to an output). This avoids the
-    Mali/litert-torch bug that drops the compute-side use of an input that is
-    also passed through to a graph output (a shifted stream buffer)."""
+    output so the host can maintain the shift register; the buffered input
+    frames are consumed ONLY here (never passed through to an output). This
+    avoids the Mali/litert-torch bug that drops the compute-side use of an
+    input that is also passed through to a graph output (a shifted stream
+    buffer).
+
+    Args:
+        cb: The ConvBlock3D whose conv_2 depthwise kernel is applied.
+        s: Current post-spatial frame [1, C, H, W].
+        buf: List of dim_pad prior frames (oldest first).
+
+    Returns:
+        A tuple (out, s): the temporal-conv output and the current frame.
+    """
     frames = buf + [s]                       # length kt = dim_pad + 1
     w = cb.conv_2.conv2d.weight              # [C, 1, kt, 1] depthwise
     C = s.shape[1]
@@ -61,8 +79,17 @@ def temporal(cb, s, buf):
 
 
 def tf_avg_pool_2d(x):
-    """4D equivalent of tfAvgPool3D (1,3,3)/(1,2,2). Trace-safe: the last-row/col
-    9/6 edge correction is a constant outer-product mask (no in-place scatter)."""
+    """4D equivalent of tfAvgPool3D (1,3,3)/(1,2,2).
+
+    Trace-safe: the last-row/col 9/6 edge correction is a constant
+    outer-product mask (no in-place scatter).
+
+    Args:
+        x: 4D NCHW input tensor.
+
+    Returns:
+        The pooled 4D tensor.
+    """
     odd = x.shape[-1] % 2 != 0
     if odd:
         # count_include_pad=False (symmetric pad 1) -> True + boundary mask, so
@@ -89,6 +116,15 @@ def tf_avg_pool_2d(x):
 
 
 def res_forward(bb, x):
+    """Runs the residual branch (spatial convs + tf avg pool) of a block.
+
+    Args:
+        bb: The MoViNet block whose `res` branch is evaluated.
+        x: 4D NCHW input tensor.
+
+    Returns:
+        The residual-branch output tensor.
+    """
     r = x
     for layer in bb.res:
         if isinstance(layer, tfAvgPool3D):
@@ -99,15 +135,29 @@ def res_forward(bb, x):
 
 
 def se_forward(se, x, pool_sum, inv_count):
-    """Squeeze-Excite with streaming cumulative temporal avg. inv_count = 1/N for
-    the current frame number N (host-computed, shape [1,1,1,1]). pool_sum =
-    running sum of x_space from PREVIOUS frames. Returns (out, x_space) — the
-    running-sum accumulation is done host-side, so the graph only emits the fresh
-    per-frame mean. The average uses MUL by 1/N (not DIV by a [1] scalar): the
-    Mali GPU delegate mishandles a broadcast DIVIDE by a rank-1 count input."""
+    """Squeeze-Excite with streaming cumulative temporal avg.
+
+    inv_count = 1/N for the current frame number N (host-computed, shape
+    [1,1,1,1]). pool_sum = running sum of x_space from PREVIOUS frames.
+    Returns (out, x_space) — the running-sum accumulation is done host-side,
+    so the graph only emits the fresh per-frame mean. The average uses MUL
+    by 1/N (not DIV by a [1] scalar): the Mali GPU delegate mishandles a
+    broadcast DIVIDE by a rank-1 count input.
+
+    Args:
+        se: The squeeze-excite submodule.
+        x: 4D NCHW input tensor.
+        pool_sum: Running sum of x_space from previous frames [1, C, 1, 1].
+        inv_count: 1/N for the current frame number N, shape [1, 1, 1, 1].
+
+    Returns:
+        A tuple (out, x_space): the scaled output and the fresh per-frame
+        mean.
+    """
     x_space = x.mean(dim=[2, 3], keepdim=True)      # [1,C,1,1]
     avg = (pool_sum + x_space) * inv_count            # running temporal avg
-    scale = torch.cat([avg, x_space], dim=1)         # [1,2C,1,1] (causal se_mult=2)
+    # [1,2C,1,1] (causal se_mult=2)
+    scale = torch.cat([avg, x_space], dim=1)
     scale = se.fc1.conv_1(scale)
     scale = se.activation_1(scale)
     scale = se.fc2.conv_1(scale)
@@ -118,11 +168,27 @@ def se_forward(se, x, pool_sum, inv_count):
 # ---- full single-frame step ----------------------------------------------
 
 def block_names(model):
+    """Returns the ordered list of block names in the model.
+
+    Args:
+        model: The MoViNet model.
+
+    Returns:
+        A list of block-name strings.
+    """
     return list(model.blocks._modules.keys())
 
 
 def init_state(model, device="cpu"):
-    """Return an ordered dict of zero-initialised states."""
+    """Return an ordered dict of zero-initialised states.
+
+    Args:
+        model: The MoViNet model.
+        device: Torch device for the created tensors.
+
+    Returns:
+        A dict with "count", "stream", and "pool" entries.
+    """
     st = {"count": torch.zeros(1, device=device)}
     st["stream"] = {}   # name -> list of dim_pad frames
     st["pool"] = {}     # name -> running sum
@@ -130,7 +196,16 @@ def init_state(model, device="cpu"):
 
 
 def step(model, frame4d, st):
-    """One streaming frame. frame4d = [1,3,172,172]. Returns (logits, new_st)."""
+    """One streaming frame. frame4d = [1,3,172,172].
+
+    Args:
+        model: The MoViNet model.
+        frame4d: Single input frame [1, 3, 172, 172].
+        st: State dict from init_state or a previous step.
+
+    Returns:
+        A tuple (logits, new_st): the frame logits and the updated state.
+    """
     count = st["count"] + 1.0
     new_stream = {}
     new_pool = {}
@@ -194,8 +269,9 @@ class MoViNetA0Stream(nn.Module):
 
     Inputs  (46): frame, 28 stream frames (STREAM_SPEC), 16 pool running-sums
                   (POOL_SPEC), 1 frame count (== current frame number, >=1).
-    Outputs (28): logits, 11 current per-temporal-conv frames (STREAM_SPEC order),
-                  16 fresh per-frame means (POOL_SPEC order).
+    Outputs (28): logits, 11 current per-temporal-conv frames
+                  (STREAM_SPEC order), 16 fresh per-frame means
+                  (POOL_SPEC order).
 
     Both the stream-buffer shift register and the pool running-sum accumulation
     are done HOST-SIDE. The graph consumes the stream frames / running sums (for
@@ -223,11 +299,14 @@ class MoViNetA0Stream(nn.Module):
         for name in POOL_SPEC:
             pool[name] = states[idx]
             idx += 1
-        inv_count = states[idx]                  # 1 / current frame number, [1,1,1,1]
+        # 1 / current frame number, [1,1,1,1]
+        inv_count = states[idx]
         idx += 1
-        one = states[idx]                        # constant 1.0 [1,1,1,1] (decoupler)
+        # constant 1.0 [1,1,1,1] (decoupler)
+        one = states[idx]
 
-        cur = {}                                 # current post-spatial frame / conv
+        # current post-spatial frame / conv
+        cur = {}
         xspace = {}
         x = spatial(m.conv1, frame)
         for name, bb in m.blocks._modules.items():
@@ -236,7 +315,8 @@ class MoViNetA0Stream(nn.Module):
             s = spatial(bb.deep, h)
             if bb.deep.conv_2 is not None:
                 s, s_cur = temporal(bb.deep, s, stream[name])
-                cur[name] = s_cur * one          # decouple emitted copy from compute
+                # decouple emitted copy from compute
+                cur[name] = s_cur * one
             s, xs = se_forward(bb.se, s, pool[name], inv_count)
             xspace[name] = xs
             s = spatial(bb.project, s)
@@ -261,7 +341,14 @@ class MoViNetA0Stream(nn.Module):
 
 
 def make_dummy_states(device="cpu"):
-    """Zero states matching the flat forward signature (excluding the frame)."""
+    """Zero states matching the flat forward signature (excluding the frame).
+
+    Args:
+        device: Torch device for the created tensors.
+
+    Returns:
+        A list of state tensors in the flat forward order.
+    """
     shapes = {
         "b1_l0": (80, 22, 22), "b1_l1": (80, 22, 22), "b1_l2": (80, 22, 22),
         "b2_l0": (184, 11, 11), "b2_l1": (112, 11, 11), "b2_l2": (184, 11, 11),
@@ -271,7 +358,8 @@ def make_dummy_states(device="cpu"):
     pool_c = {"b0_l0": 24, "b1_l0": 80, "b1_l1": 80, "b1_l2": 80,
               "b2_l0": 184, "b2_l1": 112, "b2_l2": 184,
               "b3_l0": 184, "b3_l1": 184, "b3_l2": 184, "b3_l3": 184,
-              "b4_l0": 384, "b4_l1": 280, "b4_l2": 280, "b4_l3": 344, "head": 480}
+              "b4_l0": 384, "b4_l1": 280, "b4_l2": 280, "b4_l3": 344,
+              "head": 480}
     st = []
     for name, dp in STREAM_SPEC:
         c, h, w = shapes[name]
@@ -279,6 +367,7 @@ def make_dummy_states(device="cpu"):
             st.append(torch.zeros(1, c, h, w, device=device))
     for name in POOL_SPEC:
         st.append(torch.zeros(1, pool_c[name], 1, 1, device=device))
-    st.append(torch.ones(1, 1, 1, 1, device=device))   # inv_count (1/N), [1,1,1,1]
+    # inv_count (1/N), [1,1,1,1]
+    st.append(torch.ones(1, 1, 1, 1, device=device))
     st.append(torch.ones(1, 1, 1, 1, device=device))   # one (==1.0) decoupler
     return st
