@@ -12,7 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Build GPU-compatible ORMBG (open real-world background removal) via litert-torch.
+"""Build GPU-compatible ORMBG (open real-world background removal) via
+litert-torch.
 
 Expects the `ormbg` python package next to this script and the checkpoint at
 models/ormbg.pth (both from https://huggingface.co/schirrmacher/ormbg).
@@ -20,7 +21,8 @@ models/ormbg.pth (both from https://huggingface.co/schirrmacher/ormbg).
 Only patch (defensive): align_corners=True -> False in F.interpolate.
 
 Run: python build_ormbg.py
-  # -> ormbg.tflite ([1,3,1024,1024] -> [1,1,1024,1024] mask) + ref_in/ref_out.npy
+  # -> ormbg.tflite ([1,3,1024,1024] -> [1,1,1024,1024] mask)
+  #    + ref_in/ref_out.npy
 """
 import os
 import sys
@@ -35,6 +37,15 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 # defensive: GPU delegate rejects align_corners=True
 _orig = F.interpolate
 def _patched(*a, **k):
+    """Calls F.interpolate with align_corners=True demoted to False.
+
+    Args:
+        *a: Positional arguments for F.interpolate.
+        **k: Keyword arguments for F.interpolate.
+
+    Returns:
+        The result of the original F.interpolate.
+    """
     if k.get("align_corners") is True:
         k["align_corners"] = False
     return _orig(*a, **k)
@@ -55,6 +66,7 @@ class Wrap(nn.Module):
 
 
 def main():
+    """Converts ORMBG to ormbg.tflite and saves reference tensors."""
     net = ORMBG()
     sd = torch.load("models/ormbg.pth", map_location="cpu")
     net.load_state_dict(sd)
