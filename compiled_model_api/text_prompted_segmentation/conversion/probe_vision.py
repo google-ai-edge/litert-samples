@@ -30,6 +30,78 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 SIZE = 352
 EPS = 1e-4
 SAFE = 16.0
+BANNED = {"GATHER", "GATHER_ND", "TOPK_V2", "GELU", "ERF", "WHERE", "SELECT",
+          "SELECT_V2", "BROADCAST_TO", "POW", "TRANSPOSE_CONV", "CAST",
+          "EMBEDDING_LOOKUP", "PACK", "RFFT2D", "FFT", "STFT", "COMPLEX",
+          "RFFT", "IRFFT", "CUMSUM", "SPLIT", "SPLIT_V"}
+
+
+def opcheck(path, label):
+    """Statically scans a .tflite flatbuffer for GPU-hostile ops.
+
+    Args:
+        path: Path to the .tflite file.
+        label: Tag prepended to the printed report lines.
+
+    Returns:
+        True when no banned op and no >4-D tensor is present.
+    """
+    from ai_edge_litert import schema_py_generated as schema
+    with open(path, "rb") as f:
+        model = schema.ModelT.InitFromPackedBuf(f.read(), 0)
+    names = {v: k for k, v in vars(schema.BuiltinOperator).items()
+             if not k.startswith("_")}
+    ops = collections.Counter()
+    over = 0
+    for g in model.subgraphs:
+        for op in g.operators:
+            c = model.operatorCodes[op.opcodeIndex]
+            code = max(c.builtinCode, c.deprecatedBuiltinCode)
+            if c.customCode:
+                op_name = c.customCode.decode()
+            else:
+                op_name = names.get(code, str(code))
+            ops[op_name] += 1
+        over += sum(1 for t in g.tensors
+                    if t.shape is not None and len(t.shape) > 4)
+    bad = {k: v for k, v in ops.items() if k.upper() in BANNED}
+    print(f"[{label}] nodes:{sum(ops.values())} banned:{bad or 'NONE'} "
+          f">4D:{over} size {os.path.getsize(path) / 1e6:.1f}MB")
+    print(f"[{label}] ops:", dict(sorted(ops.items(), key=lambda kv: -kv[1])))
+    if not bad and not over:
+        verdict = "GPU-CLEAN"
+    else:
+        verdict = f"BLOCKERS {bad} >4D:{over}"
+    print(f"[{label}] VERDICT:", verdict)
+    return not bad and not over
+
+
+def to_fp16(fp32, fp16):
+    """Quantizes a .tflite to fp16 weights via ai-edge-quantizer.
+
+    Args:
+        fp32: Source fp32 .tflite path.
+        fp16: Destination fp16 .tflite path.
+
+    Returns:
+        The fp16 path.
+    """
+    from ai_edge_quantizer import quantizer, recipe_manager
+    from ai_edge_quantizer.recipe import AlgorithmName, qtyping
+    rm = recipe_manager.RecipeManager()
+    rm.add_quantization_config(
+        regex=".*", operation_name=qtyping.TFLOperationName.ALL_SUPPORTED,
+        op_config=qtyping.OpQuantizationConfig(
+            weight_tensor_config=qtyping.TensorQuantizationConfig(
+                num_bits=16, dtype=qtyping.TensorDataType.FLOAT),
+            compute_precision=qtyping.ComputePrecision.FLOAT),
+        algorithm_key=AlgorithmName.FLOAT_CASTING)
+    if os.path.exists(fp16):
+        os.remove(fp16)
+    qt = quantizer.Quantizer(float_model=fp32)
+    qt.load_quantization_recipe(rm.get_quantization_recipe())
+    qt.quantize().export_model(fp16)
+    return fp16
 
 
 def safe_ln(x, w, b):
@@ -160,11 +232,9 @@ def main():
         print(f"[torch] {nm}: corr {c:.7f} absmax {a.abs().max():.1f}")
 
     import litert_torch
-    sys.path.insert(0, os.path.expanduser("~/Downloads/meeting/cmgan-work"))
-    from build_cmgan import opcheck, to_fp16
     fp32 = os.path.join(HERE, "clipseg_vis.tflite")
     litert_torch.convert(g, (x,)).export(fp32)
-    it, clean = opcheck(fp32, "fp32")
+    clean = opcheck(fp32, "fp32")
     if clean:
         fp16 = to_fp16(fp32, os.path.join(HERE, "clipseg_vis_fp16.tflite"))
         opcheck(fp16, "fp16")

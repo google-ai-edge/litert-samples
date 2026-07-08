@@ -31,12 +31,9 @@ import torch.nn.functional as F
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
-# Import the REAL joblib before build_cmgan's stub can shadow it.
-import joblib  # noqa: F401
-sys.path.insert(0, os.path.expanduser("~/Downloads/meeting/cmgan-work"))
 from probe_vision import (  # noqa: E402
-    VisionGPU, safe_ln as safe_ln_vis, safe_ln_up as safe_ln)
-from build_cmgan import opcheck, to_fp16  # noqa: E402
+    VisionGPU, safe_ln as safe_ln_vis, safe_ln_up as safe_ln, opcheck,
+    to_fp16)
 
 SIZE = 352
 
@@ -253,10 +250,10 @@ def main():
     import litert_torch
     a32 = os.path.join(HERE, "clipseg_visdec.tflite")
     litert_torch.convert(g, (x1, cond[0:1])).export(a32)
-    itA, cleanA = opcheck(a32, "A fp32")
+    cleanA = opcheck(a32, "A fp32")
     b32 = os.path.join(HERE, "clipseg_text.tflite")
     litert_torch.convert(tg, (emb[0:1],)).export(b32)
-    itB, cleanB = opcheck(b32, "B fp32")
+    cleanB = opcheck(b32, "B fp32")
     if cleanA and cleanB:
         a16 = to_fp16(a32, os.path.join(HERE, "clipseg_visdec_fp16.tflite"))
         opcheck(a16, "A fp16")
