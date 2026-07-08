@@ -12,12 +12,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Build GPU-compatible YOLACT ResNet50 (COCO instance segmentation) via litert-torch.
+"""Build GPU-compatible YOLACT ResNet50 (COCO instance segmentation).
 
-The graph emits the raw heads (loc / conf / mask coefficients / prototype masks);
-box decode, NMS and the lincomb mask assembly run host-side in Kotlin. CUDA is
-stubbed out so the CPU-only trace works, and device_count is faked to 2 so
-yolact picks use_jit=False (the FPN stays a plain traceable nn.Module).
+Converted with litert-torch. The graph emits the raw heads (loc / conf /
+mask coefficients / prototype masks); box decode, NMS and the lincomb
+mask assembly run host-side in Kotlin. CUDA is stubbed out so the
+CPU-only trace works, and device_count is faked to 2 so yolact picks
+use_jit=False (the FPN stays a plain traceable nn.Module).
 
 Only graph patch: ZeroPadMaxPool (-inf PADV2 -> 0-pad + unpadded maxpool).
 
@@ -40,18 +41,21 @@ from huggingface_hub import hf_hub_download
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)) + "/yolact")
 sys.argv = ['x']  # yolact modules read argv
-torch.cuda.current_device = lambda: 0            # yolact calls this at import (CPU box)
+# yolact calls this at import (CPU box)
+torch.cuda.current_device = lambda: 0
 torch.cuda.is_available = lambda: False
-torch.cuda.device_count = lambda: 2              # -> use_jit=False so FPN is plain nn.Module (traceable)
+# -> use_jit=False so FPN is plain nn.Module (traceable)
+torch.cuda.device_count = lambda: 2
 _load = torch.load
 torch.load = lambda *a, **k: _load(*a, **{**k, "map_location": "cpu"})
 from data import set_cfg
-set_cfg('yolact_resnet50_config')                # must run before importing Yolact
+# must run before importing Yolact
+set_cfg('yolact_resnet50_config')
 from yolact import Yolact
 
 
 class ZeroPadMaxPool(nn.Module):
-    """Explicit 0-pad + unpadded maxpool (Mali rejects the -inf PADV2 lowering)."""
+    """Explicit 0-pad + unpadded maxpool (Mali rejects -inf PADV2 lowering)."""
 
     def forward(self, x):
         x = F.pad(x, (1, 1, 1, 1), value=0.0)
@@ -71,7 +75,9 @@ class Wrap(nn.Module):
 
 
 def main():
-    pth = hf_hub_download("dbolya/yolact-resnet50", "yolact_resnet50_54_800000.pth")
+    """Loads YOLACT weights, patches maxpools, exports the raw-head graph."""
+    pth = hf_hub_download("dbolya/yolact-resnet50",
+                          "yolact_resnet50_54_800000.pth")
     net = Yolact()
     net.load_weights(pth)
     net.eval()
