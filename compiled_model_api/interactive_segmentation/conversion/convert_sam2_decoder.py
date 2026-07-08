@@ -46,6 +46,7 @@ Run:
   python convert_sam2_decoder.py            # eager parity vs reference
   python convert_sam2_decoder.py --convert  # + convert + gate + fp16
 """
+import os
 import sys
 import types
 import argparse
@@ -74,7 +75,6 @@ SCRATCH = os.environ.get("SAM2_OUT", "/tmp/sam2_out")
 #       the down-scaling instead HURTS GPU fp16 (device A/B: SafeLN
 #       decoder masks the background). PLAIN_LN=1 uses stock LayerNorm
 #       for the decoder. -----
-import os
 _PLAIN_LN = os.environ.get("PLAIN_LN") == "1"
 
 
