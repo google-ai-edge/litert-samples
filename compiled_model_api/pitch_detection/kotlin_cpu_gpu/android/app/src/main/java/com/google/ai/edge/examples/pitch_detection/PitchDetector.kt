@@ -29,7 +29,8 @@ import kotlin.math.sqrt
  * CREPE monophonic pitch (f0) detection (marl/crepe, MIT), on-device, fully on the LiteRT
  * CompiledModel GPU (ML Drift).
  *
- *   frame[1,1024] (16 kHz, per-frame zero-mean/unit-var) --[GPU CNN]--> activations[1,360] (pitch bins)
+ *   frame[1,1024] (16 kHz, per-frame zero-mean/unit-var) --[GPU CNN]-->
+ *       activations[1,360] (pitch bins)
  *
  * The whole network is a pure CNN — 6× {zero-pad, Conv2d, ReLU, BatchNorm, MaxPool} + Linear +
  * sigmoid — so it rides the GPU graph at corr 1.0 vs PyTorch in fp16. Per-frame normalization and
@@ -45,7 +46,8 @@ class PitchDetector(context: Context) : Closeable {
     const val BINS = 360
     const val CENTS_PER_BIN = 20.0
     const val CENTS_OFFSET = 1997.3794084376191   // torchcrepe bins→cents intercept
-    private val NOTE_NAMES = arrayOf("C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B")
+    private val NOTE_NAMES =
+      arrayOf("C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B")
   }
 
   private val model: CompiledModel = run {
@@ -56,10 +58,22 @@ class PitchDetector(context: Context) : Closeable {
   private val inBuf = model.createInputBuffers()
   private val outBuf = model.createOutputBuffers()
 
-  /** hz: detected pitch (Hz); confidence: peak bin activation 0..1; note/cents: nearest note + offset. */
-  data class Pitch(val hz: Float, val confidence: Float, val note: String, val octave: Int, val cents: Int)
+  /**
+   * hz: detected pitch (Hz); confidence: peak bin activation 0..1;
+   * note/cents: nearest note + offset.
+   */
+  data class Pitch(
+    val hz: Float,
+    val confidence: Float,
+    val note: String,
+    val octave: Int,
+    val cents: Int
+  )
 
-  /** Detect pitch from one WINDOW-sample 16 kHz frame. Normalizes per-frame, runs the GPU net, decodes. */
+  /**
+   * Detect pitch from one WINDOW-sample 16 kHz frame. Normalizes per-frame,
+   * runs the GPU net, decodes.
+   */
   fun detect(frame: FloatArray): Pitch {
     val x = FloatArray(WINDOW)
     var mean = 0f

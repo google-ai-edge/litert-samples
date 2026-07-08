@@ -36,9 +36,10 @@ import kotlin.math.abs
 import kotlin.math.sin
 
 /**
- * CREPE real-time pitch tuner. Listens to the mic, runs CREPE on the latest 1024-sample (16 kHz)
- * window, and shows the detected note, the cents offset (flat/sharp), and the frequency. The CNN
- * runs on the LiteRT CompiledModel GPU; per-frame normalization and the bin→Hz decode are host-side.
+ * CREPE real-time pitch tuner. Listens to the mic, runs CREPE on the latest 1024-sample
+ * (16 kHz) window, and shows the detected note, the cents offset (flat/sharp), and the
+ * frequency. The CNN runs on the LiteRT CompiledModel GPU; per-frame normalization and the
+ * bin→Hz decode are host-side.
  */
 class MainActivity : Activity() {
 
@@ -100,13 +101,18 @@ class MainActivity : Activity() {
         val d = PitchDetector(this)
         detector = d
         // self-test: synthesize a 440 Hz sine (A4) and confirm the pipeline (no mic needed)
-        val t = FloatArray(PitchDetector.WINDOW) { sin(2.0 * Math.PI * 440.0 * it / PitchDetector.SAMPLE_RATE).toFloat() }
+        val t = FloatArray(PitchDetector.WINDOW) {
+          sin(2.0 * Math.PI * 440.0 * it / PitchDetector.SAMPLE_RATE).toFloat()
+        }
         d.detect(t)                                  // warm up GPU
         val p = d.detect(t)
         Log.i(tag, "self-test 440 Hz -> ${p.note}${p.octave} ${"%.1f".format(p.hz)} Hz")
         runOnUiThread {
           status.setBackgroundColor(Color.rgb(0xC8, 0xE6, 0xC9))
-          status.text = "On-device GPU pitch detection ✓  (self-test 440 Hz → ${p.note}${p.octave} ${"%.1f".format(p.hz)} Hz)"
+          status.text =
+            "On-device GPU pitch detection ✓  " +
+              "(self-test 440 Hz → ${p.note}${p.octave} " +
+              "${"%.1f".format(p.hz)} Hz)"
           listen.isEnabled = true
         }
       } catch (e: Throwable) {
@@ -125,7 +131,8 @@ class MainActivity : Activity() {
         listen.text = "🎤  Start tuner"
         return
     }
-    if (checkSelfPermission(Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
+    if (checkSelfPermission(Manifest.permission.RECORD_AUDIO)
+        != PackageManager.PERMISSION_GRANTED) {
       requestPermissions(arrayOf(Manifest.permission.RECORD_AUDIO), 1)
       return
     }
@@ -143,7 +150,8 @@ class MainActivity : Activity() {
     bg.execute {
       val sr = PitchDetector.SAMPLE_RATE
       val win = PitchDetector.WINDOW
-      val minBuf = AudioRecord.getMinBufferSize(sr, AudioFormat.CHANNEL_IN_MONO, AudioFormat.ENCODING_PCM_16BIT)
+      val minBuf = AudioRecord.getMinBufferSize(
+        sr, AudioFormat.CHANNEL_IN_MONO, AudioFormat.ENCODING_PCM_16BIT)
       // UNPROCESSED keeps AGC/NS off for accurate pitch; fall back to MIC if unavailable.
       val rec = try {
         AudioRecord(
@@ -170,7 +178,8 @@ class MainActivity : Activity() {
         rec.startRecording()
         while (listening.get()) {
           shiftIn(rec.read(chunk, 0, chunk.size))                       // blocking: advance one hop
-          while (true) {                                                // drain backlog → stay current
+          // drain backlog → stay current
+          while (true) {
             val m = rec.read(chunk, 0, chunk.size, AudioRecord.READ_NON_BLOCKING)
             if (m <= 0) break
             shiftIn(m)
