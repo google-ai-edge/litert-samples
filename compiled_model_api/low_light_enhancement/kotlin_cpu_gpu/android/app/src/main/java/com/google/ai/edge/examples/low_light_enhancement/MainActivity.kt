@@ -38,8 +38,10 @@ import java.util.concurrent.Executors
 import kotlin.math.min
 
 /**
- * CPGA-Net low-light enhancement demo, fully on the CompiledModel GPU. Brightens a dark image; press-and-hold
- * the image to compare with the original. Works on a bundled image and any image picked from the gallery.
+ * CPGA-Net low-light enhancement demo, fully on the CompiledModel GPU.
+ * Brightens a dark image; press-and-hold the image to compare with the
+ * original. Works on a bundled image and any image picked from the
+ * gallery.
  */
 class MainActivity : Activity() {
 
@@ -65,7 +67,10 @@ class MainActivity : Activity() {
             text = "🖼  Pick image"
             isEnabled = false
             setOnClickListener {
-                startActivityForResult(Intent(Intent.ACTION_GET_CONTENT).apply { type = "image/*" }, pickReq)
+                val intent = Intent(Intent.ACTION_GET_CONTENT).apply {
+                    type = "image/*"
+                }
+                startActivityForResult(intent, pickReq)
             }
         }
         view = CompareView(this)
@@ -78,7 +83,12 @@ class MainActivity : Activity() {
             try {
                 net = LowLightEnhancer(this)
                 try {
-                    run(squareResize(BitmapFactory.decodeStream(assets.open("test_image.jpg"))), warm = true)
+                    val bundled = squareResize(
+                        BitmapFactory.decodeStream(
+                            assets.open("test_image.jpg")
+                        )
+                    )
+                    run(bundled, warm = true)
                 } catch (_: java.io.IOException) {
                     runOnUiThread { status.text = "Ready — pick a dark image." }
                 }
@@ -119,14 +129,18 @@ class MainActivity : Activity() {
         Log.i(tag, "enhance ${ms}ms")
         runOnUiThread {
             status.setBackgroundColor(Color.rgb(0xC8, 0xE6, 0xC9))
-            status.text = "On-device GPU low-light ✓  ${ms} ms  ·  hold to compare  ·  CPGA-Net, CompiledModel GPU"
+            status.text =
+                "On-device GPU low-light ✓  ${ms} ms  ·  hold to compare  ·  " +
+                    "CPGA-Net, CompiledModel GPU"
             view.set(src, enh)
             view.invalidate()
         }
     }
 
     private fun loadOriented(uri: Uri): Bitmap {
-        val bm = contentResolver.openInputStream(uri).use { BitmapFactory.decodeStream(it) } ?: error("cannot decode image")
+        val bm = contentResolver.openInputStream(uri).use {
+            BitmapFactory.decodeStream(it)
+        } ?: error("cannot decode image")
         val rot = contentResolver.openInputStream(uri).use {
             when (ExifInterface(it!!).getAttributeInt(ExifInterface.TAG_ORIENTATION, 1)) {
                 ExifInterface.ORIENTATION_ROTATE_90 -> 90f
@@ -136,7 +150,10 @@ class MainActivity : Activity() {
             }
         }
         if (rot == 0f) return bm
-        return Bitmap.createBitmap(bm, 0, 0, bm.width, bm.height, Matrix().apply { postRotate(rot) }, true)
+        return Bitmap.createBitmap(
+            bm, 0, 0, bm.width, bm.height,
+            Matrix().apply { postRotate(rot) }, true
+        )
     }
 
     private fun squareResize(src: Bitmap): Bitmap {

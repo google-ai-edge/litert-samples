@@ -28,8 +28,10 @@ import java.io.File
  * CPGA-Net (Shyandram, IJPRAI) low-light image enhancement on the LiteRT CompiledModel GPU.
  *   image[1,3,256,256] (RGB [0,1]) -> enhanced[1,3,256,256] ([0,1])
  *
- * An extremely small (0.025 M params / 0.1 MB fp16 — the smallest in this repo) channel-prior + gamma-correction
- * CNN. ~2 ms / 256×256 on a Pixel 8a, fully GPU. The gamma correction `x^γ` is converted to `exp(γ·log x)`.
+ * An extremely small (0.025 M params / 0.1 MB fp16 — the smallest in
+ * this repo) channel-prior + gamma-correction CNN. ~2 ms / 256×256 on a
+ * Pixel 8a, fully GPU. The gamma correction `x^γ` is converted to
+ * `exp(γ·log x)`.
  */
 class LowLightEnhancer(ctx: Context, accelerator: Accelerator = Accelerator.GPU) : Closeable {
 
@@ -37,7 +39,10 @@ class LowLightEnhancer(ctx: Context, accelerator: Accelerator = Accelerator.GPU)
 
     private val model: CompiledModel = run {
         val f = File(ctx.filesDir, "cpga_fp16.tflite")
-        check(f.exists()) { "Model not found: cpga_fp16.tflite. Push first: scripts/install_to_device.sh" }
+        check(f.exists()) {
+            "Model not found: cpga_fp16.tflite. " +
+                "Push first: scripts/install_to_device.sh"
+        }
         CompiledModel.create(f.absolutePath, CompiledModel.Options(accelerator), null)
     }
     private val inBuf = model.createInputBuffers()
