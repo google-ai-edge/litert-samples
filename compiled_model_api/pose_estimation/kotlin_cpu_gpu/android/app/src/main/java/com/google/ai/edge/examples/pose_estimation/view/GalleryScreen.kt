@@ -60,16 +60,21 @@ fun GalleryScreen(
                 scope.launch(Dispatchers.IO) {
                     retriever.setDataSource(context, uri)
                     val videoLengthMs =
-                        retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_DURATION)?.toLong()
+                        retriever
+                            .extractMetadata(MediaMetadataRetriever.METADATA_KEY_DURATION)
+                            ?.toLong()
                     val firstFrame = retriever.getFrameAtTime(0)
                     val width = firstFrame?.width
                     val height = firstFrame?.height
-                    if ((videoLengthMs == null) || (width == null) || (height == null)) return@launch
+                    if ((videoLengthMs == null) || (width == null) || (height == null)) {
+                        return@launch
+                    }
                     val numberOfFrameToRead = videoLengthMs.div(1000)
                     for (i in 0..numberOfFrameToRead) {
                         if (!isActive) return@launch
                         val frame =
-                            retriever.getFrameAtTime(i * 1000000, MediaMetadataRetriever.OPTION_CLOSEST)
+                            retriever.getFrameAtTime(
+                                i * 1000000, MediaMetadataRetriever.OPTION_CLOSEST)
                                 ?: return@launch
                         onImageAnalyzed(frame)
                     }
