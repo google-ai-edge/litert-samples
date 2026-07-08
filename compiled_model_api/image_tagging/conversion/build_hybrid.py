@@ -21,7 +21,6 @@
 Run: python build_hybrid.py
 """
 import os
-import sys
 import numpy as np
 import torch
 import torch.nn as nn
@@ -72,12 +71,11 @@ def main():
     print("feat[1,144,1536] absmax", float(feat.abs().max()))
 
     import litert_torch
-    sys.path.insert(0, os.path.expanduser("~/Downloads/meeting/cmgan-work"))
-    from build_cmgan import opcheck, to_fp16
+    from build_swin import opcheck, to_fp16
     # G1 GPU
     a32 = os.path.join(OUT, "ram_swin_s012.tflite")
     litert_torch.convert(g1.eval(), (image,)).export(a32)
-    _, cleanA = opcheck(a32, "G1 s012 fp32")
+    cleanA = opcheck(a32, "G1 s012 fp32")
     if cleanA:
         to_fp16(a32, os.path.join(OUT, "ram_swin_s012_fp16.tflite"))
         opcheck(os.path.join(OUT, "ram_swin_s012_fp16.tflite"), "G1 s012 fp16")

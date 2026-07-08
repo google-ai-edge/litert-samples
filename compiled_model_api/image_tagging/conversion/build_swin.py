@@ -20,6 +20,7 @@ Usage: python build_swin.py [parity|convert]
 """
 import os
 import sys
+import collections
 import numpy as np
 import torch
 import torch.nn as nn
@@ -29,6 +30,79 @@ WORK = os.path.dirname(os.path.abspath(__file__))
 OUT = os.path.join(WORK, "out")
 os.makedirs(OUT, exist_ok=True)
 REF = np.load(os.path.join(WORK, "ref", "ref_demo1.npz"))
+BANNED = {"GATHER", "GATHER_ND", "TOPK_V2", "GELU", "ERF", "WHERE", "SELECT",
+          "SELECT_V2", "BROADCAST_TO", "POW", "TRANSPOSE_CONV", "CAST",
+          "EMBEDDING_LOOKUP", "PACK", "RFFT2D", "FFT", "STFT", "COMPLEX",
+          "RFFT", "IRFFT", "CUMSUM", "SPLIT", "SPLIT_V"}
+
+
+def opcheck(path, label):
+    """Statically scans a .tflite flatbuffer for GPU-hostile ops.
+
+    Args:
+        path: Path to the .tflite file.
+        label: Tag prepended to the printed report lines.
+
+    Returns:
+        True when no banned op and no >4-D tensor is present.
+    """
+    from ai_edge_litert import schema_py_generated as schema
+    with open(path, "rb") as f:
+        model = schema.ModelT.InitFromPackedBuf(f.read(), 0)
+    names = {v: k for k, v in vars(schema.BuiltinOperator).items()
+             if not k.startswith("_")}
+    ops = collections.Counter()
+    over = 0
+    for g in model.subgraphs:
+        for op in g.operators:
+            c = model.operatorCodes[op.opcodeIndex]
+            code = max(c.builtinCode, c.deprecatedBuiltinCode)
+            if c.customCode:
+                op_name = c.customCode.decode()
+            else:
+                op_name = names.get(code, str(code))
+            ops[op_name] += 1
+        over += sum(1 for t in g.tensors
+                    if t.shape is not None and len(t.shape) > 4)
+    bad = {k: v for k, v in ops.items() if k.upper() in BANNED}
+    print(f"[{label}] nodes:{sum(ops.values())} banned:{bad or 'NONE'} "
+          f">4D:{over} size {os.path.getsize(path) / 1e6:.1f}MB")
+    print(f"[{label}] ops:", dict(sorted(ops.items(), key=lambda kv: -kv[1])))
+    if not bad and not over:
+        verdict = "GPU-CLEAN"
+    else:
+        verdict = f"BLOCKERS {bad} >4D:{over}"
+    print(f"[{label}] VERDICT:", verdict)
+    return not bad and not over
+
+
+def to_fp16(fp32, fp16):
+    """Quantizes a .tflite to fp16 weights via ai-edge-quantizer.
+
+    Args:
+        fp32: Source fp32 .tflite path.
+        fp16: Destination fp16 .tflite path.
+
+    Returns:
+        The fp16 path.
+    """
+    from ai_edge_quantizer import quantizer, recipe_manager
+    from ai_edge_quantizer.recipe import AlgorithmName, qtyping
+    rm = recipe_manager.RecipeManager()
+    rm.add_quantization_config(
+        regex=".*", operation_name=qtyping.TFLOperationName.ALL_SUPPORTED,
+        op_config=qtyping.OpQuantizationConfig(
+            weight_tensor_config=qtyping.TensorQuantizationConfig(
+                num_bits=16, dtype=qtyping.TensorDataType.FLOAT),
+            compute_precision=qtyping.ComputePrecision.FLOAT),
+        algorithm_key=AlgorithmName.FLOAT_CASTING)
+    if os.path.exists(fp16):
+        os.remove(fp16)
+    qt = quantizer.Quantizer(float_model=fp32)
+    qt.load_quantization_recipe(rm.get_quantization_recipe())
+    qt.quantize().export_model(fp16)
+    return fp16
+
 
 # ------------------- GPU-clean building blocks -------------------
 def tanh_gelu(self, x):
@@ -293,9 +367,6 @@ def main():
 
     if mode == "tapped":
         import litert_torch
-        sys.path.insert(
-            0, os.path.expanduser("~/Downloads/meeting/cmgan-work"))
-        from build_cmgan import opcheck, to_fp16
         tap = SwinEncoderTapped(model).eval()
         image = torch.from_numpy(REF["image"])
         with torch.no_grad():
@@ -307,7 +378,7 @@ def main():
                   f"absmax {float(o.abs().max()):.2f} -> swin_tap{i}.bin")
         fp32 = os.path.join(OUT, "ram_swin_tapped.tflite")
         litert_torch.convert(tap.eval(), (image,)).export(fp32)
-        _, clean = opcheck(fp32, "tapped fp32")
+        clean = opcheck(fp32, "tapped fp32")
         if clean:
             to_fp16(fp32, os.path.join(OUT, "ram_swin_tapped_fp16.tflite"))
             print("wrote tapped fp16 + per-stage refs")
@@ -315,14 +386,11 @@ def main():
 
     if mode == "convert":
         import litert_torch
-        sys.path.insert(
-            0, os.path.expanduser("~/Downloads/meeting/cmgan-work"))
-        from build_cmgan import opcheck, to_fp16
         image = torch.from_numpy(REF["image"])
         fp32 = os.path.join(OUT, "ram_swin_enc.tflite")
         print("converting Swin encoder ...")
         litert_torch.convert(enc.eval(), (image,)).export(fp32)
-        it, clean = opcheck(fp32, "swin fp32")
+        clean = opcheck(fp32, "swin fp32")
         if clean:
             fp16 = to_fp16(fp32, os.path.join(OUT, "ram_swin_enc_fp16.tflite"))
             opcheck(fp16, "swin fp16")

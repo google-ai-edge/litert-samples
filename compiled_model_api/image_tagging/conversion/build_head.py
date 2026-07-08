@@ -191,9 +191,7 @@ def main():
 
     if mode == "convert":
         import litert_torch
-        sys.path.insert(
-            0, os.path.expanduser("~/Downloads/meeting/cmgan-work"))
-        from build_cmgan import opcheck, to_fp16
+        from build_swin import opcheck, to_fp16
         # Graph B = tagging head alone (GPU candidate):
         # queries[1,C,768] + image_embeds[1,145,512] -> logits
         with torch.no_grad():
@@ -204,7 +202,7 @@ def main():
         print("[graphB] logits corr vs ref:", corr(lb, ref))
         fp32 = os.path.join(OUT, "ram_taghead.tflite")
         litert_torch.convert(tagb, (queries, image_embeds)).export(fp32)
-        _, cleanB = opcheck(fp32, "taghead fp32")
+        cleanB = opcheck(fp32, "taghead fp32")
         if cleanB:
             b16 = to_fp16(fp32, os.path.join(OUT, "ram_taghead_fp16.tflite"))
             opcheck(b16, "taghead fp16")
@@ -221,9 +219,7 @@ def main():
 
     if mode == "reweight":
         import litert_torch
-        sys.path.insert(
-            0, os.path.expanduser("~/Downloads/meeting/cmgan-work"))
-        from build_cmgan import opcheck, to_fp16
+        from build_swin import opcheck, to_fp16
         rw = Reweight(model).eval()
         with torch.no_grad():
             q = rw(cls).numpy()
