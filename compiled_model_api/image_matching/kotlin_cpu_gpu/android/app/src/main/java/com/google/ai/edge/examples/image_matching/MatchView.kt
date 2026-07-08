@@ -57,7 +57,8 @@ class MatchView(ctx: Context) : View(ctx) {
         paint.strokeWidth = 2.5f
         for (m in matches) {
             // green (high sim) -> yellow (borderline)
-            val t = ((m.sim - XFeatMatcher.MIN_COSSIM) / (1f - XFeatMatcher.MIN_COSSIM)).coerceIn(0f, 1f)
+            val t = ((m.sim - XFeatMatcher.MIN_COSSIM) / (1f - XFeatMatcher.MIN_COSSIM))
+                .coerceIn(0f, 1f)
             paint.color = Color.argb(200, (255 * (1 - t)).toInt(), 220, 40)
             c.drawLine(m.x0 * sx, m.y0 * sy, half + m.x1 * sx, m.y1 * sy, paint)
             c.drawCircle(m.x0 * sx, m.y0 * sy, 3.5f, paint)

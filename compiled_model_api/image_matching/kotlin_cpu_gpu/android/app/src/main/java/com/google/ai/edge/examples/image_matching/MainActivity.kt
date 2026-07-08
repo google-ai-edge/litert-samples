@@ -124,7 +124,8 @@ class MainActivity : Activity() {
         Log.i(tag, "kpts ${fa.xs.size}/${fb.xs.size}, ${matches.size} matches in ${ms}ms")
         runOnUiThread {
             status.setBackgroundColor(Color.rgb(0xC8, 0xE6, 0xC9))
-            status.text = "✓ ${matches.size} matches (${fa.xs.size}/${fb.xs.size} kpts) in ${ms}ms · XFeat, CompiledModel GPU"
+            status.text = "✓ ${matches.size} matches (${fa.xs.size}/${fb.xs.size} kpts) " +
+                "in ${ms}ms · XFeat, CompiledModel GPU"
             view.set(Bitmap.createScaledBitmap(a, XFeatMatcher.W, XFeatMatcher.H, true),
                      Bitmap.createScaledBitmap(b, XFeatMatcher.W, XFeatMatcher.H, true), matches)
         }
