@@ -37,8 +37,8 @@ import java.util.concurrent.Executors
 import kotlin.math.min
 
 /**
- * YuNet face-detection demo, fully on the CompiledModel GPU. Detects faces + 5 landmarks in a bundled image
- * and any image picked from the gallery, drawing boxes and landmark points.
+ * YuNet face-detection demo, fully on the CompiledModel GPU. Detects faces + 5 landmarks in a
+ * bundled image and any image picked from the gallery, drawing boxes and landmark points.
  */
 class MainActivity : Activity() {
 
@@ -64,20 +64,23 @@ class MainActivity : Activity() {
             text = "🖼  Pick image"
             isEnabled = false
             setOnClickListener {
-                startActivityForResult(Intent(Intent.ACTION_GET_CONTENT).apply { type = "image/*" }, pickReq)
+                val intent = Intent(Intent.ACTION_GET_CONTENT).apply { type = "image/*" }
+                startActivityForResult(intent, pickReq)
             }
         }
         faceView = FaceView(this)
         root.addView(status)
         root.addView(pick)
-        root.addView(faceView, LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, 980))
+        root.addView(
+            faceView, LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, 980))
         setContentView(root)
 
         bg.execute {
             try {
                 net = FaceDetector(this)
                 try {
-                    run(squareResize(BitmapFactory.decodeStream(assets.open("test_image.jpg"))), warm = true)
+                    val bundled = BitmapFactory.decodeStream(assets.open("test_image.jpg"))
+                    run(squareResize(bundled), warm = true)
                 } catch (_: java.io.IOException) {
                     runOnUiThread { status.text = "Ready — pick an image to detect faces." }
                 }
@@ -118,14 +121,16 @@ class MainActivity : Activity() {
         Log.i(tag, "detect ${ms}ms faces=${faces.size}")
         runOnUiThread {
             status.setBackgroundColor(Color.rgb(0xC8, 0xE6, 0xC9))
-            status.text = "On-device GPU faces ✓  ${ms} ms  ·  ${faces.size} face(s)  ·  YuNet, CompiledModel GPU"
+            status.text = "On-device GPU faces ✓  ${ms} ms  ·  ${faces.size} face(s)" +
+                "  ·  YuNet, CompiledModel GPU"
             faceView.set(bm, faces)
             faceView.invalidate()
         }
     }
 
     private fun loadOriented(uri: Uri): Bitmap {
-        val bm = contentResolver.openInputStream(uri).use { BitmapFactory.decodeStream(it) } ?: error("cannot decode image")
+        val bm = contentResolver.openInputStream(uri).use { BitmapFactory.decodeStream(it) }
+            ?: error("cannot decode image")
         val rot = contentResolver.openInputStream(uri).use {
             when (ExifInterface(it!!).getAttributeInt(ExifInterface.TAG_ORIENTATION, 1)) {
                 ExifInterface.ORIENTATION_ROTATE_90 -> 90f
@@ -135,7 +140,8 @@ class MainActivity : Activity() {
             }
         }
         if (rot == 0f) return bm
-        return Bitmap.createBitmap(bm, 0, 0, bm.width, bm.height, Matrix().apply { postRotate(rot) }, true)
+        return Bitmap.createBitmap(
+            bm, 0, 0, bm.width, bm.height, Matrix().apply { postRotate(rot) }, true)
     }
 
     /** Letterbox into a SIZE×SIZE square (keep aspect, pad) so no face is cropped out. */
@@ -204,7 +210,8 @@ class MainActivity : Activity() {
             for (f in faces) {
                 canvas.drawRect(ox + f.x1 * s, oy + f.y1 * s, ox + f.x2 * s, oy + f.y2 * s, box)
                 for (j in 0 until 5) {
-                    canvas.drawCircle(ox + f.landmarks[2 * j] * s, oy + f.landmarks[2 * j + 1] * s, 4f, lm)
+                    canvas.drawCircle(
+                        ox + f.landmarks[2 * j] * s, oy + f.landmarks[2 * j + 1] * s, 4f, lm)
                 }
             }
         }
