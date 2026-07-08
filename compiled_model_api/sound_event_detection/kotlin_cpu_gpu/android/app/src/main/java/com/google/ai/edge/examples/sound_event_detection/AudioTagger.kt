@@ -26,12 +26,13 @@ import java.io.File
  * PANNs CNN14 audio tagging (AudioSet, 527 sound-event classes), on-device, with the CNN running
  * fully on the LiteRT CompiledModel GPU (ML Drift).
  *
- *   waveform[320000] --[Kotlin log-mel]--> logmel[1,1,1001,64] --[GPU CNN14]--> probs[527] (sigmoid)
+ *   waveform[320000] --[Kotlin log-mel]--> logmel[1,1,1001,64]
+ *       --[GPU CNN14]--> probs[527] (sigmoid)
  *
- * Only the log-mel front-end is host-side (see MelSpectrogram for why: the power spectrum overflows
- * fp16). The whole CNN14 body — bn0 + 6 conv blocks + pooling + 2 FC + sigmoid — is a pure CNN and
- * rides the GPU graph (corr 1.0 vs PyTorch in fp16). AudioSet tagging is multi-label, so the output
- * is per-class probabilities, not a softmax: several tags can be high at once.
+ * Only the log-mel front-end is host-side (see MelSpectrogram for why: the power spectrum
+ * overflows fp16). The whole CNN14 body — bn0 + 6 conv blocks + pooling + 2 FC + sigmoid — is a
+ * pure CNN and rides the GPU graph (corr 1.0 vs PyTorch in fp16). AudioSet tagging is multi-label,
+ * so the output is per-class probabilities, not a softmax: several tags can be high at once.
  *
  * The tflite is loaded from filesDir (162 MB, pushed via install_to_device.sh).
  */

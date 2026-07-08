@@ -63,7 +63,10 @@ class MelSpectrogram(context: Context) {
     }
   }
 
-  private val window = FloatArray(N_FFT) { i -> (0.5 - 0.5 * cos(2.0 * PI * i / N_FFT)).toFloat() }  // periodic Hann
+  // periodic Hann
+  private val window = FloatArray(N_FFT) { i ->
+    (0.5 - 0.5 * cos(2.0 * PI * i / N_FFT)).toFloat()
+  }
 
   // Precomputed twiddle factors W_N^k = exp(-2πi k / N_FFT), k = 0..N_FFT/2-1 (reused across all
   // frames/stages so the FFT does no per-butterfly trig — the dominant cost otherwise).
@@ -82,7 +85,8 @@ class MelSpectrogram(context: Context) {
     val padded = FloatArray(CLIP_SAMPLES + 2 * PAD)
     System.arraycopy(x, 0, padded, PAD, CLIP_SAMPLES)
     for (j in 0 until PAD) {
-      padded[j] = x[PAD - j]                                    // left reflect: x[512], x[511], ..., x[1]
+      // left reflect: x[512], x[511], ..., x[1]
+      padded[j] = x[PAD - j]
       padded[PAD + CLIP_SAMPLES + j] = x[CLIP_SAMPLES - 2 - j]  // right reflect
     }
 

@@ -34,10 +34,11 @@ import java.nio.ByteOrder
 import java.util.concurrent.Executors
 
 /**
- * PANNs CNN14 audio-tagging demo. Records 10 s of audio and lists the top AudioSet sound-event tags
- * (527 classes: speech, music, instruments, animals, vehicles, alarms, household sounds, …). This is
- * multi-label — several tags can be high at once. The CNN runs on the LiteRT CompiledModel GPU; the
- * log-mel front-end is computed on the CPU (it overflows fp16 on the GPU).
+ * PANNs CNN14 audio-tagging demo. Records 10 s of audio and lists the top AudioSet
+ * sound-event tags (527 classes: speech, music, instruments, animals, vehicles, alarms,
+ * household sounds, …). This is multi-label — several tags can be high at once. The CNN
+ * runs on the LiteRT CompiledModel GPU; the log-mel front-end is computed on the CPU (it
+ * overflows fp16 on the GPU).
  */
 class MainActivity : Activity() {
 
@@ -94,11 +95,16 @@ class MainActivity : Activity() {
         val clip = readFloats(assets.open("test_audio.bin").readBytes())
         t.tag(clip)                            // warm up GPU
         val r = t.tag(clip)
-        Log.i(tag, "bundled clip -> ${r.tags.firstOrNull()?.label} (mel ${r.melMs} ms, gpu ${r.gpuMs} ms)")
+        Log.i(
+          tag,
+          "bundled clip -> ${r.tags.firstOrNull()?.label} " +
+            "(mel ${r.melMs} ms, gpu ${r.gpuMs} ms)")
         runOnUiThread {
           status.setBackgroundColor(Color.rgb(0xC8, 0xE6, 0xC9))
-          status.text = "On-device GPU audio tagging ✓  (self-test → \"${r.tags.first().label}\", " +
-            "mel ${r.melMs} ms + gpu ${r.gpuMs} ms)"
+          status.text =
+            "On-device GPU audio tagging ✓  (self-test → " +
+              "\"${r.tags.first().label}\", " +
+              "mel ${r.melMs} ms + gpu ${r.gpuMs} ms)"
           record.isEnabled = true
         }
       } catch (e: Throwable) {
@@ -112,7 +118,8 @@ class MainActivity : Activity() {
   }
 
   private fun ensureMicThenRecord() {
-    if (checkSelfPermission(Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
+    if (checkSelfPermission(Manifest.permission.RECORD_AUDIO)
+        != PackageManager.PERMISSION_GRANTED) {
       requestPermissions(arrayOf(Manifest.permission.RECORD_AUDIO), 1)
       return
     }
@@ -182,7 +189,8 @@ class MainActivity : Activity() {
       val n = rec.read(pcm, off, sr - off)
       if (n <= 0) break
       off += n
-      val secLeft = (sr - off + MelSpectrogram.SAMPLE_RATE - 1) / MelSpectrogram.SAMPLE_RATE  // ceil, 10→0
+      // ceil, 10→0
+      val secLeft = (sr - off + MelSpectrogram.SAMPLE_RATE - 1) / MelSpectrogram.SAMPLE_RATE
       if (secLeft != lastTick) {
           onTick(secLeft)
           lastTick = secLeft
