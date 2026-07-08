@@ -109,11 +109,16 @@ class MainActivity : Activity() {
         val t0 = System.nanoTime()
         val r = sc.score(bm)
         val ms = (System.nanoTime() - t0) / 1_000_000
-        Log.i("NIMA", "SCORES aesthetic=%.3f technical=%.3f ms=%d".format(r.aesthetic, r.technical, ms))
+        Log.i(
+          "NIMA",
+          "SCORES aesthetic=%.3f technical=%.3f ms=%d"
+            .format(r.aesthetic, r.technical, ms))
         runOnUiThread {
           status.setBackgroundColor(Color.rgb(0xC8, 0xE6, 0xC9))
           status.text = "✓ scored in ${ms}ms · NIMA MobileNet, CompiledModel GPU"
-          scoreView.text = "Aesthetic  %.2f / 10\nTechnical  %.2f / 10".format(r.aesthetic, r.technical)
+          scoreView.text =
+            "Aesthetic  %.2f / 10\nTechnical  %.2f / 10"
+              .format(r.aesthetic, r.technical)
         }
       } catch (e: Throwable) {
         Log.e("NIMA", "score", e)

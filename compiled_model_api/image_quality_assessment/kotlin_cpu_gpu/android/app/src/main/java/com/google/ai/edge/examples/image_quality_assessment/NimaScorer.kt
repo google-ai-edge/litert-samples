@@ -22,18 +22,23 @@ import com.google.ai.edge.litert.Accelerator
 import com.google.ai.edge.litert.CompiledModel
 
 /**
- * NIMA (Neural Image Assessment) image-quality scoring on the LiteRT CompiledModel GPU. Two MobileNet
- * models — aesthetic (AVA) and technical (TID2013) — each output a 10-bin score distribution; the
- * quality score is the distribution mean over 1..10. Both models run fully on the GPU.
+ * NIMA (Neural Image Assessment) image-quality scoring on the LiteRT CompiledModel GPU. Two
+ * MobileNet models — aesthetic (AVA) and technical (TID2013) — each output a 10-bin score
+ * distribution; the quality score is the distribution mean over 1..10. Both models run fully
+ * on the GPU.
  */
 class NimaScorer(ctx: Context) {
 
   companion object { const val SIZE = 224 }
 
-  private val aesthetic = CompiledModel.create(ctx.assets, "nima_aesthetic_fp16.tflite", CompiledModel.Options(Accelerator.GPU), null)
+  private val aesthetic = CompiledModel.create(
+    ctx.assets, "nima_aesthetic_fp16.tflite",
+    CompiledModel.Options(Accelerator.GPU), null)
   private val aIn = aesthetic.createInputBuffers()
   private val aOut = aesthetic.createOutputBuffers()
-  private val technical = CompiledModel.create(ctx.assets, "nima_technical_fp16.tflite", CompiledModel.Options(Accelerator.GPU), null)
+  private val technical = CompiledModel.create(
+    ctx.assets, "nima_technical_fp16.tflite",
+    CompiledModel.Options(Accelerator.GPU), null)
   private val tIn = technical.createInputBuffers()
   private val tOut = technical.createOutputBuffers()
 
