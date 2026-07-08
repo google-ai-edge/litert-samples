@@ -81,7 +81,8 @@ class MainViewModel(private val depthEstimationHelper: DepthEstimationHelper) : 
   private val lensFacing = MutableStateFlow(CameraSelector.LENS_FACING_BACK)
 
   val uiState: StateFlow<UiState> =
-    combine(mediaUri, depthUiShareFlow, errorMessage, lensFacing) { uri, depthPair, error, lensFace ->
+    combine(mediaUri, depthUiShareFlow, errorMessage, lensFacing) {
+        uri, depthPair, error, lensFace ->
         UiState(
           mediaUri = uri,
           overlay = depthPair.first,

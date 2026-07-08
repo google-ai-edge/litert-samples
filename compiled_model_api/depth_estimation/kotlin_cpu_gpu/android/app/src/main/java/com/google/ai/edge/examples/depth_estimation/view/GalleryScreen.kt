@@ -61,17 +61,21 @@ fun GalleryScreen(
                     // Load frames from the video.
                     retriever.setDataSource(context, uri)
                     val videoLengthMs =
-                        retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_DURATION)?.toLong()
+                        retriever
+                            .extractMetadata(MediaMetadataRetriever.METADATA_KEY_DURATION)
+                            ?.toLong()
 
-                    // Note: We need to read width/height from frame instead of getting the width/height
-                    // of the video directly because MediaRetriever returns frames that are smaller than the
-                    // actual dimension of the video file.
+                    // Note: We need to read width/height from frame instead of getting the
+                    // width/height of the video directly because MediaRetriever returns frames
+                    // that are smaller than the actual dimension of the video file.
                     val firstFrame = retriever.getFrameAtTime(0)
                     val width = firstFrame?.width
                     val height = firstFrame?.height
 
                     // If the video is invalid, returns a null
-                    if ((videoLengthMs == null) || (width == null) || (height == null)) return@launch
+                    if ((videoLengthMs == null) || (width == null) || (height == null)) {
+                        return@launch
+                    }
 
                     // Next, we'll get one frame every frameInterval ms
                     val numberOfFrameToRead = videoLengthMs.div(1000)
@@ -79,7 +83,8 @@ fun GalleryScreen(
                         if (!isActive) return@launch
                         val timestampUs = i * 1000000
                         val frame =
-                            retriever.getFrameAtTime(timestampUs, MediaMetadataRetriever.OPTION_CLOSEST)
+                            retriever.getFrameAtTime(
+                                timestampUs, MediaMetadataRetriever.OPTION_CLOSEST)
                                 ?: return@launch
                         onImageAnalyzed(frame)
                     }

@@ -218,7 +218,8 @@ class MainActivity : ComponentActivity() {
       Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
         IconButton(
           onClick = onFlipCamera,
-          modifier = Modifier.padding(16.dp).background(Color.Black.copy(alpha = 0.5f), CircleShape),
+          modifier =
+            Modifier.padding(16.dp).background(Color.Black.copy(alpha = 0.5f), CircleShape),
         ) {
           Icon(
             imageVector = Icons.Filled.Cameraswitch,

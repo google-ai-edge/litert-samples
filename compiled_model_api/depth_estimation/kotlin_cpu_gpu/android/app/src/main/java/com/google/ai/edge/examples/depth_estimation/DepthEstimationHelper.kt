@@ -37,11 +37,12 @@ import kotlinx.coroutines.withContext
 /**
  * Runs monocular depth estimation with the LiteRT CompiledModel API. Two models are selectable:
  *
- *  - **MiDaS-small** (`midas_small_256_fp16.tflite`): 256x256 NHWC input (image stretched to square),
- *    256x256 inverse-depth output, `inferno` colormap. Fast and light.
- *  - **Depth Anything 3 — Small** (`da3_small_gpu_fp16.tflite`): 504x896 NCHW input (image letterboxed
- *    into the native portrait aspect), 896x504 metric-ish depth output, disparity + Spectral colormap.
- *    State-of-the-art (2025), heavier. Both run fully on the LiteRT GPU delegate.
+ *  - **MiDaS-small** (`midas_small_256_fp16.tflite`): 256x256 NHWC input (image stretched to
+ *    square), 256x256 inverse-depth output, `inferno` colormap. Fast and light.
+ *  - **Depth Anything 3 — Small** (`da3_small_gpu_fp16.tflite`): 504x896 NCHW input (image
+ *    letterboxed into the native portrait aspect), 896x504 metric-ish depth output, disparity +
+ *    Spectral colormap. State-of-the-art (2025), heavier. Both run fully on the LiteRT GPU
+ *    delegate.
  */
 class DepthEstimationHelper(private val context: Context) {
 
@@ -147,7 +148,8 @@ class DepthEstimationHelper(private val context: Context) {
       val inferenceTime = SystemClock.uptimeMillis() - start
 
       val overlay =
-        DepthColorMap.inverseDepthInferno(depth, w, w).restoreAspectRatio(bitmap.width, bitmap.height)
+        DepthColorMap.inverseDepthInferno(depth, w, w)
+          .restoreAspectRatio(bitmap.width, bitmap.height)
       return DepthResult(overlay, inferenceTime)
     }
 
