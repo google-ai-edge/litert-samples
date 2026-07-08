@@ -12,9 +12,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Build GPU-compatible PlantNet-300K ResNet18 (1081-species plant ID) via litert-torch.
+"""Build GPU-compatible PlantNet-300K ResNet18 (1081-species plant ID).
 
-Only patch: ZeroPadMaxPool (ResNet stem MaxPool(-inf PADV2) -> 0-pad + unpadded maxpool).
+Converted with litert-torch. Only patch: ZeroPadMaxPool (ResNet stem
+MaxPool(-inf PADV2) -> 0-pad + unpadded maxpool).
 
 Run: python build_plantnet.py
   # -> plantnet.tflite  ([1,3,224,224] -> [1,1081] logits)
@@ -29,17 +30,20 @@ from huggingface_hub import hf_hub_download
 
 
 class ZeroPadMaxPool(nn.Module):
-    """Explicit 0-pad + unpadded maxpool (Mali rejects the -inf PADV2 lowering)."""
+    """Explicit 0-pad + unpadded maxpool (Mali rejects -inf PADV2 lowering)."""
 
     def forward(self, x):
-        x = F.pad(x, (1, 1, 1, 1), value=0.0)   # exact: maxpool input is post-ReLU >= 0
+        # exact: maxpool input is post-ReLU >= 0
+        x = F.pad(x, (1, 1, 1, 1), value=0.0)
         return F.max_pool2d(x, kernel_size=3, stride=2, padding=0)
 
 
 def main():
+    """Loads PlantNet-300K ResNet18 weights and exports plantnet.tflite."""
     net = resnet18(num_classes=1081).eval()
     net.load_state_dict(
-        torch.load(hf_hub_download("cpoisson/plantnet300k-resnet18", "plantnet_resnet18.pth"),
+        torch.load(hf_hub_download("cpoisson/plantnet300k-resnet18",
+                                   "plantnet_resnet18.pth"),
                    map_location="cpu", weights_only=False))
     net.maxpool = ZeroPadMaxPool()
 
