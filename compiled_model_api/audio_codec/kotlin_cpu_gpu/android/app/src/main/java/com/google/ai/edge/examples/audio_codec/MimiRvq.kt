@@ -29,7 +29,8 @@ import java.nio.ByteOrder
  *   encode: emb[1,HID,T] -> codes[NQ,T]
  *           semantic : in_proj -> Euclidean-argmin (1 codebook)
  *           acoustic : in_proj -> Euclidean-argmin x31 with residual subtraction
- *   decode: codes[NQ,T] -> emb[1,HID,T]  (sum codebook lookups in DIM space, then out_proj per group)
+ *   decode: codes[NQ,T] -> emb[1,HID,T]
+ *           (sum codebook lookups in DIM space, then out_proj per group)
  *
  * Weights from `mimi_rvq.bin` (float32 LE, contiguous):
  *   sem_Win[DIM*HID], aco_Win[DIM*HID], sem_Wout[HID*DIM], aco_Wout[HID*DIM],
@@ -53,7 +54,8 @@ class MimiRvq(binPath: String) {
     private val acoWout = FloatArray(HID * DIM)
     private val semCB = Array(N_SEM) { FloatArray(SIZE * DIM) }
     private val acoCB = Array(N_ACO) { FloatArray(SIZE * DIM) }
-    private val semCBnorm = Array(N_SEM) { FloatArray(SIZE) }   // ||c||^2 per row (Euclidean shortcut)
+    // ||c||^2 per row (Euclidean shortcut).
+    private val semCBnorm = Array(N_SEM) { FloatArray(SIZE) }
     private val acoCBnorm = Array(N_ACO) { FloatArray(SIZE) }
 
     init {

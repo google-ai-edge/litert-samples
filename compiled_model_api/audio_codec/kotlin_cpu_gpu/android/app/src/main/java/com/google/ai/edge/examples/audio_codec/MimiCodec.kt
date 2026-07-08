@@ -27,15 +27,16 @@ import java.io.File
  * convolutional halves run on the LiteRT CompiledModel GPU (ML Drift); the two 8-layer Transformers
  * run on CPU (Accelerator.CPU), and the split RVQ runs on CPU in [MimiRvq].
  *
- *   audio[L] -[GPU enc_conv]-> feat[1,512,Se] -[CPU enc_tx: enc-transformer+downsample]-> emb[1,512,Tc]
+ *   audio[L] -[GPU enc_conv]-> feat[1,512,Se]
+ *            -[CPU enc_tx: enc-transformer+downsample]-> emb[1,512,Tc]
  *            -[CPU RVQ.encode]-> codes[32,Tc] -[CPU RVQ.decode]-> emb[1,512,Tc]
  *            -[CPU dec_tx: upsample+dec-transformer]-> conv_in[1,512,seq] -[GPU deconly]-> audio[L]
  *
- * Why the transformers are on CPU: the decoder transformer's residual stream reaches |x|=27, where
- * the Mali GPU delegate's internal fp16 compute loses precision (device audio ~12 dB SNR on speech),
- * while the SEANet convs are fp16-exact on GPU (~48 dB). The transformer behaves identically
- * standalone and fused on device, so this is fp16 PRECISION, not a fusion collapse. The transformers
- * are tiny (8 layers x 512, seq ~50), so CPU is trivial.
+ * Why the transformers are on CPU: the decoder transformer's residual stream reaches |x|=27,
+ * where the Mali GPU delegate's internal fp16 compute loses precision (device audio ~12 dB SNR
+ * on speech), while the SEANet convs are fp16-exact on GPU (~48 dB). The transformer behaves
+ * identically standalone and fused on device, so this is fp16 PRECISION, not a fusion collapse.
+ * The transformers are tiny (8 layers x 512, seq ~50), so CPU is trivial.
  *
  * All graphs + mimi_rvq.bin are loaded from filesDir (push via install_to_device.sh).
  * Fixed length: SECS=2 s -> SAMPLES=48000, Se=50, Tc=25, seq=50.
@@ -76,7 +77,12 @@ class MimiCodec(private val context: Context) : Closeable {
     private val doIn = deconly.createInputBuffers()
     private val doOut = deconly.createOutputBuffers()
 
-    data class Result(val audio: FloatArray, val codes: IntArray, val encodeMs: Long, val decodeMs: Long)
+    data class Result(
+        val audio: FloatArray,
+        val codes: IntArray,
+        val encodeMs: Long,
+        val decodeMs: Long,
+    )
 
     /** (1,512,Se) channel-major c*Se+t  ->  (1,Se,512) time-major t*512+c (enc_tx input layout). */
     private fun transposeCT(x: FloatArray, c: Int, t: Int): FloatArray {
@@ -112,7 +118,9 @@ class MimiCodec(private val context: Context) : Closeable {
     }
 
     override fun close() {
-        listOf(ecIn, ecOut, etIn, etOut, dtIn, dtOut, doIn, doOut).forEach { bs -> bs.forEach { it.close() } }
+        listOf(ecIn, ecOut, etIn, etOut, dtIn, dtOut, doIn, doOut).forEach { bs ->
+            bs.forEach { it.close() }
+        }
         encConv.close()
         encTx.close()
         decTx.close()

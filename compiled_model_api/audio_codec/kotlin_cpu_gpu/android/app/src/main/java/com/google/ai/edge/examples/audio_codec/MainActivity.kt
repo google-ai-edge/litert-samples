@@ -80,12 +80,15 @@ class MainActivity : Activity() {
                 val r = c.roundTrip(original)    // measured
                 recon = r.audio
                 val rtf = (r.encodeMs + r.decodeMs) / 2000.0   // clip is 2 s
-                Log.i(tag, "encode=${r.encodeMs}ms decode=${r.decodeMs}ms codes=${r.codes.size} rtf=$rtf")
+                Log.i(tag, "encode=${r.encodeMs}ms decode=${r.decodeMs}ms " +
+                    "codes=${r.codes.size} rtf=$rtf")
                 runOnUiThread {
                     status.setBackgroundColor(Color.rgb(0xC8, 0xE6, 0xC9))
                     status.text = "On-device hybrid codec ✓\n\n" +
-                        "encode ${r.encodeMs} ms · decode ${r.decodeMs} ms · RTF ${"%.2f".format(rtf)}\n" +
-                        "${MimiRvq.NQ} codebooks × ${MimiCodec.TC} frames = ${r.codes.size} ints · 24 kHz\n\n" +
+                        "encode ${r.encodeMs} ms · decode ${r.decodeMs} ms · " +
+                        "RTF ${"%.2f".format(rtf)}\n" +
+                        "${MimiRvq.NQ} codebooks × ${MimiCodec.TC} frames = " +
+                        "${r.codes.size} ints · 24 kHz\n\n" +
                         "Playing reconstructed… tap to A/B."
                     playOrig.isEnabled = true
                     playRecon.isEnabled = true
