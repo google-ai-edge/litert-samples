@@ -28,7 +28,11 @@ HERE=os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0,os.path.join(HERE,"unisal"))
 SIZE=int(os.environ.get("US_SIZE","256"))
 SRC="SALICON"
-BANNED={"GATHER","GATHER_ND","TOPK_V2","GELU","ERF","WHERE","SELECT","SELECT_V2","BROADCAST_TO","TRANSPOSE_CONV","CAST","EMBEDDING_LOOKUP","RFFT2D","FFT","STFT","COMPLEX","RFFT","IRFFT","CUMSUM","MIRROR_PAD"}
+BANNED={
+    "GATHER","GATHER_ND","TOPK_V2","GELU","ERF","WHERE","SELECT",
+    "SELECT_V2","BROADCAST_TO","TRANSPOSE_CONV","CAST",
+    "EMBEDDING_LOOKUP","RFFT2D","FFT","STFT","COMPLEX","RFFT","IRFFT",
+    "CUMSUM","MIRROR_PAD"}
 class Wrap(nn.Module):
     def __init__(self,m,gmaps):
         super().__init__()
@@ -41,7 +45,9 @@ class Wrap(nn.Module):
         f1,f2,f4=m.cnn(img)
         f2=m.skip_2x(f2)
         f4=m.skip_4x(f4)
-        if m.n_gaussians>0: f1=torch.cat((f1,self.gmaps),dim=1)   # baked gaussian prior maps (size-only constant)
+        # baked gaussian prior maps (size-only constant)
+        if m.n_gaussians>0:
+            f1=torch.cat((f1,self.gmaps),dim=1)
         f1=m.post_cnn(f1)
         u=m.upsampling_1(f1)
         u=torch.cat((u,f2),dim=1)
@@ -51,53 +57,103 @@ class Wrap(nn.Module):
         u=getattr(m,"adaptation"+(self.ss if m.ds_adaptation else ""))(u)
         u=F.interpolate(u,size=img.shape[-2:],mode="nearest")
         k=m.smoothing_ksize//2
-        u=F.pad(u,[k]*4,mode="constant",value=0.0)   # replicate->constant 0-pad (GPU-clean; suppresses border)
+        # replicate->constant 0-pad (GPU-clean; suppresses border)
+        u=F.pad(u,[k]*4,mode="constant",value=0.0)
         u=getattr(m,"smoothing"+(self.ss if m.ds_smoothing else ""))(u)
-        return u                                  # smoothed saliency [1,1,H,W]; host log-softmax/normalizes
+        # smoothed saliency [1,1,H,W]; host log-softmax/normalizes
+        return u
 def build():
+    """Builds UniSal with baked gaussian prior maps for a fixed size.
+
+    Returns:
+        A Wrap module in eval mode that emits the smoothed saliency
+        map [1,1,H,W].
+    """
     import unisal.model as M
     m=M.UNISAL().eval()
-    sd=torch.load(f"{HERE}/unisal/training_runs/pretrained_unisal/weights_best.pth",map_location="cpu",weights_only=False)
+    sd=torch.load(
+        f"{HERE}/unisal/training_runs/pretrained_unisal/weights_best.pth",
+        map_location="cpu",weights_only=False)
     sd=sd.get("model",sd) if isinstance(sd,dict) and "model" in sd else sd
     miss,unexp=m.load_state_dict(sd,strict=False)
     m.this_source=SRC
     with torch.no_grad():
         f1,_,_=m.cnn(torch.zeros(1,3,SIZE,SIZE))
         g=m._get_gaussian_maps(f1, f"_{SRC.lower()}").detach()
-    print(f"  loaded UniSal; missing {len(miss)} unexpected {len(unexp)}; gmaps {tuple(g.shape)}; params {sum(p.numel() for p in m.parameters())/1e6:.2f}M")
+    print(f"  loaded UniSal; missing {len(miss)} unexpected {len(unexp)};"
+          f" gmaps {tuple(g.shape)};"
+          f" params {sum(p.numel() for p in m.parameters())/1e6:.2f}M")
     return Wrap(m,g).eval()
 def opcheck(p,l):
-    """Static GPU-compat scan: read the op set straight from the .tflite flatbuffer."""
+    """Static GPU-compat scan: read the op set straight from the
+    .tflite flatbuffer.
+
+    Args:
+        p: Path to the .tflite model file to scan.
+        l: Label used in the printed report lines.
+    """
     from ai_edge_litert import schema_py_generated as schema
-    with open(p,"rb") as f: model=schema.ModelT.InitFromPackedBuf(f.read(),0)
-    names={v:k for k,v in vars(schema.BuiltinOperator).items() if not k.startswith("_")}
+    with open(p,"rb") as f:
+        model=schema.ModelT.InitFromPackedBuf(f.read(),0)
+    names={v:k for k,v in vars(schema.BuiltinOperator).items()
+           if not k.startswith("_")}
     ops=collections.Counter()
     over=0
     for g in model.subgraphs:
         for op in g.operators:
             c=model.operatorCodes[op.opcodeIndex]
             code=max(c.builtinCode,c.deprecatedBuiltinCode)
-            ops[c.customCode.decode() if c.customCode else names.get(code,str(code))]+=1
-        over+=sum(1 for t in g.tensors if t.shape is not None and len(t.shape)>4)
+            ops[c.customCode.decode() if c.customCode
+                else names.get(code,str(code))]+=1
+        over+=sum(1 for t in g.tensors
+                  if t.shape is not None and len(t.shape)>4)
     bad={k:v for k,v in ops.items() if k.upper() in BANNED}
     print(f"[{l}] ops:",dict(sorted(ops.items(),key=lambda kv:-kv[1])))
-    print(f"[{l}] banned:{bad or 'NONE'} >4D:{over} size {os.path.getsize(p)/1e6:.1f}MB","GPU-CLEAN" if not bad and not over else "BLOCKERS")
+    print(f"[{l}] banned:{bad or 'NONE'} >4D:{over}"
+          f" size {os.path.getsize(p)/1e6:.1f}MB",
+          "GPU-CLEAN" if not bad and not over else "BLOCKERS")
 def run_tflite(p,x):
-    """Single inference through the LiteRT CompiledModel API; returns the flat fp32 output."""
+    """Single inference through the LiteRT CompiledModel API.
+
+    Args:
+        p: Path to the .tflite model file.
+        x: Input array written to the first input buffer as fp32.
+
+    Returns:
+        The flat fp32 output tensor as a 1-D numpy array.
+    """
     from ai_edge_litert.compiled_model import CompiledModel
     model=CompiledModel.from_file(p)
     ins=model.create_input_buffers(0)
     outs=model.create_output_buffers(0)
     ins[0].write(np.ascontiguousarray(x,dtype=np.float32))
     model.run_by_index(0,ins,outs)
-    n=model.get_output_buffer_requirements(0,0)["buffer_size"]//np.dtype(np.float32).itemsize
+    n=(model.get_output_buffer_requirements(0,0)["buffer_size"]
+       //np.dtype(np.float32).itemsize)
     return outs[0].read(n,np.float32)
 def to_fp16(fp32,fp16):
+    """Quantizes an fp32 .tflite model to fp16 weights.
+
+    Args:
+        fp32: Path to the source fp32 .tflite model.
+        fp16: Destination path for the fp16 .tflite model.
+
+    Returns:
+        The fp16 destination path.
+    """
     from ai_edge_quantizer import quantizer, recipe_manager
     from ai_edge_quantizer.recipe import AlgorithmName, qtyping
     rm=recipe_manager.RecipeManager()
-    rm.add_quantization_config(regex=".*",operation_name=qtyping.TFLOperationName.ALL_SUPPORTED,op_config=qtyping.OpQuantizationConfig(weight_tensor_config=qtyping.TensorQuantizationConfig(num_bits=16,dtype=qtyping.TensorDataType.FLOAT),compute_precision=qtyping.ComputePrecision.FLOAT),algorithm_key=AlgorithmName.FLOAT_CASTING)
-    if os.path.exists(fp16): os.remove(fp16)
+    rm.add_quantization_config(
+        regex=".*",
+        operation_name=qtyping.TFLOperationName.ALL_SUPPORTED,
+        op_config=qtyping.OpQuantizationConfig(
+            weight_tensor_config=qtyping.TensorQuantizationConfig(
+                num_bits=16,dtype=qtyping.TensorDataType.FLOAT),
+            compute_precision=qtyping.ComputePrecision.FLOAT),
+        algorithm_key=AlgorithmName.FLOAT_CASTING)
+    if os.path.exists(fp16):
+        os.remove(fp16)
     q=quantizer.Quantizer(float_model=fp32)
     q.load_quantization_recipe(rm.get_quantization_recipe())
     q.quantize().export_model(fp16)
@@ -105,16 +161,20 @@ def to_fp16(fp32,fp16):
 if __name__=="__main__":
     m=build()
     x=torch.rand(1,3,SIZE,SIZE)
-    with torch.no_grad(): ref=m(x)
-    print(f"forward: out {tuple(ref.shape)} range [{ref.min():.3f},{ref.max():.3f}]")
-    if (sys.argv[1] if len(sys.argv)>1 else "all")=="forward": sys.exit()
+    with torch.no_grad():
+        ref=m(x)
+    print(f"forward: out {tuple(ref.shape)}"
+          f" range [{ref.min():.3f},{ref.max():.3f}]")
+    if (sys.argv[1] if len(sys.argv)>1 else "all")=="forward":
+        sys.exit()
     import litert_torch
     fp32=f"{HERE}/unisal.tflite"
     try:
         litert_torch.convert(m,(x,)).export(fp32)
         opcheck(fp32,"unisal")
         o=run_tflite(fp32,x.numpy())
-        print(f"tflite vs torch corr {np.corrcoef(o,ref.numpy().ravel())[0,1]:.6f}")
+        print(f"tflite vs torch corr"
+              f" {np.corrcoef(o,ref.numpy().ravel())[0,1]:.6f}")
         to_fp16(fp32,f"{HERE}/unisal_fp16.tflite")
         opcheck(f"{HERE}/unisal_fp16.tflite","unisal_fp16")
     except Exception as e:
