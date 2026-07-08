@@ -12,7 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Cycle 0: NIMA (idealo MobileNet) reference — build, load weights, score a test image.
+"""Cycle 0: NIMA (idealo MobileNet) reference — build, load weights,
+score a test image.
 Run: python ref_nima.py  (TensorFlow 2.21)."""
 import os
 import sys
@@ -26,11 +27,21 @@ from tensorflow.keras.models import Model
 HERE = os.path.dirname(os.path.abspath(__file__))
 REPO = os.path.join(HERE, "image-quality-assessment")
 KIND = sys.argv[1] if len(sys.argv) > 1 else "aesthetic"
-W = os.path.join(REPO, "models", "MobileNet", f"weights_mobilenet_{KIND}_0.{'07' if KIND=='aesthetic' else '11'}.hdf5")
+W = os.path.join(
+    REPO, "models", "MobileNet",
+    f"weights_mobilenet_{KIND}_0."
+    f"{'07' if KIND=='aesthetic' else '11'}.hdf5")
 IMG = sys.argv[2] if len(sys.argv) > 2 else os.path.join(HERE, "test.jpg")
 
 def build():
-    base = MobileNet(input_shape=(224, 224, 3), weights=None, include_top=False, pooling="avg")
+    """Builds the NIMA MobileNet model (softmax over 10 score bins).
+
+    Returns:
+        The Keras Model (weights loaded separately).
+    """
+    base = MobileNet(
+        input_shape=(224, 224, 3), weights=None, include_top=False,
+        pooling="avg")
     x = Dropout(0.0)(base.output)
     x = Dense(10, activation="softmax")(x)
     return Model(base.inputs, x)

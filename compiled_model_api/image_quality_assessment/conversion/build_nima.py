@@ -12,7 +12,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Convert NIMA (idealo MobileNet) aesthetic + technical to fp16 tflite. Run: python build_nima.py"""
+"""Convert NIMA (idealo MobileNet) aesthetic + technical to fp16 tflite.
+
+Run: python build_nima.py
+"""
 import os
 import sys
 import numpy as np
@@ -28,21 +31,40 @@ OUT = os.path.join(HERE, "out")
 os.makedirs(OUT, exist_ok=True)
 
 def build(weights):
-    base = MobileNet(input_shape=(224, 224, 3), weights=None, include_top=False, pooling="avg")
+    """Builds the NIMA MobileNet model and loads the given weights.
+
+    Args:
+        weights: Path to the NIMA .hdf5 weights file.
+
+    Returns:
+        The compiled Keras Model.
+    """
+    base = MobileNet(
+        input_shape=(224, 224, 3), weights=None, include_top=False,
+        pooling="avg")
     x = Dense(10, activation="softmax")(Dropout(0.0)(base.output))
     m = Model(base.inputs, x)
     m.load_weights(weights)
     return m
 
 def run_tflite(path, x):
-    """Single inference through the LiteRT CompiledModel API; returns the flat fp32 output."""
+    """Runs a single inference through the LiteRT CompiledModel API.
+
+    Args:
+        path: Path to the .tflite model to run.
+        x: Input array written to the model's first input buffer.
+
+    Returns:
+        The flat fp32 output array read from the first output buffer.
+    """
     from ai_edge_litert.compiled_model import CompiledModel
     model = CompiledModel.from_file(path)
     inputs = model.create_input_buffers(0)
     outputs = model.create_output_buffers(0)
     inputs[0].write(np.ascontiguousarray(x, dtype=np.float32))
     model.run_by_index(0, inputs, outputs)
-    n = model.get_output_buffer_requirements(0, 0)["buffer_size"] // np.dtype(np.float32).itemsize
+    n = (model.get_output_buffer_requirements(0, 0)["buffer_size"]
+         // np.dtype(np.float32).itemsize)
     return outputs[0].read(n, np.float32)
 
 for kind, tag in [("aesthetic", "07"), ("technical", "11")]:
@@ -58,5 +80,8 @@ for kind, tag in [("aesthetic", "07"), ("technical", "11")]:
     p = run_tflite(path, ref["x"])
     score = float(np.sum((np.arange(10) + 1) * p))
     corr = float(np.corrcoef(p, ref["p"])[0, 1])
-    print(f"[{kind}] {os.path.getsize(path)/1e6:.1f}MB  tflite score {score:.3f} vs ref {float(ref['score']):.3f}  corr {corr:.6f}")
+    print(
+        f"[{kind}] {os.path.getsize(path)/1e6:.1f}MB  "
+        f"tflite score {score:.3f} vs ref {float(ref['score']):.3f}  "
+        f"corr {corr:.6f}")
     ref["x"].astype("<f4").tofile(os.path.join(OUT, f"nima_input_{kind}.bin"))
