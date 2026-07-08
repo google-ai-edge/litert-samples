@@ -67,7 +67,8 @@ class MainActivity : Activity() {
       text = "🖼  Pick image"
       isEnabled = false
       setOnClickListener {
-        startActivityForResult(Intent(Intent.ACTION_GET_CONTENT).apply { type = "image/*" }, pickReq)
+        startActivityForResult(
+          Intent(Intent.ACTION_GET_CONTENT).apply { type = "image/*" }, pickReq)
       }
     }
     inputView = DepthView(this)
@@ -140,7 +141,8 @@ class MainActivity : Activity() {
   }
 
   private fun loadOriented(uri: Uri): Bitmap {
-    val bm = contentResolver.openInputStream(uri).use { BitmapFactory.decodeStream(it) } ?: error("cannot decode image")
+    val bm = contentResolver.openInputStream(uri).use { BitmapFactory.decodeStream(it) }
+      ?: error("cannot decode image")
     val rot = contentResolver.openInputStream(uri).use {
       when (ExifInterface(it!!).getAttributeInt(ExifInterface.TAG_ORIENTATION, 1)) {
         ExifInterface.ORIENTATION_ROTATE_90 -> 90f
@@ -150,10 +152,14 @@ class MainActivity : Activity() {
       }
     }
     if (rot == 0f) return bm
-    return Bitmap.createBitmap(bm, 0, 0, bm.width, bm.height, Matrix().apply { postRotate(rot) }, true)
+    return Bitmap.createBitmap(
+      bm, 0, 0, bm.width, bm.height, Matrix().apply { postRotate(rot) }, true)
   }
 
-  /** Center-crop to square, then resize to SIZE×SIZE (preserves local geometry; no letterbox padding). */
+  /**
+   * Center-crop to square, then resize to SIZE×SIZE (preserves local geometry;
+   * no letterbox padding).
+   */
   private fun squareResize(src: Bitmap): Bitmap {
     val s = min(src.width, src.height)
     val crop = Bitmap.createBitmap(src, (src.width - s) / 2, (src.height - s) / 2, s, s)
@@ -187,9 +193,12 @@ class MainActivity : Activity() {
 
   /** Google "Turbo" colormap approximation, t in [0,1]. */
   private fun turbo(t: Float): Int {
-    val r = (34.61 + t * (1172.33 + t * (-10793.56 + t * (33300.12 + t * (-38394.49 + t * 14825.05))))).toInt()
-    val g = (23.31 + t * (557.33 + t * (1225.33 + t * (-3574.96 + t * (4520.0 + t * -1894.0))))).toInt()
-    val b = (27.2 + t * (3211.1 + t * (-15327.97 + t * (27814.0 + t * (-22569.18 + t * 6838.66))))).toInt()
+    val r = (34.61 + t * (1172.33 + t * (-10793.56 + t * (33300.12 +
+      t * (-38394.49 + t * 14825.05))))).toInt()
+    val g = (23.31 + t * (557.33 + t * (1225.33 + t * (-3574.96 +
+      t * (4520.0 + t * -1894.0))))).toInt()
+    val b = (27.2 + t * (3211.1 + t * (-15327.97 + t * (27814.0 +
+      t * (-22569.18 + t * 6838.66))))).toInt()
     return Color.rgb(r.coerceIn(0, 255), g.coerceIn(0, 255), b.coerceIn(0, 255))
   }
 
@@ -209,7 +218,9 @@ class MainActivity : Activity() {
       val h = bm.height * s
       canvas.drawBitmap(
         bm, null,
-        android.graphics.RectF((width - w) / 2, (height - h) / 2, (width + w) / 2, (height + h) / 2), paint,
+        android.graphics.RectF(
+          (width - w) / 2, (height - h) / 2, (width + w) / 2, (height + h) / 2),
+        paint,
       )
     }
   }

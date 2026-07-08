@@ -32,8 +32,9 @@ import java.io.File
  * accurate tanh approximation so every op is GPU-compatible. ~44 ms / inference on a Pixel 8a.
  *
  * Metric scale note: the model outputs depth for a canonical camera (focal 1000 at the canonical
- * resolution). For a calibrated camera, multiply by (fx / 1000) — the de-canonical transform — using
- * the real focal length. With no intrinsics we show the raw canonical-metric depth (already in meters).
+ * resolution). For a calibrated camera, multiply by (fx / 1000) — the de-canonical transform —
+ * using the real focal length. With no intrinsics we show the raw canonical-metric depth
+ * (already in meters).
  */
 class MetricDepth(ctx: Context, accelerator: Accelerator = Accelerator.GPU) : Closeable {
 
