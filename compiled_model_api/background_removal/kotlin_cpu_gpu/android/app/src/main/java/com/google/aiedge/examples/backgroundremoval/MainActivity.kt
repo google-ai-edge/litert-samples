@@ -92,7 +92,9 @@ class MainActivity : ComponentActivity() {
             }
             // Register ActivityResult handler
             val galleryLauncher =
-                rememberLauncherForActivityResult(ActivityResultContracts.PickVisualMedia()) { uri ->
+                rememberLauncherForActivityResult(
+                    ActivityResultContracts.PickVisualMedia()
+                ) { uri ->
                     mediaUriState = uri ?: Uri.EMPTY
                 }
 
@@ -317,7 +319,9 @@ class MainActivity : ComponentActivity() {
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     RadioButton(
-                        colors = RadioButtonDefaults.colors(selectedColor = MaterialTheme.colors.primary),
+                        colors = RadioButtonDefaults.colors(
+                            selectedColor = MaterialTheme.colors.primary
+                        ),
                         selected = (option == selectedOption),
                         onClick = {
                             if (selectedOption == option) return@RadioButton

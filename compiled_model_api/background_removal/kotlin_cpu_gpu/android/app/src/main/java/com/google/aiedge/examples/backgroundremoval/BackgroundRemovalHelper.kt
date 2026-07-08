@@ -102,10 +102,16 @@ class BackgroundRemovalHelper(
                     CompiledModel.Options(toAccelerator(options.delegate)),
                     null
                 )
-                Log.i(TAG, "Created CompiledModel from ${options.model.fileName} on ${options.delegate}")
+                Log.i(
+                    TAG,
+                    "Created CompiledModel from ${options.model.fileName} on ${options.delegate}"
+                )
             }
         } catch (e: Exception) {
-            Log.e(TAG, "Failed to create CompiledModel from ${options.model.fileName}: ${e.message}")
+            Log.e(
+                TAG,
+                "Failed to create CompiledModel from ${options.model.fileName}: ${e.message}"
+            )
             _error.emit(e)
         }
     }
@@ -128,7 +134,8 @@ class BackgroundRemovalHelper(
                 val currentModel = model ?: return@withContext
                 val startTime = SystemClock.uptimeMillis()
 
-                val upright = if (rotationDegrees % 360 != 0) rotate(bitmap, rotationDegrees) else bitmap
+                val upright =
+                    if (rotationDegrees % 360 != 0) rotate(bitmap, rotationDegrees) else bitmap
                 preprocess(upright)
 
                 val inputBuffers = currentModel.createInputBuffers()

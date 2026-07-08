@@ -57,8 +57,8 @@ fun GalleryScreen(
                         ?.toLong()
 
                 // Note: We need to read width/height from frame instead of getting the width/height
-                // of the video directly because MediaRetriever returns frames that are smaller than the
-                // actual dimension of the video file.
+                // of the video directly because MediaRetriever returns frames that are smaller
+                // than the actual dimension of the video file.
                 val firstFrame = retriever.getFrameAtTime(0)
                 val width = firstFrame?.width
                 val height = firstFrame?.height

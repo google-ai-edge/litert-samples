@@ -30,5 +30,6 @@ class UiState(
 @Immutable
 data class Setting(
     val model: BackgroundRemovalHelper.Model = BackgroundRemovalHelper.DEFAULT_MODEL,
-    val delegate: BackgroundRemovalHelper.AcceleratorEnum = BackgroundRemovalHelper.DEFAULT_DELEGATE,
+    val delegate: BackgroundRemovalHelper.AcceleratorEnum =
+        BackgroundRemovalHelper.DEFAULT_DELEGATE,
 )
