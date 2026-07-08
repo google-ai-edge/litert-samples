@@ -27,10 +27,12 @@ import java.nio.ByteOrder
 
 /**
  * CLIPSeg text-prompted segmentation on the LiteRT CompiledModel API (three graphs):
- *   text    : token embeddings [1,77,512] -> hidden [1,77,512]      (GPU; host EOT row @ text_proj -> cond[512])
+ *   text    : token embeddings [1,77,512] -> hidden [1,77,512]      (GPU; host EOT row
+ *             @ text_proj -> cond[512])
  *   vision  : image [1,3,352,352] -> t3, t6, t9 (each [1,485,768])  (GPU)
- *   decoder : t3, t6, t9, cond[512] -> logits [1,352,352]           (CPU — the decoder's 4-head/head_dim-16
- *             attention fp16-miscomputes on the Mali GPU delegate; it's tiny so CPU is exact + fast)
+ *   decoder : t3, t6, t9, cond[512] -> logits [1,352,352]           (CPU — the decoder's
+ *             4-head/head_dim-16 attention fp16-miscomputes on the Mali GPU delegate;
+ *             it's tiny so CPU is exact + fast)
  * Host: BPE tokenize, token-embedding lookup (f16 table), CLIP normalization, sigmoid mask.
  */
 class ClipSeg(private val ctx: Context) : Closeable {
@@ -64,7 +66,8 @@ class ClipSeg(private val ctx: Context) : Closeable {
     private val decOut = decModel.createOutputBuffers()
 
     private val tokEmb = loadF16(f("token_embedding_f16.bin"))   // [vocab*512]
-    private val textProj = loadF16(f("text_projection_f16.bin")) // [512*512] (in-major: proj[o] = sum_i h[i]*W[i*512+o])
+    // [512*512] (in-major: proj[o] = sum_i h[i]*W[i*512+o])
+    private val textProj = loadF16(f("text_projection_f16.bin"))
 
     private fun loadF16(file: File): FloatArray {
         val bytes = file.readBytes()

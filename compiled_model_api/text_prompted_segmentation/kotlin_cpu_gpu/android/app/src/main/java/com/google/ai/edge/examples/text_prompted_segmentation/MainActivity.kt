@@ -106,7 +106,8 @@ class MainActivity : Activity() {
         try {
             bitmap = load(uri)
             imageView.setImageBitmap(bitmap)
-            status.text = "Image set (${bitmap!!.width}x${bitmap!!.height}). Type a prompt and Segment."
+            status.text = "Image set (${bitmap!!.width}x${bitmap!!.height}). " +
+                "Type a prompt and Segment."
         } catch (e: Throwable) { status.text = "Failed: ${e.message}" }
     }
 
