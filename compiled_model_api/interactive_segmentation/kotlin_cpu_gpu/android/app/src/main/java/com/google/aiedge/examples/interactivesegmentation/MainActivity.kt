@@ -82,7 +82,9 @@ class MainActivity : ComponentActivity() {
         setContent {
             var mediaUri: Uri by remember { mutableStateOf(Uri.EMPTY) }
             val galleryLauncher =
-                rememberLauncherForActivityResult(ActivityResultContracts.PickVisualMedia()) { uri ->
+                rememberLauncherForActivityResult(
+                    ActivityResultContracts.PickVisualMedia()
+                ) { uri ->
                     if (uri != null) {
                         mediaUri = uri
                     }
@@ -122,10 +124,17 @@ class MainActivity : ComponentActivity() {
                             shape = CircleShape,
                             onClick = {
                                 galleryLauncher.launch(
-                                    PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
+                                    PickVisualMediaRequest(
+                                        ActivityResultContracts
+                                            .PickVisualMedia.ImageOnly
+                                    )
                                 )
                             }) {
-                            Icon(Icons.Filled.Add, contentDescription = stringResource(R.string.pick_image))
+                            Icon(
+                                Icons.Filled.Add,
+                                contentDescription =
+                                    stringResource(R.string.pick_image)
+                            )
                         }
                     }) {
                     Column {

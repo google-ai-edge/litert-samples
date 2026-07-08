@@ -84,7 +84,11 @@ class MainViewModel(private val helper: Sam2SegmentationHelper) : ViewModel() {
     fun setAccelerator(delegate: Sam2SegmentationHelper.AcceleratorEnum) {
         viewModelScope.launch {
             _uiState.update {
-                it.copy(setting = it.setting.copy(delegate = delegate), maskBitmap = null, maskIou = 0f)
+                it.copy(
+                    setting = it.setting.copy(delegate = delegate),
+                    maskBitmap = null,
+                    maskIou = 0f
+                )
             }
             helper.setOptions(Sam2SegmentationHelper.Options(delegate = delegate))
             helper.initSegmenter()

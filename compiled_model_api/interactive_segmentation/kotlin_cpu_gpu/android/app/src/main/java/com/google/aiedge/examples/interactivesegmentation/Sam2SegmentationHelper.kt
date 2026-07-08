@@ -46,10 +46,12 @@ import kotlin.math.sin
  *   2. Mask decoder — run PER TAP: takes the cached features + a sparse point embedding and emits
  *        out: pred_masks [1,3,256,256] (logits, 3 multimask candidates), iou_scores [1,3]
  *
- * The tiny point->token "prompt encoder" (a sin/cos positional encoding) is done on the host to keep
- * the decoder graph sin/cos-free; its constants are bundled as [PROMPT_CONST_FILE]. The decoder input
- * order is fixed by the converter: 0 image_embeddings, 1 sparse, 2 feat_s1, 3 feat_s0 (image_embeddings
- * and feat_s1 have the same element count, so the inputs are bound by index, never by size).
+ * The tiny point->token "prompt encoder" (a sin/cos positional encoding)
+ * is done on the host to keep the decoder graph sin/cos-free; its
+ * constants are bundled as [PROMPT_CONST_FILE]. The decoder input order
+ * is fixed by the converter: 0 image_embeddings, 1 sparse, 2 feat_s1,
+ * 3 feat_s0 (image_embeddings and feat_s1 have the same element count,
+ * so the inputs are bound by index, never by size).
  */
 class Sam2SegmentationHelper(
     private val context: Context,
@@ -119,17 +121,23 @@ class Sam2SegmentationHelper(
     private val inputFloats = FloatArray(3 * IMAGE_SIZE * IMAGE_SIZE)
     private val pixels = IntArray(IMAGE_SIZE * IMAGE_SIZE)
 
-    /** (Re)create both [CompiledModel]s on the selected accelerator and load the prompt constants. */
+    /**
+     * (Re)create both [CompiledModel]s on the selected accelerator and
+     * load the prompt constants.
+     */
     suspend fun initSegmenter() {
         cleanup()
         try {
             withContext(singleThreadDispatcher) {
                 loadPromptConstants()
-                // The heavy image encoder runs on the selected delegate (GPU by default — full LITERT_CL
-                // residency, ~tens of ms). The small mask decoder runs on CPU: it is GPU-RESIDENT but the
-                // GPU delegate's fp16 reductions corrupt its mask logits on Pixel 8a (device A/B: a GPU
-                // decoder masks the background; CPU is correct) — a clean "residency != correctness" case.
-                // The decoder is tiny, so the CPU cost is small.
+                // The heavy image encoder runs on the selected delegate
+                // (GPU by default — full LITERT_CL residency, ~tens of
+                // ms). The small mask decoder runs on CPU: it is
+                // GPU-RESIDENT but the GPU delegate's fp16 reductions
+                // corrupt its mask logits on Pixel 8a (device A/B: a GPU
+                // decoder masks the background; CPU is correct) — a clean
+                // "residency != correctness" case. The decoder is tiny,
+                // so the CPU cost is small.
                 encoder = CompiledModel.create(
                     context.assets, ENCODER_FILE,
                     CompiledModel.Options(toAccelerator(options.delegate)), null
@@ -166,7 +174,10 @@ class Sam2SegmentationHelper(
         this.options = options
     }
 
-    /** Run the heavy image encoder ONCE and cache the feature pyramid. Returns the encode time (ms). */
+    /**
+     * Run the heavy image encoder ONCE and cache the feature pyramid.
+     * Returns the encode time (ms).
+     */
     suspend fun encodeImage(bitmap: Bitmap): Long {
         return withContext(singleThreadDispatcher) {
             val model = encoder ?: return@withContext -1L
@@ -177,7 +188,8 @@ class Sam2SegmentationHelper(
             val outputBuffers = model.createOutputBuffers()
             inputBuffers[0].writeFloat(inputFloats)
             model.run(inputBuffers, outputBuffers)
-            // Output order is fixed by the converter wrapper: 0 image_embeddings, 1 feat_s1, 2 feat_s0.
+            // Output order is fixed by the converter wrapper:
+            // 0 image_embeddings, 1 feat_s1, 2 feat_s0.
             imageEmbeddings = outputBuffers[0].readFloat()
             featS1 = outputBuffers[1].readFloat()
             featS0 = outputBuffers[2].readFloat()
@@ -204,14 +216,16 @@ class Sam2SegmentationHelper(
 
                 val inputBuffers = model.createInputBuffers()
                 val outputBuffers = model.createOutputBuffers()
-                // Bind by index — the converter's arg order: 0 image_embeddings, 1 sparse, 2 feat_s1, 3 feat_s0.
+                // Bind by index — the converter's arg order:
+                // 0 image_embeddings, 1 sparse, 2 feat_s1, 3 feat_s0.
                 inputBuffers[0].writeFloat(imgEmb)
                 inputBuffers[1].writeFloat(sparse)
                 inputBuffers[2].writeFloat(s1)
                 inputBuffers[3].writeFloat(s0)
                 model.run(inputBuffers, outputBuffers)
 
-                // Outputs differ in size, so read both and bind by size: masks (3*256*256) > iou (3).
+                // Outputs differ in size, so read both and bind by
+                // size: masks (3*256*256) > iou (3).
                 val out0 = outputBuffers[0].readFloat()
                 val out1 = outputBuffers[1].readFloat()
                 val masks = if (out0.size >= out1.size) out0 else out1
@@ -260,7 +274,8 @@ class Sam2SegmentationHelper(
 
     /**
      * Host port of the SAM 2 prompt encoder for ONE positive point (+ the implicit padding point).
-     * Returns the sparse token tensor flattened as [2, 256]. Matches the upstream module to ~3.7e-7.
+     * Returns the sparse token tensor flattened as [2, 256]. Matches
+     * the upstream module to ~3.7e-7.
      */
     private fun encodePoint(px: Float, py: Float): FloatArray {
         val sparse = FloatArray(2 * EMBED_DIM)
