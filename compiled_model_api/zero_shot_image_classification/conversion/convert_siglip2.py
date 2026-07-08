@@ -20,22 +20,23 @@ it as `vit_base_patch16_siglip_224.v2_webli` (93M params, conv patch-embed, NO
 rope, NO cls token, attention-pool head). The text tower for zero-shot is
 open_clip `ViT-B-16-SigLIP2` (same 768-d space, prompt "a photo of a {label}").
 
-Re-authoring (all verbatim, weights copied, corr ~1.0 vs PyTorch) -- the same set
-proven on PE-Core, minus the rope step (SigLIP2 has no rope):
-  * Attention (x12): fused qkv -> 5D head-split (the GPU "C12" wall). Decompose to
-    separate q/k/v, hand the 4D q/k/v to scaled_dot_product_attention (its lowering
-    keeps the batch-matmul 3D with a materialized transpose -> GPU-resident).
-  * AttentionPoolLatent: single constant-latent query -> a batch-matmul there is
-    const@non-const (rejected / mis-computed). Express as broadcast-multiply +
-    reduce-sum (exact for latent_len=1, GPU-correct).
-  * LayerNorm -> overflow-safe LayerNorm: the delegate reduces the variance in fp16
-    even for an fp32 graph; deep-ViT massive activations overflow fp16 (sum > 65504)
-    -> wrong norm that compounds with depth while still reporting full residency.
-    Scale-before-square keeps the sum in range.
+Re-authoring (all verbatim, weights copied, corr ~1.0 vs PyTorch) -- the
+same set proven on PE-Core, minus the rope step (SigLIP2 has no rope):
+  * Attention (x12): fused qkv -> 5D head-split (the GPU "C12" wall).
+    Decompose to separate q/k/v, hand the 4D q/k/v to
+    scaled_dot_product_attention (its lowering keeps the batch-matmul 3D
+    with a materialized transpose -> GPU-resident).
+  * AttentionPoolLatent: single constant-latent query -> a batch-matmul
+    there is const@non-const (rejected / mis-computed). Express as
+    broadcast-multiply + reduce-sum (exact for latent_len=1, GPU-correct).
+  * LayerNorm -> overflow-safe LayerNorm: the delegate reduces the variance
+    in fp16 even for an fp32 graph; deep-ViT massive activations overflow
+    fp16 (sum > 65504) -> wrong norm that compounds with depth while still
+    reporting full residency. Scale-before-square keeps the sum in range.
 
 I/O: input [1,3,224,224] NCHW float32 normalized to [-1,1] ((x/255-0.5)/0.5),
-output [1,768] L2-normalized image embedding.
-Reproduces litert-community/SigLIP2-base-patch16-224/siglip2_base_224_fp16.tflite.
+output [1,768] L2-normalized image embedding. Reproduces
+litert-community/SigLIP2-base-patch16-224/siglip2_base_224_fp16.tflite.
 
     pip install litert-torch ai-edge-quantizer torch timm
     python convert_siglip2.py [out_dir]
@@ -51,7 +52,8 @@ import collections
 # before litert_torch is imported.
 _pp = types.ModuleType("scipy.sparse.linalg._propack")
 for _nm in ("_spropack", "_dpropack", "_cpropack", "_zpropack"):
-    setattr(_pp, _nm, type("_D", (), {"__getattr__": lambda self, n: (lambda *a, **k: None)})())
+    setattr(_pp, _nm, type(
+        "_D", (), {"__getattr__": lambda self, n: (lambda *a, **k: None)})())
 sys.modules.setdefault("scipy.sparse.linalg._propack", _pp)
 
 import numpy as np
@@ -72,7 +74,8 @@ BANNED = {"GATHER_ND", "GATHER", "TOPK_V2", "FLEX_ERF", "ERF", "BROADCAST_TO"}
 
 # -------------------------------------------------- overflow-safe LayerNorm
 class SafeLayerNorm(nn.Module):
-    """LayerNorm whose variance reduction can't overflow fp16 (see module docstring)."""
+    """LayerNorm whose variance reduction can't overflow fp16 (see the
+    module docstring)."""
     SC = 0.03125  # 1/32
 
     def __init__(self, ln: nn.LayerNorm):
@@ -87,6 +90,11 @@ class SafeLayerNorm(nn.Module):
 
 
 def patch_layernorm(module):
+    """Recursively replaces every nn.LayerNorm with SafeLayerNorm.
+
+    Args:
+        module: Module whose children are rewritten in place.
+    """
     for name, child in module.named_children():
         if isinstance(child, nn.LayerNorm):
             setattr(module, name, SafeLayerNorm(child))
@@ -96,6 +104,17 @@ def patch_layernorm(module):
 
 # ------------------------------------------ block Attention -> 4D (no rope)
 def _attn_forward(self, x, *args, **kwargs):
+    """4D attention over decomposed q/k/v Linears (no rope).
+
+    Args:
+        self: timm Attention module (patched onto the instance).
+        x: Token tensor [B, N, C].
+        *args: Unused; kept for signature compatibility.
+        **kwargs: Unused; kept for signature compatibility.
+
+    Returns:
+        Attention output [B, N, C].
+    """
     B, N, C = x.shape
     H, d = self.num_heads, self.head_dim
     q = self.q_proj_d(x).reshape(B, N, H, d).transpose(1, 2)
@@ -109,6 +128,11 @@ def _attn_forward(self, x, *args, **kwargs):
 
 
 def reauthor_attn(attn):
+    """Decomposes the fused qkv Linear into separate q/k/v Linears.
+
+    Args:
+        attn: timm Attention module rewritten in place.
+    """
     C = attn.qkv.in_features
     w = attn.qkv.weight.data
     b = attn.qkv.bias.data if attn.qkv.bias is not None else None
@@ -128,12 +152,23 @@ def reauthor_attn(attn):
     attn.forward = types.MethodType(_attn_forward, attn)
 
 
-# ------------------------------------------ AttentionPoolLatent -> broadcast-reduce
+# ----------------------------- AttentionPoolLatent -> broadcast-reduce
 def _attn_pool_forward(self, x, attn_mask=None):
+    """Single-query latent-pool attention as broadcast-multiply + reduce.
+
+    Args:
+        self: AttentionPoolLatent module (patched onto the instance).
+        x: Token tensor [B, N, C].
+        attn_mask: Unused; kept for signature compatibility.
+
+    Returns:
+        Pooled output ([B, C] for token/avg pooling, else [B, L, C]).
+    """
     B, N, C = x.shape
     H, d, L = self.num_heads, self.head_dim, self.latent_len
-    k = self.k_norm(self.k_proj_d(x).reshape(B, N, H, d).transpose(1, 2))  # [B,H,N,d]
-    v = self.v_proj_d(x).reshape(B, N, H, d).transpose(1, 2)               # [B,H,N,d]
+    # k, v: [B,H,N,d]
+    k = self.k_norm(self.k_proj_d(x).reshape(B, N, H, d).transpose(1, 2))
+    v = self.v_proj_d(x).reshape(B, N, H, d).transpose(1, 2)
     qc = self.q_const  # [H, L, d] constant, q_norm'd + scaled
     scores = (qc.unsqueeze(0) * k).sum(dim=-1)        # [B, H, N]
     attn = scores.softmax(dim=-1).unsqueeze(-1)       # [B, H, N, 1]
@@ -149,6 +184,11 @@ def _attn_pool_forward(self, x, attn_mask=None):
 
 
 def reauthor_attn_pool(ap):
+    """Decomposes fused kv and bakes the constant pooling query.
+
+    Args:
+        ap: timm AttentionPoolLatent module rewritten in place.
+    """
     assert ap.pos_embed is None, "attn_pool pos_embed not handled"
     C = ap.kv.in_features
     inner = ap.num_heads * ap.head_dim
@@ -162,7 +202,8 @@ def reauthor_attn_pool(ap):
             k_proj.bias.copy_(ap.kv.bias.data[:inner])
             v_proj.bias.copy_(ap.kv.bias.data[inner:])
         H, d, L = ap.num_heads, ap.head_dim, ap.latent_len
-        ql = ap.q(ap.latent.expand(1, -1, -1)).reshape(1, L, H, d).transpose(1, 2)
+        ql = ap.q(ap.latent.expand(1, -1, -1)).reshape(
+            1, L, H, d).transpose(1, 2)
         ql = ap.q_norm(ql) * ap.scale
     ap.k_proj_d, ap.v_proj_d = k_proj, v_proj
     ap.register_buffer("q_const", ql.reshape(H, L, d).detach())
@@ -191,28 +232,48 @@ class SigLIP2ImageEncoder(nn.Module):
 
 
 def op_hist(path):
-    """Static GPU-compat scan: read the op set straight from the .tflite flatbuffer."""
+    """Static GPU-compat scan of the op set in the .tflite flatbuffer.
+
+    Args:
+        path: Path of the .tflite file to scan.
+
+    Returns:
+        Tuple (op-name Counter, count of >4D tensors).
+    """
     from ai_edge_litert import schema_py_generated as schema
     with open(path, "rb") as f:
         model = schema.ModelT.InitFromPackedBuf(f.read(), 0)
-    names = {v: k for k, v in vars(schema.BuiltinOperator).items() if not k.startswith("_")}
+    names = {v: k for k, v in vars(schema.BuiltinOperator).items()
+             if not k.startswith("_")}
     hist = collections.Counter()
     over4d = 0
     for g in model.subgraphs:
         for op in g.operators:
             c = model.operatorCodes[op.opcodeIndex]
             code = max(c.builtinCode, c.deprecatedBuiltinCode)
-            hist[c.customCode.decode() if c.customCode else names.get(code, str(code))] += 1
-        over4d += sum(1 for t in g.tensors if t.shape is not None and len(t.shape) > 4)
+            hist[c.customCode.decode() if c.customCode
+                 else names.get(code, str(code))] += 1
+        over4d += sum(1 for t in g.tensors
+                      if t.shape is not None and len(t.shape) > 4)
     return hist, over4d
 
 
 def tflite_run(path, x_nchw):
-    """Single inference through the LiteRT CompiledModel API; returns the flat output."""
+    """Single inference through the LiteRT CompiledModel API.
+
+    Args:
+        path: Path of the .tflite model.
+        x_nchw: Input array [1, 3, H, W]; transposed to NHWC when the model
+            expects channel-last input.
+
+    Returns:
+        Flat float64 output array.
+    """
     from ai_edge_litert.compiled_model import CompiledModel
     model = CompiledModel.from_file(path)
     key = list(model.get_signature_list())[0]
-    shp = list(next(iter(model.get_input_tensor_details(key).values()))["shape"])
+    shp = list(
+        next(iter(model.get_input_tensor_details(key).values()))["shape"])
     x = x_nchw if shp[1] == 3 else np.transpose(x_nchw, (0, 2, 3, 1)).copy()
     ins = model.create_input_buffers(0)
     outs = model.create_output_buffers(0)
@@ -224,13 +285,15 @@ def tflite_run(path, x_nchw):
 
 
 def main():
+    """Re-authors, converts, verifies, and fp16-quantizes SigLIP2."""
     torch.manual_seed(0)
     print(f"loading {MODEL} (pretrained, apache-2.0) ...")
     m = timm.create_model(MODEL, pretrained=True, num_classes=0).eval()
 
     x = torch.randn(1, 3, IMG, IMG)
     with torch.no_grad():
-        ref = F.normalize(m(x), dim=-1).numpy().flatten()  # original trunk embedding
+        # original trunk embedding
+        ref = F.normalize(m(x), dim=-1).numpy().flatten()
 
     for blk in m.blocks:
         reauthor_attn(blk.attn)
@@ -241,7 +304,8 @@ def main():
     with torch.no_grad():
         got = enc(x).numpy().flatten()
     corr = float(np.corrcoef(ref, got)[0, 1])
-    print(f"EAGER parity (orig vs re-authored): corr {corr:.8f}  max|diff| {np.abs(ref-got).max():.3e}")
+    print(f"EAGER parity (orig vs re-authored): corr {corr:.8f}  "
+          f"max|diff| {np.abs(ref-got).max():.3e}")
     assert corr > 0.9999, "re-authoring changed the math -- fix before convert"
 
     print("converting (litert_torch) ...")
@@ -254,7 +318,8 @@ def main():
     print(f"banned: {bad or 'NONE'} | >4D tensors: {over4d}")
     o = tflite_run(FP32, x.numpy())
     print(f"PARITY tflite(fp32) vs torch: corr {np.corrcoef(ref, o)[0,1]:.6f}")
-    assert not bad and over4d == 0, "GPU blockers remain -- inspect op histogram"
+    assert not bad and over4d == 0, (
+        "GPU blockers remain -- inspect op histogram")
 
     print("quantizing fp16 (FLOAT_CASTING) ...")
     from ai_edge_quantizer import quantizer, recipe_manager
@@ -282,7 +347,8 @@ def main():
     bad16 = {k: v for k, v in h16.items() if k in BANNED}
     print(f"FP16 banned: {bad16 or 'NONE'} | >4D: {o16d}")
     o16 = tflite_run(FP16, x.numpy())
-    print(f"PARITY tflite(fp16) vs torch: corr {np.corrcoef(ref, o16)[0,1]:.6f}  "
+    print(f"PARITY tflite(fp16) vs torch: "
+          f"corr {np.corrcoef(ref, o16)[0,1]:.6f}  "
           f"fp16-vs-fp32 corr {np.corrcoef(o, o16)[0,1]:.6f}")
     print("\nDONE:", FP16)
 

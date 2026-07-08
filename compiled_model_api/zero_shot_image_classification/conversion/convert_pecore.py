@@ -15,21 +15,26 @@
 """Convert timm Perception Encoder (PE-Core, base/patch16/224) image tower to a
 GPU-clean LiteRT .tflite for the ML Drift GPU delegate.
 
-PE-Core (Meta 2025, Apache-2.0) is a CLIP-style ViT image tower. timm exposes it
-as `vit_pe_core_base_patch16_224` (weights `timm/vit_pe_core_base_patch16_224.fb`).
+PE-Core (Meta 2025, Apache-2.0) is a CLIP-style ViT image tower. timm
+exposes it as `vit_pe_core_base_patch16_224` (weights
+`timm/vit_pe_core_base_patch16_224.fb`).
 
 Walls re-authored here (all numerically verbatim, weights copied):
-  * AttentionRope (x12): fused qkv -> 5D reshape head-split = the "C12" GPU wall.
-    Decompose to separate q/k/v Linears, manual 4D (B,H,N,d) attention.
-  * RoPE: PE-Core uses the *interleaved* layout (rotate_half=False) whose `rot()`
-    does strided `x[...,::2]` -> GATHER_ND (GPU-banned). Fix = the proven
-    even->odd channel permutation baked into q/k weights + `rotate_half`
-    (slice+neg+concat, 4D) + constant half-layout cos/sin (const-folds to MUL/ADD).
-    Permuting q AND k identically preserves q.k exactly, so attention is unchanged.
-  * AttentionPoolLatent: fused kv -> 5D head-split. Decompose kv to k/v Linears.
+  * AttentionRope (x12): fused qkv -> 5D reshape head-split = the "C12" GPU
+    wall. Decompose to separate q/k/v Linears, manual 4D (B,H,N,d)
+    attention.
+  * RoPE: PE-Core uses the *interleaved* layout (rotate_half=False) whose
+    `rot()` does strided `x[...,::2]` -> GATHER_ND (GPU-banned). Fix = the
+    proven even->odd channel permutation baked into q/k weights +
+    `rotate_half` (slice+neg+concat, 4D) + constant half-layout cos/sin
+    (const-folds to MUL/ADD). Permuting q AND k identically preserves q.k
+    exactly, so attention is unchanged.
+  * AttentionPoolLatent: fused kv -> 5D head-split. Decompose kv to k/v
+    Linears.
 
-I/O: input [1,3,224,224] NCHW float32, output [1,1024] L2-normalized image embedding.
-Reproduces litert-community/PE-Core-base-patch16-224/pe_core_base_224_fp16.tflite.
+I/O: input [1,3,224,224] NCHW float32, output [1,1024] L2-normalized image
+embedding. Reproduces
+litert-community/PE-Core-base-patch16-224/pe_core_base_224_fp16.tflite.
 
     pip install litert-torch ai-edge-quantizer torch timm
     python convert_pecore.py [out_dir]
@@ -45,7 +50,8 @@ import collections
 # before litert_torch is imported.
 _pp = types.ModuleType("scipy.sparse.linalg._propack")
 for _nm in ("_spropack", "_dpropack", "_cpropack", "_zpropack"):
-    setattr(_pp, _nm, type("_D", (), {"__getattr__": lambda self, n: (lambda *a, **k: None)})())
+    setattr(_pp, _nm, type(
+        "_D", (), {"__getattr__": lambda self, n: (lambda *a, **k: None)})())
 sys.modules.setdefault("scipy.sparse.linalg._propack", _pp)
 
 import numpy as np
@@ -66,12 +72,15 @@ BANNED = {"GATHER_ND", "GATHER", "TOPK_V2", "FLEX_ERF", "ERF", "BROADCAST_TO"}
 
 # -------------------------------------------------- overflow-safe LayerNorm
 class SafeLayerNorm(nn.Module):
-    """LayerNorm whose variance reduction can't overflow fp16. The ML Drift GPU
-    delegate computes the sum-of-squares reduction in fp16 even for an fp32 model;
-    deep-ViT massive activations (|x|~50+) make `sum((x-mean)^2)` exceed fp16 max
-    (65504) -> wrong normalization that compounds with depth (corr collapses to
-    ~0.28 over 12 blocks). Scaling by `SC` before squaring (and undoing after)
-    keeps the running sum in range -- mathematically identical to nn.LayerNorm."""
+    """LayerNorm whose variance reduction can't overflow fp16.
+
+    The ML Drift GPU delegate computes the sum-of-squares reduction in fp16
+    even for an fp32 model; deep-ViT massive activations (|x|~50+) make
+    `sum((x-mean)^2)` exceed fp16 max (65504) -> wrong normalization that
+    compounds with depth (corr collapses to ~0.28 over 12 blocks). Scaling
+    by `SC` before squaring (and undoing after) keeps the running sum in
+    range -- mathematically identical to nn.LayerNorm.
+    """
     SC = 0.03125  # 1/32: keeps sum((x-mean)*SC)^2 << 65504 for |x|<~290
 
     def __init__(self, ln: nn.LayerNorm):
@@ -86,6 +95,11 @@ class SafeLayerNorm(nn.Module):
 
 
 def patch_layernorm(module):
+    """Recursively replaces every nn.LayerNorm with SafeLayerNorm.
+
+    Args:
+        module: Module whose children are rewritten in place.
+    """
     for name, child in module.named_children():
         if isinstance(child, nn.LayerNorm):
             setattr(module, name, SafeLayerNorm(child))
@@ -95,19 +109,45 @@ def patch_layernorm(module):
 
 # ---------------------------------------------------------------- rope (clean)
 def rope_rotate_half(x):
-    # 4D-clean: slice halves, negate, concat. No strided slice, no >4D.
+    """4D-clean rotate-half: slice halves, negate, concat.
+
+    No strided slice, no >4D tensors.
+
+    Args:
+        x: Tensor [..., d] with an even last dim.
+
+    Returns:
+        cat(-x2, x1) for x = cat(x1, x2), same shape as `x`.
+    """
     x1, x2 = x.chunk(2, dim=-1)
     return torch.cat([-x2, x1], dim=-1)
 
 
 def apply_half(x, cos, sin):
-    # x: [B,H,N,d]; cos/sin: [1,1,N,d]
+    """Applies rotate-half RoPE: x * cos + rotate_half(x) * sin.
+
+    Args:
+        x: Query/key tensor [B, H, N, d].
+        cos: Constant cos table [1, 1, N, d].
+        sin: Constant sin table [1, 1, N, d].
+
+    Returns:
+        Rotated tensor [B, H, N, d].
+    """
     return x * cos + rope_rotate_half(x) * sin
 
 
 def _even_odd_perm(num_heads, head_dim):
-    """Per-head index permutation [0,2,..,1,3,..] that maps the interleaved RoPE
-    layout to the rotate-half layout (evens then odds within each head)."""
+    """Per-head index permutation [0,2,..,1,3,..] that maps the interleaved
+    RoPE layout to the rotate-half layout (evens then odds within each head).
+
+    Args:
+        num_heads: Number of attention heads.
+        head_dim: Per-head channel count.
+
+    Returns:
+        LongTensor [num_heads * head_dim] of permuted channel indices.
+    """
     perm = []
     for h in range(num_heads):
         base = h * head_dim
@@ -116,8 +156,20 @@ def _even_odd_perm(num_heads, head_dim):
     return torch.tensor(perm, dtype=torch.long)
 
 
-# ----------------------------------------------- AttentionRope -> 4D + clean rope
+# ------------------------------------------ AttentionRope -> 4D + clean rope
 def _attn_rope_forward(self, x, rope=None, attn_mask=None, is_causal=False):
+    """4D attention with baked rotate-half RoPE over decomposed q/k/v.
+
+    Args:
+        self: AttentionRope module (patched onto the instance).
+        x: Token tensor [B, N, C].
+        rope: Unused; kept for signature compatibility.
+        attn_mask: Unused; kept for signature compatibility.
+        is_causal: Unused; kept for signature compatibility.
+
+    Returns:
+        Attention output [B, N, C].
+    """
     B, N, C = x.shape
     H, d = self.num_heads, self.head_dim
     q = self.q_proj_d(x).reshape(B, N, H, d).transpose(1, 2)
@@ -126,11 +178,14 @@ def _attn_rope_forward(self, x, rope=None, attn_mask=None, is_causal=False):
     q, k = self.q_norm(q), self.k_norm(k)  # Identity for PE-Core
     npt = self.npt_
     cos, sin = self.cos_half, self.sin_half
-    q = torch.cat([q[:, :, :npt, :], apply_half(q[:, :, npt:, :], cos, sin)], dim=2)
-    k = torch.cat([k[:, :, :npt, :], apply_half(k[:, :, npt:, :], cos, sin)], dim=2)
-    # SDPA lowers to a 3D batch-matmul with a MATERIALIZED transpose (adj_y=False),
-    # which the GPU delegate accepts -- unlike explicit q@k.transpose (folds to
-    # adj_y=True, rejected for non-constant RHS). Default scale = head_dim**-0.5.
+    q = torch.cat([q[:, :, :npt, :],
+                   apply_half(q[:, :, npt:, :], cos, sin)], dim=2)
+    k = torch.cat([k[:, :, :npt, :],
+                   apply_half(k[:, :, npt:, :], cos, sin)], dim=2)
+    # SDPA lowers to a 3D batch-matmul with a MATERIALIZED transpose
+    # (adj_y=False), which the GPU delegate accepts -- unlike explicit
+    # q@k.transpose (folds to adj_y=True, rejected for non-constant RHS).
+    # Default scale = head_dim**-0.5.
     out = F.scaled_dot_product_attention(q, k, v)
     out = out.transpose(1, 2).reshape(B, N, self.attn_dim)
     out = self.norm(out)  # Identity (scale_norm off)
@@ -138,6 +193,14 @@ def _attn_rope_forward(self, x, rope=None, attn_mask=None, is_causal=False):
 
 
 def reauthor_attn_rope(attn, cos_half, sin_half, npt):
+    """Decomposes fused qkv and bakes the RoPE channel permutation.
+
+    Args:
+        attn: timm AttentionRope module rewritten in place.
+        cos_half: Constant cos table [N_patch, head_dim].
+        sin_half: Constant sin table [N_patch, head_dim].
+        npt: Number of prefix (non-rotated) tokens.
+    """
     C = attn.qkv.in_features
     H, d = attn.num_heads, attn.head_dim
     w = attn.qkv.weight.data
@@ -165,15 +228,27 @@ def reauthor_attn_rope(attn, cos_half, sin_half, npt):
 
 # ----------------------------------------------- AttentionPoolLatent -> 4D
 def _attn_pool_forward(self, x, attn_mask=None):
-    # The pooling query is derived from a constant latent (latent_len=1). Both a
-    # const@non-const BMM (rejected at compile) AND the reordered const-RHS BMM
-    # (compiles but the GPU delegate MIS-COMPUTES it -> garbage embedding) fail, so
-    # express the single-query attention as broadcast-multiply + reduce-sum, which
-    # is exact and GPU-correct.
+    """Single-query latent-pool attention as broadcast-multiply + reduce.
+
+    The pooling query is derived from a constant latent (latent_len=1).
+    Both a const@non-const BMM (rejected at compile) AND the reordered
+    const-RHS BMM (compiles but the GPU delegate MIS-COMPUTES it -> garbage
+    embedding) fail, so express the single-query attention as
+    broadcast-multiply + reduce-sum, which is exact and GPU-correct.
+
+    Args:
+        self: AttentionPoolLatent module (patched onto the instance).
+        x: Token tensor [B, N, C].
+        attn_mask: Unused; kept for signature compatibility.
+
+    Returns:
+        Pooled output ([B, C] for token/avg pooling, else [B, L, C]).
+    """
     B, N, C = x.shape
     H, d, L = self.num_heads, self.head_dim, self.latent_len
-    k = self.k_norm(self.k_proj_d(x).reshape(B, N, H, d).transpose(1, 2))  # [B,H,N,d]
-    v = self.v_proj_d(x).reshape(B, N, H, d).transpose(1, 2)               # [B,H,N,d]
+    # k, v: [B,H,N,d]
+    k = self.k_norm(self.k_proj_d(x).reshape(B, N, H, d).transpose(1, 2))
+    v = self.v_proj_d(x).reshape(B, N, H, d).transpose(1, 2)
     qc = self.q_const  # [H, L, d] constant, q_norm'd + scaled
     # Broadcast-multiply + reduce (no batch-matmul): exact for latent_len=1 and
     # avoids the const@non-const BMM that the GPU delegate mis-computes.
@@ -191,6 +266,11 @@ def _attn_pool_forward(self, x, attn_mask=None):
 
 
 def reauthor_attn_pool(ap):
+    """Decomposes fused kv and bakes the constant pooling query.
+
+    Args:
+        ap: timm AttentionPoolLatent module rewritten in place.
+    """
     assert ap.pos_embed is None, "attn_pool pos_embed not handled"
     C = ap.kv.in_features
     inner = ap.num_heads * ap.head_dim
@@ -205,7 +285,8 @@ def reauthor_attn_pool(ap):
             v_proj.bias.copy_(ap.kv.bias.data[inner:])
         H, d, L = ap.num_heads, ap.head_dim, ap.latent_len
         # constant query: q_norm(q(latent)) * scale  -> [H, L, d]
-        ql = ap.q(ap.latent.expand(1, -1, -1)).reshape(1, L, H, d).transpose(1, 2)
+        ql = ap.q(ap.latent.expand(1, -1, -1)).reshape(
+            1, L, H, d).transpose(1, 2)
         ql = ap.q_norm(ql) * ap.scale
     ap.k_proj_d, ap.v_proj_d = k_proj, v_proj
     ap.register_buffer("q_const", ql.reshape(H, L, d).detach())
@@ -237,9 +318,17 @@ class PECoreImageEncoder(nn.Module):
 
 
 def build_half_cos_sin(m):
-    """Half-layout constant cos/sin [N_patch, head_dim] from timm's interleaved rope."""
+    """Half-layout constant cos/sin tables from timm's interleaved rope.
+
+    Args:
+        m: timm PE-Core model exposing m.rope.get_embed().
+
+    Returns:
+        Tuple (cos_half, sin_half), each [N_patch, head_dim].
+    """
     emb = m.rope.get_embed()            # [N, 2*d] = cat(sin, cos)
-    sin_emb, cos_emb = emb.chunk(2, -1)  # each [N, d] interleaved [s0,s0,s1,s1,...]
+    # each [N, d] interleaved [s0,s0,s1,s1,...]
+    sin_emb, cos_emb = emb.chunk(2, -1)
     s = sin_emb[:, ::2]                  # [N, d/2] = [s0,s1,...]
     c = cos_emb[:, ::2]
     sin_half = torch.cat([s, s], dim=-1)  # [N, d]
@@ -248,28 +337,48 @@ def build_half_cos_sin(m):
 
 
 def op_hist(path):
-    """Static GPU-compat scan: read the op set straight from the .tflite flatbuffer."""
+    """Static GPU-compat scan of the op set in the .tflite flatbuffer.
+
+    Args:
+        path: Path of the .tflite file to scan.
+
+    Returns:
+        Tuple (op-name Counter, count of >4D tensors).
+    """
     from ai_edge_litert import schema_py_generated as schema
     with open(path, "rb") as f:
         model = schema.ModelT.InitFromPackedBuf(f.read(), 0)
-    names = {v: k for k, v in vars(schema.BuiltinOperator).items() if not k.startswith("_")}
+    names = {v: k for k, v in vars(schema.BuiltinOperator).items()
+             if not k.startswith("_")}
     hist = collections.Counter()
     over4d = 0
     for g in model.subgraphs:
         for op in g.operators:
             c = model.operatorCodes[op.opcodeIndex]
             code = max(c.builtinCode, c.deprecatedBuiltinCode)
-            hist[c.customCode.decode() if c.customCode else names.get(code, str(code))] += 1
-        over4d += sum(1 for t in g.tensors if t.shape is not None and len(t.shape) > 4)
+            hist[c.customCode.decode() if c.customCode
+                 else names.get(code, str(code))] += 1
+        over4d += sum(1 for t in g.tensors
+                      if t.shape is not None and len(t.shape) > 4)
     return hist, over4d
 
 
 def tflite_run(path, x_nchw):
-    """Single inference through the LiteRT CompiledModel API; returns the flat output."""
+    """Single inference through the LiteRT CompiledModel API.
+
+    Args:
+        path: Path of the .tflite model.
+        x_nchw: Input array [1, 3, H, W]; transposed to NHWC when the model
+            expects channel-last input.
+
+    Returns:
+        Flat float64 output array.
+    """
     from ai_edge_litert.compiled_model import CompiledModel
     model = CompiledModel.from_file(path)
     key = list(model.get_signature_list())[0]
-    shp = list(next(iter(model.get_input_tensor_details(key).values()))["shape"])
+    shp = list(
+        next(iter(model.get_input_tensor_details(key).values()))["shape"])
     x = x_nchw if shp[1] == 3 else np.transpose(x_nchw, (0, 2, 3, 1)).copy()
     ins = model.create_input_buffers(0)
     outs = model.create_output_buffers(0)
@@ -281,13 +390,15 @@ def tflite_run(path, x_nchw):
 
 
 def main():
+    """Re-authors, converts, verifies, and fp16-quantizes PE-Core."""
     torch.manual_seed(0)
     print(f"loading {MODEL} (pretrained, apache-2.0) ...")
     m = timm.create_model(MODEL, pretrained=True).eval()
 
     x = torch.randn(1, 3, IMG, IMG)
     with torch.no_grad():
-        ref = F.normalize(m(x), dim=-1).numpy().flatten()  # original (interleaved rope, fused qkv)
+        # original (interleaved rope, fused qkv)
+        ref = F.normalize(m(x), dim=-1).numpy().flatten()
 
     # ---- re-author in place ----
     cos_half, sin_half = build_half_cos_sin(m)
@@ -295,14 +406,16 @@ def main():
     for blk in m.blocks:
         reauthor_attn_rope(blk.attn, cos_half, sin_half, npt)
     reauthor_attn_pool(m.attn_pool)
-    patch_layernorm(m)  # GPU fp16 variance reduction overflows on deep-ViT outliers
+    # GPU fp16 variance reduction overflows on deep-ViT outliers
+    patch_layernorm(m)
     enc = PECoreImageEncoder(m).eval()
 
     with torch.no_grad():
         got = enc(x).numpy().flatten()
     corr = float(np.corrcoef(ref, got)[0, 1])
     maxd = float(np.abs(ref - got).max())
-    print(f"EAGER parity (orig vs re-authored): corr {corr:.8f}  max|diff| {maxd:.3e}")
+    print(f"EAGER parity (orig vs re-authored): corr {corr:.8f}  "
+          f"max|diff| {maxd:.3e}")
     assert corr > 0.9999, "re-authoring changed the math -- fix before convert"
 
     # ---- convert fp32 ----
@@ -316,7 +429,8 @@ def main():
     print(f"banned: {bad or 'NONE'} | >4D tensors: {over4d}")
     o = tflite_run(FP32, x.numpy())
     print(f"PARITY tflite(fp32) vs torch: corr {np.corrcoef(ref, o)[0,1]:.6f}")
-    assert not bad and over4d == 0, "GPU blockers remain -- inspect op histogram"
+    assert not bad and over4d == 0, (
+        "GPU blockers remain -- inspect op histogram")
 
     # ---- fp16 FLOAT_CASTING ----
     print("quantizing fp16 (FLOAT_CASTING) ...")
@@ -345,7 +459,8 @@ def main():
     bad16 = {k: v for k, v in h16.items() if k in BANNED}
     print(f"FP16 banned: {bad16 or 'NONE'} | >4D: {o16d}")
     o16 = tflite_run(FP16, x.numpy())
-    print(f"PARITY tflite(fp16) vs torch: corr {np.corrcoef(ref, o16)[0,1]:.6f}  "
+    print(f"PARITY tflite(fp16) vs torch: "
+          f"corr {np.corrcoef(ref, o16)[0,1]:.6f}  "
           f"fp16-vs-fp32 corr {np.corrcoef(o, o16)[0,1]:.6f}")
     print("\nDONE:", FP16)
 
