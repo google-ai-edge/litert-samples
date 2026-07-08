@@ -12,8 +12,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Phase-1 probe: re-authored CLIP ViT-B/16 vision encoder @352 (484+1 tokens) -> fp16 device
-corr. This decides CLIPSeg feasibility (between CLIP-B/32 49-token OK and DA-V2 784-token wall)."""
+"""Phase-1 probe: re-authored CLIP ViT-B/16 vision encoder -> fp16 corr.
+
+Runs the encoder @352 (484+1 tokens) and measures fp16 device corr. This
+decides CLIPSeg feasibility (between CLIP-B/32 49-token OK and DA-V2
+784-token wall).
+"""
 import os
 import sys
 import collections
@@ -29,7 +33,18 @@ SAFE = 16.0
 
 
 def safe_ln(x, w, b):
-    # vision variant (large-variance inputs): scaled-sum + eps 1e-4 (device-proven 0.998)
+    """fp16-safe LayerNorm, vision variant (large-variance inputs).
+
+    Scaled-sum variance + eps 1e-4 (device-proven 0.998).
+
+    Args:
+        x: Input tensor [..., C].
+        w: LayerNorm weight [C].
+        b: LayerNorm bias [C].
+
+    Returns:
+        The normalized tensor, same shape as x.
+    """
     m = x.mean(dim=-1, keepdim=True)
     d = (x - m) * (1.0 / SAFE)
     v = (d * d).mean(dim=-1, keepdim=True)
@@ -37,8 +52,22 @@ def safe_ln(x, w, b):
 
 
 def safe_ln_up(x, w, b, up=8.0, eps=1e-5):
-    # small-variance variant (CLIP text / CLIPSeg decoder): up-scale x so the eps lands in
-    # fp16-normal range (var(8x) + 64*eps = var*64 + 6.4e-4), exact vs torch to ~1e-5 relative.
+    """fp16-safe LayerNorm, small-variance variant.
+
+    For CLIP text / CLIPSeg decoder activations: up-scales x so the eps
+    lands in fp16-normal range (var(8x) + 64*eps = var*64 + 6.4e-4),
+    exact vs torch to ~1e-5 relative.
+
+    Args:
+        x: Input tensor [..., C].
+        w: LayerNorm weight [C].
+        b: LayerNorm bias [C].
+        up: Pre-scale factor applied to x.
+        eps: LayerNorm epsilon (scaled by up*up inside).
+
+    Returns:
+        The normalized tensor, same shape as x.
+    """
     y = x * up
     m = y.mean(dim=-1, keepdim=True)
     d = (y - m) * (1.0 / SAFE)
@@ -47,28 +76,36 @@ def safe_ln_up(x, w, b, up=8.0, eps=1e-5):
 
 
 class VisionGPU(nn.Module):
-    """Functional re-author of CLIPSegVisionTransformer, batch-1, taps at 3/6/9 + final."""
+    """Functional re-author of CLIPSegVisionTransformer.
+
+    Batch-1; taps the hidden states after layers 3/6/9 + final.
+    """
 
     def __init__(self, vm):
         super().__init__()
         self.vm = vm
         emb = vm.embeddings
-        # bake pos-embed interpolated 14x14 -> 22x22 (bicubic, align_corners=False as HF)
-        pe = emb.position_embedding.weight                     # [197, 768]
+        # bake pos-embed interpolated 14x14 -> 22x22 (bicubic,
+        # align_corners=False as HF)
+        pe = emb.position_embedding.weight  # [197, 768]
         cls_pe, patch_pe = pe[:1], pe[1:]
         g = int(patch_pe.shape[0] ** 0.5)
         p2 = patch_pe.T.reshape(1, -1, g, g)
-        p2 = F.interpolate(p2, size=(SIZE // 16, SIZE // 16), mode="bicubic", align_corners=False)
+        p2 = F.interpolate(p2, size=(SIZE // 16, SIZE // 16),
+                           mode="bicubic", align_corners=False)
         p2 = p2.reshape(768, -1).T
-        self.register_buffer("pos", torch.cat([cls_pe, p2], 0).unsqueeze(0))  # [1, 485, 768]
+        # pos: [1, 485, 768]
+        self.register_buffer("pos", torch.cat([cls_pe, p2], 0).unsqueeze(0))
 
     def forward(self, x):
         vm = self.vm
         emb = vm.embeddings
-        p = F.conv2d(x, emb.patch_embedding.weight, None, stride=16)   # [1, 768, 22, 22]
-        p = p.flatten(2).transpose(1, 2)                                # [1, 484, 768]
+        # p: [1, 768, 22, 22]
+        p = F.conv2d(x, emb.patch_embedding.weight, None, stride=16)
+        p = p.flatten(2).transpose(1, 2)  # [1, 484, 768]
         cls = emb.class_embedding.view(1, 1, -1)
-        h = torch.cat([cls.expand(1, -1, -1), p], dim=1) + self.pos     # [1, 485, 768]
+        # h: [1, 485, 768]
+        h = torch.cat([cls.expand(1, -1, -1), p], dim=1) + self.pos
         h = safe_ln(h, vm.pre_layrnorm.weight, vm.pre_layrnorm.bias)
         taps = []
         for li, layer in enumerate(vm.encoder.layers):
@@ -81,27 +118,30 @@ class VisionGPU(nn.Module):
             B, N, C = q.shape
             H = a.num_heads
             d = C // H
-            q3 = q.reshape(N, H, d).permute(1, 0, 2)                    # [12, 485, 64]
+            q3 = q.reshape(N, H, d).permute(1, 0, 2)  # [12, 485, 64]
             k3 = k.reshape(N, H, d).permute(1, 0, 2)
             v3 = v.reshape(N, H, d).permute(1, 0, 2)
-            att = torch.matmul(q3, k3.transpose(1, 2))                  # [12, 485, 485]
+            att = torch.matmul(q3, k3.transpose(1, 2))  # [12, 485, 485]
             att = F.softmax(att, dim=-1)
-            o = torch.matmul(att, v3)                                   # [12, 485, 64]
+            o = torch.matmul(att, v3)  # [12, 485, 64]
             o = o.permute(1, 0, 2).reshape(1, N, C)
             h = r + F.linear(o, a.out_proj.weight, a.out_proj.bias)
             r = h
             y = safe_ln(h, layer.layer_norm2.weight, layer.layer_norm2.bias)
             y = F.linear(y, layer.mlp.fc1.weight, layer.mlp.fc1.bias)
-            y = y * torch.sigmoid(1.702 * y)                            # quick_gelu
+            y = y * torch.sigmoid(1.702 * y)  # quick_gelu
             h = r + F.linear(y, layer.mlp.fc2.weight, layer.mlp.fc2.bias)
-            if li in (3, 6, 9):                             # CLIPSeg: hidden_states[i+1] (+1 for embeddings)
+            # CLIPSeg: hidden_states[i+1] (+1 for embeddings)
+            if li in (3, 6, 9):
                 taps.append(h)
         return taps[0], taps[1], taps[2], h
 
 
 def main():
+    """Probes the re-authored vision encoder and exports fp16 + fixtures."""
     from transformers import CLIPSegForImageSegmentation, CLIPSegProcessor
-    m = CLIPSegForImageSegmentation.from_pretrained("CIDAS/clipseg-rd64-refined").eval()
+    m = CLIPSegForImageSegmentation.from_pretrained(
+        "CIDAS/clipseg-rd64-refined").eval()
     vm = m.clip.vision_model
     proc = CLIPSegProcessor.from_pretrained("CIDAS/clipseg-rd64-refined")
     from PIL import Image
@@ -111,7 +151,8 @@ def main():
 
     with torch.no_grad():
         ref = vm(x, interpolate_pos_encoding=True, output_hidden_states=True)
-        refs = [ref.hidden_states[i] for i in (3, 6, 9)] + [ref.hidden_states[12]]
+        refs = ([ref.hidden_states[i] for i in (3, 6, 9)]
+                + [ref.hidden_states[12]])
         g = VisionGPU(vm).eval()
         mine = g(x)
     for nm, a, b in zip(["tap3", "tap6", "tap9", "final"], mine, refs):
@@ -127,7 +168,8 @@ def main():
     if clean:
         fp16 = to_fp16(fp32, os.path.join(HERE, "clipseg_vis_fp16.tflite"))
         opcheck(fp16, "fp16")
-        x.numpy().astype(np.float32).tofile(os.path.join(HERE, "vis_input.bin"))
+        x.numpy().astype(np.float32).tofile(
+            os.path.join(HERE, "vis_input.bin"))
         np.save(os.path.join(HERE, "vis_ref.npy"),
                 np.concatenate([t.numpy().ravel() for t in mine]))
         print("wrote fp16 + fixtures")
