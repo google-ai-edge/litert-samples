@@ -12,8 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Minimal-dep shims so look2hear imports without torch_complex / distutils / full scipy.
-Import this FIRST (before look2hear)."""
+"""Minimal-dep shims so look2hear imports without torch_complex /
+distutils / full scipy. Import this FIRST (before look2hear)."""
 import sys
 import types
 
@@ -50,7 +50,8 @@ except ImportError:
     sys.modules.setdefault("distutils", du)
     sys.modules.setdefault("distutils.version", duv)
 
-# stub the whole stft_tfgn submodule (needs torch_complex+typeguard; TIGER never uses it)
+# stub the whole stft_tfgn submodule (needs torch_complex+typeguard;
+# TIGER never uses it)
 stft_tfgn = types.ModuleType("look2hear.layers.stft_tfgn")
 
 
@@ -62,7 +63,8 @@ stft_tfgn.Stft = Stft
 sys.modules.setdefault("look2hear.layers.stft_tfgn", stft_tfgn)
 
 # scipy _propack shim (same as panns-work; librosa pulls scipy.sparse.linalg)
-sys.path.insert(0, __import__("os").path.expanduser("~/Downloads/meeting/panns-work"))
+sys.path.insert(
+    0, __import__("os").path.expanduser("~/Downloads/meeting/panns-work"))
 try:
     import _stub_propack  # noqa: F401
 except Exception:

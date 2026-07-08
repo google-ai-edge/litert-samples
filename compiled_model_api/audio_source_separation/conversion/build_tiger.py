@@ -15,12 +15,14 @@
 """TIGER-DnR (dialog sub-model first) -> LiteRT CompiledModel GPU.
 
 Phases:
-  1. torch-vs-torch: GPUTiger (re-authored, exact) vs original look2hear TIGER on a real 12 s
-     chunk of the repo test mixture -> waveform corr must be ~1.0 BEFORE any conversion.
-  2. litert-torch convert -> op histogram (banned / >4D / FFT) -> tflite CPU parity.
+  1. torch-vs-torch: GPUTiger (re-authored, exact) vs original look2hear
+     TIGER on a real 12 s chunk of the repo test mixture -> waveform corr
+     must be ~1.0 BEFORE any conversion.
+  2. litert-torch convert -> op histogram (banned / >4D / FFT) -> tflite
+     CPU parity.
   3. fp16 (FLOAT_CASTING) -> parity again -> device fixtures.
 
-Run: ~/clipconv/bin/python build_tiger.py [dialog|effect|music]
+Run: python build_tiger.py [dialog|effect|music]
 """
 import sys
 import os
@@ -39,38 +41,61 @@ from gpu_tiger import GPUTiger, host_istft, host_pad  # noqa: E402
 SUB = sys.argv[1] if len(sys.argv) > 1 else "dialog"
 SR = 44100
 WIN, HOP = 2048, 512
-T_FRAMES = int(os.environ.get("TIGER_T", "1040"))  # divisible by 16 -> uniform fast path
+# divisible by 16 -> uniform fast path
+T_FRAMES = int(os.environ.get("TIGER_T", "1040"))
 S = (T_FRAMES - 1) * HOP       # 1040 -> 531968 samples = 12.06 s
 
-BANNED = {"GATHER", "GATHER_ND", "TOPK_V2", "GELU", "ERF", "WHERE", "SELECT", "SELECT_V2",
-          "BROADCAST_TO", "POW", "TRANSPOSE_CONV", "CAST", "EMBEDDING_LOOKUP", "PACK",
-          "RFFT2D", "FFT", "STFT", "COMPLEX", "RFFT", "IRFFT", "CUMSUM", "SPLIT", "SPLIT_V"}
+BANNED = {"GATHER", "GATHER_ND", "TOPK_V2", "GELU", "ERF", "WHERE",
+          "SELECT", "SELECT_V2", "BROADCAST_TO", "POW", "TRANSPOSE_CONV",
+          "CAST", "EMBEDDING_LOOKUP", "PACK", "RFFT2D", "FFT", "STFT",
+          "COMPLEX", "RFFT", "IRFFT", "CUMSUM", "SPLIT", "SPLIT_V"}
 
 
 def opcheck(path, label):
-    """Static GPU-compat scan: read the op set straight from the .tflite flatbuffer."""
+    """Static GPU-compat scan of the op set in a .tflite flatbuffer.
+
+    Args:
+        path: Path to the .tflite file to scan.
+        label: Tag prefixed to every printed line.
+
+    Returns:
+        True if no banned op and no tensor above 4D is present.
+    """
     from ai_edge_litert import schema_py_generated as schema
     with open(path, "rb") as f:
         model = schema.ModelT.InitFromPackedBuf(f.read(), 0)
-    names = {v: k for k, v in vars(schema.BuiltinOperator).items() if not k.startswith("_")}
+    names = {v: k for k, v in vars(schema.BuiltinOperator).items()
+             if not k.startswith("_")}
     ops = collections.Counter()
     over = 0
     for g in model.subgraphs:
         for op in g.operators:
             c = model.operatorCodes[op.opcodeIndex]
             code = max(c.builtinCode, c.deprecatedBuiltinCode)
-            ops[c.customCode.decode() if c.customCode else names.get(code, str(code))] += 1
-        over += sum(1 for t in g.tensors if t.shape is not None and len(t.shape) > 4)
+            ops[c.customCode.decode() if c.customCode
+                else names.get(code, str(code))] += 1
+        over += sum(1 for t in g.tensors
+                    if t.shape is not None and len(t.shape) > 4)
     bad = {k: v for k, v in ops.items() if k.upper() in BANNED}
-    print(f"[{label}] nodes:{sum(ops.values())} banned:{bad or 'NONE'} >4D:{over} "
-          f"size {os.path.getsize(path)/1e6:.1f}MB")
+    print(f"[{label}] nodes:{sum(ops.values())} banned:{bad or 'NONE'} "
+          f">4D:{over} size {os.path.getsize(path)/1e6:.1f}MB")
     print(f"[{label}] ops: {dict(sorted(ops.items(), key=lambda kv: -kv[1]))}")
-    print(f"[{label}] VERDICT:", "GPU-CLEAN" if not bad and not over else f"BLOCKERS {bad} >4D:{over}")
+    print(f"[{label}] VERDICT:",
+          "GPU-CLEAN" if not bad and not over
+          else f"BLOCKERS {bad} >4D:{over}")
     return not bad and not over
 
 
 def tfl_run(path, x):
-    """One inference through the LiteRT CompiledModel API; returns flat fp32 outputs."""
+    """One inference through the LiteRT CompiledModel API.
+
+    Args:
+        path: Path to the .tflite model file.
+        x: Input array written to input buffer 0 as float32.
+
+    Returns:
+        List of flat float32 numpy arrays, one per model output.
+    """
     from ai_edge_litert.compiled_model import CompiledModel
     model = CompiledModel.from_file(path)
     inputs = model.create_input_buffers(0)
@@ -79,12 +104,22 @@ def tfl_run(path, x):
     model.run_by_index(0, inputs, outputs)
     result = []
     for i, buf in enumerate(outputs):
-        n = model.get_output_buffer_requirements(0, i)["buffer_size"] // np.dtype(np.float32).itemsize
+        n = (model.get_output_buffer_requirements(0, i)["buffer_size"]
+             // np.dtype(np.float32).itemsize)
         result.append(buf.read(n, np.float32))
     return result
 
 
 def to_fp16(fp32, fp16):
+    """Quantizes an fp32 .tflite to fp16 weights via FLOAT_CASTING.
+
+    Args:
+        fp32: Path to the source fp32 .tflite model.
+        fp16: Output path for the fp16 model.
+
+    Returns:
+        The fp16 output path.
+    """
     from ai_edge_quantizer import quantizer, recipe_manager
     from ai_edge_quantizer.recipe import AlgorithmName, qtyping
     rm = recipe_manager.RecipeManager()
@@ -104,17 +139,31 @@ def to_fp16(fp32, fp16):
 
 
 def corr(a, b):
+    """Pearson correlation between two arrays, flattened.
+
+    Args:
+        a: First array-like.
+        b: Second array-like.
+
+    Returns:
+        Pearson correlation coefficient of the raveled inputs.
+    """
     a, b = np.asarray(a).ravel(), np.asarray(b).ravel()
     return np.corrcoef(a, b)[0, 1]
 
 
 def main():
-    dnr = look2hear.models.TIGERDNR.from_pretrained(os.path.join(HERE, "ckpt-dnr")).eval()
+    """Re-authors, converts and parity-checks one TIGER sub-model."""
+    dnr = look2hear.models.TIGERDNR.from_pretrained(
+        os.path.join(HERE, "ckpt-dnr")).eval()
     sub = getattr(dnr, SUB)
-    print(f"sub-model '{SUB}': {sum(p.numel() for p in sub.parameters())/1e6:.2f}M params, "
-          f"{sub.nband} bands, {sub.num_output} sources, iters={sub.separator.iter}")
+    print(f"sub-model '{SUB}': "
+          f"{sum(p.numel() for p in sub.parameters())/1e6:.2f}M params, "
+          f"{sub.nband} bands, {sub.num_output} sources, "
+          f"iters={sub.separator.iter}")
 
-    wav, sr = torchaudio.load(os.path.join(HERE, "TIGER", "test", "test_mixture_466.wav"))
+    wav, sr = torchaudio.load(
+        os.path.join(HERE, "TIGER", "test", "test_mixture_466.wav"))
     assert sr == SR
     x = wav[:, :S]
     if x.shape[-1] < S:
@@ -131,8 +180,8 @@ def main():
     with torch.no_grad():
         est_r, est_i = g(xp)
     K = est_r.shape[1]
-    est = host_istft(est_r.view(K, sub.enc_dim, -1), est_i.view(K, sub.enc_dim, -1),
-                     WIN, HOP, S)                      # [K, S]
+    est = host_istft(est_r.view(K, sub.enc_dim, -1),
+                     est_i.view(K, sub.enc_dim, -1), WIN, HOP, S)  # [K, S]
     c = corr(est.numpy(), ref[0].numpy())
     md = np.abs(est.numpy() - ref[0].numpy()).max()
     print(f"[torch-vs-torch] corr {c:.7f}  max|d| {md:.3e}")
@@ -140,7 +189,8 @@ def main():
         print("PARITY FAIL — fix re-authoring before converting")
         # per-source diagnostics
         for k in range(K):
-            print(f"  src{k}: corr {corr(est[k].numpy(), ref[0,k].numpy()):.6f}")
+            print(f"  src{k}: corr "
+                  f"{corr(est[k].numpy(), ref[0,k].numpy()):.6f}")
         return
 
     # ---- convert
@@ -150,7 +200,8 @@ def main():
     clean = opcheck(fp32, "fp32")
     o = tfl_run(fp32, xp.numpy())
     est32 = host_istft(torch.from_numpy(o[0]).view(K, sub.enc_dim, -1),
-                       torch.from_numpy(o[1]).view(K, sub.enc_dim, -1), WIN, HOP, S)
+                       torch.from_numpy(o[1]).view(K, sub.enc_dim, -1),
+                       WIN, HOP, S)
     print(f"[fp32 tflite] wav corr {corr(est32.numpy(), ref[0].numpy()):.7f}")
 
     if clean:
@@ -158,9 +209,12 @@ def main():
         opcheck(fp16, "fp16")
         o = tfl_run(fp16, xp.numpy())
         est16 = host_istft(torch.from_numpy(o[0]).view(K, sub.enc_dim, -1),
-                           torch.from_numpy(o[1]).view(K, sub.enc_dim, -1), WIN, HOP, S)
-        print(f"[fp16 tflite] wav corr {corr(est16.numpy(), ref[0].numpy()):.7f}")
-        xp.numpy().astype(np.float32).tofile(os.path.join(HERE, f"tiger_input.bin"))
+                           torch.from_numpy(o[1]).view(K, sub.enc_dim, -1),
+                           WIN, HOP, S)
+        print(f"[fp16 tflite] wav corr "
+              f"{corr(est16.numpy(), ref[0].numpy()):.7f}")
+        xp.numpy().astype(np.float32).tofile(
+            os.path.join(HERE, f"tiger_input.bin"))
         np.save(os.path.join(HERE, f"tiger_{SUB}_ref.npy"), ref[0].numpy())
         print("wrote fp16 + device fixtures")
 
