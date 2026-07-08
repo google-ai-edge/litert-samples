@@ -34,8 +34,9 @@ import java.io.File
  * waveform straight into the 1D-conv feature extractor — no mel step).
  *
  *   frontend = feature_extractor (7 strided 1D convs + GroupNorm) + feature_projection.
- *   head     = encoder (12 transformer layers, pos-conv) + weighted-layer-sum over all 13 hidden
- *              states (this checkpoint uses use_weighted_layer_sum) + projector + mean-pool + classifier.
+ *   head     = encoder (12 transformer layers, pos-conv) + weighted-layer-sum over all 13
+ *              hidden states (this checkpoint uses use_weighted_layer_sum) + projector +
+ *              mean-pool + classifier.
  *
  * Both tflites are loaded from filesDir (push via scripts/install_to_device.sh).
  */
@@ -53,7 +54,9 @@ class Wav2Vec2Kws(private val context: Context) : Closeable {
 
     private fun load(name: String): CompiledModel {
         val f = File(context.filesDir, name)
-        check(f.exists()) { "Model not found: $name. Push it first:\n  scripts/install_to_device.sh" }
+        check(f.exists()) {
+            "Model not found: $name. Push it first:\n  scripts/install_to_device.sh"
+        }
         return CompiledModel.create(f.absolutePath, CompiledModel.Options(Accelerator.GPU), null)
     }
 

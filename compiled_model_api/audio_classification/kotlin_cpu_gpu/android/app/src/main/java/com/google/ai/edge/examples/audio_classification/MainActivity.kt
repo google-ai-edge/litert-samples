@@ -104,7 +104,8 @@ class MainActivity : Activity() {
                 Log.i(tag, "bundled clip -> ${r.label} (${r.ms} ms)")
                 runOnUiThread {
                     status.setBackgroundColor(Color.rgb(0xC8, 0xE6, 0xC9))
-                    status.text = "On-device GPU keyword spotting ✓  (bundled clip → \"${r.label}\", ${r.ms} ms)"
+                    status.text = "On-device GPU keyword spotting ✓  " +
+                        "(bundled clip → \"${r.label}\", ${r.ms} ms)"
                     record.isEnabled = true
                 }
             } catch (e: Throwable) {
@@ -118,7 +119,9 @@ class MainActivity : Activity() {
     }
 
     private fun ensureMicThenRecord() {
-        if (checkSelfPermission(Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
+        val granted = checkSelfPermission(Manifest.permission.RECORD_AUDIO) ==
+            PackageManager.PERMISSION_GRANTED
+        if (!granted) {
             requestPermissions(arrayOf(Manifest.permission.RECORD_AUDIO), 1)
             return
         }
@@ -127,7 +130,9 @@ class MainActivity : Activity() {
 
     override fun onRequestPermissionsResult(rc: Int, p: Array<out String>, g: IntArray) {
         super.onRequestPermissionsResult(rc, p, g)
-        if (rc == 1 && g.isNotEmpty() && g[0] == PackageManager.PERMISSION_GRANTED) recordAndClassify()
+        if (rc == 1 && g.isNotEmpty() && g[0] == PackageManager.PERMISSION_GRANTED) {
+            recordAndClassify()
+        }
     }
 
     private fun recordAndClassify() {
@@ -144,7 +149,11 @@ class MainActivity : Activity() {
                 runOnUiThread {
                     val known = r.label != "_unknown_" && r.label != "_silence_"
                     result.setTextColor(if (known) Color.rgb(0x2E, 0x7D, 0x32) else Color.GRAY)
-                    result.text = if (known) "✓  \"${r.label}\"" else "“${r.label}”  (try again — say one of the words)"
+                    result.text = if (known) {
+                        "✓  \"${r.label}\""
+                    } else {
+                        "“${r.label}”  (try again — say one of the words)"
+                    }
                     record.isEnabled = true
                 }
             } catch (e: Throwable) {
@@ -160,7 +169,8 @@ class MainActivity : Activity() {
     /** Capture 1 s of mono 16 kHz PCM from the mic, returned as float32 in [-1,1]. */
     private fun recordOneSecond(): FloatArray {
         val sr = Wav2Vec2Kws.SAMPLES
-        val minBuf = AudioRecord.getMinBufferSize(sr, AudioFormat.CHANNEL_IN_MONO, AudioFormat.ENCODING_PCM_16BIT)
+        val minBuf = AudioRecord.getMinBufferSize(
+            sr, AudioFormat.CHANNEL_IN_MONO, AudioFormat.ENCODING_PCM_16BIT)
         val rec = AudioRecord(
             MediaRecorder.AudioSource.VOICE_RECOGNITION, sr,
             AudioFormat.CHANNEL_IN_MONO, AudioFormat.ENCODING_PCM_16BIT, maxOf(minBuf, sr * 2),
