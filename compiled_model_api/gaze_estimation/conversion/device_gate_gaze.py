@@ -29,8 +29,10 @@ MEAN=np.array([0.485,0.456,0.406],np.float32)
 STD=np.array([0.229,0.224,0.225],np.float32)
 im=Image.open(f"{HERE}/face.jpg").convert("RGB")
 s=min(im.size)
-im=im.crop(((im.width-s)//2,(im.height-s)//2,(im.width+s)//2,(im.height+s)//2)).resize((S,S),Image.BILINEAR)
-x=(((np.asarray(im).astype(np.float32)/255-MEAN)/STD).transpose(2,0,1)[None]).copy()
+im=im.crop(((im.width-s)//2,(im.height-s)//2,
+            (im.width+s)//2,(im.height+s)//2)).resize((S,S),Image.BILINEAR)
+x=(((np.asarray(im).astype(np.float32)/255-MEAN)/STD)
+   .transpose(2,0,1)[None]).copy()
 m=B.build()
 with torch.no_grad():
     y,p=m(torch.from_numpy(x))
@@ -39,11 +41,30 @@ np.save(f"{HERE}/gz_y.npy",y)
 np.save(f"{HERE}/gz_p.npy",p)
 x.tofile(f"{HERE}/gz_input.bin")
 def decode(y,p):
+    """Converts 90-bin softmax distributions to yaw/pitch degrees.
+
+    Args:
+        y: (90,) softmax yaw distribution.
+        p: (90,) softmax pitch distribution.
+
+    Returns:
+        A (yaw, pitch) tuple in degrees via the binned expectation.
+    """
     idx=np.arange(90)
     yaw=(y*idx).sum()*4-180
     pit=(p*idx).sum()*4-180
     return yaw, pit
 def draw(y,p,name):
+    """Draws the decoded gaze direction on the demo face crop.
+
+    Args:
+        y: (90,) softmax yaw distribution.
+        p: (90,) softmax pitch distribution.
+        name: Output PNG path.
+
+    Returns:
+        The decoded (yaw, pitch) tuple in degrees.
+    """
     yaw,pit=decode(y,p)
     yr,pr=math.radians(yaw),math.radians(pit)
     d=im.copy()
@@ -65,6 +86,7 @@ ins=model.create_input_buffers(0)
 outs=model.create_output_buffers(0)
 ins[0].write(np.ascontiguousarray(x,dtype=np.float32))
 model.run_by_index(0,ins,outs)
-n=model.get_output_buffer_requirements(0,0)["buffer_size"]//np.dtype(np.float32).itemsize
+n=(model.get_output_buffer_requirements(0,0)["buffer_size"]
+   //np.dtype(np.float32).itemsize)
 o0=outs[0].read(n,np.float32)
 print(f"desktop-fp16 vs torch yaw corr {np.corrcoef(o0,y)[0,1]:.6f}")
