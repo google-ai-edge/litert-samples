@@ -28,9 +28,10 @@ import kotlin.math.hypot
  * M-LSD-tiny line segment detection (NAVER, MobileNetV2 backbone) on the LiteRT CompiledModel GPU.
  *   image[1,4,512,512] (RGB + ones channel, scaled to [-1,1]) -> tpMap[1,9,256,256]
  *
- * Pure CNN encoder-decoder (bilinear upsample, the only GPU re-authoring being align_corners=True->False).
- * The output is a "TP map": channel 0 = line-center heatmap, channels 1..4 = start/end displacement. The
- * decode (sigmoid + 3x3 NMS + displacement -> endpoints) runs here. ~2 ms / 512x512 on a Pixel 8a, fully GPU.
+ * Pure CNN encoder-decoder (bilinear upsample, the only GPU re-authoring being
+ * align_corners=True->False). The output is a "TP map": channel 0 = line-center heatmap,
+ * channels 1..4 = start/end displacement. The decode (sigmoid + 3x3 NMS + displacement ->
+ * endpoints) runs here. ~2 ms / 512x512 on a Pixel 8a, fully GPU.
  */
 class MlsdDetector(ctx: Context) : Closeable {
 
@@ -56,7 +57,8 @@ class MlsdDetector(ctx: Context) : Closeable {
      * rgb: SIZE*SIZE*3 row-major [0,255] (image already resized to 512x512).
      * Returns line segments scaled to [scaleW x scaleH] (the displayed image size).
      */
-    fun detect(rgb: FloatArray, scaleW: Float, scaleH: Float, scoreThr: Float = 0.10f, distThr: Float = 20f): List<Line> {
+    fun detect(rgb: FloatArray, scaleW: Float, scaleH: Float, scoreThr: Float = 0.10f,
+               distThr: Float = 20f): List<Line> {
         val hw = SIZE * SIZE
         val chw = FloatArray(4 * hw)
         for (i in 0 until hw) {
@@ -108,7 +110,9 @@ class MlsdDetector(ctx: Context) : Closeable {
             val dxe = out[3 * o + y * OUT + x]
             val dye = out[4 * o + y * OUT + x]
             if (hypot((dxs - dxe).toDouble(), (dys - dye).toDouble()) <= distThr) continue
-            lines.add(Line((x + dxs) * 2 * sx, (y + dys) * 2 * sy, (x + dxe) * 2 * sx, (y + dye) * 2 * sy, scores[idx]))
+            lines.add(
+                Line((x + dxs) * 2 * sx, (y + dys) * 2 * sy, (x + dxe) * 2 * sx,
+                     (y + dye) * 2 * sy, scores[idx]))
         }
         return lines
     }

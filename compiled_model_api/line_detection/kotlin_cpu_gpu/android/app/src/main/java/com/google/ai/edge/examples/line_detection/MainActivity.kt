@@ -37,8 +37,9 @@ import java.util.concurrent.Executors
 import kotlin.math.min
 
 /**
- * M-LSD line segment detection demo, fully on the CompiledModel GPU. Detects line segments (building edges,
- * document borders, wireframes) and draws them. Works on a bundled image and any image picked from the gallery.
+ * M-LSD line segment detection demo, fully on the CompiledModel GPU. Detects line segments
+ * (building edges, document borders, wireframes) and draws them. Works on a bundled image and
+ * any image picked from the gallery.
  */
 class MainActivity : Activity() {
 
@@ -64,20 +65,23 @@ class MainActivity : Activity() {
             text = "🖼  Pick image"
             isEnabled = false
             setOnClickListener {
-                startActivityForResult(Intent(Intent.ACTION_GET_CONTENT).apply { type = "image/*" }, pickReq)
+                val intent = Intent(Intent.ACTION_GET_CONTENT).apply { type = "image/*" }
+                startActivityForResult(intent, pickReq)
             }
         }
         lineView = LineView(this)
         root.addView(status)
         root.addView(pick)
-        root.addView(lineView, LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, 1000))
+        root.addView(
+            lineView, LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, 1000))
         setContentView(root)
 
         bg.execute {
             try {
                 net = MlsdDetector(this)
                 try {
-                    run(squareResize(BitmapFactory.decodeStream(assets.open("test_image.jpg"))), warm = true)
+                    val bundled = BitmapFactory.decodeStream(assets.open("test_image.jpg"))
+                    run(squareResize(bundled), warm = true)
                 } catch (_: java.io.IOException) {
                     runOnUiThread { status.text = "Ready — pick an image to detect line segments." }
                 }
@@ -118,14 +122,16 @@ class MainActivity : Activity() {
         Log.i(tag, "detect ${ms}ms lines=${lines.size}")
         runOnUiThread {
             status.setBackgroundColor(Color.rgb(0xC8, 0xE6, 0xC9))
-            status.text = "On-device GPU line detection ✓  ${ms} ms  ·  ${lines.size} segments  ·  M-LSD-tiny, CompiledModel GPU"
+            status.text = "On-device GPU line detection ✓  ${ms} ms  ·  ${lines.size} segments" +
+                "  ·  M-LSD-tiny, CompiledModel GPU"
             lineView.set(img, lines)
             lineView.invalidate()
         }
     }
 
     private fun loadOriented(uri: Uri): Bitmap {
-        val bm = contentResolver.openInputStream(uri).use { BitmapFactory.decodeStream(it) } ?: error("cannot decode image")
+        val bm = contentResolver.openInputStream(uri).use { BitmapFactory.decodeStream(it) }
+            ?: error("cannot decode image")
         val rot = contentResolver.openInputStream(uri).use {
             when (ExifInterface(it!!).getAttributeInt(ExifInterface.TAG_ORIENTATION, 1)) {
                 ExifInterface.ORIENTATION_ROTATE_90 -> 90f
@@ -135,7 +141,8 @@ class MainActivity : Activity() {
             }
         }
         if (rot == 0f) return bm
-        return Bitmap.createBitmap(bm, 0, 0, bm.width, bm.height, Matrix().apply { postRotate(rot) }, true)
+        return Bitmap.createBitmap(
+            bm, 0, 0, bm.width, bm.height, Matrix().apply { postRotate(rot) }, true)
     }
 
     private fun squareResize(src: Bitmap): Bitmap {
