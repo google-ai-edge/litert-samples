@@ -13,12 +13,15 @@
 # limitations under the License.
 
 """Prove the raw-head + host-decode pipeline. Two checks:
-  (1) numeric: my numpy decode(raw heads) == YOLOX built-in decode_outputs (corr/max|d|).
-  (2) end-to-end: tflite(fp16) raw heads -> host decode -> NMS on assets/dog.jpg, vs stock
-      YOLOX (decode_in_inference=True + postprocess) on the same preprocessed input.
-Host decode mirrors yolo_head.decode_outputs: box_xy=(raw_xy+grid)*stride, wh=exp(raw_wh)*stride.
+  (1) numeric: my numpy decode(raw heads) == YOLOX built-in
+      decode_outputs (corr/max|d|).
+  (2) end-to-end: tflite(fp16) raw heads -> host decode -> NMS on
+      assets/dog.jpg, vs stock YOLOX (decode_in_inference=True +
+      postprocess) on the same preprocessed input.
+Host decode mirrors yolo_head.decode_outputs:
+box_xy=(raw_xy+grid)*stride, wh=exp(raw_wh)*stride.
 
-Run: ~/.pyenv/versions/lama-cml/bin/python validate_decode.py [yolox-s|yolox-tiny]
+Run: python validate_decode.py [yolox-s|yolox-tiny]
 """
 import sys
 import os
@@ -31,7 +34,8 @@ class _D:
     def __getattr__(self, n):
         return lambda *a, **k: None
 _pp = types.ModuleType("scipy.sparse.linalg._propack")
-for _nm in ("_spropack", "_dpropack", "_cpropack", "_zpropack"): setattr(_pp, _nm, _D())
+for _nm in ("_spropack", "_dpropack", "_cpropack", "_zpropack"):
+    setattr(_pp, _nm, _D())
 sys.modules["scipy.sparse.linalg._propack"] = _pp
 
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -43,7 +47,16 @@ import build_yolox as B
 
 
 def host_grids(hw, strides):
-    """numpy (grid_x, grid_y, stride) per anchor, concatenated over levels -> [n_anchors, 3]."""
+    """numpy (grid_x, grid_y, stride) per anchor, concatenated over levels.
+
+    Args:
+        hw: List of (h, w) feature-map sizes, one per head level.
+        strides: List of head strides, one per level.
+
+    Returns:
+        A (grids, strides) tuple: float32 [n_anchors, 2] grid coords and
+        float32 [n_anchors, 1] per-anchor stride.
+    """
     g, s = [], []
     for (h, w), st in zip(hw, strides):
         yv, xv = np.meshgrid(np.arange(h), np.arange(w), indexing="ij")
@@ -54,7 +67,17 @@ def host_grids(hw, strides):
 
 
 def host_decode(raw, hw, strides):
-    """raw [n_anchors, 85] (raw cx,cy,w,h ; sigmoid obj/cls) -> decoded [n_anchors, 85]."""
+    """raw [n_anchors, 85] heads -> decoded [n_anchors, 85].
+
+    Args:
+        raw: [n_anchors, 85] raw head output (raw cx,cy,w,h; sigmoid
+            obj/cls).
+        hw: List of (h, w) feature-map sizes, one per head level.
+        strides: List of head strides, one per level.
+
+    Returns:
+        Decoded [n_anchors, 85] array in input-pixel units.
+    """
     grids, st = host_grids(hw, strides)
     xy = (raw[:, 0:2] + grids) * st
     wh = np.exp(raw[:, 2:4]) * st
@@ -62,7 +85,17 @@ def host_decode(raw, hw, strides):
 
 
 def preproc(img, size):
-    """YOLOX val preproc: ratio-resize, pad to 114 (gray), CHW, BGR, no normalization."""
+    """YOLOX val preproc: ratio-resize, pad to 114 (gray), CHW, BGR.
+
+    No normalization.
+
+    Args:
+        img: HWC BGR uint8 image (cv2.imread output).
+        size: Square target side in pixels.
+
+    Returns:
+        A (chw, ratio) tuple: float32 CHW array and the resize ratio.
+    """
     padded = np.ones((size, size, 3), np.uint8) * 114
     r = min(size / img.shape[0], size / img.shape[1])
     rsz = cv2.resize(img, (int(img.shape[1] * r), int(img.shape[0] * r)))
@@ -71,8 +104,10 @@ def preproc(img, size):
 
 
 def main():
+    """Runs the numeric and end-to-end decode validation checks."""
     ap = argparse.ArgumentParser()
-    ap.add_argument("name", nargs="?", default="yolox-s", choices=list(B.WEIGHTS))
+    ap.add_argument("name", nargs="?", default="yolox-s",
+                    choices=list(B.WEIGHTS))
     args = ap.parse_args()
 
     model, S = B.build(args.name)
@@ -82,30 +117,36 @@ def main():
     # (1) numeric: host decode == built-in decode_outputs
     x = torch.randn(1, 3, S, S)
     with torch.no_grad():
-        raw = model(x)                                     # decode_in_inference=False
+        # decode_in_inference=False
+        raw = model(x)
         model.head.decode_in_inference = True
         dec = model(x)                                     # built-in decode
         model.head.decode_in_inference = False
     mine = host_decode(raw[0].numpy(), hw, model.head.strides)
     corr = np.corrcoef(mine.ravel(), dec[0].numpy().ravel())[0, 1]
-    print(f"[decode] host vs built-in: corr {corr:.6f}  max|d| {np.abs(mine - dec[0].numpy()).max():.2e}")
+    print(f"[decode] host vs built-in: corr {corr:.6f}  "
+          f"max|d| {np.abs(mine - dec[0].numpy()).max():.2e}")
 
     # (2) end-to-end on a real image through the fp16 tflite (CompiledModel API)
     tag = args.name.replace("yolox-", "yolox_")
     img = cv2.imread(os.path.join(HERE, "YOLOX/assets/dog.jpg"))
     inp, r = preproc(img, S)
-    raw_tf = B.run_tflite(f"{tag}_fp16.tflite", inp[None]).reshape(-1, 85)   # [n_anchors, 85]
+    # [n_anchors, 85]
+    raw_tf = B.run_tflite(f"{tag}_fp16.tflite", inp[None]).reshape(-1, 85)
     dec_tf = host_decode(raw_tf, hw, model.head.strides)
-    out = postprocess(torch.from_numpy(dec_tf)[None], 80, conf_thre=0.3, nms_thre=0.45)[0]
+    out = postprocess(torch.from_numpy(dec_tf)[None], 80, conf_thre=0.3,
+                      nms_thre=0.45)[0]
 
-    print(f"[e2e] tflite(fp16) + host decode + NMS on dog.jpg ({args.name}, {S}px):")
+    print(f"[e2e] tflite(fp16) + host decode + NMS on dog.jpg "
+          f"({args.name}, {S}px):")
     if out is None:
         print("  no detections")
         return
     out = out.numpy()
     for d in out:
         x0, y0, x1, y1, obj, cls_conf, cls = d
-        print(f"  {COCO_CLASSES[int(cls)]:12s} {obj*cls_conf:.3f}  box=({x0/r:.0f},{y0/r:.0f},{x1/r:.0f},{y1/r:.0f})")
+        print(f"  {COCO_CLASSES[int(cls)]:12s} {obj*cls_conf:.3f}  "
+              f"box=({x0/r:.0f},{y0/r:.0f},{x1/r:.0f},{y1/r:.0f})")
 
 
 if __name__ == "__main__":
