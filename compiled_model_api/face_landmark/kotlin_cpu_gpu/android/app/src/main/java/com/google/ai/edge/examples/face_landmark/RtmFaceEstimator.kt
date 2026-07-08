@@ -26,8 +26,9 @@ import java.io.File
  * RTMPose-m face alignment (mmpose, WFLW) on the LiteRT CompiledModel GPU.
  *   face[1,3,256,256] (mmpose mean/std) -> simcc_x[1,98,512], simcc_y[1,98,512]
  *
- * 98 dense WFLW landmarks (contour, eyebrows, eyes, nose, mouth, pupils), decoded by argmax over each 1D x/y
- * SimCC (bins = pixels × split=2). ~4 ms on a Pixel 8a, fully GPU. output[0]=simcc_x, output[1]=simcc_y.
+ * 98 dense WFLW landmarks (contour, eyebrows, eyes, nose, mouth, pupils), decoded by argmax
+ * over each 1D x/y SimCC (bins = pixels × split=2). ~4 ms on a Pixel 8a, fully GPU.
+ * output[0]=simcc_x, output[1]=simcc_y.
  */
 class RtmFaceEstimator(ctx: Context, accelerator: Accelerator = Accelerator.GPU) : Closeable {
 

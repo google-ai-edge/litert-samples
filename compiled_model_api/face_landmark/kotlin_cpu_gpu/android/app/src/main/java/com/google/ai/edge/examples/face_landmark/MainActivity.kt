@@ -37,9 +37,9 @@ import java.util.concurrent.Executors
 import kotlin.math.min
 
 /**
- * RTMPose-m face alignment demo (WFLW, 98 landmarks), fully on the CompiledModel GPU. Center-crops a square
- * face box, estimates 98 dense landmarks, and draws the face mesh. Works on a bundled image and any picked
- * image.
+ * RTMPose-m face alignment demo (WFLW, 98 landmarks), fully on the CompiledModel GPU.
+ * Center-crops a square face box, estimates 98 dense landmarks, and draws the face mesh. Works
+ * on a bundled image and any picked image.
  */
 class MainActivity : Activity() {
 
@@ -78,20 +78,23 @@ class MainActivity : Activity() {
             text = "🖼  Pick image"
             isEnabled = false
             setOnClickListener {
-                startActivityForResult(Intent(Intent.ACTION_GET_CONTENT).apply { type = "image/*" }, pickReq)
+                val intent = Intent(Intent.ACTION_GET_CONTENT).apply { type = "image/*" }
+                startActivityForResult(intent, pickReq)
             }
         }
         meshView = MeshView(this)
         root.addView(status)
         root.addView(pick)
-        root.addView(meshView, LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, 960))
+        root.addView(
+            meshView, LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, 960))
         setContentView(root)
 
         bg.execute {
             try {
                 net = RtmFaceEstimator(this)
                 try {
-                    run(cropSquare(BitmapFactory.decodeStream(assets.open("test_image.jpg"))), warm = true)
+                    val bundled = BitmapFactory.decodeStream(assets.open("test_image.jpg"))
+                    run(cropSquare(bundled), warm = true)
                 } catch (_: java.io.IOException) {
                     runOnUiThread { status.text = "Ready — pick a face image." }
                 }
@@ -132,14 +135,16 @@ class MainActivity : Activity() {
         Log.i(tag, "estimate ${ms}ms pts=${pts.size}")
         runOnUiThread {
             status.setBackgroundColor(Color.rgb(0xC8, 0xE6, 0xC9))
-            status.text = "On-device GPU face mesh ✓  ${ms} ms  ·  98 landmarks  ·  RTMPose-m WFLW, CompiledModel GPU"
+            status.text = "On-device GPU face mesh ✓  ${ms} ms  ·  98 landmarks" +
+                "  ·  RTMPose-m WFLW, CompiledModel GPU"
             meshView.set(crop, pts, groups)
             meshView.invalidate()
         }
     }
 
     private fun loadOriented(uri: Uri): Bitmap {
-        val bm = contentResolver.openInputStream(uri).use { BitmapFactory.decodeStream(it) } ?: error("cannot decode image")
+        val bm = contentResolver.openInputStream(uri).use { BitmapFactory.decodeStream(it) }
+            ?: error("cannot decode image")
         val rot = contentResolver.openInputStream(uri).use {
             when (ExifInterface(it!!).getAttributeInt(ExifInterface.TAG_ORIENTATION, 1)) {
                 ExifInterface.ORIENTATION_ROTATE_90 -> 90f
@@ -149,7 +154,8 @@ class MainActivity : Activity() {
             }
         }
         if (rot == 0f) return bm
-        return Bitmap.createBitmap(bm, 0, 0, bm.width, bm.height, Matrix().apply { postRotate(rot) }, true)
+        return Bitmap.createBitmap(
+            bm, 0, 0, bm.width, bm.height, Matrix().apply { postRotate(rot) }, true)
     }
 
     private fun cropSquare(src: Bitmap): Bitmap {
@@ -215,7 +221,8 @@ class MainActivity : Activity() {
                     canvas.drawLine(px(ids[j]), py(ids[j]), px(ids[j + 1]), py(ids[j + 1]), line)
                 }
                 if (closed && ids.size > 1) {
-                    canvas.drawLine(px(ids.last()), py(ids.last()), px(ids.first()), py(ids.first()), line)
+                    canvas.drawLine(
+                        px(ids.last()), py(ids.last()), px(ids.first()), py(ids.first()), line)
                 }
             }
             for (i in pts.indices) {
