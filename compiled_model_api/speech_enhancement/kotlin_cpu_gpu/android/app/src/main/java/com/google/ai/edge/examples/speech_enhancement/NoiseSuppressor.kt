@@ -59,8 +59,12 @@ class NoiseSuppressor(ctx: Context) : Closeable {
     private val outBuf = model.createOutputBuffers()
 
     // inverse real-DFT synthesis tables (n_fft=400 is not a power of two; direct synthesis)
-    private val cosT = Array(ENC) { k -> FloatArray(NFFT) { n -> cos(2.0 * Math.PI * k * n / NFFT).toFloat() } }
-    private val sinT = Array(ENC) { k -> FloatArray(NFFT) { n -> sin(2.0 * Math.PI * k * n / NFFT).toFloat() } }
+    private val cosT = Array(ENC) { k ->
+        FloatArray(NFFT) { n -> cos(2.0 * Math.PI * k * n / NFFT).toFloat() }
+    }
+    private val sinT = Array(ENC) { k ->
+        FloatArray(NFFT) { n -> sin(2.0 * Math.PI * k * n / NFFT).toFloat() }
+    }
     private val ham = FloatArray(NFFT) { (0.54 - 0.46 * cos(2.0 * Math.PI * it / NFFT)).toFloat() }
 
     /** Enhance a mono 16 kHz track. Returns the denoised track (same length). */
@@ -72,7 +76,9 @@ class NoiseSuppressor(ctx: Context) : Closeable {
 
         val out = FloatArray(pcm.size)
         val weight = FloatArray(pcm.size)
-        val nChunks = if (pcm.size <= CHUNK) 1 else 1 + ((pcm.size - CHUNK) + HOP_CHUNK - 1) / HOP_CHUNK
+        val nChunks =
+            if (pcm.size <= CHUNK) 1
+            else 1 + ((pcm.size - CHUNK) + HOP_CHUNK - 1) / HOP_CHUNK
         for (ci in 0 until nChunks) {
             onProgress(ci + 1, nChunks)
             val start = ci * HOP_CHUNK
