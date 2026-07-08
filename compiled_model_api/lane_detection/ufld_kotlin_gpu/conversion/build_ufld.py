@@ -12,16 +12,19 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Build GPU-compatible Ultra-Fast-Lane-Detection (CULane ResNet18) via litert-torch.
+"""Build GPU-compatible Ultra-Fast-Lane-Detection (CULane ResNet18) via
+litert-torch.
 
 Expects the Ultra-Fast-Lane-Detection repository checked out next to this script
 and the official CULane ResNet18 checkpoint saved as culane_official.pth
 (from the UFLD release Google Drive).
 
-Only patch: ZeroPadMaxPool (ResNet stem MaxPool(-inf PADV2) -> 0-pad + unpadded maxpool).
+Only patch: ZeroPadMaxPool (ResNet stem MaxPool(-inf PADV2) -> 0-pad +
+unpadded maxpool).
 
 Run: python build_ufld.py
-  # -> ufld.tflite ([1,3,288,800] -> [1,201,18,4] row-anchor logits) + ref fixtures
+  # -> ufld.tflite ([1,3,288,800] -> [1,201,18,4] row-anchor logits)
+  #    + ref fixtures
 """
 import os
 import sys
@@ -31,12 +34,16 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)) + "/Ultra-Fast-Lane-Detection")
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__))
+                + "/Ultra-Fast-Lane-Detection")
 from model.model import parsingNet
 
 
 class ZeroPadMaxPool(nn.Module):
-    """Explicit 0-pad + unpadded maxpool (Mali rejects the -inf PADV2 lowering)."""
+    """Explicit 0-pad + unpadded maxpool.
+
+    Mali rejects the -inf PADV2 lowering.
+    """
 
     def forward(self, x):
         x = F.pad(x, (1, 1, 1, 1), value=0.0)
@@ -44,12 +51,15 @@ class ZeroPadMaxPool(nn.Module):
 
 
 def main():
+    """Converts UFLD (CULane ResNet18) to ufld.tflite with fixtures."""
     # CULane: griding_num=200 -> cls_dim=(201,18,4)
-    net = parsingNet(pretrained=False, backbone='18', cls_dim=(201, 18, 4), use_aux=False).eval()
+    net = parsingNet(pretrained=False, backbone='18',
+                     cls_dim=(201, 18, 4), use_aux=False).eval()
     pth = "culane_official.pth"
     sd = torch.load(pth, map_location="cpu")
     sd = sd.get('model', sd)
-    sd = {k[len('module.'):] if k.startswith('module.') else k: v for k, v in sd.items()}
+    sd = {k[len('module.'):] if k.startswith('module.') else k: v
+          for k, v in sd.items()}
     missing, unexpected = net.load_state_dict(sd, strict=False)
     print("missing:", len(missing), "unexpected:", len(unexpected))
 
