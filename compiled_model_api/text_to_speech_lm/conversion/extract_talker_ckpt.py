@@ -73,6 +73,7 @@ _CONFIG = {
 
 
 def main() -> None:
+    """Writes the synthesized Qwen3ForCausalLM checkpoint to out/."""
     os.makedirs(DST, exist_ok=True)
     reader = safe_open(f'{SRC}/model.safetensors', framework='pt')
     out = {}

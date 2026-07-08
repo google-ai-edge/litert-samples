@@ -1,1 +1,4 @@
-"""Vendored Qwen3-TTS tokenizer-v2 model code (see modeling_/configuration_ files)."""
+"""Vendored Qwen3-TTS tokenizer-v2 model code.
+
+See the modeling_/configuration_ files.
+"""

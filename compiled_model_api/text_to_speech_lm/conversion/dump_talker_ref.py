@@ -30,6 +30,7 @@ from qwen_tts import Qwen3TTSModel
 
 
 def main() -> None:
+    """Dumps talker hidden states and logits on a fixed input to ref/."""
     torch.manual_seed(123)
     model = Qwen3TTSModel.from_pretrained(
         'Qwen/Qwen3-TTS-12Hz-0.6B-Base', device_map='cpu',

@@ -32,6 +32,7 @@ RELEASE = 'out/release'
 
 
 def main() -> None:
+    """Copies the exported artifacts into the release layout."""
     os.makedirs(f'{RELEASE}/tables', exist_ok=True)
     os.makedirs(f'{RELEASE}/voices', exist_ok=True)
 

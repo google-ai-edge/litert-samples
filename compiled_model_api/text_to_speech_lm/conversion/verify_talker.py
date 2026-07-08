@@ -37,11 +37,21 @@ NEG = -1e9
 
 
 def corr(a, b) -> float:
+    """Computes the Pearson correlation of two arrays.
+
+    Args:
+        a: First array-like; flattened before comparison.
+        b: Second array-like; flattened before comparison.
+
+    Returns:
+        The correlation coefficient as a Python float.
+    """
     return float(np.corrcoef(np.asarray(a).ravel(),
                              np.asarray(b).ravel())[0, 1])
 
 
 def main() -> None:
+    """Checks torch and tflite talker outputs against the reference."""
     ref = np.load('ref/talker_equiv_ref.npz')
     x, ref_logits, ref_hidden = ref['x'], ref['logits'], ref['hidden']
 

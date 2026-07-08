@@ -27,6 +27,7 @@ from qwen_tts import Qwen3TTSModel
 
 
 def main() -> None:
+    """Dumps a greedy code-predictor generation trace to ref/."""
     torch.manual_seed(7)
     model = Qwen3TTSModel.from_pretrained(
         'Qwen/Qwen3-TTS-12Hz-0.6B-Base', device_map='cpu',

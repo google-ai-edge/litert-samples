@@ -441,18 +441,43 @@ class _SignatureRunner:
 
 
 def _cpu_options(num_threads: int) -> Options:
-    """Builds CPU compilation options with the given XNNPACK thread count."""
+    """Builds CPU compilation options with the given XNNPACK thread count.
+
+    Args:
+        num_threads: Number of XNNPACK threads.
+
+    Returns:
+        LiteRT compilation Options targeting the CPU.
+    """
     return Options(cpu_options=CpuOptions(num_threads=num_threads))
 
 
 def _load_fp32(path: str) -> np.ndarray:
-    """Loads an .npy table, up-casting fp16 storage to fp32."""
+    """Loads an .npy table, up-casting fp16 storage to fp32.
+
+    Args:
+        path: Path to the .npy file.
+
+    Returns:
+        The table as a float32 numpy array.
+    """
     return np.load(path).astype(np.float32)
 
 
 def _pick(logits: np.ndarray, do_sample: bool, top_k: int,
           temperature: float, rng) -> int:
-    """Greedy argmax or top-k/temperature sampling over logits."""
+    """Greedy argmax or top-k/temperature sampling over logits.
+
+    Args:
+        logits: 1-D array of unnormalized token scores.
+        do_sample: If False, returns the argmax.
+        top_k: Keep only the top_k highest logits when sampling (0 = all).
+        temperature: Softmax temperature used when sampling.
+        rng: numpy random Generator used when sampling.
+
+    Returns:
+        The selected token id as a Python int.
+    """
     if not do_sample:
         return int(np.argmax(logits))
     scaled = logits.astype(np.float64) / max(temperature, 1e-6)

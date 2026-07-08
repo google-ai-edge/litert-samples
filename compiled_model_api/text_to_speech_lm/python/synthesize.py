@@ -43,6 +43,11 @@ _DEFAULT_FILES = [
 
 
 def _parse_args() -> argparse.Namespace:
+    """Parses the command-line arguments.
+
+    Returns:
+        The parsed argparse namespace.
+    """
     parser = argparse.ArgumentParser(description='Qwen3-TTS on LiteRT (CPU).')
     parser.add_argument('--text', required=True, help='Text to speak.')
     parser.add_argument('--output', default='output.wav',
@@ -71,6 +76,7 @@ def _parse_args() -> argparse.Namespace:
 
 
 def main() -> None:
+    """Synthesizes speech for --text and writes it to --output."""
     args = _parse_args()
 
     model_dir = args.model_dir

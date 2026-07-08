@@ -47,11 +47,21 @@ OUT = 'out/codec'
 
 
 def corr(a, b) -> float:
+    """Computes the Pearson correlation of two arrays.
+
+    Args:
+        a: First array-like; flattened before comparison.
+        b: Second array-like; flattened before comparison.
+
+    Returns:
+        The correlation coefficient as a Python float.
+    """
     return float(np.corrcoef(np.asarray(a).ravel(),
                              np.asarray(b).ravel())[0, 1])
 
 
 def main() -> None:
+    """Exports the codec decoder to .tflite and checks reference parity."""
     os.makedirs(OUT, exist_ok=True)
     src = snapshot_download('Qwen/Qwen3-TTS-12Hz-0.6B-Base',
                             allow_patterns=['speech_tokenizer/*'])

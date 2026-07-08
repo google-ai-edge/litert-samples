@@ -53,6 +53,7 @@ from litert_torch.generative.export_hf.export import export  # noqa: E402
 
 
 def main() -> None:
+    """Exports the talker prefill/decode graphs with the selected recipe."""
     os.makedirs(OUT, exist_ok=True)
     export(
         model='out/talker-llm',

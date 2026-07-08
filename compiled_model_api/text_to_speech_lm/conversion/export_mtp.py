@@ -48,11 +48,28 @@ EPS, THETA = 1e-6, 1e6
 
 
 def _rms(x: torch.Tensor, weight: torch.Tensor) -> torch.Tensor:
+    """Applies RMSNorm over the last dimension.
+
+    Args:
+        x: Input tensor normalized over its last dimension.
+        weight: Per-channel scale of the same size as the last dimension.
+
+    Returns:
+        The normalized and scaled tensor with the shape of x.
+    """
     variance = x.float().pow(2).mean(-1, keepdim=True)
     return (x * torch.rsqrt(variance + EPS)) * weight
 
 
 def _rotate_half(x: torch.Tensor) -> torch.Tensor:
+    """Rotates the two halves of the last (head) dimension for RoPE.
+
+    Args:
+        x: Tensor whose last dimension has size HEAD_DIM.
+
+    Returns:
+        cat(-x2, x1) where x1/x2 are the two halves of the last dimension.
+    """
     a, b = x[..., :HEAD_DIM // 2], x[..., HEAD_DIM // 2:]
     return torch.cat((-b, a), dim=-1)
 
@@ -127,6 +144,12 @@ class MtpStep(nn.Module):
 
 
 def _load_weights() -> dict[str, torch.Tensor]:
+    """Loads code-predictor weights and saves the 15 embedding tables.
+
+    Returns:
+        Dict of fp32 layer/norm weights plus 'heads' [15, 2048, 1024];
+        also writes out/mtp/mtp_embeddings.npy [15, 2048, 1024].
+    """
     src = snapshot_download('Qwen/Qwen3-TTS-12Hz-0.6B-Base')
     reader = safe_open(f'{src}/model.safetensors', framework='pt')
     prefix = 'talker.code_predictor.'
@@ -148,7 +171,18 @@ def _load_weights() -> dict[str, torch.Tensor]:
 
 
 def _run_frame(step_fn, past_hidden, cb0_embed, mtp_embeddings):
-    """Reference inner loop: 2 seed feeds, then 15 greedy steps."""
+    """Reference inner loop: 2 seed feeds, then 15 greedy steps.
+
+    Args:
+        step_fn: Callable (embed, pos, mask, k_all, v_all) -> (logits_all,
+            k_all, v_all) running one decode step.
+        past_hidden: Talker hidden state [1, 1, 1024] (seed feed 0).
+        cb0_embed: Codebook-0 embedding [1, 1, 1024] (seed feed 1).
+        mtp_embeddings: Embedding tables [15, 2048, 1024] for steps 2..16.
+
+    Returns:
+        The 15 greedy residual codebook ids as an int array.
+    """
     k_all = np.zeros((LAYERS, 1, KV_HEADS, CACHE, HEAD_DIM), np.float32)
     v_all = np.zeros_like(k_all)
     feeds = [past_hidden, cb0_embed]
@@ -167,6 +201,7 @@ def _run_frame(step_fn, past_hidden, cb0_embed, mtp_embeddings):
 
 
 def main() -> None:
+    """Exports the MTP decode-step graph and checks reference parity."""
     weights = _load_weights()
     module = MtpStep(weights).eval()
     mtp_embeddings = np.load(f'{OUT}/mtp_embeddings.npy')

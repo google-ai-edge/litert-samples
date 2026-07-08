@@ -32,6 +32,7 @@ from qwen_tts import Qwen3TTSModel
 
 
 def main() -> None:
+    """Extracts a speaker x-vector from a reference wav to a .npy file."""
     wav_path, out_path = sys.argv[1], sys.argv[2]
     wrapper = Qwen3TTSModel.from_pretrained(
         'Qwen/Qwen3-TTS-12Hz-0.6B-Base', device_map='cpu',
