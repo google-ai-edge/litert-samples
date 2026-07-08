@@ -12,7 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Build GPU-compatible TwinLiteNet (drivable area + lane segmentation) via litert-torch.
+"""Build GPU-compatible TwinLiteNet (drivable area + lane segmentation) via
+litert-torch.
 
 Expects the TwinLiteNet repository checked out next to this script with the
 released checkpoint at TwinLiteNet/pretrained/best.pth.
@@ -39,7 +40,10 @@ from model.TwinLite import TwinLiteNet as Net
 
 
 class ZeroStuffConvT2d(nn.Module):
-    """Exact GPU-clean ConvTranspose2d: nearest-upsample x stride zero-stuff + flipped conv2d + crop."""
+    """Exact GPU-clean ConvTranspose2d.
+
+    Nearest-upsample x stride zero-stuff + flipped conv2d + crop.
+    """
 
     def __init__(self, ct, h_in, w_in):
         super().__init__()
@@ -52,13 +56,16 @@ class ZeroStuffConvT2d(nn.Module):
         w = ct.weight.detach().flip(2).flip(3).permute(1, 0, 2, 3).contiguous()
         self.register_buffer("w", w)
         self.register_buffer(
-            "b", ct.bias.detach().clone() if ct.bias is not None else torch.zeros(ct.out_channels))
+            "b", ct.bias.detach().clone() if ct.bias is not None
+            else torch.zeros(ct.out_channels))
         mh = np.zeros((h_in * self.s, w_in * self.s), np.float32)
         mh[::self.s, ::self.s] = 1.0
         self.register_buffer("mask", torch.from_numpy(mh)[None, None])
 
     def forward(self, x):
-        xn = F.interpolate(x, size=(self.h_in * self.s, self.w_in * self.s), mode="nearest") * self.mask
+        xn = F.interpolate(
+            x, size=(self.h_in * self.s, self.w_in * self.s),
+            mode="nearest") * self.mask
         y = F.conv2d(xn, self.w, bias=self.b, padding=self.k - 1)
         out_h = (self.h_in - 1) * self.s + self.k - 2 * self.p + self.op
         out_w = (self.w_in - 1) * self.s + self.k - 2 * self.p + self.op
@@ -78,6 +85,7 @@ class Wrap(nn.Module):
 
 
 def main():
+    """Converts TwinLiteNet to twinlite.tflite and saves fixtures."""
     net = Net()
     sd = torch.load("TwinLiteNet/pretrained/best.pth", map_location="cpu")
     sd = sd.get('state_dict', sd) if isinstance(sd, dict) else sd
@@ -91,7 +99,8 @@ def main():
     for n, mo in net.named_modules():
         if isinstance(mo, nn.ConvTranspose2d):
             hooks.append(mo.register_forward_pre_hook(
-                (lambda nm: (lambda mod, i: sizes.__setitem__(nm, i[0].shape[-2:])))(n)))
+                (lambda nm: (lambda mod, i: sizes.__setitem__(
+                    nm, i[0].shape[-2:])))(n)))
     with torch.no_grad():
         net(torch.randn(1, 3, 360, 640))
     for h in hooks:
