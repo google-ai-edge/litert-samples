@@ -12,7 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Converts DehazeFormer-MCT (image dehazing) to a fully GPU-compatible LiteRT model.
+"""Converts DehazeFormer-MCT (image dehazing) to a fully GPU-compatible
+LiteRT model.
 
 Model code and the MIT mixed-dataset checkpoint are fetched from the author's
 Hugging Face Space (IDKiro/DehazeFormer_Demo). The basenet runs at a fixed
@@ -48,7 +49,8 @@ from huggingface_hub import hf_hub_download
 
 SPACE = "IDKiro/DehazeFormer_Demo"
 CODE = hf_hub_download(SPACE, "models/dehazeformer.py", repo_type="space")
-CKPT = hf_hub_download(SPACE, "saved_models/dehazeformer.pth", repo_type="space")
+CKPT = hf_hub_download(SPACE, "saved_models/dehazeformer.pth",
+                       repo_type="space")
 sys.path.insert(0, os.path.dirname(CODE))
 import dehazeformer as D  # noqa: E402
 
@@ -57,22 +59,37 @@ S_RLN = 4.0  # RLN dd absmax measured <= 3.9 -> keeps (dd/S)^2 <= 1 in fp16
 
 
 def reflect_pad(x, l, r, t, b):
-    """Exact 'reflect' padding built from slices+concats (GPU-clean)."""
+    """Exact 'reflect' padding built from slices+concats (GPU-clean).
+
+    Args:
+        x: Input tensor [1, C, H, W].
+        l: Left padding width.
+        r: Right padding width.
+        t: Top padding height.
+        b: Bottom padding height.
+
+    Returns:
+        The reflect-padded [1, C, H+t+b, W+l+r] tensor.
+    """
     W = int(x.shape[3])
     H = int(x.shape[2])
     parts = []
     if l > 0:
-        parts.append(torch.cat([x[:, :, :, k:k + 1] for k in range(l, 0, -1)], dim=3))
+        parts.append(torch.cat(
+            [x[:, :, :, k:k + 1] for k in range(l, 0, -1)], dim=3))
     parts.append(x)
     if r > 0:
-        parts.append(torch.cat([x[:, :, :, W - 2 - k:W - 1 - k] for k in range(r)], dim=3))
+        parts.append(torch.cat(
+            [x[:, :, :, W - 2 - k:W - 1 - k] for k in range(r)], dim=3))
     x = torch.cat(parts, dim=3) if len(parts) > 1 else x
     parts = []
     if t > 0:
-        parts.append(torch.cat([x[:, :, k:k + 1, :] for k in range(t, 0, -1)], dim=2))
+        parts.append(torch.cat(
+            [x[:, :, k:k + 1, :] for k in range(t, 0, -1)], dim=2))
     parts.append(x)
     if b > 0:
-        parts.append(torch.cat([x[:, :, H - 2 - k:H - 1 - k, :] for k in range(b)], dim=2))
+        parts.append(torch.cat(
+            [x[:, :, H - 2 - k:H - 1 - k, :] for k in range(b)], dim=2))
     return torch.cat(parts, dim=2) if len(parts) > 1 else x
 
 
@@ -92,7 +109,12 @@ class ReflectConv(nn.Module):
 
 
 def swap_reflect_convs(model):
-    """padding=0 reflect convs still route through F.pad -> swap them all."""
+    """padding=0 reflect convs still route through F.pad -> swap them all.
+
+    Args:
+        model: Module whose reflect-mode Conv2d layers are replaced with
+            ReflectConv wrappers in place.
+    """
     for name, m in list(model.named_modules()):
         if isinstance(m, nn.Conv2d) and m.padding_mode == 'reflect':
             parent = model
@@ -103,7 +125,17 @@ def swap_reflect_convs(model):
 
 
 def wp4d(x, ws, H, W):
-    """[1,H,W,C] -> [nW, ws*ws, C] window partition, <=4D only."""
+    """[1,H,W,C] -> [nW, ws*ws, C] window partition, <=4D only.
+
+    Args:
+        x: Input tensor [1, H, W, C].
+        ws: Window size.
+        H: Spatial height of x.
+        W: Spatial width of x.
+
+    Returns:
+        The [nW, ws*ws, C] windowed tensor (nW = H*W / ws^2).
+    """
     C = x.shape[-1]
     x = x.reshape(H // ws, ws, W // ws, ws * C)
     x = x.permute(0, 2, 1, 3)
@@ -111,7 +143,17 @@ def wp4d(x, ws, H, W):
 
 
 def wr4d(x, ws, H, W):
-    """[nW, ws*ws, C] -> [1,H,W,C] window reverse, <=4D only."""
+    """[nW, ws*ws, C] -> [1,H,W,C] window reverse, <=4D only.
+
+    Args:
+        x: Windowed tensor [nW, ws*ws, C].
+        ws: Window size.
+        H: Spatial height of the output.
+        W: Spatial width of the output.
+
+    Returns:
+        The [1, H, W, C] un-windowed tensor.
+    """
     C = x.shape[-1]
     x = x.reshape(H // ws, W // ws, ws, ws * C)
     x = x.permute(0, 2, 1, 3)
@@ -119,17 +161,40 @@ def wr4d(x, ws, H, W):
 
 
 def hier_mean_hw(x):
-    """[1,C,H,W] -> [1,C,1,1] mean with no fp16-overflowing partial sum."""
+    """[1,C,H,W] -> [1,C,1,1] mean with no fp16-overflowing partial sum.
+
+    Args:
+        x: Input tensor [1, C, H, W] with H and W divisible by 16.
+
+    Returns:
+        The per-channel [1, C, 1, 1] spatial mean.
+    """
     y = F.avg_pool2d(x, 16)
     return y.mean(dim=(2, 3), keepdim=True)
 
 
 def hier_mean(x):
-    """[1,C,H,W] -> [1,1,1,1] global mean, hierarchical (exact: 16 | H, W)."""
+    """[1,C,H,W] -> [1,1,1,1] global mean, hierarchical (exact: 16 | H, W).
+
+    Args:
+        x: Input tensor [1, C, H, W] with H and W divisible by 16.
+
+    Returns:
+        The [1, 1, 1, 1] global mean over all elements.
+    """
     return hier_mean_hw(x).mean(dim=1, keepdim=True)
 
 
 def rln_forward(self, x):
+    """RLN forward re-authored with hierarchical fp16-safe means.
+
+    Args:
+        self: The D.RLN module instance (patched in as its forward).
+        x: Input tensor [1, C, H, W].
+
+    Returns:
+        A (normalized, rescale, rebias) tuple matching D.RLN.forward.
+    """
     mean = hier_mean(x)
     dd = x - mean
     e = dd * (1.0 / S_RLN)
@@ -143,6 +208,15 @@ def rln_forward(self, x):
 
 
 def window_attn_forward(self, qkv):
+    """WindowAttention forward with 4D per-head matmuls and baked bias.
+
+    Args:
+        self: The D.WindowAttention module (patched in as its forward).
+        qkv: Packed [nW, N, 3*C] query/key/value windows.
+
+    Returns:
+        The [nW, N, C] attention output.
+    """
     Bn, N, C3 = qkv.shape
     C = C3 // 3
     nH = self.num_heads
@@ -158,6 +232,15 @@ def window_attn_forward(self, qkv):
 
 
 def attention_forward(self, X):
+    """Attention forward using slice-pad windows, <=4D shapes only.
+
+    Args:
+        self: The D.Attention module (patched in as its forward).
+        X: Input feature map [1, C, H, W].
+
+    Returns:
+        The [1, C, H, W] attention/conv output.
+    """
     B, C, H, W = X.shape
     if self.conv_type == 'DWConv' or self.use_attn:
         V = self.V(X)
@@ -188,6 +271,15 @@ def attention_forward(self, X):
 
 
 def skfusion_forward(self, in_feats):
+    """SKFusion forward with a 4D pairwise softmax over the two branches.
+
+    Args:
+        self: The D.SKFusion module (patched in as its forward).
+        in_feats: Sequence of two [1, C, H, W] feature maps to fuse.
+
+    Returns:
+        The fused [1, C, H, W] feature map.
+    """
     a, b = in_feats[0], in_feats[1]
     C = a.shape[1]
     feats_sum = a + b
@@ -201,7 +293,8 @@ def skfusion_forward(self, in_feats):
 
 
 class ZeroStuffConvT2d(nn.Module):
-    """ConvTranspose2d as zero-stuffed conv (exact; TRANSPOSE_CONV is rejected)."""
+    """ConvTranspose2d as zero-stuffed conv (exact; TRANSPOSE_CONV is
+    rejected)."""
 
     def __init__(self, weight, bias, stride, kernel, h_in, w_in):
         super().__init__()
@@ -216,7 +309,9 @@ class ZeroStuffConvT2d(nn.Module):
         self.register_buffer("mask", torch.from_numpy(mask)[None, None])
 
     def forward(self, x):
-        xn = F.interpolate(x, size=(self.h_in * self.s, self.w_in * self.s), mode="nearest") * self.mask
+        xn = F.interpolate(
+            x, size=(self.h_in * self.s, self.w_in * self.s),
+            mode="nearest") * self.mask
         y = F.conv2d(xn, self.w, bias=self.b, padding=self.k - 1)
         out_h = (self.h_in - 1) * self.s + self.k
         out_w = (self.w_in - 1) * self.s + self.k
@@ -224,10 +319,11 @@ class ZeroStuffConvT2d(nn.Module):
 
 
 class FoldedPatchSplit(nn.Module):
-    """Conv2d(1x1, dim->out*4) + PixelShuffle(2) -> zero-stuff ConvTranspose (exact).
+    """Conv2d(1x1, dim->out*4) + PixelShuffle(2) -> zero-stuff ConvTranspose
+    (exact).
 
-    The conv bias varies per sub-pixel (dy,dx), which a ConvTranspose bias cannot
-    express; it is re-added as a constant [1,out,H,W] tiled map.
+    The conv bias varies per sub-pixel (dy,dx), which a ConvTranspose bias
+    cannot express; it is re-added as a constant [1,out,H,W] tiled map.
     """
 
     def __init__(self, conv, h_in, w_in):
@@ -250,7 +346,12 @@ class FoldedPatchSplit(nn.Module):
 
 
 def bake_rpb(model):
-    """Evaluates each WindowAttention's meta MLP once and bakes the bias constant."""
+    """Evaluates each WindowAttention's meta MLP once and bakes the bias
+    constant.
+
+    Args:
+        model: Module whose WindowAttention layers get an rpb buffer.
+    """
     for m in model.modules():
         if isinstance(m, D.WindowAttention):
             with torch.no_grad():
@@ -259,8 +360,14 @@ def bake_rpb(model):
 
 
 def build():
+    """Builds the patched GPU-clean DehazeFormer-MCT basenet.
+
+    Returns:
+        The basenet nn.Module ready for litert-torch conversion.
+    """
     net = D.MCT()
-    net.load_state_dict(torch.load(CKPT, map_location="cpu")["state_dict"], strict=True)
+    net.load_state_dict(torch.load(CKPT, map_location="cpu")["state_dict"],
+                        strict=True)
     net.eval()
     base = net.basenet
 
@@ -271,14 +378,18 @@ def build():
     D.SKFusion.forward = skfusion_forward
 
     # Fold BEFORE the reflect swap so FoldedPatchSplit sees the raw 1x1 Conv2d.
-    base.patch_split1.proj = FoldedPatchSplit(base.patch_split1.proj[0], SIZE // 4, SIZE // 4)
-    base.patch_split2.proj = FoldedPatchSplit(base.patch_split2.proj[0], SIZE // 2, SIZE // 2)
-    base.patch_unembed.proj = nn.Sequential(base.patch_unembed.proj[0])  # PixelShuffle(1) = no-op
+    base.patch_split1.proj = FoldedPatchSplit(
+        base.patch_split1.proj[0], SIZE // 4, SIZE // 4)
+    base.patch_split2.proj = FoldedPatchSplit(
+        base.patch_split2.proj[0], SIZE // 2, SIZE // 2)
+    # PixelShuffle(1) = no-op
+    base.patch_unembed.proj = nn.Sequential(base.patch_unembed.proj[0])
     swap_reflect_convs(base)
     return base
 
 
 def main():
+    """Converts the basenet and writes dehazeformer_base.tflite + fixtures."""
     base = build()
     dummy = torch.rand(1, 3, SIZE, SIZE) * 2 - 1
     with torch.no_grad():
