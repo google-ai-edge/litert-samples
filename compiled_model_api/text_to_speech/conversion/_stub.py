@@ -54,12 +54,20 @@ _original_getsourcefile = inspect.getsourcefile
 
 
 def _safe_getsourcefile(obj):
-    """Returns the source file like inspect.getsourcefile, but never raises."""
+    """Returns the source file like inspect.getsourcefile, but never raises.
+
+    Args:
+        obj: Any object accepted by inspect.getsourcefile.
+
+    Returns:
+        The source file path, or None when the lookup fails.
+    """
     try:
         return _original_getsourcefile(obj)
     except (AttributeError, TypeError):
         name = getattr(obj, "__name__", repr(obj))
-        sys.stderr.write(f"[probe] guarded getsourcefile crash on module {name!r}\n")
+        sys.stderr.write(
+            f"[probe] guarded getsourcefile crash on module {name!r}\n")
         return None
 
 

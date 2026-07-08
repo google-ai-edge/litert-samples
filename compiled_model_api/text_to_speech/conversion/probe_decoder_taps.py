@@ -15,8 +15,8 @@
 """Builds a DEBUG decoder graph with intermediate taps to localize the Mali NaN.
 
 Same re-authoring as the real decoder, but forward() returns
-[v, tap_resnet0, tap_attn0, tap_upsample] so one on-device run isolates the bad op
-(GN/Mish vs attention/SnakeBeta vs ZeroStuffConvT1d).
+[v, tap_resnet0, tap_attn0, tap_upsample] so one on-device run isolates the
+bad op (GN/Mish vs attention/SnakeBeta vs ZeroStuffConvT1d).
 
 Run: python probe_decoder_taps.py -> artifacts/matcha_decoder_dbg.tflite
 """
@@ -37,7 +37,18 @@ T = 512
 
 
 def dbg_forward(self, x, mask, mu, t):
-    """Decoder.forward copy that also returns intermediate taps."""
+    """Decoder.forward copy that also returns intermediate taps.
+
+    Args:
+        self: The matcha Decoder this function is bound to.
+        x: Noisy mel (B, 80, T).
+        mask: Float mel mask (B, 1, T).
+        mu: Expanded encoder output (B, 80, T).
+        t: Time embedding input.
+
+    Returns:
+        (v, tap_up1_resnet, tap_up1_attn, tap_up1_upsample).
+    """
 
     def dec2(m):
         b, c, length = m.shape
@@ -49,7 +60,8 @@ def dbg_forward(self, x, mask, mu, t):
     x = pack([x, mu], "b * t")[0]
     hiddens = []
     masks = [mask]
-    for block_index, (resnet, transformer_blocks, downsample) in enumerate(self.down_blocks):
+    down_blocks = enumerate(self.down_blocks)
+    for block_index, (resnet, transformer_blocks, downsample) in down_blocks:
         mask_down = masks[-1]
         x = resnet(x, mask_down, t)
         if block_index == 0:
@@ -75,7 +87,8 @@ def dbg_forward(self, x, mask, mu, t):
             x = tb(hidden_states=x, attention_mask=mask_mid, timestep=t)
         x = rearrange(x, "b t c -> b c t")
         mask_mid = rearrange(mask_mid, "b t -> b 1 t")
-    for block_index, (resnet, transformer_blocks, upsample) in enumerate(self.up_blocks):
+    up_blocks = enumerate(self.up_blocks)
+    for block_index, (resnet, transformer_blocks, upsample) in up_blocks:
         mask_up = masks.pop()
         x = resnet(pack([x, hiddens.pop()], "b * t")[0], mask_up, t)
         if block_index == 1:
@@ -106,6 +119,7 @@ class DecoderWrap(nn.Module):
 
 
 def main():
+    """Converts the tapped debug decoder graph and lists its outputs."""
     sd = B.load_sd()
     # Unwrap DecWrapM -> the Decoder itself.
     decoder = B.reauth_decoder_masked(B.build_decoder(sd), T).d

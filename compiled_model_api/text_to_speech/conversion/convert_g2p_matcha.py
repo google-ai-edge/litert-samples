@@ -14,8 +14,8 @@
 
 """Converts the OpenPhonemizer DeepPhonemizer G2P to a fixed-shape LiteRT graph.
 
-The ForwardTransformer (espeak-IPA checkpoint, MIT / Clear BSD) becomes the clean
-Matcha-TTS G2P, run on the CompiledModel CPU delegate. Adapts
+The ForwardTransformer (espeak-IPA checkpoint, MIT / Clear BSD) becomes the
+clean Matcha-TTS G2P, run on the CompiledModel CPU delegate. Adapts
 kokoro/scripts/convert_dp_g2p_litert.py (same architecture) to the espeak-IPA
 checkpoint.
 
@@ -49,7 +49,15 @@ _original_torch_load = torch.load
 
 
 def _torch_load_full(*args, **kwargs):
-    """torch.load with weights_only=False (the checkpoint pickles custom classes)."""
+    """torch.load with weights_only=False (the ckpt pickles custom classes).
+
+    Args:
+        *args: Positional torch.load arguments.
+        **kwargs: Keyword torch.load arguments; weights_only is overridden.
+
+    Returns:
+        The loaded checkpoint object.
+    """
     return _original_torch_load(*args, **{**kwargs, "weights_only": False})
 
 
@@ -66,7 +74,8 @@ CHAR2IDX = dict(text_tokenizer.token_to_idx)
 REP = text_tokenizer.char_repeats
 IDX2PH = {int(k): v for k, v in phoneme_tokenizer.idx_to_token.items()}
 SPECIAL = {"_", "<en_us>", "<end>", "<start>"}
-# DeepPhonemizer text tokenizer start/end ids (start = the <en_us> language token).
+# DeepPhonemizer text tokenizer start/end ids (start = the <en_us> language
+# token).
 START = text_tokenizer.token_to_idx["<en_us>"]
 END = text_tokenizer.end_index
 
@@ -91,7 +100,14 @@ class Wrap(nn.Module):
 
 
 def tokenize(word: str) -> list:
-    """Converts a word to DeepPhonemizer char ids with char_repeats and markers."""
+    """Converts a word to DeepPhonemizer char ids.
+
+    Args:
+        word: The word to tokenize.
+
+    Returns:
+        Char ids with char_repeats applied, wrapped in start/end markers.
+    """
     ids = [START]
     for c in word.lower():
         if c in CHAR2IDX and c != "_":
@@ -100,14 +116,28 @@ def tokenize(word: str) -> list:
 
 
 def padded(word: str):
-    """Returns ([1, MAXT] float array zero-padded, valid length)."""
+    """Zero-pads a tokenized word to the fixed graph length.
+
+    Args:
+        word: The word to tokenize.
+
+    Returns:
+        A ([1, MAXT] float32 array, valid length) tuple.
+    """
     ids = tokenize(word)[:MAXT]
     length = len(ids)
     return np.array([ids + [0] * (MAXT - length)], np.float32), length
 
 
 def decode(seq) -> str:
-    """Collapses repeats and strips special tokens from an argmax id sequence."""
+    """Collapses repeats and strips special tokens from argmax ids.
+
+    Args:
+        seq: Sequence of argmax phoneme ids.
+
+    Returns:
+        The decoded phoneme string.
+    """
     collapsed, previous = [], None
     for token in seq:
         if token != previous:
@@ -120,6 +150,7 @@ def decode(seq) -> str:
 
 
 def main():
+    """Converts the G2P graph and spot-checks it against the library."""
     import litert_torch
 
     wrap = Wrap(model).eval()
@@ -150,7 +181,8 @@ def main():
     print(f"match {matches}/{len(words)}")
 
     # Metadata for the Kotlin port.
-    meta = dict(char2idx=CHAR2IDX, idx2ph={str(k): v for k, v in IDX2PH.items()},
+    meta = dict(char2idx=CHAR2IDX,
+                idx2ph={str(k): v for k, v in IDX2PH.items()},
                 char_repeats=REP, start=START, end=END, MAXT=MAXT,
                 special=sorted(SPECIAL), n_phonemes=len(IDX2PH))
     with open(os.path.join(ART, "g2p_meta.json"), "w") as f:

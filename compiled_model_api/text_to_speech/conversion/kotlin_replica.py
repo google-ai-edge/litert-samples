@@ -14,9 +14,10 @@
 
 """Validates the Kotlin port by replicating its exact host logic in Python.
 
-Replicates MatchaG2P + MatchaSynthesizer — per-word tflite G2P + manual assembly +
-the integer length-regulator + Euler loop — and synthesizes through the same fp16
-graphs. Confirms the Android pipeline before an on-device build.
+Replicates MatchaG2P + MatchaSynthesizer — per-word tflite G2P + manual
+assembly + the integer length-regulator + Euler loop — and synthesizes
+through the same fp16 graphs. Confirms the Android pipeline before an
+on-device build.
 
 Run: python kotlin_replica.py
 """
@@ -78,33 +79,52 @@ TOKEN = re.compile(r"[a-z']+|[.,!?;:—…\"]")
 
 
 def run(model, *inputs):
-    """Runs a LiteRT CompiledModel on numpy inputs and returns all shaped outputs."""
+    """Runs a LiteRT CompiledModel on numpy inputs.
+
+    Args:
+        model: The CompiledModel to run.
+        *inputs: One numpy array per signature input, in signature order.
+
+    Returns:
+        A list of output arrays shaped per the signature details.
+    """
     signatures = model.get_signature_list()
     key = list(signatures)[0]
     in_details = model.get_input_tensor_details(key)
     out_details = model.get_output_tensor_details(key)
     input_buffers = model.create_input_buffers(0)
     output_buffers = model.create_output_buffers(0)
-    for name, buffer, x in zip(signatures[key]["inputs"], input_buffers, inputs):
-        buffer.write(np.ascontiguousarray(x, dtype=np.dtype(in_details[name]["dtype"])))
+    for name, buffer, x in zip(signatures[key]["inputs"], input_buffers,
+                               inputs):
+        dtype = np.dtype(in_details[name]["dtype"])
+        buffer.write(np.ascontiguousarray(x, dtype=dtype))
     model.run_by_index(0, input_buffers, output_buffers)
     outputs = []
     for name, buffer in zip(signatures[key]["outputs"], output_buffers):
         detail = out_details[name]
-        outputs.append(buffer.read(int(np.prod(detail["shape"])),
-                                   np.dtype(detail["dtype"])).reshape(detail["shape"]))
+        count = int(np.prod(detail["shape"]))
+        flat = buffer.read(count, np.dtype(detail["dtype"]))
+        outputs.append(flat.reshape(detail["shape"]))
     return outputs
 
 
 def phon_word(word: str) -> str:
-    """MatchaG2P.phonemizeWord replica: one word -> espeak-style IPA (neural G2P)."""
+    """MatchaG2P.phonemizeWord replica: word -> espeak-style IPA (neural).
+
+    Args:
+        word: Lower-case word.
+
+    Returns:
+        The espeak-style IPA string from the neural G2P graph.
+    """
     ids = [START]
     for c in word:
         if c in C2I:
             ids += [C2I[c]] * REP
     ids.append(END)
     length = min(len(ids), MAXT)
-    inputs = np.array([[ids[i] if i < length else 0 for i in range(MAXT)]], np.float32)
+    padded_ids = [ids[i] if i < length else 0 for i in range(MAXT)]
+    inputs = np.array([padded_ids], np.float32)
     logits = run(g2p, inputs)[0][0]  # [MAXT, NPH]
     pieces, previous = [], -1
     for t in range(length):
@@ -120,12 +140,20 @@ def phon_word(word: str) -> str:
 
 
 def phonemize(text: str):
-    """MatchaG2P.phonemize replica: text -> (matcha symbol ids, IPA string)."""
+    """MatchaG2P.phonemize replica: text -> (matcha symbol ids, IPA).
+
+    Args:
+        text: Input sentence.
+
+    Returns:
+        A (matcha symbol id list, IPA string) tuple.
+    """
     ipa, first = [], True
     for match in TOKEN.finditer(text.lower()):
         token = match.group(0)
         if WORD.fullmatch(token):
-            phonemes = DICT.get(token) or phon_word(token)  # Dict primary, neural OOV.
+            # Dict primary, neural OOV.
+            phonemes = DICT.get(token) or phon_word(token)
             if phonemes:
                 if not first:
                     ipa.append(" ")
@@ -138,7 +166,14 @@ def phonemize(text: str):
 
 
 def sin_pos_emb(t: float) -> np.ndarray:
-    """MatchaSynthesizer.sinusoidalPositionEmbedding replica."""
+    """MatchaSynthesizer.sinusoidalPositionEmbedding replica.
+
+    Args:
+        t: ODE time in [0, 1].
+
+    Returns:
+        The (1, TIME_DIM) embedding.
+    """
     half = TIME_DIM // 2
     out = np.zeros(TIME_DIM, np.float32)
     k = -math.log(10000) / (half - 1)
@@ -150,7 +185,16 @@ def sin_pos_emb(t: float) -> np.ndarray:
 
 
 def synth(phoneme_ids, nsteps: int = 10, seed: int = 0):
-    """MatchaSynthesizer.synthesize replica through the fp16 tflite graphs."""
+    """MatchaSynthesizer.synthesize replica through the fp16 tflite graphs.
+
+    Args:
+        phoneme_ids: Matcha symbol ids (without interspersed zeros).
+        nsteps: Euler ODE step count.
+        seed: RNG seed for the reproducible noise.
+
+    Returns:
+        A (waveform, mel frame count) tuple.
+    """
     text_length = min(len(phoneme_ids) * 2 + 1, MAX_TEXT)
     ids = np.zeros(MAX_TEXT, np.int64)
     i = 1
@@ -159,8 +203,8 @@ def synth(phoneme_ids, nsteps: int = 10, seed: int = 0):
             break
         ids[i] = p
         i += 2
-    tmask = np.array([[[1.0 if k < text_length else 0.0 for k in range(MAX_TEXT)]]],
-                     np.float32)
+    tmask_row = [1.0 if k < text_length else 0.0 for k in range(MAX_TEXT)]
+    tmask = np.array([[tmask_row]], np.float32)
     embx = emb[ids].reshape(1, MAX_TEXT, N_CHANNELS).astype(np.float32)
     outputs = run(te, embx, tmask)
     mu, logw = ((outputs[0], outputs[1]) if outputs[0].shape[1] == 80
@@ -176,7 +220,8 @@ def synth(phoneme_ids, nsteps: int = 10, seed: int = 0):
         while p < MAX_TEXT - 1 and cum[p] <= f:
             p += 1
         mu_y[:, f] = mu[:, p]
-    ymask = np.array([[[1.0 if f < ylen else 0.0 for f in range(MAX_MEL)]]], np.float32)
+    ymask_row = [1.0 if f < ylen else 0.0 for f in range(MAX_MEL)]
+    ymask = np.array([[ymask_row]], np.float32)
     rng = np.random.RandomState(seed)
     x = np.zeros((1, N_FEATS, MAX_MEL), np.float32)
     x[0, :, :ylen] = rng.randn(N_FEATS, ylen).astype(np.float32)
@@ -194,11 +239,13 @@ def synth(phoneme_ids, nsteps: int = 10, seed: int = 0):
 
 
 def main():
+    """Synthesizes the check sentences through the Kotlin-replica path."""
     import soundfile as sf
     from matcha.text import text_to_sequence
 
-    for i, sentence in enumerate(["Hello, this is Matcha running on the mobile GPU.",
-                                  "The quick brown fox jumps over the lazy dog."]):
+    sentences = ["Hello, this is Matcha running on the mobile GPU.",
+                 "The quick brown fox jumps over the lazy dog."]
+    for i, sentence in enumerate(sentences):
         ids, ipa = phonemize(sentence)
         espeak_ipa = text_to_sequence(sentence, ["english_cleaners2"])[1]
         print(f"[{i}] {sentence!r}")

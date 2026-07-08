@@ -14,14 +14,15 @@
 
 """End-to-end Matcha-TTS parity: host-orchestrated tflite pipeline vs torch.
 
-Replicates MatchaTTS.synthesise() host-side (G2P+intersperse, embedding lookup,
-duration -> length-regulator, sinusoidal time-embed, Euler ODE loop, denormalize,
-clamp) and runs the 3 heavy graphs as either torch submodules or tflite graphs.
+Replicates MatchaTTS.synthesise() host-side (G2P+intersperse, embedding
+lookup, duration -> length-regulator, sinusoidal time-embed, Euler ODE loop,
+denormalize, clamp) and runs the 3 heavy graphs as either torch submodules or
+tflite graphs.
 
 Compares three pipelines on the SAME noise z / durations:
   TRUE  : original torch modules with the real y_mask  (ground truth)
-  RT    : re-authored torch modules, mask dropped       (== the converted graph)
-  TFL   : tflite graphs, mask dropped                   (what ships, exact length)
+  RT    : re-authored torch modules, mask dropped   (== the converted graph)
+  TFL   : tflite graphs, mask dropped              (what ships, exact length)
 corr(TFL,RT) isolates conversion fidelity; corr(TFL,TRUE) is real-world fidelity
 (includes the <=3 fix_len pad-frame attention leak from dropping the mask).
 
@@ -44,12 +45,28 @@ LENGTH_SCALE = 0.95
 
 
 def fix_len(n: int, k: int = 4) -> int:
-    """Rounds n up to the next multiple of k."""
+    """Rounds n up to the next multiple of k.
+
+    Args:
+        n: Value to round.
+        k: Multiple to round up to.
+
+    Returns:
+        The rounded value.
+    """
     return int(math.ceil(n / k) * k)
 
 
 def sequence_mask(length, max_length):
-    """Float mask (B, max_length): 1.0 where position < length."""
+    """Float mask (B, max_length): 1.0 where position < length.
+
+    Args:
+        length: Lengths tensor (B,).
+        max_length: Padded mask width.
+
+    Returns:
+        The float mask (B, max_length).
+    """
     arange = torch.arange(max_length, dtype=torch.float32)
     return (arange.unsqueeze(0) < length.unsqueeze(1)).float()
 
@@ -57,7 +74,12 @@ def sequence_mask(length, max_length):
 def generate_path(duration, mask):
     """Monotonic alignment path from durations. [matcha utils.model]
 
-    duration: (b, t_x); mask: (b, t_x, t_y) -> path (b, t_x, t_y).
+    Args:
+        duration: Durations (b, t_x).
+        mask: Attention mask (b, t_x, t_y).
+
+    Returns:
+        The alignment path (b, t_x, t_y).
     """
     b, t_x, t_y = mask.shape
     cum = torch.cumsum(duration, 1)
@@ -67,14 +89,29 @@ def generate_path(duration, mask):
 
 
 def intersperse(lst, item):
-    """[a, b] -> [item, a, item, b, item]."""
+    """[a, b] -> [item, a, item, b, item].
+
+    Args:
+        lst: Source list.
+        item: Separator to intersperse.
+
+    Returns:
+        The interspersed list.
+    """
     out = [item] * (len(lst) * 2 + 1)
     out[1::2] = lst
     return out
 
 
 def g2p_ids(text: str):
-    """Text -> interspersed matcha symbol id tensor (1, T) via espeak G2P."""
+    """Text -> interspersed matcha symbol id tensor via espeak G2P.
+
+    Args:
+        text: Input sentence.
+
+    Returns:
+        The interspersed symbol id tensor (1, T).
+    """
     from matcha.text import text_to_sequence
 
     seq = text_to_sequence(text, ["english_cleaners2"])[0]
@@ -83,9 +120,23 @@ def g2p_ids(text: str):
 
 def host_pipeline(text_enc, decoder, vocoder, t_embed_fn, emb_w, ids,
                   mel_mean, mel_std, n_timesteps, z_full=None, use_mask=True):
-    """Host-side synthesise(): text_enc(emb_x)->(mu,logw); decoder->v; vocoder->wav.
+    """Host-side synthesise() around the 3 heavy graphs.
 
-    Returns (wav_valid, y_lengths, y_max_, z_full) for reuse of identical noise.
+    Args:
+        text_enc: Callable (emb_x) -> (mu, logw).
+        decoder: Callable (x, mu, t_emb[, y_mask]) -> v.
+        vocoder: Callable (mel) -> waveform.
+        t_embed_fn: Callable (t,) -> time embedding.
+        emb_w: Phoneme embedding table (n_vocab, 192).
+        ids: Interspersed phoneme id tensor (1, T).
+        mel_mean: Mel denormalization mean.
+        mel_std: Mel denormalization std.
+        n_timesteps: Euler ODE step count.
+        z_full: Optional fixed noise (1, 80, y_max_) for reproducible runs.
+        use_mask: Whether the decoder and the mel apply the real y_mask.
+
+    Returns:
+        (wav_valid, y_lengths, y_max_, z_full) for reuse of identical noise.
     """
     t_x = ids.shape[-1]
     emb_x = emb_w[ids]  # Host embedding lookup (1, t_x, 192).
@@ -96,7 +147,8 @@ def host_pipeline(text_enc, decoder, vocoder, t_embed_fn, emb_w, ids,
     y_lengths = torch.clamp_min(torch.sum(w_ceil, [1, 2]), 1).long()
     y_max = int(y_lengths.max())
     y_max_ = fix_len(y_max)
-    y_mask = sequence_mask(y_lengths.float(), y_max_).unsqueeze(1)  # (1,1,y_max_).
+    # (1, 1, y_max_).
+    y_mask = sequence_mask(y_lengths.float(), y_max_).unsqueeze(1)
     attn_mask = x_mask.unsqueeze(-1) * y_mask.unsqueeze(2)
     attn = generate_path(w_ceil.squeeze(1), attn_mask.squeeze(1)).unsqueeze(1)
     mu_y = torch.matmul(attn.squeeze(1).transpose(1, 2),
@@ -129,7 +181,9 @@ def host_pipeline(text_enc, decoder, vocoder, t_embed_fn, emb_w, ids,
 
 
 def main():
-    text = sys.argv[1] if len(sys.argv) > 1 else "Hello, this is Matcha running on the GPU."
+    """Runs the three-pipeline (TRUE / RT / TFL) parity comparison."""
+    default_text = "Hello, this is Matcha running on the GPU."
+    text = sys.argv[1] if len(sys.argv) > 1 else default_text
     n_timesteps = int(sys.argv[2]) if len(sys.argv) > 2 else 10
     sd = B.load_sd()
     mel_mean = float(sd["mel_mean"])
@@ -142,7 +196,8 @@ def main():
     te = B.build_text_encoder(sd)
     dec_orig = B.build_decoder(sd)
     gen = B.build_hifigan()
-    # Capture the real time-embed modules, then make the decoder accept t_emb directly.
+    # Capture the real time-embed modules, then make the decoder accept
+    # t_emb directly.
     temb_mod, tmlp_mod = dec_orig.time_embeddings, dec_orig.time_mlp
 
     def t_embed(t):
@@ -152,7 +207,8 @@ def main():
     dec_orig.time_mlp = nn.Identity()
 
     def te_orig(emb_x):
-        # Original encoder expects ids+lengths; reuse its internals with a real mask.
+        # Original encoder expects ids+lengths; reuse its internals with a
+        # real mask.
         t_x = emb_x.shape[1]
         x = (emb_x * math.sqrt(te.n_channels)).transpose(1, -1)
         mask = torch.ones(1, 1, t_x)
@@ -172,8 +228,8 @@ def main():
         wav_true, ylen, ymax_, z = host_pipeline(
             lambda e: [t.detach() for t in te_orig(e)], dec_orig_call, gen_call,
             t_embed, emb_w, ids, mel_mean, mel_std, n_timesteps, use_mask=True)
-    print(f"y_lengths={int(ylen)}  y_max_(fix4)={ymax_}  audio={len(wav_true)} samples "
-          f"({len(wav_true) / 22050:.2f}s)")
+    print(f"y_lengths={int(ylen)}  y_max_(fix4)={ymax_}  "
+          f"audio={len(wav_true)} samples ({len(wav_true) / 22050:.2f}s)")
 
     # Re-authored torch + tflite, both at exact length ymax_, mask dropped.
     te_r = B.reauth_text_encoder(B.build_text_encoder(sd))
@@ -204,8 +260,10 @@ def main():
     te0 = t_embed(torch.zeros(1))
     mel0 = torch.randn(1, 80, ymax_)
     p_te = B.convert(te_r, (ex,), os.path.join(B.HERE, "e2e_textenc.tflite"))
-    p_dec = B.convert(dec_r, (x0, mu0, te0), os.path.join(B.HERE, "e2e_decoder.tflite"))
-    p_gen = B.convert(gen_r, (mel0,), os.path.join(B.HERE, "e2e_vocoder.tflite"))
+    p_dec = B.convert(dec_r, (x0, mu0, te0),
+                      os.path.join(B.HERE, "e2e_decoder.tflite"))
+    p_gen = B.convert(gen_r, (mel0,),
+                      os.path.join(B.HERE, "e2e_vocoder.tflite"))
 
     cm_te = B.tfl_load(p_te)
     cm_dec = B.tfl_load(p_dec)
@@ -219,21 +277,26 @@ def main():
         return torch.from_numpy(mu), torch.from_numpy(logw)
 
     def tfl_dec(x, mu, t_emb):
-        return torch.from_numpy(B.tfl_run(cm_dec, x.numpy(), mu.numpy(), t_emb.numpy())[0])
+        outputs = B.tfl_run(cm_dec, x.numpy(), mu.numpy(), t_emb.numpy())
+        return torch.from_numpy(outputs[0])
 
     def tfl_gen(mel):
         return B.tfl_run(cm_gen, mel.numpy())[0]
 
-    wav_tfl, *_ = host_pipeline(tfl_te, tfl_dec, tfl_gen, t_embed, emb_w, ids,
-                                mel_mean, mel_std, n_timesteps, z_full=z, use_mask=False)
+    wav_tfl, *_ = host_pipeline(tfl_te, tfl_dec, tfl_gen, t_embed, emb_w,
+                                ids, mel_mean, mel_std, n_timesteps,
+                                z_full=z, use_mask=False)
 
     def corr(a, b):
         n = min(len(a), len(b))
         return float(np.corrcoef(a[:n], b[:n])[0, 1])
 
-    print(f"\ncorr(TFL, RT)   = {corr(wav_tfl, wav_rt):.6f}   <- conversion fidelity")
-    print(f"corr(TFL, TRUE) = {corr(wav_tfl, wav_true):.6f}   <- real-world (incl. pad-leak)")
-    print(f"corr(RT,  TRUE) = {corr(wav_rt, wav_true):.6f}   <- mask-drop pad-leak only")
+    print(f"\ncorr(TFL, RT)   = {corr(wav_tfl, wav_rt):.6f}   "
+          "<- conversion fidelity")
+    print(f"corr(TFL, TRUE) = {corr(wav_tfl, wav_true):.6f}   "
+          "<- real-world (incl. pad-leak)")
+    print(f"corr(RT,  TRUE) = {corr(wav_rt, wav_true):.6f}   "
+          "<- mask-drop pad-leak only")
 
     # Save wavs for listening.
     try:

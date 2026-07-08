@@ -53,14 +53,17 @@ class TXWrap(nn.Module):
 
     def forward(self, hidden, mask):
         # hidden: (1, SEQ, CH); mask: (1, SEQ) float 0/1.
-        return self.block(hidden_states=hidden, attention_mask=mask, timestep=None)
+        return self.block(hidden_states=hidden, attention_mask=mask,
+                          timestep=None)
 
 
 def main():
+    """Converts the standalone transformer-block probe graph."""
     sd = B.load_sd()
     # Has manual-LN + patched attention already applied.
     decoder = B.reauth_decoder_masked(B.build_decoder(sd), 512).d
-    # Grab the up_blocks[1] transformer block (the one that collapses on device).
+    # Grab the up_blocks[1] transformer block (the one that collapses on
+    # device).
     block = decoder.up_blocks[1][1][0]
     wrapped = TXWrap(block).eval()
 
@@ -72,14 +75,16 @@ def main():
     mask = np.zeros((1, SEQ), np.float32)
     mask[:, :YLEN] = 1.0
     with torch.no_grad():
-        expected = wrapped(torch.from_numpy(hidden), torch.from_numpy(mask)).numpy()
+        expected = wrapped(torch.from_numpy(hidden),
+                           torch.from_numpy(mask)).numpy()
     print(f"input range [{hidden.min():.1f},{hidden.max():.1f}]  "
           f"expected out range [{expected.min():.2f},{expected.max():.2f}] "
           f"std {expected.std():.3f}")
 
     import litert_torch
     out = os.path.join(ART, "tx_probe.tflite")
-    litert_torch.convert(wrapped, (torch.from_numpy(hidden), torch.from_numpy(mask))).export(out)
+    example = (torch.from_numpy(hidden), torch.from_numpy(mask))
+    litert_torch.convert(wrapped, example).export(out)
     # Bundle input + expected output for the on-device check.
     hidden.tofile(os.path.join(ART, "tx_input.bin"))
     mask.tofile(os.path.join(ART, "tx_mask.bin"))

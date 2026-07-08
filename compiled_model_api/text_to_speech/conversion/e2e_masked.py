@@ -12,14 +12,15 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Shippable Matcha-TTS: masked, pad-to-max GPU graphs. End-to-end parity + op-check.
+"""Shippable Matcha-TTS: masked pad-to-max GPU graphs, e2e parity + op-check.
 
 Pads phonemes to max_text and mel frames to max_mel; passes a runtime float mask
 to the text-encoder and decoder graphs (additive attention bias -> GPU-clean, no
 SELECT/CAST). One compiled graph per stage handles any length up to the max.
 
 Verifies: (1) all 3 masked graphs op-check GPU-clean; (2) corr(tflite-masked,
-torch-original-masked) ~ 1.0 (mask removes the pad-leak that drop-mask suffered).
+torch-original-masked) ~ 1.0 (mask removes the pad-leak that drop-mask
+suffered).
 
 Run: python e2e_masked.py "Sentence." [n_timesteps] [MAX_MEL]
 """
@@ -39,10 +40,26 @@ from e2e_matcha import LENGTH_SCALE, g2p_ids, generate_path, sequence_mask
 
 
 def host_pipeline_masked(text_enc, decoder, vocoder, t_embed, emb_w, ids,
-                         mel_mean, mel_std, n_timesteps, max_text, max_mel, z=None):
+                         mel_mean, mel_std, n_timesteps, max_text, max_mel,
+                         z=None):
     """Pad-to-max host synthesise() around masked graphs.
 
-    Returns (wav_valid, y_length, z) so callers can reuse identical noise.
+    Args:
+        text_enc: Callable (emb_x, tmask) -> (mu, logw).
+        decoder: Callable (x, mu, t_emb, ymask) -> v.
+        vocoder: Callable (mel) -> waveform.
+        t_embed: Callable (t,) -> time embedding.
+        emb_w: Phoneme embedding table (n_vocab, 192).
+        ids: Interspersed phoneme id tensor (1, T).
+        mel_mean: Mel denormalization mean.
+        mel_std: Mel denormalization std.
+        n_timesteps: Euler ODE step count.
+        max_text: Padded phoneme length of the text-encoder graph.
+        max_mel: Padded mel length of the decoder/vocoder graphs.
+        z: Optional fixed noise (1, 80, max_mel) for reproducible runs.
+
+    Returns:
+        (wav_valid, y_length, z) so callers can reuse identical noise.
     """
     t_x = ids.shape[-1]
     ids_pad = torch.zeros(1, max_text, dtype=torch.long)
@@ -54,7 +71,8 @@ def host_pipeline_masked(text_enc, decoder, vocoder, t_embed, emb_w, ids,
     w = torch.exp(logw) * tmask
     w_ceil = torch.ceil(w) * LENGTH_SCALE
     y_lengths = torch.clamp_min(torch.sum(w_ceil, [1, 2]), 1).long()
-    ymask = sequence_mask(y_lengths.float(), max_mel).unsqueeze(1)  # (1,1,max_mel).
+    # (1, 1, max_mel).
+    ymask = sequence_mask(y_lengths.float(), max_mel).unsqueeze(1)
     attn_mask = tmask.unsqueeze(-1) * ymask.unsqueeze(2)
     attn = generate_path(w_ceil.squeeze(1), attn_mask.squeeze(1)).unsqueeze(1)
     mu_y = torch.matmul(attn.squeeze(1).transpose(1, 2),
@@ -78,7 +96,9 @@ def host_pipeline_masked(text_enc, decoder, vocoder, t_embed, emb_w, ids,
 
 
 def main():
-    text = sys.argv[1] if len(sys.argv) > 1 else "Hello, this is Matcha running on the GPU."
+    """Runs the masked-graph end-to-end parity check."""
+    default_text = "Hello, this is Matcha running on the GPU."
+    text = sys.argv[1] if len(sys.argv) > 1 else default_text
     n_timesteps = int(sys.argv[2]) if len(sys.argv) > 2 else 10
     max_mel = int(sys.argv[3]) if len(sys.argv) > 3 else 384
     max_text = 128
@@ -116,10 +136,11 @@ def main():
             return gen(mel).numpy()
 
     with torch.no_grad():
-        wav_true, ylen, z = host_pipeline_masked(te_true, dec_true, gen_true, t_embed,
-                                                 emb_w, ids, mel_mean, mel_std,
-                                                 n_timesteps, max_text, max_mel)
-    print(f"y_lengths={ylen} audio={len(wav_true)} ({len(wav_true) / 22050:.2f}s)")
+        wav_true, ylen, z = host_pipeline_masked(
+            te_true, dec_true, gen_true, t_embed, emb_w, ids, mel_mean,
+            mel_std, n_timesteps, max_text, max_mel)
+    seconds = len(wav_true) / 22050
+    print(f"y_lengths={ylen} audio={len(wav_true)} ({seconds:.2f}s)")
 
     # Masked graphs (shippable).
     te_r = B.reauth_text_encoder_masked(B.build_text_encoder(sd))
@@ -134,7 +155,8 @@ def main():
     m0 = torch.ones(1, 1, max_mel)
     mel0 = torch.randn(1, 80, max_mel)
     p_te = B.convert(te_r, (ex, tm0), os.path.join(B.HERE, "m_textenc.tflite"))
-    p_dec = B.convert(dec_r, (x0, mu0, te0, m0), os.path.join(B.HERE, "m_decoder.tflite"))
+    p_dec = B.convert(dec_r, (x0, mu0, te0, m0),
+                      os.path.join(B.HERE, "m_decoder.tflite"))
     p_gen = B.convert(gen_r, (mel0,), os.path.join(B.HERE, "m_vocoder.tflite"))
     print("\n=== op-check (masked, fp32) ===")
     clean_te = B.opcheck(p_te, "textenc")
@@ -152,15 +174,16 @@ def main():
         return torch.from_numpy(mu), torch.from_numpy(logw)
 
     def tfl_dec(x, mu, t_emb, mask):
-        return torch.from_numpy(
-            B.tfl_run(cm_dec, x.numpy(), mu.numpy(), t_emb.numpy(), mask.numpy())[0])
+        outputs = B.tfl_run(cm_dec, x.numpy(), mu.numpy(), t_emb.numpy(),
+                            mask.numpy())
+        return torch.from_numpy(outputs[0])
 
     def tfl_gen(mel):
         return B.tfl_run(cm_gen, mel.numpy())[0]
 
-    wav_tfl, *_ = host_pipeline_masked(tfl_te, tfl_dec, tfl_gen, t_embed, emb_w, ids,
-                                       mel_mean, mel_std, n_timesteps, max_text,
-                                       max_mel, z=z)
+    wav_tfl, *_ = host_pipeline_masked(
+        tfl_te, tfl_dec, tfl_gen, t_embed, emb_w, ids, mel_mean, mel_std,
+        n_timesteps, max_text, max_mel, z=z)
 
     def corr(a, b):
         n = min(len(a), len(b))
