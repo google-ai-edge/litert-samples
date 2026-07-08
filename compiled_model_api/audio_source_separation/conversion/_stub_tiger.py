@@ -62,10 +62,16 @@ class Stft:  # placeholder, never instantiated
 stft_tfgn.Stft = Stft
 sys.modules.setdefault("look2hear.layers.stft_tfgn", stft_tfgn)
 
-# scipy _propack shim (same as panns-work; librosa pulls scipy.sparse.linalg)
-sys.path.insert(
-    0, __import__("os").path.expanduser("~/Downloads/meeting/panns-work"))
-try:
-    import _stub_propack  # noqa: F401
-except Exception:
-    pass
+# scipy _propack shim (librosa pulls scipy.sparse.linalg, whose optional
+# native _propack extension fails to load on some machines).
+class _Dummy:  # absorbs any attribute access / call
+    def __getattr__(self, name):
+        return lambda *args, **kwargs: None
+
+
+_propack = types.ModuleType("scipy.sparse.linalg._propack")
+_propack.__file__ = "<stub:scipy._propack>"
+_propack.__spec__ = None
+for _name in ("_spropack", "_dpropack", "_cpropack", "_zpropack"):
+    setattr(_propack, _name, _Dummy())
+sys.modules.setdefault("scipy.sparse.linalg._propack", _propack)
