@@ -31,10 +31,11 @@ import java.io.File
 /**
  * GFPGAN v1.4 blind face restoration on the LiteRT CompiledModel GPU.
  *
- * The StyleGAN2 ModulatedConv2d is re-authored to a 4D form at conversion time (no >4D tensors, a
- * constant conv filter), so the whole graph runs fully on the GPU delegate. Tensor layout is NCHW
- * (litert-torch preserves channels-first): input/output [1, 3, 512, 512], normalized to [-1, 1].
- * The 431 MB fp16 model is staged in filesDir (too large to bundle) — run install_to_device.sh once.
+ * The StyleGAN2 ModulatedConv2d is re-authored to a 4D form at conversion time (no >4D
+ * tensors, a constant conv filter), so the whole graph runs fully on the GPU delegate. Tensor
+ * layout is NCHW (litert-torch preserves channels-first): input/output [1, 3, 512, 512],
+ * normalized to [-1, 1]. The 431 MB fp16 model is staged in filesDir (too large to bundle) —
+ * run install_to_device.sh once.
  */
 class FaceRestorer(context: Context, modelFileName: String = "gfpgan_fp16.tflite") : AutoCloseable {
 
@@ -55,9 +56,12 @@ class FaceRestorer(context: Context, modelFileName: String = "gfpgan_fp16.tflite
 
   init {
     val f = File(context.filesDir, modelFileName)
-    check(f.exists()) { "Model not found: ${f.absolutePath}. Push it first with install_to_device.sh." }
+    check(f.exists()) {
+      "Model not found: ${f.absolutePath}. Push it first with install_to_device.sh."
+    }
     Log.i(TAG, "Loading model: ${f.absolutePath}")
-    compiledModel = CompiledModel.create(f.absolutePath, CompiledModel.Options(Accelerator.GPU), null)
+    compiledModel = CompiledModel.create(
+      f.absolutePath, CompiledModel.Options(Accelerator.GPU), null)
     inputBuffers = compiledModel.createInputBuffers()
     Log.i(TAG, "GPU compiled OK — ${SIZE}x${SIZE} face restoration")
   }

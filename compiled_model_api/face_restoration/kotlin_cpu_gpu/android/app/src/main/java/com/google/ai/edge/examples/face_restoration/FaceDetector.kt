@@ -27,11 +27,13 @@ import kotlin.math.min
 
 /**
  * YuNet (ShiqiYu/libfacedetection) face detection on the LiteRT CompiledModel GPU.
- *   image[1,3,640,640] (BGR, 0-255, no normalization) -> 12 anchor-free outputs (cls/obj/bbox/kps × 3 strides)
+ *   image[1,3,640,640] (BGR, 0-255, no normalization) -> 12 anchor-free
+ *       outputs (cls/obj/bbox/kps × 3 strides)
  *
- * Tiny (0.076 M params, 0.3 MB fp16). Decodes faces + 5 landmarks host-side: score = cls·obj, box =
- * center + exp(wh), then NMS. ~4 ms / 640x640 on a Pixel 8a, fully GPU. Output order is
- * [cls8,cls16,cls32, obj8,obj16,obj32, bbox8,bbox16,bbox32, kps8,kps16,kps32]; cls/obj are sigmoid-baked.
+ * Tiny (0.076 M params, 0.3 MB fp16). Decodes faces + 5 landmarks host-side: score = cls·obj,
+ * box = center + exp(wh), then NMS. ~4 ms / 640x640 on a Pixel 8a, fully GPU. Output order is
+ * [cls8,cls16,cls32, obj8,obj16,obj32, bbox8,bbox16,bbox32, kps8,kps16,kps32]; cls/obj are
+ * sigmoid-baked.
  */
 class FaceDetector(ctx: Context, accelerator: Accelerator = Accelerator.GPU) : Closeable {
 

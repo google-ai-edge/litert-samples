@@ -74,7 +74,9 @@ class MainActivity : ComponentActivity() {
     }
     root.addView(
       pickButton,
-      LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT)
+      LinearLayout.LayoutParams(
+        ViewGroup.LayoutParams.WRAP_CONTENT,
+        ViewGroup.LayoutParams.WRAP_CONTENT)
         .apply { gravity = Gravity.CENTER_HORIZONTAL },
     )
     compareView = CompareView(this).apply {
@@ -177,13 +179,18 @@ class MainActivity : ComponentActivity() {
     val opts = BitmapFactory.Options().apply { inJustDecodeBounds = true }
     contentResolver.openInputStream(uri)?.use { BitmapFactory.decodeStream(it, null, opts) }
     var sampleSize = 1
-    while (opts.outWidth / sampleSize > MAX_INPUT_SIZE || opts.outHeight / sampleSize > MAX_INPUT_SIZE) {
+    while (opts.outWidth / sampleSize > MAX_INPUT_SIZE ||
+        opts.outHeight / sampleSize > MAX_INPUT_SIZE) {
       sampleSize *= 2
     }
     val decodeOpts = BitmapFactory.Options().apply { inSampleSize = sampleSize }
-    val bitmap = contentResolver.openInputStream(uri)?.use { BitmapFactory.decodeStream(it, null, decodeOpts) } ?: return null
+    val bitmap = contentResolver.openInputStream(uri)?.use {
+      BitmapFactory.decodeStream(it, null, decodeOpts)
+    } ?: return null
     val rotation = contentResolver.openInputStream(uri)?.use {
-      when (ExifInterface(it).getAttributeInt(ExifInterface.TAG_ORIENTATION, ExifInterface.ORIENTATION_NORMAL)) {
+      when (ExifInterface(it).getAttributeInt(
+          ExifInterface.TAG_ORIENTATION,
+          ExifInterface.ORIENTATION_NORMAL)) {
         ExifInterface.ORIENTATION_ROTATE_90 -> 90f
         ExifInterface.ORIENTATION_ROTATE_180 -> 180f
         ExifInterface.ORIENTATION_ROTATE_270 -> 270f

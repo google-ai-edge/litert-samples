@@ -82,7 +82,9 @@ class CompareView(context: Context) : View(context) {
     val dividerX = imgRect.left + imgRect.width() * dividerRatio
 
     srcRect.set(0, 0, after.width, after.height)
-    dstRect.set(imgRect.left.toInt(), imgRect.top.toInt(), imgRect.right.toInt(), imgRect.bottom.toInt())
+    dstRect.set(
+      imgRect.left.toInt(), imgRect.top.toInt(),
+      imgRect.right.toInt(), imgRect.bottom.toInt())
     canvas.drawBitmap(after, srcRect, dstRect, paint)
 
     canvas.save()

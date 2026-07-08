@@ -24,9 +24,10 @@ import android.graphics.Paint
 import kotlin.math.abs
 
 /**
- * FFHQ face alignment: warp the detected face to the standard 512x512 template GFPGAN was trained on
- * (eyes/nose/mouth at fixed positions). Without this, GFPGAN's StyleGAN prior mangles the mouth on
- * off-template crops. Uses the 5 YuNet landmarks and a least-squares similarity transform.
+ * FFHQ face alignment: warp the detected face to the standard 512x512 template GFPGAN was
+ * trained on (eyes/nose/mouth at fixed positions). Without this, GFPGAN's StyleGAN prior
+ * mangles the mouth on off-template crops. Uses the 5 YuNet landmarks and a least-squares
+ * similarity transform.
  */
 object FaceAligner {
 
@@ -40,11 +41,16 @@ object FaceAligner {
     313.08905f, 371.15118f,
   )
 
-  /** Warp [src] so its [landmarks] (in src pixel coords, 5×(x,y)) land on the template. -> 512x512. */
+  /**
+   * Warp [src] so its [landmarks] (in src pixel coords, 5×(x,y)) land on
+   * the template. -> 512x512.
+   */
   fun align(src: Bitmap, landmarks: FloatArray): Bitmap {
     val m = similarity(landmarks, TEMPLATE)
     val out = Bitmap.createBitmap(512, 512, Bitmap.Config.ARGB_8888)
-    val matrix = Matrix().apply { setValues(floatArrayOf(m[0], m[1], m[2], m[3], m[4], m[5], 0f, 0f, 1f)) }
+    val matrix = Matrix().apply {
+      setValues(floatArrayOf(m[0], m[1], m[2], m[3], m[4], m[5], 0f, 0f, 1f))
+    }
     Canvas(out).apply {
       drawColor(Color.rgb(135, 133, 132)) // facexlib neutral fill for out-of-image border
       drawBitmap(src, matrix, Paint(Paint.FILTER_BITMAP_FLAG or Paint.ANTI_ALIAS_FLAG))
