@@ -91,7 +91,9 @@ class MainActivity : ComponentActivity() {
                         Modifier.fillMaxWidth().padding(8.dp),
                         horizontalArrangement = Arrangement.SpaceEvenly,
                     ) {
-                        val req = PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
+                        val req = PickVisualMediaRequest(
+                            ActivityResultContracts.PickVisualMedia.ImageOnly
+                        )
                         Button(onClick = { pickA.launch(req) }) { Text("Image A") }
                         Button(onClick = { pickB.launch(req) }) { Text("Image B") }
                     }
@@ -115,7 +117,10 @@ class MainActivity : ComponentActivity() {
         }
     }
 
-    /** Draws image A (left) and image B (right) and connects matched keypoints with colored lines. */
+    /**
+     * Draws image A (left) and image B (right) and connects matched
+     * keypoints with colored lines.
+     */
     @Composable
     fun MatchView(uiState: UiState, modifier: Modifier = Modifier) {
         val a = uiState.imageA

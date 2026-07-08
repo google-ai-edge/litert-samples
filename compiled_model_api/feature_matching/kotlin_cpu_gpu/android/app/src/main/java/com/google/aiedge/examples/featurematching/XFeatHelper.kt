@@ -30,8 +30,8 @@ import kotlin.math.sqrt
 /**
  * XFeat (Accelerated Features, Apache-2.0) lightweight local-feature extractor on LiteRT
  * CompiledModel (CPU / GPU). The pure-CNN net (re-authored GPU-clean via litert_torch: host gray +
- * InstanceNorm, `_unfold2d` → one-hot space-to-depth conv) is full LITERT_CL resident on the Pixel 8a
- * (~0.4 ms).
+ * InstanceNorm, `_unfold2d` → one-hot space-to-depth conv) is full
+ * LITERT_CL resident on the Pixel 8a (~0.4 ms).
  *
  *   input : images [1, 480, 640, 1] NHWC, grayscale, host InstanceNorm
  *   output: feats[1,64,60,80] (descriptors) + keypoints[1,65,60,80] (logits) + heatmap[1,1,60,80]
@@ -85,7 +85,10 @@ class XFeatHelper(
 
     fun setDelegate(d: AcceleratorEnum) { delegate = d }
 
-    /** Extract up to TOP_K features from [bitmap] (resized to 640×480, scores in original coords). */
+    /**
+     * Extract up to TOP_K features from [bitmap] (resized to 640×480,
+     * scores in original coords).
+     */
     suspend fun extract(bitmap: Bitmap): List<Feature> = withContext(dispatcher) {
         val m = model ?: return@withContext emptyList()
         val scaled = Bitmap.createScaledBitmap(bitmap, IN_W, IN_H, true)
@@ -94,7 +97,8 @@ class XFeatHelper(
         var mean = 0.0
         for (i in pixels.indices) {
             val p = pixels[i]
-            val g = (0.299f * Color.red(p) + 0.587f * Color.green(p) + 0.114f * Color.blue(p)) / 255f
+            val g = (0.299f * Color.red(p) + 0.587f * Color.green(p) +
+                0.114f * Color.blue(p)) / 255f
             inputFloats[i] = g
             mean += g
         }
@@ -132,8 +136,14 @@ class XFeatHelper(
         decode(feats, kpts, heat, sx, sy)
     }
 
-    /** Per-cell keypoint decode: softmax 65 logits, best of the 64 sub-cells, score×reliability. */
-    private fun decode(feats: FloatArray, kpts: FloatArray, heat: FloatArray, sx: Float, sy: Float): List<Feature> {
+    /**
+     * Per-cell keypoint decode: softmax 65 logits, best of the 64
+     * sub-cells, score×reliability.
+     */
+    private fun decode(
+        feats: FloatArray, kpts: FloatArray, heat: FloatArray,
+        sx: Float, sy: Float
+    ): List<Feature> {
         val cell = GH * GW
         val out = ArrayList<Feature>(cell)
         val logit = FloatArray(65)
@@ -186,8 +196,13 @@ class XFeatHelper(
         return if (out.size > TOP_K) out.subList(0, TOP_K) else out
     }
 
-    /** Mutual-nearest-neighbour cosine matching (descriptors are L2-normalized → dot = cosine). */
-    fun match(a: List<Feature>, b: List<Feature>, minCos: Float = MIN_COSSIM): List<Pair<Int, Int>> {
+    /**
+     * Mutual-nearest-neighbour cosine matching (descriptors are
+     * L2-normalized → dot = cosine).
+     */
+    fun match(
+        a: List<Feature>, b: List<Feature>, minCos: Float = MIN_COSSIM
+    ): List<Pair<Int, Int>> {
         if (a.isEmpty() || b.isEmpty()) return emptyList()
         val a2b = IntArray(a.size)
         val a2bScore = FloatArray(a.size)

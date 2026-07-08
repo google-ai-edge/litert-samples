@@ -19,7 +19,10 @@ package com.google.aiedge.examples.featurematching
 import android.graphics.Bitmap
 import androidx.compose.runtime.Immutable
 
-/** One match: keypoint in image A and its corresponding keypoint in image B (original-image coords). */
+/**
+ * One match: keypoint in image A and its corresponding keypoint in
+ * image B (original-image coords).
+ */
 @Immutable
 class Match(val ax: Float, val ay: Float, val bx: Float, val by: Float)
 
