@@ -31,11 +31,21 @@ import torch.nn as nn
 import torch.nn.functional as F
 from huggingface_hub import hf_hub_download
 
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)) + "/cloth-segmentation")
+sys.path.insert(
+    0, os.path.dirname(os.path.abspath(__file__)) + "/cloth-segmentation")
 
 # defensive: GPU delegate rejects align_corners=True
 _orig = F.interpolate
 def _patched(*a, **k):
+    """F.interpolate wrapper that forces align_corners=False.
+
+    Args:
+        *a: Positional arguments forwarded to F.interpolate.
+        **k: Keyword arguments; align_corners=True is rewritten to False.
+
+    Returns:
+        The result of the original F.interpolate call.
+    """
     if k.get("align_corners") is True:
         k["align_corners"] = False
     return _orig(*a, **k)
@@ -56,10 +66,14 @@ class Wrap(nn.Module):
 
 
 def main():
+    """Builds clothseg.tflite from the tryonlabs U2-Net checkpoint."""
     net = U2NET(in_ch=3, out_ch=4).eval()
-    sd = torch.load(hf_hub_download("tryonlabs/u2net-cloth-segmentation", "u2net_cloth_segm.pth"),
-                    map_location="cpu")
-    sd = sd.get('model_state_dict', sd.get('state_dict', sd)) if isinstance(sd, dict) else sd
+    sd = torch.load(
+        hf_hub_download("tryonlabs/u2net-cloth-segmentation",
+                        "u2net_cloth_segm.pth"),
+        map_location="cpu")
+    sd = (sd.get('model_state_dict', sd.get('state_dict', sd))
+          if isinstance(sd, dict) else sd)
     sd = {k[7:] if k.startswith('module.') else k: v for k, v in sd.items()}
     print("load:", net.load_state_dict(sd, strict=False))
 
