@@ -22,20 +22,33 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 
 
 def pyes(v):
+    """Softmax P(yes) from a [no, yes] logit pair.
+
+    Args:
+        v: Length-2 array of [no, yes] logits.
+
+    Returns:
+        The softmax probability of "yes" as a float.
+    """
     a = v - v.max()
     e = np.exp(a)
     return float(e[1] / e.sum())
 
 
 def main():
+    """Compares the device output dump against the CPU reference."""
     L, real_len = 256, 0
     for line in open(os.path.join(HERE, "meta.txt")):
-        if line.startswith("real_len="): real_len = int(line.split("=")[1])
-        if line.startswith("L="): L = int(line.split("=")[1])
+        if line.startswith("real_len="):
+            real_len = int(line.split("=")[1])
+        if line.startswith("L="):
+            L = int(line.split("=")[1])
 
     ref = np.load(os.path.join(HERE, "ref_out.npy")).reshape(L, 2)
-    dev = np.fromfile(sys.argv[1] if len(sys.argv) > 1 else os.path.join(HERE, "probe_out_0.bin"),
-                      dtype="<f4").reshape(L, 2)
+    dev = np.fromfile(
+        sys.argv[1] if len(sys.argv) > 1
+        else os.path.join(HERE, "probe_out_0.bin"),
+        dtype="<f4").reshape(L, 2)
 
     p = real_len - 1
     sr, sd = pyes(ref[p]), pyes(dev[p])
