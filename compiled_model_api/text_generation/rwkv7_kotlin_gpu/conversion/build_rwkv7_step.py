@@ -54,7 +54,16 @@ PARITY_PROMPT = "The Eiffel tower is in the city of"
 
 
 def _lerp(x, prev, mix):
-    """Token-shift mix: x + (prev - x) * mix."""
+    """Token-shift mix: x + (prev - x) * mix.
+
+    Args:
+        x: Current activation [1, C].
+        prev: Previous-token activation [1, C].
+        mix: Learned per-channel mix coefficients.
+
+    Returns:
+        The mixed activation [1, C].
+    """
     return x + (prev - x) * mix
 
 
@@ -63,6 +72,12 @@ def _softplus_stable(z):
 
     Exact identity for log(1 + e^z). F.softplus lowers with a threshold
     branch (GREATER + SELECT), which the GPU delegate rejects.
+
+    Args:
+        z: Input tensor.
+
+    Returns:
+        softplus(z) computed without data-dependent branches.
     """
     return torch.relu(z) + torch.log1p(torch.exp(-torch.abs(z)))
 
@@ -121,13 +136,15 @@ class RwkvTokenizer:
 
 
 class Rwkv7Step(nn.Module):
-    """One autoregressive RWKV-7 step, GPU re-authored (see module docstring)."""
+    """One autoregressive RWKV-7 step, GPU re-authored (see module
+    docstring)."""
 
     def __init__(self, state_dict):
         super().__init__()
         params = {}
         for key, value in state_dict.items():
-            tensor = value.float().squeeze() if value.dim() == 3 else value.float()
+            tensor = (value.float().squeeze() if value.dim() == 3
+                      else value.float())
             params[key] = nn.Parameter(tensor, requires_grad=False)
         self.params = nn.ParameterDict(
             {k.replace(".", "__"): v for k, v in params.items()}
@@ -187,7 +204,8 @@ class Rwkv7Step(nn.Module):
             kk = kk * torch.rsqrt((kk * kk).sum(-1, keepdim=True) + 1e-12)
             k = k * (1 + (a - 1) * p(att + "k_a"))
 
-            # wkv7 recurrence at T=1: state rows index the v-dim, cols the k-dim.
+            # wkv7 recurrence at T=1: state rows index the v-dim, cols
+            # the k-dim.
             state = wkv[layer * N_HEAD : (layer + 1) * N_HEAD]
             decay = torch.exp(-torch.exp(w)).view(N_HEAD, 1, HEAD_DIM)
             in_proj = (-kk).view(N_HEAD, HEAD_DIM, 1)
@@ -242,7 +260,19 @@ class Rwkv7Step(nn.Module):
 
 
 def _wkv7_reference(r, w, k, v, a, b):
-    """Sequential wkv7 scan from the official RWKV-7 demo (fp32 reference)."""
+    """Sequential wkv7 scan from the official RWKV-7 demo (fp32 reference).
+
+    Args:
+        r: Receptance [B, T, C].
+        w: Log-decay input [B, T, C] (decay = exp(-exp(w))).
+        k: Key [B, T, C].
+        v: Value [B, T, C].
+        a: In-projection term [B, T, C] (-kk at the call site).
+        b: Out-projection term [B, T, C] (kk * a at the call site).
+
+    Returns:
+        The wkv output [B, T, C].
+    """
     batch, seq, _ = r.size()
     heads, dim = N_HEAD, HEAD_DIM
     r = r.view(batch, seq, heads, dim)
@@ -330,13 +360,15 @@ def gpt_mode_forward(sd, token_ids):
         xn2 = ln(x, blk + "ln2.weight", blk + "ln2.bias")
         shifted2 = torch.cat([torch.zeros(1, 1, N_EMBD), xn2[:, :-1]], 1) - xn2
         hidden = xn2 + shifted2 * sd[blk + "ffn.x_k"].float()
-        hidden = torch.relu(hidden @ sd[blk + "ffn.key.weight"].float().t()) ** 2
+        hidden = torch.relu(
+            hidden @ sd[blk + "ffn.key.weight"].float().t()) ** 2
         x = x + hidden @ sd[blk + "ffn.value.weight"].float().t()
     x = ln(x, "ln_out.weight", "ln_out.bias")
     return x @ sd["head.weight"].float().t()
 
 
 def _zero_state():
+    """Returns zeroed (att_shift, ffn_shift, wkv) state tensors."""
     return (
         torch.zeros(N_LAYER, N_EMBD),
         torch.zeros(N_LAYER, N_EMBD),
@@ -345,7 +377,12 @@ def _zero_state():
 
 
 def stage_parity(sd, tok):
-    """Sequential step-mode must reproduce GPT-mode logits on the prompt."""
+    """Sequential step-mode must reproduce GPT-mode logits on the prompt.
+
+    Args:
+        sd: Checkpoint state dict (fp32).
+        tok: RwkvTokenizer used to encode the parity prompt.
+    """
     ids = tok.encode(PARITY_PROMPT)
     with torch.no_grad():
         ref = gpt_mode_forward(sd, torch.tensor(ids))
@@ -363,7 +400,12 @@ def stage_parity(sd, tok):
 
 
 def stage_convert(sd, tok):
-    """litert-torch conversion of the step graph (fp32 flatbuffer)."""
+    """litert-torch conversion of the step graph (fp32 flatbuffer).
+
+    Args:
+        sd: Checkpoint state dict (fp32).
+        tok: RwkvTokenizer used to build the example input token.
+    """
     ids = tok.encode(PARITY_PROMPT)
     emb = sd["emb.weight"]
     att, ffn, wkv = _zero_state()
@@ -401,7 +443,11 @@ def stage_fp16():
 
 
 def stage_assets(sd):
-    """Exports the fp16 embedding table for host-side row lookup."""
+    """Exports the fp16 embedding table for host-side row lookup.
+
+    Args:
+        sd: Checkpoint state dict containing emb.weight.
+    """
     emb = sd["emb.weight"].float().numpy().astype("<f2")
     emb.tofile(EMB_PATH)
     print(
@@ -411,6 +457,7 @@ def stage_assets(sd):
 
 
 def main():
+    """Runs the requested stages (parity, convert, fp16, assets)."""
     stage = sys.argv[1] if len(sys.argv) > 1 else "all"
     sd = torch.load(CKPT_PATH, map_location="cpu")
     sd = {k: v.float() for k, v in sd.items()}

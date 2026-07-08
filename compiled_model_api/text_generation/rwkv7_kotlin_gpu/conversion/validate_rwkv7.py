@@ -96,6 +96,7 @@ class TorchStepper:
 
 
 def main() -> None:
+    """Runs the prefill-parity and greedy-generation checks."""
     sd = torch.load(CKPT_PATH, map_location="cpu")
     sd = {k: v.float() for k, v in sd.items()}
     tok = RwkvTokenizer(VOCAB_PATH)
