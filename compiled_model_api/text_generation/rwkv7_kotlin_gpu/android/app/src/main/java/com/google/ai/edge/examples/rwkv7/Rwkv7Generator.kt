@@ -59,7 +59,8 @@ class Rwkv7Generator(modelPath: String, embTablePath: String) : AutoCloseable {
     /** Per-step timing, measured around run + output readback. */
     data class StepStats(val stepMs: Float)
 
-    private val model = CompiledModel.create(modelPath, CompiledModel.Options(Accelerator.GPU), null)
+    private val model =
+        CompiledModel.create(modelPath, CompiledModel.Options(Accelerator.GPU), null)
     private val inputs = model.createInputBuffers()
     private val outputs = model.createOutputBuffers()
 

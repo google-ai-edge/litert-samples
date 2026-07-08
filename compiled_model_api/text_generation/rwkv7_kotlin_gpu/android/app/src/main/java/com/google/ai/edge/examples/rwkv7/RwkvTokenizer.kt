@@ -166,7 +166,8 @@ class RwkvTokenizer(vocabLines: List<String>) {
             }
             i++
             when (val esc = body[i]) {
-                '\\', '\'', '"' -> if (isBytes) rawBytes.add(esc.code.toByte()) else chars.append(esc)
+                '\\', '\'', '"' ->
+                    if (isBytes) rawBytes.add(esc.code.toByte()) else chars.append(esc)
                 'n' -> if (isBytes) rawBytes.add('\n'.code.toByte()) else chars.append('\n')
                 'r' -> if (isBytes) rawBytes.add('\r'.code.toByte()) else chars.append('\r')
                 't' -> if (isBytes) rawBytes.add('\t'.code.toByte()) else chars.append('\t')
