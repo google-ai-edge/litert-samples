@@ -12,7 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Build GPU-compatible DM-Count (crowd counting, density regression) via litert-torch.
+"""Build GPU-compatible DM-Count (crowd counting, density regression) via
+litert-torch.
 
 Expects the cvlab-stonybrook/DM-Count repository checked out next to this
 script as DM-Count/ (its git-lfs checkout includes the MIT pretrained
@@ -35,13 +36,23 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "DM-Count"))
+sys.path.insert(
+    0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "DM-Count"))
 
 SIZE = 512  # fixed input; the density map comes out at SIZE/8
 
 
 def bilinear_matrix(n_in, n_out):
-    """Returns the [n_out, n_in] align_corners=True bilinear resize matrix."""
+    """Returns the [n_out, n_in] align_corners=True bilinear resize matrix.
+
+    Args:
+        n_in: Input length along the resized axis.
+        n_out: Output length along the resized axis.
+
+    Returns:
+        A [n_out, n_in] float32 numpy matrix mapping n_in samples to
+        n_out samples with align_corners=True bilinear weights.
+    """
     matrix = np.zeros((n_out, n_in), np.float32)
     scale = (n_in - 1) / (n_out - 1)
     for i in range(n_out):
@@ -55,10 +66,21 @@ def bilinear_matrix(n_in, n_out):
 
 
 def exact_upsample(x, size=None, scale_factor=None):
-    """Exact align_corners=True 2x bilinear upsample as constant-RHS matmuls."""
+    """Exact align_corners=True 2x bilinear upsample as constant-RHS matmuls.
+
+    Args:
+        x: Input tensor [1, C, H, W].
+        size: Unused; kept for F.upsample_bilinear signature parity.
+        scale_factor: Unused; the upsample is always exactly 2x.
+
+    Returns:
+        The [1, C, 2H, 2W] align_corners=True bilinear upsample of x.
+    """
     h, w = int(x.shape[2]), int(x.shape[3])
-    a_h_t = torch.from_numpy(bilinear_matrix(h, 2 * h)).t().contiguous()  # [h, 2h]
-    a_w_t = torch.from_numpy(bilinear_matrix(w, 2 * w)).t().contiguous()  # [w, 2w]
+    # [h, 2h]
+    a_h_t = torch.from_numpy(bilinear_matrix(h, 2 * h)).t().contiguous()
+    # [w, 2w]
+    a_w_t = torch.from_numpy(bilinear_matrix(w, 2 * w)).t().contiguous()
     y = x.transpose(2, 3) @ a_h_t   # [1,C,w,2h]
     y = y.transpose(2, 3) @ a_w_t   # [1,C,2h,w] @ [w,2w] -> [1,C,2h,2w]
     return y
@@ -66,7 +88,8 @@ def exact_upsample(x, size=None, scale_factor=None):
 
 F.upsample_bilinear = exact_upsample
 
-from models import VGG, make_layers, cfg  # noqa: E402  (needs DM-Count/ on sys.path)
+# needs DM-Count/ on sys.path
+from models import VGG, make_layers, cfg  # noqa: E402
 
 
 class DensityHead(nn.Module):
@@ -82,6 +105,7 @@ class DensityHead(nn.Module):
 
 
 def main():
+    """Builds dmcount.tflite from the DM-Count UCF-QNRF checkpoint."""
     net = VGG(make_layers(cfg["E"]))
     checkpoint = os.path.join(
         os.path.dirname(os.path.abspath(__file__)),

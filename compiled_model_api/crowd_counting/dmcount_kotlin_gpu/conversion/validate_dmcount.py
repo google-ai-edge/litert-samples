@@ -34,15 +34,25 @@ GPU_BANNED = {
 
 
 def opcheck(path):
-    """Returns True when the flatbuffer has no banned ops and no rank>4 tensors."""
+    """Returns True when the flatbuffer has no banned ops and no rank>4
+    tensors.
+
+    Args:
+        path: Path to the .tflite flatbuffer to scan.
+
+    Returns:
+        True when no GPU-banned op and no tensor of rank > 4 is found.
+    """
     with open(path, "rb") as f:
         model = schema.ModelT.InitFromPackedBuf(f.read(), 0)
-    names = {v: k for k, v in vars(schema.BuiltinOperator).items() if isinstance(v, int)}
+    names = {v: k for k, v in vars(schema.BuiltinOperator).items()
+             if isinstance(v, int)}
     clean = True
     for graph in model.subgraphs:
         for op in graph.operators:
             code = model.operatorCodes[op.opcodeIndex]
-            name = names.get(max(code.builtinCode, code.deprecatedBuiltinCode), "?")
+            name = names.get(
+                max(code.builtinCode, code.deprecatedBuiltinCode), "?")
             if name in GPU_BANNED:
                 print("banned op:", name)
                 clean = False
@@ -54,6 +64,7 @@ def opcheck(path):
 
 
 def main():
+    """Runs the op scan and the CompiledModel parity check."""
     print("opcheck clean:", opcheck(MODEL_PATH))
 
     x = np.load("ref_in.npy")
