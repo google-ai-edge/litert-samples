@@ -22,17 +22,29 @@ import types
 import inspect
 _orig = inspect.getsourcefile
 def _safe_gsf(o):
-    try: return _orig(o)
-    except Exception: return None
+    """inspect.getsourcefile variant that returns None instead of raising.
+
+    Args:
+        o: Object whose source file is looked up.
+
+    Returns:
+        The source file path, or None when the lookup raises.
+    """
+    try:
+        return _orig(o)
+    except Exception:
+        return None
 inspect.getsourcefile = _safe_gsf
 
-_REJECT = {"Config", "DictAction"}   # force hubconf's try-mmcv to fall back to mmengine
+# force hubconf's try-mmcv to fall back to mmengine
+_REJECT = {"Config", "DictAction"}
 class _Stub(types.ModuleType):
     __file__ = "<stub>"
     __spec__ = None
     __path__ = []
     def __getattr__(self, n):
-        if n.startswith("__") or n in _REJECT: raise AttributeError(n)
+        if n.startswith("__") or n in _REJECT:
+            raise AttributeError(n)
         return lambda *a, **k: None
 for name in ["mmcv", "mmcv.utils", "mmcv.cnn", "mmcv.ops", "mmcv.runner"]:
     sys.modules[name] = _Stub(name)
@@ -40,10 +52,18 @@ sys.modules["mmcv.utils"].collect_env = lambda *a, **k: {}
 import torch
 
 def load():
-    return torch.hub.load('yvanyin/metric3d', 'metric3d_vit_small', pretrain=True, trust_repo=True).eval()
+    """Loads the pretrained metric3d_vit_small model from torch hub.
+
+    Returns:
+        The Metric3D v2 ViT-S model in eval mode.
+    """
+    return torch.hub.load('yvanyin/metric3d', 'metric3d_vit_small',
+                          pretrain=True, trust_repo=True).eval()
 
 if __name__ == "__main__":
     m = load()
-    print("loaded:", type(m).__name__, "| params", round(sum(p.numel() for p in m.parameters())/1e6,1), "M")
+    print("loaded:", type(m).__name__, "| params",
+          round(sum(p.numel() for p in m.parameters())/1e6,1), "M")
     for n,c in m.named_children():
-        print("  ", n, ":", type(c).__name__, "|", [nn for nn,_ in c.named_children()][:10])
+        print("  ", n, ":", type(c).__name__, "|",
+              [nn for nn,_ in c.named_children()][:10])
