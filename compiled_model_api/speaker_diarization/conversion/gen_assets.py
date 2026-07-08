@@ -24,6 +24,9 @@ from torchaudio.compliance.kaldi import get_mel_banks
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 SR, NMEL, WIN, HOP, NFFT = 16000, 80, 400, 160, 512
+# Reference fixture: any speech clip works. Drop sample_speech.wav next to
+# this script (or set SAMPLE_WAV) to regenerate the golden fbank asset.
+SAMPLE_WAV = os.path.join(HERE, "sample_speech.wav")
 
 # ---- assets
 # mel: [80, 256]
@@ -66,8 +69,7 @@ def fbank_mirror(x):
     return out
 
 
-wav, sr = torchaudio.load(os.path.expanduser(
-    "~/Downloads/meeting/wav2vec2-work/sample_speech.wav"))
+wav, sr = torchaudio.load(SAMPLE_WAV)
 wav = torchaudio.functional.resample(
     wav.mean(0, keepdim=True), sr, SR)[0, :80240]
 ref = kaldi.fbank(wav[None] * 32768.0, num_mel_bins=NMEL,

@@ -33,6 +33,10 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 SR = 16000
 T_FRAMES = 500                     # 5 s fbank window
 N_SAMPLES = 400 + (T_FRAMES - 1) * 160   # 80240
+# Validation fixture: any speech clip >= 5 s works. Pass a path as argv[1]
+# or drop sample_speech.wav next to this script.
+SAMPLE_WAV = (sys.argv[1] if len(sys.argv) > 1
+              else os.path.join(HERE, "sample_speech.wav"))
 
 _orig_load = torch.load
 torch.load = lambda *a, **k: _orig_load(*a, **{**k, "weights_only": False})
@@ -177,8 +181,7 @@ def main():
     print("two_emb_layer:", emb.resnet.two_emb_layer)
 
     # fixture: 5.015 s of real speech -> fbank + CMN
-    wav, sr = torchaudio.load(os.path.expanduser(
-        "~/Downloads/meeting/wav2vec2-work/sample_speech.wav"))
+    wav, sr = torchaudio.load(SAMPLE_WAV)
     wav = torchaudio.functional.resample(
         wav.mean(0, keepdim=True), sr, SR)[:, :N_SAMPLES]
     assert wav.shape[1] == N_SAMPLES, wav.shape
