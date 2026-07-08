@@ -24,12 +24,14 @@ import java.io.File
 
 /**
  * L2CS-Net gaze estimation (ResNet50, Gaze360) on the LiteRT CompiledModel GPU.
- *   face[1,3,448,448] (ImageNet-normalized) -> yaw[1,90], pitch[1,90] (softmax over angle bins, baked in)
+ *   face[1,3,448,448] (ImageNet-normalized) -> yaw[1,90], pitch[1,90]
+ *   (softmax over angle bins, baked in)
  *
- * Predicts where a (centered) face is looking. The 90 bins span [-180,180]° at 4° each; the gaze angle is the
- * softmax expectation: `deg = Σ p_i·i · 4 − 180`. ~3 ms / 448x448 on a Pixel 8a, fully GPU. The ResNet stem
- * `MaxPool2d(3,s2,p1)` (which pads with -inf -> a `PADV2` the Mali delegate won't delegate) is re-authored to a
- * zero-pad + valid max-pool (exact since it follows a ReLU); the global pool -> mean(3).mean(2).
+ * Predicts where a (centered) face is looking. The 90 bins span [-180,180]° at 4° each; the
+ * gaze angle is the softmax expectation: `deg = Σ p_i·i · 4 − 180`. ~3 ms / 448x448 on a
+ * Pixel 8a, fully GPU. The ResNet stem `MaxPool2d(3,s2,p1)` (which pads with -inf -> a `PADV2`
+ * the Mali delegate won't delegate) is re-authored to a zero-pad + valid max-pool (exact since
+ * it follows a ReLU); the global pool -> mean(3).mean(2).
  */
 class GazeEstimator(ctx: Context) : Closeable {
 

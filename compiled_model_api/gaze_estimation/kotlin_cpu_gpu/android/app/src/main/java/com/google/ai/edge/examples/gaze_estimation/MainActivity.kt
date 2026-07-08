@@ -39,8 +39,9 @@ import kotlin.math.min
 import kotlin.math.sin
 
 /**
- * L2CS-Net gaze estimation demo, fully on the CompiledModel GPU. Estimates where a centered face is looking
- * and draws the gaze direction arrow. Works on a bundled image and any image picked from the gallery.
+ * L2CS-Net gaze estimation demo, fully on the CompiledModel GPU. Estimates where a centered
+ * face is looking and draws the gaze direction arrow. Works on a bundled image and any image
+ * picked from the gallery.
  */
 class MainActivity : Activity() {
 
@@ -66,20 +67,23 @@ class MainActivity : Activity() {
             text = "🖼  Pick image"
             isEnabled = false
             setOnClickListener {
-                startActivityForResult(Intent(Intent.ACTION_GET_CONTENT).apply { type = "image/*" }, pickReq)
+                val intent = Intent(Intent.ACTION_GET_CONTENT).apply { type = "image/*" }
+                startActivityForResult(intent, pickReq)
             }
         }
         gazeView = GazeView(this)
         root.addView(status)
         root.addView(pick)
-        root.addView(gazeView, LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, 980))
+        root.addView(
+            gazeView, LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, 980))
         setContentView(root)
 
         bg.execute {
             try {
                 net = GazeEstimator(this)
                 try {
-                    run(squareResize(BitmapFactory.decodeStream(assets.open("test_image.jpg"))), warm = true)
+                    val bundled = BitmapFactory.decodeStream(assets.open("test_image.jpg"))
+                    run(squareResize(bundled), warm = true)
                 } catch (_: java.io.IOException) {
                     runOnUiThread { status.text = "Ready — pick a face image to estimate gaze." }
                 }
@@ -120,15 +124,16 @@ class MainActivity : Activity() {
         Log.i(tag, "gaze ${ms}ms yaw=${g.yawDeg} pitch=${g.pitchDeg}")
         runOnUiThread {
             status.setBackgroundColor(Color.rgb(0xC8, 0xE6, 0xC9))
-            status.text = "On-device GPU gaze ✓  ${ms} ms  ·  yaw %.0f° pitch %.0f°  ·  L2CS-Net, CompiledModel GPU"
-                .format(g.yawDeg, g.pitchDeg)
+            status.text = ("On-device GPU gaze ✓  ${ms} ms  ·  yaw %.0f° pitch %.0f°" +
+                "  ·  L2CS-Net, CompiledModel GPU").format(g.yawDeg, g.pitchDeg)
             gazeView.set(face, g)
             gazeView.invalidate()
         }
     }
 
     private fun loadOriented(uri: Uri): Bitmap {
-        val bm = contentResolver.openInputStream(uri).use { BitmapFactory.decodeStream(it) } ?: error("cannot decode image")
+        val bm = contentResolver.openInputStream(uri).use { BitmapFactory.decodeStream(it) }
+            ?: error("cannot decode image")
         val rot = contentResolver.openInputStream(uri).use {
             when (ExifInterface(it!!).getAttributeInt(ExifInterface.TAG_ORIENTATION, 1)) {
                 ExifInterface.ORIENTATION_ROTATE_90 -> 90f
@@ -138,7 +143,8 @@ class MainActivity : Activity() {
             }
         }
         if (rot == 0f) return bm
-        return Bitmap.createBitmap(bm, 0, 0, bm.width, bm.height, Matrix().apply { postRotate(rot) }, true)
+        return Bitmap.createBitmap(
+            bm, 0, 0, bm.width, bm.height, Matrix().apply { postRotate(rot) }, true)
     }
 
     private fun squareResize(src: Bitmap): Bitmap {
