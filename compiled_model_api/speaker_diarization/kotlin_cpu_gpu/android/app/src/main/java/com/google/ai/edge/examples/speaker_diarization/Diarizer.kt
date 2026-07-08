@@ -30,7 +30,8 @@ import kotlin.math.min
 class Diarizer(ctx: Context) {
 
     data class Segment(val start: Double, val end: Double, val speaker: Int)
-    data class Result(val segments: List<Segment>, val numSpeakers: Int, val perSpeaker: Map<Int, Double>)
+    data class Result(
+        val segments: List<Segment>, val numSpeakers: Int, val perSpeaker: Map<Int, Double>)
 
     companion object {
         const val SR = 16000
@@ -75,7 +76,8 @@ class Diarizer(ctx: Context) {
                 val u = SpkUnit(w, s)
                 for (t in 0 until frames) {
                     var others = 0f
-                    for (o in 0 until SegmentationOnnx.MAX_LOCAL_SPEAKERS) if (o != s) others += a[t][o]
+                    for (o in 0 until SegmentationOnnx.MAX_LOCAL_SPEAKERS)
+                        if (o != s) others += a[t][o]
                     if (a[t][s] > 0f && others == 0f) u.soloFrames.add(t)
                 }
                 if (u.soloFrames.size * frameSec >= MIN_SOLO_SEC) units.add(u)

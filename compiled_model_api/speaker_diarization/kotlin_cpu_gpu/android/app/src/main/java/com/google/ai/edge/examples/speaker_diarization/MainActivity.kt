@@ -94,7 +94,8 @@ class MainActivity : Activity() {
         root.addView(speakerButtons)
         setContentView(ScrollView(this).apply { addView(root) })
 
-        if (checkSelfPermission(Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED)
+        if (checkSelfPermission(Manifest.permission.RECORD_AUDIO)
+            != PackageManager.PERMISSION_GRANTED)
             requestPermissions(arrayOf(Manifest.permission.RECORD_AUDIO), 1)
 
         bg.execute {
@@ -132,7 +133,8 @@ class MainActivity : Activity() {
             recording = false
             return
         }
-        if (checkSelfPermission(Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
+        if (checkSelfPermission(Manifest.permission.RECORD_AUDIO)
+            != PackageManager.PERMISSION_GRANTED) {
             status.text = "Microphone permission needed."
             return
         }
@@ -141,7 +143,8 @@ class MainActivity : Activity() {
         status.text = "● Recording (up to ${maxSeconds}s)…"
         bg.execute {
             val sr = Diarizer.SR
-            val min = AudioRecord.getMinBufferSize(sr, AudioFormat.CHANNEL_IN_MONO, AudioFormat.ENCODING_PCM_FLOAT)
+            val min = AudioRecord.getMinBufferSize(
+                sr, AudioFormat.CHANNEL_IN_MONO, AudioFormat.ENCODING_PCM_FLOAT)
             val recd = AudioRecord(MediaRecorder.AudioSource.MIC, sr, AudioFormat.CHANNEL_IN_MONO,
                 AudioFormat.ENCODING_PCM_FLOAT, maxOf(min, sr * 2))
             val out = FloatArray(sr * maxSeconds)
@@ -150,7 +153,8 @@ class MainActivity : Activity() {
                 recd.startRecording()
                 val buf = FloatArray(1600)
                 while (recording && total < out.size) {
-                    val r = recd.read(buf, 0, minOf(buf.size, out.size - total), AudioRecord.READ_BLOCKING)
+                    val r = recd.read(buf, 0, minOf(buf.size, out.size - total),
+                        AudioRecord.READ_BLOCKING)
                     if (r > 0) {
                         System.arraycopy(buf, 0, out, total, r)
                         total += r
@@ -176,7 +180,8 @@ class MainActivity : Activity() {
                 res.segments.joinToString { "%.1f-%.1f:S%d".format(it.start, it.end, it.speaker) })
         runOnUiThread {
             status.setBackgroundColor(Color.rgb(0xC8, 0xE6, 0xC9))
-            status.text = "✓ ${res.numSpeakers} speakers · ${x.size / Diarizer.SR}s in ${ms / 1000.0}s " +
+            status.text = "✓ ${res.numSpeakers} speakers · " +
+                    "${x.size / Diarizer.SR}s in ${ms / 1000.0}s " +
                     "(seg CPU + embeddings GPU)"
             timeline.set(res.segments, x.size.toDouble() / Diarizer.SR)
             summary.text = res.perSpeaker.toSortedMap().entries
@@ -207,7 +212,8 @@ class MainActivity : Activity() {
             for (p in a until b) { if (pos < n) data[pos++] = x[p] }
         }
         val track = AudioTrack.Builder()
-            .setAudioAttributes(AudioAttributes.Builder().setUsage(AudioAttributes.USAGE_MEDIA).build())
+            .setAudioAttributes(
+                AudioAttributes.Builder().setUsage(AudioAttributes.USAGE_MEDIA).build())
             .setAudioFormat(AudioFormat.Builder().setEncoding(AudioFormat.ENCODING_PCM_FLOAT)
                 .setSampleRate(Diarizer.SR).setChannelMask(AudioFormat.CHANNEL_OUT_MONO).build())
             .setBufferSizeInBytes(data.size * 4)
