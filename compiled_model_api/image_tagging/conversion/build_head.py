@@ -12,9 +12,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Phase 1b: re-author RAM++ reweight + Query2Label tagging head GPU-clean, torch parity vs
-reference logits. Fed with REF image_embeds so head correctness is isolated from the Swin encoder.
-Run in ~/clipconv:  python build_head.py [parity|convert]"""
+"""Phase 1b: re-author RAM++ reweight + Query2Label tagging head.
+
+GPU-clean, torch parity vs reference logits. Fed with REF image_embeds
+so head correctness is isolated from the Swin encoder.
+
+Usage: python build_head.py [parity|convert]
+"""
 import os
 import sys
 import math
@@ -30,6 +34,16 @@ os.makedirs(OUT, exist_ok=True)
 REF = np.load(os.path.join(WORK, "ref", "ref_demo1.npz"))
 
 def safe_ln_mod(x, ln, eps_floor=1e-4):
+    """fp16-safe LayerNorm with an eps floor.
+
+    Args:
+        x: Input tensor [..., C].
+        ln: The nn.LayerNorm module supplying weight/bias/eps.
+        eps_floor: Minimum epsilon used inside the rsqrt.
+
+    Returns:
+        The normalized tensor, same shape as x.
+    """
     mu = x.mean(-1, keepdim=True)
     dd = x - mu
     var = (dd * dd).mean(-1, keepdim=True)
@@ -37,8 +51,11 @@ def safe_ln_mod(x, ln, eps_floor=1e-4):
     return dd * torch.rsqrt(var + eps) * ln.weight + ln.bias
 
 class TagHeadGPU(nn.Module):
-    """Graph B (GPU): 2-layer Query2Label cross-attention head. queries[1,C,768] + image_embeds
-    [1,145,512] -> logits[1,C]. tanh-GELU + safe LayerNorm (fp16-safe)."""
+    """Graph B (GPU): 2-layer Query2Label cross-attention head.
+
+    queries[1,C,768] + image_embeds [1,145,512] -> logits[1,C].
+    tanh-GELU + safe LayerNorm (fp16-safe).
+    """
     def __init__(self, model):
         super().__init__()
         self.m = model
@@ -52,8 +69,10 @@ class TagHeadGPU(nn.Module):
             Nk = image_embeds.shape[1]
             q = s.query(h).reshape(1, Nq, nH, hd).permute(0, 2, 1, 3)
             k = s.key(image_embeds).reshape(1, Nk, nH, hd).permute(0, 2, 1, 3)
-            v = s.value(image_embeds).reshape(1, Nk, nH, hd).permute(0, 2, 1, 3)
-            att = torch.softmax((q @ k.transpose(-1, -2)) / math.sqrt(hd), dim=-1)
+            v = (s.value(image_embeds)
+                 .reshape(1, Nk, nH, hd).permute(0, 2, 1, 3))
+            att = torch.softmax((q @ k.transpose(-1, -2)) / math.sqrt(hd),
+                                dim=-1)
             ctx = (att @ v).permute(0, 2, 1, 3).reshape(1, Nq, nH * hd)
             h = safe_ln_mod(ca.output.dense(ctx) + h, ca.output.LayerNorm)
             ff = tanh_gelu(None, layer.intermediate.dense(h))
@@ -61,22 +80,27 @@ class TagHeadGPU(nn.Module):
         return self.m.fc(h).squeeze(-1)
 
 class Reweight(nn.Module):
-    """Graph R (CPU): cls[1,512] -> per-image reweighted tag queries[1,C,768]. Bakes the frozen
-    479MB label_embed (4585*51 x 512). Multi-grained: softmax over 51 descriptions/class."""
+    """Graph R (CPU): cls[1,512] -> reweighted tag queries[1,C,768].
+
+    Bakes the frozen 479MB label_embed (4585*51 x 512). Multi-grained:
+    softmax over 51 descriptions/class.
+    """
     def __init__(self, model):
         super().__init__()
         self.m = model
         self.num_class = model.num_class
-        # store the tag bank as fp16 (one copy); cast at runtime so it is baked ONCE at 240MB
+        # store the tag bank as fp16 (one copy); cast at runtime so it
+        # is baked ONCE at 240MB
         self.register_buffer("label_embed_h", model.label_embed.detach().half())
         self.scale = float(model.reweight_scale.exp())
     def forward(self, cls):
         cls_n = cls / cls.norm(dim=-1, keepdim=True)
-        le = self.label_embed_h.float()                                  # single fp16 const + runtime cast
-        lpi = (self.scale * cls_n @ le.t()).view(1, self.num_class, -1)  # [1,C,51]
+        le = self.label_embed_h.float()  # single fp16 const + runtime cast
+        # lpi: [1,C,51]
+        lpi = (self.scale * cls_n @ le.t()).view(1, self.num_class, -1)
         wn = torch.softmax(lpi, dim=2)
-        le_r = le.view(self.num_class, -1, 512)                          # [C,51,512]
-        rw = (wn[0].unsqueeze(-1) * le_r).sum(dim=1).unsqueeze(0)        # [1,C,512]
+        le_r = le.view(self.num_class, -1, 512)  # [C,51,512]
+        rw = (wn[0].unsqueeze(-1) * le_r).sum(dim=1).unsqueeze(0)  # [1,C,512]
         return torch.relu(self.m.wordvec_proj(rw))
 
 class RamHead(nn.Module):
@@ -91,15 +115,17 @@ class RamHead(nn.Module):
     def reweight(self, cls):
         # cls [1,512]
         cls_n = cls / cls.norm(dim=-1, keepdim=True)
-        le = self.label_embed                                 # [C*51, 512]
-        lpi = (self.scale * cls_n @ le.t()).view(1, self.num_class, -1)   # [1,C,51]
+        le = self.label_embed  # [C*51, 512]
+        # lpi: [1,C,51]
+        lpi = (self.scale * cls_n @ le.t()).view(1, self.num_class, -1)
         wn = torch.softmax(lpi, dim=2)
-        reshaped = le.view(self.num_class, -1, 512)           # [C,51,512]
-        rw = (wn[0].unsqueeze(-1) * reshaped).sum(dim=1).unsqueeze(0)     # [1,C,512]
-        return torch.relu(self.m.wordvec_proj(rw))            # [1,C,768]
+        reshaped = le.view(self.num_class, -1, 512)  # [C,51,512]
+        # rw: [1,C,512]
+        rw = (wn[0].unsqueeze(-1) * reshaped).sum(dim=1).unsqueeze(0)
+        return torch.relu(self.m.wordvec_proj(rw))  # [1,C,768]
 
     def forward(self, image_embeds, cls):
-        h = self.reweight(cls)                                # [1,C,768]
+        h = self.reweight(cls)  # [1,C,768]
         th = self.m.tagging_head
         for layer in th.encoder.layer:
             ca = layer.crossattention
@@ -109,20 +135,23 @@ class RamHead(nn.Module):
             Nk = image_embeds.shape[1]
             q = s.query(h).reshape(1, Nq, nH, hd).permute(0, 2, 1, 3)
             k = s.key(image_embeds).reshape(1, Nk, nH, hd).permute(0, 2, 1, 3)
-            v = s.value(image_embeds).reshape(1, Nk, nH, hd).permute(0, 2, 1, 3)
-            att = torch.softmax((q @ k.transpose(-1, -2)) / math.sqrt(hd), dim=-1)
+            v = (s.value(image_embeds)
+                 .reshape(1, Nk, nH, hd).permute(0, 2, 1, 3))
+            att = torch.softmax((q @ k.transpose(-1, -2)) / math.sqrt(hd),
+                                dim=-1)
             ctx = (att @ v).permute(0, 2, 1, 3).reshape(1, Nq, nH * hd)
             h = safe_ln_mod(ca.output.dense(ctx) + h, ca.output.LayerNorm)
             ff = tanh_gelu(None, layer.intermediate.dense(h))
             h = safe_ln_mod(layer.output.dense(ff) + h, layer.output.LayerNorm)
-        return self.m.fc(h).squeeze(-1)                       # [1,C]
+        return self.m.fc(h).squeeze(-1)  # [1,C]
 
 def main():
+    """Runs the requested mode: parity, full, convert, or reweight."""
     mode = sys.argv[1] if len(sys.argv) > 1 else "parity"
     model = load_ram_plus(384)
     head = RamHead(model).eval()
-    image_embeds = torch.from_numpy(REF["image_embeds"])      # [1,145,512]
-    cls = image_embeds[:, 0, :]                               # [1,512]
+    image_embeds = torch.from_numpy(REF["image_embeds"])  # [1,145,512]
+    cls = image_embeds[:, 0, :]  # [1,512]
     with torch.no_grad():
         logits = head(image_embeds, cls).numpy()
     ref = REF["logits"]
@@ -133,36 +162,42 @@ def main():
     def tags(l):
         return set(np.where(1/(1+np.exp(-l[0])) > thr)[0].tolist())
     ta, tb = tags(logits), tags(ref)
-    print(f"tags mine={len(ta)} ref={len(tb)} inter={len(ta & tb)} jaccard={len(ta&tb)/max(1,len(ta|tb)):.4f}")
+    print(f"tags mine={len(ta)} ref={len(tb)} inter={len(ta & tb)} "
+          f"jaccard={len(ta&tb)/max(1,len(ta|tb)):.4f}")
 
     if mode == "full":
-        # true end-to-end: re-authored Swin -> reweight -> taghead, on the real image
+        # true end-to-end: re-authored Swin -> reweight -> taghead, on
+        # the real image
         from build_swin import patch_gpu_clean, SwinEncoder
         patch_gpu_clean(model)
         enc = SwinEncoder(model).eval()
         image = torch.from_numpy(REF["image"])
         with torch.no_grad():
-            ie = enc(image)                      # my image_embeds
+            ie = enc(image)  # my image_embeds
             logits_full = head(ie, ie[:, 0, :]).numpy()
         print("[full pipeline] logits corr vs ref:", corr(logits_full, ref),
               "maxabsdiff:", float(np.abs(logits_full - ref).max()))
         thr = np.load(os.path.join(WORK, "ref", "class_threshold.npy"))
-        tl = __import__("json").load(open(os.path.join(WORK, "ref", "tag_list.json")))
+        tl = __import__("json").load(
+            open(os.path.join(WORK, "ref", "tag_list.json")))
         def tagset(l):
             return set(np.where(1/(1+np.exp(-l[0])) > thr)[0].tolist())
         ta, tb = tagset(logits_full), tagset(ref)
-        print(f"[full] tags mine={len(ta)} ref={len(tb)} inter={len(ta&tb)} jaccard={len(ta&tb)/max(1,len(ta|tb)):.4f}")
+        print(f"[full] tags mine={len(ta)} ref={len(tb)} "
+              f"inter={len(ta&tb)} jaccard={len(ta&tb)/max(1,len(ta|tb)):.4f}")
         print("  missed:", [tl[i] for i in sorted(tb - ta)])
         print("  extra :", [tl[i] for i in sorted(ta - tb)])
         return
 
     if mode == "convert":
         import litert_torch
-        sys.path.insert(0, os.path.expanduser("~/Downloads/meeting/cmgan-work"))
+        sys.path.insert(
+            0, os.path.expanduser("~/Downloads/meeting/cmgan-work"))
         from build_cmgan import opcheck, to_fp16
-        # Graph B = tagging head alone (GPU candidate): queries[1,C,768] + image_embeds[1,145,512] -> logits
+        # Graph B = tagging head alone (GPU candidate):
+        # queries[1,C,768] + image_embeds[1,145,512] -> logits
         with torch.no_grad():
-            queries = head.reweight(cls)                     # [1,C,768]
+            queries = head.reweight(cls)  # [1,C,768]
         tagb = TagHeadGPU(model).eval()
         with torch.no_grad():
             lb = tagb(queries, image_embeds).numpy()
@@ -173,15 +208,21 @@ def main():
         if cleanB:
             b16 = to_fp16(fp32, os.path.join(OUT, "ram_taghead_fp16.tflite"))
             opcheck(b16, "taghead fp16")
-            # device fixtures for the tag-head GPU probe
-            queries.numpy().astype("<f4").tofile(os.path.join(OUT, "th_queries.bin"))     # [1,4585,768]
-            image_embeds.numpy().astype("<f4").tofile(os.path.join(OUT, "th_iemb.bin"))   # [1,145,512]
-            ref.astype("<f4").tofile(os.path.join(OUT, "th_ref.bin"))                      # [1,4585]
-            print("wrote taghead fp16 + device fixtures (th_queries/th_iemb/th_ref)")
+            # device fixtures for the tag-head GPU probe:
+            # th_queries [1,4585,768], th_iemb [1,145,512],
+            # th_ref [1,4585]
+            queries.numpy().astype("<f4").tofile(
+                os.path.join(OUT, "th_queries.bin"))
+            image_embeds.numpy().astype("<f4").tofile(
+                os.path.join(OUT, "th_iemb.bin"))
+            ref.astype("<f4").tofile(os.path.join(OUT, "th_ref.bin"))
+            print("wrote taghead fp16 + device fixtures "
+                  "(th_queries/th_iemb/th_ref)")
 
     if mode == "reweight":
         import litert_torch
-        sys.path.insert(0, os.path.expanduser("~/Downloads/meeting/cmgan-work"))
+        sys.path.insert(
+            0, os.path.expanduser("~/Downloads/meeting/cmgan-work"))
         from build_cmgan import opcheck, to_fp16
         rw = Reweight(model).eval()
         with torch.no_grad():
@@ -191,7 +232,8 @@ def main():
         fp32 = os.path.join(OUT, "ram_reweight.tflite")
         print("converting reweight (bakes 479MB label_embed) ...")
         litert_torch.convert(rw, (cls,)).export(fp32)
-        opcheck(fp32, "reweight fp32")   # CPU graph — GPU-cleanliness not required
+        # CPU graph — GPU-cleanliness not required
+        opcheck(fp32, "reweight fp32")
         to_fp16(fp32, os.path.join(OUT, "ram_reweight_fp16.tflite"))
 
 if __name__ == "__main__":

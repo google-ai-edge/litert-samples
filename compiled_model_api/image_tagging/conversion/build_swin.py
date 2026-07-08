@@ -12,8 +12,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Phase 1a: re-author RAM++ Swin-L encoder GPU-clean, verify torch parity, convert to LiteRT fp16.
-Run in ~/clipconv.  Usage: python build_swin.py [parity|convert]"""
+"""Phase 1a: re-author RAM++ Swin-L encoder GPU-clean.
+
+Verifies torch parity and converts to LiteRT fp16.
+
+Usage: python build_swin.py [parity|convert]
+"""
 import os
 import sys
 import numpy as np
@@ -28,38 +32,92 @@ REF = np.load(os.path.join(WORK, "ref", "ref_demo1.npz"))
 
 # ------------------- GPU-clean building blocks -------------------
 def tanh_gelu(self, x):
-    return 0.5 * x * (1.0 + torch.tanh(0.7978845608028654 * (x + 0.044715 * x * x * x)))
+    """Tanh-approximation GELU (GPU-clean, no Erf op).
+
+    Args:
+        self: Unused module slot (installed as nn.GELU.forward).
+        x: Input tensor.
+
+    Returns:
+        GELU(x) computed via the tanh approximation.
+    """
+    return 0.5 * x * (1.0 + torch.tanh(
+        0.7978845608028654 * (x + 0.044715 * x * x * x)))
 
 def safe_ln(self, x):
-    # Adaptive SafeLayerNorm: scale each token by its own max|x-mean| BEFORE squaring, so the fp16
-    # sum-of-squares stays O(N) at ANY activation magnitude (Swin stage-3 hits absmax ~847, at which
-    # a fixed /16 scale still overflows fp16 in the reduction). eps in the scaled domain is negligible
-    # vs the real variance, so this stays ~exact while being overflow-free.  (SafeLayerNorm v2)
+    """Adaptive SafeLayerNorm v2 (installed as nn.LayerNorm.forward).
+
+    Scales each token by its own max|x-mean| BEFORE squaring, so the
+    fp16 sum-of-squares stays O(N) at ANY activation magnitude (Swin
+    stage-3 hits absmax ~847, at which a fixed /16 scale still
+    overflows fp16 in the reduction). eps in the scaled domain is
+    negligible vs the real variance, so this stays ~exact while being
+    overflow-free.
+
+    Args:
+        self: The nn.LayerNorm module supplying weight/bias.
+        x: Input tensor [..., C].
+
+    Returns:
+        The normalized tensor, same shape as x.
+    """
     mu = x.mean(-1, keepdim=True)
     dd = x - mu
     s = dd.abs().amax(-1, keepdim=True).clamp_min(1e-4)   # per-token scale
     e = dd / s
-    v = (e * e).mean(-1, keepdim=True)                    # <= 1, never overflows
+    v = (e * e).mean(-1, keepdim=True)  # <= 1, never overflows
     y = e * torch.rsqrt(v + 1e-6)
-    if self.weight is not None: y = y * self.weight
-    if self.bias is not None:   y = y + self.bias
+    if self.weight is not None:
+        y = y * self.weight
+    if self.bias is not None:
+        y = y + self.bias
     return y
 
 def wp4d(x, ws, H, W):
-    # [1,H,W,C] -> [nW, ws, ws, C], order [hi,wi,c]
+    """Window partition: [1,H,W,C] -> [nW, ws, ws, C], order [hi,wi,c].
+
+    Args:
+        x: Input tensor [1,H,W,C].
+        ws: Window size.
+        H: Feature-map height.
+        W: Feature-map width.
+
+    Returns:
+        Tensor [nW, ws, ws, C] of the partitioned windows.
+    """
     C = x.shape[-1]
     x = x.reshape(H // ws, ws, W // ws, ws * C)
     x = x.permute(0, 2, 1, 3)
     return x.reshape((H // ws) * (W // ws), ws, ws, C)
 
 def wr4d(x, ws, H, W):
-    # [nW, ws, ws, C] -> [1,H,W,C]
+    """Window reverse: [nW, ws, ws, C] -> [1,H,W,C].
+
+    Args:
+        x: Partitioned windows [nW, ws, ws, C].
+        ws: Window size.
+        H: Feature-map height.
+        W: Feature-map width.
+
+    Returns:
+        Tensor [1,H,W,C] with the windows stitched back.
+    """
     C = x.shape[-1]
     x = x.reshape(H // ws, W // ws, ws, ws * C)
     x = x.permute(0, 2, 1, 3)
     return x.reshape(1, H, W, C)
 
 def attn_forward(self, x, mask=None):
+    """GPU-clean WindowAttention.forward with baked relative-pos bias.
+
+    Args:
+        self: The WindowAttention module (expects the baked rpb buffer).
+        x: Window tokens [Bn, N, C].
+        mask: Optional additive attention mask [nW, N, N].
+
+    Returns:
+        Attention output [Bn, N, C] after the output projection.
+    """
     Bn, N, C = x.shape
     nH = self.num_heads
     hd = C // nH
@@ -76,6 +134,15 @@ def attn_forward(self, x, mask=None):
     return self.proj(x)
 
 def block_forward(self, x):
+    """GPU-clean SwinTransformerBlock.forward (4D shift + window ops).
+
+    Args:
+        self: The SwinTransformerBlock module.
+        x: Input tokens [1, H*W, C].
+
+    Returns:
+        Output tokens [1, H*W, C].
+    """
     H, W = self.input_resolution
     C = x.shape[-1]
     ws = self.window_size
@@ -97,10 +164,19 @@ def block_forward(self, x):
     return x
 
 def merge_forward(self, x):
+    """GPU-clean PatchMerging.forward (no strided slicing).
+
+    Args:
+        self: The PatchMerging module.
+        x: Input tokens [1, H*W, C].
+
+    Returns:
+        Merged tokens [1, (H/2)*(W/2), 2C] after norm + reduction.
+    """
     H, W = self.input_resolution
     C = x.shape[-1]
     x = x.view(1, H, W, C).reshape(H // 2, 2, W, C)
-    r0, r1 = x[:, 0, :, :], x[:, 1, :, :]              # even/odd rows [H//2,W,C]
+    r0, r1 = x[:, 0, :, :], x[:, 1, :, :]  # even/odd rows [H//2,W,C]
     def sc(t):
         t = t.reshape(H // 2, W // 2, 2, C)
         return t[:, :, 0, :], t[:, :, 1, :]
@@ -111,6 +187,16 @@ def merge_forward(self, x):
     return self.reduction(self.norm(x))
 
 def swin_forward(self, x, **kw):
+    """GPU-clean SwinTransformer.forward with mean-pooled cls token.
+
+    Args:
+        self: The SwinTransformer module.
+        x: Input image [1, 3, H, W].
+        **kw: Ignored keyword arguments from the stock call site.
+
+    Returns:
+        Tokens [1, 145, 1536] (mean-pooled cls prepended).
+    """
     x = self.patch_embed(x)
     x = self.pos_drop(x)
     for layer in self.layers:
@@ -120,6 +206,14 @@ def swin_forward(self, x, **kw):
     return torch.cat([x_cls, x], dim=1)                # [1,145,1536]
 
 def patch_gpu_clean(model):
+    """Installs the GPU-clean forwards and bakes relative-pos biases.
+
+    Args:
+        model: The loaded RAM++ model to patch in place.
+
+    Returns:
+        The same model with patched Swin forwards and baked rpb buffers.
+    """
     import ram.models.swin_transformer as S
     nn.LayerNorm.forward = safe_ln
     nn.GELU.forward = tanh_gelu
@@ -132,7 +226,8 @@ def patch_gpu_clean(model):
         if isinstance(m, S.WindowAttention):
             idx = m.relative_position_index.view(-1)
             n = m.window_size[0] * m.window_size[1]
-            rpb = m.relative_position_bias_table[idx].view(n, n, -1).permute(2, 0, 1).contiguous()
+            rpb = (m.relative_position_bias_table[idx]
+                   .view(n, n, -1).permute(2, 0, 1).contiguous())
             m.register_buffer("rpb", rpb)
     return model
 
@@ -145,7 +240,10 @@ class SwinEncoder(nn.Module):
         return self.image_proj(self.visual_encoder(image))   # [1,145,512]
 
 class SwinEncoderTapped(nn.Module):
-    """Bisect probe: output each of the 4 Swin stage activations to localize the fp16 drop."""
+    """Bisect probe: outputs each of the 4 Swin stage activations.
+
+    Used to localize the fp16 drop.
+    """
     def __init__(self, model):
         super().__init__()
         self.ve = model.visual_encoder
@@ -156,14 +254,25 @@ class SwinEncoderTapped(nn.Module):
         for layer in ve.layers:
             x = layer(x)
             outs.append(x)
-        return outs[0], outs[1], outs[2], outs[3]   # [1,2304,384][1,576,768][1,144,1536][1,144,1536]
+        # [1,2304,384][1,576,768][1,144,1536][1,144,1536]
+        return outs[0], outs[1], outs[2], outs[3]
 
 def corr(a, b):
+    """Pearson correlation of two arrays, flattened to float64.
+
+    Args:
+        a: First array.
+        b: Second array.
+
+    Returns:
+        The scalar correlation coefficient.
+    """
     a = a.flatten().astype(np.float64)
     b = b.flatten().astype(np.float64)
     return float(np.corrcoef(a, b)[0, 1])
 
 def main():
+    """Runs the requested mode: parity, tapped, or convert."""
     mode = sys.argv[1] if len(sys.argv) > 1 else "parity"
     model = load_ram_plus(384)
     patch_gpu_clean(model)
@@ -173,7 +282,8 @@ def main():
     with torch.no_grad():
         image_embeds = enc(image).numpy()
     ref_ie = REF["image_embeds"]
-    print("image_embeds", image_embeds.shape, "corr vs ref:", corr(image_embeds, ref_ie),
+    print("image_embeds", image_embeds.shape,
+          "corr vs ref:", corr(image_embeds, ref_ie),
           "maxabsdiff:", float(np.abs(image_embeds - ref_ie).max()))
     # also compare raw swin vis
     with torch.no_grad():
@@ -183,15 +293,18 @@ def main():
 
     if mode == "tapped":
         import litert_torch
-        sys.path.insert(0, os.path.expanduser("~/Downloads/meeting/cmgan-work"))
+        sys.path.insert(
+            0, os.path.expanduser("~/Downloads/meeting/cmgan-work"))
         from build_cmgan import opcheck, to_fp16
         tap = SwinEncoderTapped(model).eval()
         image = torch.from_numpy(REF["image"])
         with torch.no_grad():
             outs = tap(image)
         for i, o in enumerate(outs):
-            o.numpy().astype("<f4").tofile(os.path.join(OUT, f"swin_tap{i}.bin"))
-            print(f"tap{i} shape {tuple(o.shape)} absmax {float(o.abs().max()):.2f} -> swin_tap{i}.bin")
+            o.numpy().astype("<f4").tofile(
+                os.path.join(OUT, f"swin_tap{i}.bin"))
+            print(f"tap{i} shape {tuple(o.shape)} "
+                  f"absmax {float(o.abs().max()):.2f} -> swin_tap{i}.bin")
         fp32 = os.path.join(OUT, "ram_swin_tapped.tflite")
         litert_torch.convert(tap.eval(), (image,)).export(fp32)
         _, clean = opcheck(fp32, "tapped fp32")
@@ -202,7 +315,8 @@ def main():
 
     if mode == "convert":
         import litert_torch
-        sys.path.insert(0, os.path.expanduser("~/Downloads/meeting/cmgan-work"))
+        sys.path.insert(
+            0, os.path.expanduser("~/Downloads/meeting/cmgan-work"))
         from build_cmgan import opcheck, to_fp16
         image = torch.from_numpy(REF["image"])
         fp32 = os.path.join(OUT, "ram_swin_enc.tflite")
@@ -213,8 +327,10 @@ def main():
             fp16 = to_fp16(fp32, os.path.join(OUT, "ram_swin_enc_fp16.tflite"))
             opcheck(fp16, "swin fp16")
             # fixtures for on-device probe
-            image.numpy().astype(np.float32).tofile(os.path.join(OUT, "swin_input.bin"))
-            np.save(os.path.join(OUT, "swin_ref.npy"), REF["image_embeds"].astype(np.float32))
+            image.numpy().astype(np.float32).tofile(
+                os.path.join(OUT, "swin_input.bin"))
+            np.save(os.path.join(OUT, "swin_ref.npy"),
+                    REF["image_embeds"].astype(np.float32))
             print("wrote fp16 + fixtures (swin_input.bin, swin_ref.npy)")
 
 if __name__ == "__main__":

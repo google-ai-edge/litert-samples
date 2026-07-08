@@ -12,17 +12,23 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Shared loader for RAM++ (transformers 5.x compat shims) — used by build/validate scripts.
-Loads the vendored model with weights; conversion scripts then monkeypatch GPU-clean forwards."""
+"""Shared loader for RAM++ (transformers 5.x compat shims).
+
+Used by the build/validate scripts. Loads the vendored model with
+weights; conversion scripts then monkeypatch GPU-clean forwards.
+"""
 import os
 import sys
 from types import ModuleType
 import torch
 
-REPO = os.path.join(os.path.dirname(os.path.abspath(__file__)), "recognize-anything")
-WEIGHTS = os.path.join(os.path.dirname(os.path.abspath(__file__)), "weights", "ram_plus_swin_large_14m.pth")
+REPO = os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                    "recognize-anything")
+WEIGHTS = os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                       "weights", "ram_plus_swin_large_14m.pth")
 
 def _install_shims():
+    """Installs fairscale stubs + transformers 5.x compat monkeypatches."""
     sys.path.insert(0, REPO)
     # stub fairscale (imported by ram/vit.py; unused for swin_l)
     def _stub(name):
@@ -47,7 +53,8 @@ def _install_shims():
     if not hasattr(_PTM, "all_tied_weights_keys"):
         _PTM.all_tied_weights_keys = property(lambda self: {})
     if not hasattr(_PTM, "get_head_mask"):
-        _PTM.get_head_mask = lambda self, hm, n, is_attention_chunked=False: [None] * n
+        _PTM.get_head_mask = (
+            lambda self, hm, n, is_attention_chunked=False: [None] * n)
     def _ext(self, attention_mask, input_shape, device=None, dtype=None):
         dtype = dtype or torch.float32
         ext = attention_mask[:, None, None, :].to(dtype)
@@ -58,12 +65,21 @@ def _install_shims():
     # patch enc_token_id path handled in utils.py source already
 
 def load_ram_plus(image_size=384):
+    """Loads the vendored RAM++ swin_l model with pretrained weights.
+
+    Args:
+        image_size: Input image size the model is configured for.
+
+    Returns:
+        The eval-mode RAM++ model.
+    """
     _install_shims()
     cwd = os.getcwd()
     os.chdir(REPO)
     try:
         from ram.models import ram_plus
-        model = ram_plus(pretrained=WEIGHTS, image_size=image_size, vit="swin_l")
+        model = ram_plus(pretrained=WEIGHTS, image_size=image_size,
+                         vit="swin_l")
         model.eval()
     finally:
         os.chdir(cwd)

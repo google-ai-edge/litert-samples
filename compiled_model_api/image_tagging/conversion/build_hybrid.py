@@ -13,9 +13,13 @@
 # limitations under the License.
 
 """Phase 2b: split the Swin encoder for the device-verified hybrid.
-  G1 (GPU): image -> feat[1,144,1536]   (patch_embed + stages 0-2)   -- device corr 0.998
-  C2 (CPU): feat  -> image_embeds[1,145,512]  (stage 3 + norm + cls + image_proj) -- fp16-fragile on GPU
-Run in ~/clipconv:  python build_hybrid.py"""
+  G1 (GPU): image -> feat[1,144,1536] (patch_embed + stages 0-2)
+            -- device corr 0.998
+  C2 (CPU): feat -> image_embeds[1,145,512]
+            (stage 3 + norm + cls + image_proj) -- fp16-fragile on GPU
+
+Run: python build_hybrid.py
+"""
 import os
 import sys
 import numpy as np
@@ -52,6 +56,7 @@ class Stage3Tail(nn.Module):
         return self.image_proj(x)                            # [1,145,512]
 
 def main():
+    """Verifies the split parity and converts G1 (GPU) + C2 (CPU)."""
     model = load_ram_plus(384)
     patch_gpu_clean(model)
     g1 = SwinS012(model).eval()
@@ -76,8 +81,9 @@ def main():
     if cleanA:
         to_fp16(a32, os.path.join(OUT, "ram_swin_s012_fp16.tflite"))
         opcheck(os.path.join(OUT, "ram_swin_s012_fp16.tflite"), "G1 s012 fp16")
-    # C2 CPU: keep the GPU-clean patched ops (tanh-GELU/safe-LN). Exact erf-GELU was tried and gained
-    # essentially nothing (image_embeds 0.99996 -> 0.99997) while adding a GELU op, so not worth it.
+    # C2 CPU: keep the GPU-clean patched ops (tanh-GELU/safe-LN). Exact
+    # erf-GELU was tried and gained essentially nothing (image_embeds
+    # 0.99996 -> 0.99997) while adding a GELU op, so not worth it.
     c32 = os.path.join(OUT, "ram_stage3_tail.tflite")
     litert_torch.convert(c2.eval(), (feat,)).export(c32)
     opcheck(c32, "C2 stage3-tail fp32")
