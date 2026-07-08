@@ -37,8 +37,8 @@ import java.util.concurrent.Executors
 import kotlin.math.min
 
 /**
- * UniSal visual-saliency demo, fully on the CompiledModel GPU. Predicts where humans look and overlays a
- * jet heatmap on a bundled image and any image picked from the gallery.
+ * UniSal visual-saliency demo, fully on the CompiledModel GPU. Predicts where humans look and
+ * overlays a jet heatmap on a bundled image and any image picked from the gallery.
  */
 class MainActivity : Activity() {
 
@@ -64,7 +64,8 @@ class MainActivity : Activity() {
             text = "🖼  Pick image"
             isEnabled = false
             setOnClickListener {
-                startActivityForResult(Intent(Intent.ACTION_GET_CONTENT).apply { type = "image/*" }, pickReq)
+                val intent = Intent(Intent.ACTION_GET_CONTENT).apply { type = "image/*" }
+                startActivityForResult(intent, pickReq)
             }
         }
         view = SaliencyView(this)
@@ -77,7 +78,8 @@ class MainActivity : Activity() {
             try {
                 net = SaliencyPredictor(this)
                 try {
-                    run(squareResize(BitmapFactory.decodeStream(assets.open("test_image.jpg"))), warm = true)
+                    val bundled = BitmapFactory.decodeStream(assets.open("test_image.jpg"))
+                    run(squareResize(bundled), warm = true)
                 } catch (_: java.io.IOException) {
                     runOnUiThread { status.text = "Ready — pick an image." }
                 }
@@ -128,7 +130,8 @@ class MainActivity : Activity() {
     /** Blend a jet heatmap of the saliency over the image. */
     private fun overlay(bm: Bitmap, sal: FloatArray): Bitmap {
         val s = SaliencyPredictor.SIZE
-        val src = if (bm.width == s && bm.height == s) bm else Bitmap.createScaledBitmap(bm, s, s, true)
+        val src = if (bm.width == s && bm.height == s) bm
+            else Bitmap.createScaledBitmap(bm, s, s, true)
         val px = IntArray(s * s)
         src.getPixels(px, 0, s, 0, 0, s, s)
         val out = IntArray(s * s)
@@ -140,7 +143,10 @@ class MainActivity : Activity() {
             val r = ((p shr 16) and 0xFF) * (1 - a) + hr * a
             val g = ((p shr 8) and 0xFF) * (1 - a) + hg * a
             val b2 = (p and 0xFF) * (1 - a) + hb * a
-            out[i] = Color.rgb(r.toInt().coerceIn(0, 255), g.toInt().coerceIn(0, 255), b2.toInt().coerceIn(0, 255))
+            out[i] = Color.rgb(
+                r.toInt().coerceIn(0, 255),
+                g.toInt().coerceIn(0, 255),
+                b2.toInt().coerceIn(0, 255))
         }
         return Bitmap.createBitmap(out, s, s, Bitmap.Config.ARGB_8888)
     }
@@ -156,7 +162,8 @@ class MainActivity : Activity() {
     }
 
     private fun loadOriented(uri: Uri): Bitmap {
-        val bm = contentResolver.openInputStream(uri).use { BitmapFactory.decodeStream(it) } ?: error("cannot decode image")
+        val bm = contentResolver.openInputStream(uri).use { BitmapFactory.decodeStream(it) }
+            ?: error("cannot decode image")
         val rot = contentResolver.openInputStream(uri).use {
             when (ExifInterface(it!!).getAttributeInt(ExifInterface.TAG_ORIENTATION, 1)) {
                 ExifInterface.ORIENTATION_ROTATE_90 -> 90f
@@ -166,7 +173,8 @@ class MainActivity : Activity() {
             }
         }
         if (rot == 0f) return bm
-        return Bitmap.createBitmap(bm, 0, 0, bm.width, bm.height, Matrix().apply { postRotate(rot) }, true)
+        return Bitmap.createBitmap(
+            bm, 0, 0, bm.width, bm.height, Matrix().apply { postRotate(rot) }, true)
     }
 
     private fun squareResize(src: Bitmap): Bitmap {

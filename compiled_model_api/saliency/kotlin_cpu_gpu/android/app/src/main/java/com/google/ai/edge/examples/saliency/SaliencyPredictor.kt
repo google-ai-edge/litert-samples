@@ -26,9 +26,9 @@ import java.io.File
  * UniSal (rdroste/unisal) visual-saliency prediction on the LiteRT CompiledModel GPU.
  *   image[1,3,256,256] (ImageNet mean/std) -> saliency[1,1,256,256] (where humans look)
  *
- * MobileNetV2 encoder + bilinear-upsample decoder + a fixed 41×41 Gaussian smoothing, with the SALICON domain
- * pinned. ~3 ms on a Pixel 8a, fully GPU. Output is a single-channel saliency map (higher = more attended);
- * normalize for display.
+ * MobileNetV2 encoder + bilinear-upsample decoder + a fixed 41×41 Gaussian smoothing, with the
+ * SALICON domain pinned. ~3 ms on a Pixel 8a, fully GPU. Output is a single-channel saliency
+ * map (higher = more attended); normalize for display.
  */
 class SaliencyPredictor(ctx: Context, accelerator: Accelerator = Accelerator.GPU) : Closeable {
 
@@ -40,13 +40,18 @@ class SaliencyPredictor(ctx: Context, accelerator: Accelerator = Accelerator.GPU
 
     private val model: CompiledModel = run {
         val f = File(ctx.filesDir, "unisal_fp16.tflite")
-        check(f.exists()) { "Model not found: unisal_fp16.tflite. Push first: scripts/install_to_device.sh" }
+        check(f.exists()) {
+            "Model not found: unisal_fp16.tflite. Push first: scripts/install_to_device.sh"
+        }
         CompiledModel.create(f.absolutePath, CompiledModel.Options(accelerator), null)
     }
     private val inBuf = model.createInputBuffers()
     private val outBuf = model.createOutputBuffers()
 
-    /** rgb: SIZE*SIZE*3 row-major [0,255]. Returns the SIZE*SIZE saliency map, min-max normalized to [0,1]. */
+    /**
+     * rgb: SIZE*SIZE*3 row-major [0,255]. Returns the SIZE*SIZE saliency map, min-max
+     * normalized to [0,1].
+     */
     fun predict(rgb: FloatArray): FloatArray {
         val hw = SIZE * SIZE
         val chw = FloatArray(3 * hw)
