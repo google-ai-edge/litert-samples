@@ -38,8 +38,8 @@ import kotlinx.coroutines.launch
  * Owns the Matcha-TTS [MatchaG2P] and [MatchaSynthesizer] graphs and exposes a single [UiState]. On
  * startup it loads the models (from filesDir, pushed via install_to_device.sh) and warms up the GPU
  * + JIT once. [synthesize] converts text to phonemes, runs the synthesis pipeline, and plays the
- * generated waveform through an [AudioTrack] as a side effect. The graphs reuse native buffers, so
- * every model call runs on one confined worker.
+ *   generated waveform through an [AudioTrack] as a side effect. The graphs reuse native buffers,
+ *   so every model call runs on one confined worker.
  */
 class MainViewModel(private val context: Context) : ViewModel() {
 
@@ -83,7 +83,9 @@ class MainViewModel(private val context: Context) : ViewModel() {
       } catch (t: Throwable) {
         Log.e(TAG, "load failed", t)
         _uiState.update {
-          it.copy(errorMessage = "${t.message}\n\nPush models first:\n  scripts/install_to_device.sh")
+          it.copy(
+            errorMessage = "${t.message}\n\nPush models first:\n  scripts/install_to_device.sh"
+          )
         }
       }
     }
@@ -94,7 +96,9 @@ class MainViewModel(private val context: Context) : ViewModel() {
     val gp = g2p ?: return
     val t = tts ?: return
     viewModelScope.launch(inferenceDispatcher) {
-      _uiState.update { it.copy(isSynthesizing = true, statusMessage = "Synthesizing…", errorMessage = null) }
+      _uiState.update {
+        it.copy(isSynthesizing = true, statusMessage = "Synthesizing…", errorMessage = null)
+      }
       try {
         val ids = gp.phonemize(text)
         val r = t.synthesize(ids)
@@ -121,15 +125,18 @@ class MainViewModel(private val context: Context) : ViewModel() {
 
   private fun play(audio: FloatArray) {
     try {
-      val track = AudioTrack(
-        AudioAttributes.Builder().setUsage(AudioAttributes.USAGE_MEDIA).build(),
-        AudioFormat.Builder()
-          .setSampleRate(MatchaSynthesizer.SAMPLE_RATE)
-          .setEncoding(AudioFormat.ENCODING_PCM_FLOAT)
-          .setChannelMask(AudioFormat.CHANNEL_OUT_MONO)
-          .build(),
-        audio.size * 4, AudioTrack.MODE_STATIC, AudioManager.AUDIO_SESSION_ID_GENERATE,
-      )
+      val track =
+        AudioTrack(
+          AudioAttributes.Builder().setUsage(AudioAttributes.USAGE_MEDIA).build(),
+          AudioFormat.Builder()
+            .setSampleRate(MatchaSynthesizer.SAMPLE_RATE)
+            .setEncoding(AudioFormat.ENCODING_PCM_FLOAT)
+            .setChannelMask(AudioFormat.CHANNEL_OUT_MONO)
+            .build(),
+          audio.size * 4,
+          AudioTrack.MODE_STATIC,
+          AudioManager.AUDIO_SESSION_ID_GENERATE,
+        )
       audioTrack = track
       track.write(audio, 0, audio.size, AudioTrack.WRITE_BLOCKING)
       track.play()
@@ -142,7 +149,10 @@ class MainViewModel(private val context: Context) : ViewModel() {
 
   override fun onCleared() {
     super.onCleared()
-    audioTrack?.let { runCatching { it.stop() }; runCatching { it.release() } }
+    audioTrack?.let {
+      runCatching { it.stop() }
+      runCatching { it.release() }
+    }
     tts?.close()
     g2p?.close()
   }
