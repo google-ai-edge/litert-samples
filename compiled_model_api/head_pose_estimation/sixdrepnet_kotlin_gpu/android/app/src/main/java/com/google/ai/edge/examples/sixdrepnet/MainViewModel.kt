@@ -73,8 +73,7 @@ class MainViewModel(private val context: Context) : ViewModel() {
         _uiState.update {
           it.copy(
             errorMessage =
-              "Model not found. Push it first with install_to_device.sh:\n" +
-                modelFile.absolutePath
+              "Model not found. Push it first with install_to_device.sh:\n" + modelFile.absolutePath
           )
         }
         return@launch
@@ -125,19 +124,37 @@ class MainViewModel(private val context: Context) : ViewModel() {
   private fun drawAxis(face: Bitmap, hp: HeadPose): Bitmap {
     val out = face.copy(Bitmap.Config.ARGB_8888, true)
     val canvas = Canvas(out)
-    val cx = out.width / 2f; val cy = out.height / 2f; val size = out.width * 0.3f
+    val cx = out.width / 2f
+    val cy = out.height / 2f
+    val size = out.width * 0.3f
     val p = Math.toRadians(hp.pitch.toDouble())
     val ya = Math.toRadians(-hp.yaw.toDouble())
     val r = Math.toRadians(hp.roll.toDouble())
     val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply { strokeWidth = out.width / 60f }
     paint.color = Color.rgb(255, 60, 60)
-    canvas.drawLine(cx, cy, size * (cos(ya) * cos(r)).toFloat() + cx,
-      size * (cos(p) * sin(r) + cos(r) * sin(p) * sin(ya)).toFloat() + cy, paint)
+    canvas.drawLine(
+      cx,
+      cy,
+      size * (cos(ya) * cos(r)).toFloat() + cx,
+      size * (cos(p) * sin(r) + cos(r) * sin(p) * sin(ya)).toFloat() + cy,
+      paint,
+    )
     paint.color = Color.rgb(60, 220, 90)
-    canvas.drawLine(cx, cy, size * (-cos(ya) * sin(r)).toFloat() + cx,
-      size * (cos(p) * cos(r) - sin(p) * sin(ya) * sin(r)).toFloat() + cy, paint)
+    canvas.drawLine(
+      cx,
+      cy,
+      size * (-cos(ya) * sin(r)).toFloat() + cx,
+      size * (cos(p) * cos(r) - sin(p) * sin(ya) * sin(r)).toFloat() + cy,
+      paint,
+    )
     paint.color = Color.rgb(70, 130, 255)
-    canvas.drawLine(cx, cy, size * sin(ya).toFloat() + cx, size * (-cos(ya) * sin(p)).toFloat() + cy, paint)
+    canvas.drawLine(
+      cx,
+      cy,
+      size * sin(ya).toFloat() + cx,
+      size * (-cos(ya) * sin(p)).toFloat() + cy,
+      paint,
+    )
     return out
   }
 
