@@ -16,8 +16,8 @@
 -->
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
     <application
-        android:label="6DRepNet"
-        android:theme="@style/Theme.AppCompat.Light.NoActionBar"
+        android:label="@string/app_name"
+        android:theme="@style/Theme.SixDRepNet"
         android:supportsRtl="true">
         <activity
             android:name=".MainActivity"

@@ -18,6 +18,28 @@ with **zero patches**. Host-side decode (`HeadPoseEstimator.kt`): Gram-Schmidt t
 a 3×3 rotation matrix, then `pitch=atan2(R21,R22)`, `yaw=atan2(-R20,√(R00²+R10²))`,
 `roll=atan2(R10,R00)`.
 
+## App architecture
+
+The Android app is **MVVM + Jetpack Compose** (Compose Material). `MainActivity` is a thin
+Compose host; `MainViewModel` owns the `HeadPoseEstimator`, loads the model from `filesDir`,
+runs inference on a single confined worker (`Dispatchers.Default.limitedParallelism(1)`), and
+exposes an immutable `UiState`. The centered face crop, the 3D axis drawing (trig projection
+onto a bitmap copy via `android.graphics.Canvas`), and the yaw/pitch/roll formatting all live
+in the ViewModel; the screen just renders `resultImage` + `resultText`. A gallery picker lets
+you run the model on your own photo; a bundled face still runs at launch.
+
+### Files
+
+| File | Role |
+| --- | --- |
+| `app/src/main/java/.../sixdrepnet/MainActivity.kt` | Thin Compose host: view model + gallery picker |
+| `app/src/main/java/.../sixdrepnet/MainViewModel.kt` | Owns the estimator; crop + axis draw + status formatting; `UiState` |
+| `app/src/main/java/.../sixdrepnet/UiState.kt` | Immutable screen state (result image, angle text, ms, errors) |
+| `app/src/main/java/.../sixdrepnet/HeadPoseEstimator.kt` | LiteRT CompiledModel GPU inference + 6D→yaw/pitch/roll decode |
+| `app/src/main/java/.../sixdrepnet/ImageUtils.kt` | Asset / gallery bitmap decoding helpers |
+| `app/src/main/java/.../sixdrepnet/view/HeadPoseScreen.kt` | Status header, image picker, annotated result |
+| `app/src/main/java/.../sixdrepnet/view/Theme.kt`, `view/Color.kt` | Compose theme |
+
 ## Run
 
 ```bash
@@ -30,7 +52,8 @@ cd android
 ```
 
 The sample runs on a bundled face photo (centered crop) and draws the 3D head-pose axes.
-Add a face detector and feed the detected crop for full-frame / real-time head tracking.
+Pick a photo from the gallery to pose your own image, or add a face detector and feed the
+detected crop for full-frame / real-time head tracking.
 
 ## Convert
 
