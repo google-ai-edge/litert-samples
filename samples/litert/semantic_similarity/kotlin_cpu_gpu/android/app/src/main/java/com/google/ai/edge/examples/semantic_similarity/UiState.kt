@@ -14,8 +14,19 @@
  * limitations under the License.
  */
 
-plugins {
-  alias(libs.plugins.android.application) apply false
-  alias(libs.plugins.jetbrains.kotlin.android) apply false
-  alias(libs.plugins.compose.compiler) apply false
-}
+package com.google.ai.edge.examples.semantic_similarity
+
+import androidx.compose.runtime.Immutable
+
+/** A single corpus document ranked against the query. */
+@Immutable data class RankedDocument(val score: Float, val text: String)
+
+/** Immutable snapshot of everything the semantic-search screen renders. */
+@Immutable
+data class UiState(
+  val isModelReady: Boolean = false,
+  val isSearching: Boolean = false,
+  val statusMessage: String = "",
+  val results: List<RankedDocument> = emptyList(),
+  val errorMessage: String? = null,
+)
