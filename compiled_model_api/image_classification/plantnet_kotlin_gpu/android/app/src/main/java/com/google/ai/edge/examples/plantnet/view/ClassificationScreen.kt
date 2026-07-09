@@ -18,13 +18,13 @@ package com.google.ai.edge.examples.plantnet.view
 
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.Button
@@ -44,7 +44,10 @@ import androidx.compose.ui.unit.sp
 import com.google.ai.edge.examples.plantnet.R
 import com.google.ai.edge.examples.plantnet.UiState
 
-/** Top-level classification screen: a status header, an image picker, the top-k text, and the input image. */
+/**
+ * Top-level classification screen: a status header, an image picker, the top-k text, and the input
+ * image.
+ */
 @Composable
 fun ClassificationScreen(uiState: UiState, onPickImage: () -> Unit, modifier: Modifier = Modifier) {
   Scaffold(
@@ -59,10 +62,7 @@ fun ClassificationScreen(uiState: UiState, onPickImage: () -> Unit, modifier: Mo
     Column(modifier = Modifier.fillMaxSize().padding(padding).padding(16.dp)) {
       StatusHeader(uiState)
       Spacer(modifier = Modifier.height(12.dp))
-      Button(
-        onClick = onPickImage,
-        enabled = uiState.isModelReady && !uiState.isProcessing,
-      ) {
+      Button(onClick = onPickImage, enabled = uiState.isModelReady && !uiState.isProcessing) {
         Text(text = stringResource(R.string.action_pick_image))
       }
       Spacer(modifier = Modifier.height(12.dp))
