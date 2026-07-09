@@ -1,7 +1,8 @@
 // Downloads the SAM 2.1 (Hiera-Tiny) models (converted with litert-torch) into the assets
 // directory at build time so the large .tflite files are never committed to the repo.
-// Both are GPU-clean (LITERT_CL, no banned ops / no >4-D tensors). The app runs the encoder on the
-// GPU and the decoder on CPU (the decoder is GPU-resident but its fp16 GPU output is wrong on Pixel 8a).
+// Both are GPU-clean (LITERT_CL, no banned ops / no >4-D tensors) and both run on the GPU.
+// The decoder is the v2 build (rank-4 attention); see conversion/README.md for why the earlier
+// rank-3 build was GPU-resident yet numerically wrong on the Pixel 8a.
 //
 //   - Image encoder (decoder-ready: folds conv_s0/conv_s1 + no_memory): litert-community/SAM2.1-Hiera-Tiny-Image-Encoder
 //   - Mask decoder (prompt-conditioned, 3 multimask outputs):           litert-community/SAM2.1-Hiera-Tiny-Mask-Decoder
@@ -13,7 +14,7 @@ tasks.register('downloadSam2ImageEncoder', Download) {
 }
 
 tasks.register('downloadSam2MaskDecoder', Download) {
-    src 'https://huggingface.co/litert-community/SAM2.1-Hiera-Tiny-Mask-Decoder/resolve/main/sam2_tiny_mask_decoder_fp16.tflite'
+    src 'https://huggingface.co/litert-community/SAM2.1-Hiera-Tiny-Mask-Decoder/resolve/main/sam2_tiny_mask_decoder_v2_fp16.tflite'
     dest project.ext.ASSET_DIR + '/sam2_mask_decoder_fp16.tflite'
     overwrite false
 }

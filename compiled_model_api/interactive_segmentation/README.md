@@ -11,7 +11,7 @@ SAM 2 separates a **heavy image encoder** (run once per image) from a **lightwei
 1.  **Image encoder** — runs **once** when you load a photo (~tens of ms). A Hiera hierarchical ViT + FPN that turns the RGB image into a multi-scale feature pyramid. This sample's encoder is the **decoder-ready** variant: it folds the decoder's `conv_s0` / `conv_s1` projections and the `no_memory` embedding into the graph, so its outputs feed the decoder directly.
 2.  **Mask decoder** — runs **per tap** (a few ms). A 2-layer two-way (token↔image) transformer + a mask up-sampler that turns the cached features plus a point prompt into 3 candidate masks and their predicted IoU; the app overlays the highest-IoU one.
 
-Both models are **GPU-clean** (LITERT_CL — no banned ops, no >4-D tensors, full residency: encoder 867/867, decoder 358/358 nodes). The **encoder runs on the GPU** (the heavy part). The **decoder runs on the CPU**: although it is fully GPU-resident, the GPU delegate's fp16 reductions corrupt its mask logits on the Pixel 8a (a device A/B shows the GPU decoder masking the background while the CPU decoder is correct) — a textbook "**residency ≠ correctness**" case. The decoder is tiny, so the CPU cost is small. The tiny **prompt encoder** (point → token, a sin/cos positional encoding) is computed **on the host** so the decoder graph stays sin/cos-free; its constants are bundled as a small binary asset (`prompt_encode_const.bin`). On CPU/desktop the two FP16 models reproduce the PyTorch reference masks at cosine ≈ **0.999999** (binary mask IoU ≈ **0.9996**); on device the encoder-GPU + decoder-CPU pipeline produces correct masks (verified IoU 0.6–0.9 on the demo image).
+Both models are **GPU-clean** (LITERT_CL — no banned ops, no >4-D tensors, full residency: encoder 867/867, decoder 425/425 nodes) and **both run on the GPU**. Getting the decoder there took one non-obvious fix: written with the batch dim collapsed (rank-3 attention) it delegated fully and matched PyTorch on the host, yet returned silently wrong masks on device — see "[Residency ≠ correctness](#residency--correctness-the-rank-3-attention-miscompute)" below. The tiny **prompt encoder** (point → token, a sin/cos positional encoding) is computed **on the host** so the decoder graph stays sin/cos-free; its constants are bundled as a small binary asset (`prompt_encode_const.bin`). On CPU/desktop the two FP16 models reproduce the PyTorch reference masks at cosine ≈ **0.999999** (binary mask IoU ≈ **0.9996**); on the Pixel 8a GPU the end-to-end pipeline matches the CPU reference at correlation ≈ **0.9998**.
 
 ## Available Implementations
 
@@ -23,8 +23,8 @@ A standard implementation utilizing the Compiled Model API with support for CPU 
 -   **Tap to segment**: load a photo, tap any object, get its mask instantly.
 -   **Encode once, decode per tap**: the heavy encoder runs a single time; each tap only runs the light decoder, so subsequent clicks are near-instant.
 -   **Multimask + IoU**: the decoder returns 3 candidate masks; the app shows the highest predicted IoU and the value in the settings sheet.
--   **Hardware Acceleration**: switch the encoder between CPU and GPU delegates at runtime (the decoder always runs on CPU — see below).
--   **Both models GPU-clean**: full LITERT_CL residency (encoder 867/867, decoder 358/358); the encoder runs on GPU, the decoder on CPU for numerical correctness.
+-   **Hardware Acceleration**: switch both models between CPU and GPU delegates at runtime.
+-   **Both models GPU-clean**: full LITERT_CL residency (encoder 867/867, decoder 425/425), and both are numerically correct on the GPU.
 -   **Jetpack Compose**: modern Android UI toolkit.
 
 > Input is currently the system **Photo Picker** (Gallery). A live-camera "capture a frame, then tap" path is a natural follow-up.
@@ -52,7 +52,13 @@ Making SAM 2 run fully on the ML Drift GPU delegate required verbatim (weights-e
 
 Result: `banned ops = NONE`, `>4-D tensors = 0` for both models, full LITERT_CL residency on device; on CPU, end-to-end masks match PyTorch at cosine ≈ 0.999999.
 
-**Residency ≠ correctness (the decoder runs on CPU).** Both models are fully GPU-resident, but on the Pixel 8a the **decoder's GPU fp16 output is wrong** — a center-face tap that the CPU decoder segments at IoU ≈ 0.62 collapses to IoU ≈ 0.10 with the mask landing on the background when the same decoder runs on the GPU. The encoder's GPU output is fine (encoder-GPU + decoder-CPU reproduces the CPU result exactly), so the fault is a decoder op that mis-executes under the GPU delegate's fp16 reductions (it is **not** LayerNorm — plain vs. overflow-safe LayerNorm give the same wrong GPU result). Pinpointing the op needs a per-op GPU output dump; until then the app runs the (tiny) decoder on CPU, which is correct and fast.
+### Residency ≠ correctness: the rank-3 attention miscompute
+
+The decoder's first build wrote its attention with the **batch dim collapsed** — `q/k/v` shaped `[heads, N, d]` (rank 3). It compiled, delegated fully (358/358 LITERT_CL nodes) and matched PyTorch on the host, yet on the Pixel 8a GPU it returned **silently wrong masks**: correlation **0.265** against the CPU output, and a center-face tap that the CPU decoder segments at IoU ≈ 0.62 collapsed to IoU ≈ 0.10 with the mask on the background.
+
+Device A/B ruled out the two obvious suspects: it is **not fp16 precision** (forcing fp32 GPU compute still gives correlation 0.473) and **not LayerNorm** (plain and overflow-safe LN give the same wrong result). Bisecting on device isolated the **attention rank** — making only the attention rank-4 fixes it, while the mask head's rank-2 matmul is innocent.
+
+Keeping the leading batch dim (`[1, heads, N, d]`) is numerically identical on the host and restores correlation **0.9998** / binary-IoU **0.999** on the GPU, while running **~20 % faster** (6.8 ms vs 8.5 ms per tap). The encoder's rank-3 SDPA *is* GPU-correct on the same device, so a healthy sibling graph proves nothing: op gates, full delegation and desktop parity all pass while the output is garbage. Only a numeric GPU-vs-CPU check on device catches this.
 
 ### Key Dependencies
 -   **LiteRT** (`com.google.ai.edge.litert:litert:2.1.3`)

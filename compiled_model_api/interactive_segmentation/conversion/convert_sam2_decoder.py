@@ -24,17 +24,30 @@ an input.
 
 Walls re-authored (all model-side; no converter patch):
   1. Sam2Attention (7x: 2 blocks x 3 + 1 final)  : 4D fused attn ->
-     3D batched SDPA  [heads, N, d]
+     rank-4 batched SDPA [1, heads, N, d]. The leading batch dim MUST
+     be kept -- see "GPU correctness" below.
   2. ConvTranspose2d (upscale_conv1/2)           : -> ZeroStuffConvT
      (exact zero-stuff + Conv2d), TRANSPOSE_CONV-free
   3. mask head (hyper_in @ upscaled)             : kept <=4D (no
-     [1,1,4,256,256] 5D tensor); collapse batch==1
+     [1,1,4,256,256] 5D tensor); batched bmm [1,4,32] @ [1,32,65536]
   4. LayerNorm (9x)                              : SafeLayerNorm
      (scale-before-square), fp16-overflow-safe, exact
   5. image_positional_embeddings + no-mask dense : baked CONSTANT
      buffers (host doesn't supply them)
   6. multimask_output=True path                  : static slice [1:],
      no dynamic-stability argmax/gather/where
+
+GPU correctness (Pixel 8a, device A/B vs the CPU reference):
+  Writing the attention with the batch dim collapsed -- q/k/v shaped
+  [heads, N, d] (rank 3) -- produces a graph that compiles, delegates
+  fully (banned ops NONE, >4-D tensors 0) and runs without error, yet
+  returns SILENTLY WRONG masks: corr 0.265 vs CPU. It is not an fp16
+  problem (forcing fp32 GPU compute still gives corr 0.473) and not
+  LayerNorm (plain and overflow-safe LN give the same wrong result).
+  Keeping the batch dim (rank 4) restores corr 0.9998 and is ~20%
+  faster (6.8 ms vs 8.5 ms). The image encoder's rank-3 SDPA happens to
+  be GPU-correct, so a healthy sibling graph proves nothing: only a
+  numeric GPU-vs-CPU check on device catches this.
 
 Decoder I/O (single point prompt):
   inputs : image_embeddings [1,256,64,64], sparse [1,2,256],
@@ -176,16 +189,30 @@ class CleanMaskDecoder(nn.Module):
         return safe_ln(x, ln_module.weight, ln_module.bias, ln_module.eps)
 
     def _attn(self, mod, query, key, value):
-        """3D batched SDPA. query [Nq,C], key/value [Nk,C] -> [Nq,C]."""
-        Nq, Nk = query.shape[0], key.shape[0]
+        """Batched SDPA that keeps the leading batch dim (rank 4).
+
+        The rank-3 form ([heads, N, d]) is silently mis-computed by the
+        GPU delegate. See "GPU correctness" in the module docstring.
+
+        Args:
+          mod: Sam2Attention module supplying the q/k/v/o projections.
+          query: query tokens, [1, Nq, C].
+          key: key tokens, [1, Nk, C].
+          value: value tokens, [1, Nk, C].
+
+        Returns:
+          Attention output, [1, Nq, C].
+        """
+        B, Nq = query.shape[0], query.shape[1]
+        Nk = key.shape[1]
         H, hd = mod.num_attention_heads, mod.head_dim
-        q = mod.q_proj(query).reshape(Nq, H, hd).transpose(0, 1)  # [H,Nq,hd]
-        k = mod.k_proj(key).reshape(Nk, H, hd).transpose(0, 1)    # [H,Nk,hd]
-        v = mod.v_proj(value).reshape(Nk, H, hd).transpose(0, 1)  # [H,Nk,hd]
-        # [H,Nq,hd].
+        q = mod.q_proj(query).reshape(B, Nq, H, hd).transpose(1, 2)
+        k = mod.k_proj(key).reshape(B, Nk, H, hd).transpose(1, 2)
+        v = mod.v_proj(value).reshape(B, Nk, H, hd).transpose(1, 2)
+        # [B,H,Nq,hd].
         o = F.scaled_dot_product_attention(q, k, v, scale=mod.scaling)
-        o = o.transpose(0, 1).reshape(Nq, H * hd)             # [Nq, internal]
-        return mod.o_proj(o)                                  # [Nq, C]
+        o = o.transpose(1, 2).reshape(B, Nq, H * hd)
+        return mod.o_proj(o)                                   # [1,Nq,C]
 
     def _block(self, layer, queries, keys, qpe, kpe, skip):
         if skip:
@@ -211,12 +238,12 @@ class CleanMaskDecoder(nn.Module):
         return queries, keys
 
     def forward(self, image_embeddings, sparse, feat_s1, feat_s0):
-        # keys/kpe: [4096,256].
+        # keys/kpe: [1,4096,256]. The batch dim is kept throughout; see
+        # "GPU correctness" in the module docstring.
         keys = (image_embeddings + self.dense).flatten(2).transpose(1, 2)
-        keys = keys[0]
-        kpe = self.image_pos_flat
-        # queries: [8,256].
-        queries = torch.cat([self.output_tokens, sparse[0]], 0)
+        kpe = self.image_pos_flat.unsqueeze(0)
+        # queries: [1,8,256].
+        queries = torch.cat([self.output_tokens.unsqueeze(0), sparse], 1)
         # query_point_embedding (constant across layers).
         qpe = queries
 
@@ -227,11 +254,11 @@ class CleanMaskDecoder(nn.Module):
         q = q + self._attn(self.final_attn, fq, fk, k)
         q = self._ln(self.ln_final, q)
 
-        iou_tok = q[1:2]                                            # [1,256]
-        mask_toks = q[2:6]                                          # [4,256]
+        iou_tok = q[:, 1:2]                                        # [1,1,256]
+        mask_toks = q[:, 2:6]                                      # [1,4,256]
 
         # [1,256,64,64].
-        img = k.transpose(0, 1).reshape(1, 256, 64, 64)
+        img = k.transpose(1, 2).reshape(1, 256, 64, 64)
         u = self.upscale_conv1(img) + feat_s1                 # [1,64,128,128]
         # upscale_layer_norm: channels_first SafeLN over the 64 channels
         u = u.permute(0, 2, 3, 1)
@@ -242,13 +269,13 @@ class CleanMaskDecoder(nn.Module):
         # [1,32,256,256].
         u = self.act(self.upscale_conv2(u) + feat_s0)
 
-        # [4,32].
+        # [1,4,32].
         hyper = torch.cat(
-            [self.mlps[j](mask_toks[j:j + 1]) for j in range(4)], 0)
-        uf = u.reshape(32, 256 * 256)                              # [32,65536]
+            [self.mlps[j](mask_toks[:, j:j + 1]) for j in range(4)], 1)
+        uf = u.reshape(1, 32, 256 * 256)                         # [1,32,65536]
         # [1,3,256,256].
-        masks = (hyper @ uf).reshape(4, 256, 256)[1:].unsqueeze(0)
-        iou = self.iou_head(iou_tok)[:, 1:]                        # [1,3]
+        masks = torch.bmm(hyper, uf).reshape(1, 4, 256, 256)[:, 1:]
+        iou = self.iou_head(iou_tok)[:, :, 1:].reshape(1, 3)        # [1,3]
         return masks, iou
 
 

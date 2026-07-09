@@ -130,21 +130,20 @@ class Sam2SegmentationHelper(
         try {
             withContext(singleThreadDispatcher) {
                 loadPromptConstants()
-                // The heavy image encoder runs on the selected delegate
-                // (GPU by default — full LITERT_CL residency, ~tens of
-                // ms). The small mask decoder runs on CPU: it is
-                // GPU-RESIDENT but the GPU delegate's fp16 reductions
-                // corrupt its mask logits on Pixel 8a (device A/B: a GPU
-                // decoder masks the background; CPU is correct) — a clean
-                // "residency != correctness" case. The decoder is tiny,
-                // so the CPU cost is small.
+                // Both models run on the selected delegate (GPU by
+                // default — full LITERT_CL residency). The decoder is the
+                // v2 build, whose attention keeps the batch dim: the
+                // earlier rank-3 form compiled and delegated fully but
+                // the GPU returned silently wrong masks (corr 0.27 vs
+                // CPU, and fp32 compute did not fix it). See
+                // conversion/README.md.
                 encoder = CompiledModel.create(
                     context.assets, ENCODER_FILE,
                     CompiledModel.Options(toAccelerator(options.delegate)), null
                 )
                 decoder = CompiledModel.create(
                     context.assets, DECODER_FILE,
-                    CompiledModel.Options(Accelerator.CPU), null
+                    CompiledModel.Options(toAccelerator(options.delegate)), null
                 )
                 // A new model means stale features; the caller must re-encode the current image.
                 imageEmbeddings = null
