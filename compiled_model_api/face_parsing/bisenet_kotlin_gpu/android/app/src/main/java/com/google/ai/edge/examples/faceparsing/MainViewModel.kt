@@ -70,8 +70,7 @@ class MainViewModel(private val context: Context) : ViewModel() {
         _uiState.update {
           it.copy(
             errorMessage =
-              "Model not found. Push it first with install_to_device.sh:\n" +
-                modelFile.absolutePath
+              "Model not found. Push it first with install_to_device.sh:\n" + modelFile.absolutePath
           )
         }
         return@launch
@@ -92,7 +91,9 @@ class MainViewModel(private val context: Context) : ViewModel() {
       try {
         parseFace(context.loadOrientedBitmap(uri))
       } catch (t: Throwable) {
-        _uiState.update { it.copy(isProcessing = false, errorMessage = t.message ?: "Parsing failed") }
+        _uiState.update {
+          it.copy(isProcessing = false, errorMessage = t.message ?: "Parsing failed")
+        }
       }
     }
   }

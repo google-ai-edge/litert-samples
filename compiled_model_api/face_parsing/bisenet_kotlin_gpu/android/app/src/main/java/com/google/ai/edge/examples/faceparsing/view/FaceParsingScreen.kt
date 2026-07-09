@@ -18,12 +18,12 @@ package com.google.ai.edge.examples.faceparsing.view
 
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.material.Button
 import androidx.compose.material.MaterialTheme
 import androidx.compose.material.Scaffold
@@ -56,10 +56,7 @@ fun FaceParsingScreen(uiState: UiState, onPickImage: () -> Unit, modifier: Modif
     Column(modifier = Modifier.fillMaxSize().padding(padding).padding(16.dp)) {
       StatusHeader(uiState)
       Spacer(modifier = Modifier.height(12.dp))
-      Button(
-        onClick = onPickImage,
-        enabled = uiState.isModelReady && !uiState.isProcessing,
-      ) {
+      Button(onClick = onPickImage, enabled = uiState.isModelReady && !uiState.isProcessing) {
         Text(text = stringResource(R.string.action_pick_image))
       }
       Spacer(modifier = Modifier.height(12.dp))
