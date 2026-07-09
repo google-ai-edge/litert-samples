@@ -46,7 +46,8 @@ class MainActivity : ComponentActivity() {
         val context = LocalContext.current
 
         val recordPermissionLauncher =
-          rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+          rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted
+            ->
             if (granted) viewModel.recordAndTranscribe()
           }
 

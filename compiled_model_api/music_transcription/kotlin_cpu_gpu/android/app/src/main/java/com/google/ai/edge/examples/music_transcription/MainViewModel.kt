@@ -42,8 +42,8 @@ import kotlinx.coroutines.launch
 /**
  * Owns the [Transcriber] and exposes a single [UiState] for the screen. Basic Pitch reuses native
  * GPU buffers, so both model creation and every transcription run on one confined worker. Audio is
- * captured from the mic or decoded from a picked clip, transcribed to note events, then drawn onto a
- * fixed-size piano-roll [Bitmap].
+ * captured from the mic or decoded from a picked clip, transcribed to note events, then drawn onto
+ * a fixed-size piano-roll [Bitmap].
  */
 class MainViewModel(private val context: Context) : ViewModel() {
 
@@ -79,8 +79,7 @@ class MainViewModel(private val context: Context) : ViewModel() {
         _uiState.update {
           it.copy(
             errorMessage =
-              "Model not found. Push it first with install_to_device.sh:\n" +
-                modelFile.absolutePath
+              "Model not found. Push it first with install_to_device.sh:\n" + modelFile.absolutePath
           )
         }
         return@launch
@@ -121,11 +120,22 @@ class MainViewModel(private val context: Context) : ViewModel() {
     }
     viewModelScope.launch(inferenceDispatcher) {
       val sr = Transcriber.SR
-      val min = AudioRecord.getMinBufferSize(sr, AudioFormat.CHANNEL_IN_MONO, AudioFormat.ENCODING_PCM_FLOAT)
+      val min =
+        AudioRecord.getMinBufferSize(
+          sr,
+          AudioFormat.CHANNEL_IN_MONO,
+          AudioFormat.ENCODING_PCM_FLOAT,
+        )
       // Buffer size is in BYTES and must be a multiple of the 4-byte float frame;
       // reserve at least one second (sr frames * 4 bytes).
-      val recd = AudioRecord(MediaRecorder.AudioSource.UNPROCESSED, sr, AudioFormat.CHANNEL_IN_MONO,
-        AudioFormat.ENCODING_PCM_FLOAT, maxOf(min, sr * Float.SIZE_BYTES))
+      val recd =
+        AudioRecord(
+          MediaRecorder.AudioSource.UNPROCESSED,
+          sr,
+          AudioFormat.CHANNEL_IN_MONO,
+          AudioFormat.ENCODING_PCM_FLOAT,
+          maxOf(min, sr * Float.SIZE_BYTES),
+        )
       val out = FloatArray(sr * MAX_SECONDS)
       var total = 0
       try {
@@ -138,9 +148,11 @@ class MainViewModel(private val context: Context) : ViewModel() {
             total += r
           }
         }
-      } finally { recd.stop()
-      recd.release()
-      recording = false }
+      } finally {
+        recd.stop()
+        recd.release()
+        recording = false
+      }
       if (total >= sr / 2) transcribe(out.copyOf(total))
       else _uiState.update { it.copy(isProcessing = false, statusMessage = "Too short.") }
     }
@@ -149,7 +161,9 @@ class MainViewModel(private val context: Context) : ViewModel() {
   /** Decodes a picked audio clip and transcribes it. */
   fun transcribeUri(uri: Uri) {
     viewModelScope.launch(inferenceDispatcher) {
-      _uiState.update { it.copy(isProcessing = true, statusMessage = "Decoding…", errorMessage = null) }
+      _uiState.update {
+        it.copy(isProcessing = true, statusMessage = "Decoding…", errorMessage = null)
+      }
       try {
         val x = AudioDecoder.decode(context, uri, MAX_SECONDS)
         check(x.size >= Transcriber.SR / 2) { "Clip too short." }
@@ -164,9 +178,10 @@ class MainViewModel(private val context: Context) : ViewModel() {
   private fun transcribe(x: FloatArray) {
     val tr = transcriber ?: return
     val t0 = System.nanoTime()
-    val (note, onset) = tr.posteriorgrams(x) { w, n ->
-      _uiState.update { it.copy(statusMessage = "Transcribing on GPU… window $w/$n") }
-    }
+    val (note, onset) =
+      tr.posteriorgrams(x) { w, n ->
+        _uiState.update { it.copy(statusMessage = "Transcribing on GPU… window $w/$n") }
+      }
     val events = tr.decode(note, onset)
     val ms = (System.nanoTime() - t0) / 1_000_000
     val durationSec = x.size.toDouble() / Transcriber.SR
@@ -202,10 +217,11 @@ class MainViewModel(private val context: Context) : ViewModel() {
       hiNote = minOf(108, notes.maxOf { it.midi } + 2)
     }
     val paint = Paint(Paint.ANTI_ALIAS_FLAG)
-    val text = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-      color = Color.GRAY
-      textSize = 24f
-    }
+    val text =
+      Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        color = Color.GRAY
+        textSize = 24f
+      }
     paint.color = Color.rgb(0xF5, 0xF5, 0xF5)
     c.drawRect(0f, 0f, width.toFloat(), height.toFloat(), paint)
     val span = (hiNote - loNote + 1).coerceAtLeast(12)
