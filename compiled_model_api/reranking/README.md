@@ -50,6 +50,28 @@ cd kotlin_cpu_gpu/android
 
 `minSdk 26`, `arm64-v8a`, LiteRT `CompiledModel` GPU.
 
+## App architecture
+
+The app is MVVM + Jetpack Compose (Material). `MainViewModel` owns the `Reranker` and exposes a
+single immutable `UiState`; on launch it loads the bundled `docs.txt`, builds the reranker once
+(the slow first-run GPU compile), and runs the default query. Each rerank scores every candidate
+against the query by `P("yes")` and sorts descending, all on one confined single-thread dispatcher.
+`MainActivity` is a thin Compose host that collects `UiState` and renders `RerankingScreen`
+(a query field, a rerank button, and the ranked list). Model inference lives entirely in `Reranker`
+/ `BpeTokenizer` — the UI never touches the graph.
+
+| File | Role |
+| --- | --- |
+| `MainActivity.kt` | Thin Compose host (`ComponentActivity`) over `MainViewModel`. |
+| `MainViewModel.kt` | Owns `Reranker`, loads docs + model, ranks by `P("yes")`, closes on cleared. |
+| `UiState.kt` | Immutable UI snapshot + `RankedDocument(score, text)`. |
+| `view/RerankingScreen.kt` | Query field, rerank button, status, ranked `LazyColumn`. |
+| `view/Theme.kt`, `view/Color.kt` | Compose Material theme. |
+| `Reranker.kt` | Qwen3-Reranker GPU scorer (host embed lookup + `CompiledModel`). |
+| `BpeTokenizer.kt` | Qwen3 byte-level BPE tokenizer. |
+| `assets/docs.txt` | Bundled candidate documents. |
+| `assets/vocab.json`, `assets/merges.txt` | Tokenizer data. |
+
 ## Conversion
 
 The GPU-clean re-authoring (host-embed, GQA `cat`-repeat, max-normalized RMSNorm for the deep-stack fp16 overflow, baked RoPE / causal mask, baked yes/no head) is reproducible in [`conversion/`](conversion/). Same graph as the embedder — only the head differs.

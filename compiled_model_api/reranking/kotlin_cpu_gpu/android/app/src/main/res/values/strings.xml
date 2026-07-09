@@ -1,0 +1,5 @@
+<resources>
+    <string name="app_name" translatable="false">Reranking</string>
+    <string name="query_hint">Type a query…</string>
+    <string name="action_rerank">Rerank</string>
+</resources>
