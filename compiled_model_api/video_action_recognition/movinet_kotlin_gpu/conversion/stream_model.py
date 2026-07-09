@@ -299,11 +299,9 @@ class MoViNetA0Stream(nn.Module):
         for name in POOL_SPEC:
             pool[name] = states[idx]
             idx += 1
-        # 1 / current frame number, [1,1,1,1]
-        inv_count = states[idx]
+        inv_count = states[idx]                  # 1 / current frame number, [1,1,1,1]
         idx += 1
-        # constant 1.0 [1,1,1,1] (decoupler)
-        one = states[idx]
+        one = states[idx]                        # constant 1.0 [1,1,1,1] (decoupler)
 
         # current post-spatial frame / conv
         cur = {}

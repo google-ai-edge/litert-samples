@@ -36,7 +36,20 @@ cd android
 ./gradlew :app:installDebug
 ```
 
-The sample streams a bundled reference clip (13 frames of jumping jacks) through the model and prints the running top-1 prediction after each frame plus the final top-5 — a deterministic demonstration of the streaming pipeline (it locks onto *jumping jacks* within a few frames). Adapt `MainActivity.kt` to feed live camera frames for a real-time demo.
+The sample streams a bundled reference clip (13 frames of jumping jacks) through the model and prints the running top-1 prediction after each frame plus the final top-5 — a deterministic demonstration of the streaming pipeline (it locks onto *jumping jacks* within a few frames). Adapt the frame source in `MainViewModel.kt` to feed live camera frames for a real-time demo.
+
+## App architecture
+
+The Android app is **MVVM + Jetpack Compose**. `MainViewModel` owns the `MoViNet` helper on a single confined worker (`Dispatchers.Default.limitedParallelism(1)`, matching the model's reused native buffers): on launch it loads the model from `filesDir`, the labels and the bundled clip, then auto-streams the clip once. `run()` loops the 13 frames, calls `MoViNet.classify(frame)` per frame, and pushes the growing "frame N -> label" log into `UiState.outputText` after **each** frame, so the predictions stream in live. `MainActivity` is a thin Compose host; `ActionScreen` renders the status line, a Run button and the scrollable streaming log.
+
+| File | Role |
+|------|------|
+| `MoViNet.kt` | LiteRT `CompiledModel` GPU wrapper; `classify(frame)` runs one streaming step (host-side state threading — unchanged) |
+| `MainViewModel.kt` | Loads model/labels/frames; streams the per-frame prediction log into `UiState` |
+| `UiState.kt` | Immutable UI snapshot (`isModelReady`, `isRunning`, `statusMessage`, `outputText`, `errorMessage`) |
+| `MainActivity.kt` | Thin `ComponentActivity` Compose host over `MainViewModel` |
+| `view/ActionScreen.kt` | Status line + Run button + scrollable streaming log |
+| `view/Theme.kt`, `view/Color.kt` | Material 2 theme |
 
 ## Convert
 
