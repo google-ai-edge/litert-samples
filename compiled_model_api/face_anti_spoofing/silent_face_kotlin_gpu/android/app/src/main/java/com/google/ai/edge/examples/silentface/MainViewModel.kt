@@ -110,11 +110,19 @@ class MainViewModel(private val context: Context) : ViewModel() {
     val out = image.copy(Bitmap.Config.ARGB_8888, true)
     val c = Canvas(out)
     val col = if (live) Color.rgb(50, 220, 100) else Color.rgb(240, 70, 70)
-    val box = Paint().apply { style = Paint.Style.STROKE; strokeWidth = out.width / 90f; color = col }
+    val box =
+      Paint().apply {
+        style = Paint.Style.STROKE
+        strokeWidth = out.width / 90f
+        color = col
+      }
     c.drawRect(4f, 4f, out.width - 4f, out.height - 4f, box)
-    val tp = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-      color = col; textSize = out.width / 8f; setShadowLayer(6f, 0f, 0f, Color.BLACK)
-    }
+    val tp =
+      Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        color = col
+        textSize = out.width / 8f
+        setShadowLayer(6f, 0f, 0f, Color.BLACK)
+      }
     c.drawText(if (live) "LIVE" else "SPOOF", 20f, tp.textSize + 20f, tp)
     return out
   }
