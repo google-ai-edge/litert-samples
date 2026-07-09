@@ -55,6 +55,24 @@ http_archive(
     ],
 )
 
+# Use recent platforms version to support uefi platform.
+http_archive(
+    name = "platforms",
+    sha256 = "3384eb1c30762704fbe38e440204e114154086c8fc8a8c2e3e28441028c019a8",
+    urls = [
+        "https://mirror.bazel.build/github.com/bazelbuild/platforms/releases/download/1.0.0/platforms-1.0.0.tar.gz",
+        "https://github.com/bazelbuild/platforms/releases/download/1.0.0/platforms-1.0.0.tar.gz",
+    ],
+)
+
+http_archive(
+    name = "bazel_features",
+    sha256 = "c26b4e69cf02fea24511a108d158188b9d8174426311aac59ce803a78d107648",
+    strip_prefix = "bazel_features-1.43.0",
+    url = "https://github.com/bazel-contrib/bazel_features/releases/download/v1.43.0/bazel_features-v1.43.0.tar.gz",
+)
+
+
 # Download coremltools of the same version of tensorflow, but with a custom patchcmd until
 # tensorflow is updated to do the same patchcmd.
 http_archive(
@@ -70,13 +88,15 @@ http_archive(
 )
 
 # Load the custom repository rule to select either a local TensorFlow source or a remote http_archive.
-load("@litert_archive//litert:tensorflow_source_rules.bzl", "tensorflow_source_repo")
+load("@litert_archive//:tensorflow_source_rules.bzl", "tensorflow_source_repo")
 
 tensorflow_source_repo(
     name = "org_tensorflow",
-    sha256 = "dfdb64ef739ce773f14f703b8a0b98ee5c005595852aa19d9c51aeb53bce0eff",
-    strip_prefix = "tensorflow-a9cd5eb2b4536b6c185ed882e0f41d9c10ada5f5",
-    urls = ["https://github.com/tensorflow/tensorflow/archive/a9cd5eb2b4536b6c185ed882e0f41d9c10ada5f5.tar.gz"],
+    patches = ["@litert_archive//:PATCH.flatbuffers_windows_no_bash"],
+    protobuf_patches = ["@litert_archive//:PATCH.protobuf_port_msvc_compat"],
+    sha256 = "07889dad0f52cb61dcd8312d05806fdefc393ce5587d97a755865ee083cc01bb",
+    strip_prefix = "tensorflow-b8a17154d80e4d7d2ce9419e38f5f6ae208e2137",
+    urls = ["https://github.com/tensorflow/tensorflow/archive/b8a17154d80e4d7d2ce9419e38f5f6ae208e2137.tar.gz"],
 )
 
 # Initialize the TensorFlow repository and all dependencies.
@@ -99,12 +119,21 @@ load("@org_tensorflow//tensorflow:workspace3.bzl", "tf_workspace3")
 
 tf_workspace3()
 
+# Toolchains for ML projects hermetic builds.
+# Details: https://github.com/google-ml-infra/rules_ml_toolchain
+http_archive(
+    name = "rules_ml_toolchain",
+    sha256 = "0b42f693a60c6050d87db1e0a0eaeb84ab3f54191fce094d86334faedc807da0",
+    strip_prefix = "rules_ml_toolchain-398d613aea7a4c294da49b79a6d6f3f8732bd84c",
+    url = "https://github.com/google-ml-infra/rules_ml_toolchain/archive/398d613aea7a4c294da49b79a6d6f3f8732bd84c.tar.gz",
+)
+
 # Initialize hermetic Python
 load("@xla//third_party/py:python_init_rules.bzl", "python_init_rules")
 
 python_init_rules()
 
-load("@xla//third_party/py:python_init_repositories.bzl", "python_init_repositories")
+load("@rules_ml_toolchain//py:python_init_repositories.bzl", "python_init_repositories")
 
 python_init_repositories(
     default_python_version = "system",
@@ -115,19 +144,19 @@ python_init_repositories(
     ],
     local_wheel_workspaces = ["@org_tensorflow//:WORKSPACE"],
     requirements = {
-        "3.9": "@org_tensorflow//:requirements_lock_3_9.txt",
         "3.10": "@org_tensorflow//:requirements_lock_3_10.txt",
         "3.11": "@org_tensorflow//:requirements_lock_3_11.txt",
         "3.12": "@org_tensorflow//:requirements_lock_3_12.txt",
         "3.13": "@org_tensorflow//:requirements_lock_3_13.txt",
+        "3.14": "@org_tensorflow//:requirements_lock_3_14.txt",
     },
 )
 
-load("@xla//third_party/py:python_init_toolchains.bzl", "python_init_toolchains")
+load("@rules_ml_toolchain//py:python_register_toolchain.bzl", "python_register_toolchain")
 
-python_init_toolchains()
+python_register_toolchain()
 
-load("@xla//third_party/py:python_init_pip.bzl", "python_init_pip")
+load("@rules_ml_toolchain//py:python_init_pip.bzl", "python_init_pip")
 
 python_init_pip()
 
@@ -154,15 +183,6 @@ load(
 )
 
 python_wheel_version_suffix_repository(name = "tf_wheel_version_suffix")
-
-# Toolchains for ML projects hermetic builds.
-# Details: https://github.com/google-ml-infra/rules_ml_toolchain
-http_archive(
-    name = "rules_ml_toolchain",
-    sha256 = "d67b536f812ba8784d58b1548d0f9cba49237ad280cea694934a6c14da706f30",
-    strip_prefix = "rules_ml_toolchain-4a5659fcf7a91d6a25c2abddf3736ab175101a49",
-    url = "https://github.com/google-ml-infra/rules_ml_toolchain/archive/4a5659fcf7a91d6a25c2abddf3736ab175101a49.tar.gz",
-)
 
 load(
     "@rules_ml_toolchain//cc/deps:cc_toolchain_deps.bzl",
@@ -232,9 +252,10 @@ maven_install(
         "androidx.lifecycle:lifecycle-common:2.8.7",
         "com.google.android.play:ai-delivery:0.1.1-alpha01",
         "com.google.guava:guava:33.4.6-android",
-        "org.jetbrains.kotlinx:kotlinx-coroutines-android:1.10.1",
-        "org.jetbrains.kotlinx:kotlinx-coroutines-guava:1.10.1",
-        "org.jetbrains.kotlinx:kotlinx-coroutines-play-services:1.10.1",
+        "org.jetbrains.kotlin:kotlin-stdlib:2.0.21",
+        "org.jetbrains.kotlinx:kotlinx-coroutines-android:1.8.0",
+        "org.jetbrains.kotlinx:kotlinx-coroutines-guava:1.8.0",
+        "org.jetbrains.kotlinx:kotlinx-coroutines-play-services:1.8.0",
     ],
     repositories = [
         "https://jcenter.bintray.com",
@@ -248,8 +269,8 @@ maven_install(
 # Kotlin rules
 http_archive(
     name = "rules_kotlin",
-    sha256 = "e1448a56b2462407b2688dea86df5c375b36a0991bd478c2ddd94c97168125e2",
-    url = "https://github.com/bazelbuild/rules_kotlin/releases/download/v2.1.3/rules_kotlin-v2.1.3.tar.gz",
+    sha256 = "13d5b767d697473ced9b55547a18a6ab65ab3fae5440555deee8a44c886b50aa",
+    url = "https://github.com/bazelbuild/rules_kotlin/releases/download/v2.3.20/rules_kotlin-v2.3.20.tar.gz",
 )
 
 # Sentencepiece
@@ -296,6 +317,56 @@ new_git_repository(
     commit = "c0c982601f40183e74d84a61237e968dca08380e",
     build_file = "@litert_archive//third_party/stblib:stblib.BUILD",
 )
+
+http_archive(
+    name = "lark",
+    build_file = "@litert_archive//third_party/lark:lark.BUILD",
+    add_prefix = "lark-1.3.1/lark",
+    urls = [
+        "https://github.com/lark-parser/lark/archive/refs/tags/1.3.1.tar.gz",
+    ],
+)
+
+http_archive(
+    name = "xdsl",
+    build_file = "@litert_archive//third_party/xdsl:xdsl.BUILD",
+    strip_prefix = "xdsl-0.28.0/xdsl",
+    urls = [
+        "https://github.com/xdslproject/xdsl/archive/refs/tags/v0.28.0.tar.gz",
+    ],
+)
+
+# tomlplusplus
+http_archive(
+    name = "tomlplusplus",
+    build_file = "@litert_archive//:BUILD.tomlplusplus",
+    patch_cmds = [
+        "echo '#define TOML_IMPLEMENTATION' > toml.cc",
+        "echo '#include \"toml.hpp\"' >> toml.cc",
+    ],
+    sha256 = "8517f65938a4faae9ccf8ebb36631a38c1cadfb5efa85d9a72e15b9e97d25155",
+    strip_prefix = "tomlplusplus-3.4.0",
+    url = "https://github.com/marzer/tomlplusplus/archive/refs/tags/v3.4.0.tar.gz",
+)
+
+# RE2
+http_archive(
+    name = "com_googlesource_code_re2",
+    sha256 = "7b2b3aa8241eac25f674e5b5b2e23d4ac4f0a8891418a2661869f736f03f57f4",
+    strip_prefix = "re2-2024-03-01",
+    urls = [
+        "https://github.com/google/re2/archive/refs/tags/2024-03-01.tar.gz",
+        "https://storage.googleapis.com/mirror.tensorflow.org/github.com/google/re2/archive/refs/tags/2024-03-01.tar.gz",
+    ],
+)
+
+load("@rules_kotlin//kotlin:repositories.bzl", "kotlin_repositories")
+
+kotlin_repositories()
+
+load("@rules_kotlin//kotlin:core.bzl", "kt_register_toolchains")
+
+kt_register_toolchains()
 
 configurable_repo(
     name = "models",
@@ -347,8 +418,16 @@ configurable_repo(
 configurable_repo(
     name = "google_tensor",
     build_file = "@litert_archive//third_party/google_tensor:google_tensor.BUILD",
-    local_path_env = "GOOGLE_TENSOR_COMPILER_LIB",
 )
+
+# LiteRT GPU ----------------------------------------------------------------------------------
+http_archive(
+    name = "litert_gpu",
+    build_file = "@litert_archive//third_party/litert_gpu:litert_gpu.BUILD",
+    type = "jar",
+    url = "https://dl.google.com/android/maven2/com/google/ai/edge/litert/litert/2.1.1/litert-2.1.1.aar",
+)
+
 
 # LiteRT Prebuilts ---------------------------------------------------------------------------------
 load("@litert_archive//third_party/litert_prebuilts:workspace.bzl", "litert_prebuilts")
@@ -386,3 +465,24 @@ swift_rules_dependencies()
 
 load("@build_bazel_rules_apple//apple:repositories.bzl", "apple_rules_dependencies")
 apple_rules_dependencies()
+
+# Android rules. Need latest rules_android_ndk to use NDK 26+.
+load("@rules_android_ndk//:rules.bzl", "android_ndk_repository")
+
+android_ndk_repository(name = "androidndk")
+
+load("@litert_archive//:android_ndk_env.bzl", "check_android_ndk_env")
+
+check_android_ndk_env(name = "android_ndk_env")
+
+load("@android_ndk_env//:current_android_ndk_env.bzl", "ANDROID_NDK_HOME_IS_SET")
+
+register_toolchains("@androidndk//:all" if ANDROID_NDK_HOME_IS_SET else "@android_ndk_env//:all")
+
+# Conditionally declare Android SDK repository at the bottom using built-in maybe.
+load("@bazel_tools//tools/build_defs/repo:utils.bzl", "maybe")
+
+maybe(
+    android_sdk_repository,
+    name = "androidsdk",
+)
