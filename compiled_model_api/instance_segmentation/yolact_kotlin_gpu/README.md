@@ -13,6 +13,30 @@ Base YOLACT is a pure CNN, so the graph converts fully GPU-compatible (**138/138
 
 **Host-side decode** (`YolactSegmenter.kt`): SSD box-decode vs the baked `priors.bin` (19248 anchors, variances [0.1,0.2]) → per-class NMS (IoU 0.5, score 0.3) → lincomb masks `sigmoid(proto @ coeff)` cropped to each box.
 
+## App architecture
+
+The Android app is **MVVM + Jetpack Compose** (Compose Material 1, `compose-bom` via the
+`gradle/libs.versions.toml` version catalog). [`MainActivity`](android/app/src/main/java/com/google/ai/edge/examples/yolact/MainActivity.kt)
+is a thin Compose host; [`MainViewModel`](android/app/src/main/java/com/google/ai/edge/examples/yolact/MainViewModel.kt)
+owns the `YolactSegmenter`, runs inference on a single confined worker
+(`Dispatchers.Default.limitedParallelism(1)`), draws the per-instance masks + boxes + COCO labels
+onto a copy of the input, and exposes an immutable [`UiState`](android/app/src/main/java/com/google/ai/edge/examples/yolact/UiState.kt)
+(annotated `resultImage` + a `resultText` instance/label summary). A launcher runs a bundled photo,
+and a gallery picker lets the user segment their own images.
+
+### Files
+
+| File | Role |
+| --- | --- |
+| `MainActivity.kt` | Thin `ComponentActivity` host: view model + gallery picker + Compose theme |
+| `MainViewModel.kt` | Owns `YolactSegmenter`; loads model from `filesDir`, runs segment, renders overlay, exposes `UiState` |
+| `UiState.kt` | Immutable UI snapshot (`resultImage`, `resultText`, `inferenceTimeMs`, status/error) |
+| `YolactSegmenter.kt` | LiteRT `CompiledModel` GPU inference + host-side decode (box-decode, NMS, lincomb masks) |
+| `CocoLabels.kt` | COCO 80 class names (YOLACT order) |
+| `ImageUtils.kt` | Asset/gallery bitmap decode helpers (EXIF-oriented) |
+| `view/InstanceSegScreen.kt` | Status header + `resultText` + image picker + result `Image` |
+| `view/Theme.kt`, `view/Color.kt` | Compose Material theme |
+
 ## Run
 
 ```bash
@@ -24,7 +48,7 @@ cd android
 ./gradlew :app:installDebug
 ```
 
-The sample segments a bundled photo and draws colored instance masks + boxes + COCO labels. Adapt `MainActivity.kt` to feed live camera frames for a real-time demo.
+The sample segments a bundled photo at launch (and any image picked from the gallery), drawing colored instance masks + boxes + COCO labels. Adapt `MainViewModel.kt` to feed live camera frames for a real-time demo.
 
 ## Convert
 

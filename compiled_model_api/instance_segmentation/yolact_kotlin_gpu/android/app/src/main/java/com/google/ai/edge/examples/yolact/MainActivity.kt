@@ -16,112 +16,44 @@
 
 package com.google.ai.edge.examples.yolact
 
-import android.graphics.Bitmap
-import android.graphics.BitmapFactory
-import android.graphics.Canvas
-import android.graphics.Color
-import android.graphics.Paint
 import android.os.Bundle
-import android.widget.ImageView
-import android.widget.LinearLayout
-import android.widget.TextView
-import androidx.appcompat.app.AppCompatActivity
-import java.io.File
-import java.util.concurrent.Executors
+import androidx.activity.ComponentActivity
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.compose.setContent
+import androidx.activity.result.PickVisualMediaRequest
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.activity.viewModels
+import androidx.compose.runtime.getValue
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.google.ai.edge.examples.yolact.view.ApplicationTheme
+import com.google.ai.edge.examples.yolact.view.InstanceSegScreen
 
 /**
- * Runs YOLACT instance segmentation on a bundled photo and draws colored per-instance
- * masks + boxes + COCO labels — a deterministic, self-contained demo. The 125 MB model
- * is loaded from filesDir; push it (and priors.bin) there first with install_to_device.sh.
+ * YOLACT instance-segmentation demo. The segmentation model runs on the LiteRT CompiledModel GPU
+ * (see [YolactSegmenter]); the UI is a thin Compose host over [MainViewModel].
  */
-class MainActivity : AppCompatActivity() {
-
-  private val executor = Executors.newSingleThreadExecutor()
-
+class MainActivity : ComponentActivity() {
   override fun onCreate(savedInstanceState: Bundle?) {
     super.onCreate(savedInstanceState)
-    val status = TextView(this).apply {
-        textSize = 15f
-        setPadding(28, 40, 28, 20)
-    }
-    val imageView = ImageView(this).apply { adjustViewBounds = true }
-    setContentView(LinearLayout(this).apply {
-      orientation = LinearLayout.VERTICAL
-      addView(status)
-      addView(imageView)
-    })
+    val viewModel: MainViewModel by viewModels { MainViewModel.getFactory(this) }
+    setContent {
+      ApplicationTheme {
+        val uiState by viewModel.uiState.collectAsStateWithLifecycle()
 
-    executor.execute {
-      val modelFile = File(filesDir, "yolact.tflite")
-      if (!modelFile.exists()) {
-        runOnUiThread {
-          status.text = "Model not found at:\n${modelFile.absolutePath}\n\n" +
-            "Push it first:  ./install_to_device.sh <dir-with-yolact.tflite-and-priors.bin>\n" +
-            "(build with ../conversion or download from\n litert-community/YOLACT-ResNet50-LiteRT)"
-        }
-        return@execute
-      }
-      val input = assets.open("test_image.jpg").use { BitmapFactory.decodeStream(it) }
-      YolactSegmenter(this, modelFile.absolutePath).use { seg ->
-        val (instances, ms) = seg.segment(input)
-        val out = render(input, instances)
-        runOnUiThread {
-          status.text = "YOLACT  ·  COCO instance segmentation  ·  CompiledModel GPU  ·  " +
-            "${ms} ms  ·  ${instances.size} instances"
-          imageView.setImageBitmap(out)
-        }
-      }
-    }
-  }
-
-  /** Draw masks (scaled from 550) + boxes + labels onto a copy of the input. */
-  private fun render(image: Bitmap, insts: List<Instance>): Bitmap {
-    val out = image.copy(Bitmap.Config.ARGB_8888, true)
-    val canvas = Canvas(out)
-    val S = YolactSegmenter.SIZE
-    val sx = out.width.toFloat() / S
-    val sy = out.height.toFloat() / S
-    val mp = Paint()
-    val bp = Paint().apply {
-        style = Paint.Style.STROKE
-        strokeWidth = out.width / 200f
-    }
-    val tp = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-      color = Color.WHITE
-      textSize = out.width / 28f
-      setShadowLayer(4f, 0f, 0f, Color.BLACK)
-    }
-    // masks: composite a translucent color per instance
-    val row = IntArray(out.width)
-    for (ins in insts) {
-      val c = (0x88 shl 24) or (Palette.color(ins.cls) and 0x00FFFFFF)
-      mp.color = c
-      for (yy in 0 until out.height) {
-        val my = (yy / sy).toInt().coerceIn(0, S - 1)
-        var started = -1
-        for (xx in 0 until out.width) {
-          val on = ins.mask[my * S + (xx / sx).toInt().coerceIn(0, S - 1)]
-          if (on && started < 0) {
-            started = xx
+        val galleryLauncher =
+          rememberLauncherForActivityResult(ActivityResultContracts.PickVisualMedia()) { uri ->
+            if (uri != null) viewModel.process(uri)
           }
-          if ((!on || xx == out.width - 1) && started >= 0) {
-            canvas.drawRect(started.toFloat(), yy.toFloat(), xx.toFloat(), (yy + 1).toFloat(), mp)
-            started = -1
-          }
-        }
+
+        InstanceSegScreen(
+          uiState = uiState,
+          onPickImage = {
+            galleryLauncher.launch(
+              PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
+            )
+          },
+        )
       }
     }
-    for (ins in insts) {
-      bp.color = Palette.color(ins.cls)
-      canvas.drawRect(ins.x1 * S * sx, ins.y1 * S * sy, ins.x2 * S * sx, ins.y2 * S * sy, bp)
-      canvas.drawText("${CocoLabels.NAMES[ins.cls]} ${(ins.score * 100).toInt()}%",
-        ins.x1 * S * sx + 6, ins.y1 * S * sy + tp.textSize, tp)
-    }
-    return out
-  }
-
-  override fun onDestroy() {
-      super.onDestroy()
-      executor.shutdown()
   }
 }
