@@ -30,9 +30,9 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
 /**
- * Owns the [TextEmbedder] and exposes a single [UiState]. On startup it embeds a bundled corpus once
- * (a slow, one-time GPU compile), then ranks it against each query by cosine similarity. The embedder
- * reuses native buffers, so all model calls run on one confined worker.
+ * Owns the [TextEmbedder] and exposes a single [UiState]. On startup it embeds a bundled corpus
+ * once (a slow, one-time GPU compile), then ranks it against each query by cosine similarity. The
+ * embedder reuses native buffers, so all model calls run on one confined worker.
  */
 class MainViewModel(private val context: Context) : ViewModel() {
 
@@ -63,7 +63,10 @@ class MainViewModel(private val context: Context) : ViewModel() {
     viewModelScope.launch(inferenceDispatcher) {
       try {
         corpus =
-          context.assets.open(CORPUS_ASSET).bufferedReader().use { it.readLines() }
+          context.assets
+            .open(CORPUS_ASSET)
+            .bufferedReader()
+            .use { it.readLines() }
             .filter { it.isNotBlank() }
         _uiState.update {
           it.copy(
@@ -89,7 +92,9 @@ class MainViewModel(private val context: Context) : ViewModel() {
       try {
         runSearch(query)
       } catch (t: Throwable) {
-        _uiState.update { it.copy(isSearching = false, errorMessage = t.message ?: "Search failed") }
+        _uiState.update {
+          it.copy(isSearching = false, errorMessage = t.message ?: "Search failed")
+        }
       }
     }
   }
