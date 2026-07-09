@@ -25,7 +25,30 @@ cd android
 ./gradlew :app:installDebug
 ```
 
-The sample segments a bundled Cityscapes road scene and displays the input with the 19-class colored segmentation overlaid. Adapt `MainActivity.kt` to feed live camera frames for a real-time demo.
+On launch the sample segments a bundled Cityscapes road scene and displays the input
+with the 19-class colored segmentation overlaid. Tap **Pick image** to run the model on
+any photo from the gallery. Adapt `MainViewModel.kt` to feed live camera frames for a
+real-time demo.
+
+## App architecture
+
+The app is **MVVM + Jetpack Compose** (Compose Material, a `compose-bom`, and a Gradle
+version catalog). `MainViewModel` owns the `PIDNet` segmenter, loads the model from
+`filesDir`, runs the bundled image at launch, accepts gallery images, and confines every
+inference to a single worker (`Dispatchers.Default.limitedParallelism(1)`); it produces the
+blended overlay bitmap and exposes it through an immutable `UiState`. `MainActivity` is a
+thin Compose host.
+
+| File | Role |
+| --- | --- |
+| `MainActivity.kt` | Thin `ComponentActivity` host: wires the gallery picker, collects `UiState`. |
+| `MainViewModel.kt` | Owns `PIDNet`, runs inference on a confined dispatcher, blends the label map over the input. |
+| `UiState.kt` | Immutable UI snapshot: result bitmap, status flags, inference time. |
+| `PIDNet.kt` | LiteRT `CompiledModel` (GPU) segmenter: preprocess → run → argmax → Cityscapes-colored label map. |
+| `CityscapesPalette.kt` | Cityscapes 19-class names + overlay colors. |
+| `ImageUtils.kt` | Asset / gallery bitmap decoding (EXIF-oriented) helpers. |
+| `view/SegmentationScreen.kt` | Compose screen: status header, image picker, blended result image. |
+| `view/Theme.kt`, `view/Color.kt` | Compose Material theme + colors. |
 
 ## Convert
 
