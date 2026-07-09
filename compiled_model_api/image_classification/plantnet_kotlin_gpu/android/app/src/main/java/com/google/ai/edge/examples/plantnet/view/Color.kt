@@ -1,5 +1,5 @@
 /*
- * Copyright 2026 The Google AI Edge Authors. All Rights Reserved.
+ * Copyright 2025 The Google AI Edge Authors. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,8 +14,9 @@
  * limitations under the License.
  */
 
-plugins {
-  alias(libs.plugins.android.application) apply false
-  alias(libs.plugins.jetbrains.kotlin.android) apply false
-  alias(libs.plugins.compose.compiler) apply false
-}
+package com.google.ai.edge.examples.plantnet.view
+
+import androidx.compose.ui.graphics.Color
+
+val darkBlue = Color(0xFF020F59)
+val teal = Color(0xFF00C99E)

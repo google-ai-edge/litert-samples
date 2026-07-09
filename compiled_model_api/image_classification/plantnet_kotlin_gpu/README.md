@@ -24,7 +24,31 @@ cd android
 ./gradlew :app:installDebug
 ```
 
-The sample classifies a bundled plant photo and shows the top-5 species. Adapt `MainActivity.kt` to feed live camera frames for a real-time plant-ID demo.
+The sample classifies a bundled plant photo at launch and lets you pick a gallery
+image to classify. Adapt `MainViewModel.kt` to feed live camera frames for a
+real-time plant-ID demo.
+
+## App architecture
+
+The app is MVVM + Jetpack Compose (Compose Material). `MainActivity` is a thin host
+that observes a single `UiState` and forwards a gallery-pick intent. `MainViewModel`
+owns the `PlantClassifier`, loads the model from `filesDir`, runs inference on one
+confined worker (`Dispatchers.Default.limitedParallelism(1)`), and publishes the
+input image plus the formatted top-k text as `UiState`. `ClassificationScreen`
+renders a status header, an image picker, the top-k species text, and the image.
+
+### Files
+
+| File | Role |
+| --- | --- |
+| `MainActivity.kt` | Compose host: wires the ViewModel to `ClassificationScreen` and the gallery picker. |
+| `MainViewModel.kt` | Loads the model, runs classification, exposes `UiState`. |
+| `UiState.kt` | Immutable screen state (result image, top-k text, inference time, errors). |
+| `view/ClassificationScreen.kt` | Composable UI: status header, picker, top-k text, image. |
+| `view/Theme.kt`, `view/Color.kt` | Compose Material theme + colors. |
+| `ImageUtils.kt` | Bitmap helpers (asset decode, EXIF-oriented gallery load). |
+| `PlantClassifier.kt` | LiteRT `CompiledModel` GPU classifier (preprocess, run, softmax top-k). |
+| `PlantNetLabels.kt` | 1081 PlantNet-300K species names by class index. |
 
 ## Convert
 

@@ -16,63 +16,44 @@
 
 package com.google.ai.edge.examples.plantnet
 
-import android.graphics.BitmapFactory
 import android.os.Bundle
-import android.widget.ImageView
-import android.widget.LinearLayout
-import android.widget.TextView
-import androidx.appcompat.app.AppCompatActivity
-import java.io.File
-import java.util.concurrent.Executors
+import androidx.activity.ComponentActivity
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.compose.setContent
+import androidx.activity.result.PickVisualMediaRequest
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.activity.viewModels
+import androidx.compose.runtime.getValue
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.google.ai.edge.examples.plantnet.view.ApplicationTheme
+import com.google.ai.edge.examples.plantnet.view.ClassificationScreen
 
 /**
- * Runs PlantNet-300K on a bundled plant photo and prints the top-5 species — a
- * deterministic, self-contained demo. The 47 MB model is loaded from the app's
- * filesDir; push it there first with install_to_device.sh (not bundled in the APK).
+ * PlantNet-300K plant identification demo. The classification model runs on the LiteRT
+ * CompiledModel GPU (see [PlantClassifier]); the UI is a thin Compose host over [MainViewModel].
  */
-class MainActivity : AppCompatActivity() {
-
-  private val executor = Executors.newSingleThreadExecutor()
-
+class MainActivity : ComponentActivity() {
   override fun onCreate(savedInstanceState: Bundle?) {
     super.onCreate(savedInstanceState)
-    val status = TextView(this).apply {
-        textSize = 16f
-        setPadding(28, 40, 28, 20)
-    }
-    val imageView = ImageView(this).apply { adjustViewBounds = true }
-    setContentView(LinearLayout(this).apply {
-      orientation = LinearLayout.VERTICAL
-      addView(status)
-      addView(imageView)
-    })
+    val viewModel: MainViewModel by viewModels { MainViewModel.getFactory(this) }
+    setContent {
+      ApplicationTheme {
+        val uiState by viewModel.uiState.collectAsStateWithLifecycle()
 
-    executor.execute {
-      val modelFile = File(filesDir, "plantnet.tflite")
-      if (!modelFile.exists()) {
-        runOnUiThread {
-          status.text = "Model not found at:\n${modelFile.absolutePath}\n\n" +
-            "Push it first:  ./install_to_device.sh <dir-with-plantnet.tflite>\n" +
-            "(build with ../conversion or download from\n" +
-            " litert-community/PlantNet-300K-ResNet18-LiteRT)"
-        }
-        return@execute
-      }
-      val input = assets.open("plant.jpg").use { BitmapFactory.decodeStream(it) }
-      PlantClassifier(modelFile.absolutePath).use { clf ->
-        val (preds, ms) = clf.classify(input)
-        val txt = "PlantNet-300K  ·  CompiledModel GPU  ·  ${ms} ms\n\n" +
-          preds.joinToString("\n") { (n, p) -> "%s   %d%%".format(n, (p * 100).toInt()) }
-        runOnUiThread {
-            status.text = txt
-            imageView.setImageBitmap(input)
-        }
+        val galleryLauncher =
+          rememberLauncherForActivityResult(ActivityResultContracts.PickVisualMedia()) { uri ->
+            if (uri != null) viewModel.process(uri)
+          }
+
+        ClassificationScreen(
+          uiState = uiState,
+          onPickImage = {
+            galleryLauncher.launch(
+              PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
+            )
+          },
+        )
       }
     }
-  }
-
-  override fun onDestroy() {
-    super.onDestroy()
-    executor.shutdown()
   }
 }
