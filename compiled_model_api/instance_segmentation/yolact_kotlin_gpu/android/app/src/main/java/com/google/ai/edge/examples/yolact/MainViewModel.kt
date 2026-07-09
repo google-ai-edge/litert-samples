@@ -36,8 +36,8 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
 /**
- * Owns the [YolactSegmenter] and exposes a single [UiState] for the screen. The YOLACT model is
- * 125 MB and reuses native buffers, so both model creation and every segment run on one confined
+ * Owns the [YolactSegmenter] and exposes a single [UiState] for the screen. The YOLACT model is 125
+ * MB and reuses native buffers, so both model creation and every segment run on one confined
  * worker.
  */
 class MainViewModel(private val context: Context) : ViewModel() {
@@ -71,8 +71,7 @@ class MainViewModel(private val context: Context) : ViewModel() {
         _uiState.update {
           it.copy(
             errorMessage =
-              "Model not found. Push it first with install_to_device.sh:\n" +
-                modelFile.absolutePath
+              "Model not found. Push it first with install_to_device.sh:\n" + modelFile.absolutePath
           )
         }
         return@launch
@@ -125,15 +124,17 @@ class MainViewModel(private val context: Context) : ViewModel() {
     val sx = out.width.toFloat() / S
     val sy = out.height.toFloat() / S
     val mp = Paint()
-    val bp = Paint().apply {
+    val bp =
+      Paint().apply {
         style = Paint.Style.STROKE
         strokeWidth = out.width / 200f
-    }
-    val tp = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-      color = Color.WHITE
-      textSize = out.width / 28f
-      setShadowLayer(4f, 0f, 0f, Color.BLACK)
-    }
+      }
+    val tp =
+      Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        color = Color.WHITE
+        textSize = out.width / 28f
+        setShadowLayer(4f, 0f, 0f, Color.BLACK)
+      }
     // masks: composite a translucent color per instance
     val row = IntArray(out.width)
     for (ins in insts) {
@@ -157,8 +158,12 @@ class MainViewModel(private val context: Context) : ViewModel() {
     for (ins in insts) {
       bp.color = Palette.color(ins.cls)
       canvas.drawRect(ins.x1 * S * sx, ins.y1 * S * sy, ins.x2 * S * sx, ins.y2 * S * sy, bp)
-      canvas.drawText("${CocoLabels.NAMES[ins.cls]} ${(ins.score * 100).toInt()}%",
-        ins.x1 * S * sx + 6, ins.y1 * S * sy + tp.textSize, tp)
+      canvas.drawText(
+        "${CocoLabels.NAMES[ins.cls]} ${(ins.score * 100).toInt()}%",
+        ins.x1 * S * sx + 6,
+        ins.y1 * S * sy + tp.textSize,
+        tp,
+      )
     }
     return out
   }
