@@ -20,7 +20,7 @@ coreKtx = "1.17.0"
 lifecycleRuntimeKtx = "2.10.0"
 activityCompose = "1.12.1"
 composeBom = "2025.12.00"
-litert = "2.1.5"
+litert = "2.1.3"
 coroutines = "1.10.2"
 
 [libraries]
