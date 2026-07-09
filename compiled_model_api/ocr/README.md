@@ -39,9 +39,16 @@ See [`conversion/`](conversion/).
    ```
 3. Launch **PP-OCRv5** — it compiles the GPU shaders (~10 s first launch), detects + reads the text.
 
+## App architecture
+
+The app is **MVVM + Jetpack Compose** (Compose Material). `MainViewModel` owns both LiteRT helpers, runs the detect → recognize pipeline on a single confined worker (`Dispatchers.Default.limitedParallelism(1)`), and exposes one immutable `UiState`. It draws the detected boxes onto a mutable copy of the (letterboxed) input bitmap with an `android.graphics.Canvas` — the same box paint + coordinates as the legacy `OverlayView.onDraw` — and puts the recognized lines in `UiState.resultText`. `MainActivity` is a thin Compose host; `view/OcrScreen.kt` renders the status header, the recognized text, a gallery picker, and the annotated result image. The bundled `test_image.png` is read at launch.
+
 ## Files
 
-- `kotlin_cpu_gpu/android/` — `PpocrDetector.kt` (GPU detector + DB box postprocess), `PpocrRecognizer.kt` (GPU recognizer + CTC decode), `MainActivity.kt` (runs OCR on a bundled image, overlays boxes + text).
+- `kotlin_cpu_gpu/android/` — MVVM + Jetpack Compose:
+  - `PpocrDetector.kt` (GPU detector + DB box postprocess), `PpocrRecognizer.kt` (GPU recognizer + CTC decode) — the LiteRT `CompiledModel` helpers.
+  - `MainViewModel.kt` — owns both helpers, runs detect → recognize off the main thread, annotates the result bitmap, exposes `UiState`.
+  - `UiState.kt`, `MainActivity.kt` (thin Compose host), `view/OcrScreen.kt` (screen), `view/Theme.kt` + `view/Color.kt` (theme), `ImageUtils.kt` (asset/EXIF/RGB helpers).
 - `conversion/` — the litert-torch conversion scripts (`build_det.py`, `build_rec.py`).
 
 Weights are converted from PaddleOCR via the [PaddleOCR2Pytorch](https://github.com/frotms/PaddleOCR2Pytorch) port (Apache-2.0). Upstream: [PaddlePaddle/PaddleOCR](https://github.com/PaddlePaddle/PaddleOCR) (Apache-2.0).

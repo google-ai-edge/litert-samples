@@ -16,11 +16,13 @@
 -->
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
     <application
-        android:allowBackup="true"
-        android:label="PP-OCRv5"
-        android:supportsRtl="true"
-        android:theme="@android:style/Theme.Material.Light">
-        <activity android:name=".MainActivity" android:exported="true">
+        android:label="@string/app_name"
+        android:theme="@style/Theme.Ocr"
+        android:supportsRtl="true">
+        <activity
+            android:name=".MainActivity"
+            android:exported="true"
+            android:screenOrientation="portrait">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
