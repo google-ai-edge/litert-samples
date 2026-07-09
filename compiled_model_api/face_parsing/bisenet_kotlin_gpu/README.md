@@ -17,6 +17,25 @@ BiSeNet is a pure CNN (ResNet18 backbone + context path + feature fusion). Three
 
 These are on-device-only rejections (op inventory clean, CPU parity 1.0).
 
+## App architecture
+
+The Android app is **MVVM + Jetpack Compose** (Compose Material). `MainActivity` is a thin
+Compose host: it collects a single `UiState` and wires the gallery picker. `MainViewModel`
+owns the `FaceParser` and runs both model creation and every inference on one confined worker
+(`Dispatchers.Default.limitedParallelism(1)`) so the reused native buffers are never touched
+concurrently. On launch it parses a bundled face photo; the picker re-runs on a gallery image.
+
+| File | Role |
+| --- | --- |
+| `MainActivity.kt` | Thin `ComponentActivity` host: gallery picker + `collectAsStateWithLifecycle` into Compose |
+| `MainViewModel.kt` | Owns `FaceParser`; loads the model from `filesDir`, runs inference, blends the overlay, exposes `UiState` |
+| `UiState.kt` | Immutable UI snapshot (result bitmap, model-ready / processing flags, inference time, error) |
+| `FaceParser.kt` | LiteRT `CompiledModel` (GPU) wrapper: preprocess → run → argmax → CelebAMask label bitmap |
+| `CelebAMaskPalette.kt` | 19 CelebAMask-HQ class names + overlay colors |
+| `ImageUtils.kt` | Bitmap helpers (asset decode, EXIF-oriented gallery load) |
+| `view/FaceParsingScreen.kt` | Compose screen: status header, image picker, blended result |
+| `view/Theme.kt`, `view/Color.kt` | Compose Material theme |
+
 ## Run
 
 ```bash
@@ -28,7 +47,8 @@ cd android
 ./gradlew :app:installDebug
 ```
 
-The sample parses a bundled face photo and overlays the 19-class CelebAMask parsing. Adapt `MainActivity.kt` to feed live front-camera frames for a real-time AR demo.
+The sample parses a bundled face photo (and any image you pick from the gallery) and overlays
+the 19-class CelebAMask parsing. Adapt it to feed live front-camera frames for a real-time AR demo.
 
 ## Convert
 
