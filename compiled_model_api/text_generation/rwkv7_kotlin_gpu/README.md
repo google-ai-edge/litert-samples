@@ -39,6 +39,27 @@ cd android
 
 Get `rwkv7_step_fp16.tflite` and `rwkv7_emb_fp16.bin` from Hugging Face ([`litert-community/RWKV-7-World-0.1B-LiteRT`](https://huggingface.co/litert-community/RWKV-7-World-0.1B-LiteRT)) or build them with [`conversion/`](conversion/). The vocabulary is bundled in the app assets. The first launch shows "model files missing" until the install script has run.
 
+## App architecture
+
+The Android app is MVVM + Jetpack Compose (Compose Material). `MainViewModel` owns the model helpers and
+exposes a single immutable `UiState`; the model is loaded once in `init`, and every model call runs on a
+single confined worker (`Dispatchers.Default.limitedParallelism(1)`) so the recycled native buffers are
+never touched concurrently. Generation streams: `Rwkv7Generator.generate` invokes a per-token callback,
+and the ViewModel does `_uiState.update { it.copy(outputText = …) }` after each token, so the Compose
+screen fills in the completion live as it collects the `StateFlow`. `MainActivity` is a thin
+`ComponentActivity` host, and `GenerationScreen` is the whole UI (prompt field + Generate button +
+scrollable streaming output).
+
+| File | Role |
+| :-- | :-- |
+| `app/.../MainActivity.kt` | Thin Compose host: `collectAsStateWithLifecycle` + `GenerationScreen`. |
+| `app/.../MainViewModel.kt` | Loads the model, runs greedy decoding on a confined worker, streams tokens into `UiState`. |
+| `app/.../UiState.kt` | Immutable UI snapshot (`isModelReady`, `isGenerating`, `statusMessage`, `outputText`, `errorMessage`). |
+| `app/.../view/GenerationScreen.kt` | Prompt `OutlinedTextField` + Generate button + scrollable streaming output. |
+| `app/.../view/Theme.kt`, `view/Color.kt` | Compose Material theme. |
+| `app/.../Rwkv7Generator.kt` | CompiledModel GPU step loop + host-side embedding lookup / argmax / state recycling. |
+| `app/.../RwkvTokenizer.kt` | Kotlin port of the RWKV World trie tokenizer. |
+
 ## License
 
 Model: Apache-2.0 (RWKV / BlinkDL).

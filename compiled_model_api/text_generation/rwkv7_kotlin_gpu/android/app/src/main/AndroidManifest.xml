@@ -2,8 +2,8 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
     <application
-        android:label="RWKV-7 Text Generation"
-        android:theme="@style/Theme.AppCompat.NoActionBar"
+        android:label="@string/app_name"
+        android:theme="@style/Theme.Rwkv7"
         android:largeHeap="true"
         android:supportsRtl="true">
 
