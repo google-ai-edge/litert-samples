@@ -24,6 +24,20 @@ Rebuilt from the official ONNX's constants (see [`conversion/`](conversion/)): t
 1. Get the model: build with [`conversion/build_bp.py`](conversion/build_bp.py) or download `basicpitch.tflite` from [litert-community/Basic-Pitch-LiteRT](https://huggingface.co/litert-community/Basic-Pitch-LiteRT).
 2. Install the app: `cd kotlin_cpu_gpu/android && ./gradlew :app:installDebug`
 3. Push the model: `./install_to_device.sh <dir-with-the-tflite>`
-4. **Record & transcribe** (play some notes) or pick a clip → piano roll + note list.
+4. **Record & transcribe** (play some notes) or pick a clip → piano roll.
+
+## App architecture
+
+The app is MVVM + Jetpack Compose (Material 2). `MainActivity` is a thin Compose host; all model and audio work lives in `MainViewModel`, which exposes a single immutable `UiState`. The piano roll is not a custom `View` — the note rects are drawn onto a fixed-size mutable `Bitmap` (`renderPianoRoll`, same rect math as the old `PianoRollView.onDraw`) and shown via a Compose `Image`. Recording asks for `RECORD_AUDIO` with a Compose `RequestPermission` launcher; clips are picked with a `GetContent("audio/*")` launcher.
+
+| File | Role |
+| :-- | :-- |
+| `MainActivity.kt` | Compose host; RECORD_AUDIO permission launcher + `GetContent("audio/*")` picker |
+| `MainViewModel.kt` | Owns `Transcriber`; mic capture, clip decode, transcription, piano-roll `Bitmap` render; one confined worker |
+| `UiState.kt` | Immutable UI snapshot (`isModelReady`, `isProcessing`, `statusMessage`, `resultImage`, `errorMessage`) |
+| `view/PianoRollScreen.kt` | Status header + Record / Pick buttons + result `Image` |
+| `view/Theme.kt`, `view/Color.kt` | Compose Material 2 theme |
+| `Transcriber.kt` | Basic Pitch `CompiledModel` GPU inference (unchanged) |
+| `AudioDecoder.kt` | Decodes a picked clip to mono 22.05 kHz float PCM (unchanged) |
 
 Upstream: [spotify/basic-pitch](https://github.com/spotify/basic-pitch) (Apache-2.0). Please cite Bittner et al., ICASSP 2022.

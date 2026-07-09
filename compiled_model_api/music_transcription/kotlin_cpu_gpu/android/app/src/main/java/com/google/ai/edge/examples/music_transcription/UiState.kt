@@ -14,8 +14,17 @@
  * limitations under the License.
  */
 
-plugins {
-  alias(libs.plugins.android.application) apply false
-  alias(libs.plugins.jetbrains.kotlin.android) apply false
-  alias(libs.plugins.compose.compiler) apply false
-}
+package com.google.ai.edge.examples.music_transcription
+
+import android.graphics.Bitmap
+import androidx.compose.runtime.Immutable
+
+/** Immutable snapshot of everything the music-transcription screen renders. */
+@Immutable
+data class UiState(
+  val isModelReady: Boolean = false,
+  val isProcessing: Boolean = false,
+  val statusMessage: String = "",
+  val resultImage: Bitmap? = null,
+  val errorMessage: String? = null,
+)
