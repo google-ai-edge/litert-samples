@@ -72,8 +72,7 @@ class MainViewModel(private val context: Context) : ViewModel() {
         _uiState.update {
           it.copy(
             errorMessage =
-              "Model not found. Push it first with install_to_device.sh:\n" +
-                modelFile.absolutePath
+              "Model not found. Push it first with install_to_device.sh:\n" + modelFile.absolutePath
           )
         }
         return@launch
