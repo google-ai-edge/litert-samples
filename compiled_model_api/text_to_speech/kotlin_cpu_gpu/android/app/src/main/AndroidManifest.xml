@@ -18,9 +18,9 @@
 
     <application
         android:allowBackup="true"
-        android:label="Matcha TTS"
+        android:label="@string/app_name"
         android:supportsRtl="true"
-        android:theme="@android:style/Theme.Material.Light">
+        android:theme="@style/Theme.TextToSpeech">
         <activity
             android:name=".MainActivity"
             android:exported="true">

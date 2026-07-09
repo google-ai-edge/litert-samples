@@ -1,5 +1,5 @@
 /*
- * Copyright 2026 The Google AI Edge Authors. All Rights Reserved.
+ * Copyright 2025 The Google AI Edge Authors. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,8 +14,18 @@
  * limitations under the License.
  */
 
-plugins {
-  alias(libs.plugins.android.application) apply false
-  alias(libs.plugins.jetbrains.kotlin.android) apply false
-  alias(libs.plugins.compose.compiler) apply false
-}
+package com.google.ai.edge.examples.text_to_speech
+
+import androidx.compose.runtime.Immutable
+
+/**
+ * Immutable snapshot of everything the text-to-speech screen renders. The synthesized waveform is
+ * played back as a side effect from the ViewModel, so it is not part of this state.
+ */
+@Immutable
+data class UiState(
+  val isModelReady: Boolean = false,
+  val isSynthesizing: Boolean = false,
+  val statusMessage: String = "",
+  val errorMessage: String? = null,
+)

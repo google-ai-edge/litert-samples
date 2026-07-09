@@ -44,6 +44,30 @@ cd kotlin_cpu_gpu/android
 
 Get the `.tflite` files from Hugging Face ([`litert-community/Matcha-TTS`](https://huggingface.co/litert-community/Matcha-TTS)) or build them with [`conversion/`](conversion/). The host tables (`emb.bin`, `g2p_dict.txt.gz`, `config.json`, `g2p_meta.json`) are bundled in the app assets. The first launch shows "model not found" until the install script has run.
 
+## App architecture
+
+The Android app is **MVVM + Jetpack Compose** (Compose Material 1). `MainActivity` is a thin
+`ComponentActivity` that only hosts the Compose tree; all model state lives in `MainViewModel`,
+which is surfaced to the UI as a single immutable `UiState` (`StateFlow`). The two graph wrappers
+(`MatchaSynthesizer`, `MatchaG2P`) are unchanged host-orchestration code — the conversion only
+moved the load / synthesize / `AudioTrack` playback out of the Activity and into the ViewModel.
+
+All model work runs on one confined worker (`Dispatchers.Default.limitedParallelism(1)`), because
+the graphs reuse native input/output buffers and must not be called concurrently. The model is
+loaded (and warmed up once) in the ViewModel's `init`; `synthesize(text)` phonemizes, runs the
+pipeline, and plays the waveform through an `AudioTrack` as a side effect (audio is not held in
+`UiState`). `onCleared` stops/releases the `AudioTrack` and closes the graphs.
+
+| File | Role |
+| :-- | :-- |
+| `MainActivity.kt` | Thin `ComponentActivity`; hosts the Compose UI and collects `UiState`. |
+| `MainViewModel.kt` | Loads + warms the graphs, runs `synthesize(text)` + `AudioTrack` playback on the confined worker, owns `UiState`. |
+| `UiState.kt` | Immutable UI snapshot (`isModelReady`, `isSynthesizing`, `statusMessage`, `errorMessage`). |
+| `view/TtsScreen.kt` | Compose screen: text field + Speak button + status text. |
+| `view/Theme.kt`, `view/Color.kt` | Compose Material 1 theme. |
+| `MatchaSynthesizer.kt` | Host orchestration of the text-encoder / CFM-decoder / vocoder graphs (unchanged). |
+| `MatchaG2P.kt` | Text → phoneme-id conversion (dictionary + neural G2P; unchanged). |
+
 ## License
 
 Model: MIT (Matcha-TTS / HiFi-GAN). G2P: Clear BSD (OpenPhonemizer) + MIT (DeepPhonemizer).
