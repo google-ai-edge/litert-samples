@@ -1,5 +1,5 @@
 /*
- * Copyright 2026 The Google AI Edge Authors. All Rights Reserved.
+ * Copyright 2025 The Google AI Edge Authors. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,8 +14,15 @@
  * limitations under the License.
  */
 
-plugins {
-  alias(libs.plugins.android.application) apply false
-  alias(libs.plugins.jetbrains.kotlin.android) apply false
-  alias(libs.plugins.compose.compiler) apply false
+package com.google.ai.edge.examples.clothseg.view
+
+import androidx.compose.material.MaterialTheme
+import androidx.compose.runtime.Composable
+
+@Composable
+fun ApplicationTheme(content: @Composable () -> Unit) {
+  MaterialTheme(
+    colors = MaterialTheme.colors.copy(primary = darkBlue, secondary = teal, onSurface = teal),
+    content = content,
+  )
 }

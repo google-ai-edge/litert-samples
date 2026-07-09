@@ -16,89 +16,44 @@
 
 package com.google.ai.edge.examples.clothseg
 
-import android.graphics.Bitmap
-import android.graphics.BitmapFactory
-import android.graphics.Color
 import android.os.Bundle
-import android.widget.ImageView
-import android.widget.LinearLayout
-import android.widget.TextView
-import androidx.appcompat.app.AppCompatActivity
-import java.io.File
-import java.util.concurrent.Executors
+import androidx.activity.ComponentActivity
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.compose.setContent
+import androidx.activity.result.PickVisualMediaRequest
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.activity.viewModels
+import androidx.compose.runtime.getValue
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.google.ai.edge.examples.clothseg.view.ApplicationTheme
+import com.google.ai.edge.examples.clothseg.view.ClothSegScreen
 
 /**
- * Runs cloth segmentation on a bundled photo and overlays the clothing classes (upper /
- * lower / full body) — a deterministic, self-contained demo. The 176 MB model is loaded
- * from filesDir; push it there first with install_to_device.sh.
+ * Cloth segmentation demo. The U²-Net model runs on the LiteRT CompiledModel GPU (see
+ * [ClothSegmenter]); the UI is a thin Compose host over [MainViewModel].
  */
-class MainActivity : AppCompatActivity() {
-
-  private val executor = Executors.newSingleThreadExecutor()
-  // 0 bg (keep), 1 upper (cyan), 2 lower (orange), 3 full (magenta)
-  private val colors =
-    intArrayOf(0, Color.rgb(0, 200, 255), Color.rgb(255, 150, 0), Color.rgb(230, 0, 200))
-
+class MainActivity : ComponentActivity() {
   override fun onCreate(savedInstanceState: Bundle?) {
     super.onCreate(savedInstanceState)
-    val status = TextView(this).apply {
-        textSize = 15f
-        setPadding(28, 40, 28, 20)
-    }
-    val imageView = ImageView(this).apply { adjustViewBounds = true }
-    setContentView(LinearLayout(this).apply {
-      orientation = LinearLayout.VERTICAL
-      addView(status)
-      addView(imageView)
-    })
+    val viewModel: MainViewModel by viewModels { MainViewModel.getFactory(this) }
+    setContent {
+      ApplicationTheme {
+        val uiState by viewModel.uiState.collectAsStateWithLifecycle()
 
-    executor.execute {
-      val modelFile = File(filesDir, "clothseg.tflite")
-      if (!modelFile.exists()) {
-        runOnUiThread {
-          status.text = "Model not found at:\n${modelFile.absolutePath}\n\n" +
-            "Push it first:  ./install_to_device.sh <dir-with-clothseg.tflite>\n" +
-            "(build with ../conversion or download from\n" +
-            " litert-community/Cloth-Segmentation-U2Net-LiteRT)"
-        }
-        return@execute
-      }
-      val input = assets.open("test_image.jpg").use { BitmapFactory.decodeStream(it) }
-      ClothSegmenter(modelFile.absolutePath).use { seg ->
-        val (cls, ms) = seg.segment(input)
-        val out = overlay(input, cls)
-        runOnUiThread {
-          status.text = "Cloth Segmentation  ·  U²-Net  ·  CompiledModel GPU  ·  ${ms} ms"
-          imageView.setImageBitmap(out)
-        }
+        val galleryLauncher =
+          rememberLauncherForActivityResult(ActivityResultContracts.PickVisualMedia()) { uri ->
+            if (uri != null) viewModel.process(uri)
+          }
+
+        ClothSegScreen(
+          uiState = uiState,
+          onPickImage = {
+            galleryLauncher.launch(
+              PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
+            )
+          },
+        )
       }
     }
-  }
-
-  private fun overlay(image: Bitmap, cls: ByteArray): Bitmap {
-    val O = ClothSegmenter.OUT
-    val out = image.copy(Bitmap.Config.ARGB_8888, true)
-    val px = IntArray(out.width * out.height)
-    out.getPixels(px, 0, out.width, 0, 0, out.width, out.height)
-    for (y in 0 until out.height) {
-      val my = y * O / out.height
-      for (x in 0 until out.width) {
-        val c = cls[my * O + (x * O / out.width)].toInt()
-        if (c != 0) {
-          val p = px[y * out.width + x]
-          val col = colors[c]
-          val r = (((p shr 16) and 0xFF) * 0.4f + ((col shr 16) and 0xFF) * 0.6f).toInt()
-          val g = (((p shr 8) and 0xFF) * 0.4f + ((col shr 8) and 0xFF) * 0.6f).toInt()
-          val b = ((p and 0xFF) * 0.4f + (col and 0xFF) * 0.6f).toInt()
-          px[y * out.width + x] = (0xFF shl 24) or (r shl 16) or (g shl 8) or b
-        }
-      }
-    }
-    return Bitmap.createBitmap(px, out.width, out.height, Bitmap.Config.ARGB_8888)
-  }
-
-  override fun onDestroy() {
-      super.onDestroy()
-      executor.shutdown()
   }
 }

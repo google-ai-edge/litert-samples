@@ -29,7 +29,31 @@ cd android
 ```
 
 The sample overlays the clothing classes on a bundled photo (upper = cyan, lower =
-orange, full body = magenta). Adapt `MainActivity.kt` to feed camera frames.
+orange, full body = magenta) at launch, and a **Pick image** button runs the same
+segmentation on any gallery photo.
+
+## App architecture
+
+The Android app is MVVM + Jetpack Compose (Material, `compose-bom`, version catalog).
+`ClothSegmenter` runs U²-Net on the LiteRT `CompiledModel` GPU delegate and returns an
+`OUT × OUT` class map; `MainViewModel` owns the segmenter on a single confined worker
+(`Dispatchers.Default.limitedParallelism(1)`), loads the model from `filesDir`, runs the
+bundled image at launch, and blends the per-class overlay into a result `Bitmap` exposed
+through an immutable `UiState`. `MainActivity` is a thin Compose host; `ClothSegScreen`
+renders the status header, the gallery picker, and the result image.
+
+## Files
+
+| File | Role |
+| --- | --- |
+| `android/app/src/main/java/.../clothseg/MainActivity.kt` | Thin Compose host: view-model wiring + gallery picker |
+| `android/app/src/main/java/.../clothseg/MainViewModel.kt` | Owns `ClothSegmenter`, model load, class-map → overlay `Bitmap`, `UiState` |
+| `android/app/src/main/java/.../clothseg/UiState.kt` | Immutable UI snapshot |
+| `android/app/src/main/java/.../clothseg/ClothSegmenter.kt` | LiteRT `CompiledModel` GPU inference (U²-Net, argmax → class map) |
+| `android/app/src/main/java/.../clothseg/ImageUtils.kt` | Asset/gallery bitmap decode helpers (EXIF orientation) |
+| `android/app/src/main/java/.../clothseg/view/ClothSegScreen.kt` | Compose screen: status header, picker button, result image |
+| `android/app/src/main/java/.../clothseg/view/Theme.kt`, `view/Color.kt` | App theme + colors |
+| `conversion/build_clothseg.py` | Converts the MIT weights to LiteRT with litert-torch |
 
 ## Convert
 
