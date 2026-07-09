@@ -17,12 +17,12 @@
 package com.google.ai.edge.examples.movinet.view
 
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.Button
@@ -41,8 +41,8 @@ import com.google.ai.edge.examples.movinet.R
 import com.google.ai.edge.examples.movinet.UiState
 
 /**
- * Action-recognition screen: a status line, a Run button, and the streaming per-frame prediction log
- * that fills in frame by frame from [UiState.outputText].
+ * Action-recognition screen: a status line, a Run button, and the streaming per-frame prediction
+ * log that fills in frame by frame from [UiState.outputText].
  */
 @Composable
 fun ActionScreen(uiState: UiState, onRun: () -> Unit, modifier: Modifier = Modifier) {

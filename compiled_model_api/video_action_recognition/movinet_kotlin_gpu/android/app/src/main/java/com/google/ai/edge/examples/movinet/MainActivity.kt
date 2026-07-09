@@ -27,8 +27,8 @@ import com.google.ai.edge.examples.movinet.view.ApplicationTheme
 
 /**
  * MoViNet-A0 streaming action recognition on the LiteRT CompiledModel GPU delegate (see [MoViNet]).
- * The UI is a thin Compose host over [MainViewModel], which streams the running per-frame prediction
- * of a bundled reference clip into the screen.
+ * The UI is a thin Compose host over [MainViewModel], which streams the running per-frame
+ * prediction of a bundled reference clip into the screen.
  */
 class MainActivity : ComponentActivity() {
   override fun onCreate(savedInstanceState: Bundle?) {

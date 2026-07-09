@@ -36,9 +36,9 @@ import kotlinx.coroutines.launch
  * Owns the [MoViNet] streaming model and exposes a single [UiState]. On startup it loads the GPU
  * compiled model from filesDir, the Kinetics-600 labels, and the bundled reference clip, then
  * auto-streams the clip once. Each [run] loops the 13 frames, calling [MoViNet.classify] per frame
- * and STREAMING the running "frame N -> label" log into [UiState.outputText] after every frame so the
- * predictions fill in live. The model reuses native buffers, so all model calls run on one confined
- * worker.
+ * and STREAMING the running "frame N -> label" log into [UiState.outputText] after every frame so
+ * the predictions fill in live. The model reuses native buffers, so all model calls run on one
+ * confined worker.
  *
  * The 15 MB model is NOT bundled — it is pushed to the app's filesDir by `install_to_device.sh`;
  * until then the status line asks the user to run it.
@@ -89,8 +89,7 @@ class MainViewModel(private val context: Context) : ViewModel() {
         _uiState.update {
           it.copy(
             isModelReady = true,
-            statusMessage =
-              "MoViNet-A0 streaming  ·  ${frames.size} frames  ·  CompiledModel GPU",
+            statusMessage = "MoViNet-A0 streaming  ·  ${frames.size} frames  ·  CompiledModel GPU",
           )
         }
         stream()
