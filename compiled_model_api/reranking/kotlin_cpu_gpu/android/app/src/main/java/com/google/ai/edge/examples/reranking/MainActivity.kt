@@ -26,8 +26,8 @@ import com.google.ai.edge.examples.reranking.view.ApplicationTheme
 import com.google.ai.edge.examples.reranking.view.RerankingScreen
 
 /**
- * On-device RAG reranking with Qwen3-Reranker-0.6B on the LiteRT CompiledModel GPU (see [Reranker]).
- * The UI is a thin Compose host over [MainViewModel].
+ * On-device RAG reranking with Qwen3-Reranker-0.6B on the LiteRT CompiledModel GPU (see
+ * [Reranker]). The UI is a thin Compose host over [MainViewModel].
  */
 class MainActivity : ComponentActivity() {
   override fun onCreate(savedInstanceState: Bundle?) {

@@ -30,9 +30,10 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
 /**
- * Owns the [Reranker] and exposes a single [UiState]. On startup it loads a bundled candidate set once
- * (a slow, one-time GPU compile), then scores every candidate against each query by P("yes") relevance
- * and ranks them. The reranker reuses native buffers, so all model calls run on one confined worker.
+ * Owns the [Reranker] and exposes a single [UiState]. On startup it loads a bundled candidate set
+ * once (a slow, one-time GPU compile), then scores every candidate against each query by P("yes")
+ * relevance and ranks them. The reranker reuses native buffers, so all model calls run on one
+ * confined worker.
  */
 class MainViewModel(private val context: Context) : ViewModel() {
 
@@ -62,7 +63,10 @@ class MainViewModel(private val context: Context) : ViewModel() {
     viewModelScope.launch(inferenceDispatcher) {
       try {
         docs =
-          context.assets.open(DOCS_ASSET).bufferedReader().use { it.readLines() }
+          context.assets
+            .open(DOCS_ASSET)
+            .bufferedReader()
+            .use { it.readLines() }
             .filter { it.isNotBlank() }
         _uiState.update {
           it.copy(
@@ -87,7 +91,9 @@ class MainViewModel(private val context: Context) : ViewModel() {
       try {
         runRerank(query)
       } catch (t: Throwable) {
-        _uiState.update { it.copy(isSearching = false, errorMessage = t.message ?: "Rerank failed") }
+        _uiState.update {
+          it.copy(isSearching = false, errorMessage = t.message ?: "Rerank failed")
+        }
       }
     }
   }
@@ -96,9 +102,7 @@ class MainViewModel(private val context: Context) : ViewModel() {
     val reranker = reranker ?: return
     val startMs = System.currentTimeMillis()
     val ranked =
-      docs
-        .map { RankedDocument(reranker.score(query, it), it) }
-        .sortedByDescending { it.score }
+      docs.map { RankedDocument(reranker.score(query, it), it) }.sortedByDescending { it.score }
     val elapsedMs = System.currentTimeMillis() - startMs
     _uiState.update {
       it.copy(
