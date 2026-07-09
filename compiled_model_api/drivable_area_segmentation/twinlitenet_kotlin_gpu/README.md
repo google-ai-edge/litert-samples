@@ -19,6 +19,25 @@ one patch: the `ConvTranspose2d` upsamplers → ZeroStuffConvT2d (Mali rejects
 `TRANSPOSE_CONV`). CPU-exact vs PyTorch (corr 1.0). Decode: `argmax` over the 2 classes of
 each head → drivable-area mask + lane mask.
 
+## App architecture
+
+The Android app is **MVVM + Jetpack Compose**. `MainActivity` is a thin Compose host that
+observes a single `UiState`; `MainViewModel` owns the `TwinLiteSegmenter`, runs every inference
+on one confined worker (`Dispatchers.Default.limitedParallelism(1)`), and overlays the two
+masks into the displayed bitmap. The model is loaded from `filesDir` (pushed by
+`install_to_device.sh`) and a bundled dashcam frame is segmented at launch; the **Pick image**
+button re-runs the model on a gallery photo.
+
+| File | Role |
+| --- | --- |
+| `MainActivity.kt` | Thin `ComponentActivity` Compose host; wires the gallery picker to the ViewModel |
+| `MainViewModel.kt` | Owns `TwinLiteSegmenter`, runs segmentation, overlays drivable-area + lane masks, exposes `UiState` |
+| `TwinLiteSegmenter.kt` | LiteRT `CompiledModel` (GPU) wrapper; returns the two argmax masks + inference time |
+| `UiState.kt` | Immutable UI snapshot (result bitmap, status flags, inference time) |
+| `ImageUtils.kt` | Asset / gallery bitmap decoding + EXIF orientation helpers |
+| `view/SegmentationScreen.kt` | Compose screen: status header, picker button, result `Image` |
+| `view/Theme.kt`, `view/Color.kt` | Compose Material theme |
+
 ## Run
 
 ```bash
@@ -30,8 +49,9 @@ cd android
 ./gradlew :app:installDebug
 ```
 
-The sample runs on a bundled dashcam frame and overlays the drivable area (green) + lane
-lines (red). Adapt `MainActivity.kt` to feed live camera frames for a real-time demo.
+The sample segments a bundled dashcam frame at launch and overlays the drivable area (green)
++ lane lines (red); the **Pick image** button re-runs it on a gallery photo. Adapt
+`MainViewModel.kt` to feed live camera frames for a real-time demo.
 
 ## Convert
 

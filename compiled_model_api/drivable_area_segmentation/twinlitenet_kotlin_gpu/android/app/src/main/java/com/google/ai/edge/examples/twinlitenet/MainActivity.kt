@@ -16,95 +16,44 @@
 
 package com.google.ai.edge.examples.twinlitenet
 
-import android.graphics.Bitmap
-import android.graphics.BitmapFactory
-import android.graphics.Canvas
-import android.graphics.Color
-import android.graphics.Paint
 import android.os.Bundle
-import android.widget.ImageView
-import android.widget.LinearLayout
-import android.widget.TextView
-import androidx.appcompat.app.AppCompatActivity
-import java.io.File
-import java.util.concurrent.Executors
+import androidx.activity.ComponentActivity
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.compose.setContent
+import androidx.activity.result.PickVisualMediaRequest
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.activity.viewModels
+import androidx.compose.runtime.getValue
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.google.ai.edge.examples.twinlitenet.view.ApplicationTheme
+import com.google.ai.edge.examples.twinlitenet.view.SegmentationScreen
 
 /**
- * Runs TwinLiteNet on a bundled dashcam frame and overlays the drivable area (green) and
- * lane lines (red) — a deterministic, self-contained demo. The 3.1 MB model is loaded from
- * filesDir; push it there first with install_to_device.sh.
+ * TwinLiteNet drivable-area + lane-line demo. The segmentation model runs on the LiteRT
+ * CompiledModel GPU (see [TwinLiteSegmenter]); the UI is a thin Compose host over [MainViewModel].
  */
-class MainActivity : AppCompatActivity() {
-
-  private val executor = Executors.newSingleThreadExecutor()
-
+class MainActivity : ComponentActivity() {
   override fun onCreate(savedInstanceState: Bundle?) {
     super.onCreate(savedInstanceState)
-    val status = TextView(this).apply {
-        textSize = 15f
-        setPadding(28, 40, 28, 20)
-    }
-    val imageView = ImageView(this).apply { adjustViewBounds = true }
-    setContentView(LinearLayout(this).apply {
-      orientation = LinearLayout.VERTICAL
-      addView(status)
-      addView(imageView)
-    })
+    val viewModel: MainViewModel by viewModels { MainViewModel.getFactory(this) }
+    setContent {
+      ApplicationTheme {
+        val uiState by viewModel.uiState.collectAsStateWithLifecycle()
 
-    executor.execute {
-      val modelFile = File(filesDir, "twinlite.tflite")
-      if (!modelFile.exists()) {
-        runOnUiThread {
-          status.text = "Model not found at:\n${modelFile.absolutePath}\n\n" +
-            "Push it first:  ./install_to_device.sh <dir-with-twinlite.tflite>\n" +
-            "(build with ../conversion or download from\n litert-community/TwinLiteNet-LiteRT)"
-        }
-        return@execute
-      }
-      val input = assets.open("test_image.jpg").use { BitmapFactory.decodeStream(it) }
-      TwinLiteSegmenter(modelFile.absolutePath).use { seg ->
-        val (da, ll, ms) = seg.segment(input)
-        val out = render(input, da, ll)
-        runOnUiThread {
-          status.text = "TwinLiteNet  ·  drivable area + lanes  ·  CompiledModel GPU  ·  ${ms} ms"
-          imageView.setImageBitmap(out)
-        }
-      }
-    }
-  }
-
-  /** Green = drivable area, red = lane lines, scaled from the 640×360 masks. */
-  private fun render(image: Bitmap, da: ByteArray, ll: ByteArray): Bitmap {
-    val W = TwinLiteSegmenter.W
-    val H = TwinLiteSegmenter.H
-    val out = image.copy(Bitmap.Config.ARGB_8888, true)
-    val px = IntArray(out.width * out.height)
-    out.getPixels(px, 0, out.width, 0, 0, out.width, out.height)
-    for (y in 0 until out.height) {
-      val my = y * H / out.height
-      for (x in 0 until out.width) {
-        val mi = my * W + (x * W / out.width)
-        val p = px[y * out.width + x]
-        px[y * out.width + x] = when {
-          ll[mi].toInt() == 1 -> Color.rgb(255, 48, 48)
-          da[mi].toInt() == 1 -> {
-            val r = (p shr 16) and 0xFF
-            val g = (p shr 8) and 0xFF
-            val b = p and 0xFF
-            Color.rgb(
-              (r * 0.45f + 40 * 0.55f).toInt(),
-              (g * 0.45f + 220 * 0.55f).toInt(),
-              (b * 0.45f + 90 * 0.55f).toInt())
+        val galleryLauncher =
+          rememberLauncherForActivityResult(ActivityResultContracts.PickVisualMedia()) { uri ->
+            if (uri != null) viewModel.process(uri)
           }
-          else -> p
-        }
+
+        SegmentationScreen(
+          uiState = uiState,
+          onPickImage = {
+            galleryLauncher.launch(
+              PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
+            )
+          },
+        )
       }
     }
-    return Bitmap.createBitmap(px, out.width, out.height, Bitmap.Config.ARGB_8888)
-  }
-
-  override fun onDestroy() {
-      super.onDestroy()
-      executor.shutdown()
   }
 }
