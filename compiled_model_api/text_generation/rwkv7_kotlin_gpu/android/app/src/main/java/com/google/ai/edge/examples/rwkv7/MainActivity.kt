@@ -26,9 +26,9 @@ import com.google.ai.edge.examples.rwkv7.view.ApplicationTheme
 import com.google.ai.edge.examples.rwkv7.view.GenerationScreen
 
 /**
- * On-device autoregressive text generation with RWKV-7 World 0.1B running its full per-token forward
- * pass on the LiteRT CompiledModel GPU delegate (see [Rwkv7Generator]). The UI is a thin Compose host
- * over [MainViewModel].
+ * On-device autoregressive text generation with RWKV-7 World 0.1B running its full per-token
+ * forward pass on the LiteRT CompiledModel GPU delegate (see [Rwkv7Generator]). The UI is a thin
+ * Compose host over [MainViewModel].
  */
 class MainActivity : ComponentActivity() {
   override fun onCreate(savedInstanceState: Bundle?) {

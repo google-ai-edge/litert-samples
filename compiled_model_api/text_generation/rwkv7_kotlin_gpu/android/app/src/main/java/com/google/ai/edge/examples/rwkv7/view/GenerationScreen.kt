@@ -17,12 +17,12 @@
 package com.google.ai.edge.examples.rwkv7.view
 
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.Button
@@ -47,11 +47,15 @@ import com.google.ai.edge.examples.rwkv7.R
 import com.google.ai.edge.examples.rwkv7.UiState
 
 /**
- * Text-generation screen: a prompt field, a Generate button, and the streaming completion that fills
- * in token by token from [UiState.outputText].
+ * Text-generation screen: a prompt field, a Generate button, and the streaming completion that
+ * fills in token by token from [UiState.outputText].
  */
 @Composable
-fun GenerationScreen(uiState: UiState, onGenerate: (String) -> Unit, modifier: Modifier = Modifier) {
+fun GenerationScreen(
+  uiState: UiState,
+  onGenerate: (String) -> Unit,
+  modifier: Modifier = Modifier,
+) {
   var prompt by remember { mutableStateOf(MainViewModel.DEFAULT_PROMPT) }
   Scaffold(
     modifier = modifier.statusBarsPadding(),

@@ -32,10 +32,10 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
 /**
- * Owns the [Rwkv7Generator] + [RwkvTokenizer] and exposes a single [UiState]. On startup it loads the
- * tokenizer and the GPU step graph once; each [generate] call greedily decodes and STREAMS the growing
- * completion into [UiState.outputText] one token at a time. RWKV keeps its whole recurrent state
- * host-side and reuses native buffers, so all model calls run on one confined worker.
+ * Owns the [Rwkv7Generator] + [RwkvTokenizer] and exposes a single [UiState]. On startup it loads
+ * the tokenizer and the GPU step graph once; each [generate] call greedily decodes and STREAMS the
+ * growing completion into [UiState.outputText] one token at a time. RWKV keeps its whole recurrent
+ * state host-side and reuses native buffers, so all model calls run on one confined worker.
  *
  * The 282 MB step graph and 100 MB embedding table are NOT bundled — they are pushed to the app's
  * filesDir by `install_to_device.sh`; until then the status line asks the user to run it.
@@ -76,7 +76,9 @@ class MainViewModel(private val context: Context) : ViewModel() {
         val embFile = File(context.filesDir, EMB_FILE)
         if (!modelFile.exists() || !embFile.exists()) {
           _uiState.update {
-            it.copy(statusMessage = "Model files missing — run install_to_device.sh, then relaunch.")
+            it.copy(
+              statusMessage = "Model files missing — run install_to_device.sh, then relaunch."
+            )
           }
           return@launch
         }
@@ -94,8 +96,8 @@ class MainViewModel(private val context: Context) : ViewModel() {
   }
 
   /**
-   * Greedily generates from [prompt], streaming the growing completion into [UiState.outputText] after
-   * every decoded token so the UI fills in live.
+   * Greedily generates from [prompt], streaming the growing completion into [UiState.outputText]
+   * after every decoded token so the UI fills in live.
    */
   fun generate(prompt: String) {
     if (prompt.isBlank()) return
@@ -130,8 +132,8 @@ class MainViewModel(private val context: Context) : ViewModel() {
           it.copy(
             isGenerating = false,
             statusMessage =
-              "%d tokens, %.1f tok/s (%.1f ms/token) — prefill %d ids".format(
-                count, tokPerS, if (count > 0) stepMsSum / count else 0f, promptIds.size),
+              "%d tokens, %.1f tok/s (%.1f ms/token) — prefill %d ids"
+                .format(count, tokPerS, if (count > 0) stepMsSum / count else 0f, promptIds.size),
           )
         }
       } catch (t: Throwable) {
