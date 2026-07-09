@@ -90,8 +90,9 @@ class MainViewModel(private val context: Context) : ViewModel() {
     viewModelScope.launch(inferenceDispatcher) {
       _uiState.update { it.copy(isRecording = true, errorMessage = null) }
       try {
-        val audio =
-          recordClip { secLeft -> _uiState.update { it.copy(statusMessage = "Listening… ${secLeft}s") } }
+        val audio = recordClip { secLeft ->
+          _uiState.update { it.copy(statusMessage = "Listening… ${secLeft}s") }
+        }
         val r = tagger!!.tag(audio)
         _uiState.update {
           it.copy(
@@ -101,7 +102,9 @@ class MainViewModel(private val context: Context) : ViewModel() {
           )
         }
       } catch (t: Throwable) {
-        _uiState.update { it.copy(isRecording = false, errorMessage = t.message ?: "Record failed") }
+        _uiState.update {
+          it.copy(isRecording = false, errorMessage = t.message ?: "Record failed")
+        }
       }
     }
   }
@@ -124,7 +127,10 @@ class MainViewModel(private val context: Context) : ViewModel() {
     val sr = AudioTagger.SAMPLES // 320000
     val minBuf =
       AudioRecord.getMinBufferSize(
-        MelSpectrogram.SAMPLE_RATE, AudioFormat.CHANNEL_IN_MONO, AudioFormat.ENCODING_PCM_16BIT)
+        MelSpectrogram.SAMPLE_RATE,
+        AudioFormat.CHANNEL_IN_MONO,
+        AudioFormat.ENCODING_PCM_16BIT,
+      )
     val rec =
       AudioRecord(
         MediaRecorder.AudioSource.MIC,
