@@ -28,9 +28,18 @@ PANNs builds its spectrogram with **torchlibrosa**, whose STFT is a *DFT-as-Conv
    ```
 3. Launch **Sound Event Detection** — it compiles the GPU shaders (~first launch), self-tests on the bundled clip, then the Record button captures 10 s from the mic and lists the top tags with a bar chart.
 
+## App architecture
+
+The app is **MVVM + Jetpack Compose** (Compose Material 1). `MainViewModel` owns the `AudioTagger` and exposes a single immutable `UiState` (`isModelReady`, `isRecording`, `statusMessage`, `resultText`, `errorMessage`) as a `StateFlow`. All model + mic work runs on one confined worker (`Dispatchers.Default.limitedParallelism(1)`) because the tagger reuses native buffers: on init it loads the model from filesDir and self-tests the bundled clip; `record()` captures 10 s from the mic, publishes a per-second "Listening… Ns" status via the `onTick` callback, then the tag bar chart. `MainActivity` is a thin Compose host; `SoundEventScreen` renders the status + Record button + scrollable result and requests the `RECORD_AUDIO` permission on demand with `rememberLauncherForActivityResult(RequestPermission())`, calling into the ViewModel only once the permission is granted.
+
 ## Files
 
-- `kotlin_cpu_gpu/android/` — the Android app (`AudioTagger.kt` = the GPU CNN + label decode, `MelSpectrogram.kt` = the host-side log-mel matched to torchlibrosa, `MainActivity.kt` = bundled-clip self-test + mic Record button).
+- `kotlin_cpu_gpu/android/` — the Android app:
+  - `AudioTagger.kt` — the GPU CNN + label decode.
+  - `MelSpectrogram.kt` — the host-side log-mel matched to torchlibrosa.
+  - `UiState.kt` / `MainViewModel.kt` — the immutable UI state and the ViewModel (model load + self-test, mic capture + tagging).
+  - `MainActivity.kt` — a thin Compose host over the ViewModel.
+  - `view/SoundEventScreen.kt` — the Compose screen (status, Record button + mic-permission launcher, scrollable tag bar chart); `view/Theme.kt` + `view/Color.kt` — the Material theme.
 - `conversion/` — the litert-torch conversion + host-mel validation script (`build_panns.py`).
 
 Upstream: [qiuqiangkong/audioset_tagging_cnn](https://github.com/qiuqiangkong/audioset_tagging_cnn) — code Apache-2.0, weights CC-BY-4.0 ([Zenodo](https://zenodo.org/record/3987831)). AudioSet ontology © Google, CC-BY-4.0.
