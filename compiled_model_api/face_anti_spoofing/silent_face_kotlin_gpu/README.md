@@ -24,10 +24,29 @@ cd android
 ./gradlew :app:installDebug
 ```
 
-The 1.85 MB `silentface.tflite` is bundled in `app/src/main/assets/`. The sample runs on a
-bundled face photo — since a photo is itself a presentation attack, it is correctly flagged
-**SPOOF**; a live camera capture would score **LIVE**. Adapt `MainActivity.kt` to feed a
-detected face crop from the camera.
+The 1.85 MB `silentface.tflite` is bundled in `app/src/main/assets/`. The sample scores the
+bundled face photo at launch and lets you pick another image from the gallery — since a photo
+is itself a presentation attack, it is correctly flagged **SPOOF**; a live camera capture would
+score **LIVE**. Adapt `MainViewModel.kt` to feed a detected face crop from the camera.
+
+## App architecture
+
+The UI is **MVVM + Jetpack Compose** (Compose Material). `LivenessDetector` owns the LiteRT
+`CompiledModel`; `MainViewModel` runs it on a single confined worker
+(`Dispatchers.Default.limitedParallelism(1)`), draws the colored verdict border onto a copy of
+the input, and publishes an immutable `UiState`. `MainActivity` is a thin Compose host that
+collects the state and renders `LivenessScreen`. On launch the bundled photo is scored; the
+gallery picker feeds additional images.
+
+| File | Role |
+| --- | --- |
+| `LivenessDetector.kt` | LiteRT `CompiledModel` (GPU) wrapper — face crop in, `[print, live, replay]` softmax + ms out |
+| `MainViewModel.kt` | Owns the detector, runs inference off the main thread, annotates the result, exposes `UiState` |
+| `UiState.kt` | Immutable snapshot: `resultImage`, `resultText`, `inferenceTimeMs`, model/processing/error flags |
+| `MainActivity.kt` | Thin `ComponentActivity` host: view model + gallery picker + Compose theme |
+| `view/LivenessScreen.kt` | Status header, verdict detail text, image picker, annotated result image |
+| `view/Theme.kt`, `view/Color.kt` | Compose Material theme colors |
+| `ImageUtils.kt` | Asset/gallery bitmap decoding (EXIF-oriented) helpers |
 
 ## Convert
 

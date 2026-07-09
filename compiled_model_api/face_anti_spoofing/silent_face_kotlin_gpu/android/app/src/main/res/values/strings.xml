@@ -1,0 +1,7 @@
+<resources>
+    <string name="app_name" translatable="false">Silent-Face Liveness</string>
+    <string name="action_pick_image">Pick image</string>
+    <string name="status_loading">Loading Silent-Face on GPU…</string>
+    <string name="status_processing">Detecting…</string>
+    <string name="status_ready" translatable="false">Silent-Face · liveness · CompiledModel GPU · %1$d ms</string>
+</resources>

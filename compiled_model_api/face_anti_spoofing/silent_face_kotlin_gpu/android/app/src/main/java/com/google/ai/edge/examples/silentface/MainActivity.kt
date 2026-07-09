@@ -16,76 +16,44 @@
 
 package com.google.ai.edge.examples.silentface
 
-import android.graphics.Bitmap
-import android.graphics.BitmapFactory
-import android.graphics.Canvas
-import android.graphics.Color
-import android.graphics.Paint
 import android.os.Bundle
-import android.widget.ImageView
-import android.widget.LinearLayout
-import android.widget.TextView
-import androidx.appcompat.app.AppCompatActivity
-import java.util.concurrent.Executors
+import androidx.activity.ComponentActivity
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.compose.setContent
+import androidx.activity.result.PickVisualMediaRequest
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.activity.viewModels
+import androidx.compose.runtime.getValue
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.google.ai.edge.examples.silentface.view.ApplicationTheme
+import com.google.ai.edge.examples.silentface.view.LivenessScreen
 
 /**
- * Runs Silent-Face liveness on a bundled face photo and shows the verdict. A photographed
- * face is a presentation attack, so it is correctly flagged as spoof (replay); a live
- * camera capture would score live. Deterministic, self-contained; the 1.85 MB model is bundled.
+ * Silent-Face liveness / anti-spoofing demo. The MiniFASNetV2 model runs on the LiteRT
+ * CompiledModel GPU (see [LivenessDetector]); the UI is a thin Compose host over [MainViewModel].
  */
-class MainActivity : AppCompatActivity() {
-
-  private val executor = Executors.newSingleThreadExecutor()
-
+class MainActivity : ComponentActivity() {
   override fun onCreate(savedInstanceState: Bundle?) {
     super.onCreate(savedInstanceState)
-    val status = TextView(this).apply {
-        textSize = 15f
-        setPadding(28, 40, 28, 20)
-    }
-    val imageView = ImageView(this).apply { adjustViewBounds = true }
-    setContentView(LinearLayout(this).apply {
-      orientation = LinearLayout.VERTICAL
-      addView(status)
-      addView(imageView)
-    })
+    val viewModel: MainViewModel by viewModels { MainViewModel.getFactory(this) }
+    setContent {
+      ApplicationTheme {
+        val uiState by viewModel.uiState.collectAsStateWithLifecycle()
 
-    executor.execute {
-      val input = assets.open("test_image.jpg").use { BitmapFactory.decodeStream(it) }
-      LivenessDetector(this).use { d ->
-        val (p, ms) = d.detect(input)
-        val live = p[1] >= p[0] && p[1] >= p[2]
-        val out = annotate(input, p, live)
-        runOnUiThread {
-          status.text = "Silent-Face liveness  ·  CompiledModel GPU  ·  ${ms} ms  ·  " +
-            "${if (live) "LIVE" else "SPOOF"} (live ${(p[1] * 100).toInt()}%)"
-          imageView.setImageBitmap(out)
-        }
+        val galleryLauncher =
+          rememberLauncherForActivityResult(ActivityResultContracts.PickVisualMedia()) { uri ->
+            if (uri != null) viewModel.process(uri)
+          }
+
+        LivenessScreen(
+          uiState = uiState,
+          onPickImage = {
+            galleryLauncher.launch(
+              PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
+            )
+          },
+        )
       }
     }
-  }
-
-  private fun annotate(image: Bitmap, p: FloatArray, live: Boolean): Bitmap {
-    val out = image.copy(Bitmap.Config.ARGB_8888, true)
-    val c = Canvas(out)
-    val col = if (live) Color.rgb(50, 220, 100) else Color.rgb(240, 70, 70)
-    val box = Paint().apply {
-        style = Paint.Style.STROKE
-        strokeWidth = out.width / 90f
-        color = col
-    }
-    c.drawRect(4f, 4f, out.width - 4f, out.height - 4f, box)
-    val tp = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-      color = col
-      textSize = out.width / 8f
-      setShadowLayer(6f, 0f, 0f, Color.BLACK)
-    }
-    c.drawText(if (live) "LIVE" else "SPOOF", 20f, tp.textSize + 20f, tp)
-    return out
-  }
-
-  override fun onDestroy() {
-      super.onDestroy()
-      executor.shutdown()
   }
 }
