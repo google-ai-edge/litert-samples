@@ -1,5 +1,5 @@
 /*
- * Copyright 2026 The Google AI Edge Authors. All Rights Reserved.
+ * Copyright 2025 The Google AI Edge Authors. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,8 +14,22 @@
  * limitations under the License.
  */
 
-plugins {
-  alias(libs.plugins.android.application) apply false
-  alias(libs.plugins.jetbrains.kotlin.android) apply false
-  alias(libs.plugins.compose.compiler) apply false
-}
+package com.google.ai.edge.examples.portrait.view
+
+import androidx.compose.ui.graphics.Color
+
+val darkBlue = Color(0xFF020F59)
+val teal = Color(0xFF00C99E)
+
+/** Distinct colors cycled per object class when drawing detection boxes. */
+val boxPalette =
+  intArrayOf(
+    0xFF00C853.toInt(),
+    0xFFFF6D00.toInt(),
+    0xFF2962FF.toInt(),
+    0xFFD50000.toInt(),
+    0xFFAA00FF.toInt(),
+    0xFF00B8D4.toInt(),
+    0xFFFFD600.toInt(),
+    0xFFC51162.toInt(),
+  )

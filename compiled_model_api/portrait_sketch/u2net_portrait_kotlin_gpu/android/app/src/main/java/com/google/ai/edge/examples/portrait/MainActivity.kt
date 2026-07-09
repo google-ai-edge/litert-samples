@@ -16,77 +16,44 @@
 
 package com.google.ai.edge.examples.portrait
 
-import android.graphics.Bitmap
-import android.graphics.BitmapFactory
 import android.os.Bundle
-import android.view.Gravity
-import android.widget.ImageView
-import android.widget.LinearLayout
-import android.widget.TextView
-import androidx.appcompat.app.AppCompatActivity
-import java.io.File
-import java.util.concurrent.Executors
+import androidx.activity.ComponentActivity
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.compose.setContent
+import androidx.activity.result.PickVisualMediaRequest
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.activity.viewModels
+import androidx.compose.runtime.getValue
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.google.ai.edge.examples.portrait.view.ApplicationTheme
+import com.google.ai.edge.examples.portrait.view.SketchScreen
 
 /**
- * Runs the U²-Net portrait model on a bundled face photo and shows the generated pencil
- * sketch — a deterministic, self-contained demo. The 176 MB model is loaded from filesDir;
- * push it there first with install_to_device.sh.
+ * U²-Net portrait sketch demo. The model runs on the LiteRT CompiledModel GPU (see
+ * [PortraitSketcher]); the UI is a thin Compose host over [MainViewModel].
  */
-class MainActivity : AppCompatActivity() {
-
-  private val executor = Executors.newSingleThreadExecutor()
-
+class MainActivity : ComponentActivity() {
   override fun onCreate(savedInstanceState: Bundle?) {
     super.onCreate(savedInstanceState)
-    val status = TextView(this).apply {
-        textSize = 15f
-        setPadding(28, 40, 28, 16)
-    }
-    val inputView = ImageView(this).apply { adjustViewBounds = true }
-    val sketchView = ImageView(this).apply { adjustViewBounds = true }
-    setContentView(LinearLayout(this).apply {
-      orientation = LinearLayout.VERTICAL
-      addView(status)
-      addView(TextView(this@MainActivity).apply { text = "Input"; setPadding(28, 8, 28, 4) })
-      addView(
-        inputView,
-        LinearLayout.LayoutParams(420, 420).apply { gravity = Gravity.CENTER_HORIZONTAL })
-      addView(
-        TextView(this@MainActivity).apply {
-          text = "Pencil portrait (GPU)"
-          setPadding(28, 16, 28, 4)
-        })
-      addView(
-        sketchView,
-        LinearLayout.LayoutParams(420, 420).apply { gravity = Gravity.CENTER_HORIZONTAL })
-    })
+    val viewModel: MainViewModel by viewModels { MainViewModel.getFactory(this) }
+    setContent {
+      ApplicationTheme {
+        val uiState by viewModel.uiState.collectAsStateWithLifecycle()
 
-    executor.execute {
-      val modelFile = File(filesDir, "portrait.tflite")
-      if (!modelFile.exists()) {
-        runOnUiThread {
-          status.text = "Model not found at:\n${modelFile.absolutePath}\n\n" +
-            "Push it first:  ./install_to_device.sh <dir-with-portrait.tflite>\n" +
-            "(build with ../conversion or download from\n" +
-            " litert-community/U2Net-Portrait-Sketch-LiteRT)"
-        }
-        return@execute
-      }
-      val input = assets.open("test_image.jpg").use { BitmapFactory.decodeStream(it) }
-      PortraitSketcher(modelFile.absolutePath).use { s ->
-        val (sketch, ms) = s.sketch(input)
-        runOnUiThread {
-          status.text =
-            "U²-Net portrait  ·  photo → pencil sketch  ·  CompiledModel GPU  ·  ${ms} ms"
-          inputView.setImageBitmap(input)
-          sketchView.setImageBitmap(sketch)
-        }
+        val galleryLauncher =
+          rememberLauncherForActivityResult(ActivityResultContracts.PickVisualMedia()) { uri ->
+            if (uri != null) viewModel.process(uri)
+          }
+
+        SketchScreen(
+          uiState = uiState,
+          onPickImage = {
+            galleryLauncher.launch(
+              PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
+            )
+          },
+        )
       }
     }
-  }
-
-  override fun onDestroy() {
-      super.onDestroy()
-      executor.shutdown()
   }
 }
