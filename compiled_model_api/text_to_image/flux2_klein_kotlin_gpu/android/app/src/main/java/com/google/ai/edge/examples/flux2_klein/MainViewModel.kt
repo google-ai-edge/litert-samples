@@ -56,6 +56,7 @@ class MainViewModel(private val context: Context) : ViewModel() {
           it.copy(
             isModelReady = true,
             isEditingAvailable = loaded.isEditingAvailable(),
+            isPromptEditable = loaded.isPromptEditable(),
             statusMessage = "Ready. Tap Generate to run the chunked transformer on the GPU.",
           )
         }
@@ -78,8 +79,18 @@ class MainViewModel(private val context: Context) : ViewModel() {
    *   confined dispatcher also guarantees a single in-flight run: two concurrent loops would each
    *   hold a ~900 MB graph.
    */
+  /** Updates the generation prompt. */
+  fun onPromptChange(value: String) = _uiState.update { it.copy(prompt = value) }
+
+  /** Updates the editing prompt. */
+  fun onEditPromptChange(value: String) = _uiState.update { it.copy(editPrompt = value) }
+
   fun generate(reference: Bitmap? = null) {
     val model = generator ?: return
+    val state = _uiState.value
+    val typed =
+      if (!state.isPromptEditable) null
+      else if (reference == null) state.prompt else state.editPrompt
     viewModelScope.launch(inferenceDispatcher) {
       _uiState.update {
         it.copy(
@@ -92,7 +103,7 @@ class MainViewModel(private val context: Context) : ViewModel() {
       }
       try {
         val image =
-          model.generate(reference) { progress ->
+          model.generate(reference, typed) { progress ->
             _uiState.update { it.copy(statusMessage = progress) }
           }
         _uiState.update { it.copy(isGenerating = false, statusMessage = "Done.", image = image) }

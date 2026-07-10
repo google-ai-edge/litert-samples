@@ -28,6 +28,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.material.Button
 import androidx.compose.material.MaterialTheme
+import androidx.compose.material.OutlinedTextField
 import androidx.compose.material.Scaffold
 import androidx.compose.material.Text
 import androidx.compose.material.TopAppBar
@@ -38,7 +39,6 @@ import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.google.ai.edge.examples.flux2_klein.Flux2KleinGenerator
 import com.google.ai.edge.examples.flux2_klein.R
 import com.google.ai.edge.examples.flux2_klein.UiState
 
@@ -46,7 +46,7 @@ import com.google.ai.edge.examples.flux2_klein.UiState
  * The prompt, the two actions, the status line, and the images.
  *
  * "Generate" runs text-to-image. "Edit an image" opens the photo picker; the picked image is edited
- * with [Flux2KleinGenerator.EDIT_PROMPT]. The edit action only appears when the editing graphs are
+ * with [UiState.DEFAULT_EDIT_PROMPT]. The edit action only appears when the editing graphs are
  * staged on the device.
  */
 @Composable
@@ -54,6 +54,8 @@ fun Flux2KleinScreen(
   uiState: UiState,
   onGenerate: () -> Unit,
   onPickImage: () -> Unit,
+  onPromptChange: (String) -> Unit,
+  onEditPromptChange: (String) -> Unit,
   modifier: Modifier = Modifier,
 ) {
   Scaffold(
@@ -66,15 +68,35 @@ fun Flux2KleinScreen(
     },
   ) { padding ->
     Column(modifier = Modifier.fillMaxSize().padding(padding).padding(16.dp)) {
-      Text(
-        text = "${stringResource(R.string.prompt_hint)}: ${Flux2KleinGenerator.PROMPT}",
-        fontSize = 14.sp,
-      )
-      if (uiState.isEditingAvailable) {
+      if (uiState.isPromptEditable) {
+        OutlinedTextField(
+          value = uiState.prompt,
+          onValueChange = onPromptChange,
+          enabled = !uiState.isGenerating,
+          label = { Text(stringResource(R.string.prompt_hint)) },
+          modifier = Modifier.fillMaxWidth(),
+        )
+        if (uiState.isEditingAvailable) {
+          OutlinedTextField(
+            value = uiState.editPrompt,
+            onValueChange = onEditPromptChange,
+            enabled = !uiState.isGenerating,
+            label = { Text(stringResource(R.string.edit_prompt_hint)) },
+            modifier = Modifier.fillMaxWidth(),
+          )
+        }
+      } else {
         Text(
-          text = "${stringResource(R.string.edit_prompt_hint)}: ${Flux2KleinGenerator.EDIT_PROMPT}",
+          text = "${stringResource(R.string.prompt_hint)}: ${UiState.DEFAULT_PROMPT}",
           fontSize = 14.sp,
         )
+        if (uiState.isEditingAvailable) {
+          Text(
+            text = "${stringResource(R.string.edit_prompt_hint)}: " +
+              UiState.DEFAULT_EDIT_PROMPT,
+            fontSize = 14.sp,
+          )
+        }
       }
       Spacer(modifier = Modifier.height(8.dp))
       Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {

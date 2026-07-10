@@ -70,15 +70,24 @@ class Flux2KleinGenerator(context: Context) : Closeable {
       File(filesDir, "kv_vae_enc.tflite").exists() &&
       File(File(filesDir, EDITING_BINS), "patch_perm.bin").exists()
 
+  /** True when the tokenizer and embedding table are staged, so the prompt can be typed. */
+  fun isPromptEditable(): Boolean = PromptEncoder.isStaged(filesDir)
+
   /**
    * Runs the four-step denoising loop and decodes the latent to an image.
    *
-   * @param reference when non-null, this image is edited with [EDIT_PROMPT] instead of a new image
-   *   being generated. It is squared and resized to 256x256 first.
+   * @param reference when non-null, this image is edited instead of a new image being generated. It
+   *   is squared and resized to 256x256 first.
+   * @param prompt when non-null (and the tokenizer is staged), it is tokenized and embedded on
+   *   device; otherwise the prompt baked into the staged .bin files is used.
    * @param onProgress called with a short human-readable status after each stage.
    * @return the generated or edited 256x256 image.
    */
-  fun generate(reference: Bitmap? = null, onProgress: (String) -> Unit): Bitmap {
+  fun generate(
+    reference: Bitmap? = null,
+    prompt: String? = null,
+    onProgress: (String) -> Unit,
+  ): Bitmap {
     val editing = reference != null
     require(!editing || isEditingAvailable()) {
       "Editing graphs not found. Re-run install_to_device.sh with the editing bins directory."
@@ -89,6 +98,20 @@ class Flux2KleinGenerator(context: Context) : Closeable {
     val startMillis = System.currentTimeMillis()
     fun elapsedSeconds() = (System.currentTimeMillis() - startMillis) / 1000f
 
+    // The prompt is the only staged tensor that depends on words; when the user types one, tokenize
+    // and embed it on device and override just `inputs_embeds` and `enc_mask`.
+    var promptEmbedding = inputs.inputsEmbeds
+    var promptMask = inputs.attentionMask
+    if (prompt != null && isPromptEditable()) {
+      onProgress("Tokenizing the prompt…")
+      PromptEncoder(filesDir).use { encoder ->
+        val tokens = encoder.tokenize(prompt)
+        promptEmbedding = encoder.embed(tokens)
+        promptMask = encoder.attentionMask(tokens)
+        onProgress("Prompt: ${tokens.realCount} tokens (${elapsedSeconds()}s)")
+      }
+    }
+
     val referenceTokens =
       reference?.let {
         onProgress("Encoding the reference image…")
@@ -96,7 +119,7 @@ class Flux2KleinGenerator(context: Context) : Closeable {
       }
 
     onProgress("Encoding the prompt…")
-    val promptEmbeds = encodePrompt(inputs)
+    val promptEmbeds = encodePrompt(inputs, promptEmbedding, promptMask)
 
     val latents = inputs.initialLatents.copyOf()
     val timestepSize = inputs.timestepEmbeddings.size / STEPS
@@ -174,16 +197,20 @@ class Flux2KleinGenerator(context: Context) : Closeable {
    * 3 x 2560 = 7680 channels per token. The tap positions are exactly the chunk boundaries, so each
    * chunk's output is both the next chunk's input and one third of the conditioning.
    */
-  private fun encodePrompt(inputs: StagedInputs): FloatArray {
+  private fun encodePrompt(
+    inputs: StagedInputs,
+    inputsEmbeds: FloatArray,
+    attentionMask: FloatArray,
+  ): FloatArray {
     val taps = ArrayList<FloatArray>(ENCODER_CHUNKS)
-    var hidden = inputs.inputsEmbeds
+    var hidden = inputsEmbeds
     for (index in 0 until ENCODER_CHUNKS) {
       hidden =
         ChunkRunner.gpu(
           environment,
           "ke_enc$index.tflite",
           filesDir,
-          listOf(hidden, inputs.attentionMask, inputs.encoderCos, inputs.encoderSin),
+          listOf(hidden, attentionMask, inputs.encoderCos, inputs.encoderSin),
         )[0]
       taps.add(hidden)
     }

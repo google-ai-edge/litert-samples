@@ -24,9 +24,17 @@ import androidx.compose.runtime.Immutable
 data class UiState(
   val isModelReady: Boolean = false,
   val isEditingAvailable: Boolean = false,
+  val isPromptEditable: Boolean = false,
+  val prompt: String = DEFAULT_PROMPT,
+  val editPrompt: String = DEFAULT_EDIT_PROMPT,
   val isGenerating: Boolean = false,
   val statusMessage: String = "",
   val errorMessage: String? = null,
   val sourceImage: Bitmap? = null,
   val image: Bitmap? = null,
-)
+) {
+  companion object {
+    const val DEFAULT_PROMPT = "a red apple on a wooden table, studio lighting"
+    const val DEFAULT_EDIT_PROMPT = "turn the apple into a green apple"
+  }
+}

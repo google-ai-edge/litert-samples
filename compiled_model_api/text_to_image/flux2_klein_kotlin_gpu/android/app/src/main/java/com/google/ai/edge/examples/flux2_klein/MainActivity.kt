@@ -53,6 +53,8 @@ class MainActivity : ComponentActivity() {
           onPickImage = {
             picker.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))
           },
+          onPromptChange = viewModel::onPromptChange,
+          onEditPromptChange = viewModel::onEditPromptChange,
         )
       }
     }

@@ -133,6 +133,9 @@ python chunked_export_klein.py --edit --export           # kce_* at the longer s
 python vae_encode_klein.py --export                      # kv_vae_enc
 python gen_prep_klein.py --edit --bins klein_bins_edit   # + patch_perm.bin, edit_source.png
 python gen_verify_klein.py --edit --bins klein_bins_edit
+
+# typed prompts (optional): tokenizer + the fp16 embedding table
+python export_tokenizer_klein.py --out klein_tokenizer   # 778 MB embedding + vocab/merges
 ```
 
 `gen_verify_klein.py` runs the exact loop the app runs, driven only by the exported
@@ -150,10 +153,21 @@ cd android
                        <graphs_dir>/klein_bins_edit                    # + editing
 ```
 
-The app shows both prompts, a **Generate** button, and — when the editing graphs are
-staged — an **Edit an image** button that opens the photo picker. Both prompts are baked
-into the staged host inputs, so changing one means re-running `gen_prep_klein.py`.
-Generation needs 6.2 GB of graphs; adding editing brings it to 10.1 GB.
+If `<graphs_dir>/klein_tokenizer` is present, `install_to_device.sh` stages it too and the
+app shows **editable prompt fields** — you type the prompt and it is tokenized and embedded
+on device. Otherwise the prompt is the one baked into the staged tensors, and changing it
+means re-running `gen_prep_klein.py`.
+
+**How typed prompts work.** The only staged tensors that depend on the words are
+`inputs_embeds` and `enc_mask`; the rotary tables, the schedule and the tail permutations
+depend on positions, the schedule or the seed. So the app carries a faithful port of the
+`Qwen2Tokenizer` (`QwenTokenizer.kt`, fixture-tested byte-for-byte against Python by
+`export_tokenizer_klein.py`) and looks the token rows up in a memory-mapped fp16 copy of the
+Qwen3 embedding table — a `GATHER` over 151936 rows is not a GPU op, and the gathered row is
+the graph's input anyway. Tokenizing and embedding a prompt takes about 1 s.
+
+Sizes: generation needs 6.2 GB of graphs; editing brings it to 10.1 GB; the typed-prompt
+embedding table adds 778 MB.
 
 Each graph is recompiled every time it is loaded — `GpuOptions(serializeProgramCache = true)`
 aborts the GPU delegate on this runtime — so shader compilation, not arithmetic,
