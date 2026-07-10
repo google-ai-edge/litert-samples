@@ -1,0 +1,11 @@
+<resources>
+    <string name="app_name" translatable="false">RTMPose Face Landmarks</string>
+    <string name="action_pick_image">Pick image</string>
+    <string name="status_loading">Loading RTMPose-Face on GPU…</string>
+    <string name="status_processing">Estimating landmarks…</string>
+    <string name="status_ready" translatable="false">On-device GPU face mesh · %1$d ms · 98 landmarks · RTMPose-m WFLW · CompiledModel GPU</string>
+    <string name="label_face_mesh">98-landmark face mesh (GPU)</string>
+    <string name="error_model_missing">Model not found. Push it first with install_to_device.sh:\n%1$s</string>
+    <string name="error_model_load">Failed to load model</string>
+    <string name="error_estimate_failed">Landmark estimation failed</string>
+</resources>
