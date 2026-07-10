@@ -14,8 +14,20 @@
  * limitations under the License.
  */
 
-plugins {
-  alias(libs.plugins.android.application) apply false
-  alias(libs.plugins.jetbrains.kotlin.android) apply false
-  alias(libs.plugins.compose.compiler) apply false
-}
+package com.google.ai.edge.examples.metric_depth
+
+import android.graphics.Bitmap
+import androidx.compose.runtime.Immutable
+
+/** Immutable snapshot of everything the metric depth screen renders. */
+@Immutable
+data class UiState(
+  val isModelReady: Boolean = false,
+  val isProcessing: Boolean = false,
+  val sourceImage: Bitmap? = null,
+  val depthImage: Bitmap? = null,
+  val inferenceTimeMs: Long = 0L,
+  val nearMeters: Float = 0f,
+  val farMeters: Float = 0f,
+  val errorMessage: String? = null,
+)
