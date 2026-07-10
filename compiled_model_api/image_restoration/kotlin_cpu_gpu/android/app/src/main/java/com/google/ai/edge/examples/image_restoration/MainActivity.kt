@@ -16,187 +16,46 @@
 
 package com.google.ai.edge.examples.image_restoration
 
-import android.app.Activity
-import android.content.Context
-import android.content.Intent
-import android.graphics.Bitmap
-import android.graphics.BitmapFactory
-import android.graphics.Canvas
-import android.graphics.Color
-import android.graphics.Matrix
-import android.graphics.Paint
-import android.media.ExifInterface
-import android.net.Uri
 import android.os.Bundle
-import android.util.Log
-import android.view.View
-import android.widget.Button
-import android.widget.LinearLayout
-import android.widget.TextView
-import java.util.concurrent.Executors
-import kotlin.math.min
+import androidx.activity.ComponentActivity
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.compose.setContent
+import androidx.activity.result.PickVisualMediaRequest
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.activity.viewModels
+import androidx.compose.runtime.getValue
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.google.ai.edge.examples.image_restoration.view.ApplicationTheme
+import com.google.ai.edge.examples.image_restoration.view.RestorationScreen
 
 /**
- * NAFNet demo: motion-deblur (image restoration) fully on the CompiledModel GPU. Restores a bundled
- * blurry image at launch and any image picked from the gallery; shows input | restored.
+ * NAFNet motion-deblur (image restoration) demo. The network runs on the LiteRT CompiledModel GPU
+ * (see [NafnetRestorer]); the UI is a thin Compose host over [MainViewModel].
  */
-class MainActivity : Activity() {
-
-  private val tag = "NAFNET"
-  private val bg = Executors.newSingleThreadExecutor()
-  private var net: NafnetRestorer? = null
-  private val pickReq = 100
-
-  private lateinit var status: TextView
-  private lateinit var inputView: ImgView
-  private lateinit var outView: ImgView
-
+class MainActivity : ComponentActivity() {
   override fun onCreate(savedInstanceState: Bundle?) {
     super.onCreate(savedInstanceState)
-    val root = LinearLayout(this).apply {
-        orientation = LinearLayout.VERTICAL
-        setPadding(24, 80, 24, 24)
-    }
-    status = TextView(this).apply {
-        textSize = 15f
-        text = "Loading NAFNet on GPU…"
-    }
-    val pick = Button(this).apply {
-      text = "🖼  Pick image"
-      isEnabled = false
-      setOnClickListener {
-        startActivityForResult(
-          Intent(Intent.ACTION_GET_CONTENT).apply { type = "image/*" }, pickReq)
+    val viewModel: MainViewModel by viewModels { MainViewModel.getFactory(this) }
+    setContent {
+      ApplicationTheme {
+        val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+
+        val galleryLauncher =
+          rememberLauncherForActivityResult(ActivityResultContracts.PickVisualMedia()) { uri ->
+            if (uri != null) {
+              viewModel.process(uri)
+            }
+          }
+
+        RestorationScreen(
+          uiState = uiState,
+          onPickImage = {
+            galleryLauncher.launch(
+              PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
+            )
+          },
+        )
       }
-    }
-    inputView = ImgView(this)
-    outView = ImgView(this)
-    val row = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
-    row.addView(inputView, LinearLayout.LayoutParams(0, 760, 1f))
-    row.addView(outView, LinearLayout.LayoutParams(0, 760, 1f))
-    root.addView(status)
-    root.addView(pick)
-    root.addView(row)
-    setContentView(root)
-
-    bg.execute {
-      try {
-        net = NafnetRestorer(this)
-        val bundled = squareResize(BitmapFactory.decodeStream(assets.open("test_image.jpg")))
-        run(bundled, warm = true)
-        runOnUiThread { pick.isEnabled = true }
-      } catch (e: Throwable) {
-        Log.e(tag, "load failed", e)
-        runOnUiThread {
-          status.setBackgroundColor(Color.rgb(0xFF, 0xCD, 0xD2))
-          status.text = "FAIL: ${e.message}"
-        }
-      }
-    }
-  }
-
-  override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
-    super.onActivityResult(requestCode, resultCode, data)
-    if (requestCode != pickReq || resultCode != RESULT_OK) return
-    val uri = data?.data ?: return
-    runOnUiThread { status.text = "Restoring…" }
-    bg.execute {
-      try {
-        run(squareResize(loadOriented(uri)), warm = false)
-      } catch (e: Throwable) {
-        Log.e(tag, "restore failed", e)
-        runOnUiThread { status.text = "Failed: ${e.message}" }
-      }
-    }
-  }
-
-  private fun run(img: Bitmap, warm: Boolean) {
-    val n = net!!
-    val rgb = bitmapToRgb(img)
-    if (warm) {
-      n.restore(rgb)
-    }
-    val t0 = System.nanoTime()
-    val out = n.restore(rgb)
-    val ms = (System.nanoTime() - t0) / 1_000_000
-    val outBmp = rgbToBitmap(out, NafnetRestorer.SIZE)
-    Log.i(tag, "restore ${ms}ms")
-    runOnUiThread {
-      status.setBackgroundColor(Color.rgb(0xC8, 0xE6, 0xC9))
-      status.text = "On-device GPU restoration ✓  ${ms} ms\n" +
-        "NAFNet-GoPro (deblur), fully on CompiledModel GPU"
-      inputView.bitmap = img
-      inputView.invalidate()
-      outView.bitmap = outBmp
-      outView.invalidate()
-    }
-  }
-
-  private fun loadOriented(uri: Uri): Bitmap {
-    val bm = contentResolver.openInputStream(uri).use { BitmapFactory.decodeStream(it) }
-      ?: error("cannot decode image")
-    val rot = contentResolver.openInputStream(uri).use {
-      when (ExifInterface(it!!).getAttributeInt(ExifInterface.TAG_ORIENTATION, 1)) {
-        ExifInterface.ORIENTATION_ROTATE_90 -> 90f
-        ExifInterface.ORIENTATION_ROTATE_180 -> 180f
-        ExifInterface.ORIENTATION_ROTATE_270 -> 270f
-        else -> 0f
-      }
-    }
-    if (rot == 0f) return bm
-    return Bitmap.createBitmap(
-      bm, 0, 0, bm.width, bm.height, Matrix().apply { postRotate(rot) }, true)
-  }
-
-  private fun squareResize(src: Bitmap): Bitmap {
-    val s = min(src.width, src.height)
-    val crop = Bitmap.createBitmap(src, (src.width - s) / 2, (src.height - s) / 2, s, s)
-    return Bitmap.createScaledBitmap(crop, NafnetRestorer.SIZE, NafnetRestorer.SIZE, true)
-  }
-
-  private fun bitmapToRgb(bm: Bitmap): FloatArray {
-    val n = bm.width * bm.height
-    val px = IntArray(n)
-    bm.getPixels(px, 0, bm.width, 0, 0, bm.width, bm.height)
-    val out = FloatArray(n * 3)
-    for (i in 0 until n) {
-      val p = px[i]
-      out[i * 3] = ((p shr 16) and 0xFF).toFloat()
-      out[i * 3 + 1] = ((p shr 8) and 0xFF).toFloat()
-      out[i * 3 + 2] = (p and 0xFF).toFloat()
-    }
-    return out
-  }
-
-  private fun rgbToBitmap(rgb: FloatArray, size: Int): Bitmap {
-    val px = IntArray(size * size)
-    for (i in 0 until size * size) {
-      px[i] = Color.rgb(rgb[i * 3].toInt().coerceIn(0, 255),
-        rgb[i * 3 + 1].toInt().coerceIn(0, 255), rgb[i * 3 + 2].toInt().coerceIn(0, 255))
-    }
-    return Bitmap.createBitmap(px, size, size, Bitmap.Config.ARGB_8888)
-  }
-
-  override fun onDestroy() {
-      super.onDestroy()
-      bg.shutdown()
-      net?.close()
-  }
-
-  class ImgView(ctx: Context) : View(ctx) {
-    var bitmap: Bitmap? = null
-    private val paint = Paint().apply { isFilterBitmap = true }
-    override fun onDraw(canvas: Canvas) {
-      val bm = bitmap ?: return
-      val s = min(width.toFloat() / bm.width, height.toFloat() / bm.height)
-      val w = bm.width * s
-      val h = bm.height * s
-      canvas.drawBitmap(
-        bm, null,
-        android.graphics.RectF(
-          (width - w) / 2, (height - h) / 2, (width + w) / 2, (height + h) / 2),
-        paint,
-      )
     }
   }
 }

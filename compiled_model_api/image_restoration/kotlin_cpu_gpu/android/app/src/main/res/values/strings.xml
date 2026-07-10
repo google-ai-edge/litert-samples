@@ -1,0 +1,12 @@
+<resources>
+    <string name="app_name" translatable="false">NAFNet Image Restoration</string>
+    <string name="action_pick_image">Pick image</string>
+    <string name="status_loading">Loading NAFNet on GPU…</string>
+    <string name="status_processing">Restoring…</string>
+    <string name="status_ready" translatable="false">NAFNet-GoPro · motion deblur · CompiledModel GPU · %1$d ms</string>
+    <string name="label_blurry_input">Blurry input</string>
+    <string name="label_restored_output">Restored (GPU)</string>
+    <string name="error_model_missing">Model not found. Push it first with install_to_device.sh:\n%1$s</string>
+    <string name="error_model_load">Failed to load model</string>
+    <string name="error_restore_failed">Restoration failed</string>
+</resources>
