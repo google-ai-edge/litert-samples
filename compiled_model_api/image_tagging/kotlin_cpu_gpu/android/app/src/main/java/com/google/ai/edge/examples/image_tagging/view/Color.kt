@@ -14,8 +14,9 @@
  * limitations under the License.
  */
 
-plugins {
-  alias(libs.plugins.android.application) apply false
-  alias(libs.plugins.jetbrains.kotlin.android) apply false
-  alias(libs.plugins.compose.compiler) apply false
-}
+package com.google.ai.edge.examples.image_tagging.view
+
+import androidx.compose.ui.graphics.Color
+
+val darkBlue = Color(0xFF020F59)
+val teal = Color(0xFF00C99E)

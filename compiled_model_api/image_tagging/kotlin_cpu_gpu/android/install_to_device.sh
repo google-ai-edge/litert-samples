@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Push the RAM++ graphs into the app's private filesDir.
-# Build them with ../../conversion/build_ram.py, or download from Hugging Face
+# Build them with the scripts in ../../conversion/ (see README.md), or download from Hugging Face
 # (litert-community/RAM-Plus-LiteRT). Then:
 #   ./install_to_device.sh <dir-with-artifacts>   (default: current dir)
 set -e
