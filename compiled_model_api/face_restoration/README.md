@@ -1,6 +1,6 @@
 # Blind Face Restoration with LiteRT — GFPGAN (on-device)
 
-An Android sample that runs [GFPGAN v1.4](https://github.com/TencentARC/GFPGAN) blind face restoration (Apache-2.0) on device with the LiteRT `CompiledModel` API, **fully on the GPU**. It reconstructs a degraded / low-quality face using a StyleGAN2 generative facial prior. Pick a photo, and the app detects the face, aligns it, and shows a before/after slider.
+An Android sample that runs [GFPGAN v1.4](https://github.com/TencentARC/GFPGAN) blind face restoration (Apache-2.0) on device with the LiteRT `CompiledModel` API, **fully on the GPU**. It reconstructs a degraded / low-quality face using a StyleGAN2 generative facial prior. Pick a photo, and the app detects the face, aligns it, and shows the original and the restored face side by side.
 
 ```
 photo →[YuNet detect+5 landmarks, GPU]→ FFHQ-align to 512 →[GFPGAN, GPU]→ restored face [1,3,512,512]
@@ -32,4 +32,4 @@ GFPGAN's StyleGAN prior mangles the mouth on off-template crops, so the app alig
    cd kotlin_cpu_gpu/android
    ./install_to_device.sh <dir-with-the-tflites>
    ```
-3. Build & install the app, pick a face photo, and drag the slider to compare.
+3. Build & install the app, pick a face photo, and compare the original with the restored result.
