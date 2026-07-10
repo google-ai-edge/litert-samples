@@ -14,8 +14,19 @@
  * limitations under the License.
  */
 
-plugins {
-  alias(libs.plugins.android.application) apply false
-  alias(libs.plugins.jetbrains.kotlin.android) apply false
-  alias(libs.plugins.compose.compiler) apply false
-}
+package com.google.ai.edge.examples.dinov2
+
+import android.content.Context
+import android.graphics.Bitmap
+import android.graphics.BitmapFactory
+import android.net.Uri
+
+/** Decodes a bitmap bundled in the app's assets. */
+fun Context.decodeAssetBitmap(assetName: String): Bitmap =
+  assets.open(assetName).use { BitmapFactory.decodeStream(it) }
+    ?: error("Cannot decode asset image: $assetName")
+
+/** Decodes a gallery image picked by the user. */
+fun Context.decodeUriBitmap(uri: Uri): Bitmap =
+  contentResolver.openInputStream(uri).use { BitmapFactory.decodeStream(it) }
+    ?: error("Cannot decode image: $uri")

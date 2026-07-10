@@ -14,8 +14,20 @@
  * limitations under the License.
  */
 
-plugins {
-  alias(libs.plugins.android.application) apply false
-  alias(libs.plugins.jetbrains.kotlin.android) apply false
-  alias(libs.plugins.compose.compiler) apply false
-}
+package com.google.ai.edge.examples.dinov2
+
+import android.graphics.Bitmap
+import androidx.compose.runtime.Immutable
+
+/**
+ * Immutable snapshot of everything the feature-visualization screen renders. [resultImage] is the
+ * source image and its DINOv2 feature-PCA overlay drawn side by side.
+ */
+@Immutable
+data class UiState(
+  val isModelReady: Boolean = false,
+  val isProcessing: Boolean = false,
+  val resultImage: Bitmap? = null,
+  val inferenceTimeMs: Long = 0L,
+  val errorMessage: String? = null,
+)
