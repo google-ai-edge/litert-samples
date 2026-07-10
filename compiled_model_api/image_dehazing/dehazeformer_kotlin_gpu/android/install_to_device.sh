@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Push the dehazeformer_base.tflite into the app's private filesDir.
-# Build with ../conversion (build_dehazeformer_base.py) or download from Hugging Face
+# Build with ../conversion (build_dehaze.py) or download from Hugging Face
 # (litert-community/DehazeFormer-MCT-LiteRT), then:
 #   ./install_to_device.sh <dir-with-dehazeformer_base.tflite>   (default: current dir)
 set -e
