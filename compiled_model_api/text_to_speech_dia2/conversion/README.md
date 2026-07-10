@@ -43,8 +43,11 @@ depformer's input and logit projections and all sampling live on the host. Each 
 packed cache as an input and returns the new key/value slice, which the host appends at the tail —
 no `SCATTER` or `GATHER` in the graph, and no dynamic shapes.
 
-**Everything runs on CPU as fp32.** The GPU delegate rejects the language models' KV-step
-`FULLY_CONNECTED` weight shapes, and fp16 collapses these deep stacks on ARM.
+**Everything runs on CPU as fp32,** because fp16 collapses these deep stacks on ARM. The GPU delegate
+is not the obstacle: the `FULLY_CONNECTED` rejection reported earlier is a LiteRT 2.1.3 bug fixed in
+2.1.5, and the depformer's own compile failure was a rank-5 reshape in our fused-QKV authoring (ML
+Drift's maximum rank is 4). With last-dimension slicing and a per-head attention mask it delegates
+237/237 nodes and matches the CPU reference exactly. See the top-level [`../README.md`](../README.md).
 
 **The Mimi decoder is exported as one 256-frame window.** Its decode path is upsample → *causal*
 decoder transformer → SEANet, so its receptive field is unbounded: decoding disjoint windows starts

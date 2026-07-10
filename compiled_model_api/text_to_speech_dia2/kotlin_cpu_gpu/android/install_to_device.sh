@@ -12,8 +12,8 @@ PKG=com.google.ai.edge.examples.text_to_speech_dia2
 DIR="${1:-.}"
 DEST="/sdcard/Android/data/$PKG/files"
 
-# Everything runs on CPU as fp32: the GPU delegate rejects the language models' KV-step
-# FULLY_CONNECTED weight shapes, and fp16 collapses these deep stacks on ARM.
+# Everything runs on CPU as fp32 because fp16 collapses these deep stacks on ARM.
+# (The GPU delegate is not the obstacle -- see the Device placement section of the README.)
 FILES=(
     dia2_temporal_fp32.tflite
     dia2_depformer_wi0_fp32.tflite

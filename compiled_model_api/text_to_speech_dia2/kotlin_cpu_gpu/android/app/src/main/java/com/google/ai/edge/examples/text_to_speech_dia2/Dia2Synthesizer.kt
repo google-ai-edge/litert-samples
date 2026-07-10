@@ -49,8 +49,10 @@ import kotlin.math.sin
 *    and must be undelayed before Mimi decoding.
 *  * **Both text streams carry real word tokens**, not just new-word/pad markers.
 *
-* All graphs run on CPU: these language models collapse in fp16 on ARM, and the Mali ML Drift
-* delegate rejects their FULLY_CONNECTED shapes.
+* All graphs run on CPU as fp32, because these language models collapse in fp16 on ARM. The GPU is
+* not the obstacle: the depformer's earlier compile failure was a rank-5 reshape in our own
+* fused-QKV authoring (ML Drift's maximum tensor rank is 4), and once that and the attention mask's
+* head-dimension broadcast are fixed it delegates every node and matches the CPU reference exactly.
 */
 class Dia2Synthesizer(context: Context) : Closeable {
 

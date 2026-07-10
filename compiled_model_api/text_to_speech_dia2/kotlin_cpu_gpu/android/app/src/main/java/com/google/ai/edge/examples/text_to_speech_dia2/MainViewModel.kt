@@ -41,10 +41,10 @@ import kotlinx.coroutines.launch
  * synthesizer — and plays the generated waveform through an [AudioTrack] as a side effect.
  * The graphs reuse native buffers, so every model call runs on one confined worker.
  *
- * Every graph runs on the CPU: the GPU delegate rejects the language models' KV-step
- * FULLY_CONNECTED shapes and fp16 collapses these deep stacks on ARM. Generation is
- * correctness-first and slow (~190 s for a short dialogue on a Pixel 8a), so the models are only
- * loaded — not warmed up — at startup.
+ * Every graph runs on the CPU as fp32, because fp16 collapses these deep stacks on ARM. The GPU
+ * delegate is not the obstacle (see [Dia2Synthesizer]). Generation is correctness-first and slow
+ * (~190 s for a short dialogue on a Pixel 8a), so the models are only loaded — not warmed up — at
+ * startup.
  */
 class MainViewModel(private val context: Context) : ViewModel() {
 
