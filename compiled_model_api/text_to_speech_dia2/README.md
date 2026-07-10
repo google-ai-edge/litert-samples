@@ -31,7 +31,7 @@ Kotlin; the graphs are pure step functions.
 said it rejects the language models' KV-step `FULLY_CONNECTED` weight shapes. That rejection is real
 on LiteRT 2.1.3 and **fixed in 2.1.5**. The depformer's own compile failure was in *our* graph: a
 rank-5 reshape inside the fused-QKV authoring, above ML Drift's maximum tensor rank of 4. Slicing the
-last dimension into thirds instead gives **237/237 nodes delegated at 4–7 ms/stage**; it then
+last dimension into thirds instead gives **237/237 nodes delegated**; it then
 miscomputed at both default and FP32 precision, which is the known BMM + broadcast-`ADD` bug, and
 pre-expanding the attention mask host-side from `[1,1,1,D]` to `[1,NH,1,D]` brings it to **corr
 1.000000** against the desktop CPU reference.
