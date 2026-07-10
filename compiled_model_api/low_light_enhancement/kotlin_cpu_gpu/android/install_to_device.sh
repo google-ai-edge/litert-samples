@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
-# Push the Metric3D v2 tflite into the app's private filesDir (too big to bundle).
-# Build with ../../conversion/build_mlsd.py or get it from Hugging Face
-# (litert-community/M-LSD-tiny-LiteRT), then:
+# Push the CPGA-Net tflite into the app's private filesDir (loaded from filesDir).
+# Build with ../../conversion/build_cpga.py or get it from Hugging Face
+# (litert-community/CPGA-Net-LowLight-LiteRT), then:
 #   ./install_to_device.sh <dir-with-the-tflite>   (default: current dir)
 set -e
 PKG=com.google.ai.edge.examples.low_light_enhancement
@@ -14,4 +14,4 @@ adb shell chmod 644 "/data/local/tmp/$M"
 adb shell run-as $PKG cp "/data/local/tmp/$M" "files/$M"
 adb shell rm "/data/local/tmp/$M"
 adb shell run-as $PKG ls -la files/
-echo "done — launch the M-LSD app."
+echo "done — launch the Low-Light Enhancement app."

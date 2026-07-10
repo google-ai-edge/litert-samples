@@ -1,0 +1,12 @@
+<resources>
+    <string name="app_name" translatable="false">Low-Light Enhancement</string>
+    <string name="action_pick_image">Pick image</string>
+    <string name="status_loading">Loading CPGA-Net on GPU…</string>
+    <string name="status_processing">Enhancing…</string>
+    <string name="status_ready" translatable="false">CPGA-Net · low-light enhancement · CompiledModel GPU · %1$d ms</string>
+    <string name="label_dark_input">Dark input</string>
+    <string name="label_enhanced_output">Enhanced (GPU)</string>
+    <string name="error_model_missing">Model not found. Push it first with install_to_device.sh:\n%1$s</string>
+    <string name="error_model_load">Failed to load model</string>
+    <string name="error_enhance_failed">Enhancement failed</string>
+</resources>
