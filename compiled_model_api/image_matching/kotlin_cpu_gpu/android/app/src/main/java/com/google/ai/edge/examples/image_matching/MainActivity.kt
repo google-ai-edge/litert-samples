@@ -16,124 +16,57 @@
 
 package com.google.ai.edge.examples.image_matching
 
-import android.app.Activity
-import android.content.Intent
-import android.graphics.Bitmap
-import android.graphics.BitmapFactory
-import android.graphics.Color
-import android.net.Uri
 import android.os.Bundle
-import android.util.Log
-import android.widget.Button
-import android.widget.LinearLayout
-import android.widget.ScrollView
-import android.widget.TextView
-import java.util.concurrent.Executors
+import androidx.activity.ComponentActivity
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.compose.setContent
+import androidx.activity.result.PickVisualMediaRequest
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.activity.viewModels
+import androidx.compose.runtime.getValue
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.google.ai.edge.examples.image_matching.view.ApplicationTheme
+import com.google.ai.edge.examples.image_matching.view.MatchScreen
 
 /**
- * XFeat two-image matching, fully on-device GPU: pick two photos of the same scene (different
- * angles) and see the matched keypoints. ~0.4 ms/image on the GPU; decode + matching on the host.
+ * XFeat two-image matching demo. Feature extraction runs on the LiteRT CompiledModel GPU (see
+ * [XFeatMatcher]), and the UI is a thin Compose host over [MainViewModel].
  */
-class MainActivity : Activity() {
+class MainActivity : ComponentActivity() {
+  override fun onCreate(savedInstanceState: Bundle?) {
+    super.onCreate(savedInstanceState)
+    val viewModel: MainViewModel by viewModels { MainViewModel.getFactory(this) }
+    setContent {
+      ApplicationTheme {
+        val uiState by viewModel.uiState.collectAsStateWithLifecycle()
 
-    private val tag = "XFeat"
-    private val bg = Executors.newSingleThreadExecutor()
-    private var matcher: XFeatMatcher? = null
-
-    private lateinit var status: TextView
-    private lateinit var view: MatchView
-    private var bmA: Bitmap? = null
-    private var bmB: Bitmap? = null
-
-    override fun onCreate(savedInstanceState: Bundle?) {
-        super.onCreate(savedInstanceState)
-        val root = LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL
-            setPadding(36, 90, 36, 36)
-        }
-        status = TextView(this).apply {
-            textSize = 15f
-            text = "Loading…"
-        }
-        val pickA = Button(this).apply {
-            text = "1️⃣  Pick first image"
-            setOnClickListener { pick(1) }
-        }
-        val pickB = Button(this).apply {
-            text = "2️⃣  Pick second image"
-            setOnClickListener { pick(2) }
-        }
-        view = MatchView(this)
-        root.addView(status)
-        root.addView(pickA)
-        root.addView(pickB)
-        root.addView(view)
-        setContentView(ScrollView(this).apply { addView(root) })
-
-        bg.execute {
-            try {
-                matcher = XFeatMatcher(this)
-                runOnUiThread { status.text = "Ready — pick two photos of the same scene." }
-            } catch (e: Throwable) {
-                Log.e(tag, "load", e)
-                runOnUiThread {
-                    status.setBackgroundColor(Color.rgb(0xFF, 0xCD, 0xD2))
-                    status.text = "FAIL: ${e.message}"
-                }
+        val pickFirstLauncher =
+          rememberLauncherForActivityResult(ActivityResultContracts.PickVisualMedia()) { uri ->
+            if (uri != null) {
+              viewModel.onImagePicked(MainViewModel.FIRST_IMAGE_SLOT, uri)
             }
-        }
-    }
+          }
+        val pickSecondLauncher =
+          rememberLauncherForActivityResult(ActivityResultContracts.PickVisualMedia()) { uri ->
+            if (uri != null) {
+              viewModel.onImagePicked(MainViewModel.SECOND_IMAGE_SLOT, uri)
+            }
+          }
 
-    private fun pick(which: Int) {
-        startActivityForResult(Intent(Intent.ACTION_OPEN_DOCUMENT).apply {
-            addCategory(Intent.CATEGORY_OPENABLE)
-            type = "image/*"
-        }, which)
+        MatchScreen(
+          uiState = uiState,
+          onPickFirst = {
+            pickFirstLauncher.launch(
+              PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
+            )
+          },
+          onPickSecond = {
+            pickSecondLauncher.launch(
+              PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
+            )
+          },
+        )
+      }
     }
-
-    private fun load(uri: Uri): Bitmap {
-        contentResolver.openInputStream(uri).use { s ->
-            return BitmapFactory.decodeStream(s)
-        }
-    }
-
-    override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
-        val uri = data?.data ?: return
-        if (resultCode != RESULT_OK) return
-        try {
-            val bm = load(uri)
-            if (requestCode == 1) bmA = bm else bmB = bm
-            status.text = "Image $requestCode set (${bm.width}x${bm.height})."
-            val a = bmA
-            val b = bmB
-            if (a != null && b != null) bg.execute { run(a, b) }
-        } catch (e: Throwable) {
-            Log.e(tag, "pick", e)
-            status.text = "Failed: ${e.message}"
-        }
-    }
-
-    private fun run(a: Bitmap, b: Bitmap) {
-        val m = matcher ?: return
-        runOnUiThread { status.text = "Matching on GPU…" }
-        val t0 = System.nanoTime()
-        val fa = m.extract(m.preprocess(a))
-        val fb = m.extract(m.preprocess(b))
-        val matches = m.match(fa, fb)
-        val ms = (System.nanoTime() - t0) / 1_000_000
-        Log.i(tag, "kpts ${fa.xs.size}/${fb.xs.size}, ${matches.size} matches in ${ms}ms")
-        runOnUiThread {
-            status.setBackgroundColor(Color.rgb(0xC8, 0xE6, 0xC9))
-            status.text = "✓ ${matches.size} matches (${fa.xs.size}/${fb.xs.size} kpts) " +
-                "in ${ms}ms · XFeat, CompiledModel GPU"
-            view.set(Bitmap.createScaledBitmap(a, XFeatMatcher.W, XFeatMatcher.H, true),
-                     Bitmap.createScaledBitmap(b, XFeatMatcher.W, XFeatMatcher.H, true), matches)
-        }
-    }
-
-    override fun onDestroy() {
-        super.onDestroy()
-        bg.shutdown()
-        matcher?.close()
-    }
+  }
 }

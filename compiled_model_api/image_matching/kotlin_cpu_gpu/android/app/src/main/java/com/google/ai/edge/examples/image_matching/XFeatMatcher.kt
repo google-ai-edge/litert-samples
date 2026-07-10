@@ -75,7 +75,9 @@ class XFeatMatcher(ctx: Context) : Closeable {
             varSum += d * d
         }
         val inv = (1.0 / sqrt(varSum / g.size + 1e-5)).toFloat()
-        for (i in g.indices) g[i] = ((g[i] - mean.toFloat()) * inv)
+        for (i in g.indices) {
+            g[i] = ((g[i] - mean.toFloat()) * inv)
+        }
         return g
     }
 
@@ -97,7 +99,9 @@ class XFeatMatcher(ctx: Context) : Closeable {
                 var mx = Float.NEGATIVE_INFINITY
                 for (c in 0 until 65) {
                     cell[c] = klog[(c * GH + cy) * GW + cx]
-                    if (cell[c] > mx) mx = cell[c]
+                    if (cell[c] > mx) {
+                        mx = cell[c]
+                    }
                 }
                 var sum = 0f
                 for (c in 0 until 65) {
@@ -126,7 +130,9 @@ class XFeatMatcher(ctx: Context) : Closeable {
                         break@loop
                     }
                 }
-                if (isMax) cand.add(Triple(x, y, s))
+                if (isMax) {
+                    cand.add(Triple(x, y, s))
+                }
             }
         }
         cand.sortByDescending { it.third }
@@ -158,7 +164,9 @@ class XFeatMatcher(ctx: Context) : Closeable {
                 norm += v * v
             }
             norm = sqrt(norm) + 1e-9f
-            for (d in 0 until D) desc[i][d] /= norm
+            for (d in 0 until D) {
+                desc[i][d] /= norm
+            }
         }
         return Features(xs, ys, sc, desc)
     }
@@ -177,7 +185,9 @@ class XFeatMatcher(ctx: Context) : Closeable {
                 var s = 0f
                 val da = a.desc[i]
                 val db = b.desc[j]
-                for (d in 0 until D) s += da[d] * db[d]
+                for (d in 0 until D) {
+                    s += da[d] * db[d]
+                }
                 if (s > simB[i]) {
                     simB[i] = s
                     bestB[i] = j

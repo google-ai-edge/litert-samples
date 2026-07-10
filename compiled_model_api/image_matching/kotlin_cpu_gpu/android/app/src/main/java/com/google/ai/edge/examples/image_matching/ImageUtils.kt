@@ -14,8 +14,17 @@
  * limitations under the License.
  */
 
-plugins {
-  alias(libs.plugins.android.application) apply false
-  alias(libs.plugins.jetbrains.kotlin.android) apply false
-  alias(libs.plugins.compose.compiler) apply false
-}
+package com.google.ai.edge.examples.image_matching
+
+import android.content.Context
+import android.graphics.Bitmap
+import android.graphics.BitmapFactory
+import android.net.Uri
+
+/**
+ * Decodes a gallery image to a bitmap. XFeat re-normalizes and resizes each image itself, so this
+ * mirrors the original picker exactly: a plain decode with no EXIF reorientation.
+ */
+fun Context.decodeUriBitmap(uri: Uri): Bitmap =
+  contentResolver.openInputStream(uri).use { BitmapFactory.decodeStream(it) }
+    ?: error("Cannot decode image: $uri")
