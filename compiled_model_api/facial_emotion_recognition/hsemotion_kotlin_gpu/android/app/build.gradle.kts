@@ -15,14 +15,15 @@
  */
 
 plugins {
-  id("com.android.application")
-  id("org.jetbrains.kotlin.android")
-  id("de.undercouch.download")
+  alias(libs.plugins.android.application)
+  alias(libs.plugins.jetbrains.kotlin.android)
+  alias(libs.plugins.compose.compiler)
+  alias(libs.plugins.undercouch.download)
 }
 
 android {
   namespace = "com.google.ai.edge.examples.hsemotion"
-  compileSdk = 35
+  compileSdk = 36
 
   defaultConfig {
     applicationId = "com.google.ai.edge.examples.hsemotion"
@@ -38,25 +39,41 @@ android {
     targetCompatibility = JavaVersion.VERSION_17
   }
   kotlinOptions { jvmTarget = "17" }
+  buildFeatures { compose = true }
 
   packaging {
     jniLibs {
-      pickFirsts += setOf(
-        "**/libc++_shared.so",
-        "**/libtensorflowlite_jni.so",
-        "**/libtensorflowlite_gpu_jni.so",
-      )
+      pickFirsts +=
+        setOf(
+          "**/libc++_shared.so",
+          "**/libtensorflowlite_jni.so",
+          "**/libtensorflowlite_gpu_jni.so",
+        )
     }
   }
 
   androidResources { noCompress += listOf("tflite") }
 }
 
-dependencies {
-  implementation("com.google.ai.edge.litert:litert:2.1.5")
-  implementation("androidx.core:core-ktx:1.15.0")
-  implementation("androidx.appcompat:appcompat:1.7.0")
-}
-
+// The HSEmotion fp16 model is fetched into the app assets at build time; it is
+// not committed to the repo.
 project.ext.set("ASSET_DIR", "$projectDir/src/main/assets")
+
 apply(from = "download_model.gradle")
+
+dependencies {
+  implementation(libs.androidx.core.ktx)
+  implementation(libs.androidx.lifecycle.runtime.ktx)
+  implementation(libs.androidx.lifecycle.runtime.compose)
+  implementation(libs.androidx.lifecycle.viewmodel.compose)
+  implementation(libs.androidx.activity.compose)
+  implementation(platform(libs.androidx.compose.bom))
+  implementation(libs.androidx.ui)
+  implementation(libs.androidx.ui.graphics)
+  implementation(libs.androidx.ui.tooling.preview)
+  implementation(libs.androidx.material2)
+  implementation(libs.kotlinx.coroutines.android)
+  implementation(libs.litert)
+
+  debugImplementation(libs.androidx.ui.tooling)
+}
