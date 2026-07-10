@@ -14,8 +14,14 @@
  * limitations under the License.
  */
 
-plugins {
-  alias(libs.plugins.android.application) apply false
-  alias(libs.plugins.jetbrains.kotlin.android) apply false
-  alias(libs.plugins.compose.compiler) apply false
-}
+package com.google.ai.edge.examples.text_prompted_segmentation
+
+import android.content.Context
+import android.graphics.Bitmap
+import android.graphics.BitmapFactory
+import android.net.Uri
+
+/** Decodes a gallery image. CLIPSeg resizes internally, so no orientation fix-up is applied. */
+fun Context.decodeUriBitmap(uri: Uri): Bitmap =
+  contentResolver.openInputStream(uri).use { BitmapFactory.decodeStream(it) }
+    ?: error("Cannot decode image: $uri")
