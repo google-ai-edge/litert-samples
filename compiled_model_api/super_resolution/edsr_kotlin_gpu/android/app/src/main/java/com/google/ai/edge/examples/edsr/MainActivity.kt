@@ -16,66 +16,46 @@
 
 package com.google.ai.edge.examples.edsr
 
-import android.graphics.Bitmap
-import android.graphics.BitmapFactory
 import android.os.Bundle
-import android.view.Gravity
-import android.widget.ImageView
-import android.widget.LinearLayout
-import android.widget.TextView
-import androidx.appcompat.app.AppCompatActivity
-import java.util.concurrent.Executors
+import androidx.activity.ComponentActivity
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.compose.setContent
+import androidx.activity.result.PickVisualMediaRequest
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.activity.viewModels
+import androidx.compose.runtime.getValue
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.google.ai.edge.examples.edsr.view.ApplicationTheme
+import com.google.ai.edge.examples.edsr.view.SuperResolutionScreen
 
 /**
- * Runs EDSR ×4 on a bundled low-res image and shows bicubic ×4 vs EDSR ×4 — a
- * deterministic, self-contained demo. The 7.7 MB model is bundled in assets.
+ * EDSR ×4 super-resolution demo. The upscaler runs on the LiteRT CompiledModel GPU (see
+ * [Upscaler]); the UI is a thin Compose host over [MainViewModel].
  */
-class MainActivity : AppCompatActivity() {
-
-  private val executor = Executors.newSingleThreadExecutor()
-
+class MainActivity : ComponentActivity() {
   override fun onCreate(savedInstanceState: Bundle?) {
     super.onCreate(savedInstanceState)
-    val status = TextView(this).apply {
-        textSize = 15f
-        setPadding(28, 40, 28, 16)
-    }
-    val bicubicView = ImageView(this).apply { adjustViewBounds = true }
-    val srView = ImageView(this).apply { adjustViewBounds = true }
-    setContentView(LinearLayout(this).apply {
-      orientation = LinearLayout.VERTICAL
-      addView(status)
-      addView(TextView(this@MainActivity).apply { text = "Bicubic ×4"; setPadding(28, 8, 28, 4) })
-      addView(
-        bicubicView,
-        LinearLayout.LayoutParams(512, 512).apply { gravity = Gravity.CENTER_HORIZONTAL })
-      addView(
-        TextView(this@MainActivity).apply {
-          text = "EDSR ×4 (GPU)"
-          setPadding(28, 16, 28, 4)
-        })
-      addView(
-        srView,
-        LinearLayout.LayoutParams(512, 512).apply { gravity = Gravity.CENTER_HORIZONTAL })
-    })
+    val viewModel: MainViewModel by viewModels { MainViewModel.getFactory(this) }
+    setContent {
+      ApplicationTheme {
+        val uiState by viewModel.uiState.collectAsStateWithLifecycle()
 
-    executor.execute {
-      val lr = assets.open("test_image.jpg").use { BitmapFactory.decodeStream(it) }
-      Upscaler(this).use { u ->
-        val (hr, ms) = u.upscale(lr)
-        val bicubic = Bitmap.createScaledBitmap(lr, Upscaler.HR, Upscaler.HR, true)
-        runOnUiThread {
-          status.text =
-            "EDSR ×4 super-resolution  ·  CompiledModel GPU  ·  ${ms} ms  ·  128 → 512"
-          bicubicView.setImageBitmap(bicubic)
-          srView.setImageBitmap(hr)
-        }
+        val galleryLauncher =
+          rememberLauncherForActivityResult(ActivityResultContracts.PickVisualMedia()) { uri ->
+            if (uri != null) {
+              viewModel.process(uri)
+            }
+          }
+
+        SuperResolutionScreen(
+          uiState = uiState,
+          onPickImage = {
+            galleryLauncher.launch(
+              PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
+            )
+          },
+        )
       }
     }
-  }
-
-  override fun onDestroy() {
-      super.onDestroy()
-      executor.shutdown()
   }
 }
