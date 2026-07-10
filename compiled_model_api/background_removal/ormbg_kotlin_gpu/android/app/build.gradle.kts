@@ -15,13 +15,14 @@
  */
 
 plugins {
-  id("com.android.application")
-  id("org.jetbrains.kotlin.android")
+  alias(libs.plugins.android.application)
+  alias(libs.plugins.jetbrains.kotlin.android)
+  alias(libs.plugins.compose.compiler)
 }
 
 android {
   namespace = "com.google.ai.edge.examples.ormbg"
-  compileSdk = 35
+  compileSdk = 36
 
   defaultConfig {
     applicationId = "com.google.ai.edge.examples.ormbg"
@@ -37,14 +38,16 @@ android {
     targetCompatibility = JavaVersion.VERSION_17
   }
   kotlinOptions { jvmTarget = "17" }
+  buildFeatures { compose = true }
 
   packaging {
     jniLibs {
-      pickFirsts += setOf(
-        "**/libc++_shared.so",
-        "**/libtensorflowlite_jni.so",
-        "**/libtensorflowlite_gpu_jni.so",
-      )
+      pickFirsts +=
+        setOf(
+          "**/libc++_shared.so",
+          "**/libtensorflowlite_jni.so",
+          "**/libtensorflowlite_gpu_jni.so",
+        )
     }
   }
 
@@ -52,7 +55,18 @@ android {
 }
 
 dependencies {
-  implementation("com.google.ai.edge.litert:litert:2.1.5")
-  implementation("androidx.core:core-ktx:1.15.0")
-  implementation("androidx.appcompat:appcompat:1.7.0")
+  implementation(libs.androidx.core.ktx)
+  implementation(libs.androidx.lifecycle.runtime.ktx)
+  implementation(libs.androidx.lifecycle.runtime.compose)
+  implementation(libs.androidx.lifecycle.viewmodel.compose)
+  implementation(libs.androidx.activity.compose)
+  implementation(platform(libs.androidx.compose.bom))
+  implementation(libs.androidx.ui)
+  implementation(libs.androidx.ui.graphics)
+  implementation(libs.androidx.ui.tooling.preview)
+  implementation(libs.androidx.material2)
+  implementation(libs.kotlinx.coroutines.android)
+  implementation(libs.litert)
+
+  debugImplementation(libs.androidx.ui.tooling)
 }
