@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# Push the MoViNet-A0 stream tflite into the app's private filesDir.
-# Build it with ../conversion (build_movinet.py) or download from Hugging Face
+# Push the MODNet portrait-matting tflite into the app's private filesDir.
+# Build it with ../conversion (build_modnet.py) or download from Hugging Face
 # (litert-community/MODNet-LiteRT), then:
 #   ./install_to_device.sh <dir-with-the-tflite>   (default: current dir)
 set -e

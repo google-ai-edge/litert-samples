@@ -1,0 +1,12 @@
+<resources>
+    <string name="app_name" translatable="false">MODNet Matting</string>
+    <string name="action_pick_image">Pick image</string>
+    <string name="status_loading">Loading MODNet on GPU…</string>
+    <string name="status_processing">Matting…</string>
+    <string name="status_ready" translatable="false">MODNet · trimap-free portrait matting · CompiledModel GPU · %1$d ms</string>
+    <string name="label_portrait_input">Portrait input</string>
+    <string name="label_matte_output">Foreground over green screen</string>
+    <string name="error_model_missing">Model not found. Push it first with install_to_device.sh:\n%1$s</string>
+    <string name="error_model_load">Failed to load model</string>
+    <string name="error_matte_failed">Matting failed</string>
+</resources>
