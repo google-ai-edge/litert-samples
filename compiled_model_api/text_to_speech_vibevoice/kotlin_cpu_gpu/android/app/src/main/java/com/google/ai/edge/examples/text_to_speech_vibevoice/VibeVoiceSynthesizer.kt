@@ -45,9 +45,12 @@ import kotlin.math.sqrt
  *     EOS classifier(host) stops generation
  *   accumulate latents -> decoder(CPU) -> 24 kHz waveform
  *
- * Placement is dictated by the Pixel 8a Mali ML Drift delegate: the two Qwen2 LMs are
- * rejected on GPU (unsupported FULLY_CONNECTED weights shape) and fp16 collapses their
- * 20-layer stack on ARM XNNPACK, so they run as fp32 graphs on CPU; the σ-VAE decoder
+ * Placement is dictated by the Pixel 8a Mali ML Drift delegate *at the LiteRT version this
+ * sample pins* (2.1.3): the two Qwen2 LMs are rejected on GPU with "unsupported
+ * FULLY_CONNECTED weights shape". LiteRT 2.1.5 fixes that — there both LMs delegate every
+ * node and match the CPU reference to corr >= 0.9998 — but until this sample moves to it they
+ * run as fp32 graphs on CPU, which fp16 requires anyway (fp16 collapses their 20-layer stack
+ * on ARM XNNPACK). The σ-VAE decoder
  * compiles on GPU but ML Drift miscomputes it (a graph-assembly buffer bug — every op is
  * bit-exact in isolation, but the assembled ConvNeXt block is wrong), so it too runs as an
  * fp32 graph on CPU. Only the tiny diffusion head runs on GPU (fp32 precision).
@@ -116,8 +119,9 @@ class VibeVoiceSynthesizer(private val context: Context) : Closeable {
     }
 
     // Placement (see the class KDoc): the two Qwen2 LMs and the σ-VAE decoder run on CPU as
-    // fp32 graphs (Mali rejects the LM FULLY_CONNECTED shape and miscomputes the decoder);
-    // only the small diffusion head runs on the GPU.
+    // fp32 graphs — LiteRT 2.1.3's Mali delegate rejects the LM FULLY_CONNECTED shape (2.1.5
+    // fixes it) and miscomputes the decoder (every version tried). Only the small diffusion
+    // head runs on the GPU.
     private val baseLm = load(BASE_LM, Accelerator.CPU)
     private val ttsLm = load(TTS_LM, Accelerator.CPU)
     private val head = load(HEAD, Accelerator.GPU, gpuFp32 = true)

@@ -25,7 +25,7 @@ on-device, not just by desktop parity.
 
 | Graph | In → Out | Delegate (Pixel 8a) | Why |
 | :-- | :-- | :--: | :-- |
-| `vv_base_lm_kv_fp32` | x[1,1,896], cos/sin[1,1,1,64], mask[1,1,1,129], pk/pv[1,8,128,64] → hidden[1,1,896], k/v[1,8,1,64] | **CPU (fp32)** | Mali rejects the KV-step `FULLY_CONNECTED` weights shape; fp16 collapses the stack on ARM XNNPACK. |
+| `vv_base_lm_kv_fp32` | x[1,1,896], cos/sin[1,1,1,64], mask[1,1,1,129], pk/pv[1,8,128,64] → hidden[1,1,896], k/v[1,8,1,64] | **CPU (fp32)** | This sample pins LiteRT 2.1.3, whose Mali delegate rejects the KV-step `FULLY_CONNECTED` weights shape — **fixed in 2.1.5**, see below. fp16 separately collapses the stack on ARM XNNPACK. |
 | `vv_tts_lm_kv_fp32` | same I/O, `Pmax=384`, `L*nkv=40` | **CPU (fp32)** | Same as above (20 layers). |
 | `vv_diffhead_fp16` | noisy[1,64], t_freq[1,256], cond[1,896] → v[1,64] | **GPU (fp32 precision)** | Small; compiles and computes correctly on ML Drift. |
 | `vv_decoder_fp32` | latent[1,64,128] → wav[1,1,409600] | **CPU (fp32)** | Compiles on GPU but ML Drift **miscomputes** it — see below. |
@@ -34,6 +34,17 @@ This is a **hybrid** placement, not an all-GPU one: only the tiny diffusion head
 Graphs are converted with [litert-torch](https://github.com/google-ai-edge/litert) (per-graph
 tflite-vs-torch corr **1.000000**); the Kotlin host loop and DPM-Solver++ port match the reference
 end-to-end. See [`conversion/`](conversion/).
+
+### Correction (2026-07-10): the LMs are not blocked by the GPU
+
+An earlier version of this sample said ML Drift rejects the KV-step `FULLY_CONNECTED` weights shape,
+so autoregressive attention decoders cannot run on it. **That is withdrawn.** The rejection is real
+on LiteRT **2.1.3** (`INVALID_ARGUMENT: Unsupported weights shape`, `fully_connected.cc:1070`) and
+**fixed in 2.1.5**, where the same graphs delegate fully and compute correctly: `vv_base_lm_kv_fp32`
+**313/313 nodes at 10 ms/step** (hidden corr 0.999964 vs CPU), the 20-layer `vv_tts_lm_kv_fp32`
+**1559/1559 nodes at 48 ms/step** (corr 0.999852). Moving the LMs onto the GPU is a follow-up; this
+sample still pins 2.1.3, and fp16 independently collapses the 20-layer stack on ARM XNNPACK, which is
+a fact about the *CPU* path and remains true.
 
 ### The σ-VAE decoder is a confirmed ML Drift correctness bug
 
@@ -47,6 +58,11 @@ buffer-storage / precision / constant-sharing option, and it persists at fp32, s
 graph-assembly buffer/scheduling bug in ML Drift's shared compilation layer — not precision, not a
 backend, not a kernel. Splitting the decoder does not help (a single block already trips it), so the
 decoder runs on CPU, where it is bit-exact with the reference.
+
+Re-verified on 2026-07-10 against the full decoder graph on **both** runtimes: all 1578 nodes
+delegate on 2.1.3 and on 2.1.5, and the GPU output is **bit-identically wrong on both** (std
+0.030584, absmax 0.134888, corr 0.0254 against a desktop CPU fp32 reference whose std is ~0).
+Deterministic and version-independent — unlike the `FULLY_CONNECTED` rejection above, this is open.
 
 ## Pipeline
 
