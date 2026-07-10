@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Push the Metric3D v2 tflite into the app's private filesDir (too big to bundle).
+# Push the M-LSD-tiny tflite into the app's private filesDir (too big to bundle).
 # Build with ../../conversion/build_mlsd.py or get it from Hugging Face
 # (litert-community/M-LSD-tiny-LiteRT), then:
 #   ./install_to_device.sh <dir-with-the-tflite>   (default: current dir)
