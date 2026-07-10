@@ -1,18 +1,24 @@
-# FLUX.2-klein-4B text-to-image — LiteRT CompiledModel GPU (Kotlin)
+# FLUX.2-klein-4B text-to-image and image editing — LiteRT CompiledModel GPU (Kotlin)
 
-Text-to-image with **FLUX.2 [klein] 4B** (Black Forest Labs, Apache-2.0) running end to
-end on a phone GPU through the LiteRT `CompiledModel` API. Nothing runs on the CPU: the
-Qwen3-4B text encoder, the 4B rectified-flow transformer and the VAE decoder are all
-`Accelerator.GPU` graphs.
+Text-to-image **and prompt-driven image editing** with **FLUX.2 [klein] 4B** (Black Forest
+Labs, Apache-2.0), running end to end on a phone GPU through the LiteRT `CompiledModel`
+API. Nothing runs on the CPU: the Qwen3-4B text encoder, the 4B rectified-flow
+transformer and both VAE halves are all `Accelerator.GPU` graphs.
 
 The upstream model card describes klein as running "on consumer GPUs, with as little as
-13 GB VRAM". This sample runs the same weights on a Pixel 8a's Mali-G610, which has no
+13 GB VRAM". This sample runs the same weights on a Pixel 8a's Mali-G715, which has no
 dedicated VRAM at all.
 
 ![generated on a Pixel 8a](docs/pixel8a_generated.png)
 
 *"a red apple on a wooden table, studio lighting" — 4 steps, 256x256, generated on a
 Pixel 8a. PSNR 36.8 dB / corr 0.9987 against the fp32 `diffusers` pipeline, in 306 s.*
+
+![edited on a Pixel 8a](docs/pixel8a_edited.png)
+
+*Editing: source, the fp32 `diffusers` edit, and the same edit on a Pixel 8a. "turn the
+apple into a green apple" — 4 steps, 256x256, PSNR 44.3 dB / SSIM 0.9998 against the fp32
+pipeline, in 328-369 s.*
 
 | | |
 |---|---|
@@ -84,33 +90,70 @@ create one `Environment` and share it (a per-call null environment leaks the Ope
 context and aborts the process after roughly twenty compiles), and close every
 `TensorBuffer` after each run.
 
+## How editing works
+
+`Flux2KleinPipeline.__call__` takes `image` as its first argument: klein is natively an
+editing model, and text-to-image is the `image=None` case. Editing VAE-encodes the
+reference and appends its latent tokens to the noise tokens before every step,
+
+```python
+latent_model_input = torch.cat([latents, image_latents], dim=1)
+latent_image_ids = torch.cat([latent_ids, image_latent_ids], dim=1)
+```
+
+with the reference separated from the noise on the rotary `T` axis (noise `T = 0`, the
+i-th reference `T = 10 + 10 i`). Afterwards the pipeline keeps only the noise half:
+`noise_pred[:, :latents.size(1)]`.
+
+At 256x256 that grows the image sequence from 256 to 512 tokens, so the joint sequence
+the transformer attends over goes 768 to 1024. **The weights do not change**, so the
+`kce_*` graphs are the same tensors re-exported at the longer shape and the chunk sizes
+are byte-identical; only the activations grow. Measured on a Pixel 8a: peak RSS +2 %,
+per-step GPU time 1.6x, shader compile 1.0-1.2x — and since compilation dominates, the
+end-to-end cost of editing over generation is about **+7 %**.
+
+The app adds one graph beyond the text-to-image twelve: `kv_vae_enc.tflite`, the VAE
+encoder. Its `mode()` chunks the 64-channel moments in half, which lowers to the banned
+`SPLIT`; slicing the first 32 channels directly is bit-exact and GPU-clean.
+
 ## Run it
 
-Download the twelve graphs and the staged host inputs, or produce them yourself:
+Download the graphs and the staged host inputs, or produce them yourself:
 
 ```bash
 cd conversion
-python build_klein_enc.py --export        # ke_enc0/1/2
-python chunked_export_klein.py --export   # kc_prep, kc_double*, kc_single*, kc_final
-python vae_deploy_klein.py --export       # kv_vae
-python gen_prep_klein.py                  # ref_fp32.png + klein_bins/*.bin
-python gen_verify_klein.py                # the device loop, on the host, tflite-only
+python build_klein_enc.py --export           # ke_enc0/1/2 (shared by both modes)
+python chunked_export_klein.py --export      # kc_prep, kc_double*, kc_single*, kc_final
+python vae_deploy_klein.py --export          # kv_vae
+python gen_prep_klein.py                     # ref_fp32.png + klein_bins/*.bin
+python gen_verify_klein.py                   # the device loop, on the host, tflite-only
+
+# image editing
+python chunked_export_klein.py --edit --export           # kce_* at the longer sequence
+python vae_encode_klein.py --export                      # kv_vae_enc
+python gen_prep_klein.py --edit --bins klein_bins_edit   # + patch_perm.bin, edit_source.png
+python gen_verify_klein.py --edit --bins klein_bins_edit
 ```
 
 `gen_verify_klein.py` runs the exact loop the app runs, driven only by the exported
 graphs, and reports PSNR against the fp32 `diffusers` reference. If that passes, the
-Kotlin is a transcription rather than a redesign.
+Kotlin is a transcription rather than a redesign. Add `--device` to run the identical
+loop on the phone's GPU instead of the host.
 
 Then stage and launch:
 
 ```bash
 cd android
 ./gradlew :app:installDebug
-./install_to_device.sh <graphs_dir> <graphs_dir>/klein_bins
+./install_to_device.sh <graphs_dir> <graphs_dir>/klein_bins            # generation only
+./install_to_device.sh <graphs_dir> <graphs_dir>/klein_bins \
+                       <graphs_dir>/klein_bins_edit                    # + editing
 ```
 
-The app shows the prompt and a **Generate** button; the prompt is baked into the staged
-host inputs, so changing it means re-running `gen_prep_klein.py`.
+The app shows both prompts, a **Generate** button, and — when the editing graphs are
+staged — an **Edit an image** button that opens the photo picker. Both prompts are baked
+into the staged host inputs, so changing one means re-running `gen_prep_klein.py`.
+Generation needs 6.2 GB of graphs; adding editing brings it to 10.1 GB.
 
 Each graph is recompiled every time it is loaded — `GpuOptions(serializeProgramCache = true)`
 aborts the GPU delegate on this runtime — so shader compilation, not arithmetic,
@@ -121,4 +164,10 @@ dominates wall-clock.
 The graphs are **INTEGER-compute int8** (`full_dynamic_recipe(INT8, CHANNELWISE)`);
 weight-only-FLOAT quantization hangs the GPU compile. The desktop int8 path is a
 *pessimistic* proxy for the device: the same graphs score 36.4 dB through the host CPU
-int8 kernels and 44.1 dB on the GPU delegate.
+int8 kernels and 44.1 dB on the GPU delegate. The editing loop shows it again — the same
+`kce_*` graphs score 39.5 dB on the host CPU and 45.6 dB on the phone GPU.
+
+For editing, report SSIM alongside PSNR. The error is *sparse*: on a moonlit-snow edit
+the worst 0.5 % of pixels carry 76 % of the squared error (specular speckles flipping
+between near-white and dark blue), which drags PSNR to 27.9 dB while SSIM stays at 0.989
+and the image is perceptually identical to the fp32 reference.

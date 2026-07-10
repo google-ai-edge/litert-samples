@@ -19,12 +19,14 @@ package com.google.ai.edge.examples.flux2_klein
 import android.graphics.Bitmap
 import androidx.compose.runtime.Immutable
 
-/** Immutable snapshot of everything the text-to-image screen renders. */
+/** Immutable snapshot of everything the screen renders. */
 @Immutable
 data class UiState(
   val isModelReady: Boolean = false,
+  val isEditingAvailable: Boolean = false,
   val isGenerating: Boolean = false,
   val statusMessage: String = "",
   val errorMessage: String? = null,
+  val sourceImage: Bitmap? = null,
   val image: Bitmap? = null,
 )

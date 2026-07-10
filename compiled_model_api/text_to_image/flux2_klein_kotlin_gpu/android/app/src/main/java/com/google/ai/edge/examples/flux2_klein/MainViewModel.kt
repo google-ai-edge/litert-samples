@@ -17,6 +17,7 @@
 package com.google.ai.edge.examples.flux2_klein
 
 import android.content.Context
+import android.graphics.Bitmap
 import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
@@ -33,7 +34,8 @@ import kotlinx.coroutines.launch
 /**
  * Loads the [Flux2KleinGenerator] (which reads the staged host inputs) and exposes a single
  * [UiState]. [generate] runs the four-step denoising loop on a confined worker so the GPU graphs
- * are never touched concurrently, and publishes the decoded image.
+ * are never touched concurrently, and publishes the decoded image. Passing a picked bitmap edits
+ * it instead of generating a new image.
  */
 class MainViewModel(private val context: Context) : ViewModel() {
 
@@ -48,10 +50,12 @@ class MainViewModel(private val context: Context) : ViewModel() {
   init {
     viewModelScope.launch(inferenceDispatcher) {
       try {
-        generator = Flux2KleinGenerator(context)
+        val loaded = Flux2KleinGenerator(context)
+        generator = loaded
         _uiState.update {
           it.copy(
             isModelReady = true,
+            isEditingAvailable = loaded.isEditingAvailable(),
             statusMessage = "Ready. Tap Generate to run the chunked transformer on the GPU.",
           )
         }
@@ -67,16 +71,30 @@ class MainViewModel(private val context: Context) : ViewModel() {
     }
   }
 
-  /** Runs the denoising loop on the confined worker and publishes the decoded image. */
-  fun generate() {
+  /**
+   * Runs the denoising loop on the confined worker and publishes the decoded image.
+   *
+   * @param reference when non-null, this image is edited rather than a new one generated. The
+   *   confined dispatcher also guarantees a single in-flight run: two concurrent loops would each
+   *   hold a ~900 MB graph.
+   */
+  fun generate(reference: Bitmap? = null) {
     val model = generator ?: return
     viewModelScope.launch(inferenceDispatcher) {
       _uiState.update {
-        it.copy(isGenerating = true, statusMessage = "Generating…", errorMessage = null)
+        it.copy(
+          isGenerating = true,
+          statusMessage = if (reference == null) "Generating…" else "Editing…",
+          errorMessage = null,
+          sourceImage = reference,
+          image = null,
+        )
       }
       try {
         val image =
-          model.generate { progress -> _uiState.update { it.copy(statusMessage = progress) } }
+          model.generate(reference) { progress ->
+            _uiState.update { it.copy(statusMessage = progress) }
+          }
         _uiState.update { it.copy(isGenerating = false, statusMessage = "Done.", image = image) }
       } catch (t: Throwable) {
         Log.e(TAG, "generate failed", t)

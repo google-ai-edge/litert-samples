@@ -17,7 +17,9 @@
 package com.google.ai.edge.examples.flux2_klein.view
 
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -40,9 +42,20 @@ import com.google.ai.edge.examples.flux2_klein.Flux2KleinGenerator
 import com.google.ai.edge.examples.flux2_klein.R
 import com.google.ai.edge.examples.flux2_klein.UiState
 
-/** Text-to-image screen: the prompt, a Generate button, the generation status, and the image. */
+/**
+ * The prompt, the two actions, the status line, and the images.
+ *
+ * "Generate" runs text-to-image. "Edit an image" opens the photo picker; the picked image is edited
+ * with [Flux2KleinGenerator.EDIT_PROMPT]. The edit action only appears when the editing graphs are
+ * staged on the device.
+ */
 @Composable
-fun Flux2KleinScreen(uiState: UiState, onGenerate: () -> Unit, modifier: Modifier = Modifier) {
+fun Flux2KleinScreen(
+  uiState: UiState,
+  onGenerate: () -> Unit,
+  onPickImage: () -> Unit,
+  modifier: Modifier = Modifier,
+) {
   Scaffold(
     modifier = modifier.statusBarsPadding(),
     topBar = {
@@ -57,9 +70,22 @@ fun Flux2KleinScreen(uiState: UiState, onGenerate: () -> Unit, modifier: Modifie
         text = "${stringResource(R.string.prompt_hint)}: ${Flux2KleinGenerator.PROMPT}",
         fontSize = 14.sp,
       )
+      if (uiState.isEditingAvailable) {
+        Text(
+          text = "${stringResource(R.string.edit_prompt_hint)}: ${Flux2KleinGenerator.EDIT_PROMPT}",
+          fontSize = 14.sp,
+        )
+      }
       Spacer(modifier = Modifier.height(8.dp))
-      Button(onClick = onGenerate, enabled = uiState.isModelReady && !uiState.isGenerating) {
-        Text(text = stringResource(R.string.action_generate))
+      Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        Button(onClick = onGenerate, enabled = uiState.isModelReady && !uiState.isGenerating) {
+          Text(text = stringResource(R.string.action_generate))
+        }
+        if (uiState.isEditingAvailable) {
+          Button(onClick = onPickImage, enabled = uiState.isModelReady && !uiState.isGenerating) {
+            Text(text = stringResource(R.string.action_edit))
+          }
+        }
       }
       Spacer(modifier = Modifier.height(8.dp))
       Text(
@@ -67,11 +93,21 @@ fun Flux2KleinScreen(uiState: UiState, onGenerate: () -> Unit, modifier: Modifie
         fontSize = 14.sp,
         color = if (uiState.errorMessage != null) MaterialTheme.colors.error else Color.Gray,
       )
-      uiState.image?.let { bitmap ->
+      uiState.sourceImage?.let { bitmap ->
         Spacer(modifier = Modifier.height(16.dp))
+        Text(text = stringResource(R.string.label_source_image), fontSize = 14.sp)
         Image(
           bitmap = bitmap.asImageBitmap(),
-          contentDescription = "generated image",
+          contentDescription = stringResource(R.string.label_source_image),
+          modifier = Modifier.fillMaxWidth(),
+        )
+      }
+      uiState.image?.let { bitmap ->
+        Spacer(modifier = Modifier.height(16.dp))
+        Text(text = stringResource(R.string.label_result_image), fontSize = 14.sp)
+        Image(
+          bitmap = bitmap.asImageBitmap(),
+          contentDescription = stringResource(R.string.label_result_image),
           modifier = Modifier.fillMaxWidth(),
         )
       }
