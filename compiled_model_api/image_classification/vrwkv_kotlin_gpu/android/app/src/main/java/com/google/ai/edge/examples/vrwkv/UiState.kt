@@ -14,8 +14,19 @@
  * limitations under the License.
  */
 
-plugins {
-  alias(libs.plugins.android.application) apply false
-  alias(libs.plugins.jetbrains.kotlin.android) apply false
-  alias(libs.plugins.compose.compiler) apply false
-}
+package com.google.ai.edge.examples.vrwkv
+
+import android.graphics.Bitmap
+import androidx.compose.runtime.Immutable
+
+/** Immutable snapshot of everything the classification screen renders. */
+@Immutable
+data class UiState(
+  val isModelReady: Boolean = false,
+  val isProcessing: Boolean = false,
+  val sourceImage: Bitmap? = null,
+  /** Top-5 ImageNet predictions, most probable first. */
+  val predictions: List<VrwkvClassifier.Prediction> = emptyList(),
+  val inferenceTimeMs: Long = 0L,
+  val errorMessage: String? = null,
+)
