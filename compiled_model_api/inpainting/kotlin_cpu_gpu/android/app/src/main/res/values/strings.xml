@@ -1,0 +1,15 @@
+<resources>
+    <string name="app_name" translatable="false">Inpainting</string>
+    <string name="action_pick_image">Pick</string>
+    <string name="action_erase">Erase</string>
+    <string name="action_reset">Reset</string>
+    <string name="status_loading">Loading MI-GAN on GPU…</string>
+    <string name="status_paint_prompt">Paint over an object, then tap Erase.</string>
+    <string name="status_paint_first">Paint a region first.</string>
+    <string name="status_erasing">Erasing on GPU…</string>
+    <string name="status_ready" translatable="false">MI-GAN · object removal · CompiledModel GPU · %1$d ms</string>
+    <string name="error_model_missing">Model not found. Push it first with install_to_device.sh:\n%1$s</string>
+    <string name="error_model_load">Failed to load model</string>
+    <string name="error_load_failed">Failed to load image</string>
+    <string name="error_erase_failed">Inpainting failed</string>
+</resources>
