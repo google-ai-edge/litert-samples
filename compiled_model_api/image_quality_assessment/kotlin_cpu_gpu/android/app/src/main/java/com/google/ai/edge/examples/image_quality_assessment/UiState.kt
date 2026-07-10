@@ -14,8 +14,23 @@
  * limitations under the License.
  */
 
-plugins {
-  alias(libs.plugins.android.application) apply false
-  alias(libs.plugins.jetbrains.kotlin.android) apply false
-  alias(libs.plugins.compose.compiler) apply false
-}
+package com.google.ai.edge.examples.image_quality_assessment
+
+import android.graphics.Bitmap
+import androidx.compose.runtime.Immutable
+
+/**
+ * Immutable snapshot of everything the image-quality screen renders. [aestheticScore] and
+ * [technicalScore] are the NIMA distribution means on a 1-10 scale, null until the first image is
+ * scored.
+ */
+@Immutable
+data class UiState(
+  val isModelReady: Boolean = false,
+  val isProcessing: Boolean = false,
+  val image: Bitmap? = null,
+  val aestheticScore: Float? = null,
+  val technicalScore: Float? = null,
+  val inferenceTimeMs: Long = 0L,
+  val errorMessage: String? = null,
+)

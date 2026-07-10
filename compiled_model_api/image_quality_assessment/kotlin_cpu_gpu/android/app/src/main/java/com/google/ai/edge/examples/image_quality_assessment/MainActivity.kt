@@ -16,123 +16,46 @@
 
 package com.google.ai.edge.examples.image_quality_assessment
 
-import android.app.Activity
-import android.content.Intent
-import android.graphics.Bitmap
-import android.graphics.BitmapFactory
-import android.graphics.Color
-import android.net.Uri
 import android.os.Bundle
-import android.util.Log
-import android.widget.Button
-import android.widget.ImageView
-import android.widget.LinearLayout
-import android.widget.ScrollView
-import android.widget.TextView
-import java.util.concurrent.Executors
+import androidx.activity.ComponentActivity
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.compose.setContent
+import androidx.activity.result.PickVisualMediaRequest
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.activity.viewModels
+import androidx.compose.runtime.getValue
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.google.ai.edge.examples.image_quality_assessment.view.ApplicationTheme
+import com.google.ai.edge.examples.image_quality_assessment.view.ImageQualityScreen
 
 /**
- * NIMA image quality assessment. Pick a photo (or use the bundled sample) and get its aesthetic and
- * technical quality scores (1-10). Both MobileNet models run on the LiteRT CompiledModel GPU.
+ * NIMA image-quality assessment demo. Two MobileNet models — aesthetic and technical — run on the
+ * LiteRT CompiledModel GPU (see [NimaScorer]); the UI is a thin Compose host over [MainViewModel].
  */
-class MainActivity : Activity() {
-
-  private val bg = Executors.newSingleThreadExecutor()
-  private var scorer: NimaScorer? = null
-  private lateinit var status: TextView
-  private lateinit var scoreView: TextView
-  private lateinit var imageView: ImageView
-  private var bitmap: Bitmap? = null
-
+class MainActivity : ComponentActivity() {
   override fun onCreate(savedInstanceState: Bundle?) {
     super.onCreate(savedInstanceState)
-    val root = LinearLayout(this).apply {
-        orientation = LinearLayout.VERTICAL
-        setPadding(40, 100, 40, 40)
-    }
-    status = TextView(this).apply {
-        textSize = 15f
-        text = "Loading NIMA…"
-    }
-    val pick = Button(this).apply {
-        text = "🖼  Pick image"
-        setOnClickListener { pickImage() }
-    }
-    imageView = ImageView(this).apply { adjustViewBounds = true }
-    scoreView = TextView(this).apply {
-        textSize = 22f
-        setPadding(0, 24, 0, 0)
-    }
-    root.addView(status)
-    root.addView(pick)
-    root.addView(imageView)
-    root.addView(scoreView)
-    setContentView(ScrollView(this).apply { addView(root) })
+    val viewModel: MainViewModel by viewModels { MainViewModel.getFactory(this) }
+    setContent {
+      ApplicationTheme {
+        val uiState by viewModel.uiState.collectAsStateWithLifecycle()
 
-    bg.execute {
-      try {
-        scorer = NimaScorer(this)
-        bitmap = assets.open("test_image.jpg").use { BitmapFactory.decodeStream(it) }
-        runOnUiThread {
-            imageView.setImageBitmap(bitmap)
-            status.text = "Ready — scoring sample…"
-        }
-        runScore()
-      } catch (e: Throwable) {
-        Log.e("NIMA", "load", e)
-        runOnUiThread {
-            status.setBackgroundColor(Color.rgb(0xFF, 0xCD, 0xD2))
-            status.text = "FAIL: ${e.message}"
-        }
+        val galleryLauncher =
+          rememberLauncherForActivityResult(ActivityResultContracts.PickVisualMedia()) { uri ->
+            if (uri != null) {
+              viewModel.process(uri)
+            }
+          }
+
+        ImageQualityScreen(
+          uiState = uiState,
+          onPickImage = {
+            galleryLauncher.launch(
+              PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
+            )
+          },
+        )
       }
     }
-  }
-
-  private fun pickImage() = startActivityForResult(Intent(Intent.ACTION_OPEN_DOCUMENT).apply {
-    addCategory(Intent.CATEGORY_OPENABLE)
-    type = "image/*" }, 1)
-
-  override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
-    val uri: Uri = data?.data ?: return
-    if (resultCode != RESULT_OK) return
-    contentResolver.openInputStream(uri).use { bitmap = BitmapFactory.decodeStream(it) }
-    imageView.setImageBitmap(bitmap)
-    runScore()
-  }
-
-  private fun runScore() {
-    val sc = scorer ?: return
-    val bm = bitmap ?: return
-    runOnUiThread { status.text = "Scoring on GPU…" }
-    bg.execute {
-      try {
-        val t0 = System.nanoTime()
-        val r = sc.score(bm)
-        val ms = (System.nanoTime() - t0) / 1_000_000
-        Log.i(
-          "NIMA",
-          "SCORES aesthetic=%.3f technical=%.3f ms=%d"
-            .format(r.aesthetic, r.technical, ms))
-        runOnUiThread {
-          status.setBackgroundColor(Color.rgb(0xC8, 0xE6, 0xC9))
-          status.text = "✓ scored in ${ms}ms · NIMA MobileNet, CompiledModel GPU"
-          scoreView.text =
-            "Aesthetic  %.2f / 10\nTechnical  %.2f / 10"
-              .format(r.aesthetic, r.technical)
-        }
-      } catch (e: Throwable) {
-        Log.e("NIMA", "score", e)
-        runOnUiThread {
-            status.setBackgroundColor(Color.rgb(0xFF, 0xCD, 0xD2))
-            status.text = "Failed: ${e.message}"
-        }
-      }
-    }
-  }
-
-  override fun onDestroy() {
-      super.onDestroy()
-      bg.shutdown()
-      scorer?.close()
   }
 }
