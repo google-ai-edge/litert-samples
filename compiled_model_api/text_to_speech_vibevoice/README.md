@@ -41,8 +41,10 @@ An earlier version of this sample said ML Drift rejects the KV-step `FULLY_CONNE
 so autoregressive attention decoders cannot run on it. **That is withdrawn.** The rejection is real
 on LiteRT **2.1.3** (`INVALID_ARGUMENT: Unsupported weights shape`, `fully_connected.cc:1070`) and
 **fixed in 2.1.5**, where the same graphs delegate fully and compute correctly: `vv_base_lm_kv_fp32`
-**313/313 nodes at 10 ms/step** (hidden corr 0.999964 vs CPU), the 20-layer `vv_tts_lm_kv_fp32`
-**1559/1559 nodes at 48 ms/step** (corr 0.999852). Moving the LMs onto the GPU is a follow-up; this
+**313/313 nodes at 27 ms/step** (hidden corr 0.999964 vs CPU), the 20-layer `vv_tts_lm_kv_fp32`
+**1559/1559 nodes at 65 ms/step** (corr 0.999852). Both timings are `run()` plus the output readback:
+`CompiledModel.run()` only *enqueues*, so timing it alone reports a misleading 3 ms and 23 ms.
+Moving the LMs onto the GPU is a follow-up; this
 sample still pins 2.1.3, and fp16 independently collapses the 20-layer stack on ARM XNNPACK, which is
 a fact about the *CPU* path and remains true.
 
