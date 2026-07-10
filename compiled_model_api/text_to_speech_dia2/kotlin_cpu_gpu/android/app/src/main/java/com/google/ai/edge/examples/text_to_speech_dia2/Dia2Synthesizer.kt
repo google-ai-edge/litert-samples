@@ -50,9 +50,10 @@ import kotlin.math.sin
 *  * **Both text streams carry real word tokens**, not just new-word/pad markers.
 *
 * All graphs run on CPU as fp32, because these language models collapse in fp16 on ARM. The GPU is
-* not the obstacle: the depformer's earlier compile failure was a rank-5 reshape in our own
-* fused-QKV authoring (ML Drift's maximum tensor rank is 4), and once that and the attention mask's
-* head-dimension broadcast are fixed it delegates every node and matches the CPU reference exactly.
+* not the obstacle: with a rank-4 fused-QKV rewrite and a pre-expanded attention mask the depformer
+* delegates all 237 nodes and yields bit-identical audio. It is simply no faster: 21.1 ms per
+* stage on the GPU against 19.7 ms on the CPU, because a 3-layer single-token step graph cannot
+* amortise the dispatch and the readback synchronisation. The README has the measured breakdown.
 */
 class Dia2Synthesizer(context: Context) : Closeable {
 

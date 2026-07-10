@@ -34,8 +34,23 @@ rank-5 reshape inside the fused-QKV authoring, above ML Drift's maximum tensor r
 last dimension into thirds instead gives **237/237 nodes delegated at 4–7 ms/stage**; it then
 miscomputed at both default and FP32 precision, which is the known BMM + broadcast-`ADD` bug, and
 pre-expanding the attention mask host-side from `[1,1,1,D]` to `[1,NH,1,D]` brings it to **corr
-1.000000** against the desktop CPU reference. Moving the depformer onto the GPU is a follow-up; the
-3.0 GB temporal graph has not been evaluated there yet.
+1.000000** against the desktop CPU reference.
+
+**We then moved the depformer onto the GPU and measured it.** All three weight sets delegate
+**237/237 nodes** and the audio is bit-identical to the CPU path (4288/4288 codebook tokens equal,
+waveform correlation 1.000000, RMS difference 0.000000, 133 frames, fixed seed). It is still not
+worth shipping, because it is not faster. Per-graph timing on a Pixel 8a over 3906 depformer calls:
+
+| | KV upload | small inputs | `run()` | output readback | depformer total |
+|---|---|---|---|---|---|
+| CPU | 0.45 s | 0.28 s | 75.8 s | 0.58 s | **76.4 s** |
+| GPU | 2.0 s | 2.2 s | 17.1 s | 61.2 s | **78.3 s** |
+
+`CompiledModel.run()` only *enqueues* — the GPU work is paid inside the first `readFloat()`, so
+timing `run()` alone suggests a 4.4× win that does not exist. Per call the GPU costs 21.1 ms against
+the CPU's 19.7 ms: a 3-layer, single-token step graph is too small to amortise dispatch and
+synchronisation. The 30-layer temporal transformer is the graph worth moving, but at 3.0 GB fp32 it
+does not fit in GPU memory as exported.
 
 | Graph | Input | Output |
 |---|---|---|

@@ -47,7 +47,9 @@ no `SCATTER` or `GATHER` in the graph, and no dynamic shapes.
 is not the obstacle: the `FULLY_CONNECTED` rejection reported earlier is a LiteRT 2.1.3 bug fixed in
 2.1.5, and the depformer's own compile failure was a rank-5 reshape in our fused-QKV authoring (ML
 Drift's maximum rank is 4). With last-dimension slicing and a per-head attention mask it delegates
-237/237 nodes and matches the CPU reference exactly. See the top-level [`../README.md`](../README.md).
+237/237 nodes and matches the CPU reference exactly — but it is no faster there, because a 3-layer
+single-token step graph cannot amortise GPU dispatch and readback synchronisation. See the top-level
+[`../README.md`](../README.md) for the measured breakdown.
 
 **The Mimi decoder is exported as one 256-frame window.** Its decode path is upsample → *causal*
 decoder transformer → SEANet, so its receptive field is unbounded: decoding disjoint windows starts
