@@ -1,0 +1,12 @@
+<resources>
+    <string name="app_name" translatable="false">ormbg Background Removal</string>
+    <string name="action_pick_image">Pick image</string>
+    <string name="status_loading">Loading ormbg on GPU…</string>
+    <string name="status_processing">Removing background…</string>
+    <string name="status_ready" translatable="false">ormbg · background removal · CompiledModel GPU · %1$d ms</string>
+    <string name="label_original">Original</string>
+    <string name="label_result">Background removed (GPU)</string>
+    <string name="error_model_missing">Model not found. Push it first with install_to_device.sh:\n%1$s</string>
+    <string name="error_model_load">Failed to load model</string>
+    <string name="error_remove_failed">Background removal failed</string>
+</resources>
