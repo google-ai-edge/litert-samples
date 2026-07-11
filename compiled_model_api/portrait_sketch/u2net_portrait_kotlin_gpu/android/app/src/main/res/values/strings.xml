@@ -1,0 +1,7 @@
+<resources>
+    <string name="app_name" translatable="false">Portrait Sketch</string>
+    <string name="action_pick_image">Pick image</string>
+    <string name="status_loading">Loading U²-Net on GPU…</string>
+    <string name="status_processing">Sketching…</string>
+    <string name="status_ready" translatable="false">U²-Net · photo → pencil sketch · CompiledModel GPU · %1$d ms</string>
+</resources>
