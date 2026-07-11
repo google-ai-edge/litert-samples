@@ -1,0 +1,5 @@
+ai-edge-litert>=1.2.0
+numpy>=1.26
+tokenizers>=0.19
+soundfile>=0.12
+huggingface_hub>=0.23
