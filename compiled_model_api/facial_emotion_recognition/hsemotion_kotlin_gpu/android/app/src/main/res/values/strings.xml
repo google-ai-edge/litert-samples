@@ -1,0 +1,11 @@
+<resources>
+    <string name="app_name" translatable="false">HSEmotion Facial Emotion</string>
+    <string name="action_pick_image">Pick a face photo</string>
+    <string name="status_loading">Loading HSEmotion on GPU…</string>
+    <string name="status_processing">Classifying…</string>
+    <string name="status_ready" translatable="false">HSEmotion EfficientNet-B0 · CompiledModel GPU · %1$d ms</string>
+    <string name="label_predictions">Emotion scores</string>
+    <string name="prediction_row" translatable="false">%1$5.1f%%  %2$s</string>
+    <string name="error_model_load">Failed to load model</string>
+    <string name="error_classify_failed">Classification failed</string>
+</resources>
