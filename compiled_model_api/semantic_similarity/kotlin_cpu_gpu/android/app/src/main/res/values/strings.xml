@@ -1,0 +1,5 @@
+<resources>
+    <string name="app_name" translatable="false">Semantic Search</string>
+    <string name="query_hint">Type a query…</string>
+    <string name="action_search">Search</string>
+</resources>
