@@ -1,0 +1,11 @@
+<resources>
+    <string name="app_name" translatable="false">RAM++ Image Tagging</string>
+    <string name="action_pick_image">Pick image</string>
+    <string name="status_loading">Loading RAM++…</string>
+    <string name="status_processing">Tagging…</string>
+    <string name="status_ready" translatable="false">RAM++ · %1$d tags · %2$d ms · hybrid GPU/CPU</string>
+    <string name="tag_line" translatable="false">"• %1$s   %2$.2f"</string>
+    <string name="error_model_missing">Model not found. Push it first with install_to_device.sh:\n%1$s</string>
+    <string name="error_model_load">Failed to load model</string>
+    <string name="error_tag_failed">Tagging failed</string>
+</resources>
