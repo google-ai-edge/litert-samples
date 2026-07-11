@@ -1,0 +1,5 @@
+<resources>
+    <string name="app_name" translatable="false">Matcha TTS</string>
+    <string name="text_hint">Type text to speak…</string>
+    <string name="action_speak">▶ Speak</string>
+</resources>
