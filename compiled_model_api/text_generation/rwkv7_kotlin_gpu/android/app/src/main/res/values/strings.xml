@@ -1,0 +1,5 @@
+<resources>
+    <string name="app_name" translatable="false">RWKV7 Text Generation</string>
+    <string name="prompt_hint">Prompt</string>
+    <string name="action_generate">Generate</string>
+</resources>
