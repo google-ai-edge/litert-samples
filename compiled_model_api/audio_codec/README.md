@@ -40,7 +40,7 @@ audio →[GPU enc_conv]→ feat →[CPU enc_tx]→ emb →[CPU RVQ.encode]→ co
 
 ## Files
 
-- `kotlin_cpu_gpu/android/` — the Android app (`MimiCodec.kt` = 2 GPU + 2 CPU `CompiledModel`s, `MimiRvq.kt` = split RVQ on CPU, `MainActivity.kt` = A/B playback).
+- `kotlin_cpu_gpu/android/` — the Android app (Compose + MVVM): `MimiCodec.kt` = 2 GPU + 2 CPU `CompiledModel`s, `MimiRvq.kt` = split RVQ on CPU, `MainViewModel.kt` = round-trip + A/B `AudioTrack` playback, `MainActivity.kt`/`view/CodecScreen.kt` = the UI.
 - `conversion/` — the litert-torch conversion + RVQ export scripts.
 
 Upstream: [kyutai/mimi](https://huggingface.co/kyutai/mimi) (CC-BY-4.0).
