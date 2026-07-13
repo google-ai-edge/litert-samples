@@ -14,8 +14,18 @@
  * limitations under the License.
  */
 
-plugins {
-  alias(libs.plugins.android.application) apply false
-  alias(libs.plugins.jetbrains.kotlin.android) apply false
-  alias(libs.plugins.compose.compiler) apply false
-}
+package com.google.ai.edge.examples.face_detection
+
+import android.graphics.Bitmap
+import androidx.compose.runtime.Immutable
+
+/** Immutable snapshot of everything the face-detection screen renders. */
+@Immutable
+data class UiState(
+  val isModelReady: Boolean = false,
+  val isProcessing: Boolean = false,
+  val resultImage: Bitmap? = null,
+  val inferenceTimeMs: Long = 0L,
+  val faceCount: Int = 0,
+  val errorMessage: String? = null,
+)
