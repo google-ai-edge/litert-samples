@@ -30,9 +30,13 @@ The model is op-clean for the GPU, **but the full 1008-node graph exceeds the Ma
    ```
 3. Launch **Wav2Vec2 KWS** — it compiles the GPU shaders (~10 s first launch), classifies the bundled clip, then the Record button captures 1 s from the mic and classifies it.
 
+## App architecture
+
+Jetpack Compose + MVVM. `MainActivity` is a thin `ComponentActivity` host; `MainViewModel` owns the `Wav2Vec2Kws` helper, self-tests the bundled clip on `init`, and captures the mic clip — every model call and the capture that feeds it run on one confined `Dispatchers.Default.limitedParallelism(1)` worker (the helper reuses native buffers). `KeywordSpottingScreen` requests `RECORD_AUDIO` on demand and renders the recognized keyword; all user-visible strings live in `res/values/strings.xml`.
+
 ## Files
 
-- `kotlin_cpu_gpu/android/` — the Android app (`Wav2Vec2Kws.kt` = the 2 GPU graphs chained, `MainActivity.kt` = bundled-clip classify + mic Record button).
+- `kotlin_cpu_gpu/android/` — the Android app: `Wav2Vec2Kws.kt` = the 2 GPU graphs chained (inference helper, unchanged); `MainViewModel.kt` = model + mic capture on the confined worker; `UiState.kt` = the immutable UI snapshot; `view/KeywordSpottingScreen.kt` = the Compose UI + mic-permission flow; `MainActivity.kt` = the thin Compose host.
 - `conversion/` — the litert-torch conversion scripts (`build_w2v2.py` = op-check + parity, `build_w2v2_split.py` = the 2-graph deployment split).
 
 Upstream: [superb/wav2vec2-base-superb-ks](https://huggingface.co/superb/wav2vec2-base-superb-ks) (Apache-2.0).

@@ -14,8 +14,17 @@
  * limitations under the License.
  */
 
-plugins {
-  alias(libs.plugins.android.application) apply false
-  alias(libs.plugins.jetbrains.kotlin.android) apply false
-  alias(libs.plugins.compose.compiler) apply false
-}
+package com.google.ai.edge.examples.audio_classification
+
+import androidx.compose.runtime.Immutable
+
+/** Immutable snapshot of everything the keyword-spotting screen renders. */
+@Immutable
+data class UiState(
+  val isModelReady: Boolean = false,
+  val isRecording: Boolean = false,
+  val isRecognized: Boolean = false,
+  val statusMessage: String = "",
+  val resultText: String = "",
+  val errorMessage: String? = null,
+)
