@@ -14,8 +14,15 @@
  * limitations under the License.
  */
 
-plugins {
-  alias(libs.plugins.android.application) apply false
-  alias(libs.plugins.jetbrains.kotlin.android) apply false
-  alias(libs.plugins.compose.compiler) apply false
+package com.google.ai.edge.examples.pitch_detection.view
+
+import androidx.compose.material.MaterialTheme
+import androidx.compose.runtime.Composable
+
+@Composable
+fun ApplicationTheme(content: @Composable () -> Unit) {
+  MaterialTheme(
+    colors = MaterialTheme.colors.copy(primary = darkBlue, secondary = teal, onSurface = teal),
+    content = content,
+  )
 }
