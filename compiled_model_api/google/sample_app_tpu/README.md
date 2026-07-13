@@ -2,7 +2,11 @@
 
 A premium **multimodal** on-device chatbot application for Android, powered by **Google LiteRT-LM**. It is designed to run **Gemma** and other LLMs entirely on-device, leveraging **Google Edge TPU (Tensor Processing Unit)** hardware acceleration on Pixel and compatible devices.
 
----
+
+## Install on Pixel-10 using APK
+To get started,
+1. Please download the Sample TPU app here and install it on your Pixel-10 device using the command: `adb install -r /path/to/sample_app_tpu.apk`.
+2. Download the TPU-optimized Gemma4 LiteRT-LM model and push it to your device with: `adb push /path/to/gemma4.litertlm /sdcard/download`.
 
 ## 🌟 Key Features
 - **On-Device Inference**: Runs fully offline with no cloud APIs.
