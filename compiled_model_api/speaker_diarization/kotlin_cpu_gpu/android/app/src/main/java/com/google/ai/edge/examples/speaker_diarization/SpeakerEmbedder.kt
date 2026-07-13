@@ -48,14 +48,20 @@ class SpeakerEmbedder(ctx: Context, accelerator: Accelerator = Accelerator.GPU) 
     fun embed(fbank: Array<FloatArray>): FloatArray {
         require(fbank.size == FRAMES)
         val flat = FloatArray(FRAMES * 80)
-        for (t in 0 until FRAMES) System.arraycopy(fbank[t], 0, flat, t * 80, 80)
+        for (t in 0 until FRAMES) {
+            System.arraycopy(fbank[t], 0, flat, t * 80, 80)
+        }
         inBuf[0].writeFloat(flat)
         model.run(inBuf, outBuf)
         val e = outBuf[0].readFloat()
         var n = 0f
-        for (v in e) n += v * v
+        for (v in e) {
+            n += v * v
+        }
         n = sqrt(n) + 1e-9f
-        for (i in e.indices) e[i] /= n
+        for (i in e.indices) {
+            e[i] /= n
+        }
         return e
     }
 

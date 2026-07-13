@@ -62,7 +62,9 @@ class Diarizer(ctx: Context) {
             val x = FloatArray(WINDOW)
             val s = w * HOP
             val n = min(WINDOW, pcm.size - s)
-            if (n > 0) System.arraycopy(pcm, s, x, 0, n)
+            if (n > 0) {
+                System.arraycopy(pcm, s, x, 0, n)
+            }
             acts.add(seg.run(x))
         }
         val frames = seg.frames                          // per 10 s window (589)
@@ -77,10 +79,16 @@ class Diarizer(ctx: Context) {
                 for (t in 0 until frames) {
                     var others = 0f
                     for (o in 0 until SegmentationOnnx.MAX_LOCAL_SPEAKERS)
-                        if (o != s) others += a[t][o]
-                    if (a[t][s] > 0f && others == 0f) u.soloFrames.add(t)
+                        if (o != s) {
+                            others += a[t][o]
+                        }
+                    if (a[t][s] > 0f && others == 0f) {
+                        u.soloFrames.add(t)
+                    }
                 }
-                if (u.soloFrames.size * frameSec >= MIN_SOLO_SEC) units.add(u)
+                if (u.soloFrames.size * frameSec >= MIN_SOLO_SEC) {
+                    units.add(u)
+                }
             }
         }
         if (units.isEmpty()) return Result(emptyList(), 0, emptyMap())
@@ -130,7 +138,9 @@ class Diarizer(ctx: Context) {
                     if (t1 <= t0) continue
                     var g = (t0 / gridSec).toInt()
                     while (g * gridSec < t1 && g < nGrid) {
-                        if (g >= 0) grid[g] = u.cluster
+                        if (g >= 0) {
+                            grid[g] = u.cluster
+                        }
                         g++
                     }
                 }
@@ -144,14 +154,18 @@ class Diarizer(ctx: Context) {
         for (g in 0..nGrid) {
             val spk = if (g < nGrid) grid[g] else -1
             if (spk != cur) {
-                if (cur >= 0) segments.add(Segment(start, g * gridSec, cur))
+                if (cur >= 0) {
+                    segments.add(Segment(start, g * gridSec, cur))
+                }
                 cur = spk
                 start = g * gridSec
             }
         }
         val merged = postProcess(segments)
         val per = HashMap<Int, Double>()
-        for (s in merged) per[s.speaker] = (per[s.speaker] ?: 0.0) + (s.end - s.start)
+        for (s in merged) {
+            per[s.speaker] = (per[s.speaker] ?: 0.0) + (s.end - s.start)
+        }
         return Result(merged, numSpeakers, per)
     }
 
@@ -162,11 +176,19 @@ class Diarizer(ctx: Context) {
 
         fun centroid(c: List<Int>): FloatArray {
             val v = FloatArray(SpeakerEmbedder.DIM)
-            for (i in c) for (d in v.indices) v[d] += embs[i][d]
+            for (i in c) {
+                for (d in v.indices) {
+                    v[d] += embs[i][d]
+                }
+            }
             var n = 0f
-            for (d in v.indices) n += v[d] * v[d]
+            for (d in v.indices) {
+                n += v[d] * v[d]
+            }
             n = kotlin.math.sqrt(n) + 1e-9f
-            for (d in v.indices) v[d] /= n
+            for (d in v.indices) {
+                v[d] /= n
+            }
             return v
         }
 
@@ -177,7 +199,9 @@ class Diarizer(ctx: Context) {
             val cents = clusters.map { centroid(it) }
             for (i in clusters.indices) for (j in i + 1 until clusters.size) {
                 var cos = 0.0
-                for (d in 0 until SpeakerEmbedder.DIM) cos += cents[i][d] * cents[j][d]
+                for (d in 0 until SpeakerEmbedder.DIM) {
+                    cos += cents[i][d] * cents[j][d]
+                }
                 val dist = 1.0 - cos
                 if (dist < best) {
                     best = dist
@@ -189,7 +213,11 @@ class Diarizer(ctx: Context) {
             clusters[bi].addAll(clusters[bj])
             clusters.removeAt(bj)
         }
-        for ((label, c) in clusters.withIndex()) for (i in c) units[i].cluster = label
+        for ((label, c) in clusters.withIndex()) {
+            for (i in c) {
+                units[i].cluster = label
+            }
+        }
     }
 
     private fun postProcess(segs: List<Segment>): List<Segment> {

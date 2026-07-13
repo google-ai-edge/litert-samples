@@ -1,0 +1,15 @@
+<resources>
+    <string name="app_name" translatable="false">Diarization</string>
+    <string name="action_record" translatable="false">🎙  Record conversation</string>
+    <string name="action_stop" translatable="false">⏹  Stop &amp; analyze</string>
+    <string name="action_pick" translatable="false">📁  Pick audio / video clip</string>
+    <string name="action_play_speaker" translatable="false">▶  Play SPK %1$d · %2$.1f s</string>
+    <string name="status_loading">Loading…</string>
+    <string name="status_ready">Ready — record a conversation or pick a clip.</string>
+    <string name="status_recording">● Recording…</string>
+    <string name="status_decoding">Decoding…</string>
+    <string name="status_too_short">Too short — record at least 2 s.</string>
+    <string name="status_done" translatable="false">✓ %1$d speakers · %2$ds in %3$.1fs (seg CPU + embeddings GPU)</string>
+    <string name="error_model_missing">Model not found. Push it first with install_to_device.sh:\n%1$s</string>
+    <string name="error_model_load">Failed to load model</string>
+</resources>

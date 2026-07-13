@@ -65,7 +65,9 @@ class Fbank(ctx: Context) {
             // frame -> x32768, remove DC, pre-emphasis (replicate pad), window, zero-pad
             var mean = 0f
             val base = t * HOP
-            for (i in 0 until WIN) mean += pcm[base + i]
+            for (i in 0 until WIN) {
+                mean += pcm[base + i]
+            }
             mean = mean * 32768f / WIN
             var prev = pcm[base] * 32768f - mean
             for (i in 0 until WIN) {
@@ -79,20 +81,34 @@ class Fbank(ctx: Context) {
                 im[i] = 0f
             }
             fft(re, im)
-            for (k in 0 until NBIN) power[k] = re[k] * re[k] + im[k] * im[k]
+            for (k in 0 until NBIN) {
+                power[k] = re[k] * re[k] + im[k] * im[k]
+            }
             val row = out[t]
             for (m in 0 until NMEL) {
                 var acc = 0f
                 val off = m * NBIN
-                for (k in 0 until NBIN) acc += mel[off + k] * power[k]
+                for (k in 0 until NBIN) {
+                    acc += mel[off + k] * power[k]
+                }
                 row[m] = ln(max(acc, EPS))
             }
         }
         if (cmn) {
             val mu = FloatArray(NMEL)
-            for (t in 0 until nFrames) for (m in 0 until NMEL) mu[m] += out[t][m]
-            for (m in 0 until NMEL) mu[m] /= nFrames
-            for (t in 0 until nFrames) for (m in 0 until NMEL) out[t][m] -= mu[m]
+            for (t in 0 until nFrames) {
+                for (m in 0 until NMEL) {
+                    mu[m] += out[t][m]
+                }
+            }
+            for (m in 0 until NMEL) {
+                mu[m] /= nFrames
+            }
+            for (t in 0 until nFrames) {
+                for (m in 0 until NMEL) {
+                    out[t][m] -= mu[m]
+                }
+            }
         }
         return out
     }

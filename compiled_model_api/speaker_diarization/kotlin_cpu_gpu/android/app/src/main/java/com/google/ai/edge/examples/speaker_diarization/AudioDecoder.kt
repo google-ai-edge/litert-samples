@@ -78,7 +78,9 @@ object AudioDecoder {
                 buf.get(bytes)
                 pcm.write(bytes)
                 codec.releaseOutputBuffer(outIdx, false)
-                if (info.flags and MediaCodec.BUFFER_FLAG_END_OF_STREAM != 0) sawOutEos = true
+                if (info.flags and MediaCodec.BUFFER_FLAG_END_OF_STREAM != 0) {
+                    sawOutEos = true
+                }
             } else if (outIdx == MediaCodec.INFO_OUTPUT_FORMAT_CHANGED) {
                 val f = codec.outputFormat
                 srcRate = f.getInteger(MediaFormat.KEY_SAMPLE_RATE)
@@ -95,7 +97,9 @@ object AudioDecoder {
         val mono = FloatArray(nFrames)
         for (i in 0 until nFrames) {
             var acc = 0f
-            for (c in 0 until channels) acc += bb.short / 32768f
+            for (c in 0 until channels) {
+                acc += bb.short / 32768f
+            }
             mono[i] = acc / channels
         }
         return resampleLinear(mono, srcRate, Diarizer.SR, maxSeconds)

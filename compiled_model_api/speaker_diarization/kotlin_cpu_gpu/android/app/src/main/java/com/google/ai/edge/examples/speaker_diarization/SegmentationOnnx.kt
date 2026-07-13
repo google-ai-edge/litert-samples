@@ -61,8 +61,14 @@ class SegmentationOnnx(ctx: Context) : Closeable {
                     val act = Array(ps.size) { FloatArray(MAX_LOCAL_SPEAKERS) }
                     for (t in ps.indices) {
                         var best = 0
-                        for (c in 1 until 7) if (ps[t][c] > ps[t][best]) best = c
-                        for (s in POWERSET[best]) act[t][s] = 1f
+                        for (c in 1 until 7) {
+                            if (ps[t][c] > ps[t][best]) {
+                                best = c
+                            }
+                        }
+                        for (s in POWERSET[best]) {
+                            act[t][s] = 1f
+                        }
                     }
                     return act
                 }
