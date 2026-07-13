@@ -1,4 +1,4 @@
-# LiteRT Image Segmentation - iOS (Clean App)
+# LiteRT Image Segmentation - iOS
 
 An iOS application demonstrating real-time and static image segmentation using LiteRT's Compiled Model API. The app performs multi-class segmentation on a bundled test image, allowing easy verification of CPU (Builtin Kernels) and GPU (Metal) execution.
 
