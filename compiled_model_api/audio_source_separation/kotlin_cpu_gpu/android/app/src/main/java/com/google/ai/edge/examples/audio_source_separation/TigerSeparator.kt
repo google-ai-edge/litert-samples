@@ -88,7 +88,11 @@ class TigerSeparator(private val ctx: Context) : Closeable {
                 outBuf.forEach { it.close() }
                 model.close()
             }
-            for (i in out.indices) if (weight[i] > 1f) out[i] /= weight[i]
+            for (i in out.indices) {
+                if (weight[i] > 1f) {
+                    out[i] /= weight[i]
+                }
+            }
             stems.add(out)
         }
         return stems

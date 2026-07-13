@@ -75,7 +75,9 @@ object Istft {
     private fun ifft(re: FloatArray, im: FloatArray) {
         val n = WIN
         // conjugate -> forward FFT -> conjugate, / n
-        for (i in 0 until n) im[i] = -im[i]
+        for (i in 0 until n) {
+            im[i] = -im[i]
+        }
         fft(re, im)
         val inv = 1f / n
         for (i in 0 until n) {
