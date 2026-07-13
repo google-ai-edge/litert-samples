@@ -5,8 +5,8 @@ A premium **multimodal** on-device chatbot application for Android, powered by *
 
 ## Install on Pixel-10 using APK
 To get started,
-1. Please download the Sample TPU app here and install it on your Pixel-10 device using the command: `adb install -r /path/to/sample_app_tpu.apk`.
-2. Download the TPU-optimized Gemma4 LiteRT-LM model and push it to your device with: `adb push /path/to/gemma4.litertlm /sdcard/download`.
+1. Please download the Sample TPU app [here](./sample_app_tpu.apk) and install it on your Pixel-10 device using the command: `adb install -r /path/to/sample_app_tpu.apk`.
+2. Download the [TPU-optimized Gemma4 LiteRT-LM model](https://huggingface.co/litert-community/gemma-4-E2B-it-litert-lm/resolve/main/gemma-4-E2B-it_Google_Tensor_G5.litertlm) and push it to your Pixel-10 device with: `adb push /path/to/gemma-4-E2B-it_Google_Tensor_G5.litertlm /sdcard/download/gemma4.litert`.
 
 ## 🌟 Key Features
 - **On-Device Inference**: Runs fully offline with no cloud APIs.
