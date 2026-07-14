@@ -1,0 +1,15 @@
+<resources>
+    <string name="app_name" translatable="false">Wav2Vec2 KWS</string>
+    <string name="status_loading">Loading wav2vec2 KWS on GPU…</string>
+    <string name="status_ready">"On-device GPU keyword spotting ✓  (bundled clip → \"%1$s\", %2$d ms)"</string>
+    <string name="error_load_fail">FAIL: %1$s</string>
+    <string name="error_record_fail">Record failed: %1$s</string>
+    <string name="howto">Tap Record, then immediately say ONE English word:</string>
+    <string name="keywords" translatable="false">yes · no · up · down · left · right · on · off · stop · go</string>
+    <string name="command_set_note">(fixed 10-word command set — not free dictation; anything else → \"_unknown_\")</string>
+    <string name="result_placeholder" translatable="false">—</string>
+    <string name="result_listening">🔴 Listening… say a word NOW</string>
+    <string name="result_recognized">"✓  \"%1$s\""</string>
+    <string name="result_unknown">"“%1$s”  (try again — say one of the words)"</string>
+    <string name="action_record">"🎤  Record &amp; say a word"</string>
+</resources>
