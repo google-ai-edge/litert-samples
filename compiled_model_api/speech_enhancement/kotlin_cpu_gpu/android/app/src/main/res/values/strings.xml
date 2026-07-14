@@ -1,0 +1,18 @@
+<resources>
+    <string name="app_name" translatable="false">Speech Enhancement</string>
+    <string name="action_record">🎙  Record noisy audio</string>
+    <string name="action_stop">⏹  Stop &amp; enhance</string>
+    <string name="action_pick">📁  Pick audio / video clip</string>
+    <string name="action_play_noisy">▶  Noisy (original)</string>
+    <string name="action_play_enhanced">✨  Enhanced</string>
+    <string name="status_loading">Loading…</string>
+    <string name="status_ready">Ready — record in a noisy place, or pick a clip.</string>
+    <string name="status_recording" translatable="false">● Recording (up to %1$ds)…</string>
+    <string name="status_decoding">Decoding…</string>
+    <string name="status_enhancing" translatable="false">Enhancing on GPU… chunk %1$d/%2$d</string>
+    <string name="status_enhanced" translatable="false">✓ %1$ds enhanced in %2$ss · CMGAN, CompiledModel GPU</string>
+    <string name="status_too_short">Too short — record at least 1 s.</string>
+    <string name="error_clip_too_short">Clip too short (need ≥1 s).</string>
+    <string name="status_failed">Failed: %1$s</string>
+    <string name="error_load_failed">Failed to load model</string>
+</resources>
