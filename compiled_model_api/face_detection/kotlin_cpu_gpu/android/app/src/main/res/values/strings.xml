@@ -1,0 +1,10 @@
+<resources>
+    <string name="app_name" translatable="false">Face Detection</string>
+    <string name="action_pick_image">Pick image</string>
+    <string name="status_loading">Loading YuNet on GPU…</string>
+    <string name="status_processing">Detecting faces…</string>
+    <string name="status_ready" translatable="false">YuNet · face detection · CompiledModel GPU · %1$d ms · %2$d face(s)</string>
+    <string name="error_model_missing">Model not found. Push it first with install_to_device.sh:\n%1$s</string>
+    <string name="error_model_load">Failed to load model</string>
+    <string name="error_detection_failed">Face detection failed</string>
+</resources>
