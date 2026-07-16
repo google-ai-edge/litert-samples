@@ -10,7 +10,7 @@ To get started,
 
 ## 🌟 Key Features
 - **On-Device Inference**: Runs fully offline with no cloud APIs.
-- **Hardware Acceleration Fallback**: Automatically tries to initialize the model on **Edge TPU (NPU)** first. If unsupported, it falls back to **GPU** (OpenCL) and then to **CPU**.
+- **Hardware Acceleration Fallback**: Automatically tries to initialize the model on **Google Tensor TPU** first. If unsupported, it falls back to **GPU** (OpenCL) and then to **CPU**.
 - **Multimodal Support**: Send text messages, select images from the gallery, and **record audio directly within the chat** for a rich multimodal experience.
 - **Custom Model Uploads**: Easily add your own custom `.litertlm` model files directly from the app UI! Select your model file, configure the system prompt, choose the preferred backend, and start chatting immediately—no ADB required.
 - **Real-time Metrics**: Displays Time To First Token (TTFT) and token generation speed (tokens/sec) dynamically on-screen.
