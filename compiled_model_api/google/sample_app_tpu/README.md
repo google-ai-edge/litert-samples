@@ -1,6 +1,8 @@
-# LiteRT-LM Chatbot: Running Gemma on Google Tensor TPU
+# LiteRT-LM Multimodal Chatbot: Google Tensor TPU Reference Implementation
 
-A premium **multimodal** on-device chatbot application for Android, powered by **Google LiteRT-LM**. It is designed to run **Gemma** and other LLMs entirely on-device, leveraging **Google Tensor TPU (Tensor Processing Unit)** hardware acceleration on Pixel and compatible devices.
+This repository provides a reference architecture and framework for building high-performance, **on-device multimodal LLM applications** on Android. Powered by **Google LiteRT-LM**, this project demonstrates how to orchestrate local inference while leveraging hardware acceleration on **Google Tensor TPUs (G5)**, with automated fallbacks to GPU and CPU.
+
+Developers can use this codebase as a plug-and-play sandbox to evaluate local LLMs (like Gemma) or as a foundation/starter-kit for their own on-device AI applications.
 
 
 ## Install on Pixel-10 using APK
@@ -8,82 +10,119 @@ To get started,
 1. Please download the Sample TPU app [here](./sample_app_tpu.apk) and install it on your Pixel-10 device using the command: `adb install -r /path/to/sample_app_tpu.apk`.
 2. Download the [TPU-optimized Gemma4 LiteRT-LM model](https://huggingface.co/litert-community/gemma-4-E2B-it-litert-lm/resolve/main/gemma-4-E2B-it_Google_Tensor_G5.litertlm) and push it to your Pixel-10 device with: `adb push /path/to/gemma-4-E2B-it_Google_Tensor_G5.litertlm /sdcard/download/gemma4.litert`.
 
-## 🌟 Key Features
-- **On-Device Inference**: Runs fully offline with no cloud APIs.
-- **Hardware Acceleration Fallback**: Automatically tries to initialize the model on **Google Tensor TPU** first. If unsupported, it falls back to **GPU** (OpenCL) and then to **CPU**.
-- **Multimodal Support**: Send text messages, select images from the gallery, and **record audio directly within the chat** for a rich multimodal experience.
-- **Custom Model Uploads**: Easily add your own custom `.litertlm` model files directly from the app UI! Select your model file, configure the system prompt, choose the preferred backend, and start chatting immediately—no ADB required.
-- **Real-time Metrics**: Displays Time To First Token (TTFT) and token generation speed (tokens/sec) dynamically on-screen.
-- **Premium Glassmorphic UI**: Enjoy a modern, highly polished chat interface featuring glassmorphic effects, unified circular action buttons, and responsive dynamic elements.
-- **Diagnostics Badge**: Displays the active backend (`NPU` (Green), `GPU` (Blue), `CPU` (Red)) currently running the inference engine.
+## 🛠️ Developer Architecture & Core Components
+
+The framework is decoupled to separate the UI layer from the underlying inference engine, allowing you to easily rip out the UI and reuse the orchestration core.
+
+```
+├── app/src/main/java/.../
+│   ├── LiteRTLMManager.kt    <-- Core Inference Orchestrator (Singleton)
+│   ├── ModelResolver.kt      <-- Model Lifecycle & Asset Copier
+│   ├── ModelConfig.kt        <-- Hardware Backend & Tokenizer Specs
+│   └── UI Components         <-- Activity, Adapters, and View Bindings
+
+```
+
+### 1\. Engine & Lifecycle Management (`LiteRTLMManager.kt`)
+
+This is the core engine singleton. It encapsulates the LiteRT-LM `Engine` and `Conversation` lifecycles, abstracting thread management and inference execution away from the UI.
+
+* **Fallback Chain Orchestration:** Programmatically handles hardware initialization. It attempts to bind to the **Tensor TPU (NPU)** first, intercepting failures to transparently cascade down to **GPU (OpenCL)**, and ultimately **CPU**.  
+* **Streaming & Performance Metrics:** Exposes hooks for real-time token streaming, capturing metrics such as Time to First Token (TTFT), Total Time for Response,  evaluation throughput (tokens/sec) and context length.
+
+### 2\. Model & Backend Mapping (`ModelResolver.kt` & `ModelConfig.kt`)
+
+* **Static Assets & Dynamic Registry:** Manages both bundled models (read from raw resources) and dynamically registered custom models (`.litertlm`). It handles the filesystem copying required to make raw asset descriptors readable by the native execution layer.
 
 ---
 
-## 📱 Project Components
-- **`MainActivity.kt`**: Coordinates model selection dropdowns, user message input, image/audio attachments, model upload dialogs, and formats real-time metrics.
-- **`LiteRTLMManager.kt`**: Singleton engine coordinator managing the LiteRT-LM `Engine` and `Conversation` lifecycles using the fallback chain.
-- **`ModelResolver.kt` & `ModelConfig.kt`**: Handles model configuration, asset copying (copying bundled `.litertlm` files from raw assets), and dynamically registering new user-uploaded models.
-- **`ChatAdapter.kt` & `ChatMessage.kt`**: Provides the chat bubbles and UI recyclerview binding.
+## 🚀 Quickstart: Testing LLMs
 
----
+### 1\. Environment & Build Requirements
 
-## 🚀 Setup & Installation
+* **JDK:** Requires minimum **JDK 21** (Ensure `JAVA_HOME` is set correctly).  
+* **ABI Target:** `arm64-v8a` (required for native Tensor TPU libraries).
 
-### 1. Build and Run
-Open the project in Android Studio or compile it from the command line:
-
-```bash
-# Build the Debug APK
+```shell
+# Clone and compile the debug APK
 ./gradlew :app:assembleDebug
 
-# Install on a connected device
+# Deploy to your connected Pixel/Tensor device
 adb install -r app/build/outputs/apk/debug/app-debug.apk
-```
-*Note: Make sure `JAVA_HOME` points to JDK 17 or JDK 21 (e.g. Android Studio's bundled JDK).*
 
-### 2. Available Models
-
-The application comes with three lightweight models pre-loaded in the raw assets folder:
-- **no models are added yet, we can add any small models like Gemma 3 270M in Assets**
-- **we can add any .litertlm models in Assets for Google Tensor TPU, after adding the model we have to update the ModelResolver.kt file and then run the app**
-
-
-These models are copied to the app's cache directory and loaded on-demand.
-
-#### Google Tensor TPU Gemma 4 Model (Custom Uploads)
-To test high-performance **Gemma 4** or larger custom models using the Google Tensor TPU accelerator:
-1. Obtain/compile the `.litertlm` model file targeted for Google Tensor TPU.
-2. Tap the spinner dropdown in the app header and select **Upload Custom Model**.
-3. Pick the `.litertlm` file from your device storage, configure its backend and multimodal settings, and upload it!
-4. The model will instantly be added to the list and ready for use.
-
-*(Advanced)* You can also push the model to the app's external files directory using ADB:
-```bash
-adb push model.litertlm /sdcard/Android/data/com.google.googletensortpu.googleTensorTPUApp/files/model.litertlm
 ```
 
-### 3. Running Unit Tests
+### 2\. Loading a Model for TPU Evaluation
 
-The project includes unit tests for core logical components like `ModelConfig`, `ChatMessage`, and `ModelResolver`. The tests utilize JUnit, Mockito, and Robolectric for Android environment mocking.
+To evaluate high-performance models like Gemma 4 on the Tensor TPU:
 
-To run the unit tests from the command line, execute:
-```bash
-./gradlew app:testDebugUnitTest
-```
+#### Method A: Bundle via Assets (Static Integration)
 
-**⚠️ Important Environment Note:** 
-If you encounter a `java.lang.IllegalArgumentException: 26` error when running Gradle tasks, it means you are using an unsupported version of Java (JDK 26). Ensure your terminal's `JAVA_HOME` points to **JDK 17** or **JDK 21** to be compatible with the Kotlin and Android Gradle plugin versions configured in this project.
+1. Drop your `.litertlm` file into `app/src/main/assets/`.  
+2. Register the file in `ModelResolver.kt` by mapping it to a `ModelConfig` instance.  
+3. Recompile. The framework will automatically handle extraction to the internal app cache on first boot.
+
+#### Method B: Sideloading (Rapid Prototyping)
+
+Alternatively, launch the app UI, select **Upload Custom Model** from the top dropdown, and load the `.litertlm` file directly from device storage.
 
 ---
 
-## ⚙️ How it Works
+## 🏗️ Reusing as a Framework: Key Integrations
 
-LiteRT-LM delegates NPU execution through a dynamic vendor library loader. 
-- Setting **`Backend.NPU`** with the application's `nativeLibraryDir` instructs the engine to load the hardware-specific dispatch library (e.g. `libLiteRtDispatch_GoogleTensor.so` on Google Tensor devices).
-- Legacy packaging (`useLegacyPackaging = true`) and NDK ABI filtering (`arm64-v8a`) are configured in the `app/build.gradle.kts` file to ensure the vendor shared libraries can be directly memory-mapped by the linker without compression errors.
-- The project is fully streamlined for **Google Tensor TPU** with unnecessary dynamic features stripped away for optimal performance.
+If you are adapting this codebase into an existing project, pay attention to these critical hardware configurations:
+
+### 1\. Native Library Linker Requirements (`build.gradle.kts`)
+
+LiteRT-LM communicates with the Tensor TPU(NPU) via a dynamic vendor library loader (`libLiteRtDispatch_GoogleTensor.so`). To prevent the Android asset packaging tool from compressing this native library (which prevents direct memory-mapping (`mmap`) by the linker), your `app/build.gradle.kts` must include:
+
+```kotlin
+android {
+    ...
+    packaging {
+        jniLibs {
+            // Crucial: Keeps vendor shared libraries uncompressed for direct linker mapping
+            useLegacyPackaging = true 
+        }
+    }
+    ndk {
+        abiFilters.add("arm64-v8a")
+    }
+}
+
+```
+
+### 2\. Initializing the NPU Backend
+
+When instantiating the LiteRT-LM engine, the framework passes the application's `nativeLibraryDir` to point the runtime toward the device's hardware-specific dispatch libraries:
+
+```kotlin
+val config = EngineConfig().apply {
+    if (preferredBackend == Backend.NPU) {
+        // Points LiteRT to the hardware-specific dispatch library path
+        setNativeLibraryDir(context.applicationInfo.nativeLibraryDir)
+    }
+}
+
+```
+
+---
+
+## 🧪 Verification & Testing
+
+The framework includes a unit testing suite targeting the non-UI business logic (`ModelResolver`, `ModelConfig`, engine configuration parsing).
+
+Execute tests via Gradle:
+
+```shell
+./gradlew app:testDebugUnitTest
+
+```
+
+> **Architecture Note:** The tests leverage **Robolectric** to mock the Android runtime environment and **Mockito** for component isolation, providing a template for how to unit-test local AI orchestration pipelines without requiring a physical device connection.
 
 ---
 
 ## 📜 License
-Apache License 2.0
+
+This framework wrapper is open-source software licensed under the [Apache License 2.0](https://www.google.com/search?q=LICENSE).  
