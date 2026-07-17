@@ -1,4 +1,4 @@
 <resources>
-  <string name="app_name">EdgeTPUApp</string>
+  <string name="app_name">GoogleTensorTPUApp</string>
   <string name="title_google_tensor_runtime">Google Tensor Runtime</string>
 </resources>

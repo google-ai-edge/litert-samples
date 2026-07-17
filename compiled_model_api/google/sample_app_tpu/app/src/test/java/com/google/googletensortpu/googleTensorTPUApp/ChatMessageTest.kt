@@ -1,4 +1,4 @@
-package com.google.edgetpu.edgeTPUApp
+package com.google.googletensortpu.googleTensorTPUApp
 
 import android.graphics.Bitmap
 import org.junit.Assert.assertEquals

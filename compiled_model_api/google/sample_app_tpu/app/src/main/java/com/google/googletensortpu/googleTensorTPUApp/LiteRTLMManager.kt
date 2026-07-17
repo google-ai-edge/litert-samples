@@ -1,4 +1,4 @@
-package com.google.edgetpu.edgeTPUApp
+package com.google.googletensortpu.googleTensorTPUApp
 
 import android.content.Context
 import android.util.Log
@@ -16,7 +16,7 @@ import kotlinx.coroutines.withContext
 import java.io.File
 
 /**
- * Singleton manager for LiteRT-LM Engine, tailored for Google Edge TPU and fallback.
+ * Singleton manager for LiteRT-LM Engine, tailored for Google Tensor TPU and fallback.
  * Backend fallback chain: NPU (TPU) → GPU → CPU
  */
 class LiteRTLMManager private constructor(private val context: Context) {

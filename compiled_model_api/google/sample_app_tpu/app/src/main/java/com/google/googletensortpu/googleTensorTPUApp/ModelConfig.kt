@@ -1,4 +1,4 @@
-package com.google.edgetpu.edgeTPUApp
+package com.google.googletensortpu.googleTensorTPUApp
 
 /**
  * Data class representing a LiteRT-LM model configuration

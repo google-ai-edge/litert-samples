@@ -7,11 +7,11 @@ plugins {
 }
 
 android {
-  namespace = "com.google.edgetpu.edgeTPUApp"
+  namespace = "com.google.googletensortpu.googleTensorTPUApp"
   compileSdk = 36
 
   defaultConfig {
-    applicationId = "com.google.edgetpu.edgeTPUApp"
+    applicationId = "com.google.googletensortpu.googleTensorTPUApp"
     minSdk = 26
     targetSdk = 36
     versionCode = 1
