@@ -1,4 +1,4 @@
-# LiteRT-LM Android Framework: Google Tensor TPU Reference Implementation
+# LiteRT-LM Multimodal Chatbot: Google Tensor TPU Reference Implementation
 
 This repository provides a reference architecture and framework for building high-performance, **on-device multimodal LLM applications** on Android. Powered by **Google LiteRT-LM**, this project demonstrates how to orchestrate local inference while leveraging hardware acceleration on **Google Tensor TPUs (G5)**, with automated fallbacks to GPU and CPU.
 
