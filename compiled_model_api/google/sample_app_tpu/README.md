@@ -1,12 +1,12 @@
-# LiteRT-LM Chatbot: Running Gemma on Google Edge TPU
+# LiteRT-LM Chatbot: Running Gemma on Google Tensor TPU
 
-A premium **multimodal** on-device chatbot application for Android, powered by **Google LiteRT-LM**. It is designed to run **Gemma** and other LLMs entirely on-device, leveraging **Google Edge TPU (Tensor Processing Unit)** hardware acceleration on Pixel and compatible devices.
+A premium **multimodal** on-device chatbot application for Android, powered by **Google LiteRT-LM**. It is designed to run **Gemma** and other LLMs entirely on-device, leveraging **Google Tensor TPU (Tensor Processing Unit)** hardware acceleration on Pixel and compatible devices.
 
 ---
 
 ## 🌟 Key Features
 - **On-Device Inference**: Runs fully offline with no cloud APIs.
-- **Hardware Acceleration Fallback**: Automatically tries to initialize the model on **Edge TPU (NPU)** first. If unsupported, it falls back to **GPU** (OpenCL) and then to **CPU**.
+- **Hardware Acceleration Fallback**: Automatically tries to initialize the model on **Google Tensor TPU** first. If unsupported, it falls back to **GPU** (OpenCL) and then to **CPU**.
 - **Multimodal Support**: Send text messages, select images from the gallery, and **record audio directly within the chat** for a rich multimodal experience.
 - **Custom Model Uploads**: Easily add your own custom `.litertlm` model files directly from the app UI! Select your model file, configure the system prompt, choose the preferred backend, and start chatting immediately—no ADB required.
 - **Real-time Metrics**: Displays Time To First Token (TTFT) and token generation speed (tokens/sec) dynamically on-screen.
@@ -41,21 +41,21 @@ adb install -r app/build/outputs/apk/debug/app-debug.apk
 
 The application comes with three lightweight models pre-loaded in the raw assets folder:
 - **no models are added yet, we can add any small models like Gemma 3 270M in Assets**
-- **we can add any .litertlm models in Assets for Edge TPU, after adding the model we have to update the ModelResolver.kt file and then run the app**
+- **we can add any .litertlm models in Assets for Google Tensor TPU, after adding the model we have to update the ModelResolver.kt file and then run the app**
 
 
 These models are copied to the app's cache directory and loaded on-demand.
 
-#### Google Edge TPU Gemma 4 Model (Custom Uploads)
-To test high-performance **Gemma 4** or larger custom models using the Edge TPU accelerator:
-1. Obtain/compile the `.litertlm` model file targeted for Google Edge TPU.
+#### Google Tensor TPU Gemma 4 Model (Custom Uploads)
+To test high-performance **Gemma 4** or larger custom models using the Google Tensor TPU accelerator:
+1. Obtain/compile the `.litertlm` model file targeted for Google Tensor TPU.
 2. Tap the spinner dropdown in the app header and select **Upload Custom Model**.
 3. Pick the `.litertlm` file from your device storage, configure its backend and multimodal settings, and upload it!
 4. The model will instantly be added to the list and ready for use.
 
 *(Advanced)* You can also push the model to the app's external files directory using ADB:
 ```bash
-adb push model.litertlm /sdcard/Android/data/com.google.edgetpu.edgeTPUApp/files/model.litertlm
+adb push model.litertlm /sdcard/Android/data/com.google.googletensortpu.googleTensorTPUApp/files/model.litertlm
 ```
 
 ### 3. Running Unit Tests
@@ -77,7 +77,7 @@ If you encounter a `java.lang.IllegalArgumentException: 26` error when running G
 LiteRT-LM delegates NPU execution through a dynamic vendor library loader. 
 - Setting **`Backend.NPU`** with the application's `nativeLibraryDir` instructs the engine to load the hardware-specific dispatch library (e.g. `libLiteRtDispatch_GoogleTensor.so` on Google Tensor devices).
 - Legacy packaging (`useLegacyPackaging = true`) and NDK ABI filtering (`arm64-v8a`) are configured in the `app/build.gradle.kts` file to ensure the vendor shared libraries can be directly memory-mapped by the linker without compression errors.
-- The project is fully streamlined for **Google Edge TPU** with unnecessary dynamic features stripped away for optimal performance.
+- The project is fully streamlined for **Google Tensor TPU** with unnecessary dynamic features stripped away for optimal performance.
 
 ---
 

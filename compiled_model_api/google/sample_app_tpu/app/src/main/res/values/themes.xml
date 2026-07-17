@@ -1,6 +1,6 @@
 <resources xmlns:tools="http://schemas.annotation.com/tools">
   <!-- Base application theme. -->
-  <style name="Theme.EdgeTPUApp" parent="Theme.MaterialComponents.DayNight.NoActionBar">
+  <style name="Theme.GoogleTensorTPUApp" parent="Theme.MaterialComponents.DayNight.NoActionBar">
     <!-- Primary brand color. -->
     <item name="colorPrimary">#2563EB</item>
     <item name="colorPrimaryVariant">#1D4ED8</item>
