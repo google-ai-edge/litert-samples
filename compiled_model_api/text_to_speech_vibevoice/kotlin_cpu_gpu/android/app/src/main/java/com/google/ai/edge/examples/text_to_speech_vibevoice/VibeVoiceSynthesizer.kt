@@ -38,22 +38,29 @@ import kotlin.math.sqrt
  * a stochastic, autoregressive, next-token-diffusion TTS:
  *
  *   text --BPE--> ids
- *   per text token:  embed(host) -> base_lm(CPU) -> +type -> tts_lm(CPU) -> cond
+ *   per text token:  embed(host) -> base_lm(GPU) -> +type -> tts_lm(GPU) -> cond
  *   per speech token (6 per window):
  *     5-step DPM-Solver++:  head(GPU) x2 (cond + null) -> CFG -> v -> latent[64]
- *     connector(host) + type -> tts_lm(CPU) & neg tts_lm(CPU) -> next cond
+ *     connector(host) + type -> tts_lm(GPU) & neg tts_lm(GPU) -> next cond
  *     EOS classifier(host) stops generation
  *   accumulate latents -> decoder(CPU) -> 24 kHz waveform
  *
- * Placement is dictated by the Pixel 8a Mali ML Drift delegate *at the LiteRT version this
- * sample pins* (2.1.3): the two Qwen2 LMs are rejected on GPU with "unsupported
- * FULLY_CONNECTED weights shape". LiteRT 2.1.5 fixes that — there both LMs delegate every
- * node and match the CPU reference to corr >= 0.9998 — but until this sample moves to it they
- * run as fp32 graphs on CPU, which fp16 requires anyway (fp16 collapses their 20-layer stack
- * on ARM XNNPACK). The σ-VAE decoder
- * compiles on GPU but ML Drift miscomputes it (a graph-assembly buffer bug — every op is
- * bit-exact in isolation, but the assembled ConvNeXt block is wrong), so it too runs as an
- * fp32 graph on CPU. Only the tiny diffusion head runs on GPU (fp32 precision).
+ * Placement is dictated by the Pixel 8a Mali ML Drift delegate. Everything runs on the GPU
+ * except the σ-VAE decoder, which compiles there but which ML Drift miscomputes (a
+ * graph-assembly buffer bug — every op is bit-exact in isolation, but the assembled ConvNeXt
+ * block is wrong), so it runs as an fp32 graph on CPU.
+ *
+ * The two Qwen2 LMs need LiteRT >= 2.1.5 (this sample pins 2.1.5): 2.1.3's delegate rejected
+ * their KV-step FULLY_CONNECTED weights shape ("Unsupported weights shape"). On 2.1.5 they
+ * delegate every node — 313/313 and 1559/1559 — and generation drops from 72.0 s to 33.3 s
+ * for a 3.6 s utterance on a Pixel 8a.
+ *
+ * All GPU graphs request [CompiledModel.GpuOptions.Precision.FP32]. For the LMs that costs
+ * 3.9% (32.1 s at the fp16 default) and buys an end-to-end waveform bit-identical to the CPU
+ * reference (corr 1.000000, against 0.991886 at fp16). The graphs themselves stay fp32 on
+ * disk, because the CPU fallback path needs them so: Android ARM XNNPACK computes native fp16
+ * and collapses a 20-layer residual stream to noise, while desktop XNNPACK upcasts and hides
+ * it.
  *
  * The two Qwen2 LMs keep their KV cache host-side (packed `[1, L*nkv, Pmax, 64]` tensors
  * fed in and read back each step — the ML-Drift-safe "state as graph I/O" pattern). The
@@ -118,12 +125,13 @@ class VibeVoiceSynthesizer(private val context: Context) : Closeable {
         return CompiledModel.create(f.absolutePath, opts, null)
     }
 
-    // Placement (see the class KDoc): the two Qwen2 LMs and the σ-VAE decoder run on CPU as
-    // fp32 graphs — LiteRT 2.1.3's Mali delegate rejects the LM FULLY_CONNECTED shape (2.1.5
-    // fixes it) and miscomputes the decoder (every version tried). Only the small diffusion
-    // head runs on the GPU.
-    private val baseLm = load(BASE_LM, Accelerator.CPU)
-    private val ttsLm = load(TTS_LM, Accelerator.CPU)
+    // Placement (see the class KDoc): the two Qwen2 LMs run on the GPU at fp32 precision —
+    // LiteRT 2.1.3's Mali delegate rejected their FULLY_CONNECTED shape, 2.1.5 (pinned here)
+    // fixes it, and fp32 precision makes the end-to-end waveform bit-identical to the CPU
+    // reference. The σ-VAE decoder stays on CPU because ML Drift miscomputes it (every
+    // version tried).
+    private val baseLm = load(BASE_LM, Accelerator.GPU, gpuFp32 = true)
+    private val ttsLm = load(TTS_LM, Accelerator.GPU, gpuFp32 = true)
     private val head = load(HEAD, Accelerator.GPU, gpuFp32 = true)
     private val decoder = load(DECODER, Accelerator.CPU)
     private val baseIn = baseLm.createInputBuffers()

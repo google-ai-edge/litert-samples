@@ -25,28 +25,36 @@ on-device, not just by desktop parity.
 
 | Graph | In → Out | Delegate (Pixel 8a) | Why |
 | :-- | :-- | :--: | :-- |
-| `vv_base_lm_kv_fp32` | x[1,1,896], cos/sin[1,1,1,64], mask[1,1,1,129], pk/pv[1,8,128,64] → hidden[1,1,896], k/v[1,8,1,64] | **CPU (fp32)** | This sample pins LiteRT 2.1.3, whose Mali delegate rejects the KV-step `FULLY_CONNECTED` weights shape — **fixed in 2.1.5**, see below. fp16 separately collapses the stack on ARM XNNPACK. |
-| `vv_tts_lm_kv_fp32` | same I/O, `Pmax=384`, `L*nkv=40` | **CPU (fp32)** | Same as above (20 layers). |
+| `vv_base_lm_kv_fp32` | x[1,1,896], cos/sin[1,1,1,64], mask[1,1,1,129], pk/pv[1,8,128,64] → hidden[1,1,896], k/v[1,8,1,64] | **GPU (fp32 precision)** | 313/313 nodes delegated. Needs LiteRT ≥ 2.1.5 (pinned here) — see below. |
+| `vv_tts_lm_kv_fp32` | same I/O, `Pmax=384`, `L*nkv=40` | **GPU (fp32 precision)** | 1559/1559 nodes delegated (20 layers). Same. |
 | `vv_diffhead_fp16` | noisy[1,64], t_freq[1,256], cond[1,896] → v[1,64] | **GPU (fp32 precision)** | Small; compiles and computes correctly on ML Drift. |
 | `vv_decoder_fp32` | latent[1,64,128] → wav[1,1,409600] | **CPU (fp32)** | Compiles on GPU but ML Drift **miscomputes** it — see below. |
 
-This is a **hybrid** placement, not an all-GPU one: only the tiny diffusion head runs on the GPU.
+Everything runs on the GPU except the σ-VAE decoder.
 Graphs are converted with [litert-torch](https://github.com/google-ai-edge/litert) (per-graph
 tflite-vs-torch corr **1.000000**); the Kotlin host loop and DPM-Solver++ port match the reference
 end-to-end. See [`conversion/`](conversion/).
 
-### Correction (2026-07-10): the LMs are not blocked by the GPU
+### The LMs need LiteRT ≥ 2.1.5
 
-An earlier version of this sample said ML Drift rejects the KV-step `FULLY_CONNECTED` weights shape,
-so autoregressive attention decoders cannot run on it. **That is withdrawn.** The rejection is real
-on LiteRT **2.1.3** (`INVALID_ARGUMENT: Unsupported weights shape`, `fully_connected.cc:1070`) and
-**fixed in 2.1.5**, where the same graphs delegate fully and compute correctly: `vv_base_lm_kv_fp32`
-**313/313 nodes at 27 ms/step** (hidden corr 0.999964 vs CPU), the 20-layer `vv_tts_lm_kv_fp32`
-**1559/1559 nodes at 65 ms/step** (corr 0.999852). Both timings are `run()` plus the output readback:
-`CompiledModel.run()` only *enqueues*, so timing it alone reports a misleading 3 ms and 23 ms.
-Moving the LMs onto the GPU is a follow-up; this
-sample still pins 2.1.3, and fp16 independently collapses the 20-layer stack on ARM XNNPACK, which is
-a fact about the *CPU* path and remains true.
+LiteRT **2.1.3**'s Mali delegate rejects the LMs' KV-step `FULLY_CONNECTED` weights shape
+(`INVALID_ARGUMENT: Unsupported weights shape`, `fully_connected.cc:1070`); an earlier version of
+this sample recorded that as a permanent wall on autoregressive attention decoders and ran the LMs
+on CPU, which was wrong. The bug is **fixed in 2.1.5** (this sample's pin), where both LMs delegate
+every node — 313/313 at 27 ms/step and 1559/1559 at 65 ms/step, `run()` + output readback
+(`CompiledModel.run()` only *enqueues*, so timing it alone reports a misleading 3 ms and 23 ms).
+On a Pixel 8a, a 3.6 s utterance:
+
+| LM placement | Generation | Waveform corr vs CPU |
+| :-- | :-- | :-- |
+| CPU (fp32 graphs) | 72.0 s | — (reference) |
+| GPU, fp16 default | 32.1 s | 0.991886 |
+| **GPU, `Precision.FP32`** | **33.3 s** | **1.000000** (RMS diff 4e-6) |
+
+FP32 precision costs 3.9% and makes the end-to-end waveform bit-identical to the CPU reference, so
+that is what ships. The graphs stay **fp32 on disk** because the CPU fallback path needs them so:
+Android ARM XNNPACK computes native fp16 and collapses a 20-layer residual stream to noise, while
+desktop XNNPACK upcasts and hides it. That finding is about the *CPU* path and is unchanged.
 
 ### The σ-VAE decoder is a confirmed ML Drift correctness bug
 
@@ -71,12 +79,12 @@ Deterministic and version-independent — unlike the `FULLY_CONNECTED` rejection
 ```
 text --BPE(host)--> token ids
      --host: per text token-->
-         embed_tokens(host lookup) -> base_lm_kv(CPU) -> +type_embed -> tts_lm_kv(CPU) -> cond
+         embed_tokens(host lookup) -> base_lm_kv(GPU) -> +type_embed -> tts_lm_kv(GPU) -> cond
      --host: per speech token (6 per text window)-->
          5-step DPM-Solver++ loop:
              diffusion_head(GPU) x2 (cond + null prompt) -> CFG blend -> v -> latent[64]
-         acoustic_connector(host) + type_embed -> tts_lm_kv(CPU)     -> next cond
-                                                -> neg tts_lm_kv(CPU) -> next null cond
+         acoustic_connector(host) + type_embed -> tts_lm_kv(GPU)     -> next cond
+                                                -> neg tts_lm_kv(GPU) -> next null cond
          eos_classifier(host) > 0.5 -> stop
      --host: accumulate latents-->  acoustic_decoder(CPU) -> waveform[N*3200] @ 24 kHz
 ```
@@ -130,9 +138,9 @@ plays the waveform through an `AudioTrack` as a side effect (audio is not held i
 ## Notes
 
 - **Stochastic, autoregressive**: each frame draws fresh diffusion noise, so two runs differ.
-  Quality is judged by ear on-device; a short sentence generates in ~30 s on a Pixel 8a (the two
-  fp32 LMs and the fp32 decoder are the cost — this is a **correctness-first** placement, not a
-  real-time one, since the ML Drift decoder bug forces the decoder to CPU).
+  Quality is judged by ear on-device; a 3.6 s utterance generates in ~33 s on a Pixel 8a — this
+  is a **correctness-first** placement (every GPU graph runs at fp32 precision, and the ML Drift
+  decoder bug forces the σ-VAE decoder to CPU), not a real-time one.
 - **Voice presets** are the reference model's precomputed prompt KV caches; swapping voices swaps
   the `voice_*.bin` file.
 

@@ -26,8 +26,8 @@ import com.google.ai.edge.examples.text_to_speech_vibevoice.view.ApplicationThem
 import com.google.ai.edge.examples.text_to_speech_vibevoice.view.TtsScreen
 
 /**
- * On-device VibeVoice-Realtime-0.5B TTS on the LiteRT CompiledModel API (only the diffusion
- * head runs on the GPU; the two Qwen2 LMs and the σ-VAE decoder run on CPU — see
+ * On-device VibeVoice-Realtime-0.5B TTS on the LiteRT CompiledModel API (the two Qwen2 LMs and
+ * the diffusion head run on the GPU; the σ-VAE decoder runs on CPU — see
  * [VibeVoiceSynthesizer]). The UI is a thin Compose host over [MainViewModel]; the synthesized
  * waveform is played back through an AudioTrack in the ViewModel.
  */

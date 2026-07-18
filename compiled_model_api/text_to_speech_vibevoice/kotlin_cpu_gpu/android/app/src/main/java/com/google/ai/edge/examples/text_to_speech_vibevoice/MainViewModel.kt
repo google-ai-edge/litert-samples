@@ -41,9 +41,9 @@ import kotlinx.coroutines.launch
  * generated waveform through an [AudioTrack] as a side effect. The graphs reuse native buffers, so
  * every model call runs on one confined worker.
  *
- * This is a **hybrid** placement, not an all-GPU one: only the tiny diffusion head runs on the GPU;
- * the two Qwen2 LMs and the σ-VAE decoder run on CPU (see [VibeVoiceSynthesizer]). Generation is
- * correctness-first and slow (~30 s for a short sentence on a Pixel 8a), so the models are only
+ * This is a hybrid placement: the two Qwen2 LMs and the diffusion head run on the GPU at fp32
+ * precision; the σ-VAE decoder runs on CPU (see [VibeVoiceSynthesizer]). Generation is
+ * correctness-first (~33 s for a 3.6 s utterance on a Pixel 8a), so the models are only
  * loaded — not warmed up — at startup; the first synthesis pays the one-time GPU/JIT cost.
  */
 class MainViewModel(private val context: Context) : ViewModel() {
@@ -78,8 +78,8 @@ class MainViewModel(private val context: Context) : ViewModel() {
           it.copy(
             isModelReady = true,
             statusMessage =
-              "On-device VibeVoice ✓ (diffusion head on GPU, LMs + σ-VAE decoder on CPU)\n" +
-                "Type text and tap Speak. Generation is slow (~30 s).",
+              "On-device VibeVoice ✓ (LMs + diffusion head on GPU, σ-VAE decoder on CPU)\n" +
+                "Type text and tap Speak. Generation takes ~30 s.",
           )
         }
       } catch (t: Throwable) {

@@ -81,8 +81,8 @@ multiply is correct earlier in the block), reproduces on OpenCL and OpenGL and u
 buffer-storage / precision / constant-sharing option, and persists at fp32 — so it is a
 graph-assembly buffer/scheduling bug, not precision, a backend, or a kernel. Splitting the decoder
 does not help (a single block already trips it), so the decoder runs on CPU, where it is bit-exact
-with the reference. The two LMs also run on CPU, because this sample pins LiteRT 2.1.3, whose Mali
-delegate rejects their KV-step `FULLY_CONNECTED` weights shape — a delegate bug **fixed in 2.1.5**,
-where both LMs delegate every node and match CPU to corr ≥ 0.9998. Only the diffusion head runs on
-the GPU today. See the top-level
+with the reference. Everything else — the two LMs and the diffusion head — runs on the GPU at fp32
+precision. The LMs need LiteRT ≥ 2.1.5 (this sample's pin): 2.1.3's Mali delegate rejected their
+KV-step `FULLY_CONNECTED` weights shape, a delegate bug fixed in 2.1.5, where both LMs delegate
+every node and the end-to-end waveform is bit-identical to the CPU reference. See the top-level
 [`../README.md`](../README.md) for the full placement table.
