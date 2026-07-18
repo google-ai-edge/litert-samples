@@ -17,10 +17,10 @@
         android:roundIcon="@mipmap/ic_launcher_round"
         android:supportsRtl="true"
         android:largeHeap="true"
-        android:theme="@style/Theme.EdgeTPUApp"
+        android:theme="@style/Theme.GoogleTensorTPUApp"
         android:extractNativeLibs="true">
 
-        <!-- Declaring Edge TPU system libraries to allow the sandboxed dynamic linker namespace to load them -->
+        <!-- Declaring Google Tensor TPU system libraries to allow the sandboxed dynamic linker namespace to load them -->
         <uses-native-library android:name="libedgetpu_client.google.so" android:required="false" />
         <uses-native-library android:name="libedgetpu_litert.so" android:required="false" />
         <uses-native-library android:name="libedgetpu_util.so" android:required="false" />

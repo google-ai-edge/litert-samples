@@ -1,4 +1,4 @@
-package com.google.edgetpu.edgeTPUApp
+package com.google.googletensortpu.googleTensorTPUApp
 
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
