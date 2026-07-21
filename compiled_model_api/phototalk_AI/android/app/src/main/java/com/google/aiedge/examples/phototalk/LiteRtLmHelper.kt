@@ -68,11 +68,26 @@ class LiteRtLmHelper private constructor(private val context: Context) {
         }
 
         try {
-            val modelFile = File(modelPath)
-            if (!modelFile.exists()) {
+            val originalFile = File(modelPath)
+            if (!originalFile.exists()) {
                 return@withContext Result.failure(
                     IllegalArgumentException("Model file not found at: $modelPath")
                 )
+            }
+
+            var actualModelPath = modelPath
+            if (!originalFile.canRead()) {
+                Log.w(TAG, "File unreadable via standard IO. Preparing local copy in app private storage...")
+                val modelsDir = context.getExternalFilesDir("models") ?: context.filesDir
+                val targetFile = File(modelsDir, originalFile.name)
+                if (!targetFile.exists() || targetFile.length() != originalFile.length()) {
+                    originalFile.inputStream().use { input ->
+                        targetFile.outputStream().use { output ->
+                            input.copyTo(output)
+                        }
+                    }
+                }
+                actualModelPath = targetFile.absolutePath
             }
 
             // Attempt initialization with GPU backend first, falling back to CPU
@@ -84,9 +99,9 @@ class LiteRtLmHelper private constructor(private val context: Context) {
             var lastException: Throwable? = null
             for ((name, backendProvider) in backends) {
                 try {
-                    Log.i(TAG, "Initializing LiteRT-LM Engine with $name backend...")
+                    Log.i(TAG, "Initializing LiteRT-LM Engine at path '$actualModelPath' with $name backend...")
                     val config = EngineConfig(
-                        modelPath = modelPath,
+                        modelPath = actualModelPath,
                         backend = backendProvider(),
                         cacheDir = context.cacheDir.path
                     )
