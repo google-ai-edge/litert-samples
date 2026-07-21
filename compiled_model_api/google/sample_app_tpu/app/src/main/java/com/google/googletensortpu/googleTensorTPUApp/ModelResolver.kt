@@ -1,4 +1,4 @@
-package com.google.edgetpu.edgeTPUApp
+package com.google.googletensortpu.googleTensorTPUApp
 
 import android.content.Context
 import android.util.Log

@@ -19,5 +19,5 @@ dependencyResolutionManagement {
   }
 }
 
-rootProject.name = "EdgeTPUApp"
+rootProject.name = "GoogleTensorTPUApp"
 include(":app")
