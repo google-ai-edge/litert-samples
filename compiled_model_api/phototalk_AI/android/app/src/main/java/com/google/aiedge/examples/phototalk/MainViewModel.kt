@@ -17,6 +17,7 @@
 package com.google.aiedge.examples.phototalk
 
 import android.app.Application
+import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.ImageDecoder
 import android.net.Uri
@@ -118,6 +119,68 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     fun updateModelPath(newPath: String) {
         _uiState.update { it.copy(modelPath = newPath) }
+    }
+
+    fun onModelUriPicked(uri: Uri) {
+        viewModelScope.launch(Dispatchers.IO) {
+            val resolvedPath = getPathFromUri(getApplication(), uri)
+            if (!resolvedPath.isNullOrBlank()) {
+                _uiState.update {
+                    it.copy(
+                        modelPath = resolvedPath,
+                        statusMessage = "Selected model: ${File(resolvedPath).name}"
+                    )
+                }
+            } else {
+                _uiState.update {
+                    it.copy(statusMessage = "Could not resolve file path from selected URI.")
+                }
+            }
+        }
+    }
+
+    private fun getPathFromUri(context: Context, uri: Uri): String? {
+        if (uri.scheme == "file") return uri.path
+
+        try {
+            val proj = arrayOf(MediaStore.MediaColumns.DATA)
+            context.contentResolver.query(uri, proj, null, null, null)?.use { cursor ->
+                if (cursor.moveToFirst()) {
+                    val idx = cursor.getColumnIndex(MediaStore.MediaColumns.DATA)
+                    if (idx != -1) {
+                        val p = cursor.getString(idx)
+                        if (!p.isNullOrBlank() && File(p).exists()) return p
+                    }
+                }
+            }
+        } catch (e: Exception) {
+            Log.w(TAG, "MediaStore query failed", e)
+        }
+
+        val pathStr = uri.path
+        if (pathStr != null && pathStr.contains("/storage/emulated/")) {
+            val storageIndex = pathStr.indexOf("/storage/emulated/")
+            val extractedPath = pathStr.substring(storageIndex)
+            if (File(extractedPath).exists()) return extractedPath
+        }
+
+        try {
+            var fileName = "selected_model.litertlm"
+            context.contentResolver.query(uri, null, null, null, null)?.use { cursor ->
+                if (cursor.moveToFirst()) {
+                    val nameIdx = cursor.getColumnIndex(MediaStore.MediaColumns.DISPLAY_NAME)
+                    if (nameIdx != -1) fileName = cursor.getString(nameIdx)
+                }
+            }
+            val cacheFile = File(context.cacheDir, fileName)
+            context.contentResolver.openInputStream(uri)?.use { input ->
+                cacheFile.outputStream().use { output -> input.copyTo(output) }
+            }
+            if (cacheFile.exists() && cacheFile.length() > 0) return cacheFile.absolutePath
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to copy model file to cache", e)
+        }
+        return null
     }
 
     fun initializeLmEngine() {

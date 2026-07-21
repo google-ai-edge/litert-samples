@@ -38,6 +38,7 @@ class MainActivity : ComponentActivity() {
                     uiState = uiState,
                     onImageSelected = { uri -> viewModel.onImageSelected(uri) },
                     onModelPathChanged = { path -> viewModel.updateModelPath(path) },
+                    onModelUriPicked = { uri -> viewModel.onModelUriPicked(uri) },
                     onInitLmEngine = { viewModel.initializeLmEngine() },
                     onSendMessage = { text -> viewModel.sendMessage(text) }
                 )

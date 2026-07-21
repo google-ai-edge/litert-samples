@@ -33,6 +33,7 @@ import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material.icons.filled.AddPhotoAlternate
 import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.FolderOpen
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -55,6 +56,7 @@ fun PhotoTalkAppScreen(
     uiState: PhotoTalkUiState,
     onImageSelected: (Uri) -> Unit,
     onModelPathChanged: (String) -> Unit,
+    onModelUriPicked: (Uri) -> Unit,
     onInitLmEngine: () -> Unit,
     onSendMessage: (String) -> Unit
 ) {
@@ -62,6 +64,12 @@ fun PhotoTalkAppScreen(
         contract = ActivityResultContracts.GetContent()
     ) { uri: Uri? ->
         uri?.let { onImageSelected(it) }
+    }
+
+    val modelFilePickerLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.OpenDocument()
+    ) { uri: Uri? ->
+        uri?.let { onModelUriPicked(it) }
     }
 
     var textInput by remember { mutableStateOf("") }
@@ -307,7 +315,7 @@ fun PhotoTalkAppScreen(
                         LazyColumn(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .heightIn(max = 180.dp)
+                                .heightIn(max = 140.dp)
                         ) {
                             items(uiState.availableModels) { path ->
                                 val fileName = File(path).name
@@ -346,14 +354,30 @@ fun PhotoTalkAppScreen(
                         Spacer(Modifier.height(8.dp))
                     }
 
-                    Text("Custom Model File Path (.litertlm):", style = MaterialTheme.typography.labelMedium)
+                    Text("Model File Path (.litertlm):", style = MaterialTheme.typography.labelMedium)
                     Spacer(Modifier.height(4.dp))
-                    OutlinedTextField(
-                        value = uiState.modelPath,
-                        onValueChange = onModelPathChanged,
+                    
+                    Row(
                         modifier = Modifier.fillMaxWidth(),
-                        singleLine = true
-                    )
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        OutlinedTextField(
+                            value = uiState.modelPath,
+                            onValueChange = onModelPathChanged,
+                            modifier = Modifier.weight(1f),
+                            singleLine = true
+                        )
+                        Spacer(Modifier.width(6.dp))
+                        OutlinedButton(
+                            onClick = { modelFilePickerLauncher.launch(arrayOf("*/*")) },
+                            contentPadding = PaddingValues(horizontal = 8.dp)
+                        ) {
+                            Icon(Icons.Default.FolderOpen, contentDescription = "Browse")
+                            Spacer(Modifier.width(4.dp))
+                            Text("Browse")
+                        }
+                    }
+
                     Spacer(Modifier.height(8.dp))
                     Text(
                         "Active Backend: ${uiState.lmBackendName}",
