@@ -64,7 +64,7 @@ class LiteRtLmHelper private constructor(private val context: Context) {
 
     suspend fun initializeEngine(
         modelPath: String,
-        preferredBackend: String = "GPU"
+        preferredBackend: String = "CPU"
     ): Result<Boolean> = withContext(Dispatchers.IO) {
         if (isInitialized && engine != null) {
             cleanup()
@@ -93,13 +93,13 @@ class LiteRtLmHelper private constructor(private val context: Context) {
                 actualModelPath = targetFile.absolutePath
             }
 
-            val backends = if (preferredBackend == "CPU") {
-                listOf(Pair("CPU") { Backend.CPU() })
-            } else {
+            val backends = if (preferredBackend == "GPU") {
                 listOf(
                     Pair("GPU") { Backend.GPU() },
                     Pair("CPU") { Backend.CPU() }
                 )
+            } else {
+                listOf(Pair("CPU") { Backend.CPU() })
             }
 
             var lastException: Throwable? = null
@@ -139,10 +139,10 @@ class LiteRtLmHelper private constructor(private val context: Context) {
         closeConversation()
         val currentEngine = engine ?: throw IllegalStateException("LiteRT-LM Engine is not initialized")
 
-        val systemPrompt = "You are PhotoTalk AI, a friendly and insightful visual assistant. " +
-                "The user has uploaded an image that was classified as '$detectedLabel' (confidence: ${"%.1f".format(confidencePct)}%). " +
-                "Introduce yourself, acknowledge the detected object, share an interesting fun fact about it, " +
-                "and ask the user what they would like to know about it."
+        val systemPrompt = "You are PhotoTalk Sample App, a friendly and concise on-device visual assistant. " +
+                "The user uploaded an image classified as '$detectedLabel' (confidence: ${"%.1f".format(confidencePct)}%). " +
+                "Keep your answers short, concise, and to the point (maximum 2 sentences). " +
+                "Acknowledge the object, share one brief fun fact, and ask what they would like to know."
 
         val config = ConversationConfig(
             systemInstruction = Contents.of(systemPrompt),
@@ -156,8 +156,8 @@ class LiteRtLmHelper private constructor(private val context: Context) {
         val newConversation = currentEngine.createConversation(config)
         conversation = newConversation
 
-        // Initial prompt to trigger greeting and topic introduction
-        newConversation.sendMessageAsync("Hello! Tell me about the photo I just uploaded.").map { it.toString() }
+        // Initial prompt to trigger concise greeting and topic introduction
+        newConversation.sendMessageAsync("Hello! Describe the photo concisely.").map { it.toString() }
     }
 
     fun sendChatMessage(userText: String): Flow<String> {

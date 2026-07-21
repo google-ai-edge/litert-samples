@@ -58,7 +58,7 @@ data class PhotoTalkUiState(
     val classificationState: ClassificationUiState = ClassificationUiState.Idle,
     val modelPath: String = "",
     val availableModels: List<String> = emptyList(),
-    val preferredBackend: String = "GPU",
+    val preferredBackend: String = "CPU",
     val isLmEngineReady: Boolean = false,
     val isLmInitializing: Boolean = false,
     val lmBackendName: String = "CPU",

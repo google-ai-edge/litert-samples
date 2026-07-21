@@ -42,12 +42,14 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.google.aiedge.examples.phototalk.ChatMessage
 import com.google.aiedge.examples.phototalk.ClassificationUiState
 import com.google.aiedge.examples.phototalk.PhotoTalkUiState
+import com.google.aiedge.examples.phototalk.R
 import java.io.File
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -87,13 +89,23 @@ fun PhotoTalkAppScreen(
         topBar = {
             TopAppBar(
                 title = {
-                    Column {
-                        Text("PhotoTalk AI", fontWeight = FontWeight.Bold)
-                        Text(
-                            "LiteRT (Vision) + LiteRT-LM (${uiState.lmBackendName})",
-                            style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Image(
+                            painter = painterResource(id = R.drawable.litert_logo),
+                            contentDescription = "LiteRT Logo",
+                            modifier = Modifier
+                                .size(32.dp)
+                                .clip(RoundedCornerShape(6.dp))
                         )
+                        Spacer(Modifier.width(10.dp))
+                        Column {
+                            Text("PhotoTalk Sample App", fontWeight = FontWeight.Bold, fontSize = 18.sp)
+                            Text(
+                                "LiteRT (Vision) + LiteRT-LM (${uiState.lmBackendName})",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
                     }
                 },
                 actions = {
@@ -314,22 +326,22 @@ fun PhotoTalkAppScreen(
                         horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
                         FilterChip(
-                            selected = uiState.preferredBackend == "GPU",
-                            onClick = { onBackendChanged("GPU") },
-                            label = { Text("GPU (OpenCL)") },
+                            selected = uiState.preferredBackend == "CPU",
+                            onClick = { onBackendChanged("CPU") },
+                            label = { Text("CPU (Default)") },
                             leadingIcon = {
-                                if (uiState.preferredBackend == "GPU") {
+                                if (uiState.preferredBackend == "CPU") {
                                     Icon(Icons.Default.Check, contentDescription = null, modifier = Modifier.size(16.dp))
                                 }
                             },
                             modifier = Modifier.weight(1f)
                         )
                         FilterChip(
-                            selected = uiState.preferredBackend == "CPU",
-                            onClick = { onBackendChanged("CPU") },
-                            label = { Text("CPU") },
+                            selected = uiState.preferredBackend == "GPU",
+                            onClick = { onBackendChanged("GPU") },
+                            label = { Text("GPU (OpenCL)") },
                             leadingIcon = {
-                                if (uiState.preferredBackend == "CPU") {
+                                if (uiState.preferredBackend == "GPU") {
                                     Icon(Icons.Default.Check, contentDescription = null, modifier = Modifier.size(16.dp))
                                 }
                             },
@@ -476,7 +488,7 @@ fun ChatMessageBubble(message: ChatMessage) {
             ) {
                 Column(modifier = Modifier.padding(12.dp)) {
                     Text(
-                        text = if (isUser) "You" else "PhotoTalk AI",
+                        text = if (isUser) "You" else "PhotoTalk",
                         fontSize = 11.sp,
                         fontWeight = FontWeight.Bold,
                         color = if (isUser) MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.8f)
