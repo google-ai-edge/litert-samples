@@ -104,7 +104,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 }
             }
 
-            val defaultPath = foundModels.firstOrNull() ?: "/sdcard/Download/gemma-2b-it.litertlm"
+            val defaultPath = foundModels.firstOrNull() ?: "/sdcard/Download/gemma-4-E2B-it.litertlm"
             _uiState.update {
                 it.copy(
                     availableModels = foundModels,
@@ -145,28 +145,9 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     private fun getPathFromUri(context: Context, uri: Uri): String? {
-        if (uri.scheme == "file") return uri.path
-
-        try {
-            val proj = arrayOf(MediaStore.MediaColumns.DATA)
-            context.contentResolver.query(uri, proj, null, null, null)?.use { cursor ->
-                if (cursor.moveToFirst()) {
-                    val idx = cursor.getColumnIndex(MediaStore.MediaColumns.DATA)
-                    if (idx != -1) {
-                        val p = cursor.getString(idx)
-                        if (!p.isNullOrBlank() && File(p).exists()) return p
-                    }
-                }
-            }
-        } catch (e: Exception) {
-            Log.w(TAG, "MediaStore query failed", e)
-        }
-
-        val pathStr = uri.path
-        if (pathStr != null && pathStr.contains("/storage/emulated/")) {
-            val storageIndex = pathStr.indexOf("/storage/emulated/")
-            val extractedPath = pathStr.substring(storageIndex)
-            if (File(extractedPath).exists()) return extractedPath
+        if (uri.scheme == "file") {
+            val f = File(uri.path ?: "")
+            if (f.canRead()) return f.absolutePath
         }
 
         try {
@@ -174,16 +155,22 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             context.contentResolver.query(uri, null, null, null, null)?.use { cursor ->
                 if (cursor.moveToFirst()) {
                     val nameIdx = cursor.getColumnIndex(MediaStore.MediaColumns.DISPLAY_NAME)
-                    if (nameIdx != -1) fileName = cursor.getString(nameIdx)
+                    if (nameIdx != -1) {
+                        val name = cursor.getString(nameIdx)
+                        if (!name.isNullOrBlank()) fileName = name
+                    }
                 }
             }
-            val cacheFile = File(context.cacheDir, fileName)
+
+            val modelsDir = context.getExternalFilesDir("models") ?: context.filesDir
+            val targetFile = File(modelsDir, fileName)
+            _uiState.update { it.copy(statusMessage = "Importing model into app storage ($fileName)...") }
             context.contentResolver.openInputStream(uri)?.use { input ->
-                cacheFile.outputStream().use { output -> input.copyTo(output) }
+                targetFile.outputStream().use { output -> input.copyTo(output) }
             }
-            if (cacheFile.exists() && cacheFile.length() > 0) return cacheFile.absolutePath
+            if (targetFile.exists() && targetFile.length() > 0) return targetFile.absolutePath
         } catch (e: Exception) {
-            Log.e(TAG, "Failed to copy model file to cache", e)
+            Log.e(TAG, "Failed to copy model file from ContentResolver", e)
         }
         return null
     }

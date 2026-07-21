@@ -16,7 +16,12 @@
 
 package com.google.aiedge.examples.phototalk
 
+import android.content.Intent
+import android.net.Uri
+import android.os.Build
 import android.os.Bundle
+import android.os.Environment
+import android.provider.Settings
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.viewModels
@@ -31,6 +36,7 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        checkAndRequestStoragePermissions()
         setContent {
             MaterialTheme {
                 val uiState by viewModel.uiState.collectAsState()
@@ -43,6 +49,27 @@ class MainActivity : ComponentActivity() {
                     onInitLmEngine = { viewModel.initializeLmEngine() },
                     onSendMessage = { text -> viewModel.sendMessage(text) }
                 )
+            }
+        }
+    }
+
+    override fun onResume() {
+        super.onResume()
+        viewModel.scanAvailableModelFiles()
+    }
+
+    private fun checkAndRequestStoragePermissions() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            if (!Environment.isExternalStorageManager()) {
+                try {
+                    val intent = Intent(Settings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION).apply {
+                        data = Uri.parse("package:$packageName")
+                    }
+                    startActivity(intent)
+                } catch (e: Exception) {
+                    val intent = Intent(Settings.ACTION_MANAGE_ALL_FILES_ACCESS_PERMISSION)
+                    startActivity(intent)
+                }
             }
         }
     }
