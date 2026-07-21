@@ -31,7 +31,6 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
-import java.io.File
 
 data class ChatMessage(
     val id: String = java.util.UUID.randomUUID().toString(),
@@ -79,13 +78,23 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun initializeLmEngine() {
-        val path = _uiState.value.modelPath
-        if (path.isBlank()) return
-
         viewModelScope.launch {
-            _uiState.update { it.copy(isLmInitializing = true, statusMessage = "Initializing LiteRT-LM Engine...") }
-            val result = lmHelper.initializeEngine(path)
-            result.onSuccess {
+            ensureLmEngineInitialized()
+        }
+    }
+
+    private suspend fun ensureLmEngineInitialized(): Boolean {
+        if (_uiState.value.isLmEngineReady) return true
+        val path = _uiState.value.modelPath
+        if (path.isBlank()) {
+            _uiState.update { it.copy(statusMessage = "Please set a valid .litertlm model path in Settings.") }
+            return false
+        }
+
+        _uiState.update { it.copy(isLmInitializing = true, statusMessage = "Initializing LiteRT-LM Engine...") }
+        val result = lmHelper.initializeEngine(path)
+        return result.fold(
+            onSuccess = {
                 _uiState.update {
                     it.copy(
                         isLmEngineReady = true,
@@ -94,16 +103,19 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                         statusMessage = "LiteRT-LM Ready (${lmHelper.getActiveBackend()}). Select an image!"
                     )
                 }
-            }.onFailure { err ->
+                true
+            },
+            onFailure = { err ->
                 _uiState.update {
                     it.copy(
                         isLmEngineReady = false,
                         isLmInitializing = false,
-                        statusMessage = "LiteRT-LM Init Failed: ${err.localizedMessage}"
+                        statusMessage = "LiteRT-LM Init Info: ${err.localizedMessage}"
                     )
                 }
+                false
             }
-        }
+        )
     }
 
     fun onImageSelected(uri: Uri) {
@@ -145,7 +157,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 _uiState.update {
                     it.copy(
                         classificationState = ClassificationUiState.Success(classification),
-                        statusMessage = "LiteRT Detected: ${classification.label} (${"%.1f".format(pct)}%). Initializing chat..."
+                        statusMessage = "LiteRT Detected: ${classification.label} (${"%.1f".format(pct)}%)."
                     )
                 }
                 startCoDependentConversation(classification.label, pct)
@@ -161,8 +173,15 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     private suspend fun startCoDependentConversation(label: String, confidencePct: Float) {
-        if (!_uiState.value.isLmEngineReady) {
-            initializeLmEngine()
+        val lmReady = ensureLmEngineInitialized()
+        if (!lmReady) {
+            val systemMsg = ChatMessage(
+                sender = ChatMessage.Sender.SYSTEM,
+                text = "⚡ LiteRT classified image as '$label' (${"%.1f".format(confidencePct)}%). " +
+                        "Note: LiteRT-LM model not initialized. Download a .litertlm file and update the path in Settings (⚙️) to start AI Chat."
+            )
+            _uiState.update { it.copy(chatMessages = listOf(systemMsg)) }
+            return
         }
 
         val initialSystemMsg = ChatMessage(
@@ -175,20 +194,26 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         val streamingAiMsg = ChatMessage(id = aiMessageId, sender = ChatMessage.Sender.AI, text = "", isStreaming = true)
         _uiState.update { it.copy(chatMessages = it.chatMessages + streamingAiMsg) }
 
-        var accumulatedText = ""
-        lmHelper.startImageConversation(label, confidencePct)
-            .catch { err ->
-                Log.e(TAG, "LLM streaming error", err)
-                updateChatMessage(aiMessageId, "Error generating AI response: ${err.localizedMessage}", isStreaming = false)
-                _uiState.update { it.copy(isStreamingResponse = false) }
-            }
-            .collect { chunk ->
-                accumulatedText += chunk
-                updateChatMessage(aiMessageId, accumulatedText, isStreaming = true)
-            }
+        try {
+            var accumulatedText = ""
+            lmHelper.startImageConversation(label, confidencePct)
+                .catch { err ->
+                    Log.e(TAG, "LLM streaming error", err)
+                    updateChatMessage(aiMessageId, "Error generating AI response: ${err.localizedMessage}", isStreaming = false)
+                    _uiState.update { it.copy(isStreamingResponse = false) }
+                }
+                .collect { chunk ->
+                    accumulatedText += chunk
+                    updateChatMessage(aiMessageId, accumulatedText, isStreaming = true)
+                }
 
-        updateChatMessage(aiMessageId, accumulatedText, isStreaming = false)
-        _uiState.update { it.copy(isStreamingResponse = false, statusMessage = "Chat active for $label") }
+            updateChatMessage(aiMessageId, accumulatedText, isStreaming = false)
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to start image conversation", e)
+            updateChatMessage(aiMessageId, "Failed to start conversation: ${e.localizedMessage}", isStreaming = false)
+        } finally {
+            _uiState.update { it.copy(isStreamingResponse = false, statusMessage = "Chat active for $label") }
+        }
     }
 
     fun sendMessage(userText: String) {

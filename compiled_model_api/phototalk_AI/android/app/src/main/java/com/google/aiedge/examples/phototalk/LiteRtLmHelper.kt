@@ -42,6 +42,16 @@ class LiteRtLmHelper private constructor(private val context: Context) {
     companion object {
         private const val TAG = "PhotoTalk_LiteRtLM"
 
+        init {
+            try {
+                System.loadLibrary("LiteRt")
+                System.loadLibrary("litertlm_jni")
+                Log.i(TAG, "Native libraries loaded successfully.")
+            } catch (e: Throwable) {
+                Log.w(TAG, "Native library load warning: ${e.message}")
+            }
+        }
+
         @Volatile
         private var INSTANCE: LiteRtLmHelper? = null
 
