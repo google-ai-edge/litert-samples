@@ -21,6 +21,7 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -31,6 +32,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material.icons.filled.AddPhotoAlternate
 import androidx.compose.material.icons.filled.AutoAwesome
+import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -45,6 +47,7 @@ import androidx.compose.ui.unit.sp
 import com.google.aiedge.examples.phototalk.ChatMessage
 import com.google.aiedge.examples.phototalk.ClassificationUiState
 import com.google.aiedge.examples.phototalk.PhotoTalkUiState
+import java.io.File
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -293,8 +296,57 @@ fun PhotoTalkAppScreen(
             onDismissRequest = { showSettingsDialog = false },
             title = { Text("LiteRT-LM Configuration") },
             text = {
-                Column {
-                    Text("Model File Path (.litertlm):", style = MaterialTheme.typography.labelMedium)
+                Column(modifier = Modifier.fillMaxWidth()) {
+                    if (uiState.availableModels.isNotEmpty()) {
+                        Text(
+                            "Detected Models in Downloads:",
+                            style = MaterialTheme.typography.labelMedium,
+                            fontWeight = FontWeight.Bold
+                        )
+                        Spacer(Modifier.height(4.dp))
+                        LazyColumn(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .heightIn(max = 180.dp)
+                        ) {
+                            items(uiState.availableModels) { path ->
+                                val fileName = File(path).name
+                                val isSelected = uiState.modelPath == path
+                                Surface(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(vertical = 2.dp)
+                                        .clickable { onModelPathChanged(path) },
+                                    color = if (isSelected) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceVariant,
+                                    shape = RoundedCornerShape(8.dp)
+                                ) {
+                                    Row(
+                                        modifier = Modifier.padding(8.dp),
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        if (isSelected) {
+                                            Icon(
+                                                Icons.Default.Check,
+                                                contentDescription = "Selected",
+                                                tint = MaterialTheme.colorScheme.primary,
+                                                modifier = Modifier.size(16.dp)
+                                            )
+                                            Spacer(Modifier.width(6.dp))
+                                        }
+                                        Text(
+                                            text = fileName,
+                                            style = MaterialTheme.typography.bodySmall,
+                                            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
+                                            maxLines = 1
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                        Spacer(Modifier.height(8.dp))
+                    }
+
+                    Text("Custom Model File Path (.litertlm):", style = MaterialTheme.typography.labelMedium)
                     Spacer(Modifier.height(4.dp))
                     OutlinedTextField(
                         value = uiState.modelPath,
@@ -304,7 +356,7 @@ fun PhotoTalkAppScreen(
                     )
                     Spacer(Modifier.height(8.dp))
                     Text(
-                        "Current Backend: ${uiState.lmBackendName}",
+                        "Active Backend: ${uiState.lmBackendName}",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.primary
                     )

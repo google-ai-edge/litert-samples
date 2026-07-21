@@ -21,16 +21,19 @@ import android.graphics.Bitmap
 import android.graphics.ImageDecoder
 import android.net.Uri
 import android.os.Build
+import android.os.Environment
 import android.provider.MediaStore
 import android.util.Log
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import java.io.File
 
 data class ChatMessage(
     val id: String = java.util.UUID.randomUUID().toString(),
@@ -52,7 +55,8 @@ data class PhotoTalkUiState(
     val selectedImageUri: Uri? = null,
     val selectedBitmap: Bitmap? = null,
     val classificationState: ClassificationUiState = ClassificationUiState.Idle,
-    val modelPath: String = "/sdcard/Download/gemma-2b-it.litertlm",
+    val modelPath: String = "",
+    val availableModels: List<String> = emptyList(),
     val isLmEngineReady: Boolean = false,
     val isLmInitializing: Boolean = false,
     val lmBackendName: String = "CPU",
@@ -71,6 +75,45 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     companion object {
         private const val TAG = "PhotoTalk_VM"
+    }
+
+    init {
+        scanAvailableModelFiles()
+    }
+
+    fun scanAvailableModelFiles() {
+        viewModelScope.launch(Dispatchers.IO) {
+            val searchDirs = listOf(
+                File("/sdcard/Download"),
+                File("/storage/emulated/0/Download"),
+                Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS)
+            )
+
+            val foundModels = mutableListOf<String>()
+            for (dir in searchDirs) {
+                if (dir.exists() && dir.isDirectory) {
+                    dir.listFiles()?.forEach { file ->
+                        if (file.isFile && file.name.endsWith(".litertlm", ignoreCase = true)) {
+                            if (!foundModels.contains(file.absolutePath)) {
+                                foundModels.add(file.absolutePath)
+                            }
+                        }
+                    }
+                }
+            }
+
+            val defaultPath = foundModels.firstOrNull() ?: "/sdcard/Download/gemma-2b-it.litertlm"
+            _uiState.update {
+                it.copy(
+                    availableModels = foundModels,
+                    modelPath = if (it.modelPath.isBlank()) defaultPath else it.modelPath,
+                    statusMessage = if (foundModels.isNotEmpty())
+                        "Found ${foundModels.size} LiteRT-LM models in Download folder."
+                    else
+                        "Select an image to start classification and chat."
+                )
+            }
+        }
     }
 
     fun updateModelPath(newPath: String) {
@@ -178,7 +221,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             val systemMsg = ChatMessage(
                 sender = ChatMessage.Sender.SYSTEM,
                 text = "⚡ LiteRT classified image as '$label' (${"%.1f".format(confidencePct)}%). " +
-                        "Note: LiteRT-LM model not initialized. Download a .litertlm file and update the path in Settings (⚙️) to start AI Chat."
+                        "Note: LiteRT-LM model not initialized. Select an available .litertlm file in Settings (⚙️) to start AI Chat."
             )
             _uiState.update { it.copy(chatMessages = listOf(systemMsg)) }
             return
