@@ -43,6 +43,14 @@ On-device Vision Language Models (VLMs) can be memory-intensive on mobile device
 
 ---
 
+## **Screenshots**
+
+| LiteRT-LM Configuration Settings | CPU Accelerator Inference | GPU Accelerator Inference |
+|:---:|:---:|:---:|
+| <img src="output/settings.jpg" width="260" /> | <img src="output/CPU.jpg" width="260" /> | <img src="output/GPU.jpg" width="260" /> |
+
+---
+
 ## **Vision Classification Model: EfficientNet-Lite0**
 
 The image classification component uses **EfficientNet-Lite0** (`efficientnet_lite0.tflite`):
@@ -60,6 +68,7 @@ The image classification component uses **EfficientNet-Lite0** (`efficientnet_li
 ```
 phototalk_sample_app/
 ├── README.md
+├── output/                              # Screenshots (settings.jpg, CPU.jpg, GPU.jpg)
 └── android/
     ├── app/
     │   ├── build.gradle.kts
