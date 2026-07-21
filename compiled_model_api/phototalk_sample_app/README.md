@@ -32,7 +32,7 @@ On-device Vision Language Models (VLMs) can be memory-intensive on mobile device
              ▼
 ┌──────────────────────────┐
 │ Interactive Chat Session │ ◄── Concise, interactive multi-turn Q&A about the image
-└──────────────────────────┘
+└────────────┬─────────────┘
 ```
 
 1. **LiteRT (Image Classification)**: Uses the LiteRT `CompiledModel` API with **EfficientNet-Lite0** (`efficientnet_lite0.tflite`) to classify an uploaded image and extract the top detected object label.
@@ -58,7 +58,7 @@ The image classification component uses **EfficientNet-Lite0** (`efficientnet_li
 ## **Project Structure**
 
 ```
-phototalk_AI/
+phototalk_sample_app/
 ├── README.md
 └── android/
     ├── app/
@@ -88,6 +88,6 @@ phototalk_AI/
 - A `.litertlm` model file (Gemma 4 models like `gemma-4-E2B-it.litertlm` are recommended) placed in your device's `/sdcard/Download/` folder or selectable via the file picker.
 
 ### **Building & Running**
-1. Open `compiled_model_api/phototalk_AI/android` in Android Studio or run `./gradlew installDebug`.
+1. Open `compiled_model_api/phototalk_sample_app/android` in Android Studio or run `./gradlew installDebug`.
 2. Launch **PhotoTalk Sample App**.
 3. Tap **Select Image** to upload a photo. The app will run LiteRT vision classification, initialize LiteRT-LM, and start an interactive conversation!
