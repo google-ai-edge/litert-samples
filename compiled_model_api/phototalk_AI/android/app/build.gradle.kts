@@ -5,6 +5,14 @@ plugins {
     alias(libs.plugins.composeCompiler)
 }
 
+configurations.all {
+    resolutionStrategy {
+        force("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.7.3")
+        force("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.7.3")
+        force("org.jetbrains.kotlinx:kotlinx-coroutines-guava:1.7.3")
+    }
+}
+
 android {
     namespace = "com.google.aiedge.examples.phototalk"
     compileSdk = 35
@@ -78,8 +86,8 @@ dependencies {
         exclude(group = "com.google.ai.edge.litert", module = "litert-support")
     }
 
-    implementation(platform("org.jetbrains.kotlinx:kotlinx-coroutines-bom:1.10.2"))
-    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android")
+    implementation(libs.kotlinx.coroutines.android)
+    implementation(libs.kotlinx.coroutines.core)
     implementation(libs.coil.compose)
 
     testImplementation(libs.junit)
