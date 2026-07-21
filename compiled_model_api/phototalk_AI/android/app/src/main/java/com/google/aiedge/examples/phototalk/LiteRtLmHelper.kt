@@ -62,9 +62,12 @@ class LiteRtLmHelper private constructor(private val context: Context) {
         }
     }
 
-    suspend fun initializeEngine(modelPath: String): Result<Boolean> = withContext(Dispatchers.IO) {
+    suspend fun initializeEngine(
+        modelPath: String,
+        preferredBackend: String = "GPU"
+    ): Result<Boolean> = withContext(Dispatchers.IO) {
         if (isInitialized && engine != null) {
-            return@withContext Result.success(true)
+            cleanup()
         }
 
         try {
@@ -90,11 +93,14 @@ class LiteRtLmHelper private constructor(private val context: Context) {
                 actualModelPath = targetFile.absolutePath
             }
 
-            // Attempt initialization with GPU backend first, falling back to CPU
-            val backends = listOf(
-                Pair("GPU") { Backend.GPU() },
-                Pair("CPU") { Backend.CPU() }
-            )
+            val backends = if (preferredBackend == "CPU") {
+                listOf(Pair("CPU") { Backend.CPU() })
+            } else {
+                listOf(
+                    Pair("GPU") { Backend.GPU() },
+                    Pair("CPU") { Backend.CPU() }
+                )
+            }
 
             var lastException: Throwable? = null
             for ((name, backendProvider) in backends) {

@@ -39,6 +39,7 @@ class MainActivity : ComponentActivity() {
                     onImageSelected = { uri -> viewModel.onImageSelected(uri) },
                     onModelPathChanged = { path -> viewModel.updateModelPath(path) },
                     onModelUriPicked = { uri -> viewModel.onModelUriPicked(uri) },
+                    onBackendChanged = { backend -> viewModel.updatePreferredBackend(backend) },
                     onInitLmEngine = { viewModel.initializeLmEngine() },
                     onSendMessage = { text -> viewModel.sendMessage(text) }
                 )

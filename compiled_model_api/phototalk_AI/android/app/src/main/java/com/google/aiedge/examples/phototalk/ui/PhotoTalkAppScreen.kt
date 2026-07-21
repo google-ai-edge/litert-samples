@@ -57,6 +57,7 @@ fun PhotoTalkAppScreen(
     onImageSelected: (Uri) -> Unit,
     onModelPathChanged: (String) -> Unit,
     onModelUriPicked: (Uri) -> Unit,
+    onBackendChanged: (String) -> Unit,
     onInitLmEngine: () -> Unit,
     onSendMessage: (String) -> Unit
 ) {
@@ -89,7 +90,7 @@ fun PhotoTalkAppScreen(
                     Column {
                         Text("PhotoTalk AI", fontWeight = FontWeight.Bold)
                         Text(
-                            "LiteRT (Vision) + LiteRT-LM (LLM)",
+                            "LiteRT (Vision) + LiteRT-LM (${uiState.lmBackendName})",
                             style = MaterialTheme.typography.labelSmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
@@ -305,6 +306,39 @@ fun PhotoTalkAppScreen(
             title = { Text("LiteRT-LM Configuration") },
             text = {
                 Column(modifier = Modifier.fillMaxWidth()) {
+                    // Backend Toggle Row
+                    Text("Hardware Accelerator Backend:", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold)
+                    Spacer(Modifier.height(4.dp))
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        FilterChip(
+                            selected = uiState.preferredBackend == "GPU",
+                            onClick = { onBackendChanged("GPU") },
+                            label = { Text("GPU (OpenCL)") },
+                            leadingIcon = {
+                                if (uiState.preferredBackend == "GPU") {
+                                    Icon(Icons.Default.Check, contentDescription = null, modifier = Modifier.size(16.dp))
+                                }
+                            },
+                            modifier = Modifier.weight(1f)
+                        )
+                        FilterChip(
+                            selected = uiState.preferredBackend == "CPU",
+                            onClick = { onBackendChanged("CPU") },
+                            label = { Text("CPU") },
+                            leadingIcon = {
+                                if (uiState.preferredBackend == "CPU") {
+                                    Icon(Icons.Default.Check, contentDescription = null, modifier = Modifier.size(16.dp))
+                                }
+                            },
+                            modifier = Modifier.weight(1f)
+                        )
+                    }
+
+                    Spacer(Modifier.height(12.dp))
+
                     if (uiState.availableModels.isNotEmpty()) {
                         Text(
                             "Detected Models in Downloads:",

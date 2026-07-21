@@ -58,6 +58,7 @@ data class PhotoTalkUiState(
     val classificationState: ClassificationUiState = ClassificationUiState.Idle,
     val modelPath: String = "",
     val availableModels: List<String> = emptyList(),
+    val preferredBackend: String = "GPU",
     val isLmEngineReady: Boolean = false,
     val isLmInitializing: Boolean = false,
     val lmBackendName: String = "CPU",
@@ -119,6 +120,10 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     fun updateModelPath(newPath: String) {
         _uiState.update { it.copy(modelPath = newPath) }
+    }
+
+    fun updatePreferredBackend(newBackend: String) {
+        _uiState.update { it.copy(preferredBackend = newBackend) }
     }
 
     fun onModelUriPicked(uri: Uri) {
@@ -190,15 +195,15 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     private suspend fun ensureLmEngineInitialized(): Boolean {
-        if (_uiState.value.isLmEngineReady) return true
         val path = _uiState.value.modelPath
         if (path.isBlank()) {
             _uiState.update { it.copy(statusMessage = "Please set a valid .litertlm model path in Settings.") }
             return false
         }
 
-        _uiState.update { it.copy(isLmInitializing = true, statusMessage = "Initializing LiteRT-LM Engine...") }
-        val result = lmHelper.initializeEngine(path)
+        val backendToUse = _uiState.value.preferredBackend
+        _uiState.update { it.copy(isLmInitializing = true, statusMessage = "Initializing LiteRT-LM Engine ($backendToUse)...") }
+        val result = lmHelper.initializeEngine(path, backendToUse)
         return result.fold(
             onSuccess = {
                 _uiState.update {
@@ -292,7 +297,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
         val initialSystemMsg = ChatMessage(
             sender = ChatMessage.Sender.SYSTEM,
-            text = "⚡ Pipeline: LiteRT classified image as '$label' (${"%.1f".format(confidencePct)}%). Handoff to LiteRT-LM..."
+            text = "⚡ Pipeline: LiteRT classified image as '$label' (${"%.1f".format(confidencePct)}%). Handoff to LiteRT-LM (${_uiState.value.lmBackendName})..."
         )
         _uiState.update { it.copy(chatMessages = listOf(initialSystemMsg), isStreamingResponse = true) }
 
