@@ -10,6 +10,15 @@ To get started,
 1. Please download the Sample TPU app [here](./sample_app_tpu.apk) and install it on your Pixel-10 device using the command: `adb install -r /path/to/sample_app_tpu.apk`.
 2. Download the [TPU-optimized Gemma4 LiteRT-LM model](https://huggingface.co/litert-community/gemma-4-E2B-it-litert-lm/resolve/main/gemma-4-E2B-it_Google_Tensor_G5.litertlm) and push it to your Pixel-10 device with: `adb push /path/to/gemma-4-E2B-it_Google_Tensor_G5.litertlm /sdcard/download/gemma4.litert`.
 
+## 🌟 Key Features
+- **On-Device Inference**: Runs fully offline with no cloud APIs.
+- **Hardware Acceleration Fallback**: Automatically tries to initialize the model on **Google Tensor TPU** first. If unsupported, it falls back to **GPU** (OpenCL) and then to **CPU**.
+- **Multimodal Support**: Send text messages, select images from the gallery, and **record audio directly within the chat** for a rich multimodal experience.
+- **Custom Model Uploads**: Easily add your own custom `.litertlm` model files directly from the app UI! Select your model file, configure the system prompt, choose the preferred backend, and start chatting immediately—no ADB required.
+- **Real-time Metrics**: Displays Time To First Token (TTFT) and token generation speed (tokens/sec) dynamically on-screen.
+- **Premium Glassmorphic UI**: Enjoy a modern, highly polished chat interface featuring glassmorphic effects, unified circular action buttons, and responsive dynamic elements.
+- **Diagnostics Badge**: Displays the active backend (`NPU` (Green), `GPU` (Blue), `CPU` (Red)) currently running the inference engine.
+
 ## 🛠️ Developer Architecture & Core Components
 
 The framework is decoupled to separate the UI layer from the underlying inference engine, allowing you to easily rip out the UI and reuse the orchestration core.
