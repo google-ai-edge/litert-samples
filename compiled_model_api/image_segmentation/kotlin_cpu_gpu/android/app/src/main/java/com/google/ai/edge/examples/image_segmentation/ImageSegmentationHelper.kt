@@ -36,6 +36,12 @@ import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.withContext
 
+import org.tensorflow.lite.support.common.ops.NormalizeOp
+import org.tensorflow.lite.support.image.ImageProcessor
+import org.tensorflow.lite.support.image.TensorImage
+import org.tensorflow.lite.support.image.ops.ResizeOp
+import org.tensorflow.lite.support.image.ops.Rot90Op
+
 class ImageSegmentationHelper(private val context: Context) {
   /** As the result of image segmentation, this value emits map of probabilities */
   val segmentation: SharedFlow<SegmentationResult>
@@ -122,13 +128,19 @@ class ImageSegmentationHelper(private val context: Context) {
       val rotation = -rotationDegrees / 90
       val (h, w) = Pair(256, 256)
 
-      // Preprocessing timing
+      // Preprocessing timing using litert-support ImageProcessor
       val preprocessStartTime = SystemClock.uptimeMillis()
-      var image = bitmap.scale(w, h, true)
-      image = rot90Clockwise(image, rotation)
-      val inputFloatArray = normalize(image, 127.5f, 127.5f)
+      val imageProcessor =
+        ImageProcessor.Builder()
+          .add(ResizeOp(h, w, ResizeOp.ResizeMethod.BILINEAR))
+          .add(Rot90Op(rotation))
+          .add(NormalizeOp(127.5f, 127.5f))
+          .build()
+
+      val tensorImage = imageProcessor.process(TensorImage.fromBitmap(bitmap))
+      val inputFloatArray = tensorImage.tensorBuffer.floatArray
       val preprocessTime = SystemClock.uptimeMillis() - preprocessStartTime
-      Log.d(TAG, "Preprocessing time: $preprocessTime ms")
+      Log.d(TAG, "Preprocessing time (via litert-support ImageProcessor): $preprocessTime ms")
 
       // Inference timing (includes both model execution and mask processing)
       val inferenceStartTime = SystemClock.uptimeMillis()

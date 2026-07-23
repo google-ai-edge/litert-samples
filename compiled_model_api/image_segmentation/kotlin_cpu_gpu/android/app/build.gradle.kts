@@ -86,7 +86,13 @@ dependencies {
   implementation(libs.androidx.material.icons.core)
   implementation(libs.androidx.material.icons.extended)
   implementation(libs.androidx.material2)
-  implementation(libs.litert)
+  implementation(libs.litert) {
+    exclude(group = "com.google.ai.edge.litert", module = "litert-support")
+    exclude(group = "com.google.ai.edge.litert", module = "litert-support-api")
+  }
+  implementation(libs.litert.support) {
+    exclude(group = "com.google.ai.edge.litert", module = "litert-api")
+  }
   implementation(libs.androidx.camera.core)
   implementation(libs.androidx.camera.lifecycle)
   implementation(libs.androidx.camera.view)
