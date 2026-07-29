@@ -73,6 +73,35 @@ Planned next, not included: `MelSpectrogram.kt`, unifying the four diverged
 copies behind explicit mel parameters. That one needs per-sample device
 re-verification before any switch, so it should not be extracted on paper.
 
+## Sanctioned divergence
+
+A sample is sometimes right to differ, so the checker does not treat all drift
+as a defect. `sync_common.py` carries a `KNOWN_DIVERGENCES` set: those paths are
+reported but never rewritten by `--apply` and never fail `--check`. It is empty
+here because nothing is vendored yet.
+
+The case that motivated it: in the zoo, the `yolox` module carries a trimmed
+238-line `RealtimeCameraPipeline` variant that predates the canonical. It is
+left alone, because re-unifying it means re-verifying that sample on device —
+worth doing deliberately, not as a side effect of a sync. That is also the
+honest counterweight to the reuse claim below: even the one utility with real
+production use has a module that needed its own version.
+
+## How much reuse is actually proven
+
+Two different claims are worth separating.
+
+- **General by construction** — true of all five. Every model-specific value is
+  a constructor argument (`ImageTensor` takes size, mean/std, NCHW vs NHWC,
+  RGB vs BGR, 0–1 vs 0–255, stretch vs letterbox; `AudioCapture` takes sample
+  rate and chunk size; `MathOps` is stateless).
+- **Demonstrated across models** — true only of `RealtimeCameraPipeline.kt`.
+
+An API that has never had a second caller is usually wrong in small ways: the
+missing parameter shows up on the second adoption, not the first. That is why
+the right way to land the other four is alongside two samples that consume
+them, not one.
+
 ## Known gap
 
 `sync_common.py` was written against a flat zoo layout and its file search has
