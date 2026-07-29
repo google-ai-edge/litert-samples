@@ -34,7 +34,7 @@ Device output is bit-exact against the desktop run (identical DiT step outputs; 
 
 ## Conversion
 
-`conversion/` has the complete recipe: DiT export (with the float64-RoPE → float32 fix that `tfl.pow` legalization requires), int4 block-32 quantization plus the zero-scale patch XNNPACK needs on sparse ternary blocks, the text-encoder export as a prompt embedder (only hidden layers 9/18/27 are read, so the top 9 layers and the LM head prune away for free), and the VAE decoder export. See `conversion/README.md`.
+`converted/` has the complete recipe: DiT export (with the float64-RoPE → float32 fix that `tfl.pow` legalization requires), int4 block-32 quantization plus the zero-scale patch XNNPACK needs on sparse ternary blocks, the text-encoder export as a prompt embedder (only hidden layers 9/18/27 are read, so the top 9 layers and the LM head prune away for free), and the VAE decoder export. See `converted/README.md`.
 
 ## License
 
