@@ -21,7 +21,7 @@ python synthesize.py --text "Hello from LiteRT running fully on device." --outpu
 The first run downloads ~1.4 GB of model files from [litert-community/Qwen3-TTS-12Hz-0.6B-Base](https://huggingface.co/litert-community/Qwen3-TTS-12Hz-0.6B-Base) and speaks in the bundled demo voice. Useful flags:
 
 - `--language`: `english` (default), `chinese`, `japanese`, `korean`, `german`, `french`, `spanish`, `italian`, `portuguese`, `russian`, or `auto`.
-- `--speaker my_voice.npy`: a 1024-d x-vector; enroll a new voice from ~3 s of reference audio with `conversion/extract_speaker_embedding.py`.
+- `--speaker my_voice.npy`: a 1024-d x-vector; enroll a new voice from ~3 s of reference audio with [`extract_speaker_embedding.py`](../../models/qwen/qwen3_tts/converted/extract_speaker_embedding.py).
 - `--greedy`: deterministic decoding. With `--talker fp32 --greedy` the pipeline reproduces the PyTorch reference implementation **token-for-token** (waveform correlation 1.0) — this is the correctness gate used during conversion.
 - `--talker int4` (default): the blockwise-int4 talker (256 MB vs 1.8 GB fp32). Its sampled output differs from fp32 but transcribes identically under an ASR round-trip check.
 
@@ -50,7 +50,7 @@ Measured end to end on Pixel 8a: 4.16 s of audio in 28.0 s (prefill 585 ms, talk
 
 ## Conversion
 
-All conversion scripts are in [`conversion/`](conversion/): talker checkpoint synthesis and export, MTP graph authoring, codec decoder export, host-table extraction, and voice enrollment. Each converted graph is numerically verified against the PyTorch reference (correlation 1.0). See [`conversion/README.md`](conversion/README.md).
+All conversion scripts are in [`models/qwen/qwen3_tts/converted/`](../../models/qwen/qwen3_tts/converted/): talker checkpoint synthesis and export, MTP graph authoring, codec decoder export, host-table extraction, and voice enrollment. Each converted graph is numerically verified against the PyTorch reference (correlation 1.0). See [`models/qwen/qwen3_tts/converted/README.md`](../../models/qwen/qwen3_tts/converted/README.md).
 
 ## License
 
