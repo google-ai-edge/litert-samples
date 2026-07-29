@@ -1,0 +1,5 @@
+ai-edge-litert
+numpy
+pillow
+transformers
+huggingface_hub
