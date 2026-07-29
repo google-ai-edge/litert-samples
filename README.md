@@ -2,17 +2,17 @@
 
 This repository contains official sample applications and code examples for **LiteRT** (formerly known as TensorFlow Lite), Google's high-performance on-device machine learning framework.
 
-The samples are organized into two main versions (`interpreter_api/` and `compiled_model_api/`) to demonstrate different API paradigms.
+The samples are organized under `samples/litert/` (CompiledModel API) and `samples/litert_interpreter/` (Interpreter API) to demonstrate different API paradigms.
 
 **Note:** For Generative AI and Large Language Models (LLMs), please refer to the [LiteRT-LM repository](https://github.com/google-ai-edge/LiteRT-LM).
 
 ## **🔥 What's New**
 
-New sample app for [Automatic Speech Recognition(ASR)](compiled_model_api/speech_recognition) has been added.
+New sample app for [Automatic Speech Recognition(ASR)](samples/litert/speech_recognition) has been added.
 
 ## **📂 Repository Structure**
 
-### **1\. `compiled_model_api/`**
+### **1\. `samples/litert/`**
 
 This folder contains samples using the **LiteRT CompiledModel API**. This new API is designed for advanced GPU/NPU acceleration, delivering superior ML & GenAI performance.
 
@@ -25,7 +25,7 @@ This folder contains samples using the **LiteRT CompiledModel API**. This new AP
   * **NPU JIT**: Just-in-Time compilation examples.  
 * **Platforms:** Primarily Android (Kotlin/C++).
 
-### **2\. `interpreter_api/`**
+### **2\. `samples/litert_interpreter/`**
 
 This folder contains the CPU samples that use the **Interpreter API**.
 
@@ -53,13 +53,13 @@ This folder contains the CPU samples that use the **Interpreter API**.
 
 #### **For Samples Using Compiled Model API**
 
-1. Navigate to the `compiled_model_api/` directory.  
+1. Navigate to the `samples/litert/` directory.  
 2. Ensure you have a device with a supported NPU (e.g., modern Pixel, Samsung, or devices with MediaTek/Qualcomm chips).  
 3. Follow the specific setup instructions in the sub-folder to enable the specialized hardware delegates.
 
 #### **For Samples Using Interpreter API**
 
-1. Navigate to `interpreter_api/` directory.  
+1. Navigate to `samples/litert_interpreter/` directory.  
 2. Open the project in Android Studio or Xcode.  
 3. Build and run on your device.
 

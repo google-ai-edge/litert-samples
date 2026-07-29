@@ -2,7 +2,7 @@
 
 Model recipes, instructions, scripts, and utilities for converting Qwen3-TTS to LiteRT.
 
-These scripts convert [Qwen/Qwen3-TTS-12Hz-0.6B-Base](https://huggingface.co/Qwen/Qwen3-TTS-12Hz-0.6B-Base) into the three .tflite graphs plus host-side tables used by the [sample](../../../../compiled_model_api/text_to_speech_lm/), and numerically verify every step against the PyTorch reference. The published artifacts live at [litert-community/Qwen3-TTS-12Hz-0.6B-Base](https://huggingface.co/litert-community/Qwen3-TTS-12Hz-0.6B-Base).
+These scripts convert [Qwen/Qwen3-TTS-12Hz-0.6B-Base](https://huggingface.co/Qwen/Qwen3-TTS-12Hz-0.6B-Base) into the three .tflite graphs plus host-side tables used by the [sample](../../../../samples/litert/text_to_speech_lm/), and numerically verify every step against the PyTorch reference. The published artifacts live at [litert-community/Qwen3-TTS-12Hz-0.6B-Base](https://huggingface.co/litert-community/Qwen3-TTS-12Hz-0.6B-Base).
 
 ## Environments
 

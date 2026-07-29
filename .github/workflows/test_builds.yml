@@ -133,15 +133,15 @@ jobs:
 
       - name: Build Host Linux Targets
         run: |
-          bazel build --disk_cache=~/.cache/bazel-linux -c opt //compiled_model_api/semantic_similarity/build_from_source:semantic_similarity
+          bazel build --disk_cache=~/.cache/bazel-linux -c opt //samples/litert/semantic_similarity/build_from_source:semantic_similarity
 
       - name: Build Android Cross-Compiled Targets
         run: |
-          bazel build --disk_cache=~/.cache/bazel-android //compiled_model_api/image_segmentation/c++_segmentation/build_from_source:cpp_segmentation_cpu --config=android_arm64 --nocheck_visibility
-          bazel build --disk_cache=~/.cache/bazel-android //compiled_model_api/image_segmentation/c++_segmentation/build_from_source:cpp_segmentation_gpu --config=android_arm64 --nocheck_visibility
-          bazel build --disk_cache=~/.cache/bazel-android //compiled_model_api/image_segmentation/c++_segmentation/build_from_source:cpp_segmentation_npu --config=android_arm64 --nocheck_visibility
-          bazel build --disk_cache=~/.cache/bazel-android //compiled_model_api/image_segmentation/c++_segmentation/build_from_source:cpp_segmentation_npu_google_tensor --config=android_arm64 --nocheck_visibility
-          bazel build --disk_cache=~/.cache/bazel-android //compiled_model_api/image_segmentation/c++_segmentation/build_from_source:cpp_segmentation_npu_mtk --config=android_arm64 --nocheck_visibility
+          bazel build --disk_cache=~/.cache/bazel-android //samples/litert/image_segmentation/c++_segmentation/build_from_source:cpp_segmentation_cpu --config=android_arm64 --nocheck_visibility
+          bazel build --disk_cache=~/.cache/bazel-android //samples/litert/image_segmentation/c++_segmentation/build_from_source:cpp_segmentation_gpu --config=android_arm64 --nocheck_visibility
+          bazel build --disk_cache=~/.cache/bazel-android //samples/litert/image_segmentation/c++_segmentation/build_from_source:cpp_segmentation_npu --config=android_arm64 --nocheck_visibility
+          bazel build --disk_cache=~/.cache/bazel-android //samples/litert/image_segmentation/c++_segmentation/build_from_source:cpp_segmentation_npu_google_tensor --config=android_arm64 --nocheck_visibility
+          bazel build --disk_cache=~/.cache/bazel-android //samples/litert/image_segmentation/c++_segmentation/build_from_source:cpp_segmentation_npu_mtk --config=android_arm64 --nocheck_visibility
 
       - name: Remove GHA cache if cache is being refreshed
         if: env.REFRESH_CACHE == 'true'
