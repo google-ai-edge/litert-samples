@@ -44,7 +44,7 @@ def convert_for_gpu(
         model: PyTorch model (must be in eval mode)
         dummy_input: Example input tensor (e.g., torch.randn(1, 3, 1024, 1024))
         output_path: Where to save the .tflite file
-        check: Run GPU compatibility check after conversion
+        check: Verify the result on the LiteRT CompiledModel GPU accelerator
         verbose: Print detailed report
 
     Returns:
@@ -87,13 +87,13 @@ def convert_for_gpu(
     restore_interpolate()
     restore_normalize()
 
-    # Check
+    # Verify on the CompiledModel GPU accelerator
     if check:
-        log.info("Checking GPU compatibility...")
+        log.info("Verifying on CompiledModel GPU...")
         report = check_gpu_compatibility(output_path)
         if verbose:
             print_report(report)
         if not report['compatible']:
-            log.warning("Model has GPU-incompatible ops. See report above.")
+            log.warning("GPU verification failed. See report above.")
 
     return output_path

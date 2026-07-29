@@ -23,10 +23,16 @@ path = convert_for_gpu(
 runs `check_gpu_compatibility` on the result. The patches are also importable
 individually from `litert_gpu_toolkit.patches` when a model only needs one.
 
-`check_gpu_compatibility(tflite_path)` reads the flatbuffer and reports
-GPU-incompatible ops, ops that only run via the delegate, Flex ops, the op
-distribution, and tensors above rank 4. Use it as a gate before spending a
-device run.
+`check_gpu_compatibility(tflite_path)` verifies through the LiteRT
+CompiledModel API: it compiles the model for the GPU accelerator, runs every
+signature on random inputs, and compares the outputs against a CPU-compiled
+reference (`rtol`/`atol` default to 1e-2 — fp16 accumulation on GPU makes
+bit-exactness unrealistic). A static op scan (suspect ops, Flex ops, op
+distribution, rank-5+ tensors) is included as advisory diagnostics to point
+at the right patch when compilation fails, but the verdict comes from the
+CompiledModel run. Use it as a gate before spending a device run — it
+exercises the host GPU, so still compare on-device output against CPU before
+shipping.
 
 ## What each patch is for
 
@@ -63,5 +69,6 @@ Two cautions that apply to all of them:
 
 ## Requirements
 
-`torch`, `litert-torch`, and `tensorflow` (the checker reads the flatbuffer
-through `tf.lite.Interpreter`).
+`torch`, `litert-torch`, and `ai-edge-litert` (the checker verifies through
+the CompiledModel API; its advisory op scan uses the LiteRT interpreter,
+falling back to `tensorflow` if installed).
