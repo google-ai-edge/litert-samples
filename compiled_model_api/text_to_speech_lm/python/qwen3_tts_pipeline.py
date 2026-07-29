@@ -25,7 +25,7 @@ sample in this repository.
 
 The graphs and host-side tables are published at
 https://huggingface.co/litert-community/Qwen3-TTS-12Hz-0.6B-Base and were
-converted with the scripts in the sibling `conversion/` directory. The host
+converted with the scripts in `models/qwen/qwen3_tts/converted/`. The host
 loop reproduces the PyTorch reference implementation token-for-token under
 greedy decoding (waveform correlation 1.0).
 """
@@ -185,8 +185,8 @@ class Qwen3TtsPipeline:
         Args:
             text: Text to speak.
             speaker_embedding: 1024-d x-vector of the target voice (see
-                `conversion/extract_speaker_embedding.py` to enroll a new
-                voice from ~3 s of reference audio).
+                `models/qwen/qwen3_tts/converted/extract_speaker_embedding.py`
+                to enroll a new voice from ~3 s of reference audio).
             language: One of LANGUAGE_IDS keys, or 'auto'.
             do_sample: Sample with top-k/temperature (the model default) if
                 True; greedy argmax (deterministic, matches the PyTorch
