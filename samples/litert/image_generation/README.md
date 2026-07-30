@@ -2,6 +2,14 @@
 
 Fully on-device text-to-image generation with [Bonsai Image 4B](https://huggingface.co/litert-community/Bonsai-Image-ternary-4B), a ternary-weight diffusion transformer (FLUX.2-klein-4B architecture) converted to LiteRT. The whole pipeline runs in three fixed-shape `.tflite` graphs (Qwen3 text encoder, DiT, VAE decoder) on CPU via XNNPACK — no server, no torch. Prompt in, 512×512 PNG out.
 
+## Screenshots
+
+The demo apps on both platforms, generating from the same prompt and the same seed — the apps share a bit-identical seeded-noise stream, so seed 7 draws the same red panda on an iPhone and a Pixel:
+
+| iOS (iPhone 17 Pro, ~62 s) | Android (Pixel 8a) |
+|---|---|
+| <img src="img/ios_seed7.png" alt="iOS demo app, seed 7" width="300"> | <img src="img/android_seed7.png" alt="Android demo app, seed 7, with timing log" width="300"> |
+
 ## Where things live
 
 - **Python host sample** (tokenize + FlowMatch-Euler loop + unpatchify, ~150 lines): [`models/bonsai/bonsai_image_4b`](../../../models/bonsai/bonsai_image_4b) in this repo.
