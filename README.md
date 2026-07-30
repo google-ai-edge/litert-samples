@@ -1,20 +1,19 @@
 # **Google AI Edge LiteRT Samples**
 
-This repository contains official sample applications, model recipes, and code examples for **LiteRT** (formerly known as TensorFlow Lite), Google's high-performance on-device machine learning framework.
+This repository contains official and community contributed sample applications, model recipes, agent skills and utilities for **[LiteRT](https://github.com/google-ai-edge/litert)** (formerly known as TensorFlow Lite), Google's open source, high-performance on-device machine learning framework and **[LiteRT-LM](https://github.com/google-ai-edge/litert-lm)**, a specialized orchestration layer for running LLMs with LiteRT, unlocking maximum performance and efficiency.
 
-The samples demonstrate different API paradigms (CompiledModel API, Interpreter API, Tensor API, LiteRT-LM) and provide end-to-end model conversion and deployment pipelines.
+**Note** Please access the interactive web page with a collections of demos there at: [https://google-ai-edge.github.io/litert-samples/](https://google-ai-edge.github.io/litert-samples/)
 
-**Note:** For Generative AI and Large Language Models (LLMs), please also refer to the [LiteRT-LM repository](https://github.com/google-ai-edge/LiteRT-LM).
+The samples demonstrate different API paradigms (LiteRT CompiledModel API and legacy Interpreter API, Tensor API, LiteRT-LM) and provide end-to-end model conversion and deployment pipelines.
 
 ---
 
 ## **🔥 What's New**
 
-* 🗣️ **Qwen3-TTS & Qwen3 ASR**: Added model recipes, conversion scripts, and Tensor API implementations for [Qwen3-TTS](models/qwen/qwen3_tts/) and [Qwen3 ASR](models/qwen/qwen_asr/).
-* 💎 **Gemma 3 & Gemma 4**: Added model recipes, conversion pipelines, and Qualcomm NPU acceleration examples for [Gemma 3](models/gemma/gemma3/) and [Gemma 4](models/gemma/gemma4/).
-* 🎨 **Bonsai Image 4B**: Added text-to-image diffusion model sample with Python inference and conversion tools ([`models/bonsai/bonsai_image_4b/`](models/bonsai/bonsai_image_4b/)).
-* 📸 **PhotoTalk Sample App**: Added multimodal sample app combining LiteRT vision processing with LiteRT-LM audio/text generation ([`samples/litert/phototalk_sample_app/`](samples/litert/phototalk_sample_app/)).
 * 🎙️ **Speech Recognition (ASR)**: Added end-to-end [Automatic Speech Recognition sample](samples/litert/speech_recognition) using the CompiledModel API.
+* 📸 **PhotoTalk Sample App**: Added multimodal sample app combining LiteRT vision processing with LiteRT-LM audio/text generation ([`samples/litert/phototalk_sample_app/`](samples/litert/phototalk_sample_app/)).
+* 🗣️ **Qwen3-TTS & Qwen3 ASR**: Added model recipes, conversion scripts, and Tensor API implementations for [Qwen3-TTS](models/qwen/qwen3_tts/) and [Qwen3 ASR](models/qwen/qwen_asr/).
+* 🎨 **Bonsai Image 4B**: Added text-to-image diffusion model sample with Python inference and conversion tools ([`models/bonsai/bonsai_image_4b/`](models/bonsai/bonsai_image_4b/)).
 * 🤖 **Agent Skills & Utilities**: Added custom agent skills ([`skills/gpu-clean-conversion/`](skills/gpu-clean-conversion/)) and shared Kotlin helpers ([`utilities/common/`](utilities/common/)).
 
 ---
@@ -29,26 +28,21 @@ All runnable sample applications and interactive playgrounds are organized under
   * *Samples:* Speech Recognition, PhotoTalk, Text-to-Speech, Image Segmentation, Image Classification, Digit Classification, Qualcomm NPU acceleration (Gemma, MobileNet, Fast VLM), Google TPU sample app.
 * **`samples/litert_interpreter/`**: Legacy samples using the **Interpreter API**.
   * *Samples:* Broad compatibility examples for Android, iOS, and Python (Image Classification, Object Detection, Image Segmentation, Audio Classification).
-* **`samples/litert_lm/`**: High-level Engine samples for Large Language Models (LLM/SLM) with KV-Cache management and streaming decoding.
+* **`samples/litert_lm/`**: High-level Engine samples for Large Language Models (LLM/SLM).
 * **`samples/end_to_end/`**: Complete full-system pipelines (e.g. ImageNet model conversion, preprocessing, and classification).
 * **`samples/tensor_api_playground/`**: Interactive Web/WASM playground demonstrating LiteRT Tensor API capabilities directly in the browser (Gemma 3, Image Segmentation, Mandelbrot, Game of Life).
 
 ### **2. `models/` — Model Recipes & Export Pipelines**
 
-Contains standalone model conversion scripts, export recipes, and model-specific utilities:
-
-* **`models/gemma/`**: Model recipes, conversion scripts, and instructions for **Gemma 3** and **Gemma 4**.
-* **`models/qwen/`**: Conversion recipes and Tensor API implementations for **Qwen3**, **Qwen3-TTS**, and **Qwen3 ASR**.
-* **`models/bonsai/`**: Text-to-image diffusion model recipes and Python execution scripts for **Bonsai Image 4B**.
+Contains standalone model conversion scripts, export recipes, and model-specific utilities. Many are working in process.
 
 ### **3. `utilities/` — Shared Tools & Helper Scripts**
 
-* **`utilities/common/`**: Shared Kotlin utilities (`CompiledModelRunner`, `RealtimeCameraPipeline`, `ImageTensor`, `AudioCapture`, `MathOps`) and drift check scripts.
-* **`utilities/tools/`**: Common conversion utilities and build tools.
+Common utilities and tools WIP.
 
 ### **4. `skills/` — Agent Automation & Skills**
 
-* Custom AI Agent skills and interactive workflows (e.g., `gpu-clean-conversion`) to streamline model conversion and deployment for LiteRT.
+* Custom AI Agent skills and interactive workflows to streamline model deployment for LiteRT. WIP.
 
 ---
 
@@ -71,15 +65,19 @@ Contains standalone model conversion scripts, export recipes, and model-specific
 
 #### **For Web / Tensor API Playground**
 
-Open `samples/tensor_api_playground/index.html` or run `index.html` at the repository root via a local HTTP server.
+Visit ["Interactive Web"](https://google-ai-edge.github.io/litert-samples/) tab, or open
+ `samples/tensor_api_playground/index.html` or run `index.html` at the repository root
+ via a local HTTP server.
 
 ---
 
 ## **📚 Documentation**
 
 * **LiteRT Overview**: [ai.google.dev/edge/litert](https://ai.google.dev/edge/litert)
+* **LiteRT-LM Overview**:   [ai.google.dev/edge/litert-lm](https://ai.google.dev/edge/litert-lm)
 * **CompiledModel API Guide**: [LiteRT for Android](https://ai.google.dev/edge/litert/android)
 * **Model Conversion**: [Convert models to LiteRT](https://ai.google.dev/edge/litert/conversion/overview)
+* **LiteRT CLI**: [CLI for end-to-end journey](https://github.com/google-ai-edge/LiteRT-CLI)
 
 ---
 
