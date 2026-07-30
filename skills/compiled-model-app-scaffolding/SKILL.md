@@ -111,8 +111,9 @@ Weights are never committed.
 
 - **Bundleable models**: fetch at build with a `download_model.gradle`
   (Hugging Face URL → `assets/`), and set
-  `aaptOptions { noCompress += "tflite" }` so the asset stays mmappable.
-  Worked example: `samples/litert/image_segmentation/kotlin_cpu_gpu`.
+  `androidResources { noCompress += "tflite" }` so the asset stays
+  mmappable. Worked example:
+  `samples/litert/image_segmentation/kotlin_cpu_gpu`.
 - **Models too big to bundle**: stage into the app's private `filesDir`
   with an `install_to_device.sh` (`adb push` to `/data/local/tmp`, then
   `run-as <pkg> cp`), and load with the from-file path. Worked example:
