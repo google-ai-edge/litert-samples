@@ -15,45 +15,18 @@
 """
 Post-conversion GPU verification for TFLite models via LiteRT CompiledModel.
 
-The verdict comes from the LiteRT CompiledModel API itself: the model is
-compiled for the GPU accelerator, every signature is run on random inputs,
-and the outputs are compared against a CPU-compiled reference. The static
-op lists below are advisory only — they point at the patch to apply when
-GPU compilation fails, but they are not the source of truth and may lag
-behind the runtime (e.g. 5D tensor support is still rolling out).
+The model is compiled for the GPU accelerator, every signature is run on
+random inputs, and the outputs are compared against a CPU-compiled
+reference. When GPU compilation fails, the runtime's error message names
+the offending op — the patches table in the README maps the common ones
+to the rewrite that clears them.
 """
 
-import collections
 import logging
 
 import numpy as np
 
 log = logging.getLogger("litert_gpu_toolkit")
-
-# Advisory: ops that have historically failed on CompiledModel GPU (ML Drift).
-# Used to suggest patches when GPU compilation fails — not to decide the verdict.
-GPU_SUSPECT_OPS = {
-    'GATHER_ND', 'GATHER', 'SELECT', 'SELECT_V2',
-    'NOT_EQUAL', 'EQUAL', 'GREATER', 'LESS',
-    'TOPK_V2', 'CAST', 'PACK', 'SPLIT',
-}
-
-# Ops that compile to a GPU delegate fallback rather than failing outright.
-GPU_DELEGATED_OPS = {
-    'BATCH_MATMUL',  # YOLO26 C2PSA attention; runs via delegate (verified on Mali-G715)
-}
-
-# Ops that need specific parameter settings
-GPU_CONDITIONAL_OPS = {
-    'RESIZE_BILINEAR': 'align_corners must be False',
-}
-
-# PyTorch modules known to cause GPU issues (for documentation)
-# nn.GroupNorm → ManualGroupNorm (4D reshape approach)
-# Conv2d_WS → bake standardized weights into regular Conv2d
-# F.normalize → manual sqrt+div (div broadcast issue)
-# nn.SiLU/Swish → x * sigmoid(x)
-# nn.GELU → x * sigmoid(1.702 * x)
 
 
 def _static_shape(shape) -> list:
@@ -101,49 +74,6 @@ def _run_signature(model, signature_key: str, inputs: dict) -> dict:
     return outputs
 
 
-def _scan_ops(tflite_path: str) -> dict:
-    """Best-effort static op scan (advisory diagnostics only).
-
-    Uses the LiteRT interpreter when available, falling back to
-    tf.lite.Interpreter. Returns an empty dict if neither is installed —
-    the CompiledModel verification below does not depend on this.
-    """
-    try:
-        from ai_edge_litert.interpreter import Interpreter
-    except ImportError:
-        try:
-            import tensorflow as tf
-            Interpreter = tf.lite.Interpreter
-        except ImportError:
-            return {}
-
-    interp = Interpreter(model_path=tflite_path)
-    interp.allocate_tensors()
-
-    details = interp._get_ops_details()
-    op_counts = collections.Counter(d.get('op_name', 'UNKNOWN') for d in details)
-
-    warnings = []
-    # Rank-5+ tensors: warning only. GPU support for 5D tensors is still
-    # rolling out, and some models run despite 5D+ intermediates.
-    for detail in interp.get_tensor_details():
-        shape = detail.get('shape', [])
-        if len(shape) > 4:
-            warnings.append(
-                f"Tensor '{detail['name']}' has {len(shape)}D shape {list(shape)} — "
-                f"rank-5+ GPU support is still rolling out"
-            )
-
-    return {
-        'total_ops': len(details),
-        'op_distribution': dict(op_counts.most_common()),
-        'suspect_ops': {k: v for k, v in op_counts.items() if k in GPU_SUSPECT_OPS},
-        'delegated_ops': {k: v for k, v in op_counts.items() if k in GPU_DELEGATED_OPS},
-        'flex_ops': {k: v for k, v in op_counts.items() if 'Flex' in k},
-        'warnings': warnings,
-    }
-
-
 def check_gpu_compatibility(
     tflite_path: str,
     rtol: float = 1e-2,
@@ -174,8 +104,7 @@ def check_gpu_compatibility(
             - 'max_abs_diff': float | None — worst output element across signatures
             - 'signatures': dict of {signature_key: {'ran', 'max_abs_diff', 'error'}}
             - 'errors': list of str
-            - plus advisory static-scan keys: 'total_ops', 'op_distribution',
-              'suspect_ops', 'delegated_ops', 'flex_ops', 'warnings'
+            - 'warnings': list of str
     """
     from ai_edge_litert.compiled_model import CompiledModel
     from ai_edge_litert.hardware_accelerator import HardwareAccelerator
@@ -188,19 +117,8 @@ def check_gpu_compatibility(
         'max_abs_diff': None,
         'signatures': {},
         'errors': [],
-        'total_ops': None,
-        'op_distribution': {},
-        'suspect_ops': {},
-        'delegated_ops': {},
-        'flex_ops': {},
         'warnings': [],
     }
-
-    # Advisory static scan first, so diagnostics survive a compile failure.
-    try:
-        result.update(_scan_ops(tflite_path))
-    except Exception as e:  # scan is best-effort by design
-        result['warnings'].append(f"Static op scan failed: {e}")
 
     # CPU reference.
     try:
@@ -318,26 +236,8 @@ def print_report(result: dict) -> None:
             else:
                 print(f"    {key}: {sig['error']}")
 
-    if result['suspect_ops']:
-        print(f"\n  Suspect ops (advisory — see patches table in README):")
-        for op, count in result['suspect_ops'].items():
-            print(f"    {op}: {count}")
-    if result['flex_ops']:
-        print(f"\n  Flex ops (require TF delegate):")
-        for op, count in result['flex_ops'].items():
-            print(f"    {op}: {count}")
-    if result['delegated_ops']:
-        print(f"\n  Delegated ops (run via LiteRT GPU delegate):")
-        for op, count in result['delegated_ops'].items():
-            print(f"    {op}: {count}")
-
     if result['warnings']:
         print(f"\n  Warnings:")
         for w in result['warnings'][:10]:
             print(f"    {w}")
-
-    if result['op_distribution']:
-        print(f"\n  Op distribution (top 10):")
-        for op, count in list(result['op_distribution'].items())[:10]:
-            print(f"    {op}: {count}")
     print(f"{'=' * 60}\n")
