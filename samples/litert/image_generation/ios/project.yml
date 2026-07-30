@@ -1,0 +1,43 @@
+# Bonsai — minimal on-device text-to-image app (xcodegen).
+# Bundle id deliberately matches BonsaiDeviceTest: same team + same id means
+# iOS keeps the Documents container across installs, so the 3.97 GiB model set
+# is a one-time copy per device (see device_run.sh for the devicectl command).
+# Before generating: ./prep_resources.sh (copies tokenizer tables +
+# pipeline_meta.json into Resources/, which is not committed).
+name: ImageGeneration
+options:
+  bundleIdPrefix: com.google.ai.edge
+  deploymentTarget:
+    iOS: "17.0"
+packages:
+  swift-litert-lm:
+    url: https://github.com/john-rocky/swift-litert-lm
+    from: 0.1.1
+targets:
+  ImageGeneration:
+    type: application
+    platform: iOS
+    sources:
+      - path: Sources
+      - path: Resources
+        buildPhase: resources
+    dependencies:
+      - package: swift-litert-lm
+        product: LiteRTLM
+    info:
+      path: Info.plist
+      properties:
+        CFBundleDisplayName: Bonsai
+        UIFileSharingEnabled: true
+        LSSupportsOpeningDocumentsInPlace: true
+        UILaunchScreen: {}
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.google.ai.edge.ImageGeneration
+        SWIFT_OBJC_BRIDGING_HEADER: CLiteRT/Bonsai-Bridging-Header.h
+        HEADER_SEARCH_PATHS:
+          - $(SRCROOT)/CLiteRT
+          - $(SRCROOT)/CLiteRT/include
+        SWIFT_VERSION: "5.0"
+        TARGETED_DEVICE_FAMILY: "1,2"
+        CODE_SIGN_STYLE: Automatic
