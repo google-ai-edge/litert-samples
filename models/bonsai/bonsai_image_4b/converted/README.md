@@ -16,6 +16,18 @@ python quantize_weight_only.py textenc_fp32.tflite textenc_int8_weightonly.tflit
 python export_vae.py                      # -> vae_dec_fp32.tflite (0.19 GiB)
 ```
 
+## GPU-shaped DiT (for the macOS sample app)
+
+The export above is CPU-shaped: `apply_rotary_emb` carries rank-5 reshapes and `Flux2PosEmbed` a rank>4 slice, which the GPU delegate does not run. `export_dit_gpu.py` re-exports the same weights in a GPU-clean form — rope tables precomputed once with the pipeline's constant position ids, and the interleaved rotation rewritten as a rank-4 matmul against a constant pair-swap matrix — verified in-process against the unpatched forward before export:
+
+```bash
+python export_dit_gpu.py                  # -> dit_gpu_fp32.tflite
+python quantize_dit.py dit_gpu_fp32.tflite   # -> dit_gpu_int4b32.tflite
+python fix_zero_block_scales.py dit_gpu_int4b32.tflite dit_gpu_int4b32.tflite
+```
+
+The result is the DiT the [macOS sample app](../../../../samples/litert/image_generation/macos) runs on the Metal accelerator.
+
 ## The three walls this recipe handles
 
 1. **Flux2 RoPE builds its frequency table in float64**, which leaves a `tfl.pow` on f64 in the graph and kills conversion at legalization. `export_dit.py` forces the rope frequency dtype to float32 and verifies the patch numerically with real position ids (cost: max rel 2.9e-6). A verification with all-zero ids is vacuous — at position 0, cos=1/sin=0 for any dtype.

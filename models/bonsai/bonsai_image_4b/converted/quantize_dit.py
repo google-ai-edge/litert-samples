@@ -7,9 +7,9 @@ from ai_edge_quantizer.algorithm_manager import AlgorithmName
 from ai_edge_quantizer.qtyping import QuantGranularity as G
 from ai_edge_quantizer.qtyping import TFLOperationName as OP
 
-SRC = "dit_fp32.tflite"
+SRC = sys.argv[1] if len(sys.argv) > 1 else "dit_fp32.tflite"
 BLOCK = int(os.environ.get("BLOCK", "32"))
-OUT = f"dit_int4b{BLOCK}.tflite"
+OUT = os.path.basename(SRC).replace("_fp32.tflite", "") + f"_int4b{BLOCK}.tflite"
 GRAN = {32: G.BLOCKWISE_32, 128: G.BLOCKWISE_128}[BLOCK]
 
 rm = recipe_manager.RecipeManager()
