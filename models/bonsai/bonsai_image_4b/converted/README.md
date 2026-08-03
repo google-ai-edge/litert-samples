@@ -26,7 +26,7 @@ python quantize_dit.py dit_gpu_fp32.tflite   # -> dit_gpu_int4b32.tflite
 python fix_zero_block_scales.py dit_gpu_int4b32.tflite dit_gpu_int4b32.tflite
 ```
 
-The result is the DiT the [macOS sample app](../../../../samples/litert/image_generation/macos) runs on the Metal accelerator.
+The result is the DiT the [macOS sample app](../../../../samples/litert/image_generation/macos) runs on the Metal accelerator. The pre-quantized result is also published on the [model card](https://huggingface.co/litert-community/Bonsai-Image-ternary-4B) as `dit_gpu_int4b32.tflite`.
 
 ## The three walls this recipe handles
 

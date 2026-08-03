@@ -16,16 +16,18 @@ No LiteRT code is committed in this sample: `prep_resources.sh` downloads the C 
 
 ## Models
 
-The app looks for models under `~/models/bonsai-image-4b-tflite` (flat, or in `gpu_work/` + `hf_upload/` subdirs; the folder is changeable in-app):
+The app looks for models under `~/models/bonsai-image-4b-tflite` (flat, or in `gpu_work/` + `hf_upload/` subdirs; the folder is changeable in-app). Download all four from [litert-community/Bonsai-Image-ternary-4B](https://huggingface.co/litert-community/Bonsai-Image-ternary-4B):
 
-- `textenc_int4.tflite`, `vae_dec_fp32.tflite`, `pipeline_meta.json` — download from [litert-community/Bonsai-Image-ternary-4B](https://huggingface.co/litert-community/Bonsai-Image-ternary-4B).
-- `dit_gpu_int4b32.tflite` — the **GPU-shaped** DiT export (rope tables precomputed, rank-4 rotary). The published `dit_int4b32.tflite` is the CPU-shaped export and does not run on the Metal accelerator; produce the GPU-shaped one from the same checkpoint with the conversion recipe in [`models/bonsai/bonsai_image_4b/converted`](../../../../models/bonsai/bonsai_image_4b/converted):
+- `dit_gpu_int4b32.tflite` — the **GPU-shaped** DiT export (rope tables precomputed, rank-4 rotary; same weights as the CPU export). The CPU-shaped `dit_int4b32.tflite` does not run on the Metal accelerator.
+- `textenc_int4.tflite`, `vae_dec_fp32.tflite`, `pipeline_meta.json`.
 
-  ```bash
-  python export_dit_gpu.py                                                # -> dit_gpu_fp32.tflite
-  python quantize_dit.py dit_gpu_fp32.tflite                              # -> dit_gpu_int4b32.tflite
-  python fix_zero_block_scales.py dit_gpu_int4b32.tflite dit_gpu_int4b32.tflite
-  ```
+To reproduce the GPU-shaped DiT from the checkpoint instead, use the conversion recipe in [`models/bonsai/bonsai_image_4b/converted`](../../../../models/bonsai/bonsai_image_4b/converted):
+
+```bash
+python export_dit_gpu.py                        # -> dit_gpu_fp32.tflite
+python quantize_dit.py dit_gpu_fp32.tflite      # -> dit_gpu_int4b32.tflite
+python fix_zero_block_scales.py dit_gpu_int4b32.tflite dit_gpu_int4b32.tflite
+```
 
 ## Headless CLI mode
 
