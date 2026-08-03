@@ -1,0 +1,7 @@
+# Generated / fetched at build time — see README.md
+BonsaiApp.xcodeproj/
+Info.plist
+Resources/
+CLiteRT.xcframework/
+litert-src/
+build/

@@ -1,0 +1,8 @@
+# Generated / fetched at build time — see README.md
+BonsaiMac.xcodeproj/
+Info.plist
+Resources/
+Frameworks/
+third_party/
+.litert-runtime/
+build/
