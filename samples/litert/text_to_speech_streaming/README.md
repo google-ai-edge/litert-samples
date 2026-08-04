@@ -1,20 +1,30 @@
 # Streaming Text-to-Speech with LiteRT — KittenTTS nano (dynamic length)
 
 An Android sample that runs [KittenTTS nano 0.8](https://github.com/KittenML/KittenTTS)
-(StyleTTS2 + ISTFTNet + mini-ALBERT, **15M params, 32 MB fp16, 8 voices, 24 kHz, Apache-2.0**)
-fully on device and **streams the audio**: type any text, tap Speak, and playback starts after the
-first sentence while the rest still synthesizes. No network, no espeak — airplane mode works.
+(StyleTTS2 + ISTFTNet + mini-ALBERT, Apache-2.0) fully on device and **streams the audio**: type
+any text, tap Speak, and playback starts after the first sentence while the rest still
+synthesizes.
 
-Two things differentiate this from the sibling [`text_to_speech`](../text_to_speech) (Matcha-TTS)
-sample:
+What the demo shows (all numbers measured on a Pixel 8a, CPU/XNNPACK, 4 threads):
 
-- **Dynamic sequence length.** The graphs were converted through TF/Keras so the TFLite converter
-  emits *fused dynamic-length LSTM kernels* — one set of graphs runs any sentence length with no
-  padding buckets, and compute scales with the text. This is why the app drives the classic
-  **Interpreter API** (`resizeInput` per sentence) instead of the fixed-shape CompiledModel path.
-- **Streaming synthesis.** Sentence-level producer/consumer: sentence N plays while sentence N+1
-  synthesizes. The demo UI shows **time-to-first-audio (TTFA)** and the **real-time factor (RTF)**
-  live — with RTF ≪ 1 the stream can't underrun, and TTFA is one short sentence.
+- **Small** — 15M params, **32 MB fp16 on disk** for all three synthesis graphs; 8 voices,
+  24 kHz. The size is shown live in the app's metrics card.
+- **Fully offline** — the APK declares **no network permission**, so the OS itself guarantees the
+  app never touches the network; the demo runs in airplane mode. The screen states this on a
+  badge, and it holds by construction: models load from local storage, and there is no network
+  code to begin with.
+- **Streaming ⇒ short time-to-first-audio** — sentence-level producer/consumer: sentence N plays
+  while N+1 synthesizes. **TTFA ≈ 370 ms** from tap to voice; the live TTFA readout is the
+  headline metric on screen.
+- **Dynamic sequence length ⇒ no padding buckets** — one set of graphs runs any sentence length,
+  compute scales with the text. **RTF ≈ 0.22–0.29**, so synthesis stays several times ahead of
+  playback and the stream cannot underrun.
+
+The last two are what differentiate this from the sibling
+[`text_to_speech`](../text_to_speech) (Matcha-TTS) sample: the graphs were converted through
+TF/Keras so the TFLite converter emits *fused dynamic-length LSTM kernels*, and that is why the
+app drives the classic **Interpreter API** (`resizeInput` per sentence) instead of the
+fixed-shape CompiledModel path.
 
 ## Models
 

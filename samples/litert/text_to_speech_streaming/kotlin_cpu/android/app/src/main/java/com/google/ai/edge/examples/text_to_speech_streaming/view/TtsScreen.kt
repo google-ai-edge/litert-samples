@@ -108,6 +108,9 @@ fun TtsScreen(
           VoicePicker(uiState.voices, uiState.selectedVoice, onSelectVoice)
         }
       }
+      Spacer(modifier = Modifier.height(4.dp))
+      // The APK requests no network permission, so the OS itself guarantees the offline claim.
+      Text(text = stringResource(R.string.offline_badge), fontSize = 12.sp, color = Color.Gray)
       Spacer(modifier = Modifier.height(12.dp))
       uiState.metrics?.let { metrics ->
         MetricsCard(metrics, uiState.modelMegabytes)

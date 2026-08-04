@@ -4,6 +4,7 @@
     <string name="action_speak">▶ Speak</string>
     <string name="action_stop">■ Stop</string>
     <string name="streaming">● streaming</string>
+    <string name="offline_badge">✈ fully offline · the app declares no network permission</string>
     <string name="metric_ttfa">time to first audio</string>
     <string name="metric_rtf">real-time factor</string>
     <string name="metric_model">model size</string>
