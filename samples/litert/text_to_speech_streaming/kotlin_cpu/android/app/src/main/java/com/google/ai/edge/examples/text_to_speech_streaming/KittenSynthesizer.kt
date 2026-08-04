@@ -17,6 +17,8 @@
 package com.google.ai.edge.examples.text_to_speech_streaming
 
 import android.content.Context
+import com.google.ai.edge.litert.Accelerator
+import com.google.ai.edge.litert.CompiledModel
 import java.io.Closeable
 import java.io.File
 import java.nio.ByteBuffer
@@ -24,9 +26,9 @@ import java.nio.ByteOrder
 import org.tensorflow.lite.Interpreter
 
 /**
- * KittenTTS nano 0.8 (StyleTTS2 + ISTFTNet, 15M params, 24 kHz) on the LiteRT CPU (XNNPACK)
- * interpreter. All three graphs have a **dynamic sequence length** — any sentence runs on the same
- * graphs with no padding buckets, so compute scales with the text instead of a fixed bucket.
+ * KittenTTS nano 0.8 (StyleTTS2 + ISTFTNet, 15M params, 24 kHz) on the LiteRT CPU. All three graphs
+ * have a **dynamic sequence length** — any sentence runs on the same graphs with no padding
+ * buckets, so compute scales with the text instead of a fixed bucket.
  *
  * ```
  * token ids [1,N] + style [1,256] + speed [1]
@@ -37,9 +39,12 @@ import org.tensorflow.lite.Interpreter
  * ```
  *
  * The host glue between graphs is the row-repeat alignment (verified bit-exact against the
- * reference ONNX `Loop`). Because the graphs are dynamic, every call resizes the inputs to the
- * actual sentence length and lets the interpreter re-propagate shapes — this is the piece the
- * fixed-shape CompiledModel path cannot express, and why this sample uses the Interpreter API.
+ * reference ONNX `Loop`). Two LiteRT APIs drive the graphs, matching what each graph allows today:
+ * - The **vocoder** (conv-only) runs on the **CompiledModel API**, resized per sentence through
+ *   [LiteRtDynamicShape] — the JNI workaround for the not-yet-exposed Kotlin resize API.
+ * - The **predictor and prosody** graphs keep their fused dynamic-length LSTM state in TFLite
+ *   *variable tensors*, which the CompiledModel model loader does not accept yet (b/365299994), so
+ *   they stay on the classic **Interpreter API** (`resizeInput` per sentence).
  */
 class KittenSynthesizer(context: Context) : Closeable {
 
@@ -48,14 +53,16 @@ class KittenSynthesizer(context: Context) : Closeable {
 
   private val predictor = loadModel(context, PREDICTOR_MODEL)
   private val prosody = loadModel(context, PROSODY_MODEL)
-  private val vocoder = loadModel(context, VOCODER_MODEL)
+  private val vocoder = loadCompiledModel(context, VOCODER_MODEL)
 
   /** [VOICES.size, STYLE_ROWS, STYLE_DIM] — style vectors indexed by voice and text length. */
   private val voiceTable: FloatArray
 
   /** Total size of the three graphs on disk, for the "small model" readout in the UI. */
   val modelBytes: Long =
-    listOf(PREDICTOR_MODEL, PROSODY_MODEL, VOCODER_MODEL).sumOf { File(context.filesDir, it).length() }
+    listOf(PREDICTOR_MODEL, PROSODY_MODEL, VOCODER_MODEL).sumOf {
+      File(context.filesDir, it).length()
+    }
 
   init {
     val voicesFile = File(context.filesDir, VOICES_FILE)
@@ -77,10 +84,16 @@ class KittenSynthesizer(context: Context) : Closeable {
     return Interpreter(file, Interpreter.Options().setNumThreads(NUM_THREADS))
   }
 
+  private fun loadCompiledModel(context: Context, name: String): CompiledModel {
+    val file = File(context.filesDir, name)
+    check(file.exists()) { "Model not found: $name. Push it first:\n  ./install_to_device.sh" }
+    return CompiledModel.create(file.absolutePath, CompiledModel.Options(Accelerator.CPU), null)
+  }
+
   /**
-   * The style vector conditioning every graph. KittenTTS ships one style row per *text length*
-   * (the model expects a length-conditioned style), so the lookup uses the sentence's character
-   * count — same as the upstream pip package.
+   * The style vector conditioning every graph. KittenTTS ships one style row per *text length* (the
+   * model expects a length-conditioned style), so the lookup uses the sentence's character count —
+   * same as the upstream pip package.
    */
   private fun styleFor(voice: Int, textLength: Int): FloatArray {
     val row = minOf(textLength, STYLE_ROWS - 1)
@@ -135,19 +148,8 @@ class KittenSynthesizer(context: Context) : Closeable {
     val noise = prosodyOut.float("StatefulPartitionedCall:1") // [1,2T]
     val harmonics = prosodyOut.float("StatefulPartitionedCall:2") // [1,120T+1,22]
 
-    // Vocoder (ISTFTNet): aligned text features + prosody -> waveform.
-    val vocoderOut =
-      run(
-        vocoder,
-        mapOf(
-          "asr" to Feed(intArrayOf(1, frames, ASR_DIM), floatBuffer(asr)),
-          "f0" to Feed(intArrayOf(1, f0.size), floatBuffer(f0)),
-          "n" to Feed(intArrayOf(1, noise.size), floatBuffer(noise)),
-          "har" to Feed(intArrayOf(1, harmonics.size / HAR_DIM, HAR_DIM), floatBuffer(harmonics)),
-          "style" to Feed(intArrayOf(1, STYLE_DIM), floatBuffer(style)),
-        ),
-      )
-    val waveform = vocoderOut.float("Identity") // [1,600T]
+    // Vocoder (ISTFTNet): aligned text features + prosody -> waveform [1,600T].
+    val waveform = vocode(asr, frames, f0, noise, harmonics, style)
 
     // The upstream pip package trims the trailing samples of every chunk (synthesis tail).
     val sampleCount = maxOf(waveform.size - TAIL_TRIM, MIN_SAMPLES.coerceAtMost(waveform.size))
@@ -156,10 +158,47 @@ class KittenSynthesizer(context: Context) : Closeable {
     return Result(audio, tokenCount, frames, (System.nanoTime() - startNanos) / 1_000_000)
   }
 
+  /**
+   * Runs the vocoder on the CompiledModel API with the sentence's dynamic shapes.
+   *
+   * The dynamic-shape sequence (see [LiteRtDynamicShape]): resize every input, create the input
+   * buffers *after* the resize (so they pick up the new shapes), and supply an output buffer of the
+   * known final size — creating either side earlier would produce stale-sized buffers.
+   */
+  private fun vocode(
+    asr: FloatArray,
+    frames: Int,
+    f0: FloatArray,
+    noise: FloatArray,
+    harmonics: FloatArray,
+    style: FloatArray,
+  ): FloatArray {
+    // Signature input order: asr, f0, n, har, style (style is fixed-shape; resizing to the
+    // already-current shape is a no-op). The waveform output is a TFLite *dynamic* tensor —
+    // its [1, 600T] shape only materializes during invoke — so the known output shape is
+    // passed in rather than queried.
+    return LiteRtDynamicShape.runDynamic(
+        vocoder,
+        signatureIndex = 0,
+        inputs = arrayOf(asr, f0, noise, harmonics, style),
+        inputShapes =
+          arrayOf(
+            intArrayOf(1, frames, ASR_DIM),
+            intArrayOf(1, f0.size),
+            intArrayOf(1, noise.size),
+            intArrayOf(1, harmonics.size / HAR_DIM, HAR_DIM),
+            intArrayOf(1, STYLE_DIM),
+          ),
+        outputShapes = arrayOf(intArrayOf(1, SAMPLES_PER_FRAME * frames)),
+      )[0]
+  }
+
   /** `np.repeat(x[0], durations, axis=0)` for a row-major [1,N,dim] tensor. */
   private fun repeatRows(x: FloatArray, durations: IntArray, dim: Int): FloatArray {
     var total = 0
-    for (duration in durations) total += duration
+    for (duration in durations) {
+      total += duration
+    }
     val out = FloatArray(total * dim)
     var write = 0
     for (row in durations.indices) {
@@ -203,8 +242,8 @@ class KittenSynthesizer(context: Context) : Closeable {
 
   /**
    * Runs one graph with dynamic shapes: resize each input to the sentence's actual shape,
-   * re-allocate, invoke. Inputs are matched by canonical tensor name ("serving_default_x:0" and
-   * "x" both -> "x") so the same path drives signature and signature-less graphs.
+   * re-allocate, invoke. Inputs are matched by canonical tensor name ("serving_default_x:0" and "x"
+   * both -> "x") so the same path drives signature and signature-less graphs.
    */
   private fun run(interpreter: Interpreter, feeds: Map<String, Feed>): Outputs {
     var resized = false
@@ -219,7 +258,9 @@ class KittenSynthesizer(context: Context) : Closeable {
       }
       inputs[i] = feed.data.rewind()
     }
-    if (resized) interpreter.allocateTensors()
+    if (resized) {
+      interpreter.allocateTensors()
+    }
     // The fused dynamic-length LSTM kernels keep their hidden state in variable tensors, which
     // persist across invocations. A genuine length change resets them via re-allocation, but a
     // same-length invoke would start from the previous sentence's final state and corrupt the
@@ -267,6 +308,7 @@ class KittenSynthesizer(context: Context) : Closeable {
     private const val VOICES_FILE = "voices.bin"
 
     private const val NUM_THREADS = 4
+    private const val SAMPLES_PER_FRAME = 600
     private const val STYLE_ROWS = 400
     private const val STYLE_DIM = 256
     private const val D_DIM = 256

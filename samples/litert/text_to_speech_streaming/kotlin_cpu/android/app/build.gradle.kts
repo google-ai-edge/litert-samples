@@ -52,6 +52,9 @@ android {
   }
 
   androidResources { noCompress += listOf("bin", "json", "gz") }
+
+  // Sample-local JNI workaround for CompiledModel dynamic shapes (cpp/dynamic_shape_jni.cc).
+  externalNativeBuild { cmake { path = file("src/main/cpp/CMakeLists.txt") } }
 }
 
 dependencies {

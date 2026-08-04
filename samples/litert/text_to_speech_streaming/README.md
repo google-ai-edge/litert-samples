@@ -22,9 +22,8 @@ What the demo shows (all numbers measured on a Pixel 8a, CPU/XNNPACK, 4 threads)
 
 The last two are what differentiate this from the sibling
 [`text_to_speech`](../text_to_speech) (Matcha-TTS) sample: the graphs were converted through
-TF/Keras so the TFLite converter emits *fused dynamic-length LSTM kernels*, and that is why the
-app drives the classic **Interpreter API** (`resizeInput` per sentence) instead of the
-fixed-shape CompiledModel path.
+TF/Keras so the TFLite converter emits *fused dynamic-length LSTM kernels*. A
+[Python version](python/) of the same demo (Raspberry-Pi-friendly) lives in `python/`.
 
 ## Models
 
@@ -35,8 +34,18 @@ fixed-shape CompiledModel path.
 | `kitten_vocoder_fp16.tflite` | asr[1,T,128] + f0/n/har + style → wav[1,600T] @ 24 kHz | 13.4 MB |
 | English G2P (DeepPhonemizer) | text[1,96] → logits[1,96,64] | shared with the Matcha sample |
 
-All three synthesis graphs run on the LiteRT CPU interpreter (XNNPACK, 4 threads); the G2P runs on
-the CompiledModel CPU accelerator. Host glue between graphs is a ~10-line row-repeat alignment
+Two LiteRT APIs drive the graphs, matching what each graph allows today:
+
+- **G2P and vocoder — CompiledModel API** (CPU accelerator). The vocoder is resized to every
+  sentence's length through a small JNI binding over the LiteRT C API's
+  `ResizeInputTensor` (`LiteRtDynamicShape.kt` + `cpp/` — a temporary workaround until the
+  Kotlin API exposes resize; the C++ API already has it).
+- **Predictor and prosody — Interpreter API** (XNNPACK, 4 threads). Their fused dynamic-length
+  LSTM kernels keep hidden state in TFLite *variable tensors*, which the CompiledModel model
+  loader does not accept yet (b/365299994), so these two stay on the Interpreter
+  (`resizeInput` per sentence) until that lands.
+
+Host glue between graphs is a ~10-line row-repeat alignment
 (`en = repeat(d, durations)`), verified bit-exact against the reference ONNX's in-graph `Loop`.
 Conversion + verification (accuracy inside the reference model's own run-to-run noise floor,
 durations bit-identical): see [`conversion/`](conversion/).
@@ -103,7 +112,8 @@ buffers; playback drains a channel into a streaming `AudioTrack` on a separate c
 | `MainActivity.kt` | Thin `ComponentActivity`; hosts the Compose UI and collects `UiState`. |
 | `MainViewModel.kt` | Loads + warms the graphs; `speak()` runs the sentence pipeline into a streaming `AudioTrack`; owns `UiState`. |
 | `UiState.kt` | Immutable UI snapshot, including the live `Metrics` (TTFA, RTF, model size). |
-| `KittenSynthesizer.kt` | The three dynamic-shape graphs on the Interpreter API + host glue. |
+| `KittenSynthesizer.kt` | The three dynamic-shape graphs (Interpreter for the LSTM graphs, CompiledModel for the vocoder) + host glue. |
+| `LiteRtDynamicShape.kt` + `cpp/` | Temporary JNI bindings over the LiteRT C API's dynamic-shape entry points (`ResizeInputTensor` etc.) until the Kotlin API exposes them. |
 | `KittenG2P.kt` | Text → symbol ids (dictionary + neural G2P; shared with the Matcha sample). |
 | `SentenceChunker.kt` | Faithful port of the pip package's `chunk_text` (the streaming granularity). |
 | `view/TtsScreen.kt` | Compose screen: text field, voice picker, Speak/Stop, metrics card, streaming indicator. |
