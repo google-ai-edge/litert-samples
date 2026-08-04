@@ -85,7 +85,10 @@ fun TtsScreen(
   ) { padding ->
     Column(
       modifier =
-        Modifier.fillMaxWidth().padding(padding).padding(16.dp).verticalScroll(rememberScrollState())
+        Modifier.fillMaxWidth()
+          .padding(padding)
+          .padding(16.dp)
+          .verticalScroll(rememberScrollState())
     ) {
       OutlinedTextField(
         value = text,
