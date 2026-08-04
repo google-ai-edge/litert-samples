@@ -1,0 +1,11 @@
+<resources>
+    <string name="app_name" translatable="false">KittenTTS Streaming</string>
+    <string name="text_hint">Type text to speak…</string>
+    <string name="action_speak">▶ Speak</string>
+    <string name="action_stop">■ Stop</string>
+    <string name="streaming">● streaming</string>
+    <string name="metric_ttfa">time to first audio</string>
+    <string name="metric_rtf">real-time factor</string>
+    <string name="metric_model">model size</string>
+    <string name="metric_detail">%1$.1f s of audio in %2$.2f s of compute · sentence %3$d/%4$d</string>
+</resources>
