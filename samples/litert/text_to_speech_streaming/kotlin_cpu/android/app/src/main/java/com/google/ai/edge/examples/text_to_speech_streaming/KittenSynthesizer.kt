@@ -220,6 +220,11 @@ class KittenSynthesizer(context: Context) : Closeable {
       inputs[i] = feed.data.rewind()
     }
     if (resized) interpreter.allocateTensors()
+    // The fused dynamic-length LSTM kernels keep their hidden state in variable tensors, which
+    // persist across invocations. A genuine length change resets them via re-allocation, but a
+    // same-length invoke would start from the previous sentence's final state and corrupt the
+    // predicted durations (repro: speaking the same text twice). Reset unconditionally.
+    interpreter.resetVariableTensors()
     interpreter.runForMultipleInputsOutputs(inputs, emptyMap<Int, Any>())
     return Outputs(interpreter)
   }
