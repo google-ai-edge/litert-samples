@@ -46,10 +46,14 @@ object SentenceChunker {
             chunks.add(ensurePunctuation(builder.toString()))
             builder.setLength(0)
           }
-          if (builder.isNotEmpty()) builder.append(' ')
+          if (builder.isNotEmpty()) {
+            builder.append(' ')
+          }
           builder.append(word)
         }
-        if (builder.isNotEmpty()) chunks.add(ensurePunctuation(builder.toString()))
+        if (builder.isNotEmpty()) {
+          chunks.add(ensurePunctuation(builder.toString()))
+        }
       }
     }
     return chunks

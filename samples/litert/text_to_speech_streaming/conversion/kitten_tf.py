@@ -61,7 +61,8 @@ def bilstm(key):
     W, R, B = SD[wn], SD[rn], SD[bn]  # [2,4H,In], [2,4H,H], [2,8H]
     hidden = R.shape[2]
 
-    def reorder(m):  # ONNX gates i,o,f,c along axis0 -> keras i,f,c,o
+    def reorder(m):
+        # ONNX gates i,o,f,c along axis0 -> keras i,f,c,o
         i, o, f, c = np.split(m, 4, axis=0)
         return np.concatenate([i, f, c, o], axis=0)
 

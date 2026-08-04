@@ -181,7 +181,9 @@ class MainViewModel(private val context: Context) : ViewModel() {
             val ids = gp.phonemize(sentence)
             if (ids.isEmpty()) continue
             val result = t.synthesize(ids, voice, sentence.length)
-            if (index == 0) ttfaMs = SystemClock.elapsedRealtime() - tapTime
+            if (index == 0) {
+              ttfaMs = SystemClock.elapsedRealtime() - tapTime
+            }
             synthMs += result.synthMs
             audioSamples += result.audio.size
             pcmChannel.send(result.audio)

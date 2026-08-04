@@ -25,7 +25,8 @@ import kitten_tf as K  # noqa: E402
 GOLD = dict(np.load(K.OUT / "kitten_golden.npz"))
 
 
-def cl(a):  # [1,C,T] -> [1,T,C]
+def cl(a):
+    # [1,C,T] -> [1,T,C]
     return np.transpose(a, (0, 2, 1))
 
 
