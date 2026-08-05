@@ -14,7 +14,7 @@ The samples demonstrate different API paradigms (LiteRT CompiledModel API and le
 * 📸 **PhotoTalk Sample App**: Added multimodal sample app combining LiteRT vision processing with LiteRT-LM audio/text generation ([`samples/litert/phototalk_sample_app/`](samples/litert/phototalk_sample_app/)).
 * 🗣️ **Qwen3-TTS & Qwen3 ASR**: Added model recipes, conversion scripts, and Tensor API implementations for [Qwen3-TTS](models/qwen/qwen3_tts/) and [Qwen3 ASR](models/qwen/qwen_asr/).
 * 🎨 **Bonsai Image 4B**: Added text-to-image diffusion model sample with Python inference and conversion tools ([`models/bonsai/bonsai_image_4b/`](models/bonsai/bonsai_image_4b/)).
-* 🤖 **Agent Skills & Utilities**: Added custom agent skills ([`skills/gpu-clean-conversion/`](skills/gpu-clean-conversion/)) and shared Kotlin helpers ([`utilities/common/`](utilities/common/)).
+* 🤖 **Agent Skills & Utilities**: Added four lifecycle agent skills ([`skills/`](skills/): conversion, quantization, on-device verification, app scaffolding), a GPU conversion toolkit ([`utilities/litert_gpu_toolkit/`](utilities/litert_gpu_toolkit/)), and shared Kotlin helpers ([`utilities/common/`](utilities/common/)).
 
 ---
 
@@ -38,11 +38,17 @@ Contains standalone model conversion scripts, export recipes, and model-specific
 
 ### **3. `utilities/` — Shared Tools & Helper Scripts**
 
-Common utilities and tools WIP.
+* **`utilities/common/`**: Shared Kotlin helpers for Android samples (camera pipeline, audio capture, CompiledModel runner, image/tensor and math helpers).
+* **`utilities/litert_gpu_toolkit/`**: Pre-conversion patches that rewrite common PyTorch patterns into forms the LiteRT GPU delegate accepts, plus a post-conversion checker.
 
 ### **4. `skills/` — Agent Automation & Skills**
 
-* Custom AI Agent skills and interactive workflows to streamline model deployment for LiteRT. WIP.
+Custom AI agent skills that carry a model through the LiteRT deployment lifecycle, in order — see [`skills/README.md`](skills/README.md) for the full index:
+
+* [`gpu-clean-conversion/`](skills/gpu-clean-conversion/): PyTorch / Hugging Face model → GPU-resident LiteRT model.
+* [`accuracy-safe-quantization/`](skills/accuracy-safe-quantization/): Quantize (fp16 / int8 / int4) without losing accuracy.
+* [`on-device-verification/`](skills/on-device-verification/): Prove the converted model on the actual device.
+* [`compiled-model-app-scaffolding/`](skills/compiled-model-app-scaffolding/): Build an Android app around the verified model.
 
 ---
 
