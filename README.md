@@ -26,7 +26,7 @@ The samples demonstrate different API paradigms (LiteRT CompiledModel API and le
 All runnable sample applications and interactive playgrounds are organized under `samples/`:
 
 * **`samples/litert/`**: Standard samples using the **LiteRT CompiledModel API**. Designed for modern hardware acceleration (GPU/NPU) and asynchronous execution.
-  * *Samples:* Speech Recognition, PhotoTalk, Text-to-Speech, Image Segmentation, Image Classification, Digit Classification, Qualcomm NPU acceleration (Gemma, MobileNet, Fast VLM), Google TPU sample app.
+  * *Samples:* Speech Recognition, PhotoTalk, Text-to-Speech, Image Generation (text-to-image), Image Segmentation, Image Classification, Digit Classification, Qualcomm NPU acceleration (Gemma, MobileNet, Fast VLM), Google TPU sample app.
 * **`samples/litert_interpreter/`**: Legacy samples using the **Interpreter API**.
   * *Samples:* Broad compatibility examples for Android, iOS, and Python (Image Classification, Object Detection, Image Segmentation, Audio Classification).
 * **`samples/litert_lm/`**: High-level Engine samples for Large Language Models (LLM/SLM).
