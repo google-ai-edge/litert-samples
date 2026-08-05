@@ -10,6 +10,7 @@ The samples demonstrate different API paradigms (LiteRT CompiledModel API and le
 
 ## **🔥 What's New**
 
+* 🐱 **Streaming TTS (KittenTTS nano)**: Added a tiny (15M-param, 32 MB) streaming text-to-speech Android sample — dynamic-length LiteRT graphs, sentence-level streaming playback, live TTFA/RTF metrics ([`samples/litert/text_to_speech_streaming/`](samples/litert/text_to_speech_streaming/)).
 * 🎙️ **Speech Recognition (ASR)**: Added end-to-end [Automatic Speech Recognition sample](samples/litert/speech_recognition) using the CompiledModel API.
 * 📸 **PhotoTalk Sample App**: Added multimodal sample app combining LiteRT vision processing with LiteRT-LM audio/text generation ([`samples/litert/phototalk_sample_app/`](samples/litert/phototalk_sample_app/)).
 * 🗣️ **Qwen3-TTS & Qwen3 ASR**: Added model recipes, conversion scripts, and Tensor API implementations for [Qwen3-TTS](models/qwen/qwen3_tts/) and [Qwen3 ASR](models/qwen/qwen_asr/).
