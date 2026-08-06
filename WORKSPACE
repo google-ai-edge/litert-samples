@@ -13,11 +13,32 @@ http_archive(
     patch_cmds = [
         "sed 's|//litert|@litert_archive//litert|g' litert/build_common/special_rule.bzl > litert/build_common/special_rule.bzl.tmp && mv litert/build_common/special_rule.bzl.tmp litert/build_common/special_rule.bzl",
         "sed 's|@//third_party|@litert_archive//third_party|g' third_party/litert_prebuilts/workspace.bzl > third_party/litert_prebuilts/workspace.bzl.tmp && mv third_party/litert_prebuilts/workspace.bzl.tmp third_party/litert_prebuilts/workspace.bzl",
+        # Make litert/cc and litert/cc/options targets publicly visible to external workspaces.
+        "sed 's|//litert:__subpackages__|//visibility:public|g' litert/cc/BUILD > litert/cc/BUILD.tmp && mv litert/cc/BUILD.tmp litert/cc/BUILD",
+        "sed 's|//litert:__subpackages__|//visibility:public|g' litert/cc/options/BUILD > litert/cc/options/BUILD.tmp && mv litert/cc/options/BUILD.tmp litert/cc/options/BUILD",
         # Windows: inject windows_export_all_symbols feature into cc_shared_library for DLL builds.
         "sed 's/cc_shared_library(/cc_shared_library(\\n    features = [\"windows_export_all_symbols\"],/g' litert/c/BUILD > litert/c/BUILD.tmp && mv litert/c/BUILD.tmp litert/c/BUILD",
         # Windows: define the missing static constant kValueNotSet needed by MSVC linker.
         "printf '\\n#if defined(_MSC_VER) && !defined(__clang__)\\nnamespace tflite { namespace profiling { namespace memory { constexpr size_t MemoryUsage::kValueNotSet; } } }\\n#endif\\n' >> tflite/profiling/memory_info.cc",
     ],
+)
+
+# Darts Clone. Declare this before TensorFlow's workspace macros so they do not
+# install their own incompatible BUILD overlay.
+http_archive(
+    name = "darts_clone",
+    build_file = "@litert_archive//:BUILD.darts_clone",
+    sha256 = "4a562824ec2fbb0ef7bd0058d9f73300173d20757b33bb69baa7e50349f65820",
+    strip_prefix = "darts-clone-e40ce4627526985a7767444b6ed6893ab6ff8983",
+    url = "https://github.com/s-yata/darts-clone/archive/e40ce4627526985a7767444b6ed6893ab6ff8983.tar.gz",
+)
+
+http_archive(
+    name = "FP16",
+    build_file = "@litert_archive//third_party/FP16:FP16.BUILD",
+    sha256 = "d973501a40c55126b31accc2d9f08d931ec3cc190c0430309a5e341d3c0ce32a",
+    strip_prefix = "FP16-4dfe081cf6bcd15db339cf2680b9281b8451eeb3",
+    url = "https://github.com/Maratyszcza/FP16/archive/4dfe081cf6bcd15db339cf2680b9281b8451eeb3.zip",
 )
 
 load("@bazel_tools//tools/build_defs/repo:git.bzl", "git_repository")
@@ -65,13 +86,40 @@ http_archive(
     ],
 )
 
+# Use 3.22.0 (from 3.5.1 of tensorflow) to fix binary signing issue on MacOS Tahoe.
+http_archive(
+    name = "build_bazel_rules_apple",
+    sha256 = "a78f26c22ac8d6e3f3fcaad50eace4d9c767688bd7254b75bdf4a6735b299f6a",
+    url = "https://github.com/bazelbuild/rules_apple/releases/download/3.22.0/rules_apple.3.22.0.tar.gz",
+)
+
+load(
+    "@build_bazel_rules_apple//apple:repositories.bzl",
+    "apple_rules_dependencies",
+)
+
+apple_rules_dependencies()
+
+http_archive(
+    name = "build_bazel_rules_swift",
+    sha256 = "f7a67197cd8a79debfe70b8cef4dc19d03039af02cc561e31e0718e98cad83ac",
+    url = "https://github.com/bazelbuild/rules_swift/releases/download/2.9.0/rules_swift.2.9.0.tar.gz",
+)
+
+# Lower the version from 1.24.5 that tensorflow uses to 1.23.1, the highest version which don't have
+# issues with missing LC_UUID, DEVELOPER_DIR or SDKROOT on MacOS Tahoe.
+http_archive(
+    name = "build_bazel_apple_support",
+    sha256 = "ee20cc5c0bab47065473c8033d462374dd38d172406ecc8de5c8f08487943f2f",
+    url = "https://github.com/bazelbuild/apple_support/releases/download/1.23.1/apple_support.1.23.1.tar.gz",
+)
+
 http_archive(
     name = "bazel_features",
     sha256 = "c26b4e69cf02fea24511a108d158188b9d8174426311aac59ce803a78d107648",
     strip_prefix = "bazel_features-1.43.0",
     url = "https://github.com/bazel-contrib/bazel_features/releases/download/v1.43.0/bazel_features-v1.43.0.tar.gz",
 )
-
 
 # Download coremltools of the same version of tensorflow, but with a custom patchcmd until
 # tensorflow is updated to do the same patchcmd.
@@ -94,9 +142,9 @@ tensorflow_source_repo(
     name = "org_tensorflow",
     patches = ["@litert_archive//:PATCH.flatbuffers_windows_no_bash"],
     protobuf_patches = ["@litert_archive//:PATCH.protobuf_port_msvc_compat"],
-    sha256 = "07889dad0f52cb61dcd8312d05806fdefc393ce5587d97a755865ee083cc01bb",
-    strip_prefix = "tensorflow-b8a17154d80e4d7d2ce9419e38f5f6ae208e2137",
-    urls = ["https://github.com/tensorflow/tensorflow/archive/b8a17154d80e4d7d2ce9419e38f5f6ae208e2137.tar.gz"],
+    sha256 = "c3c552414ab2e59e72511a21c1df566346a7c8f160909325edec6d1ff403d69d",
+    strip_prefix = "tensorflow-bcdab1a62e138c8f8784a7477c0be8af6dd0bd0a",
+    urls = ["https://github.com/tensorflow/tensorflow/archive/bcdab1a62e138c8f8784a7477c0be8af6dd0bd0a.tar.gz"],
 )
 
 # Initialize the TensorFlow repository and all dependencies.
@@ -105,15 +153,6 @@ tensorflow_source_repo(
 # restriction that load() statements need to be at the top of .bzl files.
 # E.g. we can not retrieve a new repository with http_archive and then load()
 # a macro from that repository in the same file.
-
-# Darts Clone
-http_archive(
-    name = "darts_clone",
-    build_file = "@//:BUILD.darts_clone",
-    sha256 = "4a562824ec2fbb0ef7bd0058d9f73300173d20757b33bb69baa7e50349f65820",
-    strip_prefix = "darts-clone-e40ce4627526985a7767444b6ed6893ab6ff8983",
-    url = "https://github.com/s-yata/darts-clone/archive/e40ce4627526985a7767444b6ed6893ab6ff8983.tar.gz",
-)
 
 load("@org_tensorflow//tensorflow:workspace3.bzl", "tf_workspace3")
 
@@ -184,6 +223,7 @@ load(
 
 python_wheel_version_suffix_repository(name = "tf_wheel_version_suffix")
 
+# Initialize hermetic C++
 load(
     "@rules_ml_toolchain//cc/deps:cc_toolchain_deps.bzl",
     "cc_toolchain_deps",
@@ -242,8 +282,6 @@ nccl_configure(name = "local_config_nccl")
 
 load("@litert_archive//litert/sdk_util:repo.bzl", "configurable_repo")
 
-
-
 load("@rules_jvm_external//:defs.bzl", "maven_install")
 
 maven_install(
@@ -276,7 +314,7 @@ http_archive(
 # Sentencepiece
 http_archive(
     name = "sentencepiece",
-    build_file = "@//:BUILD.sentencepiece",
+    build_file = "@litert_archive//:BUILD.sentencepiece",
     patch_cmds = [
         # Empty config.h seems enough.
         "touch config.h",
@@ -285,7 +323,7 @@ http_archive(
         # Replace third_party/darts_clone/ with include/ in *.h and *.cc files.
         "sed -i -e 's|#include \"third_party/darts_clone/|#include \"include/|g' *.h *.cc",
     ],
-    patches = ["@//:PATCH.sentencepiece"],
+    patches = ["@litert_archive//:PATCH.sentencepiece"],
     sha256 = "9970f0a0afee1648890293321665e5b2efa04eaec9f1671fcf8048f456f5bb86",
     strip_prefix = "sentencepiece-0.2.0/src",
     url = "https://github.com/google/sentencepiece/archive/refs/tags/v0.2.0.tar.gz",
@@ -420,6 +458,15 @@ configurable_repo(
     build_file = "@litert_archive//third_party/google_tensor:google_tensor.BUILD",
 )
 
+# ML Drift ----------------------------------------------------------------------------------
+http_archive(
+    name = "ml_drift",
+    repo_mapping = {
+        "@fp16": "@FP16",
+    },
+    strip_prefix = "ml-drift-main",
+)
+
 # LiteRT GPU ----------------------------------------------------------------------------------
 http_archive(
     name = "litert_gpu",
@@ -427,7 +474,6 @@ http_archive(
     type = "jar",
     url = "https://dl.google.com/android/maven2/com/google/ai/edge/litert/litert/2.1.1/litert-2.1.1.aar",
 )
-
 
 # LiteRT Prebuilts ---------------------------------------------------------------------------------
 load("@litert_archive//third_party/litert_prebuilts:workspace.bzl", "litert_prebuilts")
@@ -438,38 +484,13 @@ load("@litert_archive//third_party/intel_openvino:openvino.bzl", "openvino_confi
 
 openvino_configure()
 
-# iOS Build Rules
-http_archive(
-    name = "build_bazel_apple_support",
-    sha256 = "b53f6491e742549f13866628ddffcc75d1f3b2d6987dc4f14a16b242113c890b",
-    url = "https://github.com/bazelbuild/apple_support/releases/download/1.17.1/apple_support.1.17.1.tar.gz",
-)
-
-http_archive(
-    name = "build_bazel_rules_apple",
-    sha256 = "34953c6c5666f2bd864a4a2a27599eb6630a42fde18ba57292fa0a7fcb3d851c",
-    url = "https://github.com/bazelbuild/rules_apple/releases/download/4.5.0/rules_apple.4.5.0.tar.gz",
-)
-
-load("@build_bazel_apple_support//lib:repositories.bzl", "apple_support_dependencies")
-apple_support_dependencies()
-
-http_archive(
-    name = "build_bazel_rules_swift",
-    sha256 = "fbc1843b0d87922d05903b2909a5676ee5f27918840c9497e6e58b901594950a",
-    url = "https://github.com/bazelbuild/rules_swift/releases/download/1.18.0/rules_swift.1.18.0.tar.gz",
-)
-
-load("@build_bazel_rules_swift//swift:repositories.bzl", "swift_rules_dependencies")
-swift_rules_dependencies()
-
-load("@build_bazel_rules_apple//apple:repositories.bzl", "apple_rules_dependencies")
-apple_rules_dependencies()
-
 # Android rules. Need latest rules_android_ndk to use NDK 26+.
 load("@rules_android_ndk//:rules.bzl", "android_ndk_repository")
 
-android_ndk_repository(name = "androidndk")
+android_ndk_repository(
+    name = "androidndk",
+    api_level = 26,
+)
 
 load("@litert_archive//:android_ndk_env.bzl", "check_android_ndk_env")
 
