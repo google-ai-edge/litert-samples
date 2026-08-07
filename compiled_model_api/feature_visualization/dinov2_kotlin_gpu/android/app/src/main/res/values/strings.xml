@@ -1,0 +1,10 @@
+<resources>
+    <string name="app_name" translatable="false">DINOv2 Features</string>
+    <string name="action_pick_image">Pick image</string>
+    <string name="status_loading">Loading DINOv2 on GPU…</string>
+    <string name="status_processing">Extracting features…</string>
+    <string name="status_ready" translatable="false">DINOv2 ViT-S/14 · features + PCA · CompiledModel GPU · %1$d ms</string>
+    <string name="label_result">Input (left) · feature PCA (right)</string>
+    <string name="error_model_load">Failed to load model</string>
+    <string name="error_features_failed">Feature extraction failed</string>
+</resources>
