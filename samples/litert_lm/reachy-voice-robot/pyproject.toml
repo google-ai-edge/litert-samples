@@ -1,0 +1,34 @@
+[project]
+name = "reachy-litert-demo"
+version = "0.1.0"
+requires-python = "==3.12.*"
+dependencies = [
+    "litert-lm==0.15.0",
+    "ai-edge-litert==2.1.6",
+    # Required by the LiteRT CompiledModel API (the current API; Interpreter is
+    # deprecated) — vision and speech-to-text run through it.
+    "ml-dtypes>=0.5",
+    "huggingface-hub>=0.28",
+    "numpy>=2.0",
+    # Real frames for the detector; synthetic noise produces no detections.
+    "pillow>=11.0",
+    # Inflect-Nano-v2 TTS frontend (default --tts): text normalization + espeak
+    # phonemization. espeakng-loader bundles libespeak-ng (no system install).
+    "num2words>=0.5",
+    "unidecode>=1.3",
+    "phonemizer>=3.2",
+    "espeakng-loader>=0.2",
+]
+
+[dependency-groups]
+dev = ["pytest>=8.0"]
+
+# Not a distributable package: run from the repo root (python -m demo.run_demo,
+# python -m demo.serve, ...). No wheel to build.
+[tool.uv]
+package = false
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+# Repo root on sys.path so `emulator` / `demo` import cleanly under pytest.
+pythonpath = ["."]

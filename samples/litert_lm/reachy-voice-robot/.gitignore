@@ -1,0 +1,17 @@
+# Python
+.venv/
+__pycache__/
+*.pyc
+*.egg-info/
+.pytest_cache/
+
+# Downloaded models / caches (models are pulled from Hugging Face on first use)
+models/
+.cache/
+
+# Run outputs
+results/
+*.jsonl
+
+# OS
+.DS_Store
