@@ -1,0 +1,11 @@
+<resources>
+    <string name="app_name" translatable="false">Gaze Estimation</string>
+    <string name="action_pick_image">Pick image</string>
+    <string name="status_loading">Loading L2CS-Net on GPU…</string>
+    <string name="status_processing">Estimating gaze…</string>
+    <string name="status_ready" translatable="false">L2CS-Net · CompiledModel GPU · %1$d ms · yaw %2$.0f° · pitch %3$.0f°</string>
+    <string name="label_gaze_output">Gaze direction (GPU)</string>
+    <string name="error_model_missing">Model not found. Push it first with install_to_device.sh:\n%1$s</string>
+    <string name="error_model_load">Failed to load model</string>
+    <string name="error_estimate_failed">Gaze estimation failed</string>
+</resources>
