@@ -1,0 +1,101 @@
+<!-- demo/display/static/dashboard.html -->
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Reachy — vision</title>
+<style>
+  * { box-sizing: border-box; }
+  body { margin: 0; background: #0d0f12; color: #e6e6e6;
+         font: 14px/1.4 -apple-system, system-ui, sans-serif; }
+  .grid { display: grid; grid-template-columns: 2fr 1fr; gap: 10px;
+          height: 100vh; padding: 10px; }
+  .stage { position: relative; background: #000; border-radius: 8px;
+           overflow: hidden; display: flex; align-items: center; }
+  .stage img { width: 100%; display: block; }
+  .stage canvas { position: absolute; inset: 0; width: 100%; height: 100%; }
+  .side { display: grid; grid-template-rows: 1fr 1fr; gap: 10px; }
+  .panel { background: #16191d; border-radius: 8px; padding: 10px;
+           overflow: auto; }
+  .panel h2 { margin: 0 0 8px; font-size: 12px; text-transform: uppercase;
+              color: #8a94a0; letter-spacing: .05em; }
+  .qwrap { position: relative; }
+  .qwrap img { width: 100%; border-radius: 4px; display: block; }
+  .qwrap canvas { position: absolute; inset: 0; width: 100%; }
+  /* Before the first live frame / first query the <img> has no src yet, which
+     would render the browser's broken-image icon + alt text. Hide it until it
+     actually has a src. */
+  .stage img:not([src]), .qwrap img:not([src]) { display: none; }
+  .heard { color: #9ecbff; } .reply { color: #b6f0b6; margin-top: 6px; }
+</style>
+</head>
+<body>
+<div class="grid">
+  <div class="stage" id="stage">
+    <img id="live" alt="live view">
+    <canvas id="liveBoxes"></canvas>
+  </div>
+  <div class="side">
+    <div class="panel">
+      <h2>Query frame</h2>
+      <div class="qwrap">
+        <img id="qimg" alt="frame sent to the prompt">
+        <canvas id="qBoxes"></canvas>
+      </div>
+    </div>
+    <div class="panel">
+      <h2>Conversation</h2>
+      <div class="heard" id="heard"></div>
+      <div class="reply" id="reply"></div>
+    </div>
+  </div>
+</div>
+<script>
+const COLOR = "#38d66b";
+// Draw normalized [x1,y1,x2,y2] boxes onto a canvas overlaid on an image.
+function drawBoxes(canvas, imgEl, boxes) {
+  const w = imgEl.clientWidth, h = imgEl.clientHeight;
+  canvas.width = w; canvas.height = h;
+  const ctx = canvas.getContext("2d");
+  ctx.clearRect(0, 0, w, h);
+  ctx.lineWidth = 2; ctx.strokeStyle = COLOR; ctx.fillStyle = COLOR;
+  ctx.font = "13px sans-serif";
+  for (const b of boxes) {
+    const [x1, y1, x2, y2] = b.box;
+    const rx = x1 * w, ry = y1 * h, rw = (x2 - x1) * w, rh = (y2 - y1) * h;
+    ctx.strokeRect(rx, ry, rw, rh);
+    const tag = `${b.label} ${b.score.toFixed(2)}`;
+    ctx.fillRect(rx, ry - 16, ctx.measureText(tag).width + 8, 16);
+    ctx.save(); ctx.fillStyle = "#04120a";
+    ctx.fillText(tag, rx + 4, ry - 4); ctx.restore();
+  }
+}
+const live = document.getElementById("live");
+const liveBoxes = document.getElementById("liveBoxes");
+const qimg = document.getElementById("qimg");
+const qBoxes = document.getElementById("qBoxes");
+let lastLiveBoxes = [];
+const es = new EventSource("/events");
+es.addEventListener("detections", e => {
+  lastLiveBoxes = JSON.parse(e.data).boxes;
+  drawBoxes(liveBoxes, live, lastLiveBoxes);
+});
+es.addEventListener("query_frame", e => {
+  const d = JSON.parse(e.data);
+  if (d.jpeg_b64) qimg.src = "data:image/jpeg;base64," + d.jpeg_b64;
+  qimg.onload = () => drawBoxes(qBoxes, qimg, d.boxes);
+});
+es.addEventListener("heard", e => {
+  document.getElementById("heard").textContent = "Heard: " + JSON.parse(e.data).text;
+  document.getElementById("reply").textContent = "";
+});
+es.addEventListener("reply", e => {
+  document.getElementById("reply").textContent = "Reply: " + JSON.parse(e.data).text;
+});
+window.addEventListener("resize", () => drawBoxes(liveBoxes, live, lastLiveBoxes));
+// Attach the never-ending MJPEG stream only after the page has finished
+// loading, so the browser fires `load` and does not spin forever.
+window.addEventListener("load", () => { live.src = "/live.mjpeg"; });
+</script>
+</body>
+</html>
