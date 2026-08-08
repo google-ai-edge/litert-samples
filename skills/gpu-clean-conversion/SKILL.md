@@ -47,7 +47,10 @@ the directory:
 | `TRANSPOSE_CONV` rejected | Version skew, not a missing op. `ZeroStuffConvT1d` / `ZeroStuffConvT2d` — zero-stuff plus a plain conv, exact to ~1e-7 |
 | `SELECT` / `SELECT_V2` | `PReLU`, `ELU`, in-place index assignment, and `torch.where` masking. Replace with arithmetic: `x*(1-m) + v*m` |
 | `BROADCAST_TO` | An outer product or `.expand` on compile-time constants that did not fold. Bake the result as a constant at its target shape |
-| Compiles, runs, output is wrong or NaN | The fp16 reduction family. `patch_safe_layernorm`, `patch_rmsnorm`, `patch_instance_norm`, `hierarchical_mean`. Two caveats worth knowing before you apply them: `patch_safe_layernorm`'s default mode is not bit-faithful to stock LayerNorm (use `scale="adaptive"` when you need that), and `hierarchical_mean` is exact only for power-of-two spatial dims |
+| Masked attention wrong only on device: token 0 bit-exact, every later token wrong | Broadcast `ADD` whose LHS is a `BATCH_MATMUL` result (the `scores + mask[1,1,S,S]` idiom) silently miscomputed on older runtimes (fixed in newer; head-axis size-1 broadcast only). The signature mimics broken RoPE — tap the rope output before blaming it. Rewrites: pre-expand the mask to `[1,H,S,S]`, or materialize the BMM as a second output |
+| `NHWC node rewriter not found: amax` | `x.amax(...)`/`x.max(dim)` in stable-softmax, adaptive norms, qk-norm. Rewrite channel reduce-max as `max_pool2d(x.reshape(N,1,C,H*W), kernel=(C,1))` — numerically identical — or drop the norm to 3D |
+| `Lowering not found: aten._fft_r2c` / `aten.complex` | `torch.stft`/`istft` and complex views have no lowering (fails before any GPU check). A DFT is a fixed linear map: windowed-DFT as `Conv1d` with the cos/sin basis baked into kernels (stride = hop), iSTFT as inverse-DFT matmul + overlap-add via zero-stuffed conv-transpose — exact. Model-selection corollary: prefer time-domain vocoder branches over iSTFT-based ones. ⚠ Library STFT-as-conv stacks (torchlibrosa-style) have **numerically mis-converted** (corr 0.83) while the op check looks clean — verify the spectrogram numerically or compute log-mel host-side |
+| Compiles, runs, output is wrong or NaN | The fp16 reduction family — and the trigger is the **fp16 accumulator passing 65504**, so a plain single-axis mean/sum over enough elements overflows just like variance does. `patch_safe_layernorm`, `patch_rmsnorm`, `patch_instance_norm`, `hierarchical_mean`. Caveats: at extreme magnitudes (\|x\| in the thousands) even the adaptive safe-LN form overflows when it reconstructs the large variance — the robust form stays entirely in the down-scaled domain (`xs = x/S`, normalize `xs`, never multiply the variance back by `S²`); `hierarchical_mean` is exact only for power-of-two spatial dims (for arbitrary dims, cascade `/2` avg-pools with `ceil_mode` so each stage averages ≤~49 elements). Diagnostic split: **all-zero/all-blank output = an overflow in one block; a result that starts near-correct and degrades with depth = precision compounding**, which no overflow patch (and no fp32-precision flag) fixes |
 | Head outputs exactly zero | RMSNorm `Σx²` overflowed fp16 to `inf`. `patch_rmsnorm` |
 
 **4. Re-convert and re-verify.** Repeat 2–3 until the check passes.
@@ -76,6 +79,18 @@ usually a reduction, not the op you suspect.
 - **A silent CPU fallback looks like success.** If the GPU output is
   bit-identical to CPU fp32, it probably did not run on the GPU. Genuine fp16
   execution drifts in the last digits.
+- **Reflect padding routes through `F.pad` even at `padding=0`** — every
+  conv with `padding_mode='reflect'` is affected, not just padded ones.
+  Slice+concat reflect pads are cheap for small pad widths.
+- **Channel-attention through a `Linear` confuses layout handling at
+  convert time** (`tfl.mul operands don't have broadcast-compatible
+  shapes`) — express channel attention as a 1×1 conv.
+- **`.chunk()` lowers to `SPLIT`** (GPU-rejected) — slice directly
+  instead; bit-exact.
+- **Constant folding can explode the file**: a frozen-param × constant
+  product materializes at full size per block (fp16 casting skips
+  non-weight constants, so it cannot rescue it). Feed one factor as a
+  runtime input — param × input never folds.
 
 ## Output layout
 

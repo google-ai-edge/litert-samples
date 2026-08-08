@@ -113,7 +113,8 @@ assigning a callable onto the module — the qwen3_tts talker recipe
 
 | What you see | Knob to turn |
 |---|---|
-| Runtime refuses to load: `unsupported scale value (0.000000) … for INT4 tensor` | Sparse weights produced all-zero blocks, whose min-max scale is 0. Patch each zero scale to the tensor's smallest nonzero scale — dequantization is unchanged because those blocks are all zero. `models/bonsai/bonsai_image_4b/converted/fix_zero_block_scales.py` |
+| Runtime refuses to load: `unsupported scale value (0.000000) … for INT4 tensor` | Sparse weights produced all-zero blocks, whose min-max scale is 0. Patch each zero scale to the tensor's smallest nonzero scale — dequantization is unchanged because those blocks are all zero. ⚠ Blockwise scales live in separate fp16 scale tensors, **not** `QuantizationParameters.scale` — patching the latter via the flatbuffer object API succeeds silently and changes nothing; edit the scale tensor's buffer directly. `models/bonsai/bonsai_image_4b/converted/fix_zero_block_scales.py` |
+| Dynamic-range int8 collapses a conv net outright (near-zero output correlation, every input misclassified) while the file loads and runs fine | Activation-quantization sensitivity — squeeze-excite and SiLU-family conv nets are the known class. **Weight-only int8 at the same size is typically near-lossless on the same model.** This collapse has shipped inside published artifacts, so parity-check any dynamic-int8 model you did not gate yourself before building on it |
 | Decoder is coherent for a while, then degenerates | Channelwise → `BLOCKWISE_32`; `MIN_MAX_UNIFORM_QUANT` → `OCTAV` |
 | Dynamic-range lost fidelity (prompt conditioning, embeddings) | Weight-only at the same bits |
 | int4 fails the task gate at block-128 | Block-32. Data-free block-128 can collapse outright on small models |
@@ -138,7 +139,13 @@ quality row rather than forcing it; int4 becomes a speed reference.
 - **Check whether the container is exact.** Ternary weights land in int4
   blockwise as exactly {-7, 0, +7} — zero rounding error. When the weight
   distribution matches the container, parity is free; verify it rather
-  than budgeting for loss that isn't there.
+  than budgeting for loss that isn't there. For exact-container cases use
+  **min-max, not OCTAV** — OCTAV's clipping optimization can move a grid
+  that min-max reproduces exactly.
+- **int2 is a container without a consumer** (as of 2026-08): the schema
+  type and the blockwise packer exist (2.125 bits/weight at block-128),
+  but the CPU runtime refuses the tensor type at prepare — a hard load
+  failure, not degradation. Don't spend time there until a kernel ships.
 - **Auxiliary tables cast to fp16 need the same discipline.** Casting
   host-side embedding/projection tables halves them; verify generated
   outputs are unchanged before shipping (qwen3_tts did, and it held).
