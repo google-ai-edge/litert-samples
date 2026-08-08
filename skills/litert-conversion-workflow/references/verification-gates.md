@@ -4,6 +4,30 @@ Run them in this order; each catches what the previous one cannot. The
 recurring lesson: **every gate here has been passed by a broken model** —
 except the combination.
 
+## 0. The gate harness: the engine's Python API
+
+The `litert-lm` CLI is single-prompt and has no output-token cap — two of
+the gates below (the length sweep and multi-turn) need the Python API
+that ships in the same package:
+
+```python
+import litert_lm
+engine = litert_lm.Engine("model.litertlm")          # backend selectable
+conv = engine.create_conversation()                   # fresh state
+r = conv.send_message("hello", max_output_tokens=8)   # greedy via sampler config
+text = r["content"][0]["text"]                        # NOT r["text"] — note the shape
+ids = engine.tokenize(conv.render_message_to_string("hello"))  # templated length
+```
+
+Two rules before reading any harness result:
+
+- **Prove the harness on a known-good case first.** A wrong response key
+  (`r["text"]`) returns "" at every length — byte-identical to the
+  corruption signature the sweep hunts. The "never diagnose without a
+  control" rule applies to your harness, not just the model.
+- Run structure gates on **CPU first** (isolates the graph), then repeat
+  on the backend you ship.
+
 ## 1. The 8-question floor gate
 
 Eight fixed, unambiguously checkable questions through the engine's own
@@ -37,11 +61,14 @@ for label, q, pat in QUESTIONS:
     ok += good
     print("[ok]" if good else "[NG]", label, "|", t[:70].replace("\n", " "))
 print(f"{ok}/8")
+json.dump({"correct": ok, "of": 8, "passed": ok >= 6}, open(f"gate8q_{sys.argv[2]}.json", "w"))
 ```
 
+(Adjust the `litert-lm` path to your venv's `bin/` if it is not on PATH.)
 Pass bar: ≥ 6/8 correct **and** zero degenerate answers, on CPU **and**
 on the backend you ship. Run each question separately — a reasoning model
-burns a shared budget thinking and false-fails later questions.
+burns a shared budget thinking and false-fails later questions. Keep the
+JSON — it is the machine-readable report the publish gate (§6) consumes.
 
 **The gate is a floor, never a parity verdict.** On record: 8/8 with a
 −14-point benchmark loss; 6/8 with a 1% benchmark (total collapse). It
@@ -54,12 +81,17 @@ published model of similar size.
 A benchmark the model family is actually used for (GSM8K-style for
 general/reasoning models), **n ≥ 100** (smaller n produced wildly wrong
 rankings), **identical prompt + extraction on both sides** so quantization
-is the only variable. Source model (bf16, eager) is the baseline; ship
-bar is "within a few points". Reasoning models: max-tokens ≥ 2048 — at
-512 an int4 that is actually fine looks degraded because `<think>` never
-closes. A broken eval undermeasures *everyone* — if the baseline scores
-far below the model's reported numbers, fix the harness before reading
-any comparison.
+is the only variable. Source model, eager, is the baseline; ship bar is
+"within a few points". **Run the reference in fp32 on Apple-Silicon MPS**
+— bf16-on-MPS makes one-step arithmetic errors that fp32 recovers, and a
+quantized engine "beating" a broken baseline by several points makes the
+ship bar meaningless. The rule generalizes: **if the quantized model
+beats the baseline, suspect the baseline** (precision, backend, harness)
+before celebrating. Reasoning models: max-tokens ≥ 2048 — at 512 an int4
+that is actually fine looks degraded because `<think>` never closes. A
+broken eval undermeasures *everyone* — if the baseline scores far below
+the model's reported numbers, fix the harness before reading any
+comparison.
 
 For deeper isolation, teacher-forced logit parity with **controls**:
 torch-fp32 (reference), torch-bf16 (precision floor), and a known-good
@@ -80,12 +112,25 @@ state-carrying models corrupt at **specific templated prompt lengths**
 while being perfect at others (observed: BAD exactly at lengths
 {18–21, 40}; another model only at {33–37}). Sweep it:
 
-- Instruct: "Reply with exactly: BANANA", padded with filler words so the
-  chat-templated total length hits every value in 12..60 (extend to 200
-  sampled for ship).
-- Greedy, ≤ 8 output tokens; PASS = reply starts with the literal at
-  **every** length. Empty or junk at a length = prefill state corruption
-  at that chunk plan.
+- Prompt shape: **filler first, instruction last** — e.g.
+  `"word word … word Output only the word BANANA."` — so the instruction
+  stays adjacent to the generation prompt at every length. Measure the
+  templated length with
+  `len(engine.tokenize(conv.render_message_to_string(prompt)))` (+1 if
+  the bundle declares a start token — check peek) and grow the filler
+  until each target length is hit.
+- **Validate compliance before sweeping**: run the instruction at 3–4
+  spot lengths first. Models differ in which phrasing they obey greedily
+  — a refusal ("I don't understand…") at *every* length is the model
+  disliking your prompt, and it is byte-identical to a total-corruption
+  reading. If the spot check refuses, change the phrasing, not the
+  verdict.
+- Greedy, ≤ 8 output tokens, fresh conversation per length; PASS = reply
+  starts with the literal at **every reachable** length. (The shortest
+  lengths can be unreachable — template overhead plus the shortest
+  compliant instruction has a floor, and token merges can skip a value.
+  Record them as unreachable, not failed.) Empty or junk at a length =
+  prefill state corruption at that chunk plan.
 
 **For state-carrying models run the sweep hermetically** — a fresh engine
 per length. Conversations sharing one engine can interact through prefix
@@ -97,8 +142,9 @@ as a separate probe so you know both behaviors before shipping.
 
 ## 4. Multi-turn gate
 
-Three turns minimum through the conversation API: a fact in turn 1
-recalled in turn 3, plus arithmetic mid-way. Single-turn evals
+Three turns minimum through the conversation API (§0 — one
+`create_conversation()`, sequential `send_message` calls): a fact in
+turn 1 recalled in turn 3, plus arithmetic mid-way. Single-turn evals
 structurally cannot catch the two multi-turn killers: the template
 prefix contract (`template-tokenizer-traps.md` §Multi-turn — turn 2 dies
 or silently rewinds) and running-state carryover bugs.
@@ -119,7 +165,10 @@ or silently rewinds) and running-state carryover bugs.
   produced 2× phantom regressions that survived into analysis);
   `--max-num-tokens` is a **total** budget — prompt + generation — so a
   short budget truncates and masquerades as an early-stop bug; never
-  quote a first-run number (shader compilation).
+  quote a first-run number (shader compilation). The default
+  `--cache disk` silently writes delegate cache files up to ~2× model
+  size next to the bundle **and** warms later init-time numbers — use
+  `--cache no` for gating, and clean the caches up either way.
 
 ## 6. Publish, behind a mechanical gate
 

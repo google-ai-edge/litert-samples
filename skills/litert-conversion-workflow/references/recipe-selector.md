@@ -40,6 +40,9 @@ sys.argv = ["litert-torch", "export_hf",
 sys.exit(main())
 ```
 
+(`--model`/`--output_dir` are positional in some CLI versions; the flag
+syntax above works on both.)
+
 - **Prefill ladder** `1..1024`: the engine picks tight chunks per prompt;
   a sparse ladder (only large signatures) forces padded chunks — a
   quality hazard for state-carrying models and a TTFT cost for all.

@@ -100,12 +100,14 @@ must be append-only extensions of the real stream.
 
 ## Stop tokens
 
-- Declare **every** turn-end token, not just `config.json`'s
-  `eos_token_id`. ChatML finetunes commonly stop on `<|im_end|>` while
-  eos is `<|endoftext|>` — declaring only eos makes the literal
-  `<|im_end|>` text leak into every reply. Check
-  `generation_config.eos_token_id` (often a list) and the template's
-  actual turn suffix; declare the union.
+- The bundle must declare **every** turn-end token, not just
+  `config.json`'s `eos_token_id`. ChatML finetunes commonly stop on
+  `<|im_end|>` while eos is `<|endoftext|>` — declaring only eos makes
+  the literal `<|im_end|>` text leak into every reply. Current
+  litert-torch exporters usually get this right by reading
+  `generation_config.eos_token_id` (often a list) — so **verify via
+  peek first, and intervene only if the union is missing**. The union =
+  `generation_config.eos_token_id` ∪ the template's actual turn suffix.
 - Metadata stop tokens can be token **ids** or literal **strings**;
   string stops catch a model that spells a stop marker in text form that
   never tokenizes to the stop id.
@@ -129,4 +131,7 @@ must be append-only extensions of the real stream.
 
 BOS convention lives in `recipe-selector.md` §Start token — wrong BOS is
 a metadata bug that looks exactly like a quality problem, and small
-models are the ones it flips.
+models are the ones it flips. Check what the exporter actually shipped
+before planning a repair: no `start_token` block in the peek output (and
+a None BOS from the engine API) means the bundle already matches a
+no-BOS template.
