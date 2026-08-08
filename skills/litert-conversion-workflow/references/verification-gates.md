@@ -182,7 +182,9 @@ or silently rewinds) and running-state carryover bugs.
   quote a first-run number (shader compilation). The default
   `--cache disk` silently writes delegate cache files up to ~2× model
   size next to the bundle **and** warms later init-time numbers — use
-  `--cache no` for gating, and clean the caches up either way.
+  `--cache no` for gating, and clean the caches up either way. CPU
+  (XNNPACK) caches accumulate beside models too — a gating campaign has
+  quietly consumed ~8 GB of disk; they are regenerable, delete freely.
 
 ## 6. Publish, behind a mechanical gate
 

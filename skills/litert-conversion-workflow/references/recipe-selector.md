@@ -138,6 +138,12 @@ How those properties are obtained in practice (each failed silently once):
   removed) — re-verify any layer-type registration and mask patch per
   transformers version, and verify patched-vs-stock eager logits are
   **exactly** equal before trusting anything downstream.
+- **Decode-state contracts differ per family even within "hybrids"**:
+  one family mutates its conv state in-place inside the modeling
+  (functionalization carries it out), another expects the cache layer to
+  roll-and-return. The checklist above transfers between families; the
+  code does not — re-derive the contract from the modeling source each
+  time.
 
 **Quantization house rule for conv-bearing hybrids**: quantize linears +
 embedding only (int8 or int4-blockwise); conv/scan layers stay float —
