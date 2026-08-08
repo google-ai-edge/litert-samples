@@ -23,11 +23,37 @@ too many arguments            (tojson(ensure_ascii=False) vs the built-in filter
 A template can also crash **only on message two**: assistant-history
 branches (reasoning re-render logic) execute for the first time when a
 completed assistant turn enters the history. Single-turn tests cannot
-catch this — the multi-turn gate exists for it.
+catch this — the multi-turn gate exists for it. The repair pattern for a
+crashing history branch in a non-thinking ship: replace the whole
+assistant-history branch with a plain verbatim emit of the turn.
+
+Three sharper facts about the render environment:
+
+- **The `| split` *filter* form works where the `.split()` *method*
+  crashes** — minijinja has the filter, jinja2 does not; method-to-filter
+  rewrites are the safe direction.
+- ⭐ **The pip wheel and an OSS source build of the same runtime version
+  render differently** — a template that renders on the wheel has thrown
+  `unknown method` on a source build. "It renders in my venv" is not
+  evidence it renders in a shipped app; only the minimal-template route
+  is build-independent.
+- Recent exporters ship an **experimental jinja→minijinja transpiler**
+  flag. It rewrites some string methods to filters but not `.get()` /
+  `.startswith()` — and **on any exception it returns the template
+  unchanged**, so enabling it can look like a fix and silently not be
+  one. Don't substitute it for the minimal template.
 
 Also real jinja semantics, not a runtime bug: `{% set x = x ~ ... %}`
 inside a `for` loop does not escape the loop — templates that accumulate
 tool-call arguments that way silently emit empty arguments on re-render.
+
+Exporter packaging behaviors worth knowing (recent litert-torch): a
+`thought` channel is auto-declared when the packed template contains
+`<think>`; stop tokens get punctuation-prefix expansion (a SentencePiece
+greedy-merge guard); `sampler_top_k/top_p/temperature` export args bake a
+sampler config (`top_k=1` = greedy); `suppress_tokens` is pulled from
+`generation_config`. Check the peek output rather than assuming any of
+these fired.
 
 ## The standing defense: embed no Jinja at all
 
@@ -94,9 +120,13 @@ must be append-only extensions of the real stream.
   Fix: append every added token as a `USER_DEFINED` piece **at its exact
   id**, pad with `UNUSED` pieces up to the model's embedding
   `vocab_size`. Test by encoding `<think>` and asserting the id. This
-  bites *any* model whose specials sit beyond the base vocab — also as a
-  missing stop: `<|im_end|>` absent from the SP model means the stop
-  never fires and generation runs forever.
+  bites models whose specials sit **beyond** the base vocab (typical for
+  Llama/Mistral-based finetunes that append ChatML or `<think>` tokens)
+  — also as a missing stop: `<|im_end|>` absent from the SP model means
+  the stop never fires. It is a **no-op for the Qwen family**, whose
+  specials live inside the base vocab — check
+  `added_tokens_decoder` ids against the base vocab size before planning
+  the patch.
 
 ## Stop tokens
 

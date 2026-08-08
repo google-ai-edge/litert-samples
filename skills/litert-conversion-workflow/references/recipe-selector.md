@@ -108,6 +108,37 @@ meaningful — each has silently failed in practice:
 - **Chunked-prefill continuation**: multi-chunk prefill must compose —
   trace the state-continuation branch for prefill signatures too.
 
+How those properties are obtained in practice (each failed silently once):
+
+- **Decode-state continuity comes from tracing in decode mode**: a flag on
+  the exportable module makes the cache layer report
+  `has_previous_state` truthy so the modeling traces its seq==1
+  precomputed branch, plus roll-and-return semantics for the conv-state
+  update. ⭐ The flag must ride the **pytree flatten/unflatten context**
+  — tracing rebuilds cache layers, and a flag carried anywhere else is
+  dropped, producing an export **byte-identical** to the non-decode one
+  (you will diff two files and see nothing).
+- ⭐ **The `prefill_1` signature takes the seq==1 branch**, where a plain
+  `copy_` conv-state update silently **broadcasts** `[B,dim,1]` over the
+  K-wide buffer and destroys the state. Use one unified
+  `cat(old, x)[..., -K:]` expression across all signatures.
+- **The prefill ladder does not fix pad poisoning.** The engine's chunk
+  planner is "cautious greedy": it runs the remainder chunk **partially
+  filled** (e.g. 256 real tokens through a 512 signature), so only
+  prompt lengths that exactly hit a signature are pad-free — the pad
+  guards are mandatory, the ladder only narrows exposure. Magnitude when
+  missed: a short-conv model shipped with pad-poisoned prefill produced
+  one junk first-token per reply and silently cost ~22 GSM8K points —
+  no crash, nothing visibly wrong.
+- **Re-check the graph after adding guards**: a mask-based guard
+  (`mask.sum()`) can itself introduce **int64** ops that kill the GPU
+  delegate. After any masking patch: (a) no GATHER_ND, (b) no int64.
+- **transformers minors move the state contract** (layer-type strings
+  renamed, states became one-element containers, private mask hooks
+  removed) — re-verify any layer-type registration and mask patch per
+  transformers version, and verify patched-vs-stock eager logits are
+  **exactly** equal before trusting anything downstream.
+
 **Quantization house rule for conv-bearing hybrids**: quantize linears +
 embedding only (int8 or int4-blockwise); conv/scan layers stay float —
 whole-graph int8 has produced empty output, and export-time conv-int8 has
@@ -133,16 +164,31 @@ are the LLM-specific facts that override intuition:
   GSM8K from identical weights).
 - **int4 must be blockwise.** Channelwise int4 collapses decoders (0%
   GSM8K with a passing smoke gate, degeneration over length). Block-32
-  for quality ≤ ~3B; block-128 for ~4B (fits the iOS section limit,
-  lighter dequant). Both directions exist: one 3B collapses at
-  block-128 (90→64%) while one 4B corrupts at block-32 on a phone GPU —
-  when a model underperforms at one granularity, try the other before
-  giving up.
+  for quality ≤ ~3B; block-128 for ~4B (fits the iOS section budget,
+  lighter dequant). Two overrides: **math/reasoning models want block-32
+  even at 3–4B** (one 4B reasoner: b32 −8 vs b128 −15 GSM8K points), and
+  on **Apple GPU block-32 is also the faster kernel** (see the backend
+  walls). Both failure directions exist — one 3B collapses at block-128
+  (90→64%) while one 4B corrupts at block-32 on a phone GPU — so when a
+  model underperforms at one granularity, try the other before giving
+  up.
 - **OCTAV (data-free optimal clipping) over min-max** for int4 weights;
-  embeddings stay int8 in every int4 recipe.
+  embeddings stay int8 in every int4 recipe. **Exception: ternary
+  checkpoints use min-max, never OCTAV** — min-max lands the {-1,0,+1}
+  grid exactly; OCTAV's clipping can move it.
 - **Ternary checkpoints are a free lunch**: {-1,0,+1}-scaled weights land
-  exactly on the int4 blockwise grid — zero rounding decisions, verify
-  the roundtrip rather than budgeting for loss.
+  exactly on the int4 blockwise grid (with min-max, above) — zero
+  rounding decisions, verify the roundtrip rather than budgeting for
+  loss.
+- **The int4-fragile family is "deep-narrow"**, not "small": deep-narrow
+  decoders with activation multipliers have lost 14–28 points data-free
+  at every granularity while shallow-wide peers of the same size ship at
+  parity. When a family scans fragile-diffuse, prefer a shallow-wide
+  alternative over recipe iteration.
+- **Sub-0.5B decoders: fp16, not int**. At ~0.3B, int4 and even dynamic
+  int8 have corrupted task output where fp16 float-casting was
+  bit-faithful — below half a billion parameters the headroom just
+  isn't there.
 - **A calibrated artifact's score may be unreachable data-free.** If a
   published int4 of the same model scores higher than your data-free
   int4 rebuild, suspect a calibrated pass, not your pipeline — int8

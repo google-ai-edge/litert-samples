@@ -76,6 +76,12 @@ catches degeneration, tokenizer garbage, template death — it cannot rank
 recipes. Calibrate the bar by running the same gate on an official
 published model of similar size.
 
+One known false positive in `degenerate()`: legitimately repetitive text
+(a quoted verse restated) trips the top-word ratio. If a flagged answer
+is otherwise correct, require a co-occurring diversity collapse (shrinking
+vocabulary over the reply) before counting it degenerate — repetition
+alone is not collapse.
+
 ## 2. Task parity vs the source model
 
 A benchmark the model family is actually used for (GSM8K-style for
@@ -97,6 +103,14 @@ For deeper isolation, teacher-forced logit parity with **controls**:
 torch-fp32 (reference), torch-bf16 (precision floor), and a known-good
 4-bit runtime of the same model if one exists — "our int4 tracks the
 control 4-bit" separates conversion bugs from int4 physics.
+
+⭐ **A parity check against a broken reference is a tautology and reads
+as a PASS.** Twice on record: a conversion scored correlation 1.0
+against a reference whose rotary buffer had silently loaded as zeros —
+both sides shared the same broken load path, so agreement proved
+nothing. The referee must come from a **different implementation path**
+(a different transformers pin, the vendor's own harness, a native port)
+— a second copy of your own loader is not a control.
 
 **Hybrids: per-position parity is the decode-state diagnostic.** Drive
 the raw `decode` signature 8 steps, feeding states forward, and compare
@@ -206,3 +220,18 @@ margin too thin to ship", which no amount of recipe iteration would have
 found. Engine-vs-graph divergence has the same rule: reproduce the
 engine's exact token stream (including its start token) on the raw graph
 before blaming either side.
+
+Two refinements from cases where the first diagnosis was wrong:
+
+- **Packaging masquerades as quantization.** A "quantization jitter"
+  verdict was overturned by this ladder: device failure → reproduces on
+  desktop CLI (not the device) → source model answers everything (not
+  the model) → long-context recall intact (not state) → **prepending the
+  bundle's start token to the source model reproduced the failure
+  verbatim** (the packaging). Walk the ladder before touching the
+  recipe; metadata bugs flip small models hardest.
+- **Ship an fp16 variant as the control for int-quant anomalies.** A
+  length-band failure that vanishes on the fp16 variant of the same
+  bundle is quantization-noise × chunk-plan interaction — document it as
+  a known limitation; a failure that persists at fp16 is the graph or
+  the engine, and no recipe will fix it.
