@@ -1,6 +1,6 @@
 ---
 name: litert-conversion-workflow
-description: Convert a Hugging Face LLM checkpoint into a .litertlm bundle that runs on the LiteRT-LM runtime with verified quality - classify the architecture against known runtime walls, pick the recipe family, export, quantize, gate the result against the source model, and publish. Use when converting a new LLM to LiteRT-LM, when a converted bundle crashes on the first message or dies at engine creation, when a quantized model answers worse than its source, or when deciding whether a model is convertible at all.
+description: Convert a Hugging Face LLM or vision-language model checkpoint into a .litertlm bundle that runs on the LiteRT-LM runtime with verified quality - classify the architecture against known runtime walls, pick the recipe family (dense, reasoning, hybrid SSM, VLM), export, quantize, gate the result against the source model, and publish. Use when converting a new LLM or VLM to LiteRT-LM, when a converted bundle crashes on the first message or dies at engine creation, when a quantized model answers worse than its source, or when deciding whether a model is convertible at all.
 ---
 
 # LiteRT-LM conversion workflow
@@ -19,11 +19,13 @@ die at engine creation; an engine that generates can be quantization
 garbage; a model that answers 8/8 single-turn can crash on message two.
 The gates exist because every one of these has happened.
 
-Scope: text-generation LLMs producing a `.litertlm` bundle consumed by the
-LiteRT-LM engine (`pip install litert-lm`). Vision/classic `.tflite`
-models go through the `gpu-clean-conversion` → `accuracy-safe-quantization`
-→ `on-device-verification` lane; this skill is the LM sibling and reuses
-their discipline where it applies.
+Scope: models producing a `.litertlm` bundle consumed by the LiteRT-LM
+engine (`pip install litert-lm`) — text LLMs and vision-language models
+(a VLM bundle is an LLM bundle plus two vision graphs;
+`references/vlm-conversion.md` covers the delta). Standalone/classic
+`.tflite` models go through the `gpu-clean-conversion` →
+`accuracy-safe-quantization` → `on-device-verification` lane; this skill
+is the LM sibling and reuses their discipline where it applies.
 
 ## Step 0: classify before you convert
 
@@ -108,6 +110,10 @@ publish checklist: `references/verification-gates.md` §Publish.
 | int4 passes the 8-question gate but tanks the benchmark | The floor-gate trap — gate is a floor, parity is the verdict (`verification-gates.md`) |
 | Quality flips only on one backend | 4-layer triage: torch → torch-control → engine-CPU → engine-GPU (`verification-gates.md` §Triage) |
 | GPU rejects the graph (`not fully delegated`, named op) | `architecture-walls.md` §Backend walls; classic-op rewrites live in `gpu-clean-conversion` |
+| Vision tower aborts export (`grid_thw`, `cu_seqlens` guards) | Dynamic-resolution tower — static rewrite (`vlm-conversion.md`) |
+| VLM bundle: "Failed to create conversation" | Structured prompt_templates missing from metadata (`vlm-conversion.md`) |
+| VLM engine creation fails on device naming GATHER_ND | Patch reorder in the vision tower — raster-order rewrite (`vlm-conversion.md`) |
+| VLM answers ignore the image / describe the wrong thing | Preprocessing contract (mean/std, NCHW) or embedder injection — gates in `vlm-conversion.md` |
 
 ## Watch for
 

@@ -227,12 +227,9 @@ the installed version's `recipe.py` presets before relying on it.)
 
 ## Adjacent lanes (same discipline, different bundles)
 
-- **VLMs**: vision encoder + adapter as separate graphs feeding an
-  embeddings-input decoder; dynamic-resolution towers need a
-  static-resolution rewrite (they don't `torch.export`), and mobile-GPU
-  rules (no GATHER_ND → raster-order + strided-slice merges) bind the
-  rewrite. Gate on end-to-end vision correlation vs the source, not the
-  text gate.
+- **VLMs**: a full recipe family of this skill — see
+  `vlm-conversion.md` (runtime contract, tower static-rewrite toolkit,
+  candidate selection, vision gates).
 - **Encoders** (embedding/classification): no KV cache — direct
   multi-signature trace, not `export_hf`; gate = bit-exact parity at
   valid positions + pad-content invariance (padded-vs-unpadded abs diff
