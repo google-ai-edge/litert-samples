@@ -172,8 +172,8 @@ def test_system_plus_prompt_under_cliff():
     # keep the worst case under the limit.
     #
     # We guard BOTH system prompts: STREAM_SYSTEM (live streaming path, 277 →
-    # 479 combined) AND the offline SYSTEM (the non-streaming reply() path, 281
-    # → 483 combined). The cliff is a prefill-length limit that applies to any
+    # 468 combined) AND the offline SYSTEM (the non-streaming reply() path, 281
+    # → 472 combined). The cliff is a prefill-length limit that applies to any
     # prompt, and the offline SYSTEM is the longer of the two — so it is the
     # tighter bound, and a regression there must fail this test too.
     from demo.serve import STREAM_SYSTEM
