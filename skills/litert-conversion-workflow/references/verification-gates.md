@@ -28,6 +28,45 @@ Two rules before reading any harness result:
 - Run structure gates on **CPU first** (isolates the graph), then repeat
   on the backend you ship.
 
+### Scoring: `Session`, not `Conversation` — and two silent traps
+
+Some models are read out by *scoring* candidate continuations rather than
+generating (classifiers, rerankers, anything whose answer is a choice
+between fixed strings). `Session.run_text_scoring` returns per-token
+**log-probabilities**, so `sigmoid(z_a − z_b)` is the softmax over two
+candidates. Both traps below return plausible numbers rather than errors,
+and the generate path is unaffected by either — a bundle can generate
+perfectly while every scored number is wrong.
+
+- **`run_text_scoring` advances the session.** Scoring a second candidate
+  after the same prefill returns a value that is neither candidate's true
+  score (measured on a known-good bundle: a candidate scoring −16.71 on a
+  fresh session read −12.93 when scored right after another). Give every
+  candidate **its own session and its own prefill**. It also refuses more
+  than one target per call (`INVALID_ARGUMENT: Target text size should
+  be 1`), so sharing the *prefill* is the tempting shortcut — and it is
+  the broken one.
+- **`create_session(apply_prompt_template=True)` prefills the user
+  *prefix* only** — no user suffix, no start token — so scoring happens
+  mid-prompt. Isolated by reproducing the value from hand-built strings:
+  the flag's output was bit-identical to `prefix + body` with the suffix
+  and BOS missing. On one bundle that read a margin of 1.060 where the
+  correct stream reads 8.087, and it inverted a clearly-correct item.
+
+```python
+prompt = "<s>" + user_prefix + body + user_suffix      # render it yourself
+z = []
+for cand in ("yes", "no"):
+    s = engine.create_session(apply_prompt_template=False)   # NOT True
+    s.run_prefill([prompt]); z.append(s.run_text_scoring([cand]).token_scores[0][0])
+    s.close()                                                # fresh session per candidate
+```
+
+Verify the render once: `engine.tokenize(pre_rendered)` should equal the
+source tokenizer's ids exactly, and the bundle's own
+`Conversation.render_message_to_string(body)` should equal that string
+minus the start token the engine prepends.
+
 ## 1. The 8-question floor gate
 
 Eight fixed, unambiguously checkable questions through the engine's own
@@ -76,6 +115,21 @@ catches degeneration, tokenizer garbage, template death — it cannot rank
 recipes. Calibrate the bar by running the same gate on an official
 published model of similar size.
 
+⭐ **Build the floor gate from items the model finds *hard*.** The
+questions above work because a general LLM's easy answers are still
+reachable when it degrades. A model whose easy cases are saturated gets no
+signal from them: on a binary classifier the unambiguous items carried
+±9 to ±14 logit margins, so **every** build scored 8/8 — including one
+whose scoring readout was silently wrong (§0). Before trusting a floor
+gate, check the margin distribution of its items; if nothing sits near the
+decision boundary, the gate cannot fail and is not a gate. Pick borderline
+items instead, and let the parity stage (§2) carry the verdict.
+
+Two more shapes that do not transfer: `degenerate()` is inert on
+single-token outputs, and a gate whose items are all one class ("all
+answers should be *no*") is passed by a model that has stopped reading the
+input entirely — include both classes.
+
 One known false positive in `degenerate()`: legitimately repetitive text
 (a quoted verse restated) trips the top-word ratio. If a flagged answer
 is otherwise correct, require a co-occurring diversity collapse (shrinking
@@ -103,6 +157,34 @@ For deeper isolation, teacher-forced logit parity with **controls**:
 torch-fp32 (reference), torch-bf16 (precision floor), and a known-good
 4-bit runtime of the same model if one exists — "our int4 tracks the
 control 4-bit" separates conversion bugs from int4 physics.
+
+**Choice-output models (classifiers, rerankers): three quantities, in
+increasing sensitivity.** A task score alone is too blunt when the answer
+is one of two fixed strings — a handful of borderline items moves it more
+than the recipe does.
+
+| quantity | what it tells you |
+|---|---|
+| task F1 / accuracy | the number the model is used for |
+| label agreement vs the reference | how often it makes the same call |
+| **correlation of the raw logit margin** | moves long before any label flips — the actual instrument |
+
+Run the precision-floor control (torch bf16 vs fp32) through the same
+three, because it sets the scale: on one 3B classifier that floor was
+r = 1.0000, mean |Δmargin| 0.063, and **2 label flips out of 200** — so a
+bundle showing 5 flips is at the noise level, not degraded. Print the
+regression of engine margin on reference margin too; "compressed" and
+"expanded" are both possible and eight floor items will not tell you which
+(they suggested compression where 200 items showed a slope of 1.16).
+
+⭐ **On these models the backend moves the score more than the bit width
+does.** Same 3B, same 200 items, mean |Δmargin| against the fp32
+reference: int8 CPU 1.414 · int4-b32 CPU 1.168 · int8 GPU 0.642 ·
+int4-b32 GPU 0.735 — and the same int8 weights across the two backends
+differ by 1.203, larger than int4-vs-int8 at a fixed backend. Thresholded
+verdicts are unaffected (agreement ≥ 97.5% everywhere), but any consumer
+who calibrates a threshold away from the default must calibrate it **on
+the backend they deploy on**, and the card should say so.
 
 ⭐ **A parity check against a broken reference is a tautology and reads
 as a PASS.** Twice on record: a conversion scored correlation 1.0
@@ -184,6 +266,23 @@ mitigation; note the context-growth caveat on the card.
   Gate on the actual target device before any public claim; the
   `on-device-verification` skill's recording discipline (device, runtime
   version, residency, speeds — or it didn't happen) applies unchanged.
+- **Getting the file onto the device is part of the gate.** Three failure
+  modes, each of which first read as a *model* defect:
+  - the transfer tool reports failure on stdout and still needs its **exit
+    code** checked — piping it through `tail` to trim the noise discards
+    the status, and a truncated copy then fails at engine creation with
+    `Failed to map section: Length (…) and offset (…) are too large for
+    file size (…)` → `TF_LITE_PREFILL_DECODE not found in the model`.
+    Read that as "the file on the device is not the file you built".
+  - **out-of-space surfaces as a transport error**: the first attempt died
+    as `NSPOSIXErrorDomain error 54` (socket closed) over a *wired*
+    connection; only the retries gave the honest `openat(2) POSIX error
+    code 28` (ENOSPC).
+  - `devicectl` has **no file-delete subcommand** — reclaiming space in an
+    app container means copying a 0-byte file over the target, which
+    leaves a placeholder rather than unlinking.
+  Verify the on-device size (or checksum) against the local artifact
+  before running anything.
 - Benchmark hygiene: serialize runs on an idle machine (parallel load has
   produced 2× phantom regressions that survived into analysis);
   `--max-num-tokens` is a **total** budget — prompt + generation — so a
@@ -194,6 +293,14 @@ mitigation; note the context-growth caveat on the card.
   `--cache no` for gating, and clean the caches up either way. CPU
   (XNNPACK) caches accumulate beside models too — a gating campaign has
   quietly consumed ~8 GB of disk; they are regenerable, delete freely.
+  **The Python API has no `--cache no`**: `litert_lm.Engine(...)` writes
+  beside the bundle by default, so pass `cache_dir` and sweep it. Measured
+  from gating one 3B in two variants: `*.xnnpack_cache` 3.44 GiB on CPU,
+  and on **Mac** GPU `*_mldrift_weight_cache.bin` + `*_mldrift_program_cache.bin`
+  at 3.43 GiB + 26 MiB (int8) and 1.71 GiB + 53 MiB (int4) — 5.2 GiB from
+  the GPU rows alone. The ML Drift weight cache is filed under *Android*
+  GPU in `architecture-walls.md`, but it appears on Mac too, so budget
+  "≈ 2× model size on first load" for any GPU backend, not just Android.
 
 ## 6. Publish, behind a mechanical gate
 

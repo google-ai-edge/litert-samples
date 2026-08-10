@@ -37,6 +37,16 @@ Consequences:
   - loading with **modalities=all fails a vision-only bundle** (the
     session eagerly tries to load an audio executor) — load as
     text+image / vision only.
+  - the **vision backend must be requested explicitly**
+    (`Engine(..., vision_backend=...)`). Without it `Engine(...)` succeeds
+    and `create_conversation()` succeeds; the *first image message* fails
+    with `INVALID_ARGUMENT: Vision executor should not be null, please
+    TryLoadingVisionExecutor() first`. A load-time smoke test will not
+    catch it.
+  - the **scoring path is text-only**: `Session.run_prefill` is typed
+    `list[str]`, so a choice-output VLM gets the generated verdict but no
+    continuous score for image documents. Say so on the card rather than
+    letting users discover it.
 
 ## Making the vision tower exportable
 
@@ -47,6 +57,12 @@ Dynamic-resolution towers (grid-based patching, varlen attention) do not
 |---|---|
 | Position/interpolation helpers iterating `grid_thw.tolist()` → `GuardOnDataDependentSymNode` | These helpers read precomputed values from kwargs when present — **precompute position ids / bilinear indices outside the graph** at the fixed resolution and pass them in |
 | `cu_seqlens` varlen splitting → `ConcretizationTypeError` (no kwargs escape) | **Specialize to single-image full attention** — one image = one attention chunk, so varlen collapses to plain attention |
+| The token expansion **interleaves marker tokens** into the image run (row separators, an end-of-image marker) that keep their ordinary *text* embeddings — so the image occupies more positions than the tower emits features, and the runtime's one-contiguous-block injection cannot express it | **Fold the markers into the adapter.** They are constant rows of the decoder's embedding table, so the adapter can emit the full block: reshape the projected features to `[rows, cols, D]`, `cat` a constant `[rows, 1, D]` marker column, flatten. No gather, no dynamic shape, and the runtime contract is satisfied unchanged. Verify against the source's own `inputs_embeds` for the same image (corr 1.0) |
+
+⚠ When a tower's position ids are computed as `h * max_width + w`,
+`max_width` is a property of the **trained** grid
+(`config.image_size // patch_size`), not of your new fixed grid. Substituting
+the new width silently re-indexes the rope table — output stays plausible.
 
 The static rewrite toolkit, all verified exact (feature corr ≈ 1.0
 against the eager tower):
@@ -111,13 +127,43 @@ architecture facts no vision work routes around:
 
 - **Vision end-to-end correlation** vs the source tower (fp32 ≈ 1.0,
   int8 ≈ 0.99) on real images, plus **zero FLEX/CUSTOM ops** in the
-  vision graphs.
+  vision graphs. ⭐ The 0.99 figure is a rule of thumb from
+  caption/VQA towers — **it is not a verdict, and on some models it is
+  not even the right instrument**. One pixtral tower quantized to
+  0.956–0.975 feature correlation on real images (well under the bar) and
+  moved the downstream decision margin by only 0.06–0.26 on margins of
+  ~6, flipping nothing. When correlation is below the bar, measure the
+  task effect before re-quantizing: the cheap version is fp32-vision
+  vs int8-vision embeddings through the *unmodified source decoder*, no
+  bundle assembly required.
 - **Preprocessing bit-identity**: the baked resize/normalize pipeline
   vs the model's own image processor (max diff at float-epsilon scale) —
   a wrong mean/std looks exactly like a bad conversion.
 - **Eager grounding check**: a handful of images through the assembled
   bundle — is the answer about *this* image? Catches embedder-injection
-  bugs that correlation can't see.
+  bugs that correlation can't see. Make it *discriminating*: ask a
+  question whose answer differs across your images ("does this image
+  contain visible text?" over a photo of a sign and a plain colour block).
+  A check where every image yields the same answer is also passed by a
+  bundle that has stopped reading the image.
+- ⭐ **Where the image sits in the prompt is load-bearing, and getting it
+  wrong looks like a conversion defect.** On a model whose prompt has
+  named fields, the image belongs in the field it *is* the value of. With
+  the image moved ahead of the instructions, benign images collapsed to
+  within ±1 of the decision boundary and one inverted outright; in the
+  correct slot the same images scored −5.4 to −6.7. No correlation gate
+  can see this.
+- ⭐ **Your reference may be silently rendering a different layout.**
+  Vendor chat templates reorder content blocks — one contains "when
+  content has exactly one image and one text block, put the image first",
+  so `apply_chat_template([text, image])` emits image-first while your
+  bundle puts it where you placed it. Measured consequence: the bundle
+  scored **F1 76.4 against a reference at 68.8**, i.e. the conversion
+  appeared to *improve* the model, because only the reference was
+  mis-prompted. Build both sides' prompts the same way (hand-render the
+  string and let the processor expand the image token in place), and
+  treat "the bundle beats its own source" as a harness bug until proven
+  otherwise — `verification-gates.md` §2 states the general rule.
 - **Task gate on device**: VQA/OCR spot set on the target device; the
   8-question text gate still runs (text-only prompts must not regress).
 - Multi-image and platform scope, as observed on released runtimes: the

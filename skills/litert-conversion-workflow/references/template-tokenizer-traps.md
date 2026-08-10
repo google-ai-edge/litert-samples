@@ -75,6 +75,34 @@ python -m litert_lm_builder.litertlm_peek_main --litertlm_file model.litertlm
 `prompt_templates`-only = safe. A `jinja_prompt_template` containing
 `.get(`/`.strip(`/`.split(` = the first-message crasher.
 
+## Fixed system prompts belong in the user prefix
+
+When a model's system prompt is part of its **inference contract** — the
+card states it verbatim and the model was trained against it — rather than
+something the caller tunes, ship it inside the user prefix instead of as a
+system slot:
+
+```
+user.prefix = "<sys-open>" + THE_FIXED_SYSTEM_PROMPT + "<sys-close>" + "<turn-open>"
+user.suffix = "<turn-close>"
+```
+
+The reason is API shape, not aesthetics: only the conversation path can
+carry a `Role.SYSTEM` message, while `Session.run_prefill` (the scoring
+entry point — `verification-gates.md` §0) takes plain strings. A separate
+system slot therefore makes the model's own reference prompt *unreachable
+from the API you actually classify with*, and every caller who forgets it
+silently gets a different model.
+
+Extraction handles this cleanly: a template that simply ignores the system
+role takes the exporter's "no system prompt" path, and the fixed text
+lands in the user prefix where it belongs. Verify with peek, then check
+that one rendered turn is byte-identical to the vendor template's render.
+
+Caveat to state on the card: a caller who *does* pass a system message
+will have it dropped. That is the right trade when the prompt is fixed by
+the model, and the wrong one when it is a real knob.
+
 ## Multi-turn: the prefix contract
 
 At each message the engine renders the history *without* a generation

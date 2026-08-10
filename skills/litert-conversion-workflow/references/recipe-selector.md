@@ -248,6 +248,23 @@ the installed version's `recipe.py` presets before relying on it.)
   multi-signature trace, not `export_hf`; gate = bit-exact parity at
   valid positions + pad-content invariance (padded-vs-unpadded abs diff
   is reduction-order float noise; don't gate on it).
+- **Decoder-based classifiers** (safety/guard models, rerankers, judges):
+  these ride the dense lane unchanged — the export is ordinary — but they
+  are **not chat models**, and the gate stack has to be rebuilt around
+  that. The reply is one token chosen from a fixed pair, and the shipped
+  quantity is usually the softmax over those two logits.
+  - Read it out with `Session.run_text_scoring`, minding both traps in
+    `verification-gates.md` §0; the generate path gives the thresholded
+    verdict for free (one prefill) while the continuous score costs two.
+  - The 8-question floor gate saturates — use borderline items
+    (`verification-gates.md` §1) — and task parity becomes label
+    agreement + margin correlation (§2).
+  - If the model's system prompt is fixed by its own card rather than
+    user-tunable, **bake it into the user prefix** rather than shipping a
+    system slot (`template-tokenizer-traps.md` §Fixed system prompts).
+  - Budget the *whole* decision: `cache_length` matters because the
+    document is the prompt, while the usual decode-length tax does not
+    apply at all — one token out.
 - **Multi-graph TTS / audio**: LM talker + per-stage graphs + a host
   loop; the real quality gate is a task-level round-trip (ASR on the
   audio), not per-token match.

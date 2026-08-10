@@ -108,6 +108,9 @@ publish checklist: `references/verification-gates.md` §Publish.
 | Answers fine at some prompt lengths, garbage/empty at others | Prefill-padding state corruption — run the length sweep, `verification-gates.md` |
 | Message two fails or quality drops mid-conversation | Template prefix contract violated — `template-tokenizer-traps.md` §Multi-turn |
 | int4 passes the 8-question gate but tanks the benchmark | The floor-gate trap — gate is a floor, parity is the verdict (`verification-gates.md`) |
+| Every build scores 8/8 and the gate never discriminates | Floor items are saturated — rebuild the gate from borderline cases (`verification-gates.md` §1) |
+| The converted model *beats* its source | Suspect the harness, not the recipe: a mis-prompted or mis-rendered reference (`verification-gates.md` §2, `vlm-conversion.md` §Gates) |
+| Scored numbers look plausible but wrong; generation is fine | The scoring-API traps — session reuse and `apply_prompt_template=True` (`verification-gates.md` §0) |
 | Quality flips only on one backend | 4-layer triage: torch → torch-control → engine-CPU → engine-GPU (`verification-gates.md` §Triage) |
 | GPU rejects the graph (`not fully delegated`, named op) | `architecture-walls.md` §Backend walls; classic-op rewrites live in `gpu-clean-conversion` |
 | Vision tower aborts export (`grid_thw`, `cu_seqlens` guards) | Dynamic-resolution tower — static rewrite (`vlm-conversion.md`) |
