@@ -37,17 +37,30 @@ from emulator.detector import Detection, scene_changed
 from emulator.llm import build_prompt, split_into_phrases
 from emulator.timeline import Timeline
 
-# COCO classes worth naming to the robot. The rest go into the prompt
-# under a number — better that than lying with a wrong name.
-COCO_LABELS = {
-    0: "person", 1: "bicycle", 2: "car", 5: "bus", 14: "bird", 15: "cat",
-    16: "dog", 17: "horse", 39: "bottle", 41: "cup", 56: "chair",
-    62: "tv", 63: "laptop", 64: "mouse", 67: "phone", 73: "book",
-}
+# All 80 COCO classes yolox-tiny can emit, named for the robot. Names are kept
+# SHORT on purpose: the whole (system + user) prompt is held under a prefill-
+# cliff budget (~490 chars, see tests/test_llm.py), and the full COCO names
+# ("baseball glove", "traffic light", "dining table") would push the worst case
+# over it — so the long ones are abbreviated (glove, stoplight, table, ...). The
+# "objectN" fallback then only fires for an out-of-range index, which a valid
+# detection never has.
+COCO_NAMES = (
+    "person", "bicycle", "car", "motorbike", "airplane", "bus", "train",
+    "truck", "boat", "stoplight", "hydrant", "stop sign", "meter", "bench",
+    "bird", "cat", "dog", "horse", "sheep", "cow", "elephant", "bear", "zebra",
+    "giraffe", "backpack", "umbrella", "handbag", "tie", "suitcase", "frisbee",
+    "skis", "snowboard", "ball", "kite", "bat", "glove", "skate",
+    "surfboard", "racket", "bottle", "glass", "cup", "fork", "knife", "spoon",
+    "bowl", "banana", "apple", "sandwich", "orange", "broccoli", "carrot",
+    "hot dog", "pizza", "donut", "cake", "chair", "couch", "plant", "bed",
+    "table", "toilet", "tv", "laptop", "mouse", "remote", "keyboard", "phone",
+    "microwave", "oven", "toaster", "sink", "fridge", "book", "clock", "vase",
+    "scissors", "plushy", "drier", "brush",
+)
 
 
 def label_name(label: int) -> str:
-    return COCO_LABELS.get(label, f"object{label}")
+    return COCO_NAMES[label] if 0 <= label < len(COCO_NAMES) else f"object{label}"
 
 
 def gaze_target(detections: list[Detection]) -> tuple[float, float]:

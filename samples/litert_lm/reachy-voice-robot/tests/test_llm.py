@@ -164,15 +164,16 @@ def test_system_plus_prompt_under_cliff():
     # HARD BUDGET (prefill cliff): the SUM of system+user stays under
     # ~490 characters. The worst-case USER prompt is: max heard length
     # (HEARD_CHAR_LIMIT) + the MAX_OBJECTS_IN_PROMPT *longest* object labels.
-    # The longest label is NOT a named COCO class ("bicycle", 7 chars) but the
-    # numeric fallback for an unnamed class ("object79", 8 chars — label_name()
-    # in emulator/pipeline.py). Building the worst case from named labels only
-    # (the old version of this test) understated it at 468 and would not have
-    # caught a regression that pushed the real worst case over the cliff.
+    # Every COCO class is named, but with SHORT labels — the longest is
+    # "motorbike" (9 chars, label_name() in emulator/pipeline.py). That cap is
+    # the whole point of the budget: the full COCO names ("baseball glove", 14)
+    # would push the worst case over the cliff, so the long ones are abbreviated
+    # (glove, stoplight, table, ...). This test guards that the abbreviations
+    # keep the worst case under the limit.
     #
     # We guard BOTH system prompts: STREAM_SYSTEM (live streaming path, 277 →
-    # 475 combined) AND the offline SYSTEM (the non-streaming reply() path, 281
-    # → 479 combined). The cliff is a prefill-length limit that applies to any
+    # 479 combined) AND the offline SYSTEM (the non-streaming reply() path, 281
+    # → 483 combined). The cliff is a prefill-length limit that applies to any
     # prompt, and the offline SYSTEM is the longer of the two — so it is the
     # tighter bound, and a regression there must fail this test too.
     from demo.serve import STREAM_SYSTEM
