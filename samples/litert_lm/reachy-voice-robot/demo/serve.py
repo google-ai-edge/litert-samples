@@ -223,7 +223,7 @@ def stream_respond(payload, pipeline, frame_shape):
         detections = pipeline.detector.detect(frame)
         gaze = gaze_target(detections)
         # Detailed detections with confidence and box — so we can see WHAT
-        # exactly yolox found and how confidently (hallucination diagnostics).
+        # exactly the detector found and how confidently (hallucination diagnostics).
         # Same format that gpu_detect.py returns — reuse the shared converter
         # instead of rebuilding the list here.
         detail = detections_to_dicts(detections)

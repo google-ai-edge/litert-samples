@@ -52,8 +52,8 @@ the robot itself provides eyes, ears, and mouth.
 
 ![Data flow: the detector runs continuously on the GPU and streams to the dashboard; speech, reasoning and synthesis run on the CPU cores; a question reuses the latest detections so vision never blocks the turn.](docs/images/pipeline-diagram.png)
 
-1. **Continuously:** camera frames go to the Pi, where **`yolox-tiny`** detects objects on the
-   **GPU**; the boxes stream to a live web dashboard.
+1. **Continuously:** camera frames go to the Pi, where an **Ultralytics YOLO26** detector
+   (`yolo26n`) detects objects on the **GPU**; the boxes stream to a live web dashboard.
 2. **On an utterance:** the microphone audio + the latest GPU detections are sent (the frame is
    not re-sent — the scene is already current).
 3. **`moonshine-tiny`** transcribes the speech.
@@ -69,7 +69,7 @@ The pipeline is defined by four roles — vision, speech-to-text, reasoning, and
 each is swappable by name in one catalog (`emulator/models.py`). The defaults below were each
 chosen against measured alternatives on a Raspberry Pi; the constant trade is accuracy against
 latency and memory bandwidth, since the whole loop must run near-real-time on the CPU cores plus
-the GPU: `yolox-nano` was smaller but hallucinated (called hair a "dog"); Whisper computes a full
+the GPU: Whisper computes a full
 30 s window even for a one-second reply; smaller Gemmas gave the same wall-clock (decode is
 memory-bandwidth-bound).
 
@@ -77,7 +77,7 @@ Defaults (swap any one by editing its name in the catalog):
 
 | Stage | Model | Size | Runtime | Why |
 |---|---|---|---|---|
-| Vision | **yolox-tiny** | 10 MB | LiteRT · ML Drift (GPU) | accurate, no phantom classes; 286 ms/frame on the GPU |
+| Vision | **yolo26n** (Ultralytics YOLO26) | 10 MB | LiteRT · ML Drift (GPU) | exported with the raw head (`end2end=False`) so it runs fully on the V3D GPU; 385 ms/frame there |
 | Speech-to-text | **moonshine-tiny** | 105 MB | LiteRT | 5 s window matches an utterance (Whisper computes a full 30 s) |
 | Language model | **Gemma 4 E2B** | 2.5 GB | LiteRT-LM | most useful output per second (27.3 chars/s); fits 8 GB at ~2.1 GB RSS |
 | Synthesis | **Inflect-Nano-v2** | 8 MB | LiteRT | on LiteRT, bit-exact vs PyTorch, streams within a sentence |
@@ -111,10 +111,13 @@ the CPU) is roughly 2×. The reply keeps streaming after that first sentence —
 pip install -r requirements.txt      # or, with uv:  uv sync
 ```
 
-The vision, speech-to-text and synthesis model files are pulled from Hugging Face on first use.
-The **language model must be imported into LiteRT-LM once** (see step 2) — `litert-lm serve` only
-serves already-imported models. The GPU detector additionally needs a Mesa `v3dv` build with
-`V3D_WEBGPU_OVERRIDE` set; without it, skip the detector service (see step 2).
+The **speech-to-text** model auto-downloads from Hugging Face on first use. The **detector**
+(Ultralytics YOLO26) and the **synthesizer** (Inflect-Nano-v2) are local assets — their model
+files are produced/fetched once and placed under `assets/` (git-ignored): see
+`assets/yolo/README.md` for the detector and `assets/inflect/RUN.md` for the synthesizer. The
+**language model must be imported into LiteRT-LM once** (see step 2) — `litert-lm serve` only serves already-imported models. The GPU
+detector additionally needs a Mesa `v3dv` build with `V3D_WEBGPU_OVERRIDE` set; without it, skip
+the detector service (see step 2).
 
 ### 2. Run standalone on the robot's Pi
 

@@ -17,7 +17,7 @@
 
 The key decision is event-driven triggering. The language model costs ~1.2 s
 to the first token, so waking it on every frame is out of the question. The
-detector runs continuously (~220 ms per frame), but the heavy model only wakes
+detector runs continuously (a few hundred ms per frame), but the heavy model only wakes
 up when the set of objects in frame changed or the person said something.
 
 The reply is spoken phrase by phrase. The synthesizer is hidden behind a single
@@ -37,7 +37,7 @@ from emulator.detector import Detection, scene_changed
 from emulator.llm import build_prompt, split_into_phrases
 from emulator.timeline import Timeline
 
-# All 80 COCO classes yolox-tiny can emit, named for the robot. Names are kept
+# All 80 COCO classes the YOLO detector can emit, named for the robot. Names are kept
 # SHORT on purpose: the whole (system + user) prompt is held under a prefill-
 # cliff budget (~490 chars, see tests/test_llm.py), and the full COCO names
 # ("baseball glove", "traffic light", "dining table") would push the worst case

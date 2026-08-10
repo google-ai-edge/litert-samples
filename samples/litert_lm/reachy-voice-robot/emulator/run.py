@@ -52,7 +52,20 @@ from emulator.timeline import Timeline
 
 
 def _download(m: models.Model) -> Path:
-    """Local path to a Hugging Face model file (repo + file)."""
+    """Local path to a model file: a bundled asset if it ships in the repo
+    (``dir`` + ``file``), otherwise a Hugging Face download (``repo`` +
+    ``file``)."""
+    if m.dir is not None:
+        if m.file is None:
+            raise ValueError(
+                f"{m!r} is a bundled directory — load it via its own loader, "
+                "not _download")
+        path = m.dir / m.file
+        if not path.exists():
+            raise SystemExit(
+                f"bundled model not found: {path} — convert it per "
+                f"{m.dir}/README.md before running")
+        return path
     return Path(hf_hub_download(repo_id=m.repo, filename=m.file))
 
 
@@ -92,12 +105,11 @@ def build_synthesizer(kind: str = "inflect"):
 def build_pipeline(tokenizer_path: Path, skip_llm: bool,
                    tts: str) -> tuple[Pipeline, tuple[int, int, int]]:
     # Each stage's model is resolved by name from the catalog
-    # (emulator/models.py). Threshold 0.45 instead of 0.3: with a warmed-up
-    # camera there are almost no phantoms, but the higher threshold cuts off
-    # marginal false detections ("dog/horse/cat" that aren't there) — real
-    # objects come out of yolox with confidence 0.5+.
+    # (emulator/models.py). Threshold 0.3 — the same value the GPU detect
+    # service (demo/gpu_detect.py) uses, so the CPU fallback and the live GPU
+    # path agree on what counts as a detection.
     detector = Detector(_download(models.get(models.DETECTOR)),
-                        score_threshold=0.45)
+                        score_threshold=0.3)
 
     recognizer = Recognizer(
         _download(models.get(models.ASR)),

@@ -36,18 +36,63 @@ def test_model_rejects_illegal_states():
         models.Model(endpoint="http://x")                 # endpoint without model
     with pytest.raises(ValueError):
         models.Model(dir=Path("d"), endpoint="http://x", model="m")  # two kinds
+    with pytest.raises(ValueError):
+        models.Model(file="f.tflite")                     # bare file, no repo or dir
+    with pytest.raises(ValueError):
+        models.Model(dir=Path("d"), file="f", repo="r")   # stray repo on a bundled file
+
+
+def test_model_accepts_both_bundled_kinds():
+    # Both bundled kinds must construct: a directory (inflect) and a single
+    # file (the detector). A raise here would break the catalog at import.
+    models.Model(dir=Path("d"))                     # bundled directory
+    models.Model(dir=Path("d"), file="f.tflite")    # bundled single file
 
 
 def test_get_returns_the_named_model():
-    m = models.get("yolox-tiny")
-    assert m.repo == "litert-community/yolox-tiny-litert"
-    assert m.file == "yolox_tiny.tflite"
+    m = models.get("yolo26n")
+    assert m.dir is not None and m.file == "yolo26n.tflite"
+    assert m.repo is None, "the detector is bundled in the repo, not on HF"
 
 
 def test_get_unknown_name_raises_and_lists_known_names():
     with pytest.raises(KeyError) as exc:
         models.get("does-not-exist")
-    assert "yolox-tiny" in str(exc.value)
+    assert "yolo26n" in str(exc.value)
+
+
+def test_download_resolves_bundled_file_locally(tmp_path, monkeypatch):
+    # A bundled model (dir + file) resolves to its local path and must NOT hit
+    # Hugging Face — shipping the detector locally is the whole point.
+    from emulator import run
+    (tmp_path / "yolo26n.tflite").write_bytes(b"x")
+    monkeypatch.setattr(run, "hf_hub_download",
+                        lambda **k: pytest.fail("HF must not be called for a bundled model"))
+    m = models.Model(dir=tmp_path, file="yolo26n.tflite")
+    assert run._download(m) == tmp_path / "yolo26n.tflite"
+
+
+def test_download_missing_bundled_file_raises(tmp_path):
+    # A fresh checkout hasn't converted the model yet; the user must get an
+    # actionable error, not an opaque LiteRT load failure deeper down.
+    from emulator import run
+    m = models.Model(dir=tmp_path, file="absent.tflite")
+    with pytest.raises(SystemExit):
+        run._download(m)
+
+
+def test_download_hf_model_uses_hugging_face(tmp_path, monkeypatch):
+    from emulator import run
+    called = {}
+
+    def fake_hf(repo_id=None, filename=None):
+        called["repo_id"] = repo_id
+        return str(tmp_path / filename)
+
+    monkeypatch.setattr(run, "hf_hub_download", fake_hf)
+    m = models.Model(repo="litert-community/x", file="f.tflite")
+    assert run._download(m) == tmp_path / "f.tflite"
+    assert called["repo_id"] == "litert-community/x"
 
 
 def test_every_stage_default_resolves():
