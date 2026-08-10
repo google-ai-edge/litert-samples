@@ -410,3 +410,13 @@ def test_respond_stream_emits_terminal_error_event_on_mid_stream_failure():
     assert events[0]["type"] == "meta"
     assert events[-1]["type"] == "error"
     assert "message" in events[-1]
+
+
+def test_output_throughput():
+    from demo.serve import output_throughput
+    # 100 chars, one "word", over 5 s -> 20 chars/s, 12 words/min
+    assert output_throughput("x" * 100, 5.0) == (20.0, 12)
+    # 14 chars, 5 words, over 2 s -> 7 chars/s, 150 words/min
+    assert output_throughput("aa bb cc dd ee", 2.0) == (7.0, 150)
+    # a window too short to time carries no meaningful rate
+    assert output_throughput("hi", 0.05) == (None, None)

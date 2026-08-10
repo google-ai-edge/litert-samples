@@ -260,6 +260,9 @@ def _handle(frame, audio, endpoint, robot, stream=True,
             if done.get("first_sound_ms"):
                 print(f"  first sound: {done['first_sound_ms']:.0f} ms, "
                       f"total: {done.get('total_ms', 0):.0f} ms")
+            if done.get("chars_per_s"):
+                print(f"  output:  {done['chars_per_s']:.1f} chars/s "
+                      f"(~{done['words_per_min']} words/min)")
         return
     print("  Pi is thinking...")
     response = respond_once(frame, audio, 16000, endpoint)
@@ -310,6 +313,9 @@ def _handle_stream(frame_png, detections, audio, endpoint, robot, display,
         audio_guard=audio_guard)
     if done and done.get("first_sound_ms"):
         print(f"  first sound: {done['first_sound_ms']:.0f} ms")
+    if done and done.get("chars_per_s"):
+        print(f"  output:  {done['chars_per_s']:.1f} chars/s "
+              f"(~{done['words_per_min']} words/min)")
 
 
 def run_voice(args, endpoint) -> int:
