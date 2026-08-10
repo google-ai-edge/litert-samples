@@ -53,6 +53,9 @@ git lfs install
 # Navigate to your LiteRT submodule and pull the binary
 cd path/to/LiteRT
 git lfs pull
+
+# Copy the The Metal compiler plugin to the project directory
+cp path/to/LiteRT/litert/prebuilt/ios_arm64/libLiteRtMetalAccelerator.dylib path/to/samples/litert/image_segmentation/ios/
 ```
 
 ### 3. Building `CLiteRT.xcframework` from Source
@@ -63,6 +66,9 @@ cd path/to/LiteRT
 
 # Build the xcframework target for iOS (device and simulator slices)
 bazel build -c opt --config=ios_arm64 //litert/swift:CLiteRT
+
+# Extract the bundle
+unzip bazel-bin/litert/swift/CLiteRT.xcframework.zip -d bazel-bin/litert/swift/
 
 # Copy the compiled xcframework bundle to the project directory
 cp -R bazel-bin/litert/swift/CLiteRT.xcframework path/to/samples/litert/image_segmentation/ios/
@@ -102,6 +108,6 @@ LiteRtStatus status = LiteRtCreateEnvironment(1, env_options, &_env);
 
 ## Model Information
 * **Name**: `selfie_multiclass_256x256.tflite`
-* **Source**: Official MediaPipe Selfie Multiclass model hosted on [Kaggle Models](https://www.kaggle.com/models/google/mediapipe/tfLite/selfie-multiclass-256x256).
+* **Source**: Official MediaPipe Selfie Multiclass model hosted on [Google APIs](https://storage.googleapis.com/mediapipe-models/image_segmenter/selfie_multiclass_256x256/float32/latest/selfie_multiclass_256x256.tflite).
 * **Input**: `1 x 256 x 256 x 3` (normalized float32 values in `[-1.0, 1.0]`)
 * **Output**: `1 x 256 x 256 x 6` (float32 values representing probabilities across 6 target segmentation classes)
