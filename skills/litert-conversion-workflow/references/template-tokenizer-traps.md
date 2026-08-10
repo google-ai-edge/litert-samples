@@ -141,6 +141,11 @@ must be append-only extensions of the real stream.
 - Metadata stop tokens can be token **ids** or literal **strings**;
   string stops catch a model that spells a stop marker in text form that
   never tokenizes to the stop id.
+- Reusing a sibling model's metadata as the recipe carries the sibling's
+  **token ids**. Stop ids are per-tokenizer, not per-family: the same
+  `<|im_end|>` was id 7 in a 1.2B and 124900 in its 2.6B sibling.
+  Re-derive every id from the target model's tokenizer before packing —
+  peek only proves ids are present, not that they are the right ones.
 
 ## Thinking-model metadata
 

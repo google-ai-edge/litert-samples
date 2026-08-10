@@ -163,6 +163,15 @@ structurally cannot catch the two multi-turn killers: the template
 prefix contract (`template-tokenizer-traps.md` §Multi-turn — turn 2 dies
 or silently rewinds) and running-state carryover bugs.
 
+For thinking models, two more rules. Size the output budget so thinking
+turns **complete** — a turn capped mid-think leaves an unterminated
+assistant turn in the stream and derails every later turn, which reads
+exactly like state corruption. And expect the live stream to retain past
+turns' reasoning (renders append; history is not re-rendered stripped):
+a model trained on think-stripped history can degrade over turns. The
+enforced think-opener (`recipe-selector.md` §Reasoning) is the working
+mitigation; note the context-growth caveat on the card.
+
 ## 5. Backend and device gates
 
 - **Desktop GPU sieve** (fast): `litert-lm benchmark <model> --backend

@@ -70,6 +70,14 @@ prefix contract — `template-tokenizer-traps.md`). Evaluate at
 max-tokens ≥ 2048, or quantization damage is indistinguishable from
 truncated thinking.
 
+The think-opener in the generation prompt is quantization armor, not just
+etiquette: think-discipline is among the first abilities int4 degrades.
+With a bare `assistant\n` prompt one int4 build deliberated ~2,500 tokens
+of plain text on turn 2 without ever answering, while the same weights
+with the pre-filled opener answered tersely — and the pre-filled opener
+also routes the thought channel cleanly (with self-emitted markers, the
+closing marker can leak into the text channel).
+
 ## Hybrids (short-conv / Mamba2 / gated-delta linear attention)
 
 Runtime ≥ 0.15 executes these on CPU via the executor-metadata section
