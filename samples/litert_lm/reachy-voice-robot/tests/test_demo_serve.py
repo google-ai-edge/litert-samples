@@ -55,8 +55,8 @@ class FakePipeline:
 
 
 def test_png_to_frame_resizes_and_normalises():
-    frame = png_to_frame(make_png(64, 48), (416, 416, 3))
-    assert frame.shape == (416, 416, 3)
+    frame = png_to_frame(make_png(64, 48), (640, 640, 3))
+    assert frame.shape == (640, 640, 3)
     assert frame.dtype == np.float32
     assert 0.0 <= frame.min() and frame.max() <= 1.0
 
@@ -64,7 +64,7 @@ def test_png_to_frame_resizes_and_normalises():
 def test_handle_respond_runs_pipeline_and_builds_contract():
     pipe = FakePipeline()
     payload = encode_request(make_png(), np.zeros(80000, np.float32), 16000)
-    body = handle_respond(payload, pipe, frame_shape=(416, 416, 3))
+    body = handle_respond(payload, pipe, frame_shape=(640, 640, 3))
     got = decode_response(body)
     assert got.objects == ["person"]
     assert got.heard == "hello"
@@ -78,9 +78,9 @@ def test_handle_respond_runs_pipeline_and_builds_contract():
 def test_handle_respond_passes_correct_frame_shape():
     pipe = FakePipeline()
     payload = encode_request(make_png(100, 80), np.zeros(80000, np.float32), 16000)
-    handle_respond(payload, pipe, frame_shape=(416, 416, 3))
+    handle_respond(payload, pipe, frame_shape=(640, 640, 3))
     # The frame must reach the pipeline resized to the detector's input shape.
-    assert pipe.calls[0][0] == (416, 416, 3)
+    assert pipe.calls[0][0] == (640, 640, 3)
 
 
 class _Recognizer:
@@ -140,7 +140,7 @@ def test_stream_respond_uses_provided_detections():
     payload = encode_request(None, np.zeros(8000, np.float32), 16000,
                              detections=dets)
     events = list(stream_respond(payload, FakeStreamPipeline(),
-                                 frame_shape=(416, 416, 3)))
+                                 frame_shape=(640, 640, 3)))
     meta = next(e for e in events if e["type"] == "meta")
     assert meta["objects"] == ["cup"]
     assert meta["detections"] == dets
@@ -160,7 +160,7 @@ def test_stream_respond_empty_heard_stops_after_meta_without_llm():
     payload = encode_request(None, np.zeros(8000, np.float32), 16000,
                              detections=[])
     pipe = FakeStreamPipeline(llm=_NeverLlm(), heard="   ")
-    events = list(stream_respond(payload, pipe, frame_shape=(416, 416, 3)))
+    events = list(stream_respond(payload, pipe, frame_shape=(640, 640, 3)))
 
     kinds = [e["type"] for e in events]
     assert kinds == ["meta", "done"]
@@ -179,7 +179,7 @@ def test_stream_respond_emits_gesture_event_and_no_audio_on_tool_call():
                              detections=[])
     pipe = FakeStreamPipeline(llm=_GestureLlm("shake"),
                               heard="shake your head please")
-    events = list(stream_respond(payload, pipe, frame_shape=(416, 416, 3)))
+    events = list(stream_respond(payload, pipe, frame_shape=(640, 640, 3)))
     kinds = [e["type"] for e in events]
     assert "gesture" in kinds
     assert "audio" not in kinds, "pure tool_call — no content arrived, no speech"
@@ -192,7 +192,7 @@ def test_stream_respond_emits_audio_and_no_gesture_on_content():
     payload = encode_request(None, np.zeros(8000, np.float32), 16000,
                              detections=[])
     pipe = FakeStreamPipeline(heard="what is two plus two?")
-    events = list(stream_respond(payload, pipe, frame_shape=(416, 416, 3)))
+    events = list(stream_respond(payload, pipe, frame_shape=(640, 640, 3)))
     kinds = [e["type"] for e in events]
     assert "audio" in kinds
     assert "gesture" not in kinds
@@ -206,7 +206,7 @@ def test_stream_respond_skips_gesture_on_negation():
                              detections=[])
     pipe = FakeStreamPipeline(llm=_GestureLlm("shake"),
                               heard="don't shake your head")
-    events = list(stream_respond(payload, pipe, frame_shape=(416, 416, 3)))
+    events = list(stream_respond(payload, pipe, frame_shape=(640, 640, 3)))
     assert not any(e["type"] == "gesture" for e in events)
 
 
@@ -228,7 +228,7 @@ def test_stream_respond_strips_leaked_tool_call_tokens_from_speech():
                              detections=[])
     pipe = FakeStreamPipeline(llm=_LeakingLlm(),
                               heard="shake your head and tell me what you see")
-    events = list(stream_respond(payload, pipe, frame_shape=(416, 416, 3)))
+    events = list(stream_respond(payload, pipe, frame_shape=(640, 640, 3)))
     done = next(e for e in events if e["type"] == "done")
     assert "<|tool_call>" not in done["reply"]
     assert "Sure, I'm shaking my head!" in done["reply"]
@@ -251,7 +251,7 @@ class _RunningServer:
     """Runs a single-threaded HTTPServer (as in serve.main()) in a background
     thread — we test through real HTTP requests, not a hand-built Handler."""
 
-    def __init__(self, pipeline, frame_shape=(416, 416, 3)):
+    def __init__(self, pipeline, frame_shape=(640, 640, 3)):
         self.server = HTTPServer(("127.0.0.1", 0),
                                  make_handler(pipeline, frame_shape))
         self.thread = threading.Thread(target=self.server.serve_forever,
@@ -410,3 +410,32 @@ def test_respond_stream_emits_terminal_error_event_on_mid_stream_failure():
     assert events[0]["type"] == "meta"
     assert events[-1]["type"] == "error"
     assert "message" in events[-1]
+
+
+def test_output_throughput():
+    from demo.serve import output_throughput
+    # 100 chars, one "word", over 5 s -> 20 chars/s, 12 words/min
+    assert output_throughput("x" * 100, 5.0) == (20.0, 12)
+    # 14 chars, 5 words, over 2 s -> 7 chars/s, 150 words/min
+    assert output_throughput("aa bb cc dd ee", 2.0) == (7.0, 150)
+    # a window too short to time carries no meaningful rate
+    assert output_throughput("hi", 0.05) == (None, None)
+    # exactly at the 0.1 s boundary is measurable; just under is not
+    assert output_throughput("aa bb", 0.1) != (None, None)
+    assert output_throughput("aa bb", 0.099) == (None, None)
+    # a zero or negative window (synthesis-dominated) is unmeasurable, not a rate
+    assert output_throughput("a", 0.0) == (None, None)
+    assert output_throughput("a", -0.2) == (None, None)
+
+
+def test_stream_respond_done_carries_throughput_fields():
+    # The done event is the frontend's throughput contract; a regression that
+    # dropped these keys would go unnoticed without asserting they're present.
+    from demo.serve import stream_respond
+    payload = encode_request(None, np.zeros(8000, np.float32), 16000,
+                             detections=[])
+    events = list(stream_respond(payload, FakeStreamPipeline(),
+                                 frame_shape=(640, 640, 3)))
+    done = events[-1]
+    assert done["type"] == "done"
+    assert "chars_per_s" in done and "words_per_min" in done

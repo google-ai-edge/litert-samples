@@ -46,9 +46,9 @@ def write_wav(path: Path, samples: np.ndarray, rate: int = 16000,
 
 
 def test_still_source_returns_requested_shape():
-    src = StillFrameSource(shape=(416, 416, 3))
+    src = StillFrameSource(shape=(640, 640, 3))
     frame = src.read()
-    assert frame.shape == (416, 416, 3)
+    assert frame.shape == (640, 640, 3)
     assert frame.dtype == np.float32
 
 

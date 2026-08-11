@@ -24,8 +24,8 @@ shape/dtype (moonshine's `classify_decode_inputs`) keep working unchanged.
 
 Two adapters, because exported `.tflite` files come in two flavours:
 - **named signatures** (moonshine: `encode`, `decode`) — driven by `run_by_name`;
-- **a single default subgraph, no named signatures** (yolox) — driven by
-  `run_by_index(0, ...)`, the same path `demo/gpu_detect.py` already uses.
+- **a single default subgraph, no named signatures** — driven by
+  `run_by_index(0, ...)`, the same path `demo/gpu_detect.py` uses for the detector.
 
 Only fixed-shape models belong here. The Inflect CPU synthesizer is dynamic-shape
 (it resizes its input per sentence), which is what CompiledModel is *not* built
@@ -90,10 +90,10 @@ class _IndexSignature:
     carries the shape and dtype. Names are synthesized (`in0`, `out0`, …) so the
     interface matches _NamedSignature — a single-input model reads back one key.
 
-    FACTUAL NOTE: the real yolox-tiny export used by `Detector` in this repo
-    DOES have a named signature, so `CompiledRunner.only()` returns
-    `_NamedSignature` for it (the `len(self._names) == 1` branch), not this
-    class. This path exists for the general no-named-signature case and is
+    FACTUAL NOTE: the real yolo26n export used by `Detector` in this repo
+    DOES have a named signature (`serving_default`), so `CompiledRunner.only()`
+    returns `_NamedSignature` for it (the `len(self._names) == 1` branch), not
+    this class. This path exists for the general no-named-signature case and is
     currently exercised only by tests that construct a model with no
     signature list, not by the real detector model.
     """
@@ -126,8 +126,8 @@ class CompiledRunner:
     """A CompiledModel plus its signatures.
 
     `signature(key)` for a named signature (moonshine); `only()` for a
-    single-signature or single-default-subgraph model (yolox), which spares the
-    caller from knowing whether the export named its signature.
+    single-signature or single-default-subgraph model (the YOLO detector),
+    which spares the caller from knowing whether the export named its signature.
     """
 
     def __init__(self, model_path,

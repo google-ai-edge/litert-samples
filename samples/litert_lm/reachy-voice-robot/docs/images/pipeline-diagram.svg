@@ -27,9 +27,9 @@
   <rect x="452" y="168" width="1128" height="158" rx="13" fill="#e9f7ef" stroke="#9fd7bf" stroke-width="1.3"/>
   <text x="474" y="196" class="lane" font-size="14" fill="#12805a">GPU · VideoCore VII</text>
   <rect x="480" y="210" width="300" height="100" rx="9" fill="#f2fbf6" stroke="#3aa876" stroke-width="1.7"/>
-  <text x="630" y="247" class="title" font-size="21" text-anchor="middle">yolox-tiny</text>
+  <text x="630" y="247" class="title" font-size="21" text-anchor="middle">yolo26n</text>
   <text x="630" y="273" class="sub" font-size="13.5" text-anchor="middle" fill="#2f8a60">detector · ML Drift</text>
-  <text x="630" y="293" class="sub" font-size="13.5" text-anchor="middle" fill="#2f8a60">10 MB · 286 ms</text>
+  <text x="630" y="293" class="sub" font-size="13.5" text-anchor="middle" fill="#2f8a60">10 MB · 385 ms</text>
   <text x="840" y="256" class="sub" font-size="13.5" fill="#4f9e7e">runs continuously, in parallel —</text>
   <text x="840" y="277" class="sub" font-size="13.5" fill="#4f9e7e">the four cores stay free for Gemma</text>
 
@@ -75,13 +75,13 @@
   <text x="1801" y="524" class="sub" font-size="13.5" text-anchor="middle">MuJoCo · speaks reply</text>
 
   <!-- ===== arrows ===== -->
-  <!-- camera -> yolox -->
+  <!-- camera -> yolo26n -->
   <path d="M340,260 L472,260" class="flow" marker-end="url(#ah)"/>
   <text x="352" y="250" class="elabel" font-size="13.5">frame</text>
   <!-- mic -> moonshine -->
   <path d="M340,525 L472,525" class="flow" marker-end="url(#ah)"/>
   <text x="352" y="515" class="elabel" font-size="13.5">utterance</text>
-  <!-- yolox -> gemma (crosses GPU->CPU) -->
+  <!-- yolo26n -> gemma (crosses GPU->CPU) -->
   <path d="M660,310 C716,378 812,452 876,476" class="flow" marker-end="url(#ah)"/>
   <text x="700" y="405" class="elabel" font-size="13.5">objects</text>
   <!-- moonshine -> gemma -->

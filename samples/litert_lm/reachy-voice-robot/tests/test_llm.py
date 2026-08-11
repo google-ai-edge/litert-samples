@@ -151,11 +151,15 @@ def test_gesture_names_cover_the_expected_moves():
         "nod", "shake", "look_left", "look_right", "look_up", "look_down"}
 
 
-def test_build_prompt_with_max_objects_stays_within_budget():
-    # Worst case: 4 objects (the MAX_OBJECTS_IN_PROMPT cap) + a long question
-    # — the user part stays under the limit, the reply instruction isn't cut.
+def test_build_prompt_sends_only_the_top_three_objects():
+    # The cap is MAX_OBJECTS_IN_PROMPT = 3: the 3 highest-confidence objects
+    # (detections arrive score-sorted) reach the vision clause; the 4th is
+    # dropped. Also keeps the whole prompt under the char limit and the reply
+    # instruction uncut.
     prompt = build_prompt(objects=["person", "cup", "laptop", "chair"],
                           heard="please look to your left and tell me what you see")
+    assert "person" in prompt and "cup" in prompt and "laptop" in prompt
+    assert "chair" not in prompt          # the 4th object is dropped
     assert len(prompt) < PROMPT_CHAR_LIMIT
     assert prompt.endswith("English sentence.")
 
@@ -164,15 +168,16 @@ def test_system_plus_prompt_under_cliff():
     # HARD BUDGET (prefill cliff): the SUM of system+user stays under
     # ~490 characters. The worst-case USER prompt is: max heard length
     # (HEARD_CHAR_LIMIT) + the MAX_OBJECTS_IN_PROMPT *longest* object labels.
-    # The longest label is NOT a named COCO class ("bicycle", 7 chars) but the
-    # numeric fallback for an unnamed class ("object79", 8 chars — label_name()
-    # in emulator/pipeline.py). Building the worst case from named labels only
-    # (the old version of this test) understated it at 468 and would not have
-    # caught a regression that pushed the real worst case over the cliff.
+    # Every COCO class is named, but with SHORT labels — the longest labels are
+    # 9 chars (motorbike, stoplight, ..., label_name() in emulator/pipeline.py).
+    # Short labels keep headroom under the budget: full COCO names leave almost
+    # none and risk the hard PROMPT_CHAR_LIMIT truncation clipping the reply
+    # instruction. This test guards that the abbreviations keep the worst case
+    # under the limit.
     #
     # We guard BOTH system prompts: STREAM_SYSTEM (live streaming path, 277 →
-    # 475 combined) AND the offline SYSTEM (the non-streaming reply() path, 281
-    # → 479 combined). The cliff is a prefill-length limit that applies to any
+    # 468 combined) AND the offline SYSTEM (the non-streaming reply() path, 281
+    # → 472 combined). The cliff is a prefill-length limit that applies to any
     # prompt, and the offline SYSTEM is the longer of the two — so it is the
     # tighter bound, and a regression there must fail this test too.
     from demo.serve import STREAM_SYSTEM

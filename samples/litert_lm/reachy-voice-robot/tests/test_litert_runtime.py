@@ -73,11 +73,11 @@ def test_read_reshapes_flat_buffer_to_meta_shape():
 
 
 def test_read_computes_count_as_product_of_shape():
-    # yolox: [1, 3549, 85] -> 301665 elements in a single flat read.
-    meta = {"shape": (1, 3549, 85), "dtype": np.dtype(np.float32)}
-    flat = np.zeros(1 * 3549 * 85, dtype=np.float32)
+    # yolo26n raw head: [1, 84, 8400] -> 705600 elements in a single flat read.
+    meta = {"shape": (1, 84, 8400), "dtype": np.dtype(np.float32)}
+    flat = np.zeros(1 * 84 * 8400, dtype=np.float32)
     out = _read(FakeBuffer(flat), meta)
-    assert out.shape == (1, 3549, 85)
+    assert out.shape == (1, 84, 8400)
 
 
 def test_read_passes_meta_dtype_type_to_buffer_read():

@@ -16,36 +16,40 @@
 """Object detector: frame in, list of findings out.
 
 Its role in the pipeline is a cheap, always-on watcher that decides when to
-wake the language model. Hence two requirements: stay within the ~220 ms
+wake the language model. Hence two requirements: stay within the frame
 budget, and don't count frame jitter as an event.
 
-The `yolox-tiny` model's contract was reverse-engineered on the board, and
-both of its quirks were non-obvious enough that the first implementation
-was silently blind: it stayed within budget and found nothing.
+The detector is **Ultralytics YOLO26** (`yolo26n`), exported to LiteRT. Two
+properties of that export drive the code here, and both were confirmed
+against the tensors on a real photo:
 
-First: **the input is raw pixels [0, 255], not normalized.** On a photo of
-a dog, feeding [0,1] input gave an objectness of 0.0003 and zero
-detections; on raw values it gave 0.6887 and fourteen. Normalization here
-isn't "a different scale" — it fully disables the model.
+First: **the input is normalized [0, 1] in NCHW layout** — a float tensor
+[1, 3, H, W]. Sources hand frames over as HWC pixels (either [0, 1], the
+convenient convention, or raw [0, 255] straight from a decoded JPEG), so
+preprocessing scales to [0, 1] and moves the channel axis first.
 
-Second: **the export does not decode boxes.** The output is [1, 3549, 85],
-where 3549 = 52² + 26² + 13² — three scales at strides 8, 16, 32. The
-cx/cy coordinates lie in the range -0.6..2.5, i.e. they are offsets within
-the cell, while width and height are logarithms. The real box is:
-(offset + cell) × stride and exp(logarithm) × stride.
+Second: **the export uses the raw detection head (`end2end=False`), so the
+output is [1, 84, 8400]** — 84 = 4 box coords + 80 COCO class scores, no
+objectness, across 8400 anchors (80² + 40² + 20²). YOLO26 is NMS-free by
+default, but that end-to-end head lowers to INT64 gather/select ops the
+LiteRT GPU delegate rejects (checked with the `gpu-clean-conversion` toolkit);
+exporting `end2end=False` lets the GPU service (`demo/gpu_detect.py`) run the
+graph fully on the VideoCore VII, with the decode + NMS below on the CPU. This
+`Detector` runs the same graph on the CPU cores for the emulator/per-turn
+path. The boxes come back already decoded and normalized to [0, 1] (cx, cy, w,
+h) — no grid/stride math and no division by the input size: transpose to one
+row per anchor, take each anchor's best class, threshold, convert center form
+to corners, and suppress duplicates.
 """
 
 from __future__ import annotations
 
 import dataclasses
-import functools
 from pathlib import Path
 
 import numpy as np
 
 from emulator.litert_runtime import CompiledRunner
-
-STRIDES = (8, 16, 32)
 
 
 @dataclasses.dataclass(frozen=True)
@@ -58,83 +62,82 @@ class Detection:
 
 def preprocess_frame(frame: np.ndarray,
                      expected_shape: tuple[int, ...]) -> np.ndarray:
-    """Convert the frame to what the model expects: raw pixels [0, 255].
+    """Convert an HWC frame to the model's input: normalized [0, 1], NCHW.
 
-    Sources hand frames over in [0, 1] — that's the convenient convention
-    most models expect. YOLOX, however, was trained on raw values, and
-    dividing by 255 kills it completely: objectness drops from 0.69 to
-    0.0003.
+    Ultralytics YOLO is trained on [0, 1] pixels and its LiteRT export takes
+    NCHW [1, 3, H, W]. Sources hand frames over as HWC — already in [0, 1], or
+    as raw [0, 255] when they come straight from a decoded JPEG — so scale to
+    [0, 1] when needed, move the channel axis first, and add the batch axis.
     """
     data = np.asarray(frame, dtype=np.float32)
-    if data.max() <= 1.0:
-        data = data * 255.0
-    return data.reshape(expected_shape)
+    if data.max() > 1.0:
+        data = data / 255.0
+    # Validate the incoming HWC frame against the model's H×W before the
+    # transpose. A reshape alone catches only a total-element mismatch, so a
+    # same-area but wrong-shape frame (e.g. 320×1280 vs 640×640) would reshape
+    # into scrambled pixels and detect on garbage — fail loudly instead.
+    _, channels, height, width = expected_shape
+    if data.shape != (height, width, channels):
+        raise ValueError(
+            f"frame shape {data.shape} != expected HWC "
+            f"{(height, width, channels)}; the source must resize to the "
+            "model's input size before detection")
+    # HWC -> CHW, add the batch axis.
+    return np.transpose(data, (2, 0, 1)).reshape(expected_shape)
 
 
-@functools.lru_cache(maxsize=4)
-def build_grid(input_size: int) -> tuple[np.ndarray, np.ndarray]:
-    """Grid of cells and stride for each output row.
+def decode_yolo_output(raw: np.ndarray,
+                       score_threshold: float) -> list[Detection]:
+    """Parse the Ultralytics YOLO detection output: [1, 84, 8400].
 
-    Cached: the grid depends only on input size, yet without caching it
-    would be rebuilt on every frame — and the GPU detect source polls at
-    ~4 fps.
+    84 = 4 box coords (cx, cy, w, h, already normalized to [0, 1]) + 80 class
+    scores, no separate objectness. Anchors are laid out channels-first, so
+    transpose to one row per anchor, take each anchor's best class, keep the
+    ones over threshold, and convert center form to corner fractions.
     """
-    grids = []
-    strides = []
-    for stride in STRIDES:
-        side = input_size // stride
-        ys, xs = np.meshgrid(np.arange(side), np.arange(side), indexing="ij")
-        grids.append(np.stack((xs, ys), axis=2).reshape(-1, 2))
-        strides.append(np.full((side * side, 1), stride, dtype=np.float32))
-    return (np.concatenate(grids).astype(np.float32),
-            np.concatenate(strides))
-
-
-def decode_yolox_output(raw: np.ndarray, score_threshold: float,
-                        input_size: int) -> list[Detection]:
-    """Parse the yolox output: [1, N, 85] — box, objectness, 80 classes.
-
-    The export hands back boxes undecoded, so the grid is applied here.
-    """
-    if raw.size == 0 or raw.shape[1] == 0:
+    if raw.size == 0:
         return []
+    # Guard the layout: this decodes the channels-first raw head [1, 84, N].
+    # An Ultralytics export can also emit anchor-major [1, N, 84] (same element
+    # count), which the transpose would turn into silent garbage — so fail
+    # loudly instead of "staying within budget and finding nothing".
+    if raw.ndim != 3 or raw.shape[0] != 1 or raw.shape[1] != 84:
+        raise ValueError(
+            f"detector output shape {raw.shape} is not the expected "
+            "[1, 84, N] channels-first raw head — re-check the YOLO26 "
+            "end2end=False export (see assets/yolo/README.md)")
 
-    predictions = raw[0]
-    objectness = predictions[:, 4]
-    keep = objectness >= score_threshold
+    predictions = raw[0].T                     # [8400, 84]
+    boxes = predictions[:, :4]
+    class_scores = predictions[:, 4:]
+    labels = class_scores.argmax(axis=1)
+    scores = class_scores.max(axis=1)
+    keep = scores >= score_threshold
     if not keep.any():
         return []
 
-    grid, strides = build_grid(input_size)
-    if grid.shape[0] != predictions.shape[0]:
+    kept_boxes = boxes[keep]
+    # The boxes must be normalized to [0, 1]; a pixel-space export (max ~640)
+    # would collapse to slivers under the clip below and NMS would keep the
+    # wreckage — catch that loudly rather than detecting on garbage.
+    if kept_boxes.max() > 2.0:
         raise ValueError(
-            f"model output has {predictions.shape[0]} rows, but the grid for "
-            f"input {input_size} gives {grid.shape[0]}. Strides {STRIDES} "
-            "don't fit this export"
-        )
+            "detector boxes look like pixel coordinates, not normalized "
+            "[0, 1] — the LiteRT export should return normalized boxes "
+            "(see assets/yolo/README.md)")
+    cx, cy, w, h = kept_boxes.T
+    half_w, half_h = w / 2.0, h / 2.0
+    corners = np.stack(
+        [cx - half_w, cy - half_h, cx + half_w, cy + half_h], axis=1)
+    # Boxes are already normalized to [0, 1]; clip so an edge prediction can't
+    # push a coordinate out of frame and break the gaze-direction calculation.
+    corners = np.clip(corners, 0.0, 1.0)
 
-    rows = predictions[keep]
-    cell = grid[keep]
-    stride = strides[keep]
-
-    centers = (rows[:, :2] + cell) * stride
-    # Width and height are on a logarithmic scale.
-    sizes = np.exp(np.clip(rows[:, 2:4], -10.0, 10.0)) * stride
-
-    half = sizes / 2.0
-    corners = np.concatenate([centers - half, centers + half], axis=1)
-    # Convert to fractions of the frame and clip: yolox can predict boxes
-    # past the edge, and coordinates outside [0, 1] would break the
-    # gaze-direction calculation.
-    corners = np.clip(corners / input_size, 0.0, 1.0)
-
-    labels = rows[:, 5:].argmax(axis=1)
-    scores = objectness[keep]
     return [
         Detection(label=int(label), score=float(score),
                   box=(float(box[0]), float(box[1]),
                        float(box[2]), float(box[3])))
-        for label, score, box in zip(labels, scores, corners)
+        for label, score, box in zip(labels[keep], scores[keep], corners)
     ]
 
 
@@ -154,10 +157,11 @@ def non_max_suppression(detections: list[Detection],
                         iou_threshold: float = 0.45) -> list[Detection]:
     """Keep a single box per object.
 
-    On a photo of a dog, the model produced fourteen rows above threshold —
-    that's one dog in fourteen boxes. Without suppression, the prompt sent
-    to the language model would read "I see: cat, cat, cat, ...", and it
-    would end up responding to nonsense.
+    The raw head (end2end=False) leaves duplicate boxes for postprocessing —
+    on a photo of a dog the model produced fourteen rows above threshold, one
+    dog in fourteen boxes. Without suppression the prompt sent to the language
+    model would read "I see: cat, cat, cat, ...", and it would end up
+    responding to nonsense.
 
     Classes are suppressed independently: a person holding a dog occupy the
     same region of the frame, and both are needed.
@@ -196,12 +200,15 @@ class Detector:
         self._iou = iou_threshold
 
     def input_shape(self) -> tuple[int, int, int]:
-        return tuple(int(x) for x in self._in_shape[1:])   # without the batch dimension
+        # The model takes NCHW [1, 3, H, W]; sources produce HWC frames, so
+        # report the (H, W, 3) a source should hand us — not the raw tensor
+        # layout — and let preprocess_frame move the channel axis.
+        _, channels, height, width = (int(x) for x in self._in_shape)
+        return (height, width, channels)
 
     def detect(self, frame: np.ndarray) -> list[Detection]:
         prepared = preprocess_frame(frame, self._in_shape)
         out = self._sig(**{self._in_name: prepared.astype(self._in_dtype.type)})
         raw = next(iter(out.values()))
-        found = decode_yolox_output(raw, self._threshold,
-                                    input_size=int(self._in_shape[1]))
+        found = decode_yolo_output(raw, self._threshold)
         return non_max_suppression(found, self._iou)

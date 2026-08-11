@@ -40,7 +40,7 @@ from emulator.env import environment_snapshot, throttle_state
 # that no stage ever emits, so check_budget silently skipped the two heaviest
 # stages (ASR and the LLM) and always reported "over budget: none".
 BUDGET_MS: dict[str, float] = {
-    "detector": 220.0,   # yolox-tiny, 416x416 frame (the 's' variant caught small objects, but called a cup a dog at 0.51 confidence and cost +0.5s)
+    "detector": 220.0,   # yolo26n, 640x640 on the CPU cores (~111 ms measured; the demo runs it on the GPU instead)
     "asr_full": 390.0,   # moonshine, 5s window: ~51ms encode + ~9 decode tokens at ~37ms each ≈ 384ms (matches the end-to-end STT budget)
     "llm_reply": 6100.0, # Gemma 4 E2B, full offline reply (streaming hides this; the offline pipeline path pays it in full — TTFT alone is ~1.2s)
     "tts_call": 225.0,   # inflect (default --tts), ~210ms per phrase measured (225 budget/ceiling)
