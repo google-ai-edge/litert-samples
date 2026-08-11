@@ -63,8 +63,8 @@ def _download(m: models.Model) -> Path:
         path = m.dir / m.file
         if not path.exists():
             raise SystemExit(
-                f"bundled model not found: {path} — convert it per "
-                f"{m.dir}/README.md before running")
+                f"bundled model not found: {path} — see the conversion "
+                f"instructions in {m.dir}")
         return path
     return Path(hf_hub_download(repo_id=m.repo, filename=m.file))
 

@@ -260,7 +260,7 @@ def _handle(frame, audio, endpoint, robot, stream=True,
             if done.get("first_sound_ms"):
                 print(f"  first sound: {done['first_sound_ms']:.0f} ms, "
                       f"total: {done.get('total_ms', 0):.0f} ms")
-            if done.get("chars_per_s"):
+            if done.get("chars_per_s") is not None:
                 print(f"  output:  {done['chars_per_s']:.1f} chars/s "
                       f"(~{done['words_per_min']} words/min)")
         return
@@ -313,7 +313,7 @@ def _handle_stream(frame_png, detections, audio, endpoint, robot, display,
         audio_guard=audio_guard)
     if done and done.get("first_sound_ms"):
         print(f"  first sound: {done['first_sound_ms']:.0f} ms")
-    if done and done.get("chars_per_s"):
+    if done and done.get("chars_per_s") is not None:
         print(f"  output:  {done['chars_per_s']:.1f} chars/s "
               f"(~{done['words_per_min']} words/min)")
 

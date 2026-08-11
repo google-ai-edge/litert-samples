@@ -224,6 +224,17 @@ def test_nms_handles_empty_input():
     assert non_max_suppression([], iou_threshold=0.5) == []
 
 
+def test_nms_returns_detections_in_descending_score_order():
+    # "Top-3 objects by confidence" (emulator/llm.py) relies on NMS emitting
+    # boxes score-descending; feed unsorted, non-overlapping detections and
+    # assert the order, so dropping the sort would fail here.
+    dets = [Detection(label=1, score=0.5, box=(0.0, 0.0, 0.1, 0.1)),
+            Detection(label=2, score=0.9, box=(0.3, 0.3, 0.4, 0.4)),
+            Detection(label=3, score=0.7, box=(0.6, 0.6, 0.7, 0.7))]
+    kept = non_max_suppression(dets, iou_threshold=0.5)
+    assert [d.score for d in kept] == [0.9, 0.7, 0.5]
+
+
 # --- Detector: input-shape reporting and the threads parameter ---
 
 class _FakeSig:

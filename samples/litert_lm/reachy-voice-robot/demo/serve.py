@@ -184,7 +184,8 @@ def _audio_event(text, audio, sample_rate):
     }
 
 
-def output_throughput(reply: str, decode_s: float) -> tuple:
+def output_throughput(reply: str,
+                      decode_s: float) -> tuple[float, int] | tuple[None, None]:
     """Sustained model output rate for a reply generated over `decode_s`
     seconds: (characters/second, words/minute). Returns (None, None) when the
     window is too short (< 0.1 s) to carry a meaningful rate — e.g. a one-token
@@ -263,10 +264,14 @@ def stream_respond(payload, pipeline, frame_shape):
     first_sound_ms = None
     # Bracket the model's token-generation window (first token -> last token)
     # and subtract the synthesis interleaved into it, so the throughput below
-    # reflects the LLM decode rate rather than the synthesizer.
+    # reflects the LLM decode rate rather than the synthesizer. Only synthesis
+    # that finished *before* the last token counts: the final sentence (and the
+    # tail) synthesize after the window closes, so we subtract the synth total
+    # snapshotted at the last token, not the running total.
     tok_first_s = None
     tok_last_s = None
     synth_s = 0.0
+    synth_before_last_tok = 0.0
     for msg in pipeline.llm.reply_stream(prompt, system=STREAM_SYSTEM,
                                          tools=[MOVE_HEAD_TOOL]):
         if msg["type"] == "tool_call":
@@ -279,6 +284,7 @@ def stream_respond(payload, pipeline, frame_shape):
         if tok_first_s is None:
             tok_first_s = now
         tok_last_s = now
+        synth_before_last_tok = synth_s   # synthesis finished strictly before this token
         # Combined "gesture + question" turns sometimes leak raw
         # function-call tokens straight into content (see
         # _strip_tool_call_leak) — clean the buffer and the full reply
@@ -303,7 +309,7 @@ def stream_respond(payload, pipeline, frame_shape):
             yield event
 
     reply = full.strip()
-    decode_s = ((tok_last_s - tok_first_s) - synth_s
+    decode_s = ((tok_last_s - tok_first_s) - synth_before_last_tok
                 if tok_first_s is not None else 0.0)
     chars_per_s, words_per_min = output_throughput(reply, decode_s)
     yield {"type": "done", "reply": reply,

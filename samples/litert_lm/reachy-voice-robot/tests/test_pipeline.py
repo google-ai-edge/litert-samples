@@ -23,13 +23,13 @@ test: the language model costs ~1.2 s and must not wake on every frame.
 import numpy as np
 
 from emulator.detector import Detection
-from emulator.pipeline import Pipeline, gaze_target, label_name
+from emulator.pipeline import COCO_NAMES, Pipeline, gaze_target, label_name
 from emulator.robot import RobotStub
 from emulator.timeline import Timeline
 
 PERSON = [Detection(label=0, score=0.9, box=(0.0, 0.0, 1.0, 1.0))]
 PERSON_CUP = PERSON + [Detection(label=41, score=0.8, box=(0.0, 0.0, 1.0, 1.0))]
-FRAME = np.zeros((416, 416, 3), dtype=np.float32)
+FRAME = np.zeros((640, 640, 3), dtype=np.float32)
 SILENCE = np.zeros(80000, dtype=np.float32)
 
 
@@ -44,7 +44,7 @@ class FakeDetector:
         return result
 
     def input_shape(self):
-        return (416, 416, 3)
+        return (640, 640, 3)
 
 
 class FakeRecognizer:
@@ -182,7 +182,21 @@ def test_gaze_is_straight_ahead_on_empty_frame():
     assert gaze_target([]) == (0.0, 0.0)
 
 
-def test_unknown_class_is_numbered_not_renamed():
-    # Lying with a name is worse than labeling with a number.
+def test_label_name_maps_coco_indices():
+    # A dropped/inserted COCO_NAMES entry would silently shift every later label
+    # (dog->horse); pin the count and a spread of indices to the canonical
+    # COCO-80 order.
+    assert len(COCO_NAMES) == 80
     assert label_name(0) == "person"
+    assert label_name(16) == "dog"
+    assert label_name(41) == "cup"
+    assert label_name(67) == "phone"
+    assert label_name(79) == "brush"
+
+
+def test_unknown_class_is_numbered_not_renamed():
+    # Lying with a name is worse than labeling with a number — out of range in
+    # either direction must fall back to objectN, not wrap around.
+    assert label_name(80) == "object80"       # first index past the end
     assert label_name(777) == "object777"
+    assert label_name(-1) == "object-1"        # negative must not read brush

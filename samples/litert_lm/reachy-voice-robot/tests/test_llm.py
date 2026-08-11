@@ -151,11 +151,15 @@ def test_gesture_names_cover_the_expected_moves():
         "nod", "shake", "look_left", "look_right", "look_up", "look_down"}
 
 
-def test_build_prompt_with_max_objects_stays_within_budget():
-    # Worst case: 4 objects (the MAX_OBJECTS_IN_PROMPT cap) + a long question
-    # — the user part stays under the limit, the reply instruction isn't cut.
+def test_build_prompt_sends_only_the_top_three_objects():
+    # The cap is MAX_OBJECTS_IN_PROMPT = 3: the 3 highest-confidence objects
+    # (detections arrive score-sorted) reach the vision clause; the 4th is
+    # dropped. Also keeps the whole prompt under the char limit and the reply
+    # instruction uncut.
     prompt = build_prompt(objects=["person", "cup", "laptop", "chair"],
                           heard="please look to your left and tell me what you see")
+    assert "person" in prompt and "cup" in prompt and "laptop" in prompt
+    assert "chair" not in prompt          # the 4th object is dropped
     assert len(prompt) < PROMPT_CHAR_LIMIT
     assert prompt.endswith("English sentence.")
 
@@ -164,12 +168,12 @@ def test_system_plus_prompt_under_cliff():
     # HARD BUDGET (prefill cliff): the SUM of system+user stays under
     # ~490 characters. The worst-case USER prompt is: max heard length
     # (HEARD_CHAR_LIMIT) + the MAX_OBJECTS_IN_PROMPT *longest* object labels.
-    # Every COCO class is named, but with SHORT labels — the longest is
-    # "motorbike" (9 chars, label_name() in emulator/pipeline.py). That cap is
-    # the whole point of the budget: the full COCO names ("baseball glove", 14)
-    # would push the worst case over the cliff, so the long ones are abbreviated
-    # (glove, stoplight, table, ...). This test guards that the abbreviations
-    # keep the worst case under the limit.
+    # Every COCO class is named, but with SHORT labels — the longest labels are
+    # 9 chars (motorbike, stoplight, ..., label_name() in emulator/pipeline.py).
+    # Short labels keep headroom under the budget: full COCO names leave almost
+    # none and risk the hard PROMPT_CHAR_LIMIT truncation clipping the reply
+    # instruction. This test guards that the abbreviations keep the worst case
+    # under the limit.
     #
     # We guard BOTH system prompts: STREAM_SYSTEM (live streaming path, 277 →
     # 468 combined) AND the offline SYSTEM (the non-streaming reply() path, 281

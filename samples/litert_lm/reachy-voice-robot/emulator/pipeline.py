@@ -37,13 +37,14 @@ from emulator.detector import Detection, scene_changed
 from emulator.llm import build_prompt, split_into_phrases
 from emulator.timeline import Timeline
 
-# All 80 COCO classes the YOLO detector can emit, named for the robot. Names are kept
-# SHORT on purpose: the whole (system + user) prompt is held under a prefill-
-# cliff budget (~490 chars, see tests/test_llm.py), and the full COCO names
-# ("baseball glove", "traffic light", "dining table") would push the worst case
-# over it — so the long ones are abbreviated (glove, stoplight, table, ...). The
-# "objectN" fallback then only fires for an out-of-range index, which a valid
-# detection never has.
+# All 80 COCO classes the YOLO detector can emit, named for the robot. Names are
+# kept SHORT on purpose: the whole (system + user) prompt is held under a
+# prefill-cliff budget (~490 chars, see tests/test_llm.py). Full COCO names
+# ("baseball glove", "traffic light", "parking meter") leave little headroom and
+# risk the hard PROMPT_CHAR_LIMIT truncation clipping the reply instruction, so
+# the long ones are abbreviated (glove, stoplight, meter, ...). The "objectN"
+# fallback then only fires for an out-of-range index, which a valid detection
+# never has.
 COCO_NAMES = (
     "person", "bicycle", "car", "motorbike", "airplane", "bus", "train",
     "truck", "boat", "stoplight", "hydrant", "stop sign", "meter", "bench",
@@ -57,6 +58,10 @@ COCO_NAMES = (
     "microwave", "oven", "toaster", "sink", "fridge", "book", "clock", "vase",
     "scissors", "plushy", "drier", "brush",
 )
+# COCO-80 is a dense 0..79 range; a dropped/inserted name would silently shift
+# every later label (dog->horse) and label_name's len()-based bound would hide
+# it, so pin the count at import.
+assert len(COCO_NAMES) == 80, f"COCO_NAMES must have 80 entries, has {len(COCO_NAMES)}"
 
 
 def label_name(label: int) -> str:

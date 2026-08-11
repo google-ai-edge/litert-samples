@@ -18,8 +18,8 @@
 Runs as a separate process in the nightly-LiteRT venv with a GPU env
 (VK_ICD_FILENAMES, V3D_WEBGPU_OVERRIDE). The point is to offload the CPU:
 detection moves to the VideoCore VII, freeing the CPU cores for the LLM.
-Latency is ~385 ms/frame on the Pi's V3D GPU — a bit slower than the CPU path,
-but the win isn't raw speed: it keeps detection off the CPU cores so Gemma
+Latency is ~385 ms/frame on the Pi's V3D GPU — several times the ~111 ms 4-thread
+CPU path, but the win isn't raw speed: it keeps detection off the CPU cores so Gemma
 gets them. IMPORTANT: raw GPU inference alone doesn't produce boxes — it still
 needs the same postprocessing as the CPU detector (decode + NMS), plus the same
 normalized NCHW input. The model is exported with the raw head (end2end=False)
@@ -148,10 +148,15 @@ def make_handler(detector: GpuDetector):
 # one place that names the model file, so nothing is duplicated here. gpu_detect
 # runs as `python -m demo.gpu_detect` from the repo, so the path is on disk.
 _detector = models.get(models.DETECTOR)
-_MODEL = _detector.dir / _detector.file
+_MODEL = (_detector.dir / _detector.file
+          if _detector.dir is not None and _detector.file is not None else None)
 
 
 def find_model() -> str:
+    if _MODEL is None:
+        raise SystemExit(
+            f"detector {models.DETECTOR!r} is not a bundled (dir+file) model — "
+            "gpu_detect serves a local .tflite")
     if not _MODEL.exists():
         raise SystemExit(
             f"bundled YOLO model not found: {_MODEL} — convert it per "
