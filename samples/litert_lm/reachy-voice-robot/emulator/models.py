@@ -35,6 +35,8 @@ class Model:
     """One model, described by whichever fields its stage needs:
 
     - Hugging Face download: ``repo`` + ``file``
+    - HF weights into a bundled dir: ``repo`` + ``dir`` — weights fetched from
+      HF next to a runtime that ships in the repo (e.g. the Inflect TTS)
     - bundled repo asset:    ``dir`` (a directory), or ``dir`` + ``file`` (one file)
     - served over HTTP (the LLM): ``endpoint`` + ``model``
     """
@@ -50,13 +52,14 @@ class Model:
         # This turns a typo in the registry below into a loud failure at import
         # time rather than a confusing error deep inside a loader — and unlike a
         # simple "exactly one kind is set" count, it also rejects a stray extra
-        # field (e.g. a repo left on a bundled dir, or a bare file with no repo or dir).
+        # field (e.g. an endpoint left on a bundled dir, or a bare file with no repo or dir).
         populated = frozenset(
             name for name in ("repo", "file", "dir", "endpoint", "model")
             if getattr(self, name) is not None
         )
         kinds = {
             frozenset({"repo", "file"}),        # HF download
+            frozenset({"repo", "dir"}),         # HF weights + bundled runtime dir
             frozenset({"dir"}),                 # bundled asset directory
             frozenset({"dir", "file"}),         # bundled single file
             frozenset({"endpoint", "model"}),   # served over HTTP
@@ -64,24 +67,28 @@ class Model:
         if populated not in kinds:
             raise ValueError(
                 "a Model must populate exactly one kind and nothing else — HF "
-                "(repo+file), bundled (dir, or dir+file), or served "
-                "(endpoint+model); "
+                "(repo+file), HF weights into a bundled dir (repo+dir), bundled "
+                "(dir, or dir+file), or served (endpoint+model); "
                 f"got {self!r}")
 
 
 # Every model, current values, in ONE place. Change a line to swap a model.
 MODELS: dict[str, Model] = {
-    # Ultralytics YOLO26 (yolo26n), exported to LiteRT and bundled in the repo
-    # (assets/yolo) rather than fetched from HF — it's ~10 MB and keeps the
-    # sample self-contained. Exported with the raw head (end2end=False) so the
+    # Ultralytics YOLO26 (yolo26n), exported to LiteRT once into assets/yolo
+    # (git-ignored, like the other weights — see assets/yolo/README.md) rather
+    # than fetched from HF. Exported with the raw head (end2end=False) so the
     # graph runs fully on the GPU delegate; postprocessing (decode + NMS) is on
     # the CPU. Swap it for another Ultralytics export by pointing this here.
     "yolo26n": Model(dir=_ASSETS / "yolo", file="yolo26n.tflite"),
     "moonshine-tiny": Model(
         repo="litert-community/moonshine-tiny",
         file="moonshine_tiny_5s_f32.tflite"),
-    # Bundled in the repo (assets/inflect), not fetched from HF — the default TTS.
-    "inflect-nano-v2": Model(dir=_ASSETS / "inflect"),
+    # Default TTS. The runtime (say.py) and espeak frontend ship in the repo
+    # (assets/inflect); the LiteRT weights are fetched from HF on first use (like
+    # the other models) because *.tflite is gitignored. Hosted in the LiteRT
+    # community org — a LiteRT export of owensong/Inflect-Nano-v2 (Apache-2.0).
+    "inflect-nano-v2": Model(repo="litert-community/Inflect-Nano-v2",
+                             dir=_ASSETS / "inflect"),
     "gemma-4-e2b": Model(
         endpoint="http://127.0.0.1:9379/v1/chat/completions", model="e2b"),
 }
