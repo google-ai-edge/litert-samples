@@ -50,7 +50,7 @@ class CompiledModelRunner private constructor(private val model: CompiledModel) 
     companion object {
         /**
          * Compiles a model bundled in `assets/`. The module's Gradle config must set
-         * `aaptOptions { noCompress += "tflite" }` so the asset stays mmappable.
+         * `androidResources { noCompress += "tflite" }` so the asset stays mmappable.
          */
         fun fromAssets(
             context: Context,

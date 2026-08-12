@@ -1,0 +1,105 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1960" height="900" viewBox="0 0 1960 900">
+  <defs>
+    <radialGradient id="bg" cx="88%" cy="5%" r="60%">
+      <stop offset="0%" stop-color="#eef1f4"/>
+      <stop offset="100%" stop-color="#ffffff"/>
+    </radialGradient>
+    <marker id="ah" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7.5" markerHeight="7.5" orient="auto-start-reverse"><path d="M0,1L9,5L0,9z" fill="#3a4149"/></marker>
+    <marker id="ahp" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7.5" markerHeight="7.5" orient="auto-start-reverse"><path d="M0,1L9,5L0,9z" fill="#b23f86"/></marker>
+    <style>
+      .title { font-family: 'Helvetica Neue','Arial',sans-serif; font-weight: 700; fill: #1f2733; }
+      .sub   { font-family: 'Menlo','DejaVu Sans Mono',monospace; fill: #71787f; }
+      .hdr   { font-family: 'Helvetica Neue','Arial',sans-serif; font-weight: 700; fill: #6a7c90; letter-spacing: 2.5px; }
+      .lane  { font-family: 'Helvetica Neue','Arial',sans-serif; font-weight: 700; letter-spacing: 1.5px; }
+      .elabel{ font-family: 'Menlo','DejaVu Sans Mono',monospace; fill: #7b828a; }
+      .flow  { fill: none; stroke: #3a4149; stroke-width: 1.7; }
+      .resp  { fill: none; stroke: #b23f86; stroke-width: 1.7; stroke-dasharray: 6 5; }
+    </style>
+  </defs>
+
+  <rect width="1960" height="900" fill="url(#bg)"/>
+
+  <!-- Pi container -->
+  <rect x="430" y="110" width="1170" height="700" rx="22" fill="#eef0ec"/>
+  <text x="462" y="150" class="hdr" font-size="15">RASPBERRY PI 5 · INFERENCE</text>
+
+  <!-- ===== GPU lane ===== -->
+  <rect x="452" y="168" width="1128" height="158" rx="13" fill="#e9f7ef" stroke="#9fd7bf" stroke-width="1.3"/>
+  <text x="474" y="196" class="lane" font-size="14" fill="#12805a">GPU · VideoCore VII</text>
+  <rect x="480" y="210" width="300" height="100" rx="9" fill="#f2fbf6" stroke="#3aa876" stroke-width="1.7"/>
+  <text x="630" y="247" class="title" font-size="21" text-anchor="middle">yolo26n</text>
+  <text x="630" y="273" class="sub" font-size="13.5" text-anchor="middle" fill="#2f8a60">detector · ML Drift</text>
+  <text x="630" y="293" class="sub" font-size="13.5" text-anchor="middle" fill="#2f8a60">10 MB · 385 ms</text>
+  <text x="840" y="256" class="sub" font-size="13.5" fill="#4f9e7e">runs continuously, in parallel —</text>
+  <text x="840" y="277" class="sub" font-size="13.5" fill="#4f9e7e">the four cores stay free for Gemma</text>
+
+  <!-- ===== CPU lane ===== -->
+  <rect x="452" y="356" width="1128" height="428" rx="13" fill="#fdf4e7" stroke="#eecb93" stroke-width="1.3"/>
+  <text x="474" y="384" class="lane" font-size="14" fill="#9a6212">CPU · 4× Cortex-A76</text>
+
+  <rect x="480" y="470" width="290" height="110" rx="9" fill="#ffffff" stroke="#d3d8dd" stroke-width="1.3"/>
+  <text x="625" y="509" class="title" font-size="21" text-anchor="middle">moonshine-tiny</text>
+  <text x="625" y="536" class="sub" font-size="13.5" text-anchor="middle">ASR · LiteRT</text>
+  <text x="625" y="557" class="sub" font-size="13.5" text-anchor="middle">105 MB · 51+37/tok ms</text>
+
+  <rect x="882" y="432" width="330" height="184" rx="10" fill="#eef5fc" stroke="#3f6fb0" stroke-width="2"/>
+  <text x="1047" y="479" class="title" font-size="23" text-anchor="middle">Gemma 4 E2B</text>
+  <text x="1047" y="511" class="sub" font-size="13.5" text-anchor="middle">language · LiteRT-LM</text>
+  <text x="1047" y="537" class="sub" font-size="13.5" text-anchor="middle">2.5 GB · TTFT 1.2 s</text>
+  <text x="1047" y="563" class="sub" font-size="13.5" text-anchor="middle">8.46 tok/s · 27.3 ch/s</text>
+
+  <rect x="1300" y="458" width="270" height="110" rx="9" fill="#ffffff" stroke="#d3d8dd" stroke-width="1.3"/>
+  <text x="1435" y="497" class="title" font-size="20" text-anchor="middle">Inflect-Nano-v2</text>
+  <text x="1435" y="524" class="sub" font-size="13.5" text-anchor="middle">synthesis · LiteRT</text>
+  <text x="1435" y="545" class="sub" font-size="13.5" text-anchor="middle">8 MB · ~200 ms</text>
+
+  <!-- ===== MAC side ===== -->
+  <text x="62" y="196" class="hdr" font-size="15">MACBOOK · CAPTURE</text>
+  <rect x="60" y="214" width="280" height="92" rx="9" fill="#ffffff" stroke="#d3d8dd" stroke-width="1.3"/>
+  <text x="200" y="255" class="title" font-size="21" text-anchor="middle">Camera</text>
+  <text x="200" y="284" class="sub" font-size="13.5" text-anchor="middle">640×480 · continuous</text>
+
+  <rect x="60" y="479" width="280" height="92" rx="9" fill="#ffffff" stroke="#d3d8dd" stroke-width="1.3"/>
+  <text x="200" y="520" class="title" font-size="21" text-anchor="middle">Mic + VAD</text>
+  <text x="200" y="549" class="sub" font-size="13.5" text-anchor="middle">voice-triggered</text>
+
+  <text x="62" y="694" class="hdr" font-size="15">MACBOOK · DASHBOARD</text>
+  <rect x="60" y="710" width="280" height="108" rx="9" fill="#ffffff" stroke="#d3d8dd" stroke-width="1.3"/>
+  <text x="200" y="748" class="title" font-size="20" text-anchor="middle">Web dashboard</text>
+  <text x="200" y="774" class="sub" font-size="13" text-anchor="middle">live view · boxes</text>
+  <text x="200" y="794" class="sub" font-size="13" text-anchor="middle">query frame · reply</text>
+
+  <text x="1662" y="436" class="hdr" font-size="15">MACBOOK · ROBOT</text>
+  <rect x="1662" y="456" width="278" height="98" rx="9" fill="#ffffff" stroke="#d3d8dd" stroke-width="1.3"/>
+  <text x="1801" y="496" class="title" font-size="21" text-anchor="middle">Reachy Mini</text>
+  <text x="1801" y="524" class="sub" font-size="13.5" text-anchor="middle">MuJoCo · speaks reply</text>
+
+  <!-- ===== arrows ===== -->
+  <!-- camera -> yolo26n -->
+  <path d="M340,260 L472,260" class="flow" marker-end="url(#ah)"/>
+  <text x="352" y="250" class="elabel" font-size="13.5">frame</text>
+  <!-- mic -> moonshine -->
+  <path d="M340,525 L472,525" class="flow" marker-end="url(#ah)"/>
+  <text x="352" y="515" class="elabel" font-size="13.5">utterance</text>
+  <!-- yolo26n -> gemma (crosses GPU->CPU) -->
+  <path d="M660,310 C716,378 812,452 876,476" class="flow" marker-end="url(#ah)"/>
+  <text x="700" y="405" class="elabel" font-size="13.5">objects</text>
+  <!-- moonshine -> gemma -->
+  <path d="M770,520 C822,516 838,522 876,528" class="flow" marker-end="url(#ah)"/>
+  <text x="782" y="508" class="elabel" font-size="13.5">transcript</text>
+  <!-- gemma -> synthesis -->
+  <path d="M1212,516 L1292,514" class="flow" marker-end="url(#ah)"/>
+  <text x="1220" y="504" class="elabel" font-size="13.5">sentence</text>
+  <!-- synthesis -> reachy (response) -->
+  <path d="M1570,510 L1654,506" class="resp" marker-end="url(#ahp)"/>
+  <text x="1580" y="496" class="elabel" font-size="13.5">audio</text>
+  <!-- Pi -> dashboard (response) -->
+  <path d="M446,700 C404,724 386,748 350,760" class="resp" marker-end="url(#ahp)"/>
+  <text x="356" y="676" class="elabel" font-size="13.5">boxes · reply</text>
+
+  <!-- ===== legend ===== -->
+  <line x1="700" y1="850" x2="742" y2="850" class="flow" marker-end="url(#ah)"/>
+  <text x="752" y="855" class="elabel" font-size="14">request / internal</text>
+  <line x1="960" y1="850" x2="1002" y2="850" class="resp" marker-end="url(#ahp)"/>
+  <text x="1012" y="855" class="elabel" font-size="14">response stream (SSE / NDJSON)</text>
+</svg>
