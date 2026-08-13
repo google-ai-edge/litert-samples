@@ -23,6 +23,17 @@
       "preemphasis": 0.97
     }
   },
+  "parakeet-tdt_ctc-0.6b-ja": {
+    "modelRemoteUrl": "https://huggingface.co/litert-community/parakeet-tdt_ctc-0.6b-ja/resolve/main/parakeet_tdt_ctc_0.6b_ja_5s_i8.tflite",
+    "tokenizerUrl": "https://huggingface.co/litert-community/parakeet-tdt_ctc-0.6b-ja/resolve/main/tokenizer.json",
+    "inputMilliseconds": 5000,
+    "logMelSpectro": {
+      "nFFT": 512,
+      "nFrames": 500,
+      "preemphasis": 0.97
+    },
+    "decodeStartTokenId": 3072
+  },
   "moonshine-tiny": {
     "modelRemoteUrl": "https://huggingface.co/litert-community/moonshine-tiny/resolve/main/moonshine_tiny_5s_i8.tflite",
     "npuModelRemoteUrlPattern": "https://huggingface.co/litert-community/moonshine-tiny/resolve/main/moonshine_tiny_5s_f32_<target>.tflite",
