@@ -108,24 +108,28 @@ def test_llm_is_a_served_endpoint_not_an_hf_download():
     assert m.repo is None and m.file is None
 
 
-def test_inflect_is_a_bundled_dir():
+def test_inflect_fetches_weights_into_a_bundled_dir():
+    # Inflect ships its runtime (say.py + frontend) in assets/inflect but fetches
+    # the LiteRT weights from HF on first use — repo + dir populated together.
     m = models.get(models.TTS["inflect"])
     assert m.dir is not None and m.dir.name == "inflect"
-    assert m.repo is None
+    assert m.repo is not None
 
 
 def test_build_synthesizer_selects_the_backend_model_by_name(monkeypatch):
     # The point of the catalog: build_synthesizer resolves the synthesizer by
-    # name (no network for the bundled inflect default), so swapping the name
-    # swaps the backend with no other code change.
+    # name, so swapping the name swaps the backend with no other code change.
+    # It also passes the model's HF repo through so the weights can auto-download.
     from emulator import run
 
     seen = {}
 
-    def fake_load_inflect(models_dir=None):
+    def fake_load_inflect(models_dir=None, repo=None):
         seen["models_dir"] = models_dir
+        seen["repo"] = repo
         return "INFLECT"
 
     monkeypatch.setattr("emulator.inflect_tts.load_inflect", fake_load_inflect)
     assert run.build_synthesizer("inflect") == "INFLECT"
     assert seen["models_dir"] == models.get("inflect-nano-v2").dir
+    assert seen["repo"] == models.get("inflect-nano-v2").repo

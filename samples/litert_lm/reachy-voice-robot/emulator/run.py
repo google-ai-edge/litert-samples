@@ -52,14 +52,15 @@ from emulator.timeline import Timeline
 
 
 def _download(m: models.Model) -> Path:
-    """Local path to a model file: a bundled asset if it ships in the repo
-    (``dir`` + ``file``), otherwise a Hugging Face download (``repo`` +
-    ``file``)."""
+    """Local path to a single model file: a bundled asset if it ships in the
+    repo (``dir`` + ``file``), otherwise a Hugging Face download (``repo`` +
+    ``file``). Models that fetch several files into a directory (``repo`` +
+    ``dir``, e.g. the Inflect TTS) load through their own loader, not here."""
     if m.dir is not None:
         if m.file is None:
             raise ValueError(
-                f"{m!r} is a bundled directory — load it via its own loader, "
-                "not _download")
+                f"{m!r} has no single file — a dir-based model loads via its "
+                "own loader, not _download")
         path = m.dir / m.file
         if not path.exists():
             raise SystemExit(
@@ -99,7 +100,8 @@ def build_synthesizer(kind: str = "inflect"):
     name from the catalog (emulator/models.py).
     """
     from emulator.inflect_tts import load_inflect
-    return load_inflect(models_dir=models.get(models.TTS["inflect"]).dir)
+    m = models.get(models.TTS["inflect"])
+    return load_inflect(models_dir=m.dir, repo=m.repo)
 
 
 def build_pipeline(tokenizer_path: Path, skip_llm: bool,
