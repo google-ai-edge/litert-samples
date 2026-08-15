@@ -1,0 +1,48 @@
+# Bonsai for macOS — text-to-image demo with the DiT on the Apple GPU
+# (LiteRT Metal accelerator, fp32 forced). Generate with xcodegen.
+# Before building: ./prep_resources.sh (tokenizer tables + pipeline meta into
+# Resources/, the ai-edge-litert dylib pair into Frameworks/, the LiteRT C API
+# headers into third_party/ — none of them committed).
+name: BonsaiMac
+options:
+  bundleIdPrefix: com.google.ai.edge
+  deploymentTarget:
+    macOS: "14.0"
+targets:
+  Bonsai:
+    type: application
+    platform: macOS
+    sources:
+      - path: Sources
+      - path: ../shared
+        group: Shared
+      - path: Resources
+        buildPhase: resources
+    dependencies:
+      - framework: Frameworks/libLiteRt.dylib
+        embed: true
+        codeSign: true
+      - framework: Frameworks/libLiteRtMetalAccelerator.dylib
+        embed: true
+        codeSign: true
+        link: false
+    info:
+      path: Info.plist
+      properties:
+        CFBundleDisplayName: Bonsai
+        NSHighResolutionCapable: true
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.google.ai.edge.BonsaiMac
+        SWIFT_OBJC_BRIDGING_HEADER: Sources/Bridging.h
+        HEADER_SEARCH_PATHS:
+          - $(SRCROOT)/third_party/LiteRT
+          - $(SRCROOT)/../shared
+        LIBRARY_SEARCH_PATHS:
+          - $(SRCROOT)/Frameworks
+        SWIFT_VERSION: "5.0"
+        CODE_SIGN_STYLE: Automatic
+        CLANG_CXX_LANGUAGE_STANDARD: c++17
+        LD_RUNPATH_SEARCH_PATHS: "$(inherited) @executable_path/../Frameworks"
+        ENABLE_HARDENED_RUNTIME: false
+        ENABLE_APP_SANDBOX: false
