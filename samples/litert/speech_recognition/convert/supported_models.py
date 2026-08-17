@@ -24,6 +24,7 @@ from samples.litert.speech_recognition.convert import whisper
 SUPPORTED_MODELS = {
     parakeet_ctc.ParakeetCTC.HF_MODEL_ID: parakeet_ctc.ParakeetCTC,
     parakeet_tdt.ParakeetTDT.HF_MODEL_ID: parakeet_tdt.ParakeetTDT,
+    parakeet_tdt.ParakeetTDTCTCJa.HF_MODEL_ID: parakeet_tdt.ParakeetTDTCTCJa,
     moonshine.Moonshine.HF_MODEL_ID: moonshine.Moonshine,
     whisper.Whisper.HF_MODEL_ID: whisper.Whisper,
     qwen3_asr.Qwen3Asr.HF_MODEL_ID: qwen3_asr.Qwen3Asr,
