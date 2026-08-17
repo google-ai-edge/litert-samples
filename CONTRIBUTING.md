@@ -23,6 +23,15 @@ just getting started, Github has a [howto](https://help.github.com/articles/usin
 Edge AI team members will be assigned to review your pull requests. Once the pull requests are approved and pass continuous integration checks, we will merge the pull requests.
 For some pull requests, we will apply the patch for each pull request to our internal version control system first, and export the change out as a new commit later, at which point the original pull request will be closed. The commits in the pull request will be squashed into a single commit with the pull request creator as the author. These pull requests will be labeled as pending merge internally.
 
+### Security Requirements
+
+To maintain the security of our CI/CD pipelines, we use [Zizmor](https://github.com/woodruffw/zizmor) to statically analyze GitHub Actions workflows.
+
+If your pull request includes changes to GitHub Actions workflows (`.github/workflows/**`):
+* Your changes will be automatically scanned by Zizmor during the continuous integration checks.
+* All Zizmor checks must pass before the pull request can be approved and merged.
+* Please review and resolve any security issues flagged by Zizmor in your workflow changes.
+
 #### License
 
 Include a license at the top of new files.
