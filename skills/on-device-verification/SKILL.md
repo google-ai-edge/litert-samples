@@ -89,6 +89,10 @@ real GPU run.
 | Wrong-but-plausible output, and every hypothesis costs a slow re-export | Micro-probe instead: export ~1 KB graphs — the suspect subexpression and each candidate fix — and run them through the device harness you already have. Minutes per hypothesis instead of a re-export per hypothesis |
 | NaN or garbage only on the GPU, in a model with large-magnitude residuals or deep modulation paths | An fp16 range break. Confirm the attribution by forcing fp32 on the delegate where the API exposes it (~2× memory, slower); then fix it properly with the fp16-safe rewrites in `gpu-clean-conversion`, or keep the offending block on CPU and run the rest on GPU |
 | The process dies while loading or running a large float model | A memory ceiling, not a model bug. Weights + activations + delegate buffers must fit in available memory. Do not run a multi-GiB fp32 build in-process on a phone "just to check" — quantize or split first, then verify the smaller thing |
+| A deep transformer shipped as an fp16 graph is bit-exact on desktop and noise on the device CPU | Android ARM XNNPACK computes **native fp16**; desktop XNNPACK upcasts to fp32. Deep residual streams compound the difference to collapse. Ship fp32 graphs for CPU inference on device; fp16 is a GPU-side format |
+| Attention quality collapses only for a small-head submodule | head_dim is the fp16-fragile axis, not token count: the same graph at head_dim 64 held corr 0.998 where head_dim 16 fell to 0.86. Pad heads to ≥32 or keep the small-head module on CPU |
+| A `[1,N,C]` token tensor that is a graph output **and** feeds other consumers comes back corrupted | 3-D fan-out corruption — the later branch is clobbered, it cascades, and it reads exactly like an fp16 wall downstream (4-D NCHW maps with the same fan-out are fine). Keep token tensors as sole leaf outputs (or keep them 4-D) and push per-token heads to the host — exact, since per-token ops commute with the gather |
+| A recurrent/streaming graph gives correct output on call 1 and drifts on repeated calls | Fused-LSTM-style **variable tensors persist across `invoke()`** on a reused interpreter — and a fresh-interpreter-per-call verify script structurally cannot see it. Call `reset_all_variables()` before every invoke (cost ≈ 0). Related: the CompiledModel loader rejects variable tensors outright, so such graphs are Interpreter-only |
 
 ## Watch for
 
@@ -105,6 +109,40 @@ real GPU run.
   another. "Runs on Android GPUs" means a device matrix (your own
   devices, or a farm service such as AI Edge Portal), recorded as one
   row each.
+- **One runtime proves it for that runtime.** A delegate rejection or
+  miscompute is a fact about the runtime version you measured: ops have
+  been *dropped* between minor versions, a miscompute's victim output
+  has *moved* between versions, and mixing accelerator and core
+  libraries across versions silently falls back to CPU. When a wall
+  appears after an upgrade, bisect the runtime pin on the real graph —
+  micro-probes have repeatedly failed to reproduce walls that only fire
+  in full-graph context, so a negative micro-probe is not a refutation.
+- **Localize miscomputes with single-output graphs, never fan-out
+  taps.** A multi-output tapped probe is itself exposed to
+  output-aliasing bugs and has produced a confidently wrong culprit;
+  in single-output form every op was exact and the *assembly* was the
+  bug.
+- **Sweep the delegate options to classify a miscompute.** Run the same
+  graph across precision, buffer-storage, and backend options: a
+  bit-identical wrong result across all of them places the bug in the
+  shared graph-compilation layer and rules out precision/storage in one
+  pass. And know what the precision flag can do: forcing fp32 rescues
+  overflow→NaN cases only — it does **not** fix precision compounding
+  (the delegate still reduces in fp16), so "fp32 didn't help" does not
+  exonerate fp16.
+- **Time the enqueue and the readback as separate counters.** `run()`
+  is asynchronous; timing it alone has reported a 4× GPU win that did
+  not exist. A large readback time is usually the deferred compute, not
+  the transfer. Corollary economics: per-call overhead makes small
+  per-step graphs (KV-cache decoders re-uploading state every token) a
+  net GPU loss — estimate `calls × per-call overhead` against the CPU
+  time before re-exporting for GPU; the crossover sits around
+  hundreds of nodes per call.
+- **The desktop build is the CPU reference, not a GPU sieve** — desktop
+  Python runtimes exercise CPU/XNNPACK only, which is exactly what makes
+  them the right numerical reference. For the device loop, a minimal
+  push-run-pull binary (tflite in, output tensor out) iterates in
+  seconds without an app rebuild.
 
 ## Output layout
 
