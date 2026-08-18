@@ -1,0 +1,10 @@
+<resources>
+    <string name="app_name" translatable="false">Image Quality Assessment</string>
+    <string name="action_pick_image">Pick image</string>
+    <string name="status_loading">Loading NIMA…</string>
+    <string name="status_processing">Scoring on GPU…</string>
+    <string name="status_ready" translatable="false">✓ scored in %1$dms · NIMA MobileNet, CompiledModel GPU</string>
+    <string name="scores" translatable="false">Aesthetic  %1$.2f / 10\nTechnical  %2$.2f / 10</string>
+    <string name="error_model_load">Failed to load model</string>
+    <string name="error_score_failed">Scoring failed</string>
+</resources>
