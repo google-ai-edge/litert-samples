@@ -1,0 +1,5 @@
+<resources>
+    <string name="app_name" translatable="false">Sound Event Detection</string>
+    <string name="action_record">🎤  Record 10 s &amp; tag</string>
+    <string name="status_loading">Loading PANNs CNN14 on GPU…</string>
+</resources>
