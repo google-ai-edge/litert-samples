@@ -1,0 +1,7 @@
+<resources>
+    <string name="app_name" translatable="false">Depth Estimation</string>
+    <string name="inference_title" translatable="false">Inference Time</string>
+    <string name="inference_value" translatable="false">%d ms</string>
+    <string name="accelerator" translatable="false">Accelerator</string>
+    <string name="model" translatable="false">Model</string>
+</resources>
