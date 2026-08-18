@@ -1,0 +1,8 @@
+// Downloads the Real-ESRGAN LiteRT model (BSD-3) from the litert-community HF org into assets/.
+// GPU-native (litert_torch) conversion; see the conversion/ scripts and README.
+tasks.register('downloadRealEsrgan', Download) {
+    src 'https://huggingface.co/litert-community/real-esrgan-x4v3-litert/resolve/main/realesr_general_x4v3.tflite'
+    dest project.ext.ASSET_DIR + '/realesr_general_x4v3.tflite'
+    overwrite false
+}
+preBuild.dependsOn downloadRealEsrgan
