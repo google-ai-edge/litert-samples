@@ -83,7 +83,11 @@ rest.
    `CompiledModel`s (pipelines, chunked models), create one `Environment`
    and pass it to every `CompiledModel.create` call, and close per-run
    buffers — per-create GPU contexts leak, and a create-per-step loop
-   will eventually take the process down.
+   will eventually take the process down (observed at ~20 creates).
+   Treat the GPU serialization/program-cache options as untested per
+   device — enabling program-cache serialization has aborted a process
+   on first compile, and the compiler-cache environment option targets
+   NPU JIT, not GPU shader caching.
 
 ## Vendor the helpers, don't rewrite them
 

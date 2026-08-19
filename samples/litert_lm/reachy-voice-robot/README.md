@@ -36,7 +36,7 @@ latency.*
 - **Reference hardware** (what the numbers below were measured on): Raspberry Pi 5, 8 GB · quad-core Arm Cortex-A76 · Debian 12 · Python 3.12
 - **Runtimes:** LiteRT (`ai-edge-litert`) 2.1.6 (+ ML Drift GPU backend) · LiteRT-LM 0.15.0
 - **Footprint:** ~2.6 GB of model files, ~2.4 GB resident (of 8 GB)
-- **GPU path (optional):** Mesa built from `main` with `V3D_WEBGPU_OVERRIDE` set (see Quickstart)
+- **GPU path (optional):** a recent `v3dv` Vulkan driver with `V3D_WEBGPU_OVERRIDE` set (see Quickstart) — Raspberry Pi OS **Trixie+**, or Mesa from `main` on Bookworm.
 - **Robot (optional):** a [Reachy Mini](https://www.pollen-robotics.com/) — or its MuJoCo
   simulator on a Mac (no hardware needed)
 
@@ -111,13 +111,13 @@ the CPU) is roughly 2×. The reply keeps streaming after that first sentence —
 pip install -r requirements.txt      # or, with uv:  uv sync
 ```
 
-The **speech-to-text** model auto-downloads from Hugging Face on first use. The **detector**
-(Ultralytics YOLO26) and the **synthesizer** (Inflect-Nano-v2) are local assets — their model
-files are produced/fetched once and placed under `assets/` (git-ignored): see
-`assets/yolo/README.md` for the detector and `assets/inflect/RUN.md` for the synthesizer. The
-**language model must be imported into LiteRT-LM once** (see step 2) — `litert-lm serve` only serves already-imported models. The GPU
-detector additionally needs a Mesa `v3dv` build with `V3D_WEBGPU_OVERRIDE` set; without it, skip
-the detector service (see step 2).
+The **speech-to-text** and the **synthesizer** (Inflect-Nano-v2) models auto-download from
+Hugging Face on first use (the `assets/` weights are git-ignored; see `assets/inflect/RUN.md`
+for the synthesizer). The **detector** (Ultralytics YOLO26) is exported once into `assets/yolo/`
+— see `assets/yolo/README.md`. The **language model must be imported into LiteRT-LM once** (see
+step 2) — `litert-lm serve` only serves already-imported models. The GPU
+detector additionally needs a recent v3dv Vulkan driver with `V3D_WEBGPU_OVERRIDE` set — Raspberry
+Pi OS Trixie+, or Mesa from `main` on Bookworm. Without it, skip the detector service (see step 2).
 
 ### 2. Run standalone on the robot's Pi
 
@@ -134,9 +134,11 @@ litert-lm import --from-huggingface-repo litert-community/gemma-4-E2B-it-litert-
 litert-lm serve --host 127.0.0.1 --port 9379
 python -m demo.serve --host 127.0.0.1 --port 9500
 
-# The GPU detector runs the detector on the GPU and needs the Mesa v3dv env
-# (point VK_ICD_FILENAMES at your v3dv ICD json); without it it cannot init.
-VK_ICD_FILENAMES=/path/to/v3dv_icd.json V3D_WEBGPU_OVERRIDE=1 \
+# The GPU detector runs the detector on the GPU and needs a recent v3dv driver.
+# Point VK_ICD_FILENAMES at its ICD json — on Raspberry Pi OS the stock driver is
+# /usr/share/vulkan/icd.d/broadcom_icd.aarch64.json (Trixie+; on Bookworm build
+# Mesa from main). Without a working v3dv driver, gpu_detect cannot init.
+VK_ICD_FILENAMES=/usr/share/vulkan/icd.d/broadcom_icd.aarch64.json V3D_WEBGPU_OVERRIDE=1 \
   python -m demo.gpu_detect --host 127.0.0.1 --port 9600
 
 # Then the voice loop, using the robot as the I/O platform. Drop --gpu-detect-port
