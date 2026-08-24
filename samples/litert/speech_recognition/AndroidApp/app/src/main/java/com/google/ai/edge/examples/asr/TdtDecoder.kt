@@ -102,8 +102,10 @@ class TdtDecoder(private val compiledModel: CompiledModel, private val modelConf
           yield(Pair(tokenId, timeIndex))
           if (numOfInferenceTokenIds > 1) {
             tokenIndex++
-            if (tokenIndex < numOfInferenceTokenIds - 1) {
-              // No-op.
+            if (tokenIndex < numOfInferenceTokenIds) {
+              // Still room in the stateless token array: keep filling it, so the
+              // LSTM states handed to decode_1 below are computed from real
+              // tokens only (an unfilled zero slot skews them).
             } else if (hasDecode1) { // Switch to decode_1 for stateful decoding.
               inferenceSignature = DECODE_1_SIGNATURE
               numOfInferenceTokenIds = 1
@@ -123,8 +125,12 @@ class TdtDecoder(private val compiledModel: CompiledModel, private val modelConf
             ?: endIndexOfTokenId) - endIndexOfTokenId
         timeIndex += if (duration == 0 && tokenId == blankTokenId) 1 else duration
 
-        if (numOfInferenceTokenIds == 1) {
-          // Stateful RNN decoder: Swap input and output state buffers for the next decode.
+        if (numOfInferenceTokenIds == 1 && tokenId != blankTokenId) {
+          // Stateful RNN decoder: adopt the new LSTM states by swapping the
+          // input and output state buffers — but only on a non-blank emission.
+          // In RNN-T greedy decoding the prediction network advances only when
+          // a token is emitted; adopting the state on blank steps re-consumes
+          // the last token once per blank and degrades the transcript.
           inputStatesBuffersIndex = 1 - inputStatesBuffersIndex
         }
       }
