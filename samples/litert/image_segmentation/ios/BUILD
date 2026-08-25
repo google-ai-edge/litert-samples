@@ -12,7 +12,14 @@ objc_library(
     ],
     copts = ["-std=c++20", "-fobjc-arc"],
     deps = [
-        "@litert_archive//litert/cc:litert_api_with_dynamic_runtime",
+        "@litert_archive//litert/cc:litert_common",
+        "@litert_archive//litert/cc:litert_compiled_model",
+        "@litert_archive//litert/cc:litert_environment",
+        "@litert_archive//litert/cc:litert_model",
+        "@litert_archive//litert/cc:litert_opaque_options",
+        "@litert_archive//litert/cc:litert_options",
+        "@litert_archive//litert/cc:litert_tensor_buffer",
+        "@litert_archive//litert/cc:litert_tensor_buffer_requirements",
     ],
 )
 
