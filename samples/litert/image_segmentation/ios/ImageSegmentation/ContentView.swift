@@ -23,7 +23,7 @@ struct ContentView: View {
     private let accentColor = Color(red: 0/255.0, green: 201/255.0, blue: 158/255.0)  // #00C99E
 
     @State private var activeTab: AppTab = .camera
-    @State private var selectedAccelerator: AcceleratorOption = .cpu
+    @State private var selectedAccelerator: AcceleratorOption = .gpu
     
     // Gallery Mode State
     @State private var originalImage: UIImage? = nil

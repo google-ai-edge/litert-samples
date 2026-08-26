@@ -1,19 +1,19 @@
 # LiteRT Image Segmentation - iOS
 
-An iOS application demonstrating real-time and static image segmentation using LiteRT's Compiled Model API. The app performs multi-class segmentation on a bundled test image, allowing easy verification of CPU (Builtin Kernels) and GPU (Metal) execution.
+An iOS application demonstrating real-time and static image segmentation using LiteRT's Compiled Model API. The app performs multi-class segmentation on a bundled test image, allowing easy verification of CPU (XNNPACK) and GPU (Metal) execution.
 
 ## Screenshots
 
-| CPU (Builtin Kernels) | GPU (Metal Accelerator) |
+| CPU (XNNPACK) | GPU (Metal Accelerator) |
 |---|---|
 | <img src="output/CPU.PNG" alt="CPU Inference" width="300"> | <img src="output/GPU(Metal).PNG" alt="GPU Metal Inference" width="300"> |
 
 ## Features
 
-- **Backend Switching**: Select between CPU and GPU (Metal) directly in the UI.
+- **Backend Switching**: Select between CPU (XNNPACK) and GPU (Metal) directly in the UI.
 - **Real-Time Camera Stream**: Run model inference live on camera feed with flipped-camera support.
 - **Gallery Image Selection**: Import and segment custom images from your photo library.
-- **XNNPACK Bypass**: Avoids delegate prepare allocation issues on iOS by running Builtin CPU Kernels.
+- **CPU Acceleration**: Uses high-performance multi-threaded XNNPACK acceleration for CPU execution.
 - **GPU Acceleration**: Utilizes the dynamically loaded LiteRT Metal compiler plugin.
 - **Static Verification**: Includes a bundled portrait sample image (`image.jpeg`) to immediately verify model compilation and inference on startup.
 - **Performance Metrics Display**: Live measurements of pre-process, inference, and post-process execution times in milliseconds.
@@ -62,26 +62,23 @@ The iOS application requires the `CLiteRT.xcframework` bundle to compile. Run th
 cd path/to/LiteRT
 
 # Build the xcframework target for iOS (device and simulator slices)
-bazel build -c opt --config=ios_arm64 //litert/swift:CLiteRT
+bazel build -c opt litert/swift:CLiteRT
 
-# Copy the compiled xcframework bundle to the project directory
-cp -R bazel-bin/litert/swift/CLiteRT.xcframework path/to/samples/litert/image_segmentation/ios/
+# Unzip and copy the compiled xcframework bundle to the project directory
+unzip bazel-bin/litert/swift/CLiteRT.xcframework.zip -d path/to/samples/litert/image_segmentation/ios/
 ```
 
 ---
 
 ## How It Works
 
-### CPU Backend (Builtin Kernels)
-Due to a shape calculation overflow crash in the default XNNPACK delegate during the `RESIZE_NEAREST_NEIGHBOR` operator allocation, CPU compilation is configured to bypass XNNPACK. 
+### CPU Backend (XNNPACK)
+CPU compilation uses standard hardware options (`kLiteRtHwAcceleratorCpu`), leveraging LiteRT's built-in multi-threaded XNNPACK delegate for efficient operator execution.
 
-The wrapper uses the internal LiteRT CPU options API to set the kernel execution mode to builtin:
 ```objc
-LrtCpuOptions* cpu_opts = nullptr;
-if (LrtCreateCpuOptions(&cpu_opts) == kLiteRtStatusOk) {
-    LrtSetCpuOptionsKernelMode(cpu_opts, kLiteRtCpuKernelModeBuiltin);
-    // Serialize and add options to LiteRtOptions...
-}
+LiteRtOptions options = nullptr;
+LiteRtCreateOptions(&options);
+LiteRtSetOptionsHardwareAccelerators(options, kLiteRtHwAcceleratorCpu);
 ```
 
 ### GPU Backend (Metal)

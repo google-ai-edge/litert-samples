@@ -134,22 +134,8 @@ static std::vector<ColoredLabel> GetColors() {
             LiteRtHwAcceleratorSet accel_set = (accelerator == LiteRTAcceleratorMetal)
                 ? (kLiteRtHwAcceleratorGpu | kLiteRtHwAcceleratorCpu)
                 : kLiteRtHwAcceleratorCpu;
+            NSLog(@"[LiteRTSegmenter] Compiling model with accelerator enum: %ld, accel_set: 0x%lx", (long)accelerator, (unsigned long)accel_set);
             LiteRtSetOptionsHardwareAccelerators(options, accel_set);
-
-            // Configure CPU options to use Builtin kernels instead of XNNPACK (applies to CPU standalone & GPU CPU fallback)
-            LrtCpuOptions* cpu_opts = nullptr;
-            if (LrtCreateCpuOptions(&cpu_opts) == kLiteRtStatusOk) {
-                LrtSetCpuOptionsKernelMode(cpu_opts, kLiteRtCpuKernelModeBuiltin);
-                const char* identifier = nullptr;
-                const void* payload = nullptr;
-                void (*payload_deleter)(void*) = nullptr;
-                if (LrtGetOpaqueCpuOptionsData(cpu_opts, &identifier, &payload, &payload_deleter) == kLiteRtStatusOk) {
-                    LiteRtOpaqueOptions opaque_opts = nullptr;
-                    if (LiteRtCreateOpaqueOptions(identifier, const_cast<void*>(payload), payload_deleter, &opaque_opts) == kLiteRtStatusOk) {
-                        LiteRtAddOpaqueOptions(options, opaque_opts);
-                    }
-                }
-            }
         }
 
         // 5. Create Compiled Model
@@ -375,6 +361,8 @@ static std::vector<ColoredLabel> GetColors() {
     result.preProcessTimeMs = std::chrono::duration<double, std::milli>(end_preprocess - start_preprocess).count();
     result.inferenceTimeMs = std::chrono::duration<double, std::milli>(end_inference - start_inference).count();
     result.postProcessTimeMs = std::chrono::duration<double, std::milli>(end_postprocess - start_postprocess).count();
+    NSLog(@"[LiteRTSegmenter] === INFERENCE SUCCESSFUL === Pre: %.2f ms, Inf: %.2f ms, Post: %.2f ms",
+          result.preProcessTimeMs, result.inferenceTimeMs, result.postProcessTimeMs);
 
     return result;
 }
