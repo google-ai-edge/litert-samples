@@ -59,9 +59,9 @@ The image classification component uses **EfficientNet-Lite0** (`efficientnet_li
 * **Input Resolution**: `224x224x3` RGB pixels normalized between `[-1.0, 1.0]`.
 * **Dataset**: Pretrained on ImageNet-1k (1,000 object categories).
 * **Automatic Download**: Downloaded automatically during build via the Gradle task `downloadEfficientnetLite0Model` (`download_model.gradle`) from Google Cloud Storage (`storage.googleapis.com/ai-edge/...`).
-* **Execution**: Executed through LiteRT's `CompiledModel` API (`com.google.ai.edge.litert.CompiledModel`) using CPU or GPU hardware delegates.
+* **Execution**: Executed through LiteRT's `CompiledModel` API (`com.google.ai.edge.litert.CompiledModel`) using NPU, GPU, or CPU hardware acceleration.
 
-> **Note**: The vision classification model runs independently using LiteRT `CompiledModel` GPU acceleration (with automatic CPU fallback), while the Settings toggle specifically controls the hardware accelerator backend for the **LiteRT-LM** engine.
+> **Note**: The vision classification model runs using LiteRT `CompiledModel` acceleration (with NPU -> GPU -> CPU automatic fallback), while the Settings toggle controls the hardware accelerator backend (CPU, GPU, or NPU) for the **LiteRT-LM** engine.
 
 ---
 

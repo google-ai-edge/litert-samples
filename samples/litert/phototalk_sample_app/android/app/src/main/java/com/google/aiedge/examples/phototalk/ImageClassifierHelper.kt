@@ -61,12 +61,17 @@ class ImageClassifierHelper(private val context: Context) {
                 }
             }
 
-            // Create LiteRT CompiledModel with GPU/CPU hardware acceleration
+            // Create LiteRT CompiledModel with NPU/GPU/CPU hardware acceleration
             model = try {
-                CompiledModel.create(assetManager, MODEL_NAME, CompiledModel.Options(Accelerator.GPU), null)
-            } catch (e: Exception) {
-                Log.w(TAG, "GPU acceleration failed, falling back to CPU", e)
-                CompiledModel.create(assetManager, MODEL_NAME, CompiledModel.Options(Accelerator.CPU), null)
+                CompiledModel.create(assetManager, MODEL_NAME, CompiledModel.Options(Accelerator.NPU), null)
+            } catch (eNpu: Exception) {
+                Log.w(TAG, "NPU acceleration failed, trying GPU", eNpu)
+                try {
+                    CompiledModel.create(assetManager, MODEL_NAME, CompiledModel.Options(Accelerator.GPU), null)
+                } catch (eGpu: Exception) {
+                    Log.w(TAG, "GPU acceleration failed, falling back to CPU", eGpu)
+                    CompiledModel.create(assetManager, MODEL_NAME, CompiledModel.Options(Accelerator.CPU), null)
+                }
             }
             Log.i(TAG, "LiteRT CompiledModel classifier initialized successfully.")
         } catch (e: Exception) {

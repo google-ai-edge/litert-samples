@@ -323,12 +323,12 @@ fun PhotoTalkAppScreen(
                     Spacer(Modifier.height(4.dp))
                     Row(
                         modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
                     ) {
                         FilterChip(
                             selected = uiState.preferredBackend == "CPU",
                             onClick = { onBackendChanged("CPU") },
-                            label = { Text("CPU (Default)") },
+                            label = { Text("CPU") },
                             leadingIcon = {
                                 if (uiState.preferredBackend == "CPU") {
                                     Icon(Icons.Default.Check, contentDescription = null, modifier = Modifier.size(16.dp))
@@ -339,9 +339,20 @@ fun PhotoTalkAppScreen(
                         FilterChip(
                             selected = uiState.preferredBackend == "GPU",
                             onClick = { onBackendChanged("GPU") },
-                            label = { Text("GPU (OpenCL)") },
+                            label = { Text("GPU") },
                             leadingIcon = {
                                 if (uiState.preferredBackend == "GPU") {
+                                    Icon(Icons.Default.Check, contentDescription = null, modifier = Modifier.size(16.dp))
+                                }
+                            },
+                            modifier = Modifier.weight(1f)
+                        )
+                        FilterChip(
+                            selected = uiState.preferredBackend == "NPU",
+                            onClick = { onBackendChanged("NPU") },
+                            label = { Text("NPU") },
+                            leadingIcon = {
+                                if (uiState.preferredBackend == "NPU") {
                                     Icon(Icons.Default.Check, contentDescription = null, modifier = Modifier.size(16.dp))
                                 }
                             },

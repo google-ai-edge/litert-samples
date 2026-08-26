@@ -62,6 +62,21 @@ class LiteRtLmHelper private constructor(private val context: Context) {
         }
     }
 
+    private var nativeRuntimeConfigured = false
+
+    @Synchronized
+    private fun configureNativeRuntime(nativeLibraryDir: String) {
+        if (nativeRuntimeConfigured) return
+        try {
+            android.system.Os.setenv("LD_LIBRARY_PATH", nativeLibraryDir, true)
+            android.system.Os.setenv("ADSP_LIBRARY_PATH", nativeLibraryDir, true)
+            Log.i(TAG, "Configured native library paths to: $nativeLibraryDir")
+        } catch (e: Exception) {
+            Log.w(TAG, "Failed to set native library environment variables: ${e.message}")
+        }
+        nativeRuntimeConfigured = true
+    }
+
     suspend fun initializeEngine(
         modelPath: String,
         preferredBackend: String = "CPU"
@@ -93,13 +108,25 @@ class LiteRtLmHelper private constructor(private val context: Context) {
                 actualModelPath = targetFile.absolutePath
             }
 
-            val backends = if (preferredBackend == "GPU") {
-                listOf(
-                    Pair("GPU") { Backend.GPU() },
-                    Pair("CPU") { Backend.CPU() }
-                )
-            } else {
-                listOf(Pair("CPU") { Backend.CPU() })
+            val backends = when (preferredBackend.uppercase()) {
+                "NPU" -> {
+                    val libDir = context.applicationInfo.nativeLibraryDir
+                    configureNativeRuntime(libDir)
+                    listOf(
+                        Pair("NPU") { Backend.NPU(nativeLibraryDir = libDir) },
+                        Pair("GPU") { Backend.GPU() },
+                        Pair("CPU") { Backend.CPU() }
+                    )
+                }
+                "GPU" -> {
+                    listOf(
+                        Pair("GPU") { Backend.GPU() },
+                        Pair("CPU") { Backend.CPU() }
+                    )
+                }
+                else -> {
+                    listOf(Pair("CPU") { Backend.CPU() })
+                }
             }
 
             var lastException: Throwable? = null
