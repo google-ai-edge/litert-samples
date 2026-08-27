@@ -27,6 +27,7 @@ activityCompose = "1.12.0"
 composeBom = "2025.11.01"
 undercouchDownload = "5.6.0"
 litert = "2.1.6"
+litertSupport = "1.0.0"
 cameraCore = "1.5.1"
 compose = "1.9.5"
 composeLivedata = "1.9.5"
@@ -57,6 +58,7 @@ androidx-camera-core = { group = "androidx.camera", name = "camera-core", versio
 kotlinx-coroutines-android = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-android" }
 kotlinx-coroutines-bom = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-bom", version.ref = "kotlinxCoroutinesBom" }
 litert = { group = "com.google.ai.edge.litert", name = "litert", version.ref = "litert" }
+litert-support = { group = "com.google.ai.edge.litert", name = "litert-support", version.ref = "litertSupport" }
 androidx-camera-lifecycle = { group = "androidx.camera", name = "camera-lifecycle", version.ref = "cameraCore" }
 androidx-camera-view = { group = "androidx.camera", name = "camera-view", version.ref = "cameraCore" }
 androidx-camera-camera2 = { group = "androidx.camera", name = "camera-camera2", version.ref = "cameraCore" }

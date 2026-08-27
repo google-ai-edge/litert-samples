@@ -88,7 +88,13 @@ dependencies {
   // Strings for NPU runtime libraries
   implementation(project(":litert_npu_runtime_libraries:runtime_strings"))
 
-  implementation(libs.litert)
+  implementation(libs.litert) {
+    exclude(group = "com.google.ai.edge.litert", module = "litert-support")
+    exclude(group = "com.google.ai.edge.litert", module = "litert-support-api")
+  }
+  implementation(libs.litert.support) {
+    exclude(group = "com.google.ai.edge.litert", module = "litert-api")
+  }
 
   implementation(libs.androidx.core.ktx)
   implementation(libs.androidx.lifecycle.runtime.ktx)
