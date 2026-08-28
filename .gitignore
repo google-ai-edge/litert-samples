@@ -3,8 +3,12 @@
 **/.idea
 **/.ipynb_checkpoints
 
-# TensorFlow Lite model
+# TensorFlow Lite & LiteRT models
 *.tflite
+*.litertlm
+
+# Native runtime libraries
+**/jniLibs/
 
 # MediaPipe Task files
 *.tasks
