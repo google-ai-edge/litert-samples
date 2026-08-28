@@ -21,7 +21,7 @@ On-device Vision Language Models (VLMs) can be memory-intensive on mobile device
              │ Extracted Label (e.g. "Electric Guitar", 94%)
              ▼
 ┌──────────────────────────┐
-│        Prompting         │ ◄── Concise context: "User uploaded photo of [Label]..."
+│        Prompting         │ ◄── Context handoff: "User uploaded photo of [Label]..."
 └────────────┬─────────────┘
              │
              ▼
@@ -53,6 +53,18 @@ PhotoTalk supports three hardware execution backends selectable from the in-app 
 
 ---
 
+## **Supported Model Zoo**
+
+PhotoTalk automatically scans your device's `/sdcard/Download/` folder for compatible `.litertlm` models:
+
+| Model | Parameters | Quantization | Size | Target Hardware | Source |
+|:---|:---:|:---:|:---:|:---|:---|
+| **Gemma 3 1B IT** | 1B | 4-bit (`q4_ekv1280`) | ~657 MB | NPU (SM8750), GPU | [Hugging Face](https://huggingface.co/litert-community/Gemma3-1B-IT) |
+| **Gemma 4 E2B IT** | 2B | 4-bit | ~2.4 GB | GPU, CPU | [Hugging Face](https://huggingface.co/litert-community/gemma-4-E2B-it-litert-lm) |
+| **FastVLM 0.5B** | 0.5B | 4-bit | ~900 MB | NPU (SM8750), GPU | [Hugging Face](https://huggingface.co/litert-community/FastVLM-0.5B) |
+
+---
+
 ## **Screenshots**
 
 | LiteRT-LM Configuration Settings | CPU Accelerator Inference | GPU Accelerator Inference |
@@ -61,15 +73,57 @@ PhotoTalk supports three hardware execution backends selectable from the in-app 
 
 ---
 
-## **Vision Classification Model: EfficientNet-Lite0**
+## **Key Code Highlights**
 
-The image classification component uses **EfficientNet-Lite0** (`efficientnet_lite0.tflite`):
+### 1. Vision Classification with LiteRT `CompiledModel`
+```kotlin
+// ImageClassifierHelper.kt
+val options = CompiledModel.Options(Accelerator.GPU)
+val model = CompiledModel.create(assetManager, "efficientnet_lite0.tflite", options, null)
 
-* **Model Family**: EfficientNet-Lite (developed by Google AI) optimized for edge and mobile acceleration.
-* **Input Resolution**: `224x224x3` RGB pixels normalized between `[-1.0, 1.0]`.
-* **Dataset**: Pretrained on ImageNet-1k (1,000 object categories).
-* **Automatic Download**: Downloaded automatically during build via the Gradle task `downloadEfficientnetLite0Model` (`download_model.gradle`).
-* **Execution**: Executed through LiteRT's `CompiledModel` API (`com.google.ai.edge.litert.CompiledModel`) with GPU acceleration and CPU fallback.
+val inputBuffer = TensorBuffer.createFixedSize(intArrayOf(1, 224, 224, 3), DataType.FLOAT32)
+inputBuffer.loadBuffer(preprocessBitmap(bitmap))
+
+val outputBuffer = TensorBuffer.createFixedSize(intArrayOf(1, 1001), DataType.FLOAT32)
+model.run(arrayOf(inputBuffer.buffer), arrayOf(outputBuffer.buffer))
+```
+
+### 2. Initializing LiteRT-LM Engine with Hardware Backend
+```kotlin
+// LiteRtLmHelper.kt
+val engineConfig = EngineConfig(
+    modelPath = modelPath,
+    backend = when (preferredBackend) {
+        "NPU" -> Backend.NPU(nativeLibraryDir = context.applicationInfo.nativeLibraryDir)
+        "GPU" -> Backend.GPU()
+        else -> Backend.CPU()
+    }
+)
+val engine = Engine.create(engineConfig)
+```
+
+### 3. Context Injection & Streaming Chat Flow
+```kotlin
+// LiteRtLmHelper.kt
+val config = ConversationConfig(
+    systemInstruction = Contents.of(
+        "You are PhotoTalk, a concise visual assistant. " +
+        "The user uploaded an image classified as '$detectedLabel'. " +
+        "Keep answers short (max 2 sentences) and provide helpful context."
+    )
+)
+val conversation = engine.createConversation(config)
+
+// Stream responses cleanly via MessageCallback
+private fun sendMessageAsFlow(conv: Conversation, prompt: String): Flow<String> = callbackFlow {
+    conv.sendMessageAsync(prompt, object : MessageCallback {
+        override fun onMessage(message: Message) { trySend(message.toString()) }
+        override fun onDone() { close() }
+        override fun onError(throwable: Throwable) { close(throwable) }
+    })
+    awaitClose { }
+}
+```
 
 ---
 
@@ -104,12 +158,12 @@ phototalk_sample_app/
 
 ### **1. Prerequisites**
 * Android Studio (Ladybug 2024.2.1+ or newer)
-* Android device with **Android 8.0+ (API 26+)** (for NPU: Snapdragon 8 Gen 3 / Snapdragon 8 Elite / SM8750 recommended)
+* Android device with **Android 8.0+ (API 26+)** (for Qualcomm NPU: Snapdragon 8 Gen 3 / Snapdragon 8 Elite / SM8750 recommended)
 * Android SDK & NDK installed
 
 ---
 
-### **2. Setup NPU Runtime Libraries (Optional for NPU Acceleration)**
+### **2. Setup NPU Runtime Libraries (Optional for Qualcomm NPU)**
 If you want to run LiteRT-LM on Qualcomm Hexagon NPUs, run the helper script in the `android/` directory:
 
 ```bash
@@ -126,7 +180,7 @@ This downloads the official [LiteRT 2.2.0 NPU Runtime Libraries](https://github.
 ### **3. Download and Push a `.litertlm` Model to the Device**
 Download your preferred on-device LLM from [Hugging Face](https://huggingface.co/litert-community) and push it to your device's `/sdcard/Download/` folder:
 
-* **For NPU & GPU Acceleration (Gemma 3 1B)**:
+* **For Qualcomm NPU Acceleration (Gemma 3 1B)**:
   ```bash
   adb push Gemma3-1B-IT_q4_ekv1280_sm8750.litertlm /sdcard/Download/
   ```
@@ -153,3 +207,11 @@ cd samples/litert/phototalk_sample_app/android
 3. Select your model file and preferred accelerator backend (**NPU**, **GPU**, or **CPU**).
 4. Tap **Initialize Engine**.
 5. Once the banner shows **`LiteRT-LM Ready`**, tap **Select Image** to upload a photo and start chatting!
+
+---
+
+## **Troubleshooting**
+
+* **Model Not Showing in Settings**: Ensure your `.litertlm` file is in `/sdcard/Download/`. You can also tap **Browse Device Files** in the settings dialog to pick a `.litertlm` model from any storage location.
+* **Warmup Failure on NPU**: Ensure you ran `bash download_npu_libs.sh` and that the model's target SoC (e.g. `sm8750`) matches your device's chipset.
+* **GPU Backend**: GPU mode runs hardware acceleration across all supported OpenCL/Vulkan Android devices without proprietary DSP firmware constraints.
