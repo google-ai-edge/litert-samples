@@ -15,9 +15,10 @@
         android:theme="@style/Theme.PhotoTalkAI"
         android:requestLegacyExternalStorage="true">
         
-        <!-- Native OpenCL / VNDK support for LiteRT-LM GPU backend -->
+        <!-- Native OpenCL / VNDK / CDSP support for LiteRT-LM GPU and NPU backend -->
         <uses-native-library android:name="libvndksupport.so" android:required="false"/>
         <uses-native-library android:name="libOpenCL.so" android:required="false"/>
+        <uses-native-library android:name="libcdsprpc.so" android:required="false"/>
 
         <activity
             android:name=".MainActivity"
