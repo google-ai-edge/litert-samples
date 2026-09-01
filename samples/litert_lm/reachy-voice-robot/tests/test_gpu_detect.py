@@ -31,19 +31,19 @@ import pytest
 from demo.gpu_detect import MAX_BODY, find_model, make_handler
 
 
-# --- find_model(): glob logic, no real models/GPU on disk ---
+# --- find_model(): resolves the model bundled in the repo (assets/yolo) ---
 
-def test_find_model_finds_nested_tflite(monkeypatch, tmp_path):
-    cache = tmp_path / ".cache" / "some" / "nested" / "dir"
-    cache.mkdir(parents=True)
-    model = cache / "yolox_tiny.tflite"
-    model.write_bytes(b"fake-tflite-bytes")
-    monkeypatch.setenv("HOME", str(tmp_path))
-    assert find_model() == str(model)
+def test_find_model_returns_bundled_model(monkeypatch, tmp_path):
+    # Hermetic: the real yolo26n.tflite is git-ignored (converted locally), so
+    # don't depend on it being present — point _MODEL at a temp file instead.
+    fake = tmp_path / "yolo26n.tflite"
+    fake.write_bytes(b"x")
+    monkeypatch.setattr("demo.gpu_detect._MODEL", fake)
+    assert find_model() == str(fake)
 
 
 def test_find_model_raises_systemexit_when_missing(monkeypatch, tmp_path):
-    monkeypatch.setenv("HOME", str(tmp_path))
+    monkeypatch.setattr("demo.gpu_detect._MODEL", tmp_path / "nope.tflite")
     with pytest.raises(SystemExit):
         find_model()
 

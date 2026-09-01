@@ -1,0 +1,5 @@
+*.tflite
+*.npy
+__pycache__/
+icefall
+en_medium

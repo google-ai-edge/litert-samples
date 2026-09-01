@@ -31,25 +31,76 @@ Same interface as the other synthesizers: `speak(text) -> np.ndarray` plus a
 
 from __future__ import annotations
 
+import os
+import shutil
 from pathlib import Path
 
 import numpy as np
+from huggingface_hub import hf_hub_download
 
-# Bundled package location on the board (models + the Apache-2.0 text
-# frontend, which calls espeak-ng/GPL-3.0 in-process at runtime).
+# Bundled package location on the board: the runtime (say.py) and the Apache-2.0
+# text frontend, which calls espeak-ng/GPL-3.0 in-process at runtime. The LiteRT
+# weights (*.tflite) are gitignored, not shipped here — they are fetched from
+# Hugging Face into this directory on first use (see _ensure_weights), like the
+# sample's other models.
 DEFAULT_MODELS_DIR = Path(__file__).resolve().parent.parent / "assets" / "inflect"
 DEFAULT_FRONTEND_DIR = DEFAULT_MODELS_DIR / "frontend"
 SAMPLE_RATE = 24000
 
 
+def _ensure_weights(models_dir: Path, repo: str, precision: str) -> None:
+    """Fetch the encoder + decoder LiteRT weights from Hugging Face on first use.
+
+    ``*.tflite`` is gitignored, so the weights are not committed — only the
+    runtime (``say.py``) and the espeak frontend are. The two graphs for the
+    requested precision are downloaded next to ``say.py`` (where ``InflectTTS``
+    reads them by directory), mirroring how the speech-to-text model
+    auto-downloads. A file already present is left untouched, so this is a no-op
+    after the first run at a given precision (and for a manually populated dir).
+    """
+    if precision not in ("fp32", "fp16"):
+        raise ValueError(f"unknown precision {precision!r}; expected fp32 or fp16")
+    suffix = "" if precision == "fp32" else "_fp16"
+    for stem in ("inflect_text_encoder", "inflect_decoder"):
+        name = f"{stem}{suffix}.tflite"
+        dest = models_dir / name
+        if dest.exists():
+            continue
+        try:
+            cached = hf_hub_download(repo_id=repo, filename=name)
+        except Exception as exc:  # offline, missing repo/file, network error
+            raise SystemExit(
+                f"could not fetch the Inflect TTS weight {name!r} from Hugging "
+                f"Face repo {repo!r}: {type(exc).__name__}: {exc}. Check your "
+                f"network, or place the .tflite files in {models_dir} manually "
+                "(see assets/inflect/RUN.md).") from exc
+        models_dir.mkdir(parents=True, exist_ok=True)
+        # Copy into place atomically: a copy interrupted by a crash, a full disk,
+        # or a second process would otherwise leave a truncated .tflite that the
+        # dest.exists() check trusts forever (every later run then fails at model
+        # open). Write a per-process temp file, then os.replace() — an atomic
+        # rename on the same filesystem.
+        tmp = dest.with_name(f"{name}.{os.getpid()}.tmp")
+        try:
+            shutil.copyfile(cached, tmp)
+            os.replace(tmp, dest)
+        finally:
+            tmp.unlink(missing_ok=True)
+
+
 class InflectSynthesizer:
     def __init__(self, models_dir: Path | None = None,
                  frontend_dir: Path | None = None,
-                 precision: str = "fp32", threads: int = 4) -> None:
+                 precision: str = "fp32", threads: int = 4,
+                 repo: str | None = None) -> None:
         # say.py lives inside the package dir; import it from there.
         import sys
 
         models_dir = Path(models_dir or DEFAULT_MODELS_DIR)
+        # Pull the LiteRT weights from Hugging Face the first time (they are
+        # gitignored, so a fresh checkout has only say.py + the frontend).
+        if repo:
+            _ensure_weights(models_dir, repo, precision)
         # Derive the frontend from models_dir when not given explicitly, so an
         # injected models_dir carries its own frontend/ with it (for the default
         # models_dir this equals DEFAULT_FRONTEND_DIR — no behavior change).
@@ -73,6 +124,9 @@ class InflectSynthesizer:
 
 
 def load_inflect(models_dir: Path | None = None,
-                 frontend_dir: Path | None = None) -> InflectSynthesizer:
-    """Build the Inflect synthesizer from the bundled package."""
-    return InflectSynthesizer(models_dir=models_dir, frontend_dir=frontend_dir)
+                 frontend_dir: Path | None = None,
+                 repo: str | None = None) -> InflectSynthesizer:
+    """Build the Inflect synthesizer; fetch the LiteRT weights from ``repo`` on
+    first use if they are not already present in ``models_dir``."""
+    return InflectSynthesizer(models_dir=models_dir, frontend_dir=frontend_dir,
+                              repo=repo)

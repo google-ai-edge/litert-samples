@@ -192,3 +192,22 @@ class ParakeetTDT(asr_model.AsrModel):
         tokens=out[0].y_sequence.unsqueeze(0).long()
         # timestamps=out[0].timestamp.unsqueeze(0),
     )
+
+
+class ParakeetTDTCTCJa(ParakeetTDT):
+  """Wrapper for the Japanese hybrid TDT-CTC Parakeet, using the TDT branch.
+
+  nvidia/parakeet-tdt_ctc-0.6b-ja is an EncDecHybridRNNTCTCBPE model whose
+  encoder, prediction network and joint mirror parakeet-tdt-0.6b-v3 (1024-d
+  FastConformer encoder, 2-layer 640-d LSTM, TDT durations [0, 1, 2, 3, 4]);
+  only the tokenizer (Japanese SentencePiece, vocab 3072, so the blank token
+  is 3072) and the mel features (80 bins instead of 128) differ.
+  """
+
+  HF_MODEL_ID = 'nvidia/parakeet-tdt_ctc-0.6b-ja'
+  BLANK_TOKEN_ID = 3072  # joint outputs 3072 tokens + blank + 5 durations
+
+  def __init__(
+      self, model_id: str = HF_MODEL_ID, override_transformers: bool = False
+  ):
+    super().__init__(model_id, override_transformers)

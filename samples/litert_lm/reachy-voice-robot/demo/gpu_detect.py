@@ -17,19 +17,20 @@
 
 Runs as a separate process in the nightly-LiteRT venv with a GPU env
 (VK_ICD_FILENAMES, V3D_WEBGPU_OVERRIDE). The point is to offload the CPU:
-detection moves to the VideoCore VII, leaving Gemma ~87% of the throughput.
-Latency is ~286 ms/frame (a bit slower than CPU, but it doesn't steal cores).
-IMPORTANT: raw GPU inference alone doesn't produce boxes — it still needs the
-same postprocessing as the CPU detector (grid decode + NMS), plus raw pixels.
+detection moves to the VideoCore VII, freeing the CPU cores for the LLM.
+Latency is ~385 ms/frame on the Pi's V3D GPU — several times the ~111 ms 4-thread
+CPU path, but the win isn't raw speed: it keeps detection off the CPU cores so Gemma
+gets them. IMPORTANT: raw GPU inference alone doesn't produce boxes — it still
+needs the same postprocessing as the CPU detector (decode + NMS), plus the same
+normalized NCHW input. The model is exported with the raw head (end2end=False)
+so it runs fully on the GPU; the decode + NMS run here on the CPU.
 """
 from __future__ import annotations
 
 import argparse
-import glob
 import io
 import json
 import logging
-import os
 import time
 from http.server import BaseHTTPRequestHandler, HTTPServer
 
@@ -39,7 +40,8 @@ from PIL import Image
 
 from demo.detections import detections_to_dicts
 from demo.http_util import ascii_reason
-from emulator.detector import (decode_yolox_output, non_max_suppression,
+from emulator import models
+from emulator.detector import (decode_yolo_output, non_max_suppression,
                                preprocess_frame)
 
 # decompression-bomb guard: PIL raises DecompressionBombError above ~2x this
@@ -49,8 +51,8 @@ Image.MAX_IMAGE_PIXELS = 10_000_000
 
 LOG = logging.getLogger(__name__)
 
-INPUT = 416          # yolox-tiny input; output 3549 = 52²+26²+13²
-OUTPUT_SHAPE = (1, 3549, 85)
+INPUT = 640          # yolo26n input; output 8400 = 80²+40²+20² anchors
+OUTPUT_SHAPE = (1, 84, 8400)   # 84 = 4 box coords + 80 COCO class scores (raw head)
 MAX_BODY = 4 * 1024 * 1024  # overflow guard: /detect request body size limit
 
 
@@ -61,17 +63,26 @@ class GpuDetector:
             model_path, hardware_accel=HardwareAccelerator.GPU)
         self._ib = self._m.create_input_buffers(0)
         self._ob = self._m.create_output_buffers(0)
+        # Fail loudly at boot if the model's real output shape isn't the
+        # channels-first raw head we decode. `read()` below imposes OUTPUT_SHAPE
+        # on the flat buffer, so a mismatched (e.g. anchor-major) export would
+        # otherwise be silently reinterpreted into garbage, per frame.
+        actual = tuple(int(x) for x in self._ob[0].get_tensor_details()["shape"])
+        if actual != OUTPUT_SHAPE:
+            raise SystemExit(
+                f"detector output shape {actual} != expected {OUTPUT_SHAPE} — "
+                "re-check the YOLO26 end2end=False export (assets/yolo/README.md)")
         self._thr = score_threshold
         self._iou = iou_threshold
 
     def detect(self, jpeg: bytes) -> list[dict]:
         img = Image.open(io.BytesIO(jpeg)).convert("RGB").resize((INPUT, INPUT))
-        frame = np.asarray(img, dtype=np.float32)              # [416,416,3] 0..255
-        prepared = preprocess_frame(frame, (1, INPUT, INPUT, 3))
+        frame = np.asarray(img, dtype=np.float32)          # [640,640,3] 0..255
+        prepared = preprocess_frame(frame, (1, 3, INPUT, INPUT))  # NCHW, [0,1]
         self._ib[0].write(prepared.astype(np.float32))
         self._m.run_by_index(0, self._ib, self._ob)
         raw = self._ob[0].read(OUTPUT_SHAPE, np.float32)
-        found = decode_yolox_output(raw, self._thr, INPUT)
+        found = decode_yolo_output(raw, self._thr)
         return detections_to_dicts(non_max_suppression(found, self._iou))
 
 
@@ -133,12 +144,24 @@ def make_handler(detector: GpuDetector):
     return Handler
 
 
+# Resolve the bundled detector through the catalog (emulator/models.py) — the
+# one place that names the model file, so nothing is duplicated here. gpu_detect
+# runs as `python -m demo.gpu_detect` from the repo, so the path is on disk.
+_detector = models.get(models.DETECTOR)
+_MODEL = (_detector.dir / _detector.file
+          if _detector.dir is not None and _detector.file is not None else None)
+
+
 def find_model() -> str:
-    hits = glob.glob(f"{os.path.expanduser('~')}/.cache/**/yolox_tiny.tflite",
-                     recursive=True)
-    if not hits:
-        raise SystemExit("yolox_tiny.tflite not found in ~/.cache")
-    return hits[0]
+    if _MODEL is None:
+        raise SystemExit(
+            f"detector {models.DETECTOR!r} is not a bundled (dir+file) model — "
+            "gpu_detect serves a local .tflite")
+    if not _MODEL.exists():
+        raise SystemExit(
+            f"bundled YOLO model not found: {_MODEL} — convert it per "
+            "assets/yolo/README.md before running")
+    return str(_MODEL)
 
 
 def main(argv=None) -> int:

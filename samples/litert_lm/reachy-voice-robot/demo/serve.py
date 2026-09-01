@@ -184,6 +184,21 @@ def _audio_event(text, audio, sample_rate):
     }
 
 
+def output_throughput(reply: str,
+                      decode_s: float) -> tuple[float, int] | tuple[None, None]:
+    """Sustained model output rate for a reply generated over `decode_s`
+    seconds: (characters/second, words/minute). Returns (None, None) when the
+    window is too short (< 0.1 s) to carry a meaningful rate — e.g. a one-token
+    reply. words/minute is the real word count, not chars/5, so it can be
+    checked against the printed reply.
+    """
+    if decode_s < 0.1:
+        return None, None
+    chars_per_s = round(len(reply) / decode_s, 1)
+    words_per_min = round(len(reply.split()) / decode_s * 60)
+    return chars_per_s, words_per_min
+
+
 def stream_respond(payload, pipeline, frame_shape):
     """Streaming pass: detector and ASR, then model streaming with synthesis
     of each finished sentence as it's ready.
@@ -209,7 +224,7 @@ def stream_respond(payload, pipeline, frame_shape):
         detections = pipeline.detector.detect(frame)
         gaze = gaze_target(detections)
         # Detailed detections with confidence and box — so we can see WHAT
-        # exactly yolox found and how confidently (hallucination diagnostics).
+        # exactly the detector found and how confidently (hallucination diagnostics).
         # Same format that gpu_detect.py returns — reuse the shared converter
         # instead of rebuilding the list here.
         detail = detections_to_dicts(detections)
@@ -247,6 +262,16 @@ def stream_respond(payload, pipeline, frame_shape):
     buffer = ""
     full = ""
     first_sound_ms = None
+    # Bracket the model's token-generation window (first token -> last token)
+    # and subtract the synthesis interleaved into it, so the throughput below
+    # reflects the LLM decode rate rather than the synthesizer. Only synthesis
+    # that finished *before* the last token counts: the final sentence (and the
+    # tail) synthesize after the window closes, so we subtract the synth total
+    # snapshotted at the last token, not the running total.
+    tok_first_s = None
+    tok_last_s = None
+    synth_s = 0.0
+    synth_before_last_tok = 0.0
     for msg in pipeline.llm.reply_stream(prompt, system=STREAM_SYSTEM,
                                          tools=[MOVE_HEAD_TOOL]):
         if msg["type"] == "tool_call":
@@ -255,6 +280,11 @@ def stream_respond(payload, pipeline, frame_shape):
                 if gesture in GESTURE_NAMES and not gesture_blocked:
                     yield {"type": "gesture", "gesture": gesture}
             continue
+        now = time.perf_counter()
+        if tok_first_s is None:
+            tok_first_s = now
+        tok_last_s = now
+        synth_before_last_tok = synth_s   # synthesis finished strictly before this token
         # Combined "gesture + question" turns sometimes leak raw
         # function-call tokens straight into content (see
         # _strip_tool_call_leak) — clean the buffer and the full reply
@@ -263,7 +293,9 @@ def stream_respond(payload, pipeline, frame_shape):
         full = _strip_tool_call_leak(full + msg["text"])
         sentences, buffer = extract_sentences(buffer)
         for sentence in sentences:
+            s0 = time.perf_counter()
             event = synth(sentence)
+            synth_s += time.perf_counter() - s0
             if event is not None:
                 if first_sound_ms is None:
                     first_sound_ms = (time.perf_counter() - t0) * 1000
@@ -276,9 +308,14 @@ def stream_respond(payload, pipeline, frame_shape):
                 first_sound_ms = (time.perf_counter() - t0) * 1000
             yield event
 
-    yield {"type": "done", "reply": full.strip(),
+    reply = full.strip()
+    decode_s = ((tok_last_s - tok_first_s) - synth_before_last_tok
+                if tok_first_s is not None else 0.0)
+    chars_per_s, words_per_min = output_throughput(reply, decode_s)
+    yield {"type": "done", "reply": reply,
            "first_sound_ms": first_sound_ms,
-           "total_ms": (time.perf_counter() - t0) * 1000}
+           "total_ms": (time.perf_counter() - t0) * 1000,
+           "chars_per_s": chars_per_s, "words_per_min": words_per_min}
 
 
 def make_handler(pipeline, frame_shape):

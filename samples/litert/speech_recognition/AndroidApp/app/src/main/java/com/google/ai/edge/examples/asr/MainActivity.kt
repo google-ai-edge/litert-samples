@@ -260,7 +260,7 @@ class MainActivity : AppCompatActivity() {
               modelKey.contains("-ctc-") -> { _, _ ->
                 CtcDecoder(tokenizer!!.vocabSize)
               }
-              modelKey.contains("-tdt-") -> { model, config ->
+              modelKey.contains("-tdt") -> { model, config ->
                 TdtDecoder(model, config)
               }
               else -> { model, config ->

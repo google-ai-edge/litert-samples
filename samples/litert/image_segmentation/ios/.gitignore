@@ -1,0 +1,4 @@
+# Generated / fetched at build time — see README.md
+CLiteRT.xcframework/
+libLiteRtMetalAccelerator.dylib
+selfie_multiclass_256x256.tflite

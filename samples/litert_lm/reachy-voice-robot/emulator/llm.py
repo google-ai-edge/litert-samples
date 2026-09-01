@@ -112,9 +112,10 @@ GESTURE_NAMES = ("nod", "shake", "look_left", "look_right", "look_up", "look_dow
 
 # How many objects from the frame to mention: in a crowded frame the detector
 # finds dozens, and the full list would push the prompt past the prefill
-# cliff. Keep it short — four is enough for "what do you see", and the
-# character budget under the cliff is tight.
-MAX_OBJECTS_IN_PROMPT = 4
+# cliff. Keep it short — the top three by detector confidence (detections
+# arrive score-sorted, see non_max_suppression) are enough for "what do you
+# see", and the character budget under the cliff is tight.
+MAX_OBJECTS_IN_PROMPT = 3
 
 
 def _unique(items: list[str], limit: int) -> list[str]:

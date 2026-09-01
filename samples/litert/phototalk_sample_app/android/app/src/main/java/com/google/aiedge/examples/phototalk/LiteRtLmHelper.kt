@@ -24,9 +24,13 @@ import com.google.ai.edge.litertlm.Conversation
 import com.google.ai.edge.litertlm.ConversationConfig
 import com.google.ai.edge.litertlm.Engine
 import com.google.ai.edge.litertlm.EngineConfig
+import com.google.ai.edge.litertlm.Message
+import com.google.ai.edge.litertlm.MessageCallback
 import com.google.ai.edge.litertlm.SamplerConfig
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.callbackFlow
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.withContext
@@ -62,6 +66,23 @@ class LiteRtLmHelper private constructor(private val context: Context) {
         }
     }
 
+    private var nativeRuntimeConfigured = false
+
+    @Synchronized
+    private fun configureNativeRuntime(nativeLibraryDir: String) {
+        if (nativeRuntimeConfigured) return
+        try {
+            val ldPaths = "$nativeLibraryDir:/vendor/lib64/snap:/vendor/lib64:/system/lib64"
+            val adspPaths = "$nativeLibraryDir;/vendor/lib64/snap;/vendor/lib64/rfs/dsp/snap;/vendor/dsp;/vendor/lib/rfsa/adsp;/system/lib/rfsa/adsp"
+            android.system.Os.setenv("LD_LIBRARY_PATH", ldPaths, true)
+            android.system.Os.setenv("ADSP_LIBRARY_PATH", adspPaths, true)
+            Log.i(TAG, "Configured native library paths: ADSP=$adspPaths, LD=$ldPaths")
+        } catch (e: Exception) {
+            Log.w(TAG, "Failed to set native library environment variables: ${e.message}")
+        }
+        nativeRuntimeConfigured = true
+    }
+
     suspend fun initializeEngine(
         modelPath: String,
         preferredBackend: String = "CPU"
@@ -93,13 +114,25 @@ class LiteRtLmHelper private constructor(private val context: Context) {
                 actualModelPath = targetFile.absolutePath
             }
 
-            val backends = if (preferredBackend == "GPU") {
-                listOf(
-                    Pair("GPU") { Backend.GPU() },
-                    Pair("CPU") { Backend.CPU() }
-                )
-            } else {
-                listOf(Pair("CPU") { Backend.CPU() })
+            val backends = when (preferredBackend.uppercase()) {
+                "NPU" -> {
+                    val libDir = context.applicationInfo.nativeLibraryDir
+                    configureNativeRuntime(libDir)
+                    listOf(
+                        Pair("NPU") { Backend.NPU(nativeLibraryDir = libDir) },
+                        Pair("GPU") { Backend.GPU() },
+                        Pair("CPU") { Backend.CPU() }
+                    )
+                }
+                "GPU" -> {
+                    listOf(
+                        Pair("GPU") { Backend.GPU() },
+                        Pair("CPU") { Backend.CPU() }
+                    )
+                }
+                else -> {
+                    listOf(Pair("CPU") { Backend.CPU() })
+                }
             }
 
             var lastException: Throwable? = null
@@ -157,14 +190,29 @@ class LiteRtLmHelper private constructor(private val context: Context) {
         conversation = newConversation
 
         // Initial prompt to trigger concise greeting and topic introduction
-        newConversation.sendMessageAsync("Hello! Describe the photo concisely.").map { it.toString() }
+        sendMessageAsFlow(newConversation, "Hello! Describe the photo concisely.")
     }
 
     fun sendChatMessage(userText: String): Flow<String> {
         val currentConv = conversation ?: return flow {
             emit("Error: Conversation is not active. Please select an image first.")
         }
-        return currentConv.sendMessageAsync(userText).map { it.toString() }
+        return sendMessageAsFlow(currentConv, userText)
+    }
+
+    private fun sendMessageAsFlow(conv: Conversation, prompt: String): Flow<String> = callbackFlow {
+        conv.sendMessageAsync(prompt, object : MessageCallback {
+            override fun onMessage(message: Message) {
+                trySend(message.toString())
+            }
+            override fun onDone() {
+                close()
+            }
+            override fun onError(throwable: Throwable) {
+                close(throwable)
+            }
+        })
+        awaitClose { }
     }
 
     fun getActiveBackend(): String = activeBackendName
