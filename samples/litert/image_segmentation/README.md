@@ -68,13 +68,17 @@ significantly faster inference on compatible devices.
 
 ### Key Dependencies
 
--   LiteRT (com.google.ai.edge.litert): 2.0.0-alpha
+-   LiteRT (`com.google.ai.edge.litert`)
 
 -   Android CameraX: For camera functionality
 
 -   Jetpack Compose: For modern UI
 
 -   Kotlin Coroutines: For asynchronous operations
+
+> [!NOTE]
+> The LiteRT runtime and dependency versions in these samples are pinned as a baseline reference. When testing newer releases, nightly builds, or custom-built binaries, update the corresponding project configurations to match your requirements.
+
 
 ### Architecture Components
 
