@@ -1,0 +1,168 @@
+<!doctype html>
+<!--
+  Copyright 2026 The Google AI Edge Authors. All Rights Reserved.
+
+  Licensed under the Apache License, Version 2.0 (the "License");
+  you may not use this file except in compliance with the License.
+  You may obtain a copy of the License at
+
+      http://www.apache.org/licenses/LICENSE-2.0
+
+  Unless required by applicable law or agreed to in writing, software
+  distributed under the License is distributed on an "AS IS" BASIS,
+  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+  See the License for the specific language governing permissions and
+  limitations under the License.
+-->
+<html lang="en" translate="no">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="google" content="notranslate">
+<title>Photo → 3D — in your browser</title>
+<style>
+  :root {
+    --bg: #0b0d10;
+    --panel: rgba(18, 21, 26, 0.88);
+    --text: #e8eaed;
+    --muted: #9aa0a6;
+    --accent: #7cc4ff;
+    --border: rgba(255, 255, 255, 0.09);
+  }
+  * { box-sizing: border-box; margin: 0; }
+  html, body { height: 100%; }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font: 15px/1.5 -apple-system, "SF Pro Text", "Segoe UI", Roboto, "Hiragino Sans", sans-serif;
+    overflow: hidden;
+  }
+  #stage { position: fixed; inset: 0; }
+  #stage canvas { display: block; }
+
+  .panel {
+    position: fixed;
+    left: 16px;
+    top: 16px;
+    width: min(340px, calc(100vw - 32px));
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 14px 16px 14px;
+    backdrop-filter: blur(14px);
+    -webkit-backdrop-filter: blur(14px);
+  }
+  .back {
+    display: inline-block; margin-bottom: 8px;
+    font-size: 12.5px; color: var(--muted); text-decoration: none;
+  }
+  .back:hover { color: var(--accent); }
+  h1 { font-size: 17px; font-weight: 650; letter-spacing: 0.1px; }
+  .sub { color: var(--muted); font-size: 12.5px; margin-top: 2px; }
+
+  .buttons { display: flex; gap: 8px; margin-top: 12px; flex-wrap: wrap; }
+  button, .filebtn {
+    appearance: none;
+    border: 1px solid var(--border);
+    background: rgba(255, 255, 255, 0.06);
+    color: var(--text);
+    border-radius: 9px;
+    padding: 8px 13px;
+    font: inherit;
+    font-size: 13.5px;
+    cursor: pointer;
+  }
+  button:hover, .filebtn:hover { background: rgba(255, 255, 255, 0.12); }
+  button:disabled { opacity: 0.4; cursor: default; }
+  button.primary, .filebtn.primary { background: var(--accent); border-color: transparent; color: #06263f; font-weight: 600; }
+  button.primary:hover, .filebtn.primary:hover { filter: brightness(1.06); }
+  .filebtn input { display: none; }
+
+  .seg {
+    display: inline-flex; margin-top: 10px;
+    border: 1px solid var(--border); border-radius: 9px; overflow: hidden;
+  }
+  .seg button { border: none; border-radius: 0; padding: 6px 12px; font-size: 12.5px; }
+  .seg button + button { border-left: 1px solid var(--border); }
+  .seg button.active { background: rgba(124, 196, 255, 0.18); color: var(--accent); }
+  #env { margin-top: 8px; font-size: 12px; color: var(--muted); display: none; }
+
+  #status { margin-top: 11px; font-size: 12.5px; color: var(--muted); min-height: 18px; }
+  #status .bar {
+    display: inline-block; vertical-align: middle;
+    width: 120px; height: 4px; margin-left: 8px;
+    background: rgba(255, 255, 255, 0.1); border-radius: 2px; overflow: hidden;
+  }
+  #status .bar i { display: block; height: 100%; background: var(--accent); width: 0%; }
+
+  #latency {
+    margin-top: 8px; font-size: 12.5px; color: var(--text);
+    display: none;
+  }
+  #latency b { color: var(--accent); font-variant-numeric: tabular-nums; }
+
+  #hint { margin-top: 8px; font-size: 12px; color: var(--muted); display: none; }
+
+  #video {
+    display: none;
+    position: fixed; right: 16px; top: 16px;
+    width: 240px; border-radius: 12px; border: 1px solid var(--border);
+    transform: scaleX(-1);
+  }
+
+  footer {
+    position: fixed; left: 16px; right: 16px; bottom: 12px;
+    display: flex; justify-content: space-between; gap: 12px; flex-wrap: wrap;
+    font-size: 12px; color: var(--muted);
+    pointer-events: none;
+  }
+  footer span { background: rgba(11, 13, 16, 0.7); padding: 3px 8px; border-radius: 7px; }
+  footer a { pointer-events: auto; color: var(--accent); }
+
+  #drop-overlay {
+    position: fixed; inset: 0; display: none;
+    align-items: center; justify-content: center;
+    background: rgba(11, 13, 16, 0.75);
+    border: 2px dashed var(--accent);
+    font-size: 20px; color: var(--accent);
+    z-index: 10; pointer-events: none;
+  }
+</style>
+</head>
+<body>
+  <div id="stage"></div>
+
+  <div class="panel">
+    <a class="back" href="../">← All demos</a>
+    <h1>Photo → 3D point cloud</h1>
+    <div class="sub">MoGe-2 monocular geometry, running entirely in your browser on LiteRT.js. Nothing is uploaded.</div>
+    <div class="buttons">
+      <label class="filebtn primary">Choose a photo<input id="file" type="file" accept="image/*"></label>
+      <button id="cam">Use camera</button>
+      <button id="shutter" style="display:none">Capture</button>
+    </div>
+    <div class="seg" id="backend-switch" role="group" aria-label="Inference backend">
+      <button data-backend="webgpu">WebGPU</button>
+      <button data-backend="wasm">WASM</button>
+    </div>
+    <div id="env"></div>
+    <div id="status">Loading runtime…</div>
+    <div id="latency">inference <b></b> · <span id="backend"></span></div>
+    <div id="hint">drag to orbit · scroll to zoom · drop or paste a new photo anytime</div>
+  </div>
+
+  <video id="video" autoplay playsinline muted></video>
+  <div id="drop-overlay">Drop the photo</div>
+
+  <footer>
+    <span>Your photo never leaves this page.</span>
+    <span>Model: <a href="https://huggingface.co/litert-community/MoGe-2-LiteRT" target="_blank" rel="noopener">MoGe-2</a> (MIT) · Runtime: <a href="https://www.npmjs.com/package/@litertjs/core" target="_blank" rel="noopener">LiteRT.js</a> · <a href="https://github.com/google-ai-edge/litert-samples/tree/main/samples/web_demos" target="_blank" rel="noopener">Source</a></span>
+  </footer>
+
+  <!-- Cross-origin isolation via the site-root service worker (see the
+       comment in ../index.html) — the WASM fallback runs threaded. -->
+  <script>window.coi = { coepCredentialless: () => false };</script>
+  <script src="../coi-serviceworker.min.js"></script>
+  <script type="module" src="./main.js"></script>
+</body>
+</html>

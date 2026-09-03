@@ -1,0 +1,106 @@
+<!doctype html>
+<!--
+  Copyright 2026 The Google AI Edge Authors. All Rights Reserved.
+
+  Licensed under the Apache License, Version 2.0 (the "License");
+  you may not use this file except in compliance with the License.
+  You may obtain a copy of the License at
+
+      http://www.apache.org/licenses/LICENSE-2.0
+
+  Unless required by applicable law or agreed to in writing, software
+  distributed under the License is distributed on an "AS IS" BASIS,
+  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+  See the License for the specific language governing permissions and
+  limitations under the License.
+-->
+<html lang="en" translate="no">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="google" content="notranslate">
+<title>ML demos — in your browser</title>
+<style>
+  :root {
+    --bg: #0b0d10;
+    --panel: rgba(18, 21, 26, 0.88);
+    --text: #e8eaed;
+    --muted: #9aa0a6;
+    --accent: #7cc4ff;
+    --border: rgba(255, 255, 255, 0.09);
+  }
+  * { box-sizing: border-box; margin: 0; }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font: 15px/1.5 -apple-system, "SF Pro Text", "Segoe UI", Roboto, "Hiragino Sans", sans-serif;
+    min-height: 100vh;
+    display: flex;
+    justify-content: center;
+    padding: 48px 20px;
+  }
+  main { width: min(560px, 100%); }
+  h1 { font-size: 26px; font-weight: 650; letter-spacing: 0.1px; }
+  .sub { color: var(--muted); margin-top: 8px; font-size: 14px; }
+  a { color: var(--accent); }
+  .back {
+    display: inline-block; margin-bottom: 14px;
+    font-size: 13px; color: var(--muted); text-decoration: none;
+  }
+  .back:hover { color: var(--accent); }
+
+  .card {
+    display: block;
+    margin-top: 20px;
+    padding: 18px 20px;
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    color: var(--text);
+    text-decoration: none;
+  }
+  .card:hover { border-color: var(--accent); }
+  .card h2 { font-size: 17px; font-weight: 650; }
+  .card p { color: var(--muted); font-size: 13.5px; margin-top: 5px; }
+  .card .go { display: inline-block; margin-top: 9px; color: var(--accent); font-size: 13.5px; }
+
+  footer { margin-top: 36px; font-size: 12.5px; color: var(--muted); }
+</style>
+</head>
+<body>
+<main>
+  <a class="back" href="../../../index.html">← All LiteRT samples</a>
+  <h1>Real models, in this tab</h1>
+  <p class="sub">Each demo downloads an open model from Hugging Face and runs it
+  right here with <a href="https://www.npmjs.com/package/@litertjs/core" rel="noopener">LiteRT.js</a>
+  — WebGPU when available, WASM otherwise. Nothing you load is uploaded.</p>
+
+  <a class="card" href="moge/">
+    <h2>Photo → 3D</h2>
+    <p>One photo becomes an orbitable 3D point cloud. MoGe-2 monocular geometry,
+    ~80 ms per photo on an M4 Max (WebGPU).</p>
+    <span class="go">Open →</span>
+  </a>
+
+  <a class="card" href="matcha-tts/">
+    <h2>Text → speech</h2>
+    <p>Type a sentence and a local voice speaks it. Matcha-TTS flow matching +
+    HiFi-GAN vocoder, 22 kHz.</p>
+    <span class="go">Open →</span>
+  </a>
+
+  <footer>
+    Models: <a href="https://huggingface.co/litert-community" rel="noopener">litert-community</a>
+    · Source: <a href="https://github.com/google-ai-edge/litert-samples/tree/main/samples/web_demos" rel="noopener">samples/web_demos</a>
+  </footer>
+</main>
+<!-- GitHub Pages cannot send COOP/COEP; this service worker injects them
+     (one reload on the first visit) so every demo under this site root gets
+     cross-origin isolation and threaded WASM. Registered from the site root:
+     a dedicated worker is matched to a service worker by the WORKER SCRIPT
+     URL, so the shared litert-wasm/ dir must sit inside the SW scope or
+     thread workers boot without COEP and die. -->
+<script>window.coi = { coepCredentialless: () => false };</script>
+<script src="./coi-serviceworker.min.js"></script>
+</body>
+</html>
