@@ -1,0 +1,12 @@
+<resources>
+    <string name="app_name" translatable="false">DewarpNet Document Dewarping</string>
+    <string name="action_pick_image">Pick image</string>
+    <string name="status_loading">Loading DewarpNet on GPU…</string>
+    <string name="status_processing">Dewarping…</string>
+    <string name="status_ready" translatable="false">DewarpNet · document dewarping · CompiledModel GPU · %1$d ms</string>
+    <string name="label_warped_input">Input (warped)</string>
+    <string name="label_dewarped_output">Dewarped (GPU)</string>
+    <string name="error_model_missing">Model not found. Push it first with install_to_device.sh:\n%1$s</string>
+    <string name="error_model_load">Failed to load model</string>
+    <string name="error_dewarp_failed">Dewarping failed</string>
+</resources>
