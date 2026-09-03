@@ -1,0 +1,21 @@
+{
+  "name": "litert-web-demos",
+  "private": true,
+  "type": "module",
+  "description": "Model web demos on LiteRT.js: MoGe-2 photo-to-3D and Matcha-TTS text-to-speech",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "check": "node tools/check.mjs"
+  },
+  "dependencies": {
+    "@litertjs/core": "2.5.3",
+    "three": "^0.170.0"
+  },
+  "devDependencies": {
+    "coi-serviceworker": "^0.1.7",
+    "playwright": "^1.62.1",
+    "vite": "^6.0.0"
+  }
+}
