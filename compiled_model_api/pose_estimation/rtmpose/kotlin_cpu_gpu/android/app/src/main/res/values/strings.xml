@@ -1,0 +1,11 @@
+<resources>
+    <string name="app_name" translatable="false">RTMPose</string>
+    <string name="action_pick_image">Pick image</string>
+    <string name="status_loading">Loading RTMPose on GPU…</string>
+    <string name="status_pick_prompt">Ready — pick an image to estimate pose.</string>
+    <string name="status_processing">Estimating pose…</string>
+    <string name="status_ready" translatable="false">RTMPose-s · %1$d/%2$d keypoints · CompiledModel GPU · %3$d ms</string>
+    <string name="error_model_missing">Model not found. Push it first with install_to_device.sh:\n%1$s</string>
+    <string name="error_model_load">Failed to load model</string>
+    <string name="error_estimate_failed">Pose estimation failed</string>
+</resources>
