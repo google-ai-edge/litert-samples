@@ -6,7 +6,7 @@ directly with the
 (C++, no converter), plus a C++ reference host loop. Companion to the
 `converted/` recipe in the parent directory (the litert-torch export of
 the same four per-frame graphs) and to
-[litert-tensor-vision-examples](https://github.com/john-rocky/litert-tensor-vision-examples)
+[litert-examples](https://github.com/google-ai-edge/litert-samples/edit/main/models/sam2/sam2_hiera_tiny_video/tensor_api/)
 (the same code as a LiteRT `tensor/examples/` overlay, with the findings
 ledger).
 
