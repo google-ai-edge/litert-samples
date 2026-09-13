@@ -1,6 +1,6 @@
 # Model recipes
 
-Each directory under `models/<family>/<model>/` is one recipe: the scripts that convert one model to LiteRT or LiteRT-LM, the checks that verify the result, and a README that records the toolchain, the steps and the results. The [model list](#model-list) at the end names every recipe with its published weights.
+Each directory under `models/<family>/<model>/` is one recipe: the scripts that convert one model to [LiteRT](https://github.com/google-ai-edge/litert) or [LiteRT-LM](https://github.com/google-ai-edge/LiteRT-LM), the checks that verify the result, and a README that records the toolchain, the steps and the results. The [model list](#model-list) at the end names every recipe with its published weights.
 
 ## How to use the models
 
@@ -19,6 +19,8 @@ A recipe produces one of three kinds of artifact; the **Artifact** column of the
 **Tensor API program**: the graph is written in C++ with the [LiteRT Tensor API](https://github.com/google-ai-edge/LiteRT/tree/main/tensor), with no converter. Each `tensor_api/` directory is a complete program; its README has the Bazel build and run commands.
 
 [LiteRT-CLI](https://github.com/google-ai-edge/LiteRT-CLI) (`litert`) downloads, converts, quantizes, runs and benchmarks models from one command.
+
+Each model page (for example [`minicpm/minicpm5_2b/`](minicpm/minicpm5_2b/)) has the same sections in the same order: Run, Which file, a section for the model's own switches (Thinking, for MiniCPM5-2B), Python, Android and iOS, Serve, Tested on, Conversion, References. The commands are the standard LiteRT-LM tools with the model's file names filled in; a new model page copies the sections, and only the file names, the switches and the numbers change.
 
 ## Where to find examples
 
