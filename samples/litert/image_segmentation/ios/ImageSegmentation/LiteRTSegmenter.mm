@@ -22,23 +22,7 @@ LiteRtStatus RegisterGpuAccelerator(LiteRtEnvironment environment);
 }
 }
 
-typedef struct LrtCpuOptions LrtCpuOptions;
-
-typedef enum {
-  kLiteRtCpuKernelModeXnnpack = 0,
-  kLiteRtCpuKernelModeReference = 1,
-  kLiteRtCpuKernelModeBuiltin = 2,
-} LiteRtCpuKernelMode;
-
-extern "C" {
-LiteRtStatus LrtCreateCpuOptions(LrtCpuOptions** options);
-void LrtDestroyCpuOptions(LrtCpuOptions* options);
-LiteRtStatus LrtSetCpuOptionsKernelMode(LrtCpuOptions* options, LiteRtCpuKernelMode mode);
-LiteRtStatus LrtGetOpaqueCpuOptionsData(const LrtCpuOptions* options,
-                                        const char** identifier,
-                                        const void** payload,
-                                        void (**payload_deleter)(void*));
-}
+#include "litert_cpu_options.h"
 
 @implementation LiteRTSegmentationResult
 @end
@@ -136,6 +120,26 @@ static std::vector<ColoredLabel> GetColors() {
                 : kLiteRtHwAcceleratorCpu;
             NSLog(@"[LiteRTSegmenter] Compiling model with accelerator enum: %ld, accel_set: 0x%lx", (long)accelerator, (unsigned long)accel_set);
             LiteRtSetOptionsHardwareAccelerators(options, accel_set);
+
+            // Configure CPU options using LiteRT CPU Options API (newly integrated from CLiteRT)
+            if (accelerator == LiteRTAcceleratorCPU) {
+                LrtCpuOptions* cpu_opts = nullptr;
+                if (LrtCreateCpuOptions(&cpu_opts) == kLiteRtStatusOk) {
+                    LrtSetCpuOptionsKernelMode(cpu_opts, kLiteRtCpuKernelModeDelegate);
+                    LrtSetCpuOptionsNumThread(cpu_opts, 4);
+                    const char* identifier = nullptr;
+                    void* payload = nullptr;
+                    void (*payload_deleter)(void*) = nullptr;
+                    if (LrtGetOpaqueCpuOptionsData(cpu_opts, &identifier, &payload, &payload_deleter) == kLiteRtStatusOk) {
+                        LiteRtOpaqueOptions opaque_opts = nullptr;
+                        if (LiteRtCreateOpaqueOptions(identifier, payload, payload_deleter, &opaque_opts) == kLiteRtStatusOk) {
+                            LiteRtAddOpaqueOptions(options, opaque_opts);
+                            NSLog(@"[LiteRTSegmenter] Configured LiteRT CPU Options (delegate mode, 4 threads)");
+                        }
+                    }
+                    LrtDestroyCpuOptions(cpu_opts);
+                }
+            }
         }
 
         // 5. Create Compiled Model
