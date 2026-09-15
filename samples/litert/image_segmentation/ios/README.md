@@ -20,11 +20,11 @@ An iOS application demonstrating real-time and static image segmentation using L
 
 ## Architecture
 
-The app uses a Swift SwiftUI interface that bridges directly to a lightweight Objective-C++ wrapper (`LiteRTSegmenter.mm`) around LiteRT's C Compiled Model API.
+The app uses a SwiftUI interface paired with a pure Swift implementation (`LiteRTSegmenter.swift`) that interacts directly with the LiteRT Swift Package. This eliminates the need for an Objective-C++ bridging header and provides a native, type-safe API for model compilation and inference.
 
 | Component | File | Description |
 |-----------|------|-------------|
-| **LiteRTSegmenter** | `LiteRTSegmenter.mm` / `.h` | Objective-C++ bridge wrapping the LiteRT C API |
+| **LiteRTSegmenter** | `LiteRTSegmenter.swift` | Native Swift implementation utilizing LiteRT Swift bindings |
 | **ContentView** | `ContentView.swift` | Single-page UI displaying original vs mask images, performance timing, and accelerator selection |
 | **CameraManager** | `CameraManager.swift` | Manages AVFoundation camera capture session and frame streams |
 | **ImagePicker** | `ImagePicker.swift` | Wraps PHPickerViewController in UIViewControllerRepresentable for photo library access |
