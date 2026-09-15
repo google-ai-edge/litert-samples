@@ -3,7 +3,7 @@
 workspace(name = "litert")
 
 load("@bazel_tools//tools/build_defs/repo:http.bzl", "http_archive")
-load("@bazel_tools//tools/build_defs/repo:git.bzl", "new_git_repository")
+load("@bazel_tools//tools/build_defs/repo:git.bzl", "git_repository")
 
 # LiteRT Archive pointing to the latest commit on main branch
 http_archive(
@@ -12,7 +12,8 @@ http_archive(
     strip_prefix = "LiteRT-main",
     patch_cmds = [
         "sed 's|//litert|@litert_archive//litert|g' litert/build_common/special_rule.bzl > litert/build_common/special_rule.bzl.tmp && mv litert/build_common/special_rule.bzl.tmp litert/build_common/special_rule.bzl",
-        "sed 's|@//third_party|@litert_archive//third_party|g' third_party/litert_prebuilts/workspace.bzl > third_party/litert_prebuilts/workspace.bzl.tmp && mv third_party/litert_prebuilts/workspace.bzl.tmp third_party/litert_prebuilts/workspace.bzl",
+        # Rewrite "@//" (main-repo) labels so upstream third_party macros resolve here.
+        "for f in third_party/*/*.bzl; do if [ -f \"$f\" ]; then sed 's|@//|@litert_archive//|g' \"$f\" > \"$f.tmp\" && mv \"$f.tmp\" \"$f\"; fi; done",
         # Make litert/cc and litert/cc/options targets publicly visible to external workspaces.
         "sed 's|//litert:__subpackages__|//visibility:public|g' litert/cc/BUILD > litert/cc/BUILD.tmp && mv litert/cc/BUILD.tmp litert/cc/BUILD",
         "sed 's|//litert:__subpackages__|//visibility:public|g' litert/cc/options/BUILD > litert/cc/options/BUILD.tmp && mv litert/cc/options/BUILD.tmp litert/cc/options/BUILD",
@@ -20,6 +21,11 @@ http_archive(
         "sed 's/cc_shared_library(/cc_shared_library(\\n    features = [\"windows_export_all_symbols\"],/g' litert/c/BUILD > litert/c/BUILD.tmp && mv litert/c/BUILD.tmp litert/c/BUILD",
         # Windows: define the missing static constant kValueNotSet needed by MSVC linker.
         "printf '\\n#if defined(_MSC_VER) && !defined(__clang__)\\nnamespace tflite { namespace profiling { namespace memory { constexpr size_t MemoryUsage::kValueNotSet; } } }\\n#endif\\n' >> tflite/profiling/memory_info.cc",
+        # Stub internal-only license package referenced by some upstream BUILD files.
+        "mkdir -p third_party/odml",
+        "printf 'load(\"@rules_license//rules:license.bzl\", \"license\")\\n\\npackage(default_visibility = [\"//visibility:public\"])\\n\\nlicense(\\n    name = \"license\",\\n    package_name = \"litert\",\\n)\\n' > third_party/odml/BUILD",
+        # Drop internal-only hooks dep (code is compiled out in OSS).
+        "sed '\\%^ *\"//litert/vendors/google_tensor/hooks\",%d' litert/vendors/google_tensor/dispatch/BUILD > litert/vendors/google_tensor/dispatch/BUILD.tmp && mv litert/vendors/google_tensor/dispatch/BUILD.tmp litert/vendors/google_tensor/dispatch/BUILD",
     ],
 )
 
@@ -40,8 +46,6 @@ http_archive(
     strip_prefix = "FP16-4dfe081cf6bcd15db339cf2680b9281b8451eeb3",
     url = "https://github.com/Maratyszcza/FP16/archive/4dfe081cf6bcd15db339cf2680b9281b8451eeb3.zip",
 )
-
-load("@bazel_tools//tools/build_defs/repo:git.bzl", "git_repository")
 
 git_repository(
     name = "XNNPACK",
@@ -93,6 +97,13 @@ http_archive(
     url = "https://github.com/bazelbuild/rules_apple/releases/download/3.22.0/rules_apple.3.22.0.tar.gz",
 )
 
+# Must precede apple_rules_dependencies(), which declares an older bazel_skylib.
+http_archive(
+    name = "bazel_skylib",
+    sha256 = "3b5b49006181f5f8ff626ef8ddceaa95e9bb8ad294f7b5d7b11ea9f7ddaf8c59",
+    urls = ["https://github.com/bazelbuild/bazel-skylib/releases/download/1.9.0/bazel-skylib-1.9.0.tar.gz"],
+)
+
 load(
     "@build_bazel_rules_apple//apple:repositories.bzl",
     "apple_rules_dependencies",
@@ -125,7 +136,7 @@ http_archive(
 # tensorflow is updated to do the same patchcmd.
 http_archive(
     name = "coremltools",
-    build_file = "@//third_party/coremltools:coremltools.BUILD",
+    build_file = "@litert_archive//third_party/coremltools:coremltools.BUILD",
     patch_cmds = [
         # Append "mlmodel/format/" to the import path of all proto files.
         "sed -i -e 's|import public \"|import public \"mlmodel/format/|g' mlmodel/format/*.proto",
@@ -142,9 +153,9 @@ tensorflow_source_repo(
     name = "org_tensorflow",
     patches = ["@litert_archive//:PATCH.flatbuffers_windows_no_bash"],
     protobuf_patches = ["@litert_archive//:PATCH.protobuf_port_msvc_compat"],
-    sha256 = "c3c552414ab2e59e72511a21c1df566346a7c8f160909325edec6d1ff403d69d",
-    strip_prefix = "tensorflow-bcdab1a62e138c8f8784a7477c0be8af6dd0bd0a",
-    urls = ["https://github.com/tensorflow/tensorflow/archive/bcdab1a62e138c8f8784a7477c0be8af6dd0bd0a.tar.gz"],
+    sha256 = "7bf06cfd5ff9b462b1b25ca4dc3613fa5e3847fd8e291ff0a8de2ca5a812590a",
+    strip_prefix = "tensorflow-5c0b7a5946f0f485e3a532b2a00e03f42a6e14c1",
+    urls = ["https://github.com/tensorflow/tensorflow/archive/5c0b7a5946f0f485e3a532b2a00e03f42a6e14c1.tar.gz"],
 )
 
 # Initialize the TensorFlow repository and all dependencies.
@@ -158,14 +169,14 @@ load("@org_tensorflow//tensorflow:workspace3.bzl", "tf_workspace3")
 
 tf_workspace3()
 
-# Toolchains for ML projects hermetic builds.
-# Details: https://github.com/google-ml-infra/rules_ml_toolchain
-http_archive(
-    name = "rules_ml_toolchain",
-    sha256 = "0b42f693a60c6050d87db1e0a0eaeb84ab3f54191fce094d86334faedc807da0",
-    strip_prefix = "rules_ml_toolchain-398d613aea7a4c294da49b79a6d6f3f8732bd84c",
-    url = "https://github.com/google-ml-infra/rules_ml_toolchain/archive/398d613aea7a4c294da49b79a6d6f3f8732bd84c.tar.gz",
-)
+# Fetched by tf_workspace3(); must be initialized before tf_workspace2().
+load("@bazel_features//:deps.bzl", "bazel_features_deps")
+
+bazel_features_deps()
+
+load("@rules_cc//cc:extensions.bzl", "compatibility_proxy_repo")
+
+compatibility_proxy_repo()
 
 # Initialize hermetic Python
 load("@xla//third_party/py:python_init_rules.bzl", "python_init_rules")
@@ -188,6 +199,7 @@ python_init_repositories(
         "3.12": "@org_tensorflow//:requirements_lock_3_12.txt",
         "3.13": "@org_tensorflow//:requirements_lock_3_13.txt",
         "3.14": "@org_tensorflow//:requirements_lock_3_14.txt",
+        "3.14-freethreaded": "@org_tensorflow//:requirements_lock_3_14_freethreaded.txt",
     },
 )
 
@@ -267,6 +279,16 @@ load(
 cuda_configure(name = "local_config_cuda")
 
 load(
+    "@litert_archive//third_party/nvidia_sdk:repositories.bzl",
+    "local_cuda_repository",
+    "local_tensorrt_rtx_repository",
+)
+
+local_cuda_repository(name = "local_cuda")
+
+local_tensorrt_rtx_repository(name = "local_tensorrt_rtx")
+
+load(
     "@rules_ml_toolchain//gpu/nccl:nccl_redist_init_repository.bzl",
     "nccl_redist_init_repository",
 )
@@ -280,7 +302,33 @@ load(
 
 nccl_configure(name = "local_config_nccl")
 
-load("@litert_archive//litert/sdk_util:repo.bzl", "configurable_repo")
+load("@litert_archive//third_party/tqdm:workspace.bzl", tqdm = "repo")
+
+tqdm()
+
+load("@litert_archive//third_party/markupsafe:workspace.bzl", markupsafe = "repo")
+
+markupsafe()
+
+load("@litert_archive//third_party/jinja2:workspace.bzl", jinja2 = "repo")
+
+jinja2()
+
+load("@litert_archive//third_party/dawn:workspace.bzl", dawn = "repo")
+
+dawn()
+
+load("@litert_archive//third_party/lark:workspace.bzl", lark = "repo")
+
+lark()
+
+load("@litert_archive//third_party/xdsl:workspace.bzl", xdsl = "repo")
+
+xdsl()
+
+load("@litert_archive//third_party/perfetto:workspace.bzl", perfetto = "repo")
+
+perfetto()
 
 load("@rules_jvm_external//:defs.bzl", "maven_install")
 
@@ -288,7 +336,9 @@ maven_install(
     name = "litert_maven",
     artifacts = [
         "androidx.lifecycle:lifecycle-common:2.8.7",
+        "com.google.android.odml:image:aar:1.0.0-beta1",
         "com.google.android.play:ai-delivery:0.1.1-alpha01",
+        "com.google.errorprone:error_prone_annotations:2.50.0",
         "com.google.guava:guava:33.4.6-android",
         "org.jetbrains.kotlin:kotlin-stdlib:2.0.21",
         "org.jetbrains.kotlinx:kotlinx-coroutines-android:1.8.0",
@@ -329,51 +379,6 @@ http_archive(
     url = "https://github.com/google/sentencepiece/archive/refs/tags/v0.2.0.tar.gz",
 )
 
-http_archive(
-    name = "tqdm",
-    build_file = "@litert_archive//third_party/tqdm:tqdm.BUILD",
-    add_prefix = "tqdm",
-    urls = [
-        "https://third-party-mirror.googlesource.com/tqdm/+archive/d593e871a6b3fcc21ca5281aebda0feee0e8732e.tar.gz",
-    ],
-)
-
-# Manually declared here because Bazel does not inherit repository definitions from external archives (`@litert_archive`), and it is referenced by upstream build rules.
-http_archive(
-    name = "dawn",
-    add_prefix = "dawn",
-    urls = [
-        "https://github.com/google/dawn/archive/v20250713.025201.tar.gz",
-    ],
-    build_file = "@litert_archive//third_party/dawn:BUILD",
-)
-
-# Direct dependency for the C++ sample application (`image_utils.cc`). Provides `stb_image.h` for image loading and saving.
-new_git_repository(
-    name = "stblib",
-    remote = "https://github.com/nothings/stb",
-    commit = "c0c982601f40183e74d84a61237e968dca08380e",
-    build_file = "@litert_archive//third_party/stblib:stblib.BUILD",
-)
-
-http_archive(
-    name = "lark",
-    build_file = "@litert_archive//third_party/lark:lark.BUILD",
-    add_prefix = "lark-1.3.1/lark",
-    urls = [
-        "https://github.com/lark-parser/lark/archive/refs/tags/1.3.1.tar.gz",
-    ],
-)
-
-http_archive(
-    name = "xdsl",
-    build_file = "@litert_archive//third_party/xdsl:xdsl.BUILD",
-    strip_prefix = "xdsl-0.28.0/xdsl",
-    urls = [
-        "https://github.com/xdslproject/xdsl/archive/refs/tags/v0.28.0.tar.gz",
-    ],
-)
-
 # tomlplusplus
 http_archive(
     name = "tomlplusplus",
@@ -406,57 +411,32 @@ load("@rules_kotlin//kotlin:core.bzl", "kt_register_toolchains")
 
 kt_register_toolchains()
 
-configurable_repo(
-    name = "models",
-    build_file = "@litert_archive//third_party/models:models.BUILD",
-    local_path_env = "LITERT_MODELS",
-    url = "https://storage.googleapis.com/litert/models.tar.gz",
-)
+# Direct dependency for the C++ sample application (`image_utils.cc`). Provides `stb_image.h` for image loading and saving.
+load("@litert_archive//third_party/stblib:workspace.bzl", stblib = "repo")
 
-configurable_repo(
-    name = "ats_models",
-    build_file = "@litert_archive//third_party/models:ats_models.BUILD",
-    local_path_env = "LITERT_ATS_MODELS",
-    url = "https://storage.googleapis.com/litert/ats_models.tar.gz",
-)
+stblib()
 
-configurable_repo(
-    name = "qairt",
-    build_file = "@litert_archive//third_party/qairt:qairt.BUILD",
-    local_path_env = "LITERT_QAIRT_SDK",
-    strip_prefix = "qairt/2.47.0.260601",
-    url = "https://softwarecenter.qualcomm.com/api/download/software/sdks/Qualcomm_AI_Runtime_Community/All/2.47.0.260601/v2.47.0.260601.zip",
-    file_extension = "zip",
-)
+load("@litert_archive//third_party/models:workspace.bzl", "models")
+
+models()
+
+# Vendor SDKs
+load("@litert_archive//third_party/arm:workspace.bzl", "arm_deps")
+
+arm_deps()
+
+load("@litert_archive//third_party/qairt:workspace.bzl", "qairt")
+
+qairt()
 
 # Currently only works with local sdk
-configurable_repo(
-    name = "neuro_pilot",
-    build_file = "@litert_archive//third_party/neuro_pilot:neuro_pilot.BUILD",
-    local_path_env = "LITERT_NEURO_PILOT_SDK",
-    strip_prefix = "neuro_pilot",
-    url = "https://s3.ap-southeast-1.amazonaws.com/mediatek.neuropilot.com/57c17aa0-90b4-4871-a7b6-cdcdc678b3aa.gz",
-    symlink_mapping = {
-        "v8_latest": "v8_0_8",
-        # Just let the compilation pass, we don't expect it to work...
-        # TODO: Remove this once we have a working V7 & V9 version.
-        "v7_latest": "v8_0_8",
-        "v9_latest": "v8_0_8",
-    },
-)
+load("@litert_archive//third_party/neuro_pilot:workspace.bzl", "neuro_pilot")
 
-configurable_repo(
-    name = "exynos_ai_litecore",
-    build_file = "@litert_archive//third_party/exynos_ai_litecore:exynos_ai_litecore.BUILD",
-    local_path_env = "EXYNOS_AI_LITECORE_ROOT",
-    strip_prefix = "exynos-ai-litecore-v1.2.0",
-    url = "https://soc-developer.semiconductor.samsung.com/api/v1/resource/download-file/1.2.0/ai-litecore-ubuntu2404-v1.2.0.tar.gz",
-)
+neuro_pilot()
 
-configurable_repo(
-    name = "google_tensor",
-    build_file = "@litert_archive//third_party/google_tensor:google_tensor.BUILD",
-)
+load("@litert_archive//third_party/google_tensor:workspace.bzl", "google_tensor")
+
+google_tensor()
 
 # ML Drift ----------------------------------------------------------------------------------
 http_archive(
@@ -468,12 +448,9 @@ http_archive(
 )
 
 # LiteRT GPU ----------------------------------------------------------------------------------
-http_archive(
-    name = "litert_gpu",
-    build_file = "@litert_archive//third_party/litert_gpu:litert_gpu.BUILD",
-    type = "jar",
-    url = "https://dl.google.com/android/maven2/com/google/ai/edge/litert/litert/2.1.1/litert-2.1.1.aar",
-)
+load("@litert_archive//third_party/litert_gpu:workspace.bzl", "litert_gpu")
+
+litert_gpu()
 
 # LiteRT Prebuilts ---------------------------------------------------------------------------------
 load("@litert_archive//third_party/litert_prebuilts:workspace.bzl", "litert_prebuilts")
@@ -483,6 +460,10 @@ litert_prebuilts()
 load("@litert_archive//third_party/intel_openvino:openvino.bzl", "openvino_configure")
 
 openvino_configure()
+
+load("@litert_archive//third_party/exynos_ai_litecore:workspace.bzl", "exynos_ai_litecore")
+
+exynos_ai_litecore()
 
 # Android rules. Need latest rules_android_ndk to use NDK 26+.
 load("@rules_android_ndk//:rules.bzl", "android_ndk_repository")
