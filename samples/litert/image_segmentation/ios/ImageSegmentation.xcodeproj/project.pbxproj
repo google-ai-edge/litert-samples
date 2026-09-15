@@ -11,12 +11,11 @@
 		A1B2C3D4E5F6789012340202 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F6789012340102 /* ContentView.swift */; };
 		A1B2C3D4E5F6789012340204 /* CameraManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F6789012340104 /* CameraManager.swift */; };
 		A1B2C3D4E5F6789012340205 /* ImagePicker.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F6789012340105 /* ImagePicker.swift */; };
-		A1B2C3D4E5F6789012340207 /* LiteRTSegmenter.mm in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F6789012340107 /* LiteRTSegmenter.mm */; };
+		A1B2C3D4E5F6789012340207 /* LiteRTSegmenter.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F6789012340107 /* LiteRTSegmenter.swift */; };
 		A1B2C3D4E5F678901234020A /* selfie_multiclass_256x256.tflite in Resources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F678901234010A /* selfie_multiclass_256x256.tflite */; };
 		A1B2C3D4E5F678901234020D /* image.jpeg in Resources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F678901234010D /* image.jpeg */; };
 		A1B2C3D4E5F6789012340203 /* logo.png in Resources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F678901234010F /* logo.png */; };
-		A1B2C3D4E5F678901234020B /* CLiteRT.xcframework in Frameworks */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F678901234010B /* CLiteRT.xcframework */; };
-		A1B2C3D4E5F678901234020C /* CLiteRT.xcframework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F678901234010B /* CLiteRT.xcframework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
+		A1B2C3D4E5F6789012340501 /* LiteRT in Frameworks */ = {isa = PBXBuildFile; productRef = A1B2C3D4E5F6789012340601 /* LiteRT */; };
 		A1B2C3D4E5F678901234020F /* libLiteRtMetalAccelerator.dylib in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F678901234010E /* libLiteRtMetalAccelerator.dylib */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
 /* End PBXBuildFile section */
 
@@ -27,7 +26,6 @@
 			dstPath = "";
 			dstSubfolderSpec = 10;
 			files = (
-				A1B2C3D4E5F678901234020C /* CLiteRT.xcframework in Embed Frameworks */,
 				A1B2C3D4E5F678901234020F /* libLiteRtMetalAccelerator.dylib in Embed Frameworks */,
 			);
 			name = "Embed Frameworks";
@@ -41,14 +39,11 @@
 		A1B2C3D4E5F6789012340102 /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ImageSegmentation/ContentView.swift; sourceTree = "<group>"; };
 		A1B2C3D4E5F6789012340104 /* CameraManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ImageSegmentation/CameraManager.swift; sourceTree = "<group>"; };
 		A1B2C3D4E5F6789012340105 /* ImagePicker.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ImageSegmentation/ImagePicker.swift; sourceTree = "<group>"; };
-		A1B2C3D4E5F6789012340106 /* LiteRTSegmenter.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = ImageSegmentation/LiteRTSegmenter.h; sourceTree = "<group>"; };
-		A1B2C3D4E5F6789012340107 /* LiteRTSegmenter.mm */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.objcpp; path = ImageSegmentation/LiteRTSegmenter.mm; sourceTree = "<group>"; };
-		A1B2C3D4E5F6789012340108 /* ImageSegmentation-Bridging-Header.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = ImageSegmentation/ImageSegmentation-Bridging-Header.h; sourceTree = "<group>"; };
+		A1B2C3D4E5F6789012340107 /* LiteRTSegmenter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ImageSegmentation/LiteRTSegmenter.swift; sourceTree = "<group>"; };
 		A1B2C3D4E5F6789012340109 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		A1B2C3D4E5F678901234010A /* selfie_multiclass_256x256.tflite */ = {isa = PBXFileReference; lastKnownFileType = file; path = selfie_multiclass_256x256.tflite; sourceTree = "<group>"; };
 		A1B2C3D4E5F678901234010D /* image.jpeg */ = {isa = PBXFileReference; lastKnownFileType = image.jpeg; path = image.jpeg; sourceTree = "<group>"; };
 		A1B2C3D4E5F678901234010F /* logo.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = logo.png; sourceTree = "<group>"; };
-		A1B2C3D4E5F678901234010B /* CLiteRT.xcframework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.xcframework; path = CLiteRT.xcframework; sourceTree = "<group>"; };
 		A1B2C3D4E5F678901234010E /* libLiteRtMetalAccelerator.dylib */ = {isa = PBXFileReference; lastKnownFileType = "compiled.mach-o.dylib"; path = libLiteRtMetalAccelerator.dylib; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
@@ -57,7 +52,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				A1B2C3D4E5F678901234020B /* CLiteRT.xcframework in Frameworks */,
+				A1B2C3D4E5F6789012340501 /* LiteRT in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -89,9 +84,7 @@
 				A1B2C3D4E5F6789012340102 /* ContentView.swift */,
 				A1B2C3D4E5F6789012340104 /* CameraManager.swift */,
 				A1B2C3D4E5F6789012340105 /* ImagePicker.swift */,
-				A1B2C3D4E5F6789012340106 /* LiteRTSegmenter.h */,
-				A1B2C3D4E5F6789012340107 /* LiteRTSegmenter.mm */,
-				A1B2C3D4E5F6789012340108 /* ImageSegmentation-Bridging-Header.h */,
+				A1B2C3D4E5F6789012340107 /* LiteRTSegmenter.swift */,
 			);
 			name = ImageSegmentation;
 			sourceTree = "<group>";
@@ -99,7 +92,6 @@
 		A1B2C3D4E5F6789012340005 /* Frameworks */ = {
 			isa = PBXGroup;
 			children = (
-				A1B2C3D4E5F678901234010B /* CLiteRT.xcframework */,
 				A1B2C3D4E5F678901234010E /* libLiteRtMetalAccelerator.dylib */,
 			);
 			name = Frameworks;
@@ -133,6 +125,9 @@
 			dependencies = (
 			);
 			name = ImageSegmentation;
+			packageProductDependencies = (
+				A1B2C3D4E5F6789012340601 /* LiteRT */,
+			);
 			productName = ImageSegmentation;
 			productReference = A1B2C3D4E5F6789012340008 /* ImageSegmentation.app */;
 			productType = "com.apple.product-type.application";
@@ -160,6 +155,9 @@
 				Base,
 			);
 			mainGroup = A1B2C3D4E5F6789012340002 /* MainGroup */;
+			packageReferences = (
+				A1B2C3D4E5F6789012340701 /* XCLocalSwiftPackageReference "../../../../../LiteRT" */,
+			);
 			productRefGroup = A1B2C3D4E5F6789012340003 /* Products */;
 			projectDirPath = "";
 			projectRoot = "";
@@ -191,7 +189,7 @@
 				A1B2C3D4E5F6789012340202 /* ContentView.swift in Sources */,
 				A1B2C3D4E5F6789012340204 /* CameraManager.swift in Sources */,
 				A1B2C3D4E5F6789012340205 /* ImagePicker.swift in Sources */,
-				A1B2C3D4E5F6789012340207 /* LiteRTSegmenter.mm in Sources */,
+				A1B2C3D4E5F6789012340207 /* LiteRTSegmenter.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -208,16 +206,6 @@
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = "";
-				FRAMEWORK_SEARCH_PATHS = (
-					"$(inherited)",
-					"$(PROJECT_DIR)",
-				);
-				HEADER_SEARCH_PATHS = (
-					"$(inherited)",
-					"$(PROJECT_DIR)",
-					"$(PROJECT_DIR)/CLiteRT.xcframework/ios-arm64-simulator/CLiteRT.framework/Headers",
-					"$(PROJECT_DIR)/CLiteRT.xcframework/ios-arm64/CLiteRT.framework/Headers",
-				);
 				INFOPLIST_FILE = Info.plist;
 				IPHONEOS_DEPLOYMENT_TARGET = 15.0;
 				LD_RUNPATH_SEARCH_PATHS = (
@@ -227,7 +215,6 @@
 				MARKETING_VERSION = 1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.google.ai.edge.ImageSegmentation;
 				PRODUCT_NAME = "$(TARGET_NAME)";
-				SWIFT_OBJC_BRIDGING_HEADER = "ImageSegmentation/ImageSegmentation-Bridging-Header.h";
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = "1,2";
 			};
@@ -243,16 +230,6 @@
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = "";
-				FRAMEWORK_SEARCH_PATHS = (
-					"$(inherited)",
-					"$(PROJECT_DIR)",
-				);
-				HEADER_SEARCH_PATHS = (
-					"$(inherited)",
-					"$(PROJECT_DIR)",
-					"$(PROJECT_DIR)/CLiteRT.xcframework/ios-arm64-simulator/CLiteRT.framework/Headers",
-					"$(PROJECT_DIR)/CLiteRT.xcframework/ios-arm64/CLiteRT.framework/Headers",
-				);
 				INFOPLIST_FILE = Info.plist;
 				IPHONEOS_DEPLOYMENT_TARGET = 15.0;
 				LD_RUNPATH_SEARCH_PATHS = (
@@ -262,7 +239,6 @@
 				MARKETING_VERSION = 1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.google.ai.edge.ImageSegmentation;
 				PRODUCT_NAME = "$(TARGET_NAME)";
-				SWIFT_OBJC_BRIDGING_HEADER = "ImageSegmentation/ImageSegmentation-Bridging-Header.h";
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = "1,2";
 			};
@@ -402,6 +378,20 @@
 			defaultConfigurationName = Release;
 		};
 /* End XCConfigurationList section */
+
+/* Begin XCLocalSwiftPackageReference section */
+		A1B2C3D4E5F6789012340701 /* XCLocalSwiftPackageReference "../../../../../LiteRT" */ = {
+			isa = XCLocalSwiftPackageReference;
+			relativePath = ../../../../../LiteRT;
+		};
+/* End XCLocalSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		A1B2C3D4E5F6789012340601 /* LiteRT */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = LiteRT;
+		};
+/* End XCSwiftPackageProductDependency section */
 	};
 	rootObject = A1B2C3D4E5F6789012340001 /* Project object */;
 }
