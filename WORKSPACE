@@ -20,6 +20,11 @@ http_archive(
         "sed 's/cc_shared_library(/cc_shared_library(\\n    features = [\"windows_export_all_symbols\"],/g' litert/c/BUILD > litert/c/BUILD.tmp && mv litert/c/BUILD.tmp litert/c/BUILD",
         # Windows: define the missing static constant kValueNotSet needed by MSVC linker.
         "printf '\\n#if defined(_MSC_VER) && !defined(__clang__)\\nnamespace tflite { namespace profiling { namespace memory { constexpr size_t MemoryUsage::kValueNotSet; } } }\\n#endif\\n' >> tflite/profiling/memory_info.cc",
+        # Stub internal-only license package referenced by some upstream BUILD files.
+        "mkdir -p third_party/odml",
+        "printf 'load(\"@rules_license//rules:license.bzl\", \"license\")\\n\\npackage(default_visibility = [\"//visibility:public\"])\\n\\nlicense(\\n    name = \"license\",\\n    package_name = \"litert\",\\n)\\n' > third_party/odml/BUILD",
+        # Drop internal-only hooks dep (code is compiled out in OSS).
+        "sed '\\%^ *\"//litert/vendors/google_tensor/hooks\",%d' litert/vendors/google_tensor/dispatch/BUILD > litert/vendors/google_tensor/dispatch/BUILD.tmp && mv litert/vendors/google_tensor/dispatch/BUILD.tmp litert/vendors/google_tensor/dispatch/BUILD",
     ],
 )
 
