@@ -351,12 +351,9 @@ struct ContentView: View {
                         if activeTab == .gallery {
                             runSegmentationOnSelectedImage()
                         } else {
-                            isInitializingSegmenter = true
                             segmentedMask = nil
                             let accelerator = selectedAccelerator.liteRTAccelerator
-                            getOrInitializeSegmenter(for: accelerator) { _ in
-                                self.isInitializingSegmenter = false
-                            }
+                            getOrInitializeSegmenter(for: accelerator) { _ in }
                         }
                     }
                 }
@@ -393,8 +390,16 @@ struct ContentView: View {
             return
         }
         
+        if isInitializingSegmenter {
+            completion(nil)
+            return
+        }
+        
+        isInitializingSegmenter = true
+        
         guard let modelPath = Bundle.main.path(forResource: "selfie_multiclass_256x256", ofType: "tflite") else {
             errorMessage = "Model file selfie_multiclass_256x256.tflite not found"
+            isInitializingSegmenter = false
             completion(nil)
             return
         }
@@ -405,11 +410,13 @@ struct ContentView: View {
                 DispatchQueue.main.async {
                     self.activeSegmenter = segmenter
                     self.activeAccelerator = accelerator
+                    self.isInitializingSegmenter = false
                     completion(segmenter)
                 }
             } catch {
                 DispatchQueue.main.async {
                     self.errorMessage = "Failed to initialize segmenter: \(error.localizedDescription)"
+                    self.isInitializingSegmenter = false
                     completion(nil)
                 }
             }
