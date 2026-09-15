@@ -1,0 +1,66 @@
+{
+  "sessionConfig": {
+    "displayName": "benchmark-model-test",
+    "outputDirectoryConfig": {
+      "gcsOutputDirectory": {
+        "path": "gs://your-output-gcs-bucket/folder"
+      }
+    },
+    "jobConfigs": [
+      {
+        "displayName": "run-benchmark",
+        "action": {
+          "androidNativeBinary": {
+            "androidNativeBinary": {
+              "gcsInputFile": {
+                "path": "gs://litert/binaries/2.2.0/android_arm64/benchmark_model"
+              }
+            },
+            "args": [
+              "--graph=/data/local/tmp/model-file.tflite",
+              "--num_threads=4",
+              "--model_runtime_info_output_file=/data/local/tmp/runtime_info.pb",
+              "--result_file_path=/data/local/tmp/results.pb"
+            ]
+          }
+        },
+        "allocationConfig": {
+          "deviceConfigs": [
+            {
+              "requirement": {
+                "deviceId": "pa3q-35"
+              },
+              "actions": [
+                {
+                  "androidPushFiles": {
+                    "fileConfigs": [
+                      {
+                        "sourceFile": {
+                          "gcsInputFile": {
+                            "path": "gs://your-gcs-bucket/model-file.tflite"
+                          }
+                        },
+                        "destinationPath": "/data/local/tmp/model-file.tflite"
+                      }
+                    ]
+                  }
+                },
+                {
+                  "androidPullFiles": {
+                    "paths": [
+                      "/data/local/tmp/runtime_info.pb",
+                      "/data/local/tmp/results.pb"
+                    ]
+                  }
+                },
+                {
+                  "androidLogcat": {}
+                }
+              ]
+            }
+          ]
+        }
+      }
+    ]
+  }
+}
