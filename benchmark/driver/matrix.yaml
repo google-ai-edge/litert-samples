@@ -1,0 +1,38 @@
+# Benchmark matrix for the LiteRT performance leaderboard: which model files
+# run on which accelerators, and the lab devices every session targets.
+# One model entry becomes one board row per device and accelerator.
+
+runtime:
+  # The benchmark_model release the CLI pins for --ddp
+  # (gs://litert/binaries/<version>/android_arm64/benchmark_model). run_matrix.py
+  # reads the actual pin from the CLI output; collect.py uses this value when it
+  # is given cached sessions without --runtime-version.
+  version: "2.2.0"
+
+devices:
+  # Every session runs one job per measured device. `id` is the DDP device id and
+  # `name` its displayName, both from the device catalog
+  # (gcloud beta device-run devices list); the board shows `name`.
+  measured:
+    - id: caiman-35
+      name: Pixel 9 Pro
+    - id: pa3q-35
+      name: Galaxy S25 Ultra
+  # Named here so their rows render with a name; not submitted until moved up.
+  planned:
+    - id: m1q-36
+      name: Galaxy S26
+
+models:
+  # repo: Hugging Face repo. file: the one .tflite in it to measure. task: the
+  # repo's pipeline tag (the board filters on it). accelerators: cpu, gpu.
+  - repo: litert-community/MobileNet-v2
+    file: mobilenet_v2.tflite
+    task: image-classification
+    accelerators: [cpu, gpu]
+  # Next candidate, same shape. A repo with several .tflite variants gets one
+  # entry per variant you want on the board:
+  # - repo: litert-community/<repo>
+  #   file: <variant>.tflite
+  #   task: <pipeline tag>
+  #   accelerators: [cpu, gpu]
