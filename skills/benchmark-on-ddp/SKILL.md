@@ -40,11 +40,12 @@ and `accelerators`. Devices are listed once at the top of the file.
 
 ```bash
 python3 ../driver/run_matrix.py --dry-run --only litert-community/MobileNet-v2
+LITERT_GCP_PROJECT=your-project-id python3 ../driver/run_matrix.py
 ```
 
-One `litert benchmark … --ddp` line per accelerator, each followed by the `collect.py` call that turns its
-session into rows. Without `--dry-run` the driver submits each session, waits for it, pulls the job outputs
-to `~/.cache/litert-cli/ddp/<session>/<job>/`, collects them and rebuilds the board.
+The dry run prints one `litert benchmark … --ddp` line per accelerator, each followed by the `collect.py`
+call that turns its session into rows. The second line submits each session, waits for it, pulls the job
+outputs to `~/.cache/litert-cli/ddp/<session>/<job>/`, collects them and rebuilds the board; `--only <repo>` limits it to one model.
 
 **3. Collect a session you already have.**
 
@@ -78,6 +79,6 @@ the graph, not a defect; `Numbers from: logcat` means `results.pb` could not be 
 
 ## Tested on
 
-macOS host, Python 3.14, protoc 34.1: the three rows in the repo (2026-09-16) from caiman-35 (Pixel 9 Pro,
-CPU and GPU) and pa3q-35 (Galaxy S25 Ultra, CPU), binary 2.2.0. `run_matrix.py` in dry-run mode; the three
-sessions were submitted by hand with `litert benchmark --ddp`, CPU on both devices and GPU on caiman-35.
+macOS host, Python 3.14, protoc 34.1: the four rows in the repo (2026-09-16) came from `run_matrix.py` end to
+end, two sessions on caiman-35 (Pixel 9 Pro) and pa3q-35 (Galaxy S25 Ultra), CPU and GPU, binary 2.2.0; the
+collect and board steps were also run on their cached outputs.

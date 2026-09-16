@@ -35,11 +35,12 @@ Google Cloud project with the Device Run API enabled, which the sessions are bil
 1. Add the model to `../driver/matrix.yaml`: `repo`, `file`, `task`, `accelerators`. The devices every
    session runs on are listed once in the same file.
 
-2. Print what would run, then run it without `--dry-run` (one DDP session per model and accelerator;
-   the driver waits for each session, collects it, and rebuilds the board):
+2. Print what would run, then run it (one DDP session per model and accelerator; the driver waits
+   for each session, collects it, and rebuilds the board):
 
 ```bash
 python3 ../driver/run_matrix.py --dry-run
+LITERT_GCP_PROJECT=your-project-id python3 ../driver/run_matrix.py
 ```
 
 3. Or turn sessions you already have into rows, then rebuild the board:
@@ -62,8 +63,7 @@ on stderr and not added. Pass `--runtime-version` when the CLI's pin differs fro
 
 ## Tested on
 
-The three rows in `data/`: `mobilenet_v2.tflite` from
+The four rows in `data/`: `mobilenet_v2.tflite` from
 [litert-community/MobileNet-v2](https://huggingface.co/litert-community/MobileNet-v2) on caiman-35
-(Pixel 9 Pro, CPU and GPU) and pa3q-35 (Galaxy S25 Ultra, CPU), binary 2.2.0, collected on macOS with
-Python 3.14 and protoc 34.1 on 2026-09-16. `run_matrix.py` was run in dry-run mode; the three sessions
-were submitted by hand with `litert benchmark --ddp`, CPU on both devices and GPU on caiman-35.
+(Pixel 9 Pro) and pa3q-35 (Galaxy S25 Ultra), CPU and GPU, binary 2.2.0. `run_matrix.py` submitted the
+two sessions, collected them and rebuilt the board on macOS with Python 3.14 and protoc 34.1 on 2026-09-16.
