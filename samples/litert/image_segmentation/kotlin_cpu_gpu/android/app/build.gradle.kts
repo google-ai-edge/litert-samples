@@ -90,6 +90,7 @@ dependencies {
     exclude(group = "com.google.ai.edge.litert", module = "litert-support")
     exclude(group = "com.google.ai.edge.litert", module = "litert-support-api")
   }
+  implementation(libs.litert.gpu)
   implementation(libs.litert.support) {
     exclude(group = "com.google.ai.edge.litert", module = "litert-api")
   }
