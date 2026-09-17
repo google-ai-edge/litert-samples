@@ -28,5 +28,7 @@ unzip -o -q bazel-bin/litert/tools/ios_benchmark/LiteRtBenchmark_framework.zip -
 VERSION="${TAG#v}"
 curl -sSL -o "$HERE/Frameworks/libLiteRtMetalAccelerator.dylib" \
   "https://storage.googleapis.com/litert/binaries/$VERSION/ios_arm64/libLiteRtMetalAccelerator.dylib"
+# run_ios.sh copies this line into each session's session.json as the benchmark's build.
+echo "source $TAG ($(git -C "$LITERT_SRC" rev-parse --short=9 HEAD))" > "$HERE/Frameworks/BUILD_INFO"
 echo "framework: $HERE/Frameworks/LiteRtBenchmark.framework"
 echo "accelerator: $HERE/Frameworks/libLiteRtMetalAccelerator.dylib"
