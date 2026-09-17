@@ -1,0 +1,6 @@
+# Built by build_framework.sh; fetched, not committed.
+Frameworks/
+litert-src/
+# Outputs of run_ios.sh.
+out/
+xcuserdata/

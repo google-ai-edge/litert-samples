@@ -1,0 +1,549 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="LiteRT performance leaderboard: latency and memory of LiteRT models on Android lab devices, on macOS and on iPhone, measured with benchmark_model.">
+    <title>LiteRT Performance Leaderboard</title>
+
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800&family=Plus+Jakarta+Sans:wght@400;500;600;700&family=Fira+Code:wght@400;500&display=swap" rel="stylesheet">
+
+    <style>
+        :root {
+            --bg-dark: #0b0f19;
+            --bg-card: rgba(20, 26, 45, 0.45);
+            --bg-card-hover: rgba(28, 37, 62, 0.7);
+            --border-color: rgba(255, 255, 255, 0.08);
+            --border-hover: rgba(59, 130, 246, 0.4);
+            --text-primary: #f8fafc;
+            --text-secondary: #94a3b8;
+            --text-muted: #64748b;
+            --color-primary: #3b82f6;
+            --color-secondary: #8b5cf6;
+            --color-accent: #10b981;
+            --color-warning: #f59e0b;
+            --glow-primary: rgba(59, 130, 246, 0.15);
+            --transition-smooth: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+
+        body {
+            font-family: 'Plus Jakarta Sans', sans-serif;
+            background-color: var(--bg-dark);
+            color: var(--text-primary);
+            min-height: 100vh;
+            overflow-x: hidden;
+            line-height: 1.6;
+            background-image:
+                radial-gradient(circle at 10% 20%, rgba(59, 130, 246, 0.08) 0%, transparent 40%),
+                radial-gradient(circle at 90% 80%, rgba(139, 92, 246, 0.08) 0%, transparent 40%);
+            background-attachment: fixed;
+        }
+
+        a { color: var(--color-primary); text-decoration: none; }
+        a:hover { text-decoration: underline; }
+        code { font-family: 'Fira Code', monospace; font-size: 0.85em; color: var(--text-secondary); }
+
+        header {
+            border-bottom: 1px solid var(--border-color);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            position: sticky;
+            top: 0;
+            z-index: 100;
+            background-color: rgba(11, 15, 25, 0.8);
+        }
+        .nav-container {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 1.25rem 2rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .logo-container {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            text-decoration: none;
+            color: var(--text-primary);
+            font-family: 'Outfit', sans-serif;
+            font-weight: 700;
+            font-size: 1.15rem;
+            letter-spacing: -0.01em;
+        }
+        .logo-badge {
+            background: rgba(59, 130, 246, 0.1);
+            border: 1px solid rgba(59, 130, 246, 0.2);
+            color: var(--color-primary);
+            font-size: 0.7rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            padding: 0.2rem 0.5rem;
+            border-radius: 6px;
+            letter-spacing: 0.05em;
+            font-family: 'Plus Jakarta Sans', sans-serif;
+        }
+        .nav-links { display: flex; gap: 1.5rem; align-items: center; }
+        .nav-link {
+            color: var(--text-secondary);
+            text-decoration: none;
+            font-weight: 500;
+            font-size: 0.9rem;
+            transition: var(--transition-smooth);
+            padding: 0.5rem 0.75rem;
+            border-radius: 6px;
+        }
+        .nav-link:hover { color: var(--text-primary); background-color: rgba(255, 255, 255, 0.05); text-decoration: none; }
+        .btn-github {
+            background: rgba(255, 255, 255, 0.08);
+            border: 1px solid var(--border-color);
+            color: var(--text-primary);
+            padding: 0.5rem 1rem;
+            border-radius: 8px;
+            font-size: 0.9rem;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            text-decoration: none;
+            transition: var(--transition-smooth);
+        }
+        .btn-github:hover { background: rgba(255, 255, 255, 0.15); border-color: var(--text-secondary); transform: translateY(-1px); text-decoration: none; }
+
+        .hero-section {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 4rem 2rem 2.5rem;
+            text-align: center;
+        }
+        .hero-subtitle {
+            color: var(--color-primary);
+            font-family: 'Outfit', sans-serif;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.15em;
+            font-size: 0.95rem;
+            margin-bottom: 1rem;
+            display: inline-block;
+        }
+        .hero-title {
+            font-family: 'Outfit', sans-serif;
+            font-size: 3.2rem;
+            font-weight: 800;
+            line-height: 1.15;
+            letter-spacing: -0.03em;
+            max-width: 850px;
+            margin: 0 auto 1.5rem;
+            background: linear-gradient(135deg, #ffffff 30%, #94a3b8 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+        .hero-desc {
+            color: var(--text-secondary);
+            font-size: 1.15rem;
+            max-width: 700px;
+            margin: 0 auto 2.5rem;
+        }
+        .stats {
+            display: flex;
+            justify-content: center;
+            gap: 1rem;
+            flex-wrap: wrap;
+        }
+        .stat {
+            background: var(--bg-card);
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            padding: 0.9rem 1.4rem;
+            min-width: 150px;
+            backdrop-filter: blur(10px);
+        }
+        .stat .v { font-family: 'Outfit', sans-serif; font-size: 1.5rem; font-weight: 700; font-variant-numeric: tabular-nums; }
+        .stat .l { font-size: 0.78rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.05em; }
+
+        main { max-width: 1400px; margin: 0 auto; padding: 0 2rem 5rem; }
+
+        .section-title {
+            font-family: 'Outfit', sans-serif;
+            font-size: 1.6rem;
+            font-weight: 700;
+            margin-bottom: 1.5rem;
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+        }
+        .section-title::after {
+            content: '';
+            flex-grow: 1;
+            height: 1px;
+            background: linear-gradient(to right, var(--border-color), transparent);
+        }
+
+        .controls {
+            display: flex;
+            gap: 1rem;
+            align-items: center;
+            flex-wrap: wrap;
+            margin-bottom: 1.25rem;
+        }
+        .controls label {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            font-size: 0.85rem;
+            color: var(--text-secondary);
+            font-weight: 600;
+        }
+        .controls select {
+            background-color: rgba(15, 22, 41, 0.8);
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            color: var(--text-primary);
+            font-family: inherit;
+            font-size: 0.9rem;
+            padding: 0.5rem 0.75rem;
+            outline: none;
+            transition: var(--transition-smooth);
+        }
+        .controls select:focus { border-color: var(--color-primary); box-shadow: 0 0 12px rgba(59, 130, 246, 0.25); }
+        .controls .hint { margin-left: auto; font-size: 0.82rem; color: var(--text-muted); }
+
+        .tblwrap {
+            background: var(--bg-card);
+            border: 1px solid var(--border-color);
+            border-radius: 16px;
+            overflow-x: auto;
+            backdrop-filter: blur(10px);
+            margin-bottom: 3.5rem;
+        }
+        table { border-collapse: collapse; width: 100%; font-size: 0.88rem; min-width: 1000px; }
+        th, td {
+            text-align: right;
+            padding: 0.75rem 0.65rem;
+            border-bottom: 1px solid var(--border-color);
+            white-space: nowrap;
+            font-variant-numeric: tabular-nums;
+            vertical-align: top;
+        }
+        th {
+            color: var(--text-muted);
+            font-weight: 600;
+            font-size: 0.7rem;
+            text-transform: uppercase;
+            letter-spacing: 0.06em;
+            background: rgba(15, 22, 41, 0.6);
+            white-space: normal;
+            line-height: 1.25;
+            vertical-align: bottom;
+            max-width: 7rem;
+        }
+        th.sortable { cursor: pointer; user-select: none; }
+        th.sortable:hover { color: var(--text-primary); }
+        th.sorted { color: var(--color-primary); }
+        th:nth-child(-n+4), td:nth-child(-n+4) { text-align: left; }
+        tbody tr.row { cursor: pointer; transition: var(--transition-smooth); }
+        tbody tr.row:hover td { background: rgba(59, 130, 246, 0.08); }
+        tbody tr.row.open td { background: rgba(59, 130, 246, 0.12); border-bottom-color: transparent; }
+        tbody tr:last-child td { border-bottom: none; }
+        .name { font-weight: 600; color: var(--text-primary); white-space: normal; max-width: 16rem; }
+        .sub { font-size: 0.74rem; color: var(--text-muted); margin-top: 0.15rem; white-space: normal; max-width: 16rem; }
+        .sub code { font-size: 0.75rem; }
+        .chip {
+            display: inline-block;
+            font-size: 0.68rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            padding: 0.15rem 0.5rem;
+            border-radius: 6px;
+            letter-spacing: 0.05em;
+            margin-right: 0.35rem;
+        }
+        .chip.task { background: rgba(59, 130, 246, 0.1); color: var(--color-primary); border: 1px solid rgba(59, 130, 246, 0.2); }
+        .chip.cpu { background: rgba(16, 185, 129, 0.1); color: var(--color-accent); border: 1px solid rgba(16, 185, 129, 0.2); }
+        .chip.gpu { background: rgba(139, 92, 246, 0.1); color: var(--color-secondary); border: 1px solid rgba(139, 92, 246, 0.2); }
+        .chip.platform { background: rgba(255, 255, 255, 0.06); color: var(--text-secondary); border: 1px solid var(--border-color); text-transform: none; letter-spacing: 0; font-size: 0.78rem; }
+        td.key { font-weight: 700; color: var(--text-primary); }
+        .unit { font-size: 0.72rem; color: var(--text-muted); margin-left: 0.15rem; }
+
+        tr.detail td { background: rgba(11, 15, 25, 0.55); padding: 1rem 1.25rem 1.25rem; white-space: normal; text-align: left; }
+        .fields {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(230px, 1fr));
+            gap: 0.5rem 1.5rem;
+            font-size: 0.82rem;
+        }
+        .fields div { display: flex; justify-content: space-between; gap: 1rem; border-bottom: 1px dashed var(--border-color); padding: 0.25rem 0; }
+        .fields dt { color: var(--text-muted); }
+        .fields dd { font-family: 'Fira Code', monospace; color: var(--text-primary); text-align: right; word-break: break-all; }
+
+        .no-results, .load-error {
+            text-align: center;
+            padding: 3rem 2rem;
+            color: var(--text-secondary);
+            display: none;
+        }
+
+        .method {
+            background: var(--bg-card);
+            border: 1px solid var(--border-color);
+            border-radius: 16px;
+            padding: 1.75rem 2rem;
+            color: var(--text-secondary);
+            font-size: 0.95rem;
+            max-width: 900px;
+        }
+        .method p { margin-bottom: 0.9rem; }
+        .method p:last-child { margin-bottom: 0; }
+        .method strong { color: var(--text-primary); font-weight: 600; }
+
+        footer {
+            border-top: 1px solid var(--border-color);
+            padding: 3rem 2rem;
+            text-align: center;
+            background: rgba(7, 10, 18, 0.9);
+            color: var(--text-muted);
+            font-size: 0.85rem;
+        }
+        .footer-content { max-width: 1400px; margin: 0 auto; display: flex; flex-direction: column; align-items: center; gap: 1rem; }
+        .footer-links { display: flex; gap: 1.5rem; flex-wrap: wrap; justify-content: center; }
+        .footer-link { color: var(--text-muted); text-decoration: none; transition: var(--transition-smooth); }
+        .footer-link:hover { color: var(--text-secondary); }
+
+        @media (max-width: 768px) {
+            .hero-title { font-size: 2.3rem; }
+            .nav-container { flex-direction: column; gap: 1rem; padding: 1rem; }
+            .hero-section, main { padding-left: 1rem; padding-right: 1rem; }
+            .controls .hint { margin-left: 0; }
+        }
+    </style>
+</head>
+<body>
+
+    <header>
+        <div class="nav-container">
+            <span class="logo-container">LiteRT <span class="logo-badge">Benchmark</span></span>
+            <div class="nav-links">
+                <a href="https://ai.google.dev/edge/litert" target="_blank" rel="noopener noreferrer" class="nav-link">Docs</a>
+                <a href="https://github.com/google-ai-edge/litert-samples" target="_blank" rel="noopener noreferrer" class="btn-github">
+                    <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
+                        <path fill-rule="evenodd" clip-rule="evenodd" d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/>
+                    </svg>
+                    GitHub Repo
+                </a>
+            </div>
+        </div>
+    </header>
+
+    <section class="hero-section">
+        <span class="hero-subtitle">Google AI Edge</span>
+        <h1 class="hero-title">LiteRT Performance Leaderboard</h1>
+        <p class="hero-desc">Latency and memory of LiteRT models measured with <code>benchmark_model</code>: on Android lab devices through the Developer Device Platform, on macOS with the same release run locally, and on iPhone inside an app. One row per model file, platform, device and accelerator.</p>
+        <div class="stats" id="stats"></div>
+    </section>
+
+    <main>
+        <h2 class="section-title">The board</h2>
+        <div class="controls">
+            <label>Platform <select id="fPlatform"><option value="">All</option></select></label>
+            <label>Device <select id="fDevice"><option value="">All</option></select></label>
+            <label>Accelerator <select id="fAccel"><option value="">All</option></select></label>
+            <label>Task <select id="fTask"><option value="">All</option></select></label>
+            <span class="hint">Grouped by platform, sorted by median latency within each. Click a column header to sort and a row to see every field.</span>
+        </div>
+        <div class="tblwrap">
+            <table id="board">
+                <thead><tr id="head"></tr></thead>
+                <tbody id="rows"></tbody>
+            </table>
+            <div class="no-results" id="empty">No rows match these filters.</div>
+            <div class="load-error" id="loadError">The board data did not load.</div>
+        </div>
+
+        <h2 class="section-title">How the rows are measured</h2>
+        <div class="method">
+            <p><strong>One job, one model file, one accelerator.</strong> A row is one job of a benchmark session with LiteRT's <code>benchmark_model</code> at the release named in the Runtime column; the Binary field of a row names the build it ran. Android rows are jobs of a <code>litert benchmark --ddp</code> session: the Developer Device Platform runs the prebuilt Android arm64 binary against the model file it pushes to each device in the matrix and pulls the results back. macOS rows are jobs of a <code>run_local.py</code> session: the prebuilt macOS arm64 binary of the same release runs on the Mac the script is started on. iPhone rows come from the app under <code>../ios/</code>, which builds the same tool from LiteRT's source and runs it on a phone.</p>
+            <p><strong>What <code>benchmark_model</code> does.</strong> Every row ran the schedule the binary logs at start: a warm-up of at least 0.5 s, then 50 runs or at least 1 s, whichever takes longer, up to 150 s. GPU rows add <code>--use_gpu=true</code>; no driver sets a thread count. Runs is the count the run completed. Each row reports p95 and the run count from a single session.</p>
+            <p><strong>Where each number comes from.</strong> Median, Avg, p95, Init and First inference are the latency metrics in <code>results.pb</code>; Footprint is its overall memory footprint. On Android, nodes delegated is read from the device log line <em>Replacing N out of M node(s) with delegate (X)</em>, so the delegate name and N/M are the device's own report. The macOS binary's stdout and the app's log have no such line: those rows name the delegate their log reports and show nodes n/a. Init on the GPU includes the delegate initializing the graph.</p>
+            <p><strong>Reading the board.</strong> Rows are grouped by platform and ordered by median latency inside the group; a comparison holds only within one platform, device, accelerator and task, which the filters above select. Rows are made by running the drivers and are committed here as data: <a href="data/board.json">board.json</a> is this board, <a href="data/measurements.jsonl">measurements.jsonl</a> every job, and the README beside this page says how a row is made and how to add a model.</p>
+        </div>
+    </main>
+
+    <footer>
+        <div class="footer-content">
+            <div class="footer-links">
+                <a href="https://ai.google.dev/edge/litert" class="footer-link" target="_blank" rel="noopener noreferrer">Documentation</a>
+                <a href="https://github.com/google-ai-edge/litert" class="footer-link" target="_blank" rel="noopener noreferrer">LiteRT</a>
+                <a href="https://github.com/google-ai-edge/LiteRT-LM" class="footer-link" target="_blank" rel="noopener noreferrer">LiteRT-LM</a>
+                <a href="https://github.com/google-ai-edge/litert-samples" class="footer-link" target="_blank" rel="noopener noreferrer">GitHub Repository</a>
+            </div>
+            <p>&copy; 2026 Google. LiteRT is provided under the Apache License 2.0.</p>
+        </div>
+    </footer>
+
+    <script>
+        const COLUMNS = [
+            { key: 'model', label: 'Model' },
+            { key: 'platform', label: 'Platform' },
+            { key: 'device', label: 'Device' },
+            { key: 'accelerator', label: 'Accelerator' },
+            { key: 'median', label: 'Median', unit: 'ms', get: r => r.latency_ms.median, main: true },
+            { key: 'avg', label: 'Avg', unit: 'ms', get: r => r.latency_ms.avg },
+            { key: 'p95', label: 'p95', unit: 'ms', get: r => r.latency_ms.p95 },
+            { key: 'init', label: 'Init', unit: 'ms', get: r => r.latency_ms.init },
+            { key: 'first', label: 'First inference', unit: 'ms', get: r => r.latency_ms.first_inference },
+            { key: 'footprint', label: 'Footprint', unit: 'MB', get: r => r.memory_mb.overall_footprint, digits: 1 },
+            { key: 'runs', label: 'Runs', get: r => r.runs, digits: 0 },
+            { key: 'runtime_version', label: 'Runtime', get: r => r.runtime_version, text: true, sort: v => String(v).split('.').map(p => /^\d+$/.test(p) ? p.padStart(6, '0') : p).join('.') },
+            { key: 'date', label: 'Date', get: r => r.date, text: true },
+        ];
+        const DETAIL = [
+            ['Row id', r => r.row_id], ['Repo', r => r.model], ['File', r => r.file], ['Task', r => r.task],
+            ['Model size', r => fmt(r.model_size_mb, 2) + ' MB'], ['Platform', r => platformName(r.platform)],
+            ['Device id', r => r.device_id], ['Device', r => r.device], ['OS', r => r.os],
+            ['Accelerator', r => r.accelerator], ['Delegate', r => r.delegate],
+            ['Nodes delegated', r => r.nodes_delegated == null ? null : r.nodes_delegated + ' / ' + r.nodes_total], ['Partitions', r => r.partitions],
+            ['Median', r => fmt(r.latency_ms.median) + ' ms'], ['Avg', r => fmt(r.latency_ms.avg) + ' ms'],
+            ['p5', r => fmt(r.latency_ms.p5) + ' ms'], ['p95', r => fmt(r.latency_ms.p95) + ' ms'],
+            ['Min', r => fmt(r.latency_ms.min) + ' ms'], ['Max', r => fmt(r.latency_ms.max) + ' ms'],
+            ['Std dev', r => fmt(r.latency_ms.stddev) + ' ms'], ['Init', r => fmt(r.latency_ms.init) + ' ms'],
+            ['First inference', r => fmt(r.latency_ms.first_inference) + ' ms'], ['Warm-up avg', r => fmt(r.latency_ms.warm_up_avg) + ' ms'],
+            ['Init footprint', r => fmt(r.memory_mb.init_footprint, 1) + ' MB'], ['Overall footprint', r => fmt(r.memory_mb.overall_footprint, 1) + ' MB'],
+            ['Runs', r => r.runs], ['Warm-up runs', r => r.warmup_runs], ['Throughput', r => fmt(r.throughput_mb_s, 1) + ' MB/s'],
+            ['Runtime version', r => r.runtime_version], ['Binary', r => r.binary], ['Numbers from', r => r.source],
+            ['Runner', r => r.runner], ['Session', r => r.session], ['Job', r => r.job], ['Date', r => r.date],
+        ];
+
+        let ROWS = [];
+        let PLATFORMS = [];
+        let SORT = { key: 'median', dir: 1 };
+        let OPEN = null;
+        const $ = id => document.getElementById(id);
+
+        function fmt(v, digits = 2) {
+            if (v == null) return '—';
+            return Number(v).toLocaleString('en-US', { minimumFractionDigits: digits, maximumFractionDigits: digits });
+        }
+        function esc(s) {
+            return String(s == null ? '' : s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+        }
+        function fillSelect(id, values) {
+            const sel = $(id);
+            values.forEach(v => { const o = document.createElement('option'); o.value = v; o.textContent = v; sel.appendChild(o); });
+        }
+        function sortValue(r, col) {
+            const v = col.get ? col.get(r) : r[col.key];
+            return col.sort && v != null ? col.sort(v) : v;
+        }
+        function platformName(id) {
+            const p = PLATFORMS.find(p => p.id === id);
+            return p ? p.name : id;
+        }
+        function platformOrder(id) {
+            const i = PLATFORMS.findIndex(p => p.id === id);
+            return i < 0 ? PLATFORMS.length : i;
+        }
+
+        function drawStats(board) {
+            const versions = (board.runtime_versions || []).join(', ');
+            const measured = PLATFORMS.filter(p => p.rows > 0).length;
+            $('stats').innerHTML = [
+                [board.rows.length, board.rows.length === 1 ? 'row' : 'rows'],
+                [board.models.length, board.models.length === 1 ? 'model' : 'models'],
+                [measured, measured === 1 ? 'platform' : 'platforms'],
+                [board.devices.length, board.devices.length === 1 ? 'device' : 'devices'],
+                [versions, (board.runtime_versions || []).length > 1 ? 'benchmark_model releases' : 'benchmark_model release'],
+            ].map(([v, l]) => `<div class="stat"><div class="v">${esc(v)}</div><div class="l">${esc(l)}</div></div>`).join('');
+        }
+
+        function drawHead() {
+            $('head').innerHTML = COLUMNS.map(c => {
+                const sortable = c.get ? ' sortable' : '';
+                const sorted = SORT.key === c.key ? ' sorted' : '';
+                const arrow = SORT.key === c.key ? (SORT.dir === 1 ? ' ▲' : ' ▼') : '';
+                return `<th class="${sortable}${sorted}" data-key="${c.key}">${esc(c.label)}${c.unit ? ` <span class="unit">${c.unit}</span>` : ''}${arrow}</th>`;
+            }).join('');
+            $('head').querySelectorAll('th.sortable').forEach(th => th.onclick = () => {
+                const key = th.dataset.key;
+                SORT = { key, dir: SORT.key === key ? -SORT.dir : 1 };
+                drawHead(); drawRows();
+            });
+        }
+
+        function visibleRows() {
+            const plat = $('fPlatform').value, dev = $('fDevice').value, acc = $('fAccel').value, task = $('fTask').value;
+            const col = COLUMNS.find(c => c.key === SORT.key);
+            return ROWS.filter(r => (!plat || r.platform === plat) && (!dev || r.device === dev) && (!acc || r.accelerator === acc) && (!task || r.task === task))
+                .sort((a, b) => {
+                    const g = platformOrder(a.platform) - platformOrder(b.platform);
+                    if (g !== 0) return g;
+                    const x = sortValue(a, col), y = sortValue(b, col);
+                    if (x == null && y == null) return 0;
+                    if (x == null) return 1;
+                    if (y == null) return -1;
+                    return (x < y ? -1 : x > y ? 1 : 0) * SORT.dir;
+                });
+        }
+
+        function rowHtml(r) {
+            const nodes = r.nodes_delegated != null ? `${r.nodes_delegated}/${r.nodes_total} nodes` : 'nodes n/a';
+            const cells = COLUMNS.map(c => {
+                if (c.key === 'model') return `<td><div class="name">${esc(r.model)}</div><div class="sub"><code>${esc(r.file)}</code> · ${fmt(r.model_size_mb, 1)} MB</div><div class="sub"><span class="chip task">${esc(r.task)}</span></div></td>`;
+                if (c.key === 'platform') return `<td><span class="chip platform">${esc(platformName(r.platform))}</span></td>`;
+                if (c.key === 'device') return `<td><div class="name">${esc(r.device)}</div><div class="sub"><code>${esc(r.device_id)}</code>${r.os ? ' · ' + esc(r.os) : ''}</div></td>`;
+                if (c.key === 'accelerator') return `<td><span class="chip ${esc(r.accelerator)}">${esc(r.accelerator)}</span><div class="sub">${esc(r.delegate || '—')}</div><div class="sub">${nodes}${r.partitions != null ? ` · ${r.partitions} partition${r.partitions === 1 ? '' : 's'}` : ''}</div></td>`;
+                const v = c.get(r);
+                if (c.text) return `<td>${esc(v)}</td>`;
+                return `<td${c.main ? ' class="key"' : ''}>${fmt(v, c.digits == null ? 2 : c.digits)}</td>`;
+            }).join('');
+            return `<tr class="row${OPEN === r.row_id ? ' open' : ''}" data-id="${esc(r.row_id)}" tabindex="0">${cells}</tr>`;
+        }
+
+        function detailHtml(r) {
+            const items = DETAIL.map(([k, f]) => { let v; try { v = f(r); } catch (e) { v = null; } return `<div><dt>${esc(k)}</dt><dd>${esc(v == null ? '—' : v)}</dd></div>`; }).join('');
+            return `<tr class="detail"><td colspan="${COLUMNS.length}"><dl class="fields">${items}</dl></td></tr>`;
+        }
+
+        function drawRows() {
+            const rows = visibleRows();
+            $('rows').innerHTML = rows.map(r => rowHtml(r) + (OPEN === r.row_id ? detailHtml(r) : '')).join('');
+            $('empty').style.display = rows.length ? 'none' : 'block';
+            $('rows').querySelectorAll('tr.row').forEach(tr => {
+                const toggle = () => { OPEN = OPEN === tr.dataset.id ? null : tr.dataset.id; drawRows(); };
+                tr.onclick = toggle;
+                tr.onkeydown = e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggle(); } };
+            });
+        }
+
+        function render(board) {
+            ROWS = board.rows || [];
+            PLATFORMS = board.platforms || [...new Set(ROWS.map(r => r.platform))].map(id => ({ id, name: id, rows: 1 }));
+            drawStats(board);
+            PLATFORMS.forEach(p => {
+                const o = document.createElement('option');
+                o.value = p.id;
+                o.textContent = p.rows ? p.name : `${p.name} (planned)`;
+                o.disabled = !p.rows;
+                $('fPlatform').appendChild(o);
+            });
+            fillSelect('fDevice', [...new Set(ROWS.map(r => r.device))].sort());
+            fillSelect('fAccel', [...new Set(ROWS.map(r => r.accelerator))].sort());
+            fillSelect('fTask', [...new Set(ROWS.map(r => r.task))].sort());
+            ['fPlatform', 'fDevice', 'fAccel', 'fTask'].forEach(id => $(id).onchange = drawRows);
+            drawHead();
+            drawRows();
+        }
+
+        fetch('data/board.json')
+            .then(r => { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
+            .then(render)
+            .catch(err => {
+                console.error('board.json', err);
+                $('loadError').style.display = 'block';
+            });
+    </script>
+</body>
+</html>

@@ -1,0 +1,67 @@
+# LiteRTBenchmark: the smallest iOS shell around LiteRT's benchmark_model (litert/tools:benchmark_model).
+# Regenerate the Xcode project with `xcodegen generate`; LiteRtBenchmark.framework comes from build_framework.sh,
+# libLiteRtMetalAccelerator.dylib from the LiteRT prebuilt bucket (ios_arm64).
+name: LiteRTBenchmark
+options:
+  bundleIdPrefix: com.example
+  deploymentTarget:
+    iOS: "15.0"
+  createIntermediateGroups: true
+settings:
+  base:
+    CODE_SIGN_STYLE: Automatic
+    DEVELOPMENT_TEAM: ""
+    CLANG_CXX_LANGUAGE_STANDARD: c++17
+    CLANG_ENABLE_OBJC_ARC: YES
+targets:
+  LiteRTBenchmark:
+    type: application
+    platform: iOS
+    sources:
+      - path: Sources
+    info:
+      path: Sources/Info.plist
+      properties:
+        CFBundleDisplayName: LiteRT Benchmark
+        CFBundleShortVersionString: "0.1.0"
+        CFBundleVersion: "1"
+        UIFileSharingEnabled: true
+        LSSupportsOpeningDocumentsInPlace: true
+        UILaunchScreen: {}
+        UIApplicationSceneManifest:
+          UIApplicationSupportsMultipleScenes: false
+          UISceneConfigurations:
+            UIWindowSceneSessionRoleApplication:
+              - UISceneConfigurationName: Default
+                UISceneDelegateClassName: SceneDelegate
+        UIRequiresFullScreen: true
+        UISupportedInterfaceOrientations:
+          - UIInterfaceOrientationPortrait
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.example.LiteRTBenchmark
+        # -all_load keeps the static registrations (accelerator options parsers, vendor flags)
+        # that the linker would otherwise drop from the static framework.
+        OTHER_LDFLAGS: "-ObjC -all_load"
+        FRAMEWORK_SEARCH_PATHS: "$(PROJECT_DIR)/Frameworks"
+        TARGETED_DEVICE_FAMILY: "1,2"
+    dependencies:
+      - framework: Frameworks/LiteRtBenchmark.framework
+        embed: false
+      # Embedded only: the runtime dlopen()s it by name at run time, nothing links against it.
+      - framework: Frameworks/libLiteRtMetalAccelerator.dylib
+        embed: true
+        link: false
+        codeSign: true
+      - sdk: UIKit.framework
+      - sdk: Foundation.framework
+      - sdk: Accelerate.framework
+      - sdk: CoreML.framework
+      - sdk: Metal.framework
+schemes:
+  LiteRTBenchmark:
+    build:
+      targets:
+        LiteRTBenchmark: all
+    run:
+      config: Release
