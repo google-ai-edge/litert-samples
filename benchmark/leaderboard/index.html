@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta name="description" content="LiteRT performance leaderboard: latency and memory of LiteRT models on Android lab devices, measured with benchmark_model through the Developer Device Platform.">
+    <meta name="description" content="LiteRT performance leaderboard: latency and memory of LiteRT models on Android lab devices, on macOS and on iPhone, measured with benchmark_model.">
     <title>LiteRT Performance Leaderboard</title>
 
     <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -244,7 +244,7 @@
         th.sortable { cursor: pointer; user-select: none; }
         th.sortable:hover { color: var(--text-primary); }
         th.sorted { color: var(--color-primary); }
-        th:nth-child(-n+3), td:nth-child(-n+3) { text-align: left; }
+        th:nth-child(-n+4), td:nth-child(-n+4) { text-align: left; }
         tbody tr.row { cursor: pointer; transition: var(--transition-smooth); }
         tbody tr.row:hover td { background: rgba(59, 130, 246, 0.08); }
         tbody tr.row.open td { background: rgba(59, 130, 246, 0.12); border-bottom-color: transparent; }
@@ -265,6 +265,7 @@
         .chip.task { background: rgba(59, 130, 246, 0.1); color: var(--color-primary); border: 1px solid rgba(59, 130, 246, 0.2); }
         .chip.cpu { background: rgba(16, 185, 129, 0.1); color: var(--color-accent); border: 1px solid rgba(16, 185, 129, 0.2); }
         .chip.gpu { background: rgba(139, 92, 246, 0.1); color: var(--color-secondary); border: 1px solid rgba(139, 92, 246, 0.2); }
+        .chip.platform { background: rgba(255, 255, 255, 0.06); color: var(--text-secondary); border: 1px solid var(--border-color); text-transform: none; letter-spacing: 0; font-size: 0.78rem; }
         td.key { font-weight: 700; color: var(--text-primary); }
         .unit { font-size: 0.72rem; color: var(--text-muted); margin-left: 0.15rem; }
 
@@ -340,17 +341,18 @@
     <section class="hero-section">
         <span class="hero-subtitle">Google AI Edge</span>
         <h1 class="hero-title">LiteRT Performance Leaderboard</h1>
-        <p class="hero-desc">Latency and memory of LiteRT models on Android lab devices, measured with <code>benchmark_model</code> through the Developer Device Platform. One row per model file, device and accelerator.</p>
+        <p class="hero-desc">Latency and memory of LiteRT models measured with <code>benchmark_model</code>: on Android lab devices through the Developer Device Platform, on macOS with the same release run locally, and on iPhone inside an app. One row per model file, platform, device and accelerator.</p>
         <div class="stats" id="stats"></div>
     </section>
 
     <main>
         <h2 class="section-title">The board</h2>
         <div class="controls">
+            <label>Platform <select id="fPlatform"><option value="">All</option></select></label>
             <label>Device <select id="fDevice"><option value="">All</option></select></label>
             <label>Accelerator <select id="fAccel"><option value="">All</option></select></label>
             <label>Task <select id="fTask"><option value="">All</option></select></label>
-            <span class="hint">Sorted by median latency. Click a column header to sort and a row to see every field.</span>
+            <span class="hint">Grouped by platform, sorted by median latency within each. Click a column header to sort and a row to see every field.</span>
         </div>
         <div class="tblwrap">
             <table id="board">
@@ -363,10 +365,10 @@
 
         <h2 class="section-title">How the rows are measured</h2>
         <div class="method">
-            <p><strong>One session, one model file, one accelerator.</strong> A row is one job of a <code>litert benchmark --ddp</code> session. The Developer Device Platform runs LiteRT's prebuilt <code>benchmark_model</code> for Android arm64, at the release named in the Runtime column, against the model file it pushes to each device in the matrix, and pulls the results back.</p>
-            <p><strong>What <code>benchmark_model</code> does on the device.</strong> The CLI passes <code>--graph</code>, <code>--use_gpu=true</code> for GPU rows and the two result-file flags, nothing else, so the binary runs at its own defaults, which the CLI mirrors: a warm-up of at least 0.5 s, then 50 runs or at least 1 s, whichever takes longer, up to 150 s, on its default thread count. Runs is the count the device completed. Each row reports p95 and the run count from a single session.</p>
-            <p><strong>Where each number comes from.</strong> Median, Avg, p95, Init and First inference are the latency metrics in <code>results.pb</code>; Footprint is its overall memory footprint. Nodes delegated is read from the device log line <em>Replacing N out of M node(s) with delegate (X)</em>, so the delegate name and N/M are the device's own report. Init on the GPU includes the delegate initializing the graph.</p>
-            <p><strong>Reading the board.</strong> Rows are ordered by median latency and compared only within one device, accelerator and task; the filters above make that comparison. Rows are produced by a maintainer running the driver and committed here as data: <a href="data/board.json">board.json</a> is this board, <a href="data/measurements.jsonl">measurements.jsonl</a> every job, and the README beside this page says how a row is made and how to add a model.</p>
+            <p><strong>One job, one model file, one accelerator.</strong> A row is one job of a benchmark session with LiteRT's <code>benchmark_model</code> at the release named in the Runtime column; the Binary field of a row names the build it ran. Android rows are jobs of a <code>litert benchmark --ddp</code> session: the Developer Device Platform runs the prebuilt Android arm64 binary against the model file it pushes to each device in the matrix and pulls the results back. macOS rows are jobs of a <code>run_local.py</code> session: the prebuilt macOS arm64 binary of the same release runs on the Mac the script is started on. iPhone rows come from the app under <code>../ios/</code>, which builds the same tool from LiteRT's source and runs it on a phone.</p>
+            <p><strong>What <code>benchmark_model</code> does.</strong> Every row ran the schedule the binary logs at start: a warm-up of at least 0.5 s, then 50 runs or at least 1 s, whichever takes longer, up to 150 s. GPU rows add <code>--use_gpu=true</code>; no driver sets a thread count. Runs is the count the run completed. Each row reports p95 and the run count from a single session.</p>
+            <p><strong>Where each number comes from.</strong> Median, Avg, p95, Init and First inference are the latency metrics in <code>results.pb</code>; Footprint is its overall memory footprint. On Android, nodes delegated is read from the device log line <em>Replacing N out of M node(s) with delegate (X)</em>, so the delegate name and N/M are the device's own report. The macOS binary's stdout and the app's log have no such line: those rows name the delegate their log reports and show nodes n/a. Init on the GPU includes the delegate initializing the graph.</p>
+            <p><strong>Reading the board.</strong> Rows are grouped by platform and ordered by median latency inside the group; a comparison holds only within one platform, device, accelerator and task, which the filters above select. Rows are made by running the drivers and are committed here as data: <a href="data/board.json">board.json</a> is this board, <a href="data/measurements.jsonl">measurements.jsonl</a> every job, and the README beside this page says how a row is made and how to add a model.</p>
         </div>
     </main>
 
@@ -385,6 +387,7 @@
     <script>
         const COLUMNS = [
             { key: 'model', label: 'Model' },
+            { key: 'platform', label: 'Platform' },
             { key: 'device', label: 'Device' },
             { key: 'accelerator', label: 'Accelerator' },
             { key: 'median', label: 'Median', unit: 'ms', get: r => r.latency_ms.median, main: true },
@@ -394,14 +397,15 @@
             { key: 'first', label: 'First inference', unit: 'ms', get: r => r.latency_ms.first_inference },
             { key: 'footprint', label: 'Footprint', unit: 'MB', get: r => r.memory_mb.overall_footprint, digits: 1 },
             { key: 'runs', label: 'Runs', get: r => r.runs, digits: 0 },
-            { key: 'runtime_version', label: 'Runtime', get: r => r.runtime_version, text: true },
+            { key: 'runtime_version', label: 'Runtime', get: r => r.runtime_version, text: true, sort: v => String(v).split('.').map(p => /^\d+$/.test(p) ? p.padStart(6, '0') : p).join('.') },
             { key: 'date', label: 'Date', get: r => r.date, text: true },
         ];
         const DETAIL = [
             ['Row id', r => r.row_id], ['Repo', r => r.model], ['File', r => r.file], ['Task', r => r.task],
-            ['Model size', r => fmt(r.model_size_mb, 2) + ' MB'], ['Device id', r => r.device_id], ['Device', r => r.device],
-            ['Platform', r => r.platform], ['Accelerator', r => r.accelerator], ['Delegate', r => r.delegate],
-            ['Nodes delegated', r => r.nodes_delegated + ' / ' + r.nodes_total], ['Partitions', r => r.partitions],
+            ['Model size', r => fmt(r.model_size_mb, 2) + ' MB'], ['Platform', r => platformName(r.platform)],
+            ['Device id', r => r.device_id], ['Device', r => r.device], ['OS', r => r.os],
+            ['Accelerator', r => r.accelerator], ['Delegate', r => r.delegate],
+            ['Nodes delegated', r => r.nodes_delegated == null ? null : r.nodes_delegated + ' / ' + r.nodes_total], ['Partitions', r => r.partitions],
             ['Median', r => fmt(r.latency_ms.median) + ' ms'], ['Avg', r => fmt(r.latency_ms.avg) + ' ms'],
             ['p5', r => fmt(r.latency_ms.p5) + ' ms'], ['p95', r => fmt(r.latency_ms.p95) + ' ms'],
             ['Min', r => fmt(r.latency_ms.min) + ' ms'], ['Max', r => fmt(r.latency_ms.max) + ' ms'],
@@ -409,11 +413,12 @@
             ['First inference', r => fmt(r.latency_ms.first_inference) + ' ms'], ['Warm-up avg', r => fmt(r.latency_ms.warm_up_avg) + ' ms'],
             ['Init footprint', r => fmt(r.memory_mb.init_footprint, 1) + ' MB'], ['Overall footprint', r => fmt(r.memory_mb.overall_footprint, 1) + ' MB'],
             ['Runs', r => r.runs], ['Warm-up runs', r => r.warmup_runs], ['Throughput', r => fmt(r.throughput_mb_s, 1) + ' MB/s'],
-            ['Runtime version', r => r.runtime_version], ['Numbers from', r => r.source],
-            ['DDP session', r => r.ddp_session], ['DDP job', r => r.ddp_job], ['Date', r => r.date],
+            ['Runtime version', r => r.runtime_version], ['Binary', r => r.binary], ['Numbers from', r => r.source],
+            ['Runner', r => r.runner], ['Session', r => r.session], ['Job', r => r.job], ['Date', r => r.date],
         ];
 
         let ROWS = [];
+        let PLATFORMS = [];
         let SORT = { key: 'median', dir: 1 };
         let OPEN = null;
         const $ = id => document.getElementById(id);
@@ -430,14 +435,25 @@
             values.forEach(v => { const o = document.createElement('option'); o.value = v; o.textContent = v; sel.appendChild(o); });
         }
         function sortValue(r, col) {
-            return col.get ? col.get(r) : r[col.key];
+            const v = col.get ? col.get(r) : r[col.key];
+            return col.sort && v != null ? col.sort(v) : v;
+        }
+        function platformName(id) {
+            const p = PLATFORMS.find(p => p.id === id);
+            return p ? p.name : id;
+        }
+        function platformOrder(id) {
+            const i = PLATFORMS.findIndex(p => p.id === id);
+            return i < 0 ? PLATFORMS.length : i;
         }
 
         function drawStats(board) {
             const versions = (board.runtime_versions || []).join(', ');
+            const measured = PLATFORMS.filter(p => p.rows > 0).length;
             $('stats').innerHTML = [
                 [board.rows.length, board.rows.length === 1 ? 'row' : 'rows'],
                 [board.models.length, board.models.length === 1 ? 'model' : 'models'],
+                [measured, measured === 1 ? 'platform' : 'platforms'],
                 [board.devices.length, board.devices.length === 1 ? 'device' : 'devices'],
                 [versions, (board.runtime_versions || []).length > 1 ? 'benchmark_model releases' : 'benchmark_model release'],
             ].map(([v, l]) => `<div class="stat"><div class="v">${esc(v)}</div><div class="l">${esc(l)}</div></div>`).join('');
@@ -458,10 +474,12 @@
         }
 
         function visibleRows() {
-            const dev = $('fDevice').value, acc = $('fAccel').value, task = $('fTask').value;
+            const plat = $('fPlatform').value, dev = $('fDevice').value, acc = $('fAccel').value, task = $('fTask').value;
             const col = COLUMNS.find(c => c.key === SORT.key);
-            return ROWS.filter(r => (!dev || r.device === dev) && (!acc || r.accelerator === acc) && (!task || r.task === task))
+            return ROWS.filter(r => (!plat || r.platform === plat) && (!dev || r.device === dev) && (!acc || r.accelerator === acc) && (!task || r.task === task))
                 .sort((a, b) => {
+                    const g = platformOrder(a.platform) - platformOrder(b.platform);
+                    if (g !== 0) return g;
                     const x = sortValue(a, col), y = sortValue(b, col);
                     if (x == null && y == null) return 0;
                     if (x == null) return 1;
@@ -474,7 +492,8 @@
             const nodes = r.nodes_delegated != null ? `${r.nodes_delegated}/${r.nodes_total} nodes` : 'nodes n/a';
             const cells = COLUMNS.map(c => {
                 if (c.key === 'model') return `<td><div class="name">${esc(r.model)}</div><div class="sub"><code>${esc(r.file)}</code> · ${fmt(r.model_size_mb, 1)} MB</div><div class="sub"><span class="chip task">${esc(r.task)}</span></div></td>`;
-                if (c.key === 'device') return `<td><div class="name">${esc(r.device)}</div><div class="sub"><code>${esc(r.device_id)}</code></div></td>`;
+                if (c.key === 'platform') return `<td><span class="chip platform">${esc(platformName(r.platform))}</span></td>`;
+                if (c.key === 'device') return `<td><div class="name">${esc(r.device)}</div><div class="sub"><code>${esc(r.device_id)}</code>${r.os ? ' · ' + esc(r.os) : ''}</div></td>`;
                 if (c.key === 'accelerator') return `<td><span class="chip ${esc(r.accelerator)}">${esc(r.accelerator)}</span><div class="sub">${esc(r.delegate || '—')}</div><div class="sub">${nodes}${r.partitions != null ? ` · ${r.partitions} partition${r.partitions === 1 ? '' : 's'}` : ''}</div></td>`;
                 const v = c.get(r);
                 if (c.text) return `<td>${esc(v)}</td>`;
@@ -501,11 +520,19 @@
 
         function render(board) {
             ROWS = board.rows || [];
+            PLATFORMS = board.platforms || [...new Set(ROWS.map(r => r.platform))].map(id => ({ id, name: id, rows: 1 }));
             drawStats(board);
+            PLATFORMS.forEach(p => {
+                const o = document.createElement('option');
+                o.value = p.id;
+                o.textContent = p.rows ? p.name : `${p.name} (planned)`;
+                o.disabled = !p.rows;
+                $('fPlatform').appendChild(o);
+            });
             fillSelect('fDevice', [...new Set(ROWS.map(r => r.device))].sort());
             fillSelect('fAccel', [...new Set(ROWS.map(r => r.accelerator))].sort());
             fillSelect('fTask', [...new Set(ROWS.map(r => r.task))].sort());
-            ['fDevice', 'fAccel', 'fTask'].forEach(id => $(id).onchange = drawRows);
+            ['fPlatform', 'fDevice', 'fAccel', 'fTask'].forEach(id => $(id).onchange = drawRows);
             drawHead();
             drawRows();
         }

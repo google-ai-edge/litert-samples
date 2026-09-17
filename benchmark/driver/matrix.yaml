@@ -1,27 +1,52 @@
 # Benchmark matrix for the LiteRT performance leaderboard: which model files
-# run on which accelerators, and the lab devices every session targets.
-# One model entry becomes one board row per device and accelerator.
+# run on which accelerators, and the platforms and devices rows come from.
+# One model entry becomes one board row per platform, device and accelerator.
 
 runtime:
-  # The benchmark_model release the CLI pins for --ddp
-  # (gs://litert/binaries/<version>/android_arm64/benchmark_model). run_matrix.py
-  # reads the actual pin from the CLI output; collect.py uses this value when it
-  # is given cached sessions without --runtime-version.
+  # The benchmark_model release every row is measured with. Binaries live at
+  # gs://litert/binaries/<version>/<platform binary>; run_matrix.py reads the
+  # actual pin from the CLI output, run_local.py fetches this version, and
+  # collect.py uses this value for cached sessions given without --runtime-version.
   version: "2.2.0"
 
-devices:
-  # Every session runs one job per measured device. `id` is the DDP device id and
-  # `name` its displayName, both from the device catalog
-  # (gcloud beta device-run devices list); the board shows `name`.
-  measured:
-    - id: caiman-35
-      name: Pixel 9 Pro
-    - id: pa3q-35
-      name: Galaxy S25 Ultra
-  # Named here so their rows render with a name; not submitted until moved up.
-  planned:
-    - id: m1q-36
-      name: Galaxy S26
+platforms:
+  # `rows` says how a platform's rows are made: ddp = run_matrix.py submits
+  # `litert benchmark --ddp` sessions, local = run_local.py runs the binary on
+  # the machine it is started on, app = a session recorded from the app under
+  # benchmark/ios, planned = no rows yet. `binary` is the object under
+  # gs://litert/binaries/<version>/ that platform runs (prebuilt platforms only).
+  android:
+    name: Android
+    rows: ddp
+    binary: android_arm64/benchmark_model
+    devices:
+      # Every session runs one job per measured device. `id` is the DDP device id,
+      # `name` its displayName and `os` its osVersion (an Android API level), all
+      # from the device catalog (GET /devices); the board shows `name` and `os`.
+      measured:
+        - id: caiman-35
+          name: Pixel 9 Pro
+          os: Android 15 (API 35)
+        - id: pa3q-35
+          name: Galaxy S25 Ultra
+          os: Android 15 (API 35)
+      # Named here so their rows render with a name; not submitted until moved up.
+      planned:
+        - id: m1q-36
+          name: Galaxy S26
+          os: Android 16 (API 36)
+  macos:
+    name: macOS
+    rows: local
+    binary: macos_arm64/benchmark_model
+    # The device is the Mac run_local.py runs on: its name, id and OS version are
+    # read from system_profiler and sw_vers and written into the session.
+  ios:
+    name: iOS
+    rows: app
+    # iOS runs no standalone binary: rows come from the app under benchmark/ios,
+    # which builds benchmark_model from LiteRT's source and runs it on a phone.
+    # The session names the phone, its OS and the source tag (see ../ios/README.md).
 
 models:
   # repo: Hugging Face repo. file: the one .tflite in it to measure. task: the

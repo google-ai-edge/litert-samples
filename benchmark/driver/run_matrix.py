@@ -2,8 +2,8 @@
 """Run the matrix on Developer Device Platform (DDP) devices and collect the rows.
 
 For every model in matrix.yaml and every accelerator it lists, this script runs
-one `litert benchmark --ddp` session on all measured devices, then collect.py on
-the session's outputs, and finally build_board.py. Sessions are billed to the
+one `litert benchmark --ddp` session on all measured Android devices, then
+collect.py on the session's outputs, and finally build_board.py. Sessions are billed to the
 Google Cloud project. `--dry-run` prints every command and runs nothing.
 
 Usage:
@@ -92,9 +92,10 @@ def main() -> int:
     args = p.parse_args()
 
     matrix = load_matrix(args.matrix)
-    devices = [d["id"] for d in (matrix.get("devices") or {}).get("measured") or []]
+    android = (matrix.get("platforms") or {}).get("android") or {}
+    devices = [d["id"] for d in (android.get("devices") or {}).get("measured") or []]
     if not devices:
-        sys.exit("run_matrix.py: no measured devices in matrix.yaml")
+        sys.exit("run_matrix.py: no measured devices under platforms.android in matrix.yaml")
     if not args.dry_run and not args.gcp_project:
         sys.exit("run_matrix.py: --gcp-project (or LITERT_GCP_PROJECT) is required to submit sessions")
     project = args.gcp_project or "PROJECT_ID"

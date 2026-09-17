@@ -1,17 +1,28 @@
 #!/usr/bin/env python3
-"""Turn `litert benchmark --ddp` session outputs into leaderboard rows.
+"""Turn benchmark job outputs into leaderboard rows.
 
-Each job directory under a session directory
-(~/.cache/litert-cli/ddp/<session>/<job>/) holds results.pb, runtime_info.pb
-and logcat.txt. This script decodes results.pb with protoc against LiteRT's
-benchmark_result.proto (fetched once into a cache), reads the delegate line
-from logcat.txt, and writes one row per job to measurements.jsonl. A row with
-the same row_id replaces the earlier one. A job without results is reported on
-stderr and not written.
+A session directory holds one job directory per accelerator and device,
+named <accelerator>-<device id>:
+
+  ~/.cache/litert-cli/ddp/<session>/<job>/            from `litert benchmark --ddp`
+      results.pb, runtime_info.pb, logcat.txt
+  ~/.cache/litert-samples-benchmark/local/<session>/<job>/   from run_local.py
+      results.pb, runtime_info.pb, stdout.txt, and session.json beside the jobs
+
+This script decodes results.pb with protoc against LiteRT's benchmark_result.proto
+(fetched once into a cache), reads the delegate line from the job's log, and
+writes one row per job to measurements.jsonl. A row with the same row_id replaces
+the earlier one. A job without results is reported on stderr and not written.
+
+The platform, device name and OS come from the flags when given, else from
+session.json when the session has one (run_local.py and run_ios.sh write it),
+else from matrix.yaml for Android devices. A session with neither session.json
+nor flags is taken as an Android DDP session only when its jobs have logcat.txt.
 
 Usage:
   collect.py SESSION_DIR... --model litert-community/MobileNet-v2
              [--task image-classification] [--runtime-version 2.2.0]
+             [--platform macos --device "Mac Studio (M4 Max)" --os "macOS 27.0"]
              [--matrix matrix.yaml] [--data-dir ../leaderboard/data] [--date YYYY-MM-DD]
 """
 
@@ -43,6 +54,8 @@ DELEGATE_RE = re.compile(
     r"Replacing (\d+) out of (\d+) node\(s\) with delegate \(([^)]+)\) node,"
     r" yielding (\d+) partitions"
 )
+GPU_API_RE = re.compile(r"Initializing (\w+)-based API from graph")
+XNNPACK_RE = re.compile(r"Created TensorFlow Lite XNNPACK delegate for CPU")
 LOADING_RE = re.compile(r"Loading model from: \S*/([^/\s]+)$")
 TIMING_RE = re.compile(
     r"count=(\d+) first=(\d+) curr=\d+ min=(\d+) max=(\d+) avg=([\d.]+) std=([\d.]+)"
@@ -64,12 +77,14 @@ def load_matrix(path: pathlib.Path) -> dict:
         return yaml.safe_load(f) or {}
 
 
-def device_names(matrix: dict) -> dict[str, str]:
-    names = {}
+def matrix_devices(matrix: dict, platform: str) -> dict[str, dict]:
+    """{device id: entry} for one platform, measured and planned."""
+    devices = {}
+    groups = ((matrix.get("platforms") or {}).get(platform) or {}).get("devices") or {}
     for group in ("measured", "planned"):
-        for d in (matrix.get("devices") or {}).get(group) or []:
-            names[d["id"]] = d.get("name", d["id"])
-    return names
+        for d in groups.get(group) or []:
+            devices[d["id"]] = d
+    return devices
 
 
 def matrix_task(matrix: dict, repo: str, file: str) -> str | None:
@@ -126,7 +141,7 @@ def decode_results_pb(pb: pathlib.Path) -> dict | None:
     if not pb.exists():
         return None
     if not shutil.which("protoc"):
-        print("collect.py: protoc not found; reading logcat instead", file=sys.stderr)
+        print("collect.py: protoc not found; reading the job log instead", file=sys.stderr)
         return None
     proto = ensure_proto()
     if proto is None:
@@ -142,13 +157,19 @@ def decode_results_pb(pb: pathlib.Path) -> dict | None:
     return parse_text_proto(run.stdout)
 
 
-def parse_logcat(path: pathlib.Path) -> dict:
-    """Reads the benchmark process's lines: model file, delegate line, results block."""
-    info: dict = {"delegate": None, "results": {}, "timing": None, "file": None, "model_size_mb": None}
-    if not path.exists():
-        return info
+def log_messages(path: pathlib.Path):
+    """Yields the benchmark process's log messages.
+
+    logcat.txt keeps every process on the device: only the lines of the pid that
+    logged `tflite: STARTING!` are the benchmark's. stdout.txt is the binary's
+    own output, one message per line.
+    """
+    lines = path.read_text(errors="replace").splitlines()
+    if not any(LOGCAT_RE.match(l) for l in lines[:50]):
+        yield from lines
+        return
     pid = None
-    for raw in path.read_text(errors="replace").splitlines():
+    for raw in lines:
         m = LOGCAT_RE.match(raw)
         if not m:
             continue
@@ -157,13 +178,26 @@ def parse_logcat(path: pathlib.Path) -> dict:
             if tag == "tflite" and msg == "STARTING!":
                 pid = line_pid
             continue
-        if line_pid != pid:
-            continue
+        if line_pid == pid:
+            yield msg
+
+
+def parse_log(path: pathlib.Path, accelerator: str) -> dict:
+    """Reads model file, delegate, results block and timing line from the job log."""
+    info: dict = {"delegate": None, "results": {}, "timing": None, "file": None, "model_size_mb": None}
+    if not path.exists():
+        return info
+    gpu_api = xnnpack = None
+    for msg in log_messages(path):
         if (d := DELEGATE_RE.search(msg)) and info["delegate"] is None:
             info["delegate"] = {
                 "name": d.group(3), "nodes_delegated": int(d.group(1)),
                 "nodes_total": int(d.group(2)), "partitions": int(d.group(4)),
             }
+        elif (g := GPU_API_RE.search(msg)):
+            gpu_api = g.group(1)
+        elif XNNPACK_RE.search(msg):
+            xnnpack = "XNNPACK"
         elif (f := LOADING_RE.search(msg)):
             info["file"] = f.group(1)
         elif (s := MODEL_SIZE_RE.search(msg)):
@@ -173,6 +207,12 @@ def parse_logcat(path: pathlib.Path) -> dict:
         elif (r := RESULT_LINE_RE.search(msg)):
             label, value, runs = r.groups()
             info["results"][label] = (float(value), int(runs) if runs else None)
+    if info["delegate"] is None:
+        # No "Replacing N out of M" line (the macOS binary's stdout has none): keep
+        # the delegate the log names for this accelerator, and no node count.
+        name = gpu_api if accelerator == "gpu" else xnnpack
+        if name:
+            info["delegate"] = {"name": name, "nodes_delegated": None, "nodes_total": None, "partitions": None}
     return info
 
 
@@ -196,7 +236,7 @@ def row_from_pb(pb: dict) -> dict:
     }
 
 
-def row_from_logcat(info: dict) -> dict | None:
+def row_from_log(info: dict) -> dict | None:
     """Builds the same fields from the BENCHMARK RESULTS block and the last timing line."""
     res = info["results"]
     if "Inference (avg)" not in res:
@@ -218,55 +258,98 @@ def row_from_logcat(info: dict) -> dict | None:
         "runs": res["Inference (avg)"][1], "warmup_runs": res.get("Warmup (avg)", (None, None))[1],
         "throughput_mb_s": res.get("Throughput", (None,))[0],
         "model_size_mb": info["model_size_mb"],
-        "source": "logcat",
+        "source": "log",
     }
 
 
-def collect_job(job_dir: pathlib.Path, args, matrix: dict, names: dict[str, str]) -> dict | None:
+def session_meta(session_dir: pathlib.Path, jobs: list[pathlib.Path], args, matrix: dict) -> dict:
+    """Platform, runner, device and binary for one session: flags > session.json > matrix > DDP layout."""
+    meta: dict = {}
+    sj = session_dir / "session.json"
+    if sj.exists():
+        meta = json.loads(sj.read_text())
+    ddp_layout = all((j / "logcat.txt").exists() for j in jobs)
+    platform = args.platform or meta.get("platform")
+    if not platform:
+        if not ddp_layout:
+            sys.exit(f"collect.py: {session_dir} has no session.json and no logcat.txt; pass --platform, --device and --os")
+        platform = "android"
+    known = list(matrix.get("platforms") or {})
+    if known and platform not in known:
+        sys.exit(f"collect.py: platform {platform!r} is not in matrix.yaml (known: {', '.join(known)})")
+    runner = args.runner or meta.get("runner") or ("ddp" if ddp_layout else None)
+    if not runner:
+        sys.exit(f"collect.py: runner unknown for {session_dir}; pass --runner ddp|local|app")
+    version = args.runtime_version or meta.get("runtime_version") or (matrix.get("runtime") or {}).get("version")
+    pconf = (matrix.get("platforms") or {}).get(platform) or {}
+    binary = args.binary or meta.get("binary")
+    if not binary and platform == "android" and runner == "ddp" and version and pconf.get("binary"):
+        binary = f"{version}/{pconf['binary']}"
+    return {
+        "platform": platform, "runner": runner,
+        "device_id": args.device_id or meta.get("device_id"),
+        "device": args.device or meta.get("device"),
+        "os": args.os or meta.get("os"),
+        "runtime_version": version,
+        "binary": binary,
+        "devices": matrix_devices(matrix, platform),
+    }
+
+
+def collect_job(job_dir: pathlib.Path, args, matrix: dict, meta: dict) -> dict | None:
     session = job_dir.parent.name
     job = job_dir.name
-    if "-" not in job:
-        print(f"collect.py: skipping {session}/{job}: job name is not <accelerator>-<device>", file=sys.stderr)
-        return None
     accelerator, device_id = job.split("-", 1)
-    log = parse_logcat(job_dir / "logcat.txt")
+    device_id = meta["device_id"] or device_id
+    log_path = job_dir / ("logcat.txt" if (job_dir / "logcat.txt").exists() else "stdout.txt")
+    log = parse_log(log_path, accelerator)
     pb = decode_results_pb(job_dir / "results.pb")
-    metrics = row_from_pb(pb) if pb else row_from_logcat(log)
+    metrics = row_from_pb(pb) if pb else row_from_log(log)
     if metrics is None or metrics["latency_ms"]["avg"] is None:
-        print(f"FAILED {session}/{job}: no results.pb and no BENCHMARK RESULTS block in logcat.txt", file=sys.stderr)
+        print(f"FAILED {session}/{job}: no results.pb and no BENCHMARK RESULTS block in {log_path.name}", file=sys.stderr)
         return None
     file = log["file"] or args.file
     if not file:
-        print(f"FAILED {session}/{job}: model file name not in logcat.txt; pass --file", file=sys.stderr)
+        print(f"FAILED {session}/{job}: model file name not in {log_path.name}; pass --file", file=sys.stderr)
+        return None
+    if args.file and log["file"] and args.file != log["file"]:
+        print(f"FAILED {session}/{job}: {log_path.name} names {log['file']}, --file says {args.file}", file=sys.stderr)
         return None
     if metrics["model_size_mb"] is None:
         metrics["model_size_mb"] = log["model_size_mb"]
     task = args.task or matrix_task(matrix, args.model, file)
     if not task:
-        sys.exit(f"collect.py: task unknown for {args.model}:{file}; add it to matrix.yaml or pass --task")
-    version = args.runtime_version or (matrix.get("runtime") or {}).get("version")
+        print(f"FAILED {session}/{job}: task unknown for {args.model}:{file}; add it to matrix.yaml or pass --task", file=sys.stderr)
+        return None
+    version = meta["runtime_version"]
     if not version:
-        sys.exit("collect.py: runtime version unknown; pass --runtime-version or set runtime.version in matrix.yaml")
+        print(f"FAILED {session}/{job}: runtime version unknown; pass --runtime-version or set runtime.version in matrix.yaml", file=sys.stderr)
+        return None
     if args.date:
         date = args.date
     else:
-        src = job_dir / "results.pb" if (job_dir / "results.pb").exists() else job_dir / "logcat.txt"
+        src = job_dir / "results.pb" if (job_dir / "results.pb").exists() else log_path
         date = dt.datetime.fromtimestamp(src.stat().st_mtime, dt.timezone.utc).date().isoformat()
     delegate = log["delegate"] or {}
-    if device_id not in names:
+    entry = meta["devices"].get(device_id, {})
+    if not meta["device"] and device_id not in meta["devices"]:
         print(f"collect.py: device {device_id} is not in matrix.yaml; the board will show its id", file=sys.stderr)
+    platform = meta["platform"]
     return {
-        "row_id": f"{args.model}:{file}@{version}/{device_id}/{accelerator}",
+        "row_id": f"{args.model}:{file}@{version}/{platform}/{device_id}/{accelerator}",
         "model": args.model, "file": file, "task": task,
         "model_size_mb": metrics.pop("model_size_mb"),
-        "device_id": device_id, "device": names.get(device_id, device_id),
-        "platform": "android", "accelerator": accelerator,
+        "platform": platform, "device_id": device_id,
+        "device": meta["device"] or entry.get("name", device_id),
+        "os": meta["os"] or entry.get("os"),
+        "accelerator": accelerator,
         "delegate": delegate.get("name"),
         "nodes_delegated": delegate.get("nodes_delegated"), "nodes_total": delegate.get("nodes_total"),
         "partitions": delegate.get("partitions"),
         **metrics,
-        "runtime": "litert", "runtime_version": version,
-        "ddp_session": session, "ddp_job": job, "status": "measured", "date": date,
+        "runtime": "litert", "runtime_version": version, "binary": meta["binary"],
+        "runner": meta["runner"], "session": session, "job": job,
+        "status": "measured", "date": date,
     }
 
 
@@ -289,34 +372,49 @@ def write_rows(data_dir: pathlib.Path, rows: list[dict]) -> pathlib.Path:
 
 def main() -> int:
     p = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    p.add_argument("session_dirs", nargs="+", type=pathlib.Path, help="~/.cache/litert-cli/ddp/<session> (or one job directory)")
+    p.add_argument("session_dirs", nargs="+", type=pathlib.Path, help="a session directory (or one job directory)")
     p.add_argument("--model", required=True, help="Hugging Face repo the model file came from, e.g. litert-community/MobileNet-v2")
-    p.add_argument("--file", help="model file name; read from logcat.txt when omitted")
+    p.add_argument("--file", help="model file name; read from the job log when omitted")
     p.add_argument("--task", help="pipeline tag; read from matrix.yaml when omitted")
-    p.add_argument("--runtime-version", help="benchmark_model release the CLI pinned; matrix.yaml runtime.version when omitted")
+    p.add_argument("--runtime-version", help="benchmark_model release; session.json, then matrix.yaml runtime.version when omitted")
+    p.add_argument("--platform", help="a platform id from matrix.yaml; session.json when omitted, else android for a DDP session")
+    p.add_argument("--runner", choices=["ddp", "local", "app"], help="what produced the session; session.json when omitted, else ddp for a DDP session")
+    p.add_argument("--device", help="device name shown on the board; session.json, then matrix.yaml when omitted")
+    p.add_argument("--device-id", help="device id; the job directory name when omitted")
+    p.add_argument("--os", help="OS version shown with the device; session.json, then matrix.yaml when omitted")
+    p.add_argument("--binary", help="the benchmark_model build the rows ran; session.json when omitted, else the matrix's Android binary for DDP sessions")
     p.add_argument("--matrix", type=pathlib.Path, default=DEFAULT_MATRIX)
     p.add_argument("--data-dir", type=pathlib.Path, default=DEFAULT_DATA_DIR)
-    p.add_argument("--date", help="YYYY-MM-DD; default = the day the outputs were pulled (file mtime, UTC)")
+    p.add_argument("--date", help="YYYY-MM-DD; default = the day the outputs were written (file mtime, UTC)")
     args = p.parse_args()
 
     matrix = load_matrix(args.matrix)
-    names = device_names(matrix)
     rows, failed = [], 0
     for sd in args.session_dirs:
         sd = sd.expanduser()
         if not sd.is_dir():
             sys.exit(f"collect.py: not a directory: {sd}")
-        jobs = [sd] if (sd / "logcat.txt").exists() or (sd / "results.pb").exists() else sorted(d for d in sd.iterdir() if d.is_dir())
+        is_job = (sd / "results.pb").exists() or (sd / "logcat.txt").exists() or (sd / "stdout.txt").exists()
+        jobs = [sd] if is_job else sorted(d for d in sd.iterdir() if d.is_dir())
+        for d in [j for j in jobs if "-" not in j.name]:
+            print(f"collect.py: skipping {d}: not a <accelerator>-<device> job directory", file=sys.stderr)
+        jobs = [j for j in jobs if "-" in j.name]
+        if not jobs:
+            print(f"collect.py: no job directories in {sd}", file=sys.stderr)
+            failed += 1
+            continue
+        meta = session_meta(sd.parent if is_job else sd, jobs, args, matrix)
         for job_dir in jobs:
-            row = collect_job(job_dir, args, matrix, names)
+            row = collect_job(job_dir, args, matrix, meta)
             if row is None:
                 failed += 1
                 continue
             rows.append(row)
             lat = row["latency_ms"]
-            print(f"{row['ddp_session']}/{row['ddp_job']}: {row['file']} {row['device']} {row['accelerator']}"
+            nodes = f"{row['nodes_delegated']}/{row['nodes_total']} nodes" if row["nodes_delegated"] is not None else "nodes n/a"
+            print(f"{row['session']}/{row['job']}: {row['file']} {row['platform']} {row['device']} {row['accelerator']}"
                   f" median {lat['median']} ms, p95 {lat['p95']} ms, {row['runs']} runs,"
-                  f" {row['nodes_delegated']}/{row['nodes_total']} nodes ({row['delegate']}), {row['source']}")
+                  f" {nodes} ({row['delegate']}), {row['source']}")
     if rows:
         path = write_rows(args.data_dir, rows)
         print(f"{len(rows)} row(s) written to {path}")
