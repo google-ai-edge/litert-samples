@@ -23,7 +23,7 @@ holds only within one platform, device, accelerator and task, which the page's f
 | Platform, Device | `android`, `macos` or `ios`; the device id with its name and OS, from `matrix.yaml` for DDP devices and from the machine itself for a Mac or an iPhone |
 | Accelerator | `cpu` or `gpu` with the delegate the run's log names; nodes delegated N/M comes from the Android device log and reads n/a where a log has no such line |
 | Median, Avg, p95, Init, First inference, Footprint | `results.pb` (`tflite.tools.benchmark.BenchmarkResult`): latency in ms and overall memory footprint, shown in MB |
-| Runs | inference runs the run completed; each row reports p95 and the run count from a single session |
+| Runs | inference runs completed; each row reports p95 and the run count from a single session |
 | Runtime, Date | the `benchmark_model` release; the row's Binary field names the build it ran (a bucket object, or the source tag for iOS). Date is the day the outputs were written or pulled |
 
 ## How a row is made
