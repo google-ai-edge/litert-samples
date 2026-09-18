@@ -1,5 +1,5 @@
 {
- "generated_at": "2026-09-18T02:48:29Z",
+ "generated_at": "2026-09-18T06:15:31Z",
  "runtime": "litert",
  "runtime_versions": [
   "2.2.0"
@@ -5697,6 +5697,130 @@
    "job": "gpu-iphone17pro",
    "status": "measured",
    "date": "2026-09-17"
+  }
+ ],
+ "lm_runtime": "litert-lm",
+ "lm_runtime_versions": [
+  "latest@2026-09-18"
+ ],
+ "lm_row_count": 2,
+ "lm_models": [
+  "litert-community/Qwen3-0.6B"
+ ],
+ "lm_rows": [
+  {
+   "row_id": "litert-community/Qwen3-0.6B:qwen3_0_6b_mixed_int4.litertlm@latest@2026-09-18/android/caiman-35/cpu/p1024-d256-n1280",
+   "model": "litert-community/Qwen3-0.6B",
+   "file": "qwen3_0_6b_mixed_int4.litertlm",
+   "task": "text-generation",
+   "model_size_mb": 497.66,
+   "platform": "android",
+   "device_id": "caiman-35",
+   "device": "Pixel 9 Pro",
+   "os": "Android 15 (API 35)",
+   "accelerator": "cpu",
+   "delegate": null,
+   "conditions": {
+    "prefill_tokens": 1024,
+    "decode_tokens": 256,
+    "max_num_tokens": 1280,
+    "iterations": 3
+   },
+   "metrics": {
+    "prefill_tok_s": 182.068,
+    "decode_tok_s": 5.73,
+    "ttft_s": 5.778,
+    "init_total_ms": 705.362,
+    "init_executor_ms": 696.112,
+    "peak_mem_mb": null
+   },
+   "iterations": [
+    {
+     "prefill_tok_s": 182.068,
+     "decode_tok_s": 6.52,
+     "ttft_s": 5.7776,
+     "init_total_ms": 705.362
+    },
+    {
+     "prefill_tok_s": 194.66,
+     "decode_tok_s": 5.73,
+     "ttft_s": 5.435,
+     "init_total_ms": 705.362
+    },
+    {
+     "prefill_tok_s": 167.064,
+     "decode_tok_s": 3.707,
+     "ttft_s": 6.3992,
+     "init_total_ms": 705.362
+    }
+   ],
+   "runtime": "litert-lm",
+   "runtime_version": "latest@2026-09-18",
+   "binary": "latest/android_arm64/litert_lm_advanced_main, sha256 e10edfa46596705db6966506e25548731074f889edac161858b730279778c68c",
+   "runner": "ddp-http",
+   "session": "session-a9ec9593",
+   "job": "cpu",
+   "repeat": 1,
+   "source": "metrics.pb",
+   "status": "measured",
+   "date": "2026-09-18"
+  },
+  {
+   "row_id": "litert-community/Qwen3-0.6B:qwen3_0_6b_mixed_int4.litertlm@latest@2026-09-18/android/caiman-35/gpu/p1024-d256-n1280",
+   "model": "litert-community/Qwen3-0.6B",
+   "file": "qwen3_0_6b_mixed_int4.litertlm",
+   "task": "text-generation",
+   "model_size_mb": 497.66,
+   "platform": "android",
+   "device_id": "caiman-35",
+   "device": "Pixel 9 Pro",
+   "os": "Android 15 (API 35)",
+   "accelerator": "gpu",
+   "delegate": "OpenCL",
+   "conditions": {
+    "prefill_tokens": 1024,
+    "decode_tokens": 256,
+    "max_num_tokens": 1280,
+    "iterations": 3
+   },
+   "metrics": {
+    "prefill_tok_s": 579.826,
+    "decode_tok_s": 23.49,
+    "ttft_s": 1.808,
+    "init_total_ms": 19186.139,
+    "init_executor_ms": 19179.299,
+    "peak_mem_mb": null
+   },
+   "iterations": [
+    {
+     "prefill_tok_s": 561.619,
+     "decode_tok_s": 17.822,
+     "ttft_s": 1.8794,
+     "init_total_ms": 19186.139
+    },
+    {
+     "prefill_tok_s": 579.826,
+     "decode_tok_s": 24.115,
+     "ttft_s": 1.8075,
+     "init_total_ms": 19186.139
+    },
+    {
+     "prefill_tok_s": 588.631,
+     "decode_tok_s": 23.49,
+     "ttft_s": 1.7822,
+     "init_total_ms": 19186.139
+    }
+   ],
+   "runtime": "litert-lm",
+   "runtime_version": "latest@2026-09-18",
+   "binary": "latest/android_arm64/litert_lm_advanced_main, sha256 e10edfa46596705db6966506e25548731074f889edac161858b730279778c68c",
+   "runner": "ddp-http",
+   "session": "session-a9ec9593",
+   "job": "gpu",
+   "repeat": 1,
+   "source": "metrics.pb",
+   "status": "measured",
+   "date": "2026-09-18"
   }
  ]
 }

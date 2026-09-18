@@ -363,11 +363,23 @@
             <div class="load-error" id="loadError">The board data did not load.</div>
         </div>
 
+        <section id="lmSection" style="display:none">
+            <h2 class="section-title">LiteRT-LM rows</h2>
+            <div class="controls"><span class="hint">Prefill and decode tokens/s of a <code>.litertlm</code> bundle with LiteRT-LM's benchmark binary, the median of the run's iterations; grouped by platform, listed by model, device and backend. Click a row to see every field.</span></div>
+            <div class="tblwrap">
+                <table id="lmBoard">
+                    <thead><tr id="lmHead"></tr></thead>
+                    <tbody id="lmRows"></tbody>
+                </table>
+            </div>
+        </section>
+
         <h2 class="section-title">How the rows are measured</h2>
         <div class="method">
             <p><strong>One job, one model file, one accelerator.</strong> A row is one job of a benchmark session with LiteRT's <code>benchmark_model</code> at the release named in the Runtime column; the Binary field of a row names the build it ran. Android rows are jobs of a <code>litert benchmark --ddp</code> session: the Developer Device Platform runs the prebuilt Android arm64 binary against the model file it pushes to each device in the matrix and pulls the results back. macOS rows are jobs of a <code>run_local.py</code> session: the prebuilt macOS arm64 binary of the same release runs on the Mac the script is started on. iPhone rows come from the app under <code>../ios/</code>, which builds the same tool from LiteRT's source and runs it on a phone.</p>
             <p><strong>What <code>benchmark_model</code> does.</strong> Every row ran the schedule the binary logs at start: a warm-up of at least 0.5 s, then 50 runs or at least 1 s, whichever takes longer, up to 150 s. GPU rows add <code>--use_gpu=true</code>; no driver sets a thread count. Runs is the count the run completed. Each row reports p95 and the run count from a single session.</p>
             <p><strong>Where each number comes from.</strong> Median, Avg, p95, Init and First inference are the latency metrics in <code>results.pb</code>; Footprint is its overall memory footprint. Nodes delegated N/M, the partition count and the delegate name come from <code>runtime_info.pb</code> (<code>tflite.profiling.ModelRuntimeDetails</code>, which a run writes with <code>--model_runtime_info_output_file</code>): M is the node count of the model's primary subgraph, N the nodes the accelerator's delegate replaced, so a GPU row with a low N ran most of the graph on the CPU, and the partition count is the runtime's for the whole graph: the delegate's runs and the runs that stay off it. A session without that file (the iPhone sessions so far) keeps the delegate name its log reports, takes N/M from the log line <em>Replacing N out of M node(s) with delegate (X)</em> where there is one, and shows nodes n/a otherwise. Init on the GPU includes the delegate initializing the graph.</p>
+            <p><strong>LiteRT-LM rows.</strong> A LiteRT-LM row is one run of LiteRT-LM's benchmark binary (<code>litert_lm_advanced_main --benchmark</code>) on a <code>.litertlm</code> bundle, with the prefill and decode token counts and <code>--max_num_tokens</code> the row names, repeated <code>--num_iterations</code> times in one process. Prefill and decode tokens/s and time to first token are the median over the iterations of the <code>LitertLmMetricsList</code> proto the run writes with <code>--metric_proto_file_path</code>; Init is the first iteration's Init Total; each iteration's tokens/s, first-token time and init stay in the row. A comparison between LiteRT-LM rows holds only within one platform, device and backend at the same token counts. The Runtime column names the binary: a LiteRT-LM release, or <code>latest@&lt;date&gt;</code> with the object's sha256 in the Binary field when the run used the moving <code>latest</code> build.</p>
             <p><strong>Reading the board.</strong> Rows are grouped by platform and ordered by median latency inside the group; a comparison holds only within one platform, device, accelerator and task, which the filters above select. Rows are made by running the drivers and are committed here as data: <a href="data/board.json">board.json</a> is this board, <a href="data/measurements.jsonl">measurements.jsonl</a> every job, and the README beside this page says how a row is made and how to add a model.</p>
         </div>
     </main>
@@ -417,6 +429,36 @@
             ['Runner', r => r.runner], ['Session', r => r.session], ['Job', r => r.job], ['Date', r => r.date],
         ];
 
+        const LM_COLUMNS = [
+            { key: 'model', label: 'Model' },
+            { key: 'platform', label: 'Platform' },
+            { key: 'device', label: 'Device' },
+            { key: 'accelerator', label: 'Backend' },
+            { key: 'prefill', label: 'Prefill', unit: 'tok/s', get: r => r.metrics.prefill_tok_s, digits: 1 },
+            { key: 'decode', label: 'Decode', unit: 'tok/s', get: r => r.metrics.decode_tok_s, digits: 1, main: true },
+            { key: 'ttft', label: 'First token', unit: 's', get: r => r.metrics.ttft_s, digits: 3 },
+            { key: 'init', label: 'Init', unit: 'ms', get: r => r.metrics.init_total_ms, digits: 0 },
+            { key: 'tokens', label: 'Tokens', unit: 'prefill / decode', get: r => `${r.conditions.prefill_tokens} / ${r.conditions.decode_tokens}`, text: true },
+            { key: 'iterations', label: 'Iterations', get: r => r.conditions.iterations, digits: 0 },
+            { key: 'runtime_version', label: 'Runtime', get: r => r.runtime_version, text: true },
+            { key: 'date', label: 'Date', get: r => r.date, text: true },
+        ];
+        const LM_DETAIL = [
+            ['Row id', r => r.row_id], ['Repo', r => r.model], ['File', r => r.file], ['Task', r => r.task],
+            ['Model size', r => r.model_size_mb == null ? null : fmt(r.model_size_mb, 1) + ' MB'], ['Platform', r => platformName(r.platform)],
+            ['Device id', r => r.device_id], ['Device', r => r.device], ['OS', r => r.os],
+            ['Backend', r => r.accelerator], ['GPU API', r => r.delegate],
+            ['Prefill tokens', r => r.conditions.prefill_tokens], ['Decode tokens', r => r.conditions.decode_tokens],
+            ['max_num_tokens', r => r.conditions.max_num_tokens], ['Iterations', r => r.conditions.iterations],
+            ['Prefill (median)', r => fmt(r.metrics.prefill_tok_s, 1) + ' tok/s'], ['Decode (median)', r => fmt(r.metrics.decode_tok_s, 1) + ' tok/s'],
+            ['First token (median)', r => fmt(r.metrics.ttft_s, 3) + ' s'], ['Init Total (first iteration)', r => fmt(r.metrics.init_total_ms, 0) + ' ms'],
+            ['Init Executor (first iteration)', r => fmt(r.metrics.init_executor_ms, 0) + ' ms'], ['Peak memory', r => r.metrics.peak_mem_mb == null ? null : fmt(r.metrics.peak_mem_mb, 0) + ' MB'],
+            ['Per iteration (prefill / decode tok/s, first token s)', r => r.iterations.map(i => `${fmt(i.prefill_tok_s, 1)} / ${fmt(i.decode_tok_s, 1)}, ${fmt(i.ttft_s, 3)}`).join('; ')],
+            ['Runtime', r => r.runtime + ' ' + r.runtime_version], ['Binary', r => r.binary], ['Numbers from', r => r.source],
+            ['Runner', r => r.runner], ['Session', r => r.session], ['Job', r => r.job], ['Date', r => r.date],
+        ];
+        let LM_ROWS = [];
+        let LM_OPEN = null;
         let ROWS = [];
         let PLATFORMS = [];
         let SORT = { key: 'median', dir: 1 };
@@ -456,6 +498,7 @@
                 [measured, measured === 1 ? 'platform' : 'platforms'],
                 [board.devices.length, board.devices.length === 1 ? 'device' : 'devices'],
                 [versions, (board.runtime_versions || []).length > 1 ? 'benchmark_model releases' : 'benchmark_model release'],
+                ...(board.lm_row_count ? [[board.lm_row_count, board.lm_row_count === 1 ? 'LiteRT-LM row' : 'LiteRT-LM rows']] : []),
             ].map(([v, l]) => `<div class="stat"><div class="v">${esc(v)}</div><div class="l">${esc(l)}</div></div>`).join('');
         }
 
@@ -518,8 +561,36 @@
             });
         }
 
+        function drawLm() {
+            if (!LM_ROWS.length) return;
+            $('lmSection').style.display = 'block';
+            $('lmHead').innerHTML = LM_COLUMNS.map(c => `<th${c.main ? ' class="key"' : ''}>${esc(c.label)}${c.unit ? `<span class="unit">${esc(c.unit)}</span>` : ''}</th>`).join('');
+            const cell = (r, c) => {
+                if (c.key === 'model') return `<td><div class="name">${esc(r.model)}</div><div class="sub"><code>${esc(r.file)}</code></div><div class="sub"><span class="chip task">${esc(r.task)}</span></div></td>`;
+                if (c.key === 'platform') return `<td><span class="chip platform">${esc(platformName(r.platform))}</span></td>`;
+                if (c.key === 'device') return `<td><div class="name">${esc(r.device)}</div><div class="sub">${esc(r.device_id)}${r.os ? ' · ' + esc(r.os) : ''}</div></td>`;
+                if (c.key === 'accelerator') return `<td><span class="chip ${esc(r.accelerator)}">${esc(r.accelerator)}</span>${r.delegate ? `<div class="sub">${esc(r.delegate)}</div>` : ''}</td>`;
+                const v = c.get(r);
+                if (c.text) return `<td>${esc(v == null ? '—' : v)}</td>`;
+                return `<td${c.main ? ' class="key"' : ''}>${fmt(v, c.digits == null ? 2 : c.digits)}</td>`;
+            };
+            $('lmRows').innerHTML = LM_ROWS.map(r => {
+                const cells = LM_COLUMNS.map(c => cell(r, c)).join('');
+                const open = LM_OPEN === r.row_id;
+                const items = LM_DETAIL.map(([k, f]) => { let v; try { v = f(r); } catch (e) { v = null; } return `<div><dt>${esc(k)}</dt><dd>${esc(v == null ? '—' : v)}</dd></div>`; }).join('');
+                return `<tr class="row${open ? ' open' : ''}" data-id="${esc(r.row_id)}" tabindex="0">${cells}</tr>`
+                    + (open ? `<tr class="detail"><td colspan="${LM_COLUMNS.length}"><dl class="fields">${items}</dl></td></tr>` : '');
+            }).join('');
+            $('lmRows').querySelectorAll('tr.row').forEach(tr => {
+                const toggle = () => { LM_OPEN = LM_OPEN === tr.dataset.id ? null : tr.dataset.id; drawLm(); };
+                tr.onclick = toggle;
+                tr.onkeydown = e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggle(); } };
+            });
+        }
+
         function render(board) {
             ROWS = board.rows || [];
+            LM_ROWS = board.lm_rows || [];
             PLATFORMS = board.platforms || [...new Set(ROWS.map(r => r.platform))].map(id => ({ id, name: id, rows: 1 }));
             drawStats(board);
             PLATFORMS.forEach(p => {
@@ -535,6 +606,7 @@
             ['fPlatform', 'fDevice', 'fAccel', 'fTask'].forEach(id => $(id).onchange = drawRows);
             drawHead();
             drawRows();
+            drawLm();
         }
 
         fetch('data/board.json')

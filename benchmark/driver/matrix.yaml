@@ -48,6 +48,26 @@ platforms:
     # which builds benchmark_model from LiteRT's source and runs it on a phone.
     # The session names the phone, its OS and the source tag (see ../ios/README.md).
 
+runtime_lm:
+  # LiteRT-LM's benchmark binary the LLM rows ran (`latest` moves, so the rows
+  # keep the object's date in the version and its sha256 in the binary field),
+  # the git ref its metrics proto is read at, the flags every run passes and the
+  # token counts of the default condition.
+  version: "latest@2026-09-18"
+  binary: latest/android_arm64/litert_lm_advanced_main
+  sha256: e10edfa46596705db6966506e25548731074f889edac161858b730279778c68c
+  proto_ref: v0.17.0   # the tag whose runtime/proto/litert_lm_metrics.proto decodes the metrics (unchanged on main)
+  flags: [--disable_cache=true, --num_iterations=3]
+  conditions: {prefill_tokens: 1024, decode_tokens: 256, max_num_tokens: 1280}
+
+lm_models:
+  # repo: Hugging Face repo. file: the .litertlm bundle. task: the repo's
+  # pipeline tag. backends: cpu, gpu (the binary's --backend values).
+  - repo: litert-community/Qwen3-0.6B
+    file: qwen3_0_6b_mixed_int4.litertlm
+    task: text-generation
+    backends: [cpu, gpu]
+
 models:
   # repo: Hugging Face repo. file: the one .tflite in it to measure. task: the
   # repo's pipeline tag (the board filters on it). accelerators: cpu, gpu.
