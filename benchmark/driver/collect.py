@@ -10,9 +10,12 @@ named <accelerator>-<device id>:
       results.pb, runtime_info.pb, stdout.txt, and session.json beside the jobs
 
 This script decodes results.pb with protoc against LiteRT's benchmark_result.proto
-(fetched once into a cache), reads the delegate line from the job's log, and
-writes one row per job to measurements.jsonl. A row with the same row_id replaces
-the earlier one. A job without results is reported on stderr and not written.
+(fetched once into a cache) and runtime_info.pb against model_runtime_info.proto,
+which names the delegate and counts the nodes it replaced in the model's primary
+subgraph; a job without runtime_info.pb takes those from the "Replacing N out of M"
+line of its log when there is one. One row per job goes to measurements.jsonl. A
+row with the same row_id replaces the earlier one. A job without results is
+reported on stderr and not written.
 
 The platform, device name and OS come from the flags when given, else from
 session.json when the session has one (run_local.py and run_ios.sh write it),
@@ -47,6 +50,12 @@ PROTO_URL = (
 )
 PROTO_CACHE = pathlib.Path.home() / ".cache" / "litert-samples-benchmark"
 PROTO_MESSAGE = "tflite.tools.benchmark.BenchmarkResult"
+RUNTIME_INFO_PROTOS = (  # model_runtime_info.proto and the file it imports, kept at their repo paths
+    "tflite/profiling/proto/model_runtime_info.proto",
+    "tflite/profiling/proto/profiling_info.proto",
+)
+RUNTIME_INFO_MESSAGE = "tflite.profiling.ModelRuntimeDetails"
+LITERT_RAW = "https://raw.githubusercontent.com/google-ai-edge/litert/main/"
 
 # logcat line: "MM-DD HH:MM:SS.mmm  PID  TID LEVEL TAG    : message"
 LOGCAT_RE = re.compile(r"^\S+ \S+\s+(\d+)\s+(\d+)\s+([VDIWEF])\s+(\S+?)\s*:\s?(.*)$")
@@ -155,6 +164,79 @@ def decode_results_pb(pb: pathlib.Path) -> dict | None:
         print(f"collect.py: protoc failed on {pb}: {run.stderr.strip()}", file=sys.stderr)
         return None
     return parse_text_proto(run.stdout)
+
+
+def ensure_runtime_info_protos() -> pathlib.Path | None:
+    """Fetches model_runtime_info.proto and its import into the cache once; None when offline."""
+    for rel in RUNTIME_INFO_PROTOS:
+        dest = PROTO_CACHE / rel
+        if dest.exists():
+            continue
+        dest.parent.mkdir(parents=True, exist_ok=True)
+        try:
+            with urllib.request.urlopen(LITERT_RAW + rel, timeout=30) as r:
+                dest.write_bytes(r.read())
+        except OSError as e:
+            print(f"collect.py: could not fetch {rel}: {e}", file=sys.stderr)
+            return None
+    return PROTO_CACHE
+
+
+def primary_subgraph_delegation(text: str, accelerator: str) -> dict | None:
+    """Delegate name and node counts of subgraph 0 from decoded ModelRuntimeDetails text.
+
+    A delegate node in the subgraph's node list lists the tflite nodes it replaced
+    (delegate_node_details.tflite_node_ids_replaced). The accelerator's delegate is
+    XNNPACK for cpu and any other delegate for gpu; nodes_total counts the tflite
+    nodes and nodes_delegated the ones that delegate replaced. partitions is the
+    count the runtime logs as "yielding N partitions": the runs of that delegate's
+    nodes and of everything else along the execution plan.
+    """
+    for sg in re.split(r"\nsubgraphs \{", "\n" + text)[1:]:
+        if "subgraph_type: TFLITE_SUBGRAPH" not in sg:
+            continue
+        sid = re.search(r"subgraph_id: (\d+)", sg)
+        if sid and sid.group(1) != "0":
+            continue
+        nodes = re.findall(r"\n  nodes \{(.*?)\n  \}", sg, re.S)
+        delegate_nodes = 0
+        mine: dict[int, tuple[str, int]] = {}  # node id -> (delegate name, nodes replaced)
+        for node in nodes:
+            m = re.search(r'delegate_name: "([^"]*)"', node)
+            if not m:
+                continue
+            delegate_nodes += 1
+            if ("xnnpack" in m.group(1).lower()) == (accelerator == "cpu"):
+                node_id = re.search(r"^\s*id: (\d+)", node, re.M)
+                mine[int(node_id.group(1)) if node_id else -len(mine) - 1] = (
+                    m.group(1), len(re.findall(r"tflite_node_ids_replaced: \d+", node)))
+        plan = [int(i) for i in re.findall(r"execution_plan: (\d+)", sg)]
+        runs = sum(1 for i, n in enumerate(plan) if i == 0 or (n in mine) != (plan[i - 1] in mine))
+        return {
+            "name": next(iter(mine.values()))[0] if mine else None,
+            "nodes_delegated": sum(c for _, c in mine.values()),
+            "nodes_total": len(nodes) - delegate_nodes,
+            "partitions": runs if plan else len(mine),
+        }
+    return None
+
+
+def decode_runtime_info(pb: pathlib.Path, accelerator: str) -> dict | None:
+    """Decodes runtime_info.pb with protoc; None without the file, protoc or the protos."""
+    if not pb.exists() or not shutil.which("protoc"):
+        return None
+    root = ensure_runtime_info_protos()
+    if root is None:
+        return None
+    with open(pb, "rb") as f:
+        run = subprocess.run(
+            ["protoc", f"--proto_path={root}", f"--decode={RUNTIME_INFO_MESSAGE}", RUNTIME_INFO_PROTOS[0]],
+            cwd=root, stdin=f, capture_output=True, text=True,
+        )
+    if run.returncode != 0:
+        print(f"collect.py: protoc failed on {pb}: {run.stderr.strip()}", file=sys.stderr)
+        return None
+    return primary_subgraph_delegation(run.stdout, accelerator)
 
 
 def log_messages(path: pathlib.Path):
@@ -330,7 +412,9 @@ def collect_job(job_dir: pathlib.Path, args, matrix: dict, meta: dict) -> dict |
     else:
         src = job_dir / "results.pb" if (job_dir / "results.pb").exists() else log_path
         date = dt.datetime.fromtimestamp(src.stat().st_mtime, dt.timezone.utc).date().isoformat()
-    delegate = log["delegate"] or {}
+    delegate = decode_runtime_info(job_dir / "runtime_info.pb", accelerator) or log["delegate"] or {}
+    if delegate.get("name") is None and log["delegate"]:
+        delegate["name"] = log["delegate"]["name"]
     entry = meta["devices"].get(device_id, {})
     if not meta["device"] and device_id not in meta["devices"]:
         print(f"collect.py: device {device_id} is not in matrix.yaml; the board will show its id", file=sys.stderr)
