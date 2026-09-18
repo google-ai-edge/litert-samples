@@ -20,7 +20,7 @@ A recipe produces one of three kinds of artifact; the **Artifact** column of the
 
 [LiteRT-CLI](https://github.com/google-ai-edge/LiteRT-CLI) (`litert`) downloads, converts, quantizes, runs and benchmarks models from one command.
 
-Each model page (for example [`minicpm/minicpm5_2b/`](minicpm/minicpm5_2b/)) has the same sections in the same order: Run, Which file, a section for the model's own switches (Thinking, for MiniCPM5-2B), Python, Android and iOS, Serve, Tested on, Conversion, References. The commands are the standard LiteRT-LM tools with the model's file names filled in; a new model page copies the sections, and only the file names, the switches and the numbers change.
+Each model page (for example [`minicpm/minicpm5_2b/`](minicpm/minicpm5_2b/) and [`bonsai/bonsai_image_4b/`](bonsai/bonsai_image_4b/)) has the same sections in the same order: Run, Which file, a section for the model's own switches (Thinking, for MiniCPM5-2B; Steps and seed, for Bonsai Image 4B), Python, Android and iOS, Serve (`.litertlm` bundles only), Tested on, Conversion, References. The commands are the standard LiteRT-LM tools, or the model's own host script, with the model's file names filled in; a new model page copies the sections, and only the file names, the switches and the numbers change.
 
 ## Where to find examples
 
