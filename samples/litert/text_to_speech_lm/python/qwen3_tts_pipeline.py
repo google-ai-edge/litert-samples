@@ -344,8 +344,9 @@ class Qwen3TtsPipeline:
         """Runs the 15-step MTP inner loop for one frame.
 
         The MTP graph is a single decode step over a 17-slot KV cache; it is
-        invoked 17 times per frame: two seed feeds (talker hidden state, cb0
-        embedding), then one feed per residual codebook. Step k uses
+        invoked 16 times per frame: two seed feeds (talker hidden state, cb0
+        embedding), then one feed per residual codebook except the last,
+        which is picked but not fed back. Step k uses
         embedding table k-1 and lm_head k (the graph outputs all 15 heads;
         the host picks).
 

@@ -29,7 +29,7 @@ import kotlin.math.min
  * Qwen3-TTS on LiteRT: the host-orchestrated Compiled Model decode loop.
  *
  * Runs three graphs — talker LM (prefill_32/decode signatures, KV 1024), MTP
- * code-predictor decode step (17-slot KV, invoked 17x per audio frame), and
+ * code-predictor decode step (17-slot KV, invoked 16x per audio frame), and
  * the codec decoder (64-frame chunks -> 24 kHz PCM) — plus host-side BPE
  * tokenization, embedding-table lookups, prompt assembly, and sampling. It is
  * a Kotlin port of the Python reference pipeline in the sibling `python/`
@@ -316,7 +316,7 @@ class Qwen3TtsEngine(private val dir: File) {
     class Step(val logits: FloatArray, val hidden: FloatArray)
 
     // ------------------------------------------------------------------
-    // MTP inner loop: one decode-step graph invoked 17x per frame.
+    // MTP inner loop: one decode-step graph invoked 16x per frame.
     // Inputs (positional): embed, pos, mask, k_all, v_all.
     // Outputs (positional): logits_all [15,2048], k_all, v_all.
     // ------------------------------------------------------------------
