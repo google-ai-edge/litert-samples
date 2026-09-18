@@ -51,13 +51,91 @@ platforms:
 models:
   # repo: Hugging Face repo. file: the one .tflite in it to measure. task: the
   # repo's pipeline tag (the board filters on it). accelerators: cpu, gpu.
+  # An entry is the float .tflite of a litert-community repo that carries a
+  # pipeline tag (one of them where a repo ships several sizes); a quantized
+  # variant of a listed repo can be its own entry (MobileNet-v2 lists two), and
+  # SoC-specific exports (a chip name in the file name) are not listed.
   - repo: litert-community/MobileNet-v2
     file: mobilenet_v2.tflite
     task: image-classification
     accelerators: [cpu, gpu]
-  # Next candidate, same shape. A repo with several .tflite variants gets one
-  # entry per variant you want on the board:
-  # - repo: litert-community/<repo>
-  #   file: <variant>.tflite
-  #   task: <pipeline tag>
-  #   accelerators: [cpu, gpu]
+  - repo: litert-community/MobileNet-v2
+    file: mobilenet_v2_int8_channelwise.tflite
+    task: image-classification
+    accelerators: [cpu, gpu]
+  - repo: litert-community/MobileNet-v2
+    file: mobilenet_v2_dynamic_wi8_afp32.tflite
+    task: image-classification
+    accelerators: [cpu, gpu]
+  - repo: litert-community/MobileNet-v3-small
+    file: mobilenet_v3_small.tflite
+    task: image-classification
+    accelerators: [cpu, gpu]
+  - repo: litert-community/MobileNet-v3-large
+    file: mobilenet_v3_large.tflite
+    task: image-classification
+    accelerators: [cpu, gpu]
+  - repo: litert-community/efficientnet_b0
+    file: efficientnet_b0.tflite
+    task: image-classification
+    accelerators: [cpu, gpu]
+  - repo: litert-community/efficientnet_v2_s
+    file: efficientnet_v2_s.tflite
+    task: image-classification
+    accelerators: [cpu, gpu]
+  - repo: litert-community/resnet18
+    file: resnet18.tflite
+    task: image-classification
+    accelerators: [cpu, gpu]
+  - repo: litert-community/resnet50
+    file: resnet50.tflite
+    task: image-classification
+    accelerators: [cpu, gpu]
+  - repo: litert-community/squeezenet1_1
+    file: squeezenet1_1.tflite
+    task: image-classification
+    accelerators: [cpu, gpu]
+  - repo: litert-community/shufflenet_v2_x0_5
+    file: shufflenet_v2_x0_5.tflite
+    task: image-classification
+    accelerators: [cpu, gpu]
+  - repo: litert-community/googlenet
+    file: googlenet.tflite
+    task: image-classification
+    accelerators: [cpu, gpu]
+  - repo: litert-community/inception_v3
+    file: inception_v3.tflite
+    task: image-classification
+    accelerators: [cpu, gpu]
+  - repo: litert-community/convnext_tiny
+    file: convnext_tiny.tflite
+    task: image-classification
+    accelerators: [cpu, gpu]
+  - repo: litert-community/vit_base_patch16_224.augreg_in1k
+    file: vit_base_patch16_224_fp32.tflite
+    task: image-classification
+    accelerators: [cpu, gpu]
+  - repo: litert-community/lraspp_mobilenet_v3_large
+    file: lraspp_mobilenet_v3_large.tflite
+    task: image-segmentation
+    accelerators: [cpu, gpu]
+  - repo: litert-community/deeplabv3_resnet50
+    file: deeplabv3_resnet50.tflite
+    task: image-segmentation
+    accelerators: [cpu, gpu]
+  - repo: litert-community/whisper-tiny
+    file: whisper_tiny_30s_f32.tflite
+    task: automatic-speech-recognition
+    accelerators: [cpu, gpu]
+  - repo: litert-community/whisper-base
+    file: whisper_base_30s_f32.tflite
+    task: automatic-speech-recognition
+    accelerators: [cpu, gpu]
+  - repo: litert-community/moonshine-tiny
+    file: moonshine_tiny_5s_f32.tflite
+    task: automatic-speech-recognition
+    accelerators: [cpu, gpu]
+  - repo: litert-community/Gecko-110m-en
+    file: Gecko_256_f32.tflite
+    task: question-answering
+    accelerators: [cpu, gpu]

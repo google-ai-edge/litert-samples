@@ -1,13 +1,13 @@
 ---
 name: benchmark-on-ddp
-description: Measure a LiteRT .tflite model with `benchmark_model` on Developer Device Platform (DDP) lab phones through `litert benchmark --ddp`, or on the Mac you run it from, and turn the session into rows of the performance leaderboard under benchmark/leaderboard - one matrix entry per model, one session per accelerator, collect results.pb and the delegate line, rebuild board.json, check the page, commit the data. Use when a model needs latency and memory numbers per platform, device and accelerator, or when a new benchmark_model release means re-measuring the board.
+description: Measure a LiteRT .tflite model with `benchmark_model` on Developer Device Platform (DDP) lab phones through `litert benchmark --ddp`, or on the Mac you run it from, and turn the session into rows of the performance leaderboard under benchmark/leaderboard - one matrix entry per model, one session per accelerator, collect results.pb and runtime_info.pb, rebuild board.json, check the page, commit the data. Use when a model needs latency and memory numbers per platform, device and accelerator, or when a new benchmark_model release means re-measuring the board.
 ---
 
 # Benchmark on DDP
 
 A board row is done when three things hold:
 
-1. it comes from the `results.pb` of one benchmark job, with the delegate line from that job's log where the log has one (the Android log carries `N/M` nodes; the macOS binary's stdout names the delegate only),
+1. it comes from the `results.pb` of one benchmark job, with the delegate and the nodes it replaced (`N/M`) from that job's `runtime_info.pb`, or from the log's `Replacing N out of M` line where a session has no such file,
 2. it names the model file, the platform, the device id, the accelerator and the `benchmark_model` release,
 3. `data/board.json` was rebuilt from `data/measurements.jsonl` and the page shows it.
 
@@ -66,8 +66,8 @@ python3 ../driver/build_board.py
 python3 -m http.server 8000
 ```
 
-Open http://localhost:8000/ (any free port) and click the new row. Check: on Android, nodes delegated reads `N/M` with `N = M` for a graph that ran fully on the
-accelerator (a macOS row reads n/a); a GPU row with Init far above Median is the delegate initializing the graph, not a defect; `Numbers from: log`
+Open http://localhost:8000/ (any free port) and click the new row. Check: nodes delegated reads `N/M` with `N = M` for a graph that ran fully on the
+accelerator (a low `N` on a GPU row means most of the graph ran on the CPU; a session without `runtime_info.pb` reads n/a); a GPU row with Init far above Median is the delegate initializing the graph, not a defect; `Numbers from: log`
 means `results.pb` could not be decoded, usually a missing `protoc`: install it and collect again.
 
 **5. Commit the data.** `../driver/matrix.yaml`, `data/measurements.jsonl` and `data/board.json` in one commit; the page is static.
@@ -81,5 +81,5 @@ means `results.pb` could not be decoded, usually a missing `protoc`: install it 
 
 ## Tested on
 
-macOS host (Mac Studio, M4 Max, macOS 27.0), Python 3.14, protoc 34.1: the Android rows in the repo (2026-09-16) came from `run_matrix.py` end to end, two
-sessions on caiman-35 (Pixel 9 Pro) and pa3q-35 (Galaxy S25 Ultra), CPU and GPU, binary 2.2.0; the macOS rows (2026-09-17) from `run_local.py` end to end on that Mac; every row was then re-collected from the cached outputs and the board rebuilt (2026-09-17).
+macOS host (Mac Studio, M4 Max, macOS 27.0), Python 3.14, protoc 34.1: the Android rows in the repo (21 model files, 2026-09-18) came from `run_matrix.py` end to end, 42
+sessions on caiman-35 (Pixel 9 Pro) and pa3q-35 (Galaxy S25 Ultra), CPU and GPU, binary 2.2.0; the macOS rows (the same files, 2026-09-18) from `run_local.py` end to end on that Mac; every row was then re-collected from the cached outputs and the board rebuilt (2026-09-18).
