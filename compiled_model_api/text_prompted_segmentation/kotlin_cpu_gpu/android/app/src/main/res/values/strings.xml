@@ -1,0 +1,16 @@
+<resources>
+    <string name="app_name" translatable="false">Text Prompted Segmentation</string>
+    <string name="prompt_label">What to segment, e.g. \"a cat\"</string>
+    <string name="action_pick_image">Pick image</string>
+    <string name="action_segment">Segment</string>
+    <string name="status_loading">Loading…</string>
+    <string name="status_pick_prompt">Ready — pick an image and type a prompt.</string>
+    <string name="status_image_set" translatable="false">Image set (%1$d×%2$d). Type a prompt and Segment.</string>
+    <string name="status_pick_first">Pick an image first.</string>
+    <string name="status_segmenting">Segmenting \"%1$s\" on GPU…</string>
+    <string name="status_ready" translatable="false">\"%1$s\" in %2$d ms · CLIPSeg, CompiledModel GPU</string>
+    <string name="error_model_missing">Model not found. Push it first with install_to_device.sh:\n%1$s</string>
+    <string name="error_model_load">Failed to load model</string>
+    <string name="error_load_failed">Failed to load image</string>
+    <string name="error_segment_failed">Segmentation failed</string>
+</resources>
