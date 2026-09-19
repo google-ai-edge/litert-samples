@@ -1,0 +1,12 @@
+<resources>
+    <string name="app_name" translatable="false">DM-Count Crowd Counting</string>
+    <string name="action_pick_image">Pick image</string>
+    <string name="status_loading">Loading DM-Count on GPU…</string>
+    <string name="status_processing">Counting…</string>
+    <string name="status_ready" translatable="false">DM-Count · ~%1$d people · CompiledModel GPU · %2$d ms</string>
+    <string name="label_input">Input</string>
+    <string name="label_density">Density heatmap (GPU)</string>
+    <string name="error_model_missing">Model not found. Push it first with install_to_device.sh:\n%1$s</string>
+    <string name="error_model_load">Failed to load model</string>
+    <string name="error_count_failed">Crowd counting failed</string>
+</resources>
