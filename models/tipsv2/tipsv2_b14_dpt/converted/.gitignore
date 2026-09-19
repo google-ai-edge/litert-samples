@@ -1,0 +1,6 @@
+*.tflite
+*.npy
+*.png
+*.jpg
+*.log
+__pycache__/
