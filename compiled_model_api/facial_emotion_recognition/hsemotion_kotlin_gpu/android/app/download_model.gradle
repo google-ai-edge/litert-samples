@@ -1,0 +1,8 @@
+// Fetch the HSEmotion fp16 model (8 MB) from Hugging Face into the app assets at
+// build time; it is not committed to the repo.
+tasks.register('downloadHsemotionModel', Download) {
+    src 'https://huggingface.co/litert-community/HSEmotion-B0-LiteRT/resolve/main/hsemotion_b0_fp16.tflite'
+    dest project.ext.ASSET_DIR + '/hsemotion_b0_fp16.tflite'
+    overwrite false
+}
+preBuild.dependsOn downloadHsemotionModel
