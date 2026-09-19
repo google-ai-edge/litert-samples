@@ -14,7 +14,7 @@
 
 """Verify the KittenTTS LiteRT graphs: accuracy, dynamic lengths, streaming, RTF.
 
-Runs in the torch venv (ai_edge_litert + espeak frontend + kittentts pip).
+Runs in the torch/ORT venv of README.md with ai-edge-litert installed.
 """
 import sys
 import time
@@ -33,7 +33,13 @@ HAR_PER_FRAME = 120
 CHUNK = 40       # vocoder frames per streaming chunk (~1 s of audio)
 OVERLAP = 20     # context frames each side, discarded after decode
 
+from ai_edge_litert.compiled_model import CompiledModel  # noqa: E402
+from ai_edge_litert.cpu_options import CpuOptions  # noqa: E402
 from ai_edge_litert.interpreter import Interpreter  # noqa: E402
+from ai_edge_litert.options import Options  # noqa: E402
+from ai_edge_litert.tensor_buffer import TensorBuffer  # noqa: E402
+
+THREADS = 4
 
 
 def canonical(name):
@@ -43,8 +49,16 @@ def canonical(name):
     return name
 
 
-def run_graph(path, feeds):
-    it = Interpreter(model_path=str(path), num_threads=4)
+def run_lstm_graph(path, feeds):
+    """Predictor / prosody on the Interpreter API.
+
+    These two graphs keep the state of their fused dynamic-length LSTM kernels
+    in variable tensors, which the CompiledModel loader does not accept
+    (ai-edge-litert 2.2.0: "Variable tensors not yet supported"). This script
+    builds a fresh Interpreter per call; python/kitten_tts.py reuses one and
+    calls reset_all_variables() before every invoke.
+    """
+    it = Interpreter(model_path=str(path), num_threads=THREADS)
     details = it.get_input_details()
     for d in details:
         it.resize_tensor_input(d["index"], list(feeds[canonical(d["name"])].shape))
@@ -58,10 +72,50 @@ def run_graph(path, feeds):
     return outs, dt
 
 
-def name_map(path):
-    it = Interpreter(model_path=str(path))
-    return ([d["name"] for d in it.get_input_details()],
-            [d["name"] for d in it.get_output_details()])
+_VOCODERS = {}
+
+
+def run_vocoder(path, feeds):
+    """The conv-only vocoder on the CompiledModel API, resized to each call.
+
+    The sequence of python/kitten_tts.py, by name here: resize every input to
+    the feed's shape, create the input buffers after the resize, run into a
+    host-memory output buffer of the final size (600 samples per frame). The
+    output shape is known only after the run: a buffer created before it is
+    sized [1, 1], and running into that one returns (the runtime logs "Custom
+    allocation is too small", and the next shape query takes the process
+    down). So the output goes to host memory of the final size, and the shape
+    the runtime reports after the run is checked against it. Returns
+    ([wav[1, 600T]], run seconds), like run_lstm_graph.
+    """
+    model = _VOCODERS.get(path)
+    if model is None:
+        model = _VOCODERS[path] = CompiledModel.from_file(
+            str(path), options=Options(cpu_options=CpuOptions(num_threads=THREADS)))
+    sig = next(iter(model.get_signature_list()))
+    names = model.get_signature_list()[sig]
+    if set(feeds) != set(names["inputs"]):
+        raise ValueError(f"vocoder inputs are {names['inputs']}, got {sorted(feeds)}")
+    arrays = {name: np.ascontiguousarray(feeds[name]) for name in names["inputs"]}
+    for name, array in arrays.items():
+        if array.dtype != np.float32:
+            raise ValueError(f"vocoder/{name}: expected float32, got {array.dtype}")
+        model.resize_input_tensor_by_name(sig, name, list(array.shape))
+    inputs = {name: model.create_input_buffer_by_name(sig, name) for name in arrays}
+    for name, array in arrays.items():
+        inputs[name].write(array)
+    wav = np.zeros(SAMPLES_PER_FRAME * arrays["asr"].shape[1], np.float32)
+    output = TensorBuffer.create_from_host_memory(wav)
+    (out_name,) = names["outputs"]
+    t0 = time.perf_counter()
+    model.run_by_name(sig, inputs, {out_name: output})
+    dt = time.perf_counter() - t0
+    produced = model.get_output_tensor_details(sig)[out_name]["shape"]
+    if list(produced) != [1, wav.size]:
+        raise ValueError(f"vocoder output is {produced}, buffer is [1, {wav.size}]")
+    for buffer in list(inputs.values()) + [output]:
+        buffer.destroy()
+    return [wav[None]], dt
 
 
 def tokens_for(text):
@@ -88,7 +142,7 @@ def pick(outs, shape_tail):
 
 
 def synthesize(ids, style, speed=1.0):
-    p_out, t_pred = run_graph(OUT / "kitten_predictor.tflite", {
+    p_out, t_pred = run_lstm_graph(OUT / "kitten_predictor.tflite", {
         "input_ids": ids, "style": style,
         "speed": np.array([speed], dtype=np.float32)})
     d = [o for o in p_out if o.ndim == 3 and o.shape[-1] == 256][0]
@@ -98,12 +152,12 @@ def synthesize(ids, style, speed=1.0):
     en = np.repeat(d[0], dur, axis=0)[None]
     asr = np.repeat(t_en[0], dur, axis=0)[None]
 
-    pr_out, t_pro = run_graph(OUT / "kitten_prosody.tflite",
-                              {"en": en.astype(np.float32), "style": style})
+    pr_out, t_pro = run_lstm_graph(OUT / "kitten_prosody.tflite",
+                                   {"en": en.astype(np.float32), "style": style})
     har = [o for o in pr_out if o.ndim == 3][0]
     f0, n = [o for o in pr_out if o.ndim == 2]
 
-    v_out, t_voc = run_graph(OUT / "kitten_vocoder.tflite", {
+    v_out, t_voc = run_vocoder(OUT / "kitten_vocoder.tflite", {
         "asr": asr.astype(np.float32), "f0": f0, "n": n,
         "har": har, "style": style})
     wav = v_out[0][0]
@@ -122,7 +176,7 @@ def stream_vocoder(asr, f0, n, har, style):
                  "f0": f0[:, 2 * lo:2 * hi], "n": n[:, 2 * lo:2 * hi],
                  "har": har[:, HAR_PER_FRAME * lo:HAR_PER_FRAME * hi + 1],
                  "style": style}
-        outs, dt = run_graph(OUT / "kitten_vocoder.tflite", feeds)
+        outs, dt = run_vocoder(OUT / "kitten_vocoder.tflite", feeds)
         wav = outs[0][0]
         a = (start - lo) * SAMPLES_PER_FRAME
         pieces.append(wav[a:a + (end - start) * SAMPLES_PER_FRAME])

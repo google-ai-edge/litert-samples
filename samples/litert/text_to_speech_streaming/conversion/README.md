@@ -18,7 +18,9 @@ kitten_vocoder.tflite   : asr[1,T,128], f0, n, har, style -> wav[1,600T] @ 24 kH
 
 Two Python environments, matching the two script groups:
 
-1. **torch/ORT venv** (`onnxruntime`, `torch`, `phonemizer`, `espeakng-loader`, `kittentts`):
+1. **torch/ORT venv** (`onnxruntime`, `torch`, `phonemizer`, `espeakng-loader`, and `kittentts` from the
+   wheel on [KittenTTS releases](https://github.com/KittenML/KittenTTS/releases), which has the
+   `kittentts.onnx_model` module the scripts import; the PyPI package of that name does not):
 
    ```bash
    # Download the model first: huggingface.co/KittenML/kitten-tts-nano-0.8 -> ../models/nano-0.8-fp32
