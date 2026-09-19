@@ -1,0 +1,79 @@
+{
+  "sessionConfig": {
+    "displayName": "litert-cpu-gpu-benchmark",
+    "outputDirectoryConfig": {
+      "gcsOutputDirectory": {
+        "path": "gs://your-output-gcs-bucket/results"
+      }
+    },
+    "jobConfigs": [
+      {
+        "displayName": "benchmark-pixel-9-pro",
+        "action": {
+          "androidNativeBinary": {
+            "androidNativeBinary": {
+              "gcsInputFile": {
+                "path": "gs://your-scripts-bucket/multi_benchmark_harness.sh"
+              }
+            },
+            "args": [
+              "--runs=cpu,gpu",
+              "--binary=/data/local/tmp/benchmark_model",
+              "--graph=/data/local/tmp/model.tflite",
+              "--output_dir=/data/local/tmp/output",
+              "--report_peak_memory_footprint=true",
+              "--cpu_num_threads=4",
+              "--gpu_use_gpu=true",
+              "--gpu_gpu_backend=cl",
+              "--gpu_gpu-precision=fp16",
+              "--cooldown=10"
+            ]
+          }
+        },
+        "allocationConfig": {
+          "deviceConfigs": [
+            {
+              "requirement": {
+                "deviceId": "caiman-35"
+              },
+              "actions": [
+                {
+                  "androidPushFiles": {
+                    "fileConfigs": [
+                      {
+                        "sourceFile": {
+                          "gcsInputFile": {
+                            "path": "gs://litert/binaries/latest/android_arm64/benchmark_model"
+                          }
+                        },
+                        "destinationPath": "/data/local/tmp/benchmark_model"
+                      },
+                      {
+                        "sourceFile": {
+                          "gcsInputFile": {
+                            "path": "gs://your-models-bucket/model.tflite"
+                          }
+                        },
+                        "destinationPath": "/data/local/tmp/model.tflite"
+                      }
+                    ]
+                  }
+                },
+                {
+                  "androidPullFiles": {
+                    "paths": [
+                      "/data/local/tmp/output"
+                    ]
+                  }
+                },
+                {
+                  "androidLogcat": {}
+                }
+              ]
+            }
+          ]
+        }
+      }
+    ]
+  }
+}
