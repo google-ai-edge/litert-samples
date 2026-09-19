@@ -83,5 +83,6 @@ through `run_local.py` (42 runs, one session per file, 2026-09-18), every job wi
 [litert-community/MobileNet-v2](https://huggingface.co/litert-community/MobileNet-v2) on an iPhone 17 Pro (iOS 27.0) through
 the app in `../ios/` built from LiteRT v2.2.0 (`145c7523f`), one `run_ios.sh` session on 2026-09-17. LiteRT-LM rows:
 `qwen3_0_6b_mixed_int4.litertlm` from [litert-community/Qwen3-0.6B](https://huggingface.co/litert-community/Qwen3-0.6B) on
-caiman-35, CPU and GPU, one Device Run session on 2026-09-18 with the `latest` binary of that day (sha256 `e10edfa4…`),
-1024/256 tokens, 3 iterations. The board was rebuilt on 2026-09-18 with Python 3.14 and protoc 34.1.
+caiman-35, CPU and GPU, one Device Run session on 2026-09-19 with the `latest` binary of the bucket's `litert_lm/` directory
+as of 2026-09-18 (sha256 `adac974b…`) and the libraries `matrix.yaml` lists beside it, 1024/256 tokens, 5 iterations with the
+first as warm-up. The board was rebuilt on 2026-09-19 with Python 3.14 and protoc 34.1.

@@ -1,5 +1,5 @@
 {
- "generated_at": "2026-09-18T06:15:31Z",
+ "generated_at": "2026-09-19T03:08:57Z",
  "runtime": "litert",
  "runtime_versions": [
   "2.2.0"
@@ -5724,46 +5724,76 @@
     "prefill_tokens": 1024,
     "decode_tokens": 256,
     "max_num_tokens": 1280,
-    "iterations": 3
+    "iterations": 5,
+    "warmup_iterations": 1
    },
    "metrics": {
-    "prefill_tok_s": 182.068,
-    "decode_tok_s": 5.73,
-    "ttft_s": 5.778,
-    "init_total_ms": 705.362,
-    "init_executor_ms": 696.112,
+    "prefill_tok_s": 139.08,
+    "decode_tok_s": 3.343,
+    "ttft_s": 8.597,
+    "init_total_ms": 817.733,
+    "init_executor_ms": 817.194,
     "peak_mem_mb": null
    },
    "iterations": [
     {
-     "prefill_tok_s": 182.068,
-     "decode_tok_s": 6.52,
-     "ttft_s": 5.7776,
-     "init_total_ms": 705.362
+     "prefill_tok_s": 185.509,
+     "decode_tok_s": 6.416,
+     "ttft_s": 5.6758,
+     "init_total_ms": 817.733
     },
     {
-     "prefill_tok_s": 194.66,
-     "decode_tok_s": 5.73,
-     "ttft_s": 5.435,
-     "init_total_ms": 705.362
+     "prefill_tok_s": 202.869,
+     "decode_tok_s": 6.21,
+     "ttft_s": 5.2086,
+     "init_total_ms": 817.733
     },
     {
-     "prefill_tok_s": 167.064,
-     "decode_tok_s": 3.707,
-     "ttft_s": 6.3992,
-     "init_total_ms": 705.362
+     "prefill_tok_s": 185.019,
+     "decode_tok_s": 3.307,
+     "ttft_s": 5.837,
+     "init_total_ms": 817.733
+    },
+    {
+     "prefill_tok_s": 93.141,
+     "decode_tok_s": 2.749,
+     "ttft_s": 11.3579,
+     "init_total_ms": 817.733
+    },
+    {
+     "prefill_tok_s": 92.109,
+     "decode_tok_s": 3.378,
+     "ttft_s": 11.4133,
+     "init_total_ms": 817.733
     }
    ],
    "runtime": "litert-lm",
    "runtime_version": "latest@2026-09-18",
-   "binary": "latest/android_arm64/litert_lm_advanced_main, sha256 e10edfa46596705db6966506e25548731074f889edac161858b730279778c68c",
+   "binary": "latest/android_arm64/litert_lm/litert_lm_advanced_main, sha256 adac974bea147273b5bc64232d808905667eee69587161368146680df92e2d06",
+   "libs": [
+    {
+     "name": "libGemmaModelConstraintProvider.so",
+     "source": "LiteRT-LM prebuilt/android_arm64@4453b286",
+     "sha256": "f2aa38cecc5c728050652ffdbaed4c6f2d444e098e1ca3ecf8b85be46baae5b9"
+    },
+    {
+     "name": "libLiteRtOpenClAccelerator.so",
+     "source": "latest/android_arm64/litert_lm",
+     "sha256": "d9dd64c36f6e18661588e71cf6bad5860598e6ccd3a56dfb304c517f89ac609e"
+    },
+    {
+     "name": "libLiteRtTopKOpenClSampler.so",
+     "source": "latest/android_arm64/litert_lm",
+     "sha256": "8e69e7d010e6787e34369b124b1eade0aa25d60b9d4bbed9dbb1a710901ff582"
+    }
+   ],
    "runner": "ddp-http",
-   "session": "session-a9ec9593",
+   "session": "session-aba54d60",
    "job": "cpu",
    "repeat": 1,
    "source": "metrics.pb",
    "status": "measured",
-   "date": "2026-09-18"
+   "date": "2026-09-19"
   },
   {
    "row_id": "litert-community/Qwen3-0.6B:qwen3_0_6b_mixed_int4.litertlm@latest@2026-09-18/android/caiman-35/gpu/p1024-d256-n1280",
@@ -5781,46 +5811,76 @@
     "prefill_tokens": 1024,
     "decode_tokens": 256,
     "max_num_tokens": 1280,
-    "iterations": 3
+    "iterations": 5,
+    "warmup_iterations": 1
    },
    "metrics": {
-    "prefill_tok_s": 579.826,
-    "decode_tok_s": 23.49,
-    "ttft_s": 1.808,
-    "init_total_ms": 19186.139,
-    "init_executor_ms": 19179.299,
+    "prefill_tok_s": 591.084,
+    "decode_tok_s": 21.88,
+    "ttft_s": 1.78,
+    "init_total_ms": 7376.28,
+    "init_executor_ms": 7375.382,
     "peak_mem_mb": null
    },
    "iterations": [
     {
-     "prefill_tok_s": 561.619,
-     "decode_tok_s": 17.822,
-     "ttft_s": 1.8794,
-     "init_total_ms": 19186.139
+     "prefill_tok_s": 583.937,
+     "decode_tok_s": 19.285,
+     "ttft_s": 1.8055,
+     "init_total_ms": 7376.28
     },
     {
-     "prefill_tok_s": 579.826,
-     "decode_tok_s": 24.115,
-     "ttft_s": 1.8075,
-     "init_total_ms": 19186.139
+     "prefill_tok_s": 585.428,
+     "decode_tok_s": 22.073,
+     "ttft_s": 1.7945,
+     "init_total_ms": 7376.28
     },
     {
-     "prefill_tok_s": 588.631,
-     "decode_tok_s": 23.49,
-     "ttft_s": 1.7822,
-     "init_total_ms": 19186.139
+     "prefill_tok_s": 591.097,
+     "decode_tok_s": 21.686,
+     "ttft_s": 1.7785,
+     "init_total_ms": 7376.28
+    },
+    {
+     "prefill_tok_s": 597.082,
+     "decode_tok_s": 28.116,
+     "ttft_s": 1.7506,
+     "init_total_ms": 7376.28
+    },
+    {
+     "prefill_tok_s": 591.071,
+     "decode_tok_s": 20.783,
+     "ttft_s": 1.7806,
+     "init_total_ms": 7376.28
     }
    ],
    "runtime": "litert-lm",
    "runtime_version": "latest@2026-09-18",
-   "binary": "latest/android_arm64/litert_lm_advanced_main, sha256 e10edfa46596705db6966506e25548731074f889edac161858b730279778c68c",
+   "binary": "latest/android_arm64/litert_lm/litert_lm_advanced_main, sha256 adac974bea147273b5bc64232d808905667eee69587161368146680df92e2d06",
+   "libs": [
+    {
+     "name": "libGemmaModelConstraintProvider.so",
+     "source": "LiteRT-LM prebuilt/android_arm64@4453b286",
+     "sha256": "f2aa38cecc5c728050652ffdbaed4c6f2d444e098e1ca3ecf8b85be46baae5b9"
+    },
+    {
+     "name": "libLiteRtOpenClAccelerator.so",
+     "source": "latest/android_arm64/litert_lm",
+     "sha256": "d9dd64c36f6e18661588e71cf6bad5860598e6ccd3a56dfb304c517f89ac609e"
+    },
+    {
+     "name": "libLiteRtTopKOpenClSampler.so",
+     "source": "latest/android_arm64/litert_lm",
+     "sha256": "8e69e7d010e6787e34369b124b1eade0aa25d60b9d4bbed9dbb1a710901ff582"
+    }
+   ],
    "runner": "ddp-http",
-   "session": "session-a9ec9593",
+   "session": "session-aba54d60",
    "job": "gpu",
    "repeat": 1,
    "source": "metrics.pb",
    "status": "measured",
-   "date": "2026-09-18"
+   "date": "2026-09-19"
   }
  ]
 }
