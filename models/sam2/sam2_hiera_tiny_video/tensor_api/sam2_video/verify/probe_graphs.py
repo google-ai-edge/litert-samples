@@ -39,6 +39,43 @@ def report(name, mine, ref):
           f"mean|d|={d.mean():.6f} ref_absmax={np.abs(ref).max():.3f}")
 
 
+class Signature:
+    """One CompiledModel signature as a keyword call: arrays in by input name,
+    dict of arrays out by output name. The tensor buffers are created once.
+    Every call checks the feed names, dtypes and shapes before writing, since
+    run_by_name ignores an input name the signature does not have and leaves
+    a missing one unwritten, and TensorBuffer.write accepts any array that is
+    not larger than the tensor, whatever its dtype or shape."""
+
+    def __init__(self, model, key):
+        self.model, self.key = model, key
+        self.inputs = model.get_input_tensor_details(key)
+        self.outputs = model.get_output_tensor_details(key)
+        self.in_bufs = {n: model.create_input_buffer_by_name(key, n)
+                        for n in self.inputs}
+        self.out_bufs = {n: model.create_output_buffer_by_name(key, n)
+                         for n in self.outputs}
+
+    def __call__(self, **feeds):
+        if set(feeds) != set(self.inputs):
+            raise ValueError(f"{self.key}: inputs are {sorted(self.inputs)}, "
+                             f"got {sorted(feeds)}")
+        for name, array in feeds.items():
+            want = self.inputs[name]
+            array = np.ascontiguousarray(array)
+            if (array.dtype != np.dtype(want["dtype"])
+                    or list(array.shape) != list(want["shape"])):
+                raise ValueError(
+                    f"{self.key}/{name}: expected {want['dtype']}"
+                    f"{want['shape']}, got {array.dtype}{list(array.shape)}")
+            self.in_bufs[name].write(array)
+        self.model.run_by_name(self.key, self.in_bufs, self.out_bufs)
+        return {name: self.out_bufs[name].read(
+                    int(np.prod(d["shape"])), np.dtype(d["dtype"])
+                ).reshape(d["shape"])
+                for name, d in self.outputs.items()}
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--tflite", default="/tmp/sam2_video.tflite")
@@ -84,11 +121,13 @@ def main():
     hf_pix_raw = fpn[2][:, 0, :].numpy().reshape(64, 64, HD)  # seq-first -> HWC
     print("fpn shapes:", [tuple(f.shape) for f in fpn])
 
-    from ai_edge_litert.interpreter import Interpreter
-    interp = Interpreter(model_path=a.tflite, num_threads=8)
-    runners = {s: interp.get_signature_runner(s)
-               for s in interp.get_signature_list()}
-    print("signatures:", list(interp.get_signature_list()))
+    from ai_edge_litert.compiled_model import CompiledModel
+    from ai_edge_litert.cpu_options import CpuOptions
+    from ai_edge_litert.options import Options
+    graphs = CompiledModel.from_file(
+        a.tflite, options=Options(cpu_options=CpuOptions(num_threads=8)))
+    runners = {s: Signature(graphs, s) for s in graphs.get_signature_list()}
+    print("signatures:", list(graphs.get_signature_list()))
 
     # ---------------- encode ----------------
     px = frame(a.frame)[0].transpose(1, 2, 0)[None]  # NHWC
