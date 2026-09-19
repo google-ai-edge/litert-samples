@@ -1,0 +1,1971 @@
+diff --git a/litert_torch/generative/export_hf/core/cache.py b/litert_torch/generative/export_hf/core/cache.py
+index 5c13dea..5914fe2 100644
+--- a/litert_torch/generative/export_hf/core/cache.py
++++ b/litert_torch/generative/export_hf/core/cache.py
+@@ -116,6 +116,10 @@ class LiteRTLMCacheLayer(cache_base_lib.LiteRTLMCacheLayerMixin):
+   is_compileable = True
+   is_sliding = False
+ 
++  def get_max_length(self) -> int:
++    # transformers >= 5.14 Cache ABC requirement (upstream returns max_cache_len).
++    return self.max_cache_len
++
+   def __init__(
+       self,
+       key_cache: KeyCache,
+@@ -437,10 +441,675 @@ class LiteRTLMConvCacheLayer(
+     )
+ 
+ 
++class LiteRTLMLinearAttentionCacheLayer(
++    cache_base_lib.LiteRTLMCacheLayerMixin,
++    cache_utils.LinearAttentionCacheLayerMixin,
++):
++  """Conv + recurrent state cache layer for gated-delta-net / linear-attention layers.
++
++  Used for HF arches whose `layer_types[i] == "linear_attention"` (e.g. Qwen3.5's
++  GatedDeltaNet). Unlike LiteRTLMConvCacheLayer (conv state only — LFM2 ShortConv), a
++  gated-delta-net layer also carries a per-head recurrent state, so this layer holds BOTH
++  `conv_states` and `recurrent_states`. Registering it for "linear_attention" is what makes
++  the export cache actually contain a LinearAttention layer, so the model's own
++  `cache.has_previous_state(...)` no longer raises mid-trace.
++  """
++
++  is_compileable = True
++  is_sliding = False
++
++  def get_max_length(self) -> int:
++    # transformers >= 5.14 Cache ABC: -1 = no sequence-length dimension
++    # (linear-attention recurrent state), per the base-class docstring.
++    return -1
++
++  def __init__(
++      self,
++      conv_states: torch.Tensor,
++      recurrent_states: torch.Tensor,
++      batch_size: int = 1,
++      decode_mode: bool = False,
++      **kwargs,
++  ):
++    cache_utils.LinearAttentionCacheLayerMixin.__init__(self)
++    # HF modeling reads these as one-element containers (`conv_states[0]`,
++    # `recurrent_states[0][:, None]` in the chunk-continuation path), so keep
++    # the raw buffers private and expose list views via properties below.
++    self._conv_state = conv_states
++    self._recurrent_state = recurrent_states
++    # decode_mode: the DECODE exportable module traces the single-step branch
++    # (seq_len==1, conv window rolled by one); prefill traces the chunked
++    # branch WITH state continuation (previous conv/ssm state consumed), so
++    # multi-chunk prefill composes correctly. Both need has_previous_state
++    # truthy — decode_mode only selects the conv-update semantics.
++    self._decode_mode = decode_mode
++    # transformers >= 5.14 keys these by state index (dict.values() is called on
++    # has_previous_state); a single (conv, recurrent) state pair -> index 0.
++    # On <= 5.13 the flags are read as plain bools (and a non-empty dict would be
++    # truthy -> wrong branch), so pick the shape by version.
++    import transformers as _tf
++    _tf514 = tuple(int(x) for x in _tf.__version__.split(".")[:2]) >= (5, 14)
++    self.is_conv_states_initialized = {0: True} if _tf514 else True
++    self.is_recurrent_states_initialized = {0: True} if _tf514 else True
++    # Static export carries both state buffers as graph I/O, but — like the LFM2 conv
++    # path — prefill recomputes from zeroed state, so keep has_previous_state False to take
++    # Always truthy: prefill traces the chunked branch WITH continuation
++    # (chunk 1 starts from engine-zeroed state, so the math is unchanged for a
++    # single chunk, and chunks 2+ continue correctly), decode traces the
++    # single-step branch. (dict keyed by state index since transformers 5.14;
++    # plain bool on <= 5.13 where the flag is read directly.)
++    self.has_previous_state = {0: True} if _tf514 else True
++    self.batch_size = batch_size
++    self.is_initialized = True
++    self.conv_kernel_size = conv_states.shape[-1]
++    self.keys = torch.zeros((1, 1, 1, 1))
++    self.values = torch.zeros((1, 1, 1, 1))
++
++  def get_batch_size(self) -> int:
++    return self.batch_size
++
++  def get_k_ts_idx(self) -> int:
++    return 2  # Not used.
++
++  def get_v_ts_idx(self) -> int:
++    return 3  # Not used.
++
++  def lazy_initialization(self, *args, **kwargs):
++    raise NotImplementedError("Lazy initialization is not supported.")
++
++  def update(self, key_states, value_states, *args, **kwargs):
++    raise ValueError("Cannot call update on LinearAttentionCacheLayer.")
++
++  def update_conv_state(
++      self, conv_states: torch.Tensor, state_idx: int = 0, **kwargs
++  ) -> torch.Tensor:
++    # Unlike the LFM2 ShortConv path (which hands the FULL-sequence conv input and asks the
++    # cache to roll it), gated-delta-net produces the final kernel-width conv state itself
++    # (`F.pad(mixed_qkv, (K - L, 0))` → [B, conv_dim, K]) and just asks the cache to store
++    # it. So this is a plain store into the static buffer. (state_idx: single-state
++    # layers only — transformers >= 5.14 passes it positionally.)
++    self._conv_state.copy_(conv_states)
++    return self._conv_state
++
++  def update_recurrent_state(
++      self, recurrent_states: torch.Tensor, state_idx: int = 0, **kwargs
++  ) -> torch.Tensor:
++    self._recurrent_state.copy_(recurrent_states)
++    return self._recurrent_state
++
++  @property
++  def conv_states(self):
++    # One-element container view: HF modeling indexes `conv_states[0]`.
++    return [self._conv_state]
++
++  @conv_states.setter
++  def conv_states(self, value):
++    # The transformers LinearAttention mixin __init__ assigns bookkeeping
++    # containers here; the static export buffer replaces them, so only accept
++    # tensor assignment and drop the rest.
++    if isinstance(value, torch.Tensor):
++      self._conv_state = value
++
++  @property
++  def recurrent_states(self):
++    return [self._recurrent_state]
++
++  @recurrent_states.setter
++  def recurrent_states(self, value):
++    if isinstance(value, torch.Tensor):
++      self._recurrent_state = value
++
++  def get_mask_sizes(self, cache_position: torch.Tensor):
++    return self.conv_kernel_size, 0
++
++  def get_seq_length(self) -> int:
++    return 0
++
++  def get_max_cache_shape(self) -> int:
++    return self.conv_kernel_size
++
++  @classmethod
++  def create_from_config(
++      cls,
++      model_config,
++      layer_index,
++      export_config: ExportableModuleConfig,
++      **kwargs,
++  ) -> "LiteRTLMLinearAttentionCacheLayer":
++    assert model_config.layer_types[layer_index] == "linear_attention"
++    cfg = getattr(model_config, "text_config", model_config)
++    key_dim = cfg.linear_key_head_dim * cfg.linear_num_key_heads
++    value_dim = cfg.linear_value_head_dim * cfg.linear_num_value_heads
++    conv_dim = key_dim * 2 + value_dim
++    batch_size = kwargs.pop("batch_size", export_config.batch_size)
++    # gated-delta-net stores a full kernel-width conv state (F.pad to K), not K-1.
++    conv_states = torch.zeros(
++        (batch_size, conv_dim, cfg.linear_conv_kernel_dim),
++        dtype=torch.float32,
++    )
++    recurrent_states = torch.zeros(
++        (
++            batch_size,
++            cfg.linear_num_value_heads,
++            cfg.linear_key_head_dim,
++            cfg.linear_value_head_dim,
++        ),
++        dtype=torch.float32,
++    )
++    return cls(
++        conv_states,
++        recurrent_states,
++        batch_size=batch_size,
++        **kwargs,
++    )
++
++
++class LiteRTLMMambaCacheLayer(LiteRTLMLinearAttentionCacheLayer):
++  """Conv + SSM-state cache layer for Mamba2 selective-scan layers.
++
++  Used for HF arches that interleave Mamba2 and attention layers and tag the SSM layers
++  `layer_types[i] == "mamba"` (e.g. IBM Granite-4-h's `granitemoehybrid`; Bamba/Nemotron-H
++  share the layout). Structurally identical to
++  LiteRTLMLinearAttentionCacheLayer — both hold a `conv_states` plus a per-head
++  recurrent state, and both store the final kernel-width conv state with a plain copy
++  (Mamba2's `torch_forward` pads to the full kernel width via `F.pad(.., (d_conv-L, 0))`
++  and asks the cache to store it, exactly like gated-delta-net) — so only the SHAPE
++  derivation differs: Mamba2 sizes its state from the `mamba_*` config fields rather
++  than gated-delta-net's `linear_*` fields. Registering it for "mamba" is what makes the
++  export cache contain a LinearAttention-style layer, so the model's own
++  `_update_mamba_mask` → `cache.has_previous_state()` no longer raises mid-trace.
++  """
++
++  def update_conv_state(self, conv_states, state_idx=0, **kwargs):
++    # Unified window update covering every granite call site:
++    # - chunked prefill (seq>1) passes the full K-wide window (pad-and-store)
++    #   -> cat(old, full)[..., -K:] == full, a plain store;
++    # - single-step (seq==1: decode, and length-1 prefill chunks) passes one
++    #   raw column -> cat rolls the window left by one.
++    # A plain copy_ here would silently BROADCAST a [B,dim,1] update over the
++    # [B,dim,K] buffer on the single-step path — that corrupted every prompt
++    # whose chunk plan contained a length-1 chunk.
++    merged = torch.cat([self._conv_state, conv_states], dim=-1)[
++        ..., -self.conv_kernel_size:
++    ]
++    self._conv_state.copy_(merged)
++    return merged
++
++  @classmethod
++  def create_from_config(
++      cls,
++      model_config,
++      layer_index,
++      export_config: ExportableModuleConfig,
++      **kwargs,
++  ) -> "LiteRTLMMambaCacheLayer":
++    # transformers >= 5.14 renamed the layer type "mamba" -> "linear_attention"
++    assert model_config.layer_types[layer_index] in ("mamba", "linear_attention")
++    cfg = getattr(model_config, "text_config", model_config)
++    # Two config vocabularies for the same Mamba2 mixer geometry:
++    # granite/bamba spell it mamba_* (n_heads, d_head, d_state, d_conv,
++    # n_groups), NemotronH spells it mamba_num_heads / mamba_head_dim /
++    # ssm_state_size / conv_kernel / n_groups. The mixer-faithful intermediate
++    # is heads * head_dim (== mamba_expand * hidden_size on granite/bamba by
++    # construction; NemotronH's differs from expand * hidden, so heads *
++    # head_dim is the one formula that matches every mixer's own
++    # `self.intermediate_size`).
++    num_heads = getattr(cfg, "mamba_n_heads", None) or cfg.mamba_num_heads
++    head_dim = getattr(cfg, "mamba_d_head", None) or cfg.mamba_head_dim
++    d_state = getattr(cfg, "mamba_d_state", None) or cfg.ssm_state_size
++    d_conv = getattr(cfg, "mamba_d_conv", None) or cfg.conv_kernel
++    n_groups = getattr(cfg, "mamba_n_groups", None) or cfg.n_groups
++    intermediate_size = num_heads * head_dim
++    conv_dim = intermediate_size + 2 * n_groups * d_state
++    batch_size = kwargs.pop("batch_size", export_config.batch_size)
++    # conv buffer is the full kernel width d_conv (not d_conv - 1) — see the plain-store
++    # contract in update_conv_state inherited from LiteRTLMLinearAttentionCacheLayer.
++    conv_states = torch.zeros(
++        (batch_size, conv_dim, d_conv),
++        dtype=torch.float32,
++    )
++    # ssm recurrent state: [B, num_heads, head_dim, state_size].
++    recurrent_states = torch.zeros(
++        (
++            batch_size,
++            num_heads,
++            head_dim,
++            d_state,
++        ),
++        dtype=torch.float32,
++    )
++    return cls(
++        conv_states,
++        recurrent_states,
++        batch_size=batch_size,
++        **kwargs,
++    )
++
++
++def _is_mla_config(model_config) -> bool:
++  """True for Multi-head Latent Attention configs (DeepSeek-V2/V3/V3.2, MiniMax-M2).
++
++  MLA configs carry a low-rank KV latent (`kv_lora_rank`) and split the query/key
++  head into a no-RoPE part and a decoupled RoPE part, with a separate value head
++  dim — i.e. the K head dim (`qk_nope_head_dim + qk_rope_head_dim`) and the V head
++  dim (`v_head_dim`) are ASYMMETRIC. These configs have no per-layer `layer_types`,
++  so they fall through to the default full-attention cache, which assumes one shared
++  head dim and mis-sizes the cache.
++  """
++  cfg = getattr(model_config, "text_config", model_config)
++  return all(
++      getattr(cfg, k, None) is not None
++      for k in ("kv_lora_rank", "qk_rope_head_dim", "qk_nope_head_dim", "v_head_dim")
++  )
++
++
++class LiteRTLMMLACacheLayer(LiteRTLMCacheLayer):
++  """KV cache layer for Multi-head Latent Attention (DeepSeek-V2/V3, MiniMax-M2).
++
++  MLA compresses KV into a low-rank latent at runtime, but the transformers
++  modeling DECOMPRESSES it back to full per-head K/V *before* it calls
++  `past_key_values.update` (`kv_b_proj` in DeepseekV2/V3Attention.forward) — and
++  the decompress is a plain Linear + split/cat, so it lowers to generic ops. Hence
++  the export cache stores materialized K/V exactly like full attention, with ONE
++  difference: the K and V head dims are ASYMMETRIC. K head dim is
++  `qk_nope_head_dim + qk_rope_head_dim` (the no-RoPE part concatenated with the
++  decoupled RoPE part) while V head dim is `v_head_dim`. The base LiteRTLMCacheLayer
++  assumes a single shared `head_dim` for both, so its `update` reshape mangles MLA's
++  K/V and the score einsum then mismatches (`size 64 ... does not broadcast with
++  192`). This subclass sizes and reshapes K and V with their own head dims.
++  """
++
++  def __init__(
++      self,
++      key_cache: KeyCache,
++      value_cache: ValueCache,
++      batch_size: int = 1,
++      k_ts_idx: int = 2,
++      v_ts_idx: int = 3,
++      **kwargs,
++  ):
++    super().__init__(
++        key_cache, value_cache, batch_size, k_ts_idx, v_ts_idx, **kwargs
++    )
++    # Base sets self.head_dim from the V cache; record K's (possibly different) dim.
++    k_head_dim_idx = 3 if self.k_ts_idx == 2 else 2
++    self.k_head_dim = self.k_cache_shape[k_head_dim_idx]
++    self.v_head_dim = self.head_dim
++
++  def update(
++      self,
++      key_states: torch.Tensor,
++      value_states: torch.Tensor,
++      *args,
++      **kwargs,
++  ) -> tuple[torch.Tensor, torch.Tensor]:
++    cache_kwargs = self.get_cache_runtime_args()
++    seq_len = key_states.shape[2]
++    self.cumulative_length += seq_len
++
++    key_states = key_states.to(self.keys.dtype)
++    value_states = value_states.to(self.values.dtype)
++
++    # Identical to the base update except K and V use their own head dims.
++    if not cache_kwargs.get("kv_slice_preprocessed", False):
++      if self.k_ts_idx == 3:
++        key_states = key_states.permute(0, 1, 3, 2).reshape(
++            1, -1, self.k_head_dim, seq_len
++        )
++      elif self.k_ts_idx == 2:
++        key_states = key_states.reshape(1, -1, seq_len, self.k_head_dim)
++      else:
++        raise ValueError(f"Unsupported k_ts_idx: {self.k_ts_idx}")
++      if self.v_ts_idx == 3:
++        value_states = value_states.permute(0, 1, 3, 2).reshape(
++            1, -1, self.v_head_dim, seq_len
++        )
++      elif self.v_ts_idx == 2:
++        value_states = value_states.reshape(1, -1, seq_len, self.v_head_dim)
++      else:
++        raise ValueError(f"Unsupported v_ts_idx: {self.v_ts_idx}")
++
++    cache_position: jt.Int32[torch.Tensor, "T"] = cache_kwargs.get(
++        "cache_position"
++    )
++    assert (
++        cache_position is not None
++    ), "For export, cache position should always be set."
++    merged_kwargs = {**kwargs, **cache_kwargs}
++    merged_kwargs.pop("cache_position", None)
++    self.keys, self.values = _update_kv_impl(
++        self.keys,
++        self.values,
++        key_states,
++        value_states,
++        cache_position,
++        self.k_ts_idx,
++        self.v_ts_idx,
++        **merged_kwargs,
++    )
++    return self.keys, self.values
++
++  @classmethod
++  def _infer_cache_shape_from_config(
++      cls,
++      model_config,
++      layer_index,
++      export_config: ExportableModuleConfig,
++  ):
++    """Sizes K and V caches with the asymmetric MLA head dims."""
++    cfg = getattr(model_config, "text_config", model_config)
++    cache_length = export_config.cache_length
++    batch_size = export_config.batch_size
++    k_ts_idx = export_config.k_ts_idx
++    v_ts_idx = export_config.v_ts_idx
++    # MLA materializes one K/V per query head (num_key_value_groups == 1).
++    num_kv_heads = cfg.num_attention_heads
++    k_head_dim = cfg.qk_nope_head_dim + cfg.qk_rope_head_dim
++    v_head_dim = cfg.v_head_dim
++
++    def _shape(ts_idx, head_dim):
++      if ts_idx == 2:
++        return (1, batch_size * num_kv_heads, cache_length, head_dim)
++      elif ts_idx == 3:
++        return (1, batch_size * num_kv_heads, head_dim, cache_length)
++      raise ValueError(f"Unsupported ts_idx: {ts_idx}")
++
++    return _shape(k_ts_idx, k_head_dim), _shape(v_ts_idx, v_head_dim)
++
++
++class LiteRTLMMLAIndexerCacheLayer(LiteRTLMMLACacheLayer):
++  """MLA cache plus a DeepSeek Sparse Attention (DSA) indexer key cache.
++
++  DeepSeek-V3.2 (`layer_types[i] == "deepseek_sparse_attention"`) keeps the
++  asymmetric MLA K/V cache (inherited from LiteRTLMMLACacheLayer) AND a second,
++  lightweight per-layer cache for its sparse-attention indexer
++  (`DeepseekV32Indexer`): a single-head key cache of shape
++  `[batch_size, seq_len, index_head_dim]` updated via
++  `past_key_values.update_indexer()` — independent of the main K/V `update`.
++  transformers stores it on `DynamicIndexedLayer` / `StaticIndexedLayer`; for
++  export we add a static indexer-key buffer here and write it with the same
++  `dynamic_update_slice` primitive as K/V. (Without `update_indexer`, the modeling
++  raises `ValueError: Cannot call update_indexer ... it has no indexer key cache`
++  mid FX-trace.) The indexer buffer is laid out `[1, batch_size, cache_length,
++  index_head_dim]` (single head, seq at index 2), folding batch into dim 1 so the
++  4D `dynamic_update_slice` path is reused unchanged.
++  """
++
++  # Buffer seq dimension for the (always 4D) indexer-key cache.
++  indexer_ts_idx = 2
++
++  def __init__(
++      self,
++      key_cache: KeyCache,
++      value_cache: ValueCache,
++      indexer_cache: torch.Tensor,
++      batch_size: int = 1,
++      k_ts_idx: int = 2,
++      v_ts_idx: int = 3,
++      **kwargs,
++  ):
++    super().__init__(
++        key_cache, value_cache, batch_size, k_ts_idx, v_ts_idx, **kwargs
++    )
++    self.indexer_keys = indexer_cache
++    self.index_head_dim = self.indexer_keys.shape[3]
++
++  def update_indexer(self, indexer_key_states: torch.Tensor) -> torch.Tensor:
++    """Writes the new indexer keys into the static buffer and returns it.
++
++    Mirrors `update` but for the single-head indexer cache: the modeling passes
++    `[batch_size, seq_len, index_head_dim]`; we fold batch into dim 1 to reuse the
++    4D `dynamic_update_slice`, then return the full `[batch_size, cache_length,
++    index_head_dim]` buffer (unfilled positions are masked downstream, exactly as
++    the static K/V path returns its full preallocated cache).
++    """
++    cache_kwargs = self.get_cache_runtime_args()
++    cache_position: jt.Int32[torch.Tensor, "T"] = cache_kwargs.get(
++        "cache_position"
++    )
++    assert (
++        cache_position is not None
++    ), "For export, cache position should always be set."
++    seq_len = indexer_key_states.shape[1]
++    idx_slice = indexer_key_states.to(self.indexer_keys.dtype).reshape(
++        1, -1, seq_len, self.index_head_dim
++    )
++    positions = cache_position[0]
++    slice_indices = _get_slice_indices(
++        positions.clone(), 4, self.indexer_ts_idx
++    )
++    self.indexer_keys = tfl_dus.dynamic_update_slice(
++        self.indexer_keys, idx_slice, [x for x in slice_indices]
++    )
++    return self.indexer_keys.reshape(
++        -1, self.max_cache_len, self.index_head_dim
++    )
++
++  @classmethod
++  def create_from_config(
++      cls,
++      model_config,
++      layer_index,
++      export_config: ExportableModuleConfig,
++      **kwargs,
++  ) -> "LiteRTLMMLAIndexerCacheLayer":
++    """Creates the asymmetric MLA K/V caches plus the indexer key cache."""
++    k_cache_shape, v_cache_shape = cls._infer_cache_shape_from_config(
++        model_config, layer_index, export_config
++    )
++    cfg = getattr(model_config, "text_config", model_config)
++    keys = torch.zeros(k_cache_shape, dtype=torch.float32)
++    values = torch.zeros(v_cache_shape, dtype=torch.float32)
++    indexer_cache = torch.zeros(
++        (1, export_config.batch_size, export_config.cache_length, cfg.index_head_dim),
++        dtype=torch.float32,
++    )
++    return cls(
++        keys,
++        values,
++        indexer_cache,
++        k_ts_idx=export_config.k_ts_idx,
++        v_ts_idx=export_config.v_ts_idx,
++        **kwargs,
++    )
++
++
++class LiteRTLMHybridCacheLayer(
++    LiteRTLMCacheLayer, cache_utils.LinearAttentionCacheLayerMixin
++):
++  """KV + Mamba2 conv/recurrent state at ONE layer index.
++
++  For arches whose `layer_types[i] == "hybrid"` — the layer runs full
++  attention AND a Mamba2/SSM mixer in parallel on the same input (FalconH1:
++  every layer; Zamba2: its 'hybrid' subset). The attention side is exactly
++  LiteRTLMCacheLayer (keys/values/update; first in the MRO so the attention
++  mask machinery sees KV semantics); inheriting
++  cache_utils.LinearAttentionCacheLayerMixin is what lets transformers'
++  `Cache.has_previous_state(layer_idx)` accept the layer as state-carrying.
++  The mamba surface replicates LiteRTLMMambaCacheLayer: one-element container
++  views and the unified cat-window conv store. Both states flatten under the
++  SAME layer index (k_i/v_i + mc_i/mr_i) — the runtime binds states by tensor
++  name, so co-residency at one index is packaging, not a new contract.
++  """
++
++  def __init__(
++      self,
++      key_cache: torch.Tensor,
++      value_cache: torch.Tensor,
++      conv_states: torch.Tensor,
++      recurrent_states: torch.Tensor,
++      batch_size: int = 1,
++      decode_mode: bool = False,
++      **kwargs,
++  ):
++    super().__init__(key_cache, value_cache, batch_size=batch_size, **kwargs)
++    # Mixin init first (it assigns through the conv_states/recurrent_states
++    # property setters), then overwrite with the real buffers — same order
++    # dance as LiteRTLMLinearAttentionCacheLayer.
++    cache_utils.LinearAttentionCacheLayerMixin.__init__(self)
++    self._conv_state = conv_states
++    self._recurrent_state = recurrent_states
++    self._decode_mode = decode_mode
++    import transformers as _tf
++    _tf514 = tuple(int(x) for x in _tf.__version__.split(".")[:2]) >= (5, 14)
++    self.is_conv_states_initialized = {0: True} if _tf514 else True
++    self.is_recurrent_states_initialized = {0: True} if _tf514 else True
++    # Always truthy — same tracing contract as the LinearAttention layer.
++    self.has_previous_state = {0: True} if _tf514 else True
++    self.conv_kernel_size = conv_states.shape[-1]
++
++  def update_conv_state(self, conv_states, state_idx=0, **kwargs):
++    # Same unified window update as LiteRTLMMambaCacheLayer: chunked prefill
++    # passes the full K-wide window (plain store), single-step passes one raw
++    # column (rolls the window left by one). See that class for the
++    # broadcast-store trap this form avoids.
++    del state_idx, kwargs
++    merged = torch.cat([self._conv_state, conv_states], dim=-1)[
++        ..., -self.conv_kernel_size:
++    ]
++    self._conv_state.copy_(merged)
++    return merged
++
++  def update_recurrent_state(self, recurrent_states, state_idx=0, **kwargs):
++    del state_idx, kwargs
++    self._recurrent_state.copy_(recurrent_states)
++    return self._recurrent_state
++
++  @property
++  def conv_states(self):
++    # One-element container view: HF modeling indexes `conv_states[0]`.
++    return [self._conv_state]
++
++  @conv_states.setter
++  def conv_states(self, value):
++    self._conv_state = value
++
++  @property
++  def recurrent_states(self):
++    return [self._recurrent_state]
++
++  @recurrent_states.setter
++  def recurrent_states(self, value):
++    self._recurrent_state = value
++
++  @classmethod
++  def create_from_config(
++      cls,
++      model_config,
++      layer_index,
++      export_config: ExportableModuleConfig,
++      **kwargs,
++  ) -> "LiteRTLMHybridCacheLayer":
++    assert model_config.layer_types[layer_index] == "hybrid"
++    cfg = getattr(model_config, "text_config", model_config)
++    k_cache_shape, v_cache_shape = cls._infer_cache_shape_from_config(
++        model_config, layer_index, export_config
++    )
++    # Mamba geometry, FalconH1 vocabulary (mamba_d_ssm overrides
++    # expand*hidden when set; mamba_d_head resolves from 'auto' in the
++    # config's __post_init__). Zamba2's 'hybrid' layers spell these
++    # differently (n_mamba_heads/mamba_headdim/mamba_ngroups) — add that
++    # vocabulary when its extension lands.
++    intermediate_size = (
++        cfg.mamba_d_ssm
++        if getattr(cfg, "mamba_d_ssm", None)
++        else int(cfg.mamba_expand * cfg.hidden_size)
++    )
++    conv_dim = intermediate_size + 2 * cfg.mamba_n_groups * cfg.mamba_d_state
++    batch_size = kwargs.pop("batch_size", export_config.batch_size)
++    keys = torch.zeros(k_cache_shape, dtype=torch.float32)
++    values = torch.zeros(v_cache_shape, dtype=torch.float32)
++    conv_states = torch.zeros(
++        (batch_size, conv_dim, cfg.mamba_d_conv), dtype=torch.float32
++    )
++    recurrent_states = torch.zeros(
++        (batch_size, cfg.mamba_n_heads, cfg.mamba_d_head, cfg.mamba_d_state),
++        dtype=torch.float32,
++    )
++    return cls(
++        keys,
++        values,
++        conv_states,
++        recurrent_states,
++        batch_size=batch_size,
++        **kwargs,
++    )
++
++
++class LiteRTLMNoCacheLayer(cache_base_lib.LiteRTLMCacheLayerMixin):
++  """Placeholder for cache-less layer types (e.g. NemotronH's `mlp` layers).
++
++  Keeps `LiteRTLMCache.layers` indexed by ABSOLUTE layer index (mamba and
++  attention layers address `cache_params.layers[self.layer_idx]`) while
++  contributing ZERO tensors to the flattened state — no signature I/O, no
++  runtime state buffers. Without it, the dict fallback hands every `mlp`
++  layer a full attention KV cache: NemotronH-4B would carry 24 phantom KV
++  buffers that cost signature RAM and confuse the runtime's state binding.
++  The owning layer has no cache semantics, so `update` must never be called.
++  """
++
++  is_compileable = True
++  is_sliding = False
++
++  def __init__(self, batch_size: int = 1, **kwargs):
++    self.batch_size = batch_size
++
++  def lazy_initialization(self, key_states):
++    del key_states
++
++  def update(self, key_states=None, value_states=None, cache_kwargs=None):
++    raise RuntimeError(
++        "LiteRTLMNoCacheLayer.update called - a cache-less layer type was"
++        " asked to store state; the layer_types routing is wrong."
++    )
++
++  def get_seq_length(self, cache_position=None) -> int:
++    del cache_position
++    return 0
++
++  def get_max_length(self) -> int:
++    return -1
++
++  def get_max_cache_shape(self) -> int:
++    return 0
++
++  def get_mask_sizes(self, cache_position):
++    del cache_position
++    return 0, 0
++
++  def get_batch_size(self) -> int:
++    return self.batch_size
++
++  def get_k_ts_idx(self) -> int:
++    return -1
++
++  def get_v_ts_idx(self) -> int:
++    return -1
++
++  @classmethod
++  def create_from_config(
++      cls,
++      model_config,
++      layer_index,
++      export_config: ExportableModuleConfig,
++      **kwargs,
++  ) -> "LiteRTLMNoCacheLayer":
++    del model_config, layer_index
++    kwargs.pop("batch_size", None)
++    return cls(batch_size=export_config.batch_size)
++
++
+ LAYER_TYPE_TO_CLASS = {
+     "full_attention": LiteRTLMCacheLayer,
+     "sliding_attention": LiteRTLMCacheLayer,
+     "conv": LiteRTLMConvCacheLayer,
++    "linear_attention": LiteRTLMLinearAttentionCacheLayer,
++    "mamba": LiteRTLMMambaCacheLayer,
++    "deepseek_sparse_attention": LiteRTLMMLAIndexerCacheLayer,
++    # cache-less layer types (NemotronH interleaves plain MLP blocks)
++    "mlp": LiteRTLMNoCacheLayer,
++    # attention + SSM in the same layer (FalconH1 everywhere; Zamba2 subset)
++    "hybrid": LiteRTLMHybridCacheLayer,
+ }
+ 
+ 
+@@ -464,6 +1133,17 @@ class LiteRTLMCache(cache_base_lib.LiteRTLMCacheMixin):
+       if hasattr(model_config, "layer_types"):
+         layer_type = model_config.layer_types[layer_index]
+       layer_class = LAYER_TYPE_TO_CLASS.get(layer_type, LiteRTLMCacheLayer)
++      # transformers >= 5.14 renamed mamba layer_types to the standardized
++      # "linear_attention"; distinguish mamba2 by its config keys —
++      # granite/bamba spell it `mamba_n_heads`, NemotronH `mamba_num_heads`.
++      if (layer_class is LiteRTLMLinearAttentionCacheLayer
++          and (hasattr(model_config, "mamba_n_heads")
++               or hasattr(model_config, "mamba_num_heads"))):
++        layer_class = LiteRTLMMambaCacheLayer
++      # MLA (DeepSeek-V2/V3, MiniMax-M2) has no per-layer types and needs an
++      # asymmetric K/V cache; route its (otherwise full-attention) layers to it.
++      if layer_class is LiteRTLMCacheLayer and _is_mla_config(model_config):
++        layer_class = LiteRTLMMLACacheLayer
+       layers.append(
+           layer_class.create_from_config(
+               model_config,
+@@ -519,10 +1199,61 @@ def _flatten_kvc_t(
+     v_ts_idx = layer_0.get_v_ts_idx()
+   layer_types = []
+   for i, layer in enumerate(kvc.layers):
+-    if isinstance(layer, LiteRTLMConvCacheLayer):
++    if isinstance(layer, LiteRTLMNoCacheLayer):
++      # cache-less layer (e.g. NemotronH mlp): holds the index, owns no tensors
++      layer_types.append("none")
++    elif isinstance(layer, LiteRTLMHybridCacheLayer):
++      # Must precede the LiteRTLMCacheLayer branch (it is a subclass).
++      # KV + mamba state at one index; mamba names match the mamba layer's so
++      # the runtime's state binding sees nothing new.
++      layer_types.append("hybrid")
++      flattened.append(layer.keys)
++      flat_names.append(f"k_{i}")
++      flattened.append(layer.values)
++      flat_names.append(f"v_{i}")
++      flattened.append(layer._conv_state)
++      flat_names.append(f"mc_{i}")
++      flattened.append(layer._recurrent_state)
++      flat_names.append(f"mr_{i}")
++    elif isinstance(layer, LiteRTLMMambaCacheLayer):
++      # Must precede the LiteRTLMLinearAttentionCacheLayer branch (it is a subclass).
++      layer_types.append("mamba")
++      flattened.append(layer._conv_state)
++      flat_names.append(f"mc_{i}")
++      flattened.append(layer._recurrent_state)
++      flat_names.append(f"mr_{i}")
++    elif isinstance(layer, LiteRTLMLinearAttentionCacheLayer):
++      layer_types.append("linear_attention")
++      flattened.append(layer._conv_state)
++      flat_names.append(f"lc_{i}")
++      flattened.append(layer._recurrent_state)
++      flat_names.append(f"lr_{i}")
++    elif isinstance(layer, LiteRTLMConvCacheLayer):
+       layer_types.append("conv")
+       flattened.append(layer.conv_states)
+       flat_names.append(f"c_{i}")
++    elif isinstance(layer, LiteRTLMMLAIndexerCacheLayer):
++      # Must precede the LiteRTLMMLACacheLayer branch (it is a subclass). MLA
++      # K/V reuse the `k_`/`v_` names (like plain MLA); the DSA indexer adds a
++      # third single-head key cache `idx_{i}`. The "mla_indexer" layer_type in
++      # the context drives the indexer-buffer rebuild on unflatten.
++      layer_types.append("mla_indexer")
++      flattened.append(layer.keys)
++      flat_names.append(f"k_{i}")
++      flattened.append(layer.values)
++      flat_names.append(f"v_{i}")
++      flattened.append(layer.indexer_keys)
++      flat_names.append(f"idx_{i}")
++    elif isinstance(layer, LiteRTLMMLACacheLayer):
++      # Must precede the LiteRTLMCacheLayer branch (it is a subclass). MLA stores
++      # materialized K/V exactly like full attention, so it reuses the same
++      # `k_`/`v_` tensor names (the runtime keys its KV cache off `kv_cache_k_0`);
++      # the "mla" layer_type in the context drives the asymmetric-dim rebuild.
++      layer_types.append("mla")
++      flattened.append(layer.keys)
++      flat_names.append(f"k_{i}")
++      flattened.append(layer.values)
++      flat_names.append(f"v_{i}")
+     elif isinstance(layer, LiteRTLMCacheLayer):
+       layer_types.append("full_attention")
+       flattened.append(layer.keys)
+@@ -531,9 +1262,18 @@ def _flatten_kvc_t(
+       flat_names.append(f"v_{i}")
+     else:
+       raise ValueError(f"Unsupported layer type: {type(layer)}")
++  # decode_mode must survive the flatten/unflatten round-trip torch.export
++  # performs, or the traced modeling silently falls back to prefill semantics.
++  decode_mode = any(
++      getattr(layer, "_decode_mode", False) for layer in kvc.layers
++  )
+   return (
+       flattened,
+-      (flat_names, (batch_size, num_layers, k_ts_idx, v_ts_idx, layer_types)),
++      (
++          flat_names,
++          (batch_size, num_layers, k_ts_idx, v_ts_idx, layer_types,
++           decode_mode),
++      ),
+   )
+ 
+ 
+@@ -543,11 +1283,55 @@ def _unflatten_kvc_t(
+ ) -> LiteRTLMCache:
+   """Unflattens the cache from a list of tensors."""
+   flat_names = context[0]
+-  batch_size, num_layers, k_ts_idx, v_ts_idx, layer_types = context[1]
++  # decode_mode was appended to the context (older 5-tuple contexts default False)
++  if len(context[1]) == 6:
++    batch_size, num_layers, k_ts_idx, v_ts_idx, layer_types, decode_mode = (
++        context[1]
++    )
++  else:
++    batch_size, num_layers, k_ts_idx, v_ts_idx, layer_types = context[1]
++    decode_mode = False
+   layers = []
+   for i in range(num_layers):
+     layer_type = layer_types[i]
+-    if layer_type == "conv":
++    if layer_type == "none":
++      layers.append(LiteRTLMNoCacheLayer(batch_size=batch_size))
++    elif layer_type == "hybrid":
++      layers.append(
++          LiteRTLMHybridCacheLayer(
++              key_cache=values[flat_names.index(f"k_{i}")],
++              value_cache=values[flat_names.index(f"v_{i}")],
++              conv_states=values[flat_names.index(f"mc_{i}")],
++              recurrent_states=values[flat_names.index(f"mr_{i}")],
++              batch_size=batch_size,
++              decode_mode=decode_mode,
++              k_ts_idx=k_ts_idx,
++              v_ts_idx=v_ts_idx,
++          )
++      )
++    elif layer_type == "mamba":
++      mc_idx = flat_names.index(f"mc_{i}")
++      mr_idx = flat_names.index(f"mr_{i}")
++      layers.append(
++          LiteRTLMMambaCacheLayer(
++              conv_states=values[mc_idx],
++              recurrent_states=values[mr_idx],
++              batch_size=batch_size,
++              decode_mode=decode_mode,
++          )
++      )
++    elif layer_type == "linear_attention":
++      lc_idx = flat_names.index(f"lc_{i}")
++      lr_idx = flat_names.index(f"lr_{i}")
++      layers.append(
++          LiteRTLMLinearAttentionCacheLayer(
++              conv_states=values[lc_idx],
++              recurrent_states=values[lr_idx],
++              batch_size=batch_size,
++              decode_mode=decode_mode,
++          )
++      )
++    elif layer_type == "conv":
+       c_cache_idx = flat_names.index(f"c_{i}")
+       layers.append(
+           LiteRTLMConvCacheLayer(
+@@ -555,6 +1339,32 @@ def _unflatten_kvc_t(
+               batch_size=batch_size,
+           )
+       )
++    elif layer_type == "mla_indexer":
++      k_cache_idx = flat_names.index(f"k_{i}")
++      v_cache_idx = flat_names.index(f"v_{i}")
++      idx_cache_idx = flat_names.index(f"idx_{i}")
++      layers.append(
++          LiteRTLMMLAIndexerCacheLayer(
++              key_cache=values[k_cache_idx],
++              value_cache=values[v_cache_idx],
++              indexer_cache=values[idx_cache_idx],
++              batch_size=batch_size,
++              k_ts_idx=k_ts_idx,
++              v_ts_idx=v_ts_idx,
++          )
++      )
++    elif layer_type == "mla":
++      k_cache_idx = flat_names.index(f"k_{i}")
++      v_cache_idx = flat_names.index(f"v_{i}")
++      layers.append(
++          LiteRTLMMLACacheLayer(
++              key_cache=values[k_cache_idx],
++              value_cache=values[v_cache_idx],
++              batch_size=batch_size,
++              k_ts_idx=k_ts_idx,
++              v_ts_idx=v_ts_idx,
++          )
++      )
+     elif layer_type == "full_attention":
+       k_cache_idx = flat_names.index(f"k_{i}")
+       v_cache_idx = flat_names.index(f"v_{i}")
+diff --git a/litert_torch/generative/export_hf/model_ext/granitemoehybrid/__init__.py b/litert_torch/generative/export_hf/model_ext/granitemoehybrid/__init__.py
+new file mode 100644
+index 0000000..c0f98a7
+--- /dev/null
++++ b/litert_torch/generative/export_hf/model_ext/granitemoehybrid/__init__.py
+@@ -0,0 +1,14 @@
++# Copyright 2026 The LiteRT Torch Authors.
++#
++# Licensed under the Apache License, Version 2.0 (the "License");
++# you may not use this file except in compliance with the License.
++# You may obtain a copy of the License at
++#
++#     http://www.apache.org/licenses/LICENSE-2.0
++#
++# Unless required by applicable law or agreed to in writing, software
++# distributed under the License is distributed on an "AS IS" BASIS,
++# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++# See the License for the specific language governing permissions and
++# limitations under the License.
++# ==============================================================================
+diff --git a/litert_torch/generative/export_hf/model_ext/granitemoehybrid/patch.py b/litert_torch/generative/export_hf/model_ext/granitemoehybrid/patch.py
+new file mode 100644
+index 0000000..11f5d3f
+--- /dev/null
++++ b/litert_torch/generative/export_hf/model_ext/granitemoehybrid/patch.py
+@@ -0,0 +1,639 @@
++# Copyright 2026 The LiteRT Torch Authors.
++#
++# Licensed under the Apache License, Version 2.0 (the "License");
++# you may not use this file except in compliance with the License.
++# You may obtain a copy of the License at
++#
++#     http://www.apache.org/licenses/LICENSE-2.0
++#
++# Unless required by applicable law or agreed to in writing, software
++# distributed under the License is distributed on an "AS IS" BASIS,
++# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++# See the License for the specific language governing permissions and
++# limitations under the License.
++# ==============================================================================
++"""Patch for Granite-4-h (granitemoehybrid: Mamba2 selective-scan + attention hybrid).
++
++Two things live here.
++
++1. The mamba prefill-pad guard. The LiteRT-LM engine runs prefill chunks
++   PARTIALLY FILLED (its chunk planner pads the remainder chunk), and granite's
++   own `apply_mask_to_padding_states` is a no-op at batch size 1 — so without a
++   guard, padding tokens poison the conv/SSM state and corrupt generation at
++   chunk-plan-dependent prompt lengths (the mamba analog of the LFM2 ShortConv
++   prefill-pad bug). The guard:
++
++     1. valid mask = `input_ids != 0` (the engine zero-fills pad tokens),
++        stashed on each mixer by the patched model `forward`;
++     2. pad positions' hidden states zeroed before/after the conv (so x/B/C
++        contribute nothing to the scan);
++     3. pad positions' dt forced to -30 pre-softplus -> dt ~ 0 -> exp(dt*A) ~ 1
++        and dt*B*x ~ 0: the SSM update is an IDENTITY step on pads (a plain
++        zeroed-input step would still decay the state by exp(dt_bias*A));
++     4. the stored conv window is gathered ending at the last VALID column via
++        an in-graph one-hot matmul (the upstream LFM2 0.9.2 technique), instead
++        of the chunk's last K columns (which are pads).
++
++2. A rank<=4 rewrite of the SSD scan, which is what makes the layer GPU-eligible.
++   Upstream writes the five SSD contractions as broadcast-multiply-reduce ("begin
++   ssd naive implementation without einsums"), producing rank-5 and rank-6
++   intermediates. Every mobile GPU delegate we gate on refuses tensors above rank
++   4 ("Tensor dimensions must be less than 5"), which is why the published
++   granite int8 delegates 109/3673 ops and aborts. Writing the same contractions
++   as batched matmuls with the chunk and head axes folded into the batch axis
++   keeps every tensor at rank <= 4 — and it never materializes the naive form's
++   chunks*chunk_len^2*heads*d_state intermediates. Two more ops have to go, and
++   neither is about rank:
++
++     - BROADCAST_TO is refused outright. It arrives from `expand` (inside
++       `segment_sum`) and `repeat_interleave` (group->head replication of B/C).
++       Both are outer products with a ones vector, so a matmul against a ones row
++       is the same tensor through a supported op.
++     - PAD is refused on a rank-2 tensor ("expected 4x2 or 3x2, got 2x2"). Every
++       pad here is written as a `cat` with an explicit zero block instead.
++
++   The decode step (seq_len == 1) is written out for the same reason: upstream
++   `expand`s dt/A/B/C/D to [bsz, heads, head_dim, state] and each `expand` is a
++   BROADCAST_TO. Implicit (None-indexed) broadcasting produces the same rank-4
++   arithmetic with no BROADCAST_TO.
++
++   Set `LITERT_GRANITE_SSD=naive` to export the upstream scan instead (guard
++   still applied, via anchored source replacement). That is the pre-rewrite path,
++   kept so a quality regression can be bisected against a known-good graph.
++
++The rewrite is checked against the installed transformers implementation at
++patch time (`_selfcheck_folded_ssd`), so a modeling change that moves the math
++fails loudly instead of silently exporting something else.
++"""
++
++import contextlib
++import inspect
++import os
++import textwrap
++
++import torch
++from litert_torch.generative.export_hf.model_ext import patches as patches_lib
++from transformers.models.granitemoehybrid import modeling_granitemoehybrid
++
++nn = torch.nn
++F = torch.nn.functional
++
++_PAD_DT = -30.0  # pre-softplus dt on pad positions -> identity SSM step
++
++
++class PatchedGraniteMoeHybridModel(modeling_granitemoehybrid.GraniteMoeHybridModel):
++  """Export-friendly Granite-4-h text model (class swap; persists on the instance)."""
++
++  # transformers >= 5.14 gates experts_implementation on a module-source heuristic
++  # that the swapped class fails; the underlying model supports it, so short-circuit.
++  _can_set_experts_implementation_cached_value = True
++
++  def forward(self, input_ids=None, **kwargs):
++    # Engine pads prefill chunks with token id 0; derive the per-position valid
++    # mask here and stash it directly on every mamba mixer instance — in
++    # transformers 5.14 the mixers receive attention_mask=None (there is no
++    # `_update_mamba_mask` route anymore), so torch_forward reads
++    # `self._litert_valid` instead.
++    valid = (input_ids != 0).to(torch.float32) if input_ids is not None else None
++    for module in self.modules():
++      if isinstance(module, PatchedGraniteMoeHybridMambaLayer):
++        module._litert_valid = valid
++    return super().forward(input_ids=input_ids, **kwargs)
++
++
++# ---------------------------------------------------------------------------
++# rank<=4 helpers
++# ---------------------------------------------------------------------------
++
++
++def _ones_row(like, n):
++  return torch.ones(1, n, device=like.device, dtype=like.dtype)
++
++
++def _cumsum_last(x):
++  """Inclusive cumulative sum along the last axis of a (batch, l) tensor.
++
++  CUMSUM by default. `LITERT_GRANITE_CUMSUM=matmul` swaps in a GEMM against a
++  constant upper-triangular ones matrix, which is the same values through a
++  different primitive — kept because "is the delegate's scan kernel wrong?" is a
++  question worth being able to ask in one env var. Measured 2026-08-13 on Mac
++  WebGPU: the GEMM form made the model's GPU output *worse* (token-0 spam rather
++  than wrong-but-formed text), so CUMSUM is not the broken op and the GEMM form
++  costs an l x l matmul for nothing.
++  """
++  if os.environ.get("LITERT_GRANITE_CUMSUM") != "matmul":
++    return torch.cumsum(x, dim=-1)
++  l = x.size(-1)
++  tri = torch.triu(torch.ones(l, l, device=x.device, dtype=x.dtype))
++  return torch.matmul(x[..., None, :], tri)[..., 0, :]
++
++
++def _exp_segment_sum_from_cumsum(cs):
++  """`exp(segment_sum(x))` given `cs = cumsum(x, -1)`: (batch, l) -> (batch, l, l).
++
++  `segment_sum(x)[i, j] = sum_{k=j+1..i} x[k] = cs[i] - cs[j]` for `i >= j`, so
++  the whole matrix comes from the cumulative sum we already compute along the
++  last axis. Three things upstream does are avoided, and none of them is about
++  rank:
++
++  - upstream's `expand` lowers to BROADCAST_TO, refused outright. A matmul
++    against a ones row builds the same tensor through a supported op, and its
++    transpose gives the other operand.
++  - upstream builds the matrix with a `cumsum` along a NON-INNERMOST axis of a
++    rank-3 tensor. Deriving it from the last-axis cumsum removes that op — it
++    was also the single largest tensor in the scan (chunks*heads x l x l with an
++    l-step scan).
++  - upstream fills the strict upper triangle with `-inf` before exponentiating.
++    Here the difference is masked to 0 BEFORE the exp (so nothing infinite ever
++    reaches it) and the triangle is zeroed after, which is the same matrix: on
++    and below the diagonal `cs` is non-increasing (A = -exp(A_log) < 0, dt > 0)
++    so the exponent is <= 0 and cannot overflow either.
++  """
++  l = cs.size(-1)
++  # Arithmetic broadcast, not `expand` (which is BROADCAST_TO) and not a matmul
++  # against a ones row (a K=1 batched matmul against a rank-2 operand — an edge
++  # case worth not depending on). SUB broadcasts natively.
++  diff = cs[..., :, None] - cs[..., None, :]  # diff[i, j] = cs[i] - cs[j]
++  keep = torch.tril(torch.ones(l, l, device=cs.device, dtype=cs.dtype), diagonal=0)
++  return torch.exp(diff * keep) * keep
++
++
++def _repeat_groups(t, rep):
++  """(b, s, g, n) -> (b, s, g*rep, n), each group repeated `rep` times.
++
++  Same tensor as `repeat_interleave(rep, dim=2)`, which lowers to BROADCAST_TO.
++  A concatenation of per-group slices is the same tensor through an op every
++  backend implements plainly.
++  """
++  g = t.shape[2]
++  return torch.cat(
++      [t[:, :, i : i + 1] for i in range(g) for _ in range(rep)], dim=2
++  )
++
++
++def _repeat_groups_step(t, n_groups, rep, n):
++  """(b, n_groups*n) -> (b, n_groups*rep, n) for the single-token path."""
++  b = t.shape[0]
++  t = torch.matmul(t.reshape(b * n_groups, n, 1), _ones_row(t, rep))  # (b*g, n, rep)
++  return t.transpose(1, 2).reshape(b, n_groups * rep, n)
++
++
++def _zeros_cat(t, pad_size, dim):
++  """`F.pad`-equivalent trailing zero pad, written as a cat (PAD is rejected on
++  rank-2 tensors and the cat form is what the delegate takes everywhere)."""
++  if pad_size == 0:
++    return t
++  shape = list(t.shape)
++  shape[dim] = pad_size
++  return torch.cat([t, torch.zeros(shape, device=t.device, dtype=t.dtype)], dim=dim)
++
++
++# ---------------------------------------------------------------------------
++# the rewritten mixer forward
++# ---------------------------------------------------------------------------
++
++
++def _folded_torch_forward(self, input_states, cache_params=None, attention_mask=None):
++  """rank<=4, BROADCAST_TO-free `GraniteMoeHybridMambaLayer.torch_forward`.
++
++  Numerically the upstream scan (checked at patch time); structurally a shape
++  every mobile GPU delegate accepts.
++  """
++  del attention_mask  # the pad mask arrives via `_litert_valid` (see model.forward)
++  batch_size, seq_len, _ = input_states.shape
++  dtype = input_states.dtype
++  H, P, N = self.num_heads, self.head_dim, self.ssm_state_size
++  n_groups = self.n_groups
++  rep = H // n_groups
++
++  # --- guard (1): zero pad positions, and only arm the guard on prefill. A
++  # legitimately generated token id 0 must not be masked during decode. ---
++  valid = getattr(self, "_litert_valid", None)
++  if valid is not None and seq_len > 1:
++    valid = valid.to(dtype)
++    input_states = input_states * valid[..., None]
++  else:
++    valid = None
++
++  projected_states = self.in_proj(input_states)
++  gate, hidden_states_B_C, dt = projected_states.split(
++      [self.intermediate_size, self.conv_dim, self.num_heads], dim=-1
++  )
++  hidden_states_B_C = hidden_states_B_C.transpose(1, 2)
++
++  # --- guard (3): identity SSM step on pads. ---
++  if valid is not None:
++    dt = dt * valid[..., None] + (1.0 - valid[..., None]) * _PAD_DT
++
++  use_precomputed_states = cache_params is not None and cache_params.has_previous_state(
++      self.layer_idx
++  )
++  # Diagnostic only (LITERT_GRANITE_IGNORE_STATE=1): trace the chunked path as
++  # if there were no incoming conv/SSM state. For a prompt that fits ONE chunk
++  # the result is unchanged (the state is zero there anyway), so a backend whose
++  # answer changes under this flag is handing the graph non-zero state buffers.
++  # It breaks multi-chunk continuation — never export a ship file with it.
++  ignore_state = os.environ.get("LITERT_GRANITE_IGNORE_STATE") == "1"
++  if ignore_state and seq_len > 1:
++    use_precomputed_states = False
++  if use_precomputed_states:
++    conv_state = cache_params.layers[self.layer_idx].conv_states[0]
++
++  single_step = use_precomputed_states and seq_len == 1
++
++  # 2. Convolution sequence transformation
++  if single_step:
++    conv_states = cache_params.update_conv_state(hidden_states_B_C, self.layer_idx)[
++        ..., -self.conv_kernel_size :
++    ]
++    hidden_states_B_C = torch.sum(
++        conv_states * self.conv1d.weight.squeeze(1), dim=-1
++    )
++    if self.use_conv_bias:
++      hidden_states_B_C = hidden_states_B_C + self.conv1d.bias
++    hidden_states_B_C = self.act(hidden_states_B_C)
++  else:
++    if use_precomputed_states:
++      hidden_states_B_C = torch.cat([conv_state, hidden_states_B_C], dim=-1)
++    if cache_params is not None:
++      # --- guard (4): store the conv window ending at the last VALID column,
++      # selected in-graph with a one-hot matmul. ---
++      # LITERT_GRANITE_CONV_GUARD=off stores the chunk's last K columns
++      # instead of the last VALID ones. That is the pre-guard behaviour
++      # (pad tokens poison the stored window at chunk-plan-dependent
++      # prompt lengths), kept ONLY to isolate this store on GPU.
++      if valid is not None and os.environ.get(
++          "LITERT_GRANITE_CONV_GUARD") != "off":
++        _w = hidden_states_B_C.shape[-1]
++        _K = self.conv_kernel_size
++        _seq = valid.shape[-1]
++        _lead = torch.zeros(
++            hidden_states_B_C.shape[:-1] + (_K,),
++            device=hidden_states_B_C.device,
++            dtype=hidden_states_B_C.dtype,
++        )
++        _padded = torch.cat([_lead, hidden_states_B_C], dim=-1)
++        # ⚠ KEEP THE BATCH DIMENSION. Reducing the mask to a RANK-0 scalar and
++        # broadcasting that against `arange` is what breaks this store on the
++        # GPU delegates: measured 2026-08-13 with tools/backend_diff, a bare
++        # `arange` matches CPU exactly, `100.0 + arange` matches exactly, and
++        # the mask and its sum match exactly — but `rank0_scalar + arange` does
++        # not (CPU [12,13,14,15], GPU max 12), the selector built from it comes
++        # back ALL ZERO, and every mamba layer's stored conv state is then
++        # exactly 0.0 on GPU while CPU has real values. Generation collapses
++        # because decode convolves against no history. With `keepdim=True` the
++        # whole chain — index, selector and gather — matches CPU exactly.
++        #
++        # int64 is separately fatal here: the CAST/ADD it produces is refused
++        # outright, and these nodes sit upstream of every mamba layer, so three
++        # of them cost 97% of the delegated graph. Every value is a small exact
++        # integer, so float32 index arithmetic is exact.
++        _valid_len = valid.sum(-1, keepdim=True).to(_padded.dtype)  # (B, 1)
++        _base = float(_w - _seq) + _valid_len  # (B, 1)
++        _idx = _base + torch.arange(
++            _K, device=_padded.device, dtype=_padded.dtype
++        )  # (B, K)
++        _cols = torch.arange(
++            _w + _K, device=_padded.device, dtype=_padded.dtype
++        )  # (P,)
++        # Selector by arithmetic distance rather than `==`: same tensor, and it
++        # keeps a bool/CAST pair out of the graph. Distances are exact integers.
++        _sel = torch.relu(
++            1.0 - torch.abs(_cols[None, :, None] - _idx[:, None, :])
++        )  # (B, P, K)
++        conv_states = torch.matmul(_padded, _sel)
++      else:
++        conv_states = F.pad(
++            hidden_states_B_C,
++            (self.conv_kernel_size - hidden_states_B_C.shape[-1], 0),
++        )
++      cache_params.update_conv_state(conv_states, self.layer_idx)
++
++    hidden_states_B_C = self.act(
++        self.conv1d(hidden_states_B_C)[..., : hidden_states_B_C.shape[-1]]
++    )
++    if use_precomputed_states:
++      hidden_states_B_C = hidden_states_B_C[..., -seq_len:]
++    hidden_states_B_C = hidden_states_B_C.transpose(1, 2)
++
++  # --- guard (2): zero x/B/C at pad positions for the scan. ---
++  if valid is not None:
++    hidden_states_B_C = hidden_states_B_C * valid[..., None]
++
++  hidden_states, B, C = torch.split(
++      hidden_states_B_C,
++      [self.intermediate_size, n_groups * N, n_groups * N],
++      dim=-1,
++  )
++
++  # 3. SSM transformation
++  A = -torch.exp(self.A_log.float())  # (H,)
++
++  if single_step:
++    # Single-token recurrence. Upstream `expand`s dt/A/B/C/D up to
++    # [bsz, heads, head_dim, state]; every one of those is a BROADCAST_TO, so
++    # use implicit (None-indexed) broadcasting instead — same rank-4 arithmetic,
++    # no BROADCAST_TO. n_groups == 1 broadcasts B/C over the head axis directly.
++    dt = F.softplus(dt[:, 0, :] + self.dt_bias)  # (b, H)
++    dt = torch.clamp(dt, self.time_step_limit[0], self.time_step_limit[1])
++    dA = torch.exp(dt * A)  # (b, H)
++
++    x = hidden_states.reshape(batch_size, H, P)  # (b, H, P)
++    if n_groups == 1:
++      # One group: leave the head axis at 1 and let the rank-4 arithmetic below
++      # broadcast it — cheaper than replicating, and no BROADCAST_TO either way.
++      Bh = B.reshape(batch_size, 1, N)
++      Ch = C.reshape(batch_size, 1, N)
++    elif rep > 1:
++      Bh = _repeat_groups_step(B, n_groups, rep, N)  # (b, H, N)
++      Ch = _repeat_groups_step(C, n_groups, rep, N)
++    else:
++      Bh = B.reshape(batch_size, H, N)  # one group per head
++      Ch = C.reshape(batch_size, H, N)
++
++    dBx = dt[:, :, None, None] * Bh[:, :, None, :] * x[:, :, :, None]  # (b,H,P,N)
++    prev = cache_params.layers[self.layer_idx].recurrent_states[0]
++    ssm_state = prev.to(dBx.dtype) * dA[:, :, None, None] + dBx  # rank-4 ADD
++    ssm_state = cache_params.update_recurrent_state(ssm_state, self.layer_idx)
++
++    y = (ssm_state.to(Ch.dtype) * Ch[:, :, None, :]).sum(-1)  # (b, H, P)
++    y = y + x * self.D[None, :, None]
++    y = y.reshape(batch_size, -1)[:, None, ...]  # (b, 1, intermediate)
++  else:
++    # Chunked scan. Same five contractions as upstream, written as batched
++    # matmuls with (batch, head, chunk) folded into one leading axis.
++    cl = self.chunk_size
++    pad_size = (cl - seq_len % cl) % cl
++    seq_p = seq_len + pad_size
++    c = seq_p // cl
++
++    dt = F.softplus(dt + self.dt_bias)  # (b, seq, H)
++    dt = torch.clamp(dt, self.time_step_limit[0], self.time_step_limit[1])
++
++    hidden_states = hidden_states.reshape(batch_size, seq_len, -1, P).float()
++    B = B.reshape(batch_size, seq_len, -1, N).float()
++    C = C.reshape(batch_size, seq_len, -1, N).float()
++    if rep > 1:
++      B = _repeat_groups(B, rep)
++      C = _repeat_groups(C, rep)
++
++    D_residual = self.D[..., None] * hidden_states  # (b, seq, H, P)
++    hidden_states = hidden_states * dt[..., None]
++    A = A.to(hidden_states.dtype) * dt  # (b, seq, H)
++
++    # Pad to a chunk boundary. Zero x contributes nothing and zero A decays
++    # nothing, so the real positions — and the stored end-of-chunk state — are
++    # unchanged; this is upstream's `reshape_into_chunks` pad, as a cat.
++    if pad_size > 0:
++      hidden_states = _zeros_cat(hidden_states, pad_size, 1)
++      B = _zeros_cat(B, pad_size, 1)
++      C = _zeros_cat(C, pad_size, 1)
++      A = _zeros_cat(A, pad_size, 1)
++
++    def fold(t, last):  # (b, seq_p, H, last) -> (b*H*c, cl, last)
++      return t.permute(0, 2, 1, 3).reshape(batch_size * H * c, cl, last)
++
++    xf = fold(hidden_states, P)
++    bf = fold(B, N)
++    cf = fold(C, N)
++    af = A.permute(0, 2, 1).reshape(batch_size * H * c, cl)
++
++    a_cumsum = _cumsum_last(af)  # (bhc, cl)
++    Lf = _exp_segment_sum_from_cumsum(a_cumsum)  # (bhc, cl, cl)
++
++    # 1. intra-chunk (diagonal blocks)
++    G = torch.matmul(cf, bf.transpose(1, 2))  # (bhc, cl, cl)
++    M = G * Lf
++    Y_diag = torch.matmul(M, xf)  # (bhc, cl, P)
++
++    # 2. per-chunk end state (kept as (N, P) — transposed against upstream's
++    # (P, N) — so the contraction is a plain matmul; transposed back at the
++    # cache boundary below).
++    decay_states = torch.exp(a_cumsum[:, -1:] - a_cumsum)  # (bhc, cl)
++    B_decay = bf * decay_states[..., None]
++    states = torch.matmul(B_decay.transpose(1, 2), xf)  # (bhc, N, P)
++
++    # 3. inter-chunk recurrence: a contraction over the chunk axis.
++    states_bh = states.reshape(batch_size * H, c, N * P)
++    if use_precomputed_states:
++      prev = cache_params.layers[self.layer_idx].recurrent_states[0]  # (b,H,P,N)
++      prev = (
++          prev.to(states_bh.dtype)
++          .permute(0, 1, 3, 2)
++          .reshape(batch_size * H, 1, N * P)
++      )
++    else:
++      prev = torch.zeros_like(states_bh[:, :1])
++    states_bh = torch.cat([prev, states_bh], dim=1)  # (bH, c+1, N*P)
++
++    chunk_tail = a_cumsum[:, -1].reshape(batch_size * H, c)
++    chunk_tail = torch.cat(
++        [torch.zeros_like(chunk_tail[:, :1]), chunk_tail], dim=1
++    )  # (bH, c+1)
++    decay_chunk = _exp_segment_sum_from_cumsum(
++        _cumsum_last(chunk_tail)
++    )  # (bH, c+1, c+1)
++    new_states = torch.matmul(decay_chunk, states_bh)  # (bH, c+1, N*P)
++    states_out, ssm_state = new_states[:, :-1], new_states[:, -1]
++
++    # 4. state -> output per chunk (off-diagonal blocks)
++    st = states_out.reshape(batch_size * H * c, N, P)
++    Y_off = torch.matmul(cf, st) * torch.exp(a_cumsum)[..., None]  # (bhc, cl, P)
++
++    y = Y_diag + Y_off
++    y = y.reshape(batch_size, H, seq_p, P).permute(0, 2, 1, 3)  # (b, seq_p, H, P)
++    if pad_size > 0:
++      y = y[:, :seq_len]
++    y = (y + D_residual).reshape(batch_size, seq_len, -1)
++
++    if cache_params is not None:
++      ssm_state = ssm_state.reshape(batch_size, H, N, P).permute(0, 1, 3, 2)
++      cache_params.update_recurrent_state(ssm_state, self.layer_idx)
++
++  scan_output = self.norm(y, gate)
++  return self.out_proj(scan_output.to(dtype))
++
++
++# ---------------------------------------------------------------------------
++# upstream scan + guard (bisect path), via anchored source replacement
++# ---------------------------------------------------------------------------
++
++
++def _build_guarded_torch_forward():
++  """Upstream `torch_forward` with the pad guard, generated from the installed
++  source via anchored replacements (the pre-rewrite export path)."""
++  src = inspect.getsource(
++      modeling_granitemoehybrid.GraniteMoeHybridMambaLayer.torch_forward
++  )
++  src = textwrap.dedent(src)
++
++  # NOTE: all anchors/replacements are in POST-DEDENT coordinates (the file's
++  # indentation minus 4: method body at 4, else-branch bodies at 8/12/16).
++
++  # (1) input zeroing + guard activation. The 2D mask only arrives on the
++  # prefill signatures (seq_len > 1); decode must NOT mask (a legitimately
++  # generated token id 0 would be zeroed).
++  anchor = ("    input_states = apply_mask_to_padding_states"
++            "(input_states, attention_mask)\n")
++  assert src.count(anchor) == 1, "pad-guard anchor 1 not found"
++  src = src.replace(
++      anchor,
++      "    valid = getattr(self, '_litert_valid', None)\n"
++      "    if valid is not None and input_states.shape[1] > 1:\n"
++      "        valid = valid.to(input_states.dtype)\n"
++      "        input_states = input_states * valid[..., None]\n"
++      "    else:\n"
++      "        valid = None\n",
++  )
++
++  # (2) dt identity on pads (pre-softplus -30 -> softplus ~ 0 -> exp(dt*A) ~ 1).
++  anchor = "    hidden_states_B_C = hidden_states_B_C.transpose(1,2)\n"
++  assert src.count(anchor) == 1, "pad-guard anchor 2 not found"
++  src = src.replace(
++      anchor,
++      anchor
++      + "    if valid is not None:\n"
++      "        dt = dt * valid[..., None] + (1.0 - valid[..., None]) * (-30.0)\n",
++  )
++
++  # (3) post-conv zeroing (x/B/C for the scan). Stock apply_mask... is a no-op
++  # at batch 1, so do it explicitly.
++  anchor = ("    hidden_states_B_C = apply_mask_to_padding_states("
++            "hidden_states_B_C, attention_mask)\n")
++  assert src.count(anchor) == 1, "pad-guard anchor 3 not found"
++  src = src.replace(
++      anchor,
++      "    if valid is not None:\n"
++      "        hidden_states_B_C = hidden_states_B_C * valid[..., None]\n",
++  )
++
++  # (4) conv window gathered at the last VALID column (one-hot matmul).
++  anchor = (
++      "        if cache_params is not None:\n"
++      "            conv_states = nn.functional.pad(\n"
++      "                hidden_states_B_C, (self.conv_kernel_size - "
++      "hidden_states_B_C.shape[-1], 0)\n"
++      "            )\n"
++      "            cache_params.update_conv_state(conv_states, self.layer_idx)\n"
++  )
++  assert src.count(anchor) == 1, "pad-guard anchor 4 not found"
++  src = src.replace(
++      anchor,
++      "        if cache_params is not None:\n"
++      "            if valid is not None:\n"
++      "                _w = hidden_states_B_C.shape[-1]\n"
++      "                _K = self.conv_kernel_size\n"
++      "                _padded = nn.functional.pad(hidden_states_B_C, (_K, 0))\n"
++      # float32 index arithmetic: an int64 CAST/ADD is refused by the OpenCL
++      # delegate and cuts the graph at every mamba layer (see the folded path).
++      "                _valid_len = valid.sum(-1)[0]\n"
++      "                _base = float(_w - valid.shape[-1]) + _valid_len\n"
++      "                _idx = _base + torch.arange(_K, device=_padded.device,\n"
++      "                                            dtype=_base.dtype)\n"
++      # relu(1 - |cols - idx|), not `==`: a bool EQUAL + CAST comes back
++      # all-false on the GPU delegates (see the folded path).
++      "                _cols = torch.arange(_w + _K, device=_padded.device,\n"
++      "                                     dtype=_base.dtype)\n"
++      "                _onehot = torch.relu(1.0 - torch.abs(\n"
++      "                    _cols[:, None] - _idx[None, :])).to(_padded.dtype)\n"
++      "                conv_states = _padded @ _onehot\n"
++      "            else:\n"
++      "                conv_states = nn.functional.pad(\n"
++      "                    hidden_states_B_C, (self.conv_kernel_size - "
++      "hidden_states_B_C.shape[-1], 0)\n"
++      "                )\n"
++      "            cache_params.update_conv_state(conv_states, self.layer_idx)\n",
++  )
++
++  namespace = dict(vars(modeling_granitemoehybrid))
++  namespace["torch"] = torch
++  exec(compile(src, "<granite_pad_guard>", "exec"), namespace)  # pylint: disable=exec-used
++  return namespace["torch_forward"]
++
++
++def _use_folded():
++  return os.environ.get("LITERT_GRANITE_SSD", "folded").lower() != "naive"
++
++
++class PatchedGraniteMoeHybridMambaLayer(
++    modeling_granitemoehybrid.GraniteMoeHybridMambaLayer
++):
++  torch_forward = (
++      _folded_torch_forward if _use_folded() else _build_guarded_torch_forward()
++  )
++
++
++# ---------------------------------------------------------------------------
++# patch-time self-check
++# ---------------------------------------------------------------------------
++
++
++def _selfcheck_folded_ssd(tol=2e-4):
++  """Run the rewritten scan against the installed transformers implementation.
++
++  Covers the cache-free chunked path at both a chunk multiple and a ragged
++  length. The cached/decode paths are covered by the model-level parity gate
++  (they need a real export cache), but this is what catches an upstream change
++  to the scan math — the anchored guard path asserts on its anchors instead.
++  """
++  from transformers.models.granitemoehybrid.configuration_granitemoehybrid import (
++      GraniteMoeHybridConfig,
++  )
++
++  torch.manual_seed(0)
++  cfg = GraniteMoeHybridConfig(
++      hidden_size=64,
++      num_hidden_layers=1,
++      mamba_n_heads=8,
++      mamba_d_head=16,
++      mamba_d_state=16,
++      mamba_expand=2,
++      mamba_chunk_size=8,
++      mamba_n_groups=2,
++  )
++  layer = modeling_granitemoehybrid.GraniteMoeHybridMambaLayer(cfg, layer_idx=0)
++  layer = layer.eval().float()
++  worst = 0.0
++  for seq in (16, 13):
++    x = torch.randn(1, seq, cfg.hidden_size)
++    with torch.no_grad():
++      ref = modeling_granitemoehybrid.GraniteMoeHybridMambaLayer.torch_forward(
++          layer, x
++      )
++      new = _folded_torch_forward(layer, x)
++    worst = max(worst, (ref - new).abs().max().item() / ref.abs().max().item())
++  if worst > tol:
++    raise AssertionError(
++        "granite folded SSD rewrite disagrees with the installed transformers "
++        f"implementation (relative max|diff| {worst:.2e} > {tol:.0e}). The "
++        "upstream scan changed; re-derive the folded form or export with "
++        "LITERT_GRANITE_SSD=naive."
++    )
++  return worst
++
++
++@patches_lib.register_patch(["granitemoehybrid"])
++@contextlib.contextmanager
++def granitemoehybrid_litert_patch():
++  if _use_folded():
++    rel = _selfcheck_folded_ssd()
++    print(
++        "Granite-4-h (granitemoehybrid) patch applied "
++        f"(pad guard + rank<=4 SSD; self-check rel {rel:.1e})."
++    )
++  else:
++    print(
++        "Granite-4-h (granitemoehybrid) patch applied "
++        "(pad guard, upstream SSD — LITERT_GRANITE_SSD=naive)."
++    )
++  original_model = modeling_granitemoehybrid.GraniteMoeHybridModel
++  original_mixer = modeling_granitemoehybrid.GraniteMoeHybridMambaLayer
++  modeling_granitemoehybrid.GraniteMoeHybridModel = PatchedGraniteMoeHybridModel
++  modeling_granitemoehybrid.GraniteMoeHybridMambaLayer = (
++      PatchedGraniteMoeHybridMambaLayer
++  )
++  try:
++    yield
++  finally:
++    modeling_granitemoehybrid.GraniteMoeHybridModel = original_model
++    modeling_granitemoehybrid.GraniteMoeHybridMambaLayer = original_mixer
+diff --git a/litert_torch/generative/export_hf/model_ext/nemotron_h/__init__.py b/litert_torch/generative/export_hf/model_ext/nemotron_h/__init__.py
+new file mode 100644
+index 0000000..c0f98a7
+--- /dev/null
++++ b/litert_torch/generative/export_hf/model_ext/nemotron_h/__init__.py
+@@ -0,0 +1,14 @@
++# Copyright 2026 The LiteRT Torch Authors.
++#
++# Licensed under the Apache License, Version 2.0 (the "License");
++# you may not use this file except in compliance with the License.
++# You may obtain a copy of the License at
++#
++#     http://www.apache.org/licenses/LICENSE-2.0
++#
++# Unless required by applicable law or agreed to in writing, software
++# distributed under the License is distributed on an "AS IS" BASIS,
++# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++# See the License for the specific language governing permissions and
++# limitations under the License.
++# ==============================================================================
+diff --git a/litert_torch/generative/export_hf/model_ext/nemotron_h/patch.py b/litert_torch/generative/export_hf/model_ext/nemotron_h/patch.py
+new file mode 100644
+index 0000000..a65f310
+--- /dev/null
++++ b/litert_torch/generative/export_hf/model_ext/nemotron_h/patch.py
+@@ -0,0 +1,397 @@
++# Copyright 2026 The LiteRT Torch Authors.
++#
++# Licensed under the Apache License, Version 2.0 (the "License");
++# you may not use this file except in compliance with the License.
++# You may obtain a copy of the License at
++#
++#     http://www.apache.org/licenses/LICENSE-2.0
++#
++# Unless required by applicable law or agreed to in writing, software
++# distributed under the License is distributed on an "AS IS" BASIS,
++# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++# See the License for the specific language governing permissions and
++# limitations under the License.
++# ==============================================================================
++"""NemotronH (Mamba2 + MLP + full-attention hybrid) LiteRT export patch.
++
++NemotronH's `torch_forward` is an older spelling of the same Mamba2 SSD scan
++granite-4.0-h carries (granite's modeling descends from this code). The mixer
++attribute names match granite's exactly, so the folded rank<=4 rewrite ports
++with exactly TWO functional differences, both asserted/checked here:
++
++1. **dt clamp is min-only.** The installed reference clamps
++   `softplus(dt + dt_bias)` at `time_step_min` and leaves the max unclamped
++   (the `time_step_max` clamp is commented out upstream). Granite clamps to
++   `time_step_limit[0..1]`. The folded port follows the installed reference.
++2. **The in_proj split carries two `d_mlp` slices** which are width-0 on every
++   published NemotronH config (`projection_size = intermediate + conv_dim +
++   heads` forces `d_mlp == 0`). Asserted at patch time; the port uses the
++   granite 3-way split.
++
++Cache side (core/cache.py): NemotronH interleaves cache-less `mlp` layers —
++`LiteRTLMNoCacheLayer` holds their index so mamba/attention layers keep
++addressing `cache_params.layers[self.layer_idx]` absolutely — and its config
++spells the mamba geometry `mamba_num_heads`/`mamba_head_dim`/`ssm_state_size`/
++`conv_kernel`, which the shared shape inference now reads.
++
++Everything else (pad guard incl. the keepdim rank-0 trap, the one-hot conv
++window store, BROADCAST_TO-free repeats, cat-not-PAD) is granite's, imported
++from granitemoehybrid/patch.py — see that module for the derivation and the
++GPU-delegate traps.
++"""
++
++import contextlib
++import os
++
++import torch
++from litert_torch.generative.export_hf.model_ext import patches as patches_lib
++from litert_torch.generative.export_hf.model_ext.granitemoehybrid import (
++    patch as granite_patch,
++)
++from transformers.models.nemotron_h import modeling_nemotron_h
++
++nn = torch.nn
++F = torch.nn.functional
++
++_PAD_DT = -30.0  # pre-softplus dt on pad positions -> identity SSM step
++
++
++class PatchedNemotronHModel(modeling_nemotron_h.NemotronHModel):
++  """Export-friendly NemotronH model (class swap; persists on the instance)."""
++
++  # transformers >= 5.14 gates experts_implementation on a module-source
++  # heuristic that the swapped class fails; same shim as granite's.
++  _can_set_experts_implementation_cached_value = True
++
++  def forward(self, input_ids=None, **kwargs):
++    valid = (input_ids != 0).to(torch.float32) if input_ids is not None else None
++    n_patched = 0
++    for module in self.modules():
++      if isinstance(module, PatchedNemotronHMamba2Mixer):
++        module._litert_valid = valid
++        n_patched += 1
++    if n_patched == 0 and "linear_attention" in getattr(
++        self.config, "layer_types", ()
++    ):
++      # The silent-failure mode this patch once shipped with: mixers built
++      # from an import-time class registry are NOT instances of the patched
++      # class, the reference scan traces instead, and every parity gate still
++      # passes. Fail loudly instead.
++      raise AssertionError(
++          "No patched NemotronH mixers found on the model - the class swap "
++          "did not reach the instances (MIXER_TYPES registry?)."
++      )
++    return super().forward(input_ids=input_ids, **kwargs)
++
++
++def _folded_torch_forward_nemotron(
++    self, input_states, cache_params=None, attention_mask=None
++):
++  """granite's folded rank<=4 SSD scan, ported to NemotronHMamba2Mixer.
++
++  Identical to granitemoehybrid._folded_torch_forward except the dt clamp
++  (min-only, matching the installed NemotronH reference). Helper functions are
++  granite's own.
++  """
++  del attention_mask  # the pad mask arrives via `_litert_valid`
++  _ones_row = granite_patch._ones_row
++  _cumsum_last = granite_patch._cumsum_last
++  _exp_segment_sum_from_cumsum = granite_patch._exp_segment_sum_from_cumsum
++  _repeat_groups = granite_patch._repeat_groups
++  _repeat_groups_step = granite_patch._repeat_groups_step
++  _zeros_cat = granite_patch._zeros_cat
++
++  batch_size, seq_len, _ = input_states.shape
++  dtype = input_states.dtype
++  H, P, N = self.num_heads, self.head_dim, self.ssm_state_size
++  n_groups = self.n_groups
++  rep = H // n_groups
++
++  valid = getattr(self, "_litert_valid", None)
++  if valid is not None and seq_len > 1:
++    valid = valid.to(dtype)
++    input_states = input_states * valid[..., None]
++  else:
++    valid = None
++
++  projected_states = self.in_proj(input_states)
++  # NemotronH's 5-way split has two d_mlp slices that are width-0 on every
++  # published config (asserted at patch time) -> granite's 3-way split.
++  gate, hidden_states_B_C, dt = projected_states.split(
++      [self.intermediate_size, self.conv_dim, self.num_heads], dim=-1
++  )
++  hidden_states_B_C = hidden_states_B_C.transpose(1, 2)
++
++  if valid is not None:
++    dt = dt * valid[..., None] + (1.0 - valid[..., None]) * _PAD_DT
++
++  use_precomputed_states = cache_params is not None and cache_params.has_previous_state(
++      self.layer_idx
++  )
++  if use_precomputed_states:
++    conv_state = cache_params.layers[self.layer_idx].conv_states[0]
++
++  single_step = use_precomputed_states and seq_len == 1
++
++  # 2. Convolution sequence transformation
++  if single_step:
++    conv_states = cache_params.update_conv_state(hidden_states_B_C, self.layer_idx)[
++        ..., -self.conv_kernel_size :
++    ]
++    hidden_states_B_C = torch.sum(
++        conv_states * self.conv1d.weight.squeeze(1), dim=-1
++    )
++    if self.use_conv_bias:
++      hidden_states_B_C = hidden_states_B_C + self.conv1d.bias
++    hidden_states_B_C = self.act(hidden_states_B_C)
++  else:
++    if use_precomputed_states:
++      hidden_states_B_C = torch.cat([conv_state, hidden_states_B_C], dim=-1)
++    if cache_params is not None:
++      if valid is not None:
++        _w = hidden_states_B_C.shape[-1]
++        _K = self.conv_kernel_size
++        _seq = valid.shape[-1]
++        _lead = torch.zeros(
++            hidden_states_B_C.shape[:-1] + (_K,),
++            device=hidden_states_B_C.device,
++            dtype=hidden_states_B_C.dtype,
++        )
++        _padded = torch.cat([_lead, hidden_states_B_C], dim=-1)
++        # KEEP THE BATCH DIMENSION (rank-0 in broadcast arithmetic is
++        # silently miscomputed on GPU delegates; float32 index math because
++        # int64 CAST/ADD is refused) — see granitemoehybrid/patch.py.
++        _valid_len = valid.sum(-1, keepdim=True).to(_padded.dtype)  # (B, 1)
++        _base = float(_w - _seq) + _valid_len  # (B, 1)
++        _idx = _base + torch.arange(
++            _K, device=_padded.device, dtype=_padded.dtype
++        )  # (B, K)
++        _cols = torch.arange(
++            _w + _K, device=_padded.device, dtype=_padded.dtype
++        )  # (P,)
++        _sel = torch.relu(
++            1.0 - torch.abs(_cols[None, :, None] - _idx[:, None, :])
++        )  # (B, P, K)
++        conv_states = torch.matmul(_padded, _sel)
++      else:
++        conv_states = F.pad(
++            hidden_states_B_C,
++            (self.conv_kernel_size - hidden_states_B_C.shape[-1], 0),
++        )
++      cache_params.update_conv_state(conv_states, self.layer_idx)
++
++    hidden_states_B_C = self.act(
++        self.conv1d(hidden_states_B_C)[..., : hidden_states_B_C.shape[-1]]
++    )
++    if use_precomputed_states:
++      hidden_states_B_C = hidden_states_B_C[..., -seq_len:]
++    hidden_states_B_C = hidden_states_B_C.transpose(1, 2)
++
++  if valid is not None:
++    hidden_states_B_C = hidden_states_B_C * valid[..., None]
++
++  hidden_states, B, C = torch.split(
++      hidden_states_B_C,
++      [self.intermediate_size, n_groups * N, n_groups * N],
++      dim=-1,
++  )
++
++  # 3. SSM transformation
++  A = -torch.exp(self.A_log.float())  # (H,)
++
++  if single_step:
++    dt = F.softplus(dt[:, 0, :] + self.dt_bias)  # (b, H)
++    dt = torch.clamp(dt, self.time_step_min)  # NemotronH: min-only clamp
++    dA = torch.exp(dt * A)  # (b, H)
++
++    x = hidden_states.reshape(batch_size, H, P)  # (b, H, P)
++    if n_groups == 1:
++      Bh = B.reshape(batch_size, 1, N)
++      Ch = C.reshape(batch_size, 1, N)
++    elif rep > 1:
++      Bh = _repeat_groups_step(B, n_groups, rep, N)  # (b, H, N)
++      Ch = _repeat_groups_step(C, n_groups, rep, N)
++    else:
++      Bh = B.reshape(batch_size, H, N)
++      Ch = C.reshape(batch_size, H, N)
++
++    dBx = dt[:, :, None, None] * Bh[:, :, None, :] * x[:, :, :, None]  # (b,H,P,N)
++    prev = cache_params.layers[self.layer_idx].recurrent_states[0]
++    ssm_state = prev.to(dBx.dtype) * dA[:, :, None, None] + dBx
++    ssm_state = cache_params.update_recurrent_state(ssm_state, self.layer_idx)
++
++    y = (ssm_state.to(Ch.dtype) * Ch[:, :, None, :]).sum(-1)  # (b, H, P)
++    y = y + x * self.D[None, :, None]
++    y = y.reshape(batch_size, -1)[:, None, ...]  # (b, 1, intermediate)
++  else:
++    cl = self.chunk_size
++    pad_size = (cl - seq_len % cl) % cl
++    seq_p = seq_len + pad_size
++    c = seq_p // cl
++
++    dt = F.softplus(dt + self.dt_bias)  # (b, seq, H)
++    dt = torch.clamp(dt, self.time_step_min)  # NemotronH: min-only clamp
++    # Pad positions must be EXACT identity steps. The -30 pre-softplus trick
++    # (granite) is not enough here: granite clamps to time_step_limit[0]=0.0,
++    # but NemotronH's min-only clamp FLOORS pad dt at time_step_min (1e-3), so
++    # every pad decays the state by exp(time_step_min * A) — ~15% per 10 pads
++    # on A≈-16 heads, state-annihilating on large underfilled signatures.
++    # Post-clamp masking forces dA = exp(0) = 1 exactly on pads.
++    if valid is not None:
++      dt = dt * valid[..., None]
++
++    hidden_states = hidden_states.reshape(batch_size, seq_len, -1, P).float()
++    B = B.reshape(batch_size, seq_len, -1, N).float()
++    C = C.reshape(batch_size, seq_len, -1, N).float()
++    if rep > 1:
++      B = _repeat_groups(B, rep)
++      C = _repeat_groups(C, rep)
++
++    D_residual = self.D[..., None] * hidden_states  # (b, seq, H, P)
++    hidden_states = hidden_states * dt[..., None]
++    A = A.to(hidden_states.dtype) * dt  # (b, seq, H)
++
++    if pad_size > 0:
++      hidden_states = _zeros_cat(hidden_states, pad_size, 1)
++      B = _zeros_cat(B, pad_size, 1)
++      C = _zeros_cat(C, pad_size, 1)
++      A = _zeros_cat(A, pad_size, 1)
++
++    def fold(t, last):  # (b, seq_p, H, last) -> (b*H*c, cl, last)
++      return t.permute(0, 2, 1, 3).reshape(batch_size * H * c, cl, last)
++
++    xf = fold(hidden_states, P)
++    bf = fold(B, N)
++    cf = fold(C, N)
++    af = A.permute(0, 2, 1).reshape(batch_size * H * c, cl)
++
++    a_cumsum = _cumsum_last(af)  # (bhc, cl)
++    Lf = _exp_segment_sum_from_cumsum(a_cumsum)  # (bhc, cl, cl)
++
++    G = torch.matmul(cf, bf.transpose(1, 2))  # (bhc, cl, cl)
++    M = G * Lf
++    Y_diag = torch.matmul(M, xf)  # (bhc, cl, P)
++
++    decay_states = torch.exp(a_cumsum[:, -1:] - a_cumsum)  # (bhc, cl)
++    B_decay = bf * decay_states[..., None]
++    states = torch.matmul(B_decay.transpose(1, 2), xf)  # (bhc, N, P)
++
++    states_bh = states.reshape(batch_size * H, c, N * P)
++    if use_precomputed_states:
++      prev = cache_params.layers[self.layer_idx].recurrent_states[0]  # (b,H,P,N)
++      prev = (
++          prev.to(states_bh.dtype)
++          .permute(0, 1, 3, 2)
++          .reshape(batch_size * H, 1, N * P)
++      )
++    else:
++      prev = torch.zeros_like(states_bh[:, :1])
++    states_bh = torch.cat([prev, states_bh], dim=1)  # (bH, c+1, N*P)
++
++    chunk_tail = a_cumsum[:, -1].reshape(batch_size * H, c)
++    chunk_tail = torch.cat(
++        [torch.zeros_like(chunk_tail[:, :1]), chunk_tail], dim=1
++    )  # (bH, c+1)
++    decay_chunk = _exp_segment_sum_from_cumsum(
++        _cumsum_last(chunk_tail)
++    )  # (bH, c+1, c+1)
++    new_states = torch.matmul(decay_chunk, states_bh)  # (bH, c+1, N*P)
++    states_out, ssm_state = new_states[:, :-1], new_states[:, -1]
++
++    st = states_out.reshape(batch_size * H * c, N, P)
++    Y_off = torch.matmul(cf, st) * torch.exp(a_cumsum)[..., None]  # (bhc, cl, P)
++
++    y = Y_diag + Y_off
++    y = y.reshape(batch_size, H, seq_p, P).permute(0, 2, 1, 3)  # (b, seq_p, H, P)
++    if pad_size > 0:
++      y = y[:, :seq_len]
++    y = (y + D_residual).reshape(batch_size, seq_len, -1)
++
++    if cache_params is not None:
++      ssm_state = ssm_state.reshape(batch_size, H, N, P).permute(0, 1, 3, 2)
++      cache_params.update_recurrent_state(ssm_state, self.layer_idx)
++
++  scan_output = self.norm(y, gate)
++  return self.out_proj(scan_output.to(dtype))
++
++
++class PatchedNemotronHMamba2Mixer(modeling_nemotron_h.NemotronHMamba2Mixer):
++  torch_forward = _folded_torch_forward_nemotron
++
++
++def _assert_dmlp_zero():
++  """The 3-way split is valid only while projection carries no MLP slices."""
++  # projection_size = intermediate + conv_dim + heads  ->  d_mlp == 0
++  # (see NemotronHMamba2Mixer.__init__ and the d_mlp formula in torch_forward)
++  import inspect
++
++  src = inspect.getsource(modeling_nemotron_h.NemotronHMamba2Mixer.__init__)
++  if "projection_size = self.intermediate_size + self.conv_dim + self.num_heads" not in src:
++    raise AssertionError(
++        "NemotronHMamba2Mixer.in_proj projection layout changed upstream; "
++        "re-check the d_mlp slices before using the 3-way split."
++    )
++
++
++def _selfcheck_folded_nemotron(tol=2e-4):
++  """Run the ported folded scan against the installed NemotronH reference."""
++  from transformers.models.nemotron_h.configuration_nemotron_h import (
++      NemotronHConfig,
++  )
++
++  torch.manual_seed(0)
++  cfg = NemotronHConfig(
++      hidden_size=64,
++      num_hidden_layers=1,
++      hybrid_override_pattern="M",
++      mamba_num_heads=8,
++      mamba_head_dim=16,
++      ssm_state_size=16,
++      expand=2,
++      chunk_size=8,
++      n_groups=2,
++      conv_kernel=4,
++  )
++  layer = modeling_nemotron_h.NemotronHMamba2Mixer(cfg, layer_idx=0).eval().float()
++  worst = 0.0
++  for seq in (16, 13):
++    x = torch.randn(1, seq, cfg.hidden_size)
++    with torch.no_grad():
++      ref = modeling_nemotron_h.NemotronHMamba2Mixer.torch_forward(layer, x)
++      new = _folded_torch_forward_nemotron(layer, x)
++    worst = max(worst, (ref - new).abs().max().item() / ref.abs().max().item())
++  if worst > tol:
++    raise AssertionError(
++        "NemotronH folded SSD disagrees with the installed transformers "
++        f"implementation (relative max|diff| {worst:.2e} > {tol:.0e})."
++    )
++  return worst
++
++
++@patches_lib.register_patch(["nemotron_h"])
++@contextlib.contextmanager
++def nemotron_h_litert_patch():
++  _assert_dmlp_zero()
++  rel = _selfcheck_folded_nemotron()
++  print(
++      "NemotronH patch applied (granite folded rank<=4 SSD + pad guard, "
++      f"min-only dt clamp; self-check rel {rel:.1e})."
++  )
++  original_model = modeling_nemotron_h.NemotronHModel
++  original_mixer = modeling_nemotron_h.NemotronHMamba2Mixer
++  # ⚠ NemotronHBlock picks mixer classes from the MODULE-LEVEL dict
++  # MIXER_TYPES (bound at import time) — swapping the module attribute alone
++  # NEVER reaches instances. This bit missing meant the whole 4B exported the
++  # REFERENCE scan with no guard and no folded rewrite, and every parity gate
++  # passed anyway (the reference math is correct math; only the pad sweep and
++  # the GPU sieve can tell the difference). Swap the dict entry too.
++  original_dict_mixer = modeling_nemotron_h.MIXER_TYPES["linear_attention"]
++  modeling_nemotron_h.NemotronHModel = PatchedNemotronHModel
++  modeling_nemotron_h.NemotronHMamba2Mixer = PatchedNemotronHMamba2Mixer
++  modeling_nemotron_h.MIXER_TYPES["linear_attention"] = PatchedNemotronHMamba2Mixer
++  try:
++    yield
++  finally:
++    modeling_nemotron_h.NemotronHModel = original_model
++    modeling_nemotron_h.NemotronHMamba2Mixer = original_mixer
++    modeling_nemotron_h.MIXER_TYPES["linear_attention"] = original_dict_mixer
