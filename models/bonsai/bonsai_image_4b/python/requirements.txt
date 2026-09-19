@@ -2,4 +2,5 @@ ai-edge-litert
 numpy
 pillow
 transformers
+jinja2
 huggingface_hub

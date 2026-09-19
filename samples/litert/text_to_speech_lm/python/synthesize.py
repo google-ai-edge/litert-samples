@@ -19,7 +19,7 @@ Example:
         --text "Hello from LiteRT running fully on device." \
         --output hello.wav
 
-The first run downloads ~1.4 GB (int4 talker + fp32 MTP/codec + tables) from
+The first run downloads 1.9 GB (int4 talker + fp32 MTP/codec + tables) from
 https://huggingface.co/litert-community/Qwen3-TTS-12Hz-0.6B-Base.
 """
 

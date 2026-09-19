@@ -3,7 +3,7 @@
 The whole diffusion pipeline runs in three LiteRT graphs (text encoder, DiT,
 VAE decoder); this script is only the host loop: tokenize, FlowMatch-Euler
 sampling, latent unpatchify, PNG save. Dependencies: numpy, Pillow,
-ai-edge-litert, transformers (tokenizer only).
+ai-edge-litert, transformers (tokenizer only) and jinja2 (its chat template).
 
     python generate.py --model-dir <dir> --prompt "a bonsai tree" --out out.png
 
@@ -19,7 +19,8 @@ import os
 import time
 
 import numpy as np
-from ai_edge_litert.interpreter import Interpreter
+from ai_edge_litert.compiled_model import CompiledModel
+from ai_edge_litert.options import CpuOptions, Options
 from PIL import Image
 from transformers import AutoTokenizer
 
@@ -27,29 +28,44 @@ SEQ, TOKENS, LAT_GRID = 256, 1024, 32   # 512x512: 32x32 patch grid, 64x64 laten
 
 
 class Graph:
-    """Fixed-shape tflite runner, inputs mapped by ARGUMENT POSITION.
+    """Fixed-shape tflite runner on the CompiledModel API, inputs mapped by
+    ARGUMENT POSITION.
 
     Never map by shape: the text encoder's input_ids and attention_mask are both
     (1, 256), and a shape-keyed map silently drops one of them. litert-torch
-    names inputs serving_default_args_<n> in the original forward() order.
+    names inputs args_<n> in the original forward() order. The tensor buffers
+    are created once and rewritten on every call.
     """
 
     def __init__(self, path, threads=os.cpu_count()):
-        self.it = Interpreter(model_path=path, num_threads=threads)
-        self.it.allocate_tensors()
+        self.model = CompiledModel.from_file(
+            path, options=Options(cpu_options=CpuOptions(num_threads=threads)))
+        self.sig = next(iter(self.model.get_signature_list()))
 
-        def argpos(d):
-            parts = d["name"].rsplit("args_", 1)
-            return int(parts[1].split(":")[0]) if len(parts) == 2 else 0
+        def argpos(name):
+            parts = name.rsplit("args_", 1)
+            return int(parts[1]) if len(parts) == 2 else 0
 
-        self.inputs = sorted(self.it.get_input_details(), key=argpos)
-        self.output = self.it.get_output_details()[0]
+        details = self.model.get_input_tensor_details(self.sig)
+        self.inputs = sorted(details.items(), key=lambda kv: argpos(kv[0]))
+        self.in_bufs = {n: self.model.create_input_buffer_by_name(self.sig, n)
+                        for n, _ in self.inputs}
+        self.out_name, self.output = next(
+            iter(self.model.get_output_tensor_details(self.sig).items()))
+        self.out_buf = self.model.create_output_buffer_by_name(self.sig,
+                                                                 self.out_name)
 
     def __call__(self, *tensors):
-        for t, d in zip(tensors, self.inputs):
-            self.it.set_tensor(d["index"], np.asarray(t, dtype=d["dtype"]))
-        self.it.invoke()
-        return self.it.get_tensor(self.output["index"]).copy()
+        for t, (n, d) in zip(tensors, self.inputs):
+            a = np.asarray(t, dtype=d["dtype"])
+            if list(a.shape) != list(d["shape"]):   # write() does not check
+                raise ValueError(f"{n}: expected {d['shape']}, got {list(a.shape)}")
+            self.in_bufs[n].write(a)
+        self.model.run_by_name(self.sig, self.in_bufs,
+                               {self.out_name: self.out_buf})
+        shape = self.output["shape"]
+        return self.out_buf.read(int(np.prod(shape)),
+                                 np.dtype(self.output["dtype"])).reshape(shape)
 
 
 def flowmatch_sigmas(steps):
