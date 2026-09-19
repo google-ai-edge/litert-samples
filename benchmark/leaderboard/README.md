@@ -22,7 +22,7 @@ the group (LiteRT-LM rows listed by model, device and backend); a comparison hol
 | Accelerator | `cpu` or `gpu` with the delegate `runtime_info.pb` names (the log's name where a session has no such file); nodes delegated N/M counts the primary subgraph's nodes that delegate replaced, so a `gpu` row with a low N ran most of the graph on the CPU, and partitions is the runtime's count for the whole graph (the delegate's runs and the runs that stay off it); n/a where a session has no `runtime_info.pb` and its log no `Replacing N out of M` line |
 | Median, Avg, p95, Init, First inference, Footprint, Runs | `results.pb` (`tflite.tools.benchmark.BenchmarkResult`): latency in ms, overall memory footprint in MB, and the inference runs completed; each row reports p95 and the run count from a single session |
 | Runtime, Date | the `benchmark_model` release; the row's Binary field names the build it ran (a bucket object, or the source tag for iOS). Date is the day the outputs were written or pulled |
-| Prefill, Decode, First token, Init, Tokens, Iterations (LiteRT-LM rows) | the `LitertLmMetricsList` the binary writes with `--metric_proto_file_path`: tokens/s and time to first token as the median over the run's iterations (each iteration's values stay in the row), Init from the first one; Tokens is the prefill and decode count the run asked for; Runtime is the LiteRT-LM release, or `latest@<date>` with the object's sha256 in Binary |
+| Prefill, Decode, First token, Init, Tokens, Iterations (LiteRT-LM rows) | the `LitertLmMetricsList` the binary writes with `--metric_proto_file_path`: tokens/s and time to first token as the median over the run's iterations after the warm-up one (each iteration's values stay in the row), Init from the run's one engine creation, a cold start; Tokens is the prefill and decode count the run asked for, Iterations the count with the warm-up in parentheses; Runtime is the LiteRT-LM release, or `latest@<date>` with the object's sha256 in Binary, and Libraries the shared libraries pushed beside the binary |
 
 ## How a row is made
 
@@ -57,9 +57,11 @@ python3 ../driver/collect.py ~/.cache/litert-cli/ddp/session-fff9643f --model li
 python3 ../driver/build_board.py
 ```
 
-5. LiteRT-LM rows: a Device Run session pushes the binary `matrix.yaml` names under `runtime_lm` and the bundle, runs
-   `../driver/litert_lm_harness.sh` (`--runs=cpu,gpu`, the token counts) and pulls `/data/local/tmp/output`; collect
-   that directory (here copied under `~/.cache/litert-samples-benchmark/lm/`), rebuild, look at the page, then commit `data/`:
+5. LiteRT-LM rows: a Device Run session pushes the binary and the libraries `matrix.yaml` names under `runtime_lm`
+   and the bundle into one directory, runs `../driver/litert_lm_harness.sh` there (`--runs=cpu,gpu`, the token counts,
+   `--num_iterations=5`; the caches stay on and the harness removes an earlier run's cache files first) and pulls
+   `/data/local/tmp/output`; collect that directory (here copied under `~/.cache/litert-samples-benchmark/lm/`; the
+   medians leave out the first iteration, `runtime_lm.warmup_iterations`), rebuild, look at the page, then commit `data/`:
 
 ```bash
 python3 ../driver/collect_lm.py ~/.cache/litert-samples-benchmark/lm/session-a9ec9593/output --model litert-community/Qwen3-0.6B --file qwen3_0_6b_mixed_int4.litertlm --device-id caiman-35 --session session-a9ec9593 --model-size-mb 497.66

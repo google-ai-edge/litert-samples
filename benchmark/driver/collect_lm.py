@@ -9,16 +9,17 @@ per `--num_iterations`), `<run>.log` (its stdout, which names the GPU API) and
 repeats. This script decodes the protos with protoc against LiteRT-LM's
 `litert_lm_metrics.proto` (fetched once into the cache at the ref matrix.yaml
 names) and writes one row per run to measurements-lm.jsonl: prefill and decode
-tokens/s and time to first token as the median over the iterations, init from
-the first iteration, every iteration kept in the row. A row with the same
-row_id replaces the earlier one; a run without a decodable proto is reported
-on stderr and not written.
+tokens/s and time to first token as the median over the iterations after the
+warm-up ones (--warmup-iterations, matrix.yaml `runtime_lm.warmup_iterations`),
+init from the run's one engine creation, every iteration kept in the row. A row
+with the same row_id replaces the earlier one; a run without a decodable proto,
+or with no iteration beyond the warm-up, is reported on stderr and not written.
 
 Usage:
   collect_lm.py OUTPUT_DIR --model litert-community/Qwen3-0.6B --file qwen3_0_6b_mixed_int4.litertlm
                 --device-id caiman-35 --session session-1234abcd
                 [--platform android] [--runner ddp-http] [--task text-generation]
-                [--runtime-version latest@2026-09-18] [--binary ...] [--max-num-tokens 1280]
+                [--runtime-version latest@2026-09-18] [--binary ...] [--max-num-tokens 1280] [--warmup-iterations 1]
                 [--model-size-mb 497.66] [--matrix matrix.yaml] [--data-dir ../leaderboard/data] [--date YYYY-MM-DD]
 """
 
@@ -148,6 +149,7 @@ def main() -> int:
     p.add_argument("--binary", help="the binary the rows ran; matrix.yaml runtime_lm.binary (+ sha256) when omitted")
     p.add_argument("--proto-ref", help="LiteRT-LM git ref for the protos; matrix.yaml runtime_lm.proto_ref, else main")
     p.add_argument("--max-num-tokens", type=int, help="the --max_num_tokens the run used; provenance.txt when omitted")
+    p.add_argument("--warmup-iterations", type=int, help="leading iterations left out of the medians; matrix.yaml runtime_lm.warmup_iterations, else 0")
     p.add_argument("--model-size-mb", type=float, help="the bundle's size in MB (bytes / 1e6, as benchmark_model reports); shown as Model size")
     p.add_argument("--device", help="device name; matrix.yaml devices when omitted")
     p.add_argument("--os", help="OS shown with the device; matrix.yaml devices when omitted")
@@ -177,6 +179,7 @@ def main() -> int:
     if max_tokens is None and prov.exists():
         m = re.search(r"max_num_tokens: (\d+)", prov.read_text(errors="replace"))
         max_tokens = int(m.group(1)) if m else None
+    warmup = args.warmup_iterations if args.warmup_iterations is not None else int(lm.get("warmup_iterations") or 0)
 
     rows, failed = [], 0
     for pb in sorted(out.glob("metrics_*.pb")):
@@ -191,6 +194,11 @@ def main() -> int:
             print(f"FAILED {out.name}/{run}: no decodable LitertLmMetrics in {pb.name}", file=sys.stderr)
             failed += 1
             continue
+        measured = its[warmup:]
+        if not measured:
+            print(f"FAILED {out.name}/{run}: {len(its)} iteration(s), none beyond the {warmup} warm-up", file=sys.stderr)
+            failed += 1
+            continue
         P, D = its[0]["prefill_tokens"], its[0]["decode_tokens"]
         date = args.date or dt.datetime.fromtimestamp(pb.stat().st_mtime, dt.timezone.utc).date().isoformat()
         row = {
@@ -200,24 +208,25 @@ def main() -> int:
             "platform": args.platform, "device_id": args.device_id,
             "device": args.device or entry.get("name", args.device_id), "os": args.os or entry.get("os"),
             "accelerator": backend, "delegate": gpu_api(out / f"{run}.log") if backend != "cpu" else None,
-            "conditions": {"prefill_tokens": P, "decode_tokens": D, "max_num_tokens": max_tokens, "iterations": len(its)},
+            "conditions": {"prefill_tokens": P, "decode_tokens": D, "max_num_tokens": max_tokens,
+                           "iterations": len(its), "warmup_iterations": warmup},
             "metrics": {
-                "prefill_tok_s": median([i["prefill_tok_s"] for i in its]),
-                "decode_tok_s": median([i["decode_tok_s"] for i in its]),
-                "ttft_s": median([i["ttft_s"] for i in its]),
+                "prefill_tok_s": median([i["prefill_tok_s"] for i in measured]),
+                "decode_tok_s": median([i["decode_tok_s"] for i in measured]),
+                "ttft_s": median([i["ttft_s"] for i in measured]),
                 "init_total_ms": its[0]["init_total_ms"], "init_executor_ms": its[0]["init_executor_ms"],
-                "peak_mem_mb": median([i["peak_mem_mb"] for i in its]),
+                "peak_mem_mb": median([i["peak_mem_mb"] for i in measured]),
             },
             "iterations": [{k: i[k] for k in ("prefill_tok_s", "decode_tok_s", "ttft_s", "init_total_ms")} for i in its],
-            "runtime": "litert-lm", "runtime_version": version, "binary": binary,
+            "runtime": "litert-lm", "runtime_version": version, "binary": binary, "libs": lm.get("libs"),
             "runner": args.runner, "session": args.session, "job": run, "repeat": repeat,
             "source": "metrics.pb", "status": "measured", "date": date,
         }
         rows.append(row)
         mt = row["metrics"]
         print(f"{args.session}/{run}: {args.file} {args.platform} {row['device']} {backend} prefill {mt['prefill_tok_s']} tok/s,"
-              f" decode {mt['decode_tok_s']} tok/s, ttft {mt['ttft_s']} s, init {mt['init_total_ms']} ms, {len(its)} iteration(s)"
-              f" ({row['delegate'] or 'cpu'}), metrics.pb")
+              f" decode {mt['decode_tok_s']} tok/s, ttft {mt['ttft_s']} s, init {mt['init_total_ms']} ms,"
+              f" {len(its)} iteration(s) with {warmup} warm-up ({row['delegate'] or 'cpu'}), metrics.pb")
     if rows:
         args.data_dir.mkdir(parents=True, exist_ok=True)
         path = args.data_dir / "measurements-lm.jsonl"

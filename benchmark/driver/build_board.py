@@ -62,9 +62,12 @@ def newest_rows(rows: list[dict], key_fields) -> list[dict]:
 
 
 def build_lm(rows: list[dict], order: dict[str, int]) -> list[dict]:
-    """LiteRT-LM rows: one per model file, platform, device, backend and token condition."""
+    """LiteRT-LM rows: one per model file, platform, device, backend and token counts."""
+    def token_counts(r: dict) -> tuple:
+        c = r.get("conditions", {})
+        return (c.get("prefill_tokens"), c.get("decode_tokens"), c.get("max_num_tokens"))
     picked = newest_rows(rows, lambda r: (r["model"], r["file"], r["platform"], r["device_id"], r["accelerator"],
-                                          json.dumps(r.get("conditions", {}), sort_keys=True), r.get("repeat", 1)))
+                                          token_counts(r), r.get("repeat", 1)))
     for r in picked:
         order.setdefault(r["platform"], len(order))
     return sorted(picked, key=lambda r: (order[r["platform"]], r["model"], r["file"], r["device"], r["accelerator"],

@@ -2,16 +2,20 @@
 # litert_lm_harness.sh
 #
 # Runs LiteRT-LM's litert_lm_advanced_main --benchmark on one Android device,
-# once per entry in --runs (a backend name; repeat it for a second run), and
-# keeps everything a run produces under one output directory so a Device Run
-# session can pull it:
+# once per entry in --runs (a backend name; repeat it for a second run), with
+# --dir on LD_LIBRARY_PATH so the shared libraries pushed beside the binary
+# load, and keeps everything a run produces under one output directory so a
+# Device Run session can pull it:
 #   <run>.log          the binary's stdout + stderr (BenchmarkInfo is here)
 #   <run>.exit         its exit code
 #   metrics_<run>.pb   litert.lm.proto.LitertLmMetricsList (--metric_proto_file_path)
 #   <run>_logcat.txt   logcat for that run
-#   provenance.txt     device props, sha256 of the binary, the .so set and the model
+#   provenance.txt     device props, sha256 of the binary, the .so set and the model,
+#                      the cache files removed before each run, thermal status around it
 # <run> is the backend name, with _2, _3 ... appended for repeats (cpu, gpu, cpu_2, gpu_2).
-# Any other --flag is passed to the binary unchanged.
+# Any other --flag is passed to the binary unchanged. The weight and GPU program
+# caches an earlier run left beside the bundle are removed before each run, so
+# every run's Init is a cold start.
 #
 # Shape follows litert-samples benchmark/multi_benchmark_harness.sh.
 # Compatible with Android /system/bin/sh (toybox / mksh).
@@ -127,6 +131,9 @@ for BACKEND in $RUN_LIST; do
   LOGCAT_FILE="$OUTPUT_DIR/${RUN}_logcat.txt"
   METRICS_FILE="$OUTPUT_DIR/metrics_$RUN.pb"
 
+  CACHES=$(ls "$DIR"/*.xnnpack_cache* "$DIR"/*_mldrift_*cache*.bin "$DIR"/*.mtp_drafter* 2>/dev/null | tr '\n' ' ')
+  rm -f "$DIR"/*.xnnpack_cache* "$DIR"/*_mldrift_*cache*.bin "$DIR"/*.mtp_drafter*
+  echo "caches removed before [$RUN]:${CACHES:+ $CACHES}" >> "$PROV"
   echo "thermal before [$RUN]: $(dumpsys thermalservice 2>/dev/null | grep -m1 'Thermal Status' || echo unavailable)" >> "$PROV"
   logcat -c 2>/dev/null || true
 
