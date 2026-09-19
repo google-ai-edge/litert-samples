@@ -34,10 +34,14 @@ Three graphs, one flat float input and one flat float output each:
 Why each rewrite exists (all of these are silent failures without it):
 
   * >4-D ViT attention. The stock trunk builds 5-D/6-D/8-D tensors (fused qkv
-    head split, window partition, tiled absolute position, interleaved RoPE).
-    The GPU delegates reject >4-D tensors, and the converter itself mis-lowers
-    them: a raw export of the trunk reaches only corr 0.607 against PyTorch
-    while the re-authored one reaches corr 1.00000. See `patch_vit_4d`.
+    head split, window partition, tiled absolute position, interleaved RoPE),
+    and the GPU delegates reject >4-D tensors. A raw export of the trunk also
+    reaches only corr 0.607 against PyTorch. That number comes from
+    google-ai-edge/litert-torch#1061 (the RoPE cos and sin are `.real` /
+    `.imag` views of one complex buffer, and the converter merges two
+    non-contiguous constants of one shape), not from the >4-D ops. Baking cos
+    and sin as contiguous buffers sidesteps it, and the re-authored trunk
+    reaches corr 1.00000. See `patch_vit_4d`.
   * Interleaved RoPE. The (2p, 2p+1) pair rotation is folded into the rows of
     the qkv projection so the rotation becomes a contiguous half-split. The
     same permutation is applied to q and k, and q.k is invariant under a shared
