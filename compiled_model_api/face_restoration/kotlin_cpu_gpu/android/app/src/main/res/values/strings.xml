@@ -1,0 +1,14 @@
+<resources>
+    <string name="app_name" translatable="false">Face Restoration</string>
+    <string name="action_pick_image">Select face photo</string>
+    <string name="status_loading">Loading GFPGAN + YuNet on GPU…</string>
+    <string name="status_processing">Restoring…</string>
+    <string name="status_ready">Ready — select a face photo</string>
+    <string name="status_result" translatable="false">Restored 512×512 · GFPGAN · CompiledModel GPU · %1$d ms</string>
+    <string name="label_original">Original</string>
+    <string name="label_restored">Restored (GPU)</string>
+    <string name="error_model_missing">Model not found. Push it first with install_to_device.sh:\n%1$s</string>
+    <string name="error_model_load">Failed to load model</string>
+    <string name="error_load_image">Failed to load image</string>
+    <string name="error_restore_failed">Restoration failed</string>
+</resources>
