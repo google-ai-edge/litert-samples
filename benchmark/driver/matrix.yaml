@@ -48,6 +48,38 @@ platforms:
     # which builds benchmark_model from LiteRT's source and runs it on a phone.
     # The session names the phone, its OS and the source tag (see ../ios/README.md).
 
+runtime_lm:
+  # LiteRT-LM's benchmark binary the LLM rows ran, from the bucket's litert_lm
+  # directory (`latest` moves, so the rows keep the object's date in the version
+  # and its sha256 in the binary field), the shared libraries the session pushes
+  # beside it (the binary loads them from its own directory), the git ref its
+  # metrics proto is read at, the flags every run passes, the token counts of the
+  # default condition and the leading iterations the medians leave out.
+  version: "latest@2026-09-18"
+  binary: latest/android_arm64/litert_lm/litert_lm_advanced_main
+  sha256: adac974bea147273b5bc64232d808905667eee69587161368146680df92e2d06
+  libs:
+    # The binary links libGemmaModelConstraintProvider.so at start and the bucket
+    # directory does not carry it yet, so the session pushes LiteRT-LM's prebuilt
+    # copy (git LFS, prebuilt/android_arm64 at 4453b286). The other two are the
+    # directory's OpenCL accelerator and GPU sampler, loaded for the gpu backend.
+    - {name: libGemmaModelConstraintProvider.so, source: "LiteRT-LM prebuilt/android_arm64@4453b286", sha256: f2aa38cecc5c728050652ffdbaed4c6f2d444e098e1ca3ecf8b85be46baae5b9}
+    - {name: libLiteRtOpenClAccelerator.so, source: latest/android_arm64/litert_lm, sha256: d9dd64c36f6e18661588e71cf6bad5860598e6ccd3a56dfb304c517f89ac609e}
+    - {name: libLiteRtTopKOpenClSampler.so, source: latest/android_arm64/litert_lm, sha256: 8e69e7d010e6787e34369b124b1eade0aa25d60b9d4bbed9dbb1a710901ff582}
+  proto_ref: v0.17.0   # the tag whose runtime/proto/litert_lm_metrics.proto decodes the metrics (unchanged on main)
+  flags: [--num_iterations=5]   # caches on; the harness removes an earlier run's cache files first, so Init is a cold start
+  warmup_iterations: 1   # the first iteration warms up; a row's medians are over the other four
+  # The short-context condition; a long-context condition comes later as rows of its own.
+  conditions: {prefill_tokens: 1024, decode_tokens: 256, max_num_tokens: 1280}
+
+lm_models:
+  # repo: Hugging Face repo. file: the .litertlm bundle. task: the repo's
+  # pipeline tag. backends: cpu, gpu (the binary's --backend values).
+  - repo: litert-community/Qwen3-0.6B
+    file: qwen3_0_6b_mixed_int4.litertlm
+    task: text-generation
+    backends: [cpu, gpu]
+
 models:
   # repo: Hugging Face repo. file: the one .tflite in it to measure. task: the
   # repo's pipeline tag (the board filters on it). accelerators: cpu, gpu.
