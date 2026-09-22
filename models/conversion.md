@@ -337,6 +337,8 @@ Vision, audio, diffusion and encoder models produce one or more `.tflite` graphs
 | Recipe | What it is | Lane |
 |---|---|---|
 | [`minicpm/minicpm5_2b/`](minicpm/minicpm5_2b/) | MiniCPM5-2B to `.litertlm`: CPU-and-GPU bundles, two post-export fixes measured, 8-question and metadata gates | LLM |
+| [`hunyuan/hy_mt2_1_8b/`](hunyuan/hy_mt2_1_8b/) | Hy-MT2-1.8B to `.litertlm`: the static rope baked before export and checked bitwise, an int8 bundle, 8-question and translation gates | LLM |
+| [`nemotron/nemotron_3_nano_4b/`](nemotron/nemotron_3_nano_4b/) | Nemotron-3-Nano-4B (a Mamba2-attention hybrid) to `.litertlm`: a patched litert-torch, post-hoc int8 on the linears and the embedding, GPU with `--cache no` | LLM |
 | [`bonsai/bonsai_image_4b/`](bonsai/bonsai_image_4b/) | Text-to-image diffusion: three `.tflite` graphs (text encoder, DiT, VAE decoder) with a Python host loop; ternary weights in the int4 block-32 container | `.tflite` |
 | [`qwen/qwen3_tts/`](qwen/qwen3_tts/) | Qwen3-TTS: three `.tflite` graphs plus host tables, verified step by step against PyTorch; a Tensor API implementation alongside | `.tflite` |
 | [`sam3/sam3_image/`](sam3/sam3_image/) | SAM 3 text-prompted detection and segmentation: three GPU-resident `.tflite` graphs, every step verified numerically | `.tflite` |
