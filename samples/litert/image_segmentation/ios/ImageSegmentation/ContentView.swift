@@ -22,7 +22,11 @@ struct ContentView: View {
     private let primaryColor = Color(red: 2/255.0, green: 15/255.0, blue: 89/255.0)  // #020F59
     private let accentColor = Color(red: 0/255.0, green: 201/255.0, blue: 158/255.0)  // #00C99E
 
+    #if targetEnvironment(simulator)
+    @State private var activeTab: AppTab = .gallery
+    #else
     @State private var activeTab: AppTab = .camera
+    #endif
     @State private var selectedAccelerator: AcceleratorOption = .gpu
     
     // Gallery Mode State

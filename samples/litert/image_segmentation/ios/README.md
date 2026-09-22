@@ -24,13 +24,13 @@ The app uses a SwiftUI interface paired with a pure Swift implementation (`LiteR
 
 | Component | File | Description |
 |-----------|------|-------------|
-| **LiteRTSegmenter** | `LiteRTSegmenter.swift` | Native Swift implementation utilizing LiteRT Swift bindings |
+| **LiteRTSegmenter** | `LiteRTSegmenter.swift` | Native Swift implementation utilizing LiteRT Swift bindings (`Environment`, `Options`, `CpuOptions`, `CompiledModel`, `TensorBuffer`) |
 | **ContentView** | `ContentView.swift` | Single-page UI displaying original vs mask images, performance timing, and accelerator selection |
 | **CameraManager** | `CameraManager.swift` | Manages AVFoundation camera capture session and frame streams |
 | **ImagePicker** | `ImagePicker.swift` | Wraps PHPickerViewController in UIViewControllerRepresentable for photo library access |
 | **ImageSegmentationApp** | `ImageSegmentationApp.swift` | Swift application entry point |
-| **CLiteRT.xcframework** | `CLiteRT.xcframework` | Precompiled LiteRT C framework |
-| **libLiteRtMetalAccelerator.dylib** | `libLiteRtMetalAccelerator.dylib` | Precompiled Metal compiler plugin |
+| **LiteRT** (Swift Package Product) | `LiteRT/Package.swift` (`CLiteRT.xcframework`) | LiteRT Swift bindings and precompiled C framework |
+| **LiteRtMetalAccelerator** (Swift Package Product) | `LiteRT/Package.swift` (`LiteRtMetalAccelerator.xcframework`) | Standalone Metal GPU accelerator framework embedded into `ImageSegmentation.app/Frameworks/` |
 
 ---
 
@@ -41,31 +41,27 @@ The app uses a SwiftUI interface paired with a pure Swift implementation (`LiteR
 2. Select the **ImageSegmentation** target.
 3. In **Signing & Capabilities**, select your **Personal Team** profile. The bundle identifier is configured to `com.google.ai.edge.ImageSegmentation`.
 
-### 2. Git LFS (Required for GPU Execution)
-The Metal compiler plugin (`libLiteRtMetalAccelerator.dylib`) is stored in the LiteRT repository via **Git LFS**. Before running the app, install Git LFS and pull the actual binary slices (otherwise Xcode will package Git pointer text files, and `dlopen` will fail at runtime):
-```bash
-# Install Git LFS via Homebrew
-brew install git-lfs
-
-# Initialize LFS in your global Git config
-git lfs install
-
-# Navigate to your LiteRT submodule and pull the binary
-cd path/to/LiteRT
-git lfs pull
-```
-
-### 3. Building `CLiteRT.xcframework` from Source
-The iOS application requires the `CLiteRT.xcframework` bundle to compile. Run the following Bazel command inside the LiteRT repository to build it from source:
+### 2. Building `CLiteRT` and `LiteRtMetalAccelerator` XCFrameworks from Source
+The iOS application links the `LiteRT` and `LiteRtMetalAccelerator` products from the local `LiteRT` Swift Package (`LiteRT/Package.swift`), which consume `prebuilt/CLiteRT.xcframework.zip` and `prebuilt/LiteRtMetalAccelerator.xcframework.zip`. Run the following Bazel commands inside the `LiteRT` repository to build both `.xcframework` archives:
 ```bash
 # Navigate to the LiteRT repository
 cd path/to/LiteRT
 
-# Build the xcframework target for iOS (device and simulator slices)
-bazel build -c opt litert/swift:CLiteRT
+# Build the CLiteRT and standalone LiteRtMetalAccelerator xcframework targets for iOS (device and simulator slices)
+bazel build -c opt //litert/swift:CLiteRT //litert/swift:LiteRtMetalAccelerator
 
-# Unzip and copy the compiled xcframework bundle to the project directory
-unzip bazel-bin/litert/swift/CLiteRT.xcframework.zip -d path/to/samples/litert/image_segmentation/ios/
+# Copy the compiled xcframework archives into LiteRT/prebuilt/ for the Swift Package
+mkdir -p prebuilt
+cp -f bazel-bin/litert/swift/CLiteRT.xcframework.zip prebuilt/
+cp -f bazel-bin/litert/swift/LiteRtMetalAccelerator.xcframework.zip prebuilt/
+```
+
+### 3. Download the Model File
+Because `selfie_multiclass_256x256.tflite` is excluded via `.gitignore`, download it into the `samples/litert/image_segmentation/ios/` directory before building in Xcode:
+```bash
+cd path/to/litert-samples/samples/litert/image_segmentation/ios
+curl -L -o selfie_multiclass_256x256.tflite \
+  https://storage.googleapis.com/mediapipe-models/image_segmenter/selfie_multiclass_256x256/float32/latest/selfie_multiclass_256x256.tflite
 ```
 
 ---
@@ -73,32 +69,38 @@ unzip bazel-bin/litert/swift/CLiteRT.xcframework.zip -d path/to/samples/litert/i
 ## How It Works
 
 ### CPU Backend (XNNPACK)
-CPU compilation uses standard hardware options (`kLiteRtHwAcceleratorCpu`), leveraging LiteRT's built-in multi-threaded XNNPACK delegate for efficient operator execution.
+CPU compilation uses the `LiteRT` Swift API (`Options` and `CpuOptions`), configuring XNNPACK delegate execution with 4 threads:
 
-```objc
-LiteRtOptions options = nullptr;
-LiteRtCreateOptions(&options);
-LiteRtSetOptionsHardwareAccelerators(options, kLiteRtHwAcceleratorCpu);
+```swift
+let options = try Options()
+try options.setHardwareAccelerators([.cpu])
+
+let cpuOptions = try CpuOptions()
+try cpuOptions.setKernelMode(.delegate)
+try cpuOptions.setNumThreads(4)
+try options.addConcreteOptions(cpuOptions)
 ```
 
 ### GPU Backend (Metal)
-To compilation-verify and execute operations on GPU:
-1. **Fallback bitmask**: The compilation options set a combined bitmask of `kLiteRtHwAcceleratorGpu | kLiteRtHwAcceleratorCpu`. This instructs LiteRT to compile supported operators for Metal and fall back to CPU for unsupported operators.
-2. **Dynamic Loading**: Since the GPU registry loads accelerator plugins dynamically at runtime, the compiler plugin `libLiteRtMetalAccelerator.dylib` is bundled under the app's `Frameworks/` directory and signed.
-3. **Library Directory Tag**: During environment creation, we pass the bundle's private frameworks folder path as `kLiteRtEnvOptionTagRuntimeLibraryDir` so the loader can locate the plugin:
-```objc
-NSString *frameworksPath = [[NSBundle mainBundle] privateFrameworksPath];
-LiteRtEnvOption env_options[1];
-env_options[0].tag = kLiteRtEnvOptionTagRuntimeLibraryDir;
-env_options[0].value.type = kLiteRtAnyTypeString;
-env_options[0].value.str_value = [frameworksPath UTF8String];
-LiteRtStatus status = LiteRtCreateEnvironment(1, env_options, &_env);
+To compile and execute operations on the Metal GPU backend:
+1. **Standalone `LiteRtMetalAccelerator.xcframework`**: Built via `bazel build -c opt //litert/swift:LiteRtMetalAccelerator`, linked and embedded into the app bundle (`Frameworks/LiteRtMetalAccelerator.framework/LiteRtMetalAccelerator`).
+2. **Automatic Environment Discovery**: When `try Environment()` is initialized in Swift, `Environment.swift` automatically locates `LiteRtMetalAccelerator.framework/LiteRtMetalAccelerator` inside the app bundle's `Frameworks/` directory and passes its path as `.runtimeLibraryDir`.
+3. **Hardware Accelerator Options**: Setting `[.gpu, .cpu]` instructs LiteRT to delegate supported operations to the dynamically loaded `LiteRtMetalAccelerator` plugin and fall back to CPU for unsupported operations:
+```swift
+let environment = try Environment()
+let options = try Options()
+try options.setHardwareAccelerators([.gpu, .cpu])
+let compiledModel = try CompiledModel(
+    filePath: modelPath,
+    environment: environment,
+    options: options
+)
 ```
 
 ---
 
 ## Model Information
 * **Name**: `selfie_multiclass_256x256.tflite`
-* **Source**: Official MediaPipe Selfie Multiclass model hosted on [Kaggle Models](https://www.kaggle.com/models/google/mediapipe/tfLite/selfie-multiclass-256x256).
+* **Source**: Official MediaPipe Selfie Multiclass model hosted on [Google APIs](https://storage.googleapis.com/mediapipe-models/image_segmenter/selfie_multiclass_256x256/float32/latest/selfie_multiclass_256x256.tflite).
 * **Input**: `1 x 256 x 256 x 3` (normalized float32 values in `[-1.0, 1.0]`)
 * **Output**: `1 x 256 x 256 x 6` (float32 values representing probabilities across 6 target segmentation classes)

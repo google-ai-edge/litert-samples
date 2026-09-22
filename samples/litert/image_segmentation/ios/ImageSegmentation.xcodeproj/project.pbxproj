@@ -16,7 +16,7 @@
 		A1B2C3D4E5F678901234020D /* image.jpeg in Resources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F678901234010D /* image.jpeg */; };
 		A1B2C3D4E5F6789012340203 /* logo.png in Resources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F678901234010F /* logo.png */; };
 		A1B2C3D4E5F6789012340501 /* LiteRT in Frameworks */ = {isa = PBXBuildFile; productRef = A1B2C3D4E5F6789012340601 /* LiteRT */; };
-		A1B2C3D4E5F678901234020F /* libLiteRtMetalAccelerator.dylib in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F678901234010E /* libLiteRtMetalAccelerator.dylib */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
+		A1B2C3D4E5F6789012340502 /* LiteRtMetalAccelerator in Frameworks */ = {isa = PBXBuildFile; productRef = A1B2C3D4E5F6789012340602 /* LiteRtMetalAccelerator */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXCopyFilesBuildPhase section */
@@ -26,7 +26,6 @@
 			dstPath = "";
 			dstSubfolderSpec = 10;
 			files = (
-				A1B2C3D4E5F678901234020F /* libLiteRtMetalAccelerator.dylib in Embed Frameworks */,
 			);
 			name = "Embed Frameworks";
 			runOnlyForDeploymentPostprocessing = 0;
@@ -44,7 +43,6 @@
 		A1B2C3D4E5F678901234010A /* selfie_multiclass_256x256.tflite */ = {isa = PBXFileReference; lastKnownFileType = file; path = selfie_multiclass_256x256.tflite; sourceTree = "<group>"; };
 		A1B2C3D4E5F678901234010D /* image.jpeg */ = {isa = PBXFileReference; lastKnownFileType = image.jpeg; path = image.jpeg; sourceTree = "<group>"; };
 		A1B2C3D4E5F678901234010F /* logo.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = logo.png; sourceTree = "<group>"; };
-		A1B2C3D4E5F678901234010E /* libLiteRtMetalAccelerator.dylib */ = {isa = PBXFileReference; lastKnownFileType = "compiled.mach-o.dylib"; path = libLiteRtMetalAccelerator.dylib; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -53,6 +51,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				A1B2C3D4E5F6789012340501 /* LiteRT in Frameworks */,
+				A1B2C3D4E5F6789012340502 /* LiteRtMetalAccelerator in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -92,7 +91,6 @@
 		A1B2C3D4E5F6789012340005 /* Frameworks */ = {
 			isa = PBXGroup;
 			children = (
-				A1B2C3D4E5F678901234010E /* libLiteRtMetalAccelerator.dylib */,
 			);
 			name = Frameworks;
 			sourceTree = "<group>";
@@ -127,6 +125,7 @@
 			name = ImageSegmentation;
 			packageProductDependencies = (
 				A1B2C3D4E5F6789012340601 /* LiteRT */,
+				A1B2C3D4E5F6789012340602 /* LiteRtMetalAccelerator */,
 			);
 			productName = ImageSegmentation;
 			productReference = A1B2C3D4E5F6789012340008 /* ImageSegmentation.app */;
@@ -389,7 +388,13 @@
 /* Begin XCSwiftPackageProductDependency section */
 		A1B2C3D4E5F6789012340601 /* LiteRT */ = {
 			isa = XCSwiftPackageProductDependency;
+			package = A1B2C3D4E5F6789012340701 /* XCLocalSwiftPackageReference "../../../../../LiteRT" */;
 			productName = LiteRT;
+		};
+		A1B2C3D4E5F6789012340602 /* LiteRtMetalAccelerator */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = A1B2C3D4E5F6789012340701 /* XCLocalSwiftPackageReference "../../../../../LiteRT" */;
+			productName = LiteRtMetalAccelerator;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};
