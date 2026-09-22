@@ -1,12 +1,12 @@
 ---
 name: litert-compiled-model-migration
-description: Rapidly migrate an Android application from legacy TensorFlow Lite (TFLite) to modern LiteRT CompiledModel API v2.1.6 in Open Source GitHub repositories. Supports True Async Execution (runAsync), Zero-Copy I/O Buffers, NPU JIT compilation, and automated 2-stage verification self-testing.
+description: Rapidly migrate an Android application from legacy TensorFlow Lite (TFLite) to the modern LiteRT CompiledModel API (2.x) in Open Source GitHub repositories. Covers buffer reuse, NPU JIT compilation, and automated 2-stage verification self-testing.
 ---
 
 # Skill: LiteRT Compiled Model Migration SKILL
 
 ## Description
-This skill guides an AI agent to rapidly migrate an Android application from legacy TensorFlow Lite (TFLite) to the modern LiteRT CompiledModel API v2.1.6 in **Open Source GitHub repositories**. It prioritizes a high-speed, 1st-pass **"Like for Like" baseline migration** with automated self-testing, and encourages advanced performance upgrades including **True Asynchronous Execution (`runAsync`)**, **Zero-Copy I/O Buffer Management**, and **NPU JIT compilation**.
+This skill guides an AI agent to rapidly migrate an Android application from legacy TensorFlow Lite (TFLite) to the modern LiteRT CompiledModel API (2.x) in **Open Source GitHub repositories**. It prioritizes a high-speed, 1st-pass **"Like for Like" baseline migration** with automated self-testing, and encourages advanced performance upgrades including **off-main-thread execution with buffer reuse** and **NPU JIT compilation**.
 
 ---
 
@@ -42,8 +42,7 @@ Before initiating the LiteRT Compiled Model Migration, please confirm your proje
    Which SDK distribution target should the project use?
    - [A] Standalone / Bundled LiteRT V2 (com.google.ai.edge.litert:litert) [Default]
          -> Bundles LiteRT runtime inside the APK for offline self-contained operation.
-   - [B] LiteRT-in-GMSCore (com.google.android.gms:play-services-litert) [Experimental / Future Release]
-         -> Dynamically requests runtime from Google Play Services, saving ~5 MB APK binary bloat.
+   - [B] LiteRT from Google Play services: no such artifact is published on Google Maven as of September 2026 (only the play-services-tflite-* Interpreter artifacts exist), so keep [A].
 
 3. Hardware Acceleration & Conditional INT8 Quantization:
    Do you want to enable NPU hardware acceleration via JIT on-device compilation?
@@ -55,7 +54,7 @@ Before initiating the LiteRT Compiled Model Migration, please confirm your proje
 
 4. Encouraged Performance Upgrades:
    Should the agent upgrade the calling code to use LiteRT's advanced features?
-   - [A] Yes (Enable True Async Execution runAsync & Zero-Copy I/O Buffers) [Default]
+   - [A] Yes (Move inference off the main thread and reuse buffers) [Default]
    - [B] No (Keep strict 1-to-1 synchronous baseline execution)
 
 5. Automated Pull Request Provisioning:
@@ -83,8 +82,7 @@ Inspect `libs.versions.toml` and `build.gradle.kts`:
   * `org.tensorflow:tensorflow-lite-select-tf-ops` *(Legacy Flex Delegate — see Deprecated API Remediation below)*
 * **Replace TFLite Support Image Preprocessing**: If the application uses legacy TFLite Support (`org.tensorflow.lite.support.image.ImageProcessor`, `ResizeOp`, `NormalizeOp`), **completely remove the Support library dependency**. Replace image scaling with `androidx.core.graphics.scale` (or `Bitmap.createScaledBitmap`) and replace normalization with direct memory-mapped pixel buffer writing (`ByteBuffer.allocateDirect` / `AHardwareBuffer`).
 * **Add Modern LiteRT**:
-  * *Standalone*: `implementation 'com.google.ai.edge.litert:litert:2.1.6'`
-  * *GMSCore*: `implementation 'com.google.android.gms:play-services-litert:16.0.0'`
+  * *Standalone*: `implementation 'com.google.ai.edge.litert:litert:2.2.0'` (the AAR bundles the GPU accelerator; no separate `litert-gpu` artifact exists for 2.x)
 * **IDE Portability**: Remove hardcoded `org.gradle.java.home` from `gradle.properties` and exclude `local.properties`.
 * **Kotlin Compiler DSL**: Use top-level `kotlin { compilerOptions { ... } }` outside `android { ... }`.
 
@@ -94,14 +92,14 @@ The agent must audit and replace all deprecated delegate APIs:
 
 1. **NNAPI Delegate (`NnApiDelegate`, `NnApiDelegate.Options`, `setUseNNAPI(true)`)**:
    * **Status**: Deprecated in Android 12+ and removed in LiteRT V2.
-   * **Remediation**: Remove `org.tensorflow.lite.delegates.NnApiDelegate` imports. Replace with `CompiledModel.Options(Accelerator.NPU)` combined with `Environment.create(BuiltinNpuAcceleratorProvider(context), envOptions)`. Implement an explicit `NPU -> GPU -> CPU` fallback cascade to handle non-NPU hardware smoothly.
+   * **Remediation**: Remove `org.tensorflow.lite.delegates.NnApiDelegate` imports. Replace with `CompiledModel.Options(Accelerator.NPU)` combined with `Environment.create(context, BuiltinNpuAcceleratorProvider(context), envOptions)`. Implement an explicit `NPU -> GPU -> CPU` fallback cascade to handle non-NPU hardware smoothly.
 
 2. **Flex Delegate (`SelectDelegate`, `org.tensorflow.lite.flex`, `select-tf-ops`)**:
    * **Status**: Deprecated and incompatible with LiteRT V2 zero-copy and NPU acceleration (bloats APK size by ~30 MB with full TF runtime).
    * **Remediation**:
      * Remove `org.tensorflow:tensorflow-lite-select-tf-ops` from `build.gradle.kts`.
      * Audit model ops using `litert_gpu_toolkit` or Flatbuffer inspection to identify unsupported Flex ops.
-     * Replace Flex ops by re-exporting the model via modern LiteRT converters (`litert_torch` / `LiteRT-torch` or `ai_edge_quantizer`), or implement native LiteRT custom ops via `litert/cc/litert_custom_op.h` if custom C++ math is required.
+     * Replace Flex ops by re-exporting the model via modern LiteRT converters (`litert_torch` / `LiteRT-torch` or `ai_edge_quantizer`), or, if custom C++ math is required, implement a native LiteRT custom op (see `litert/experimental/custom_ops` in the LiteRT repository).
 
 ### Step 3: Native Build Toolchain (`CMakeLists.txt` / NDK)
 For native C++ modules, update `CMakeLists.txt`:
@@ -121,13 +119,13 @@ target_link_libraries(your_native_lib
 ### Step 4: API & Lifecycle Refactoring (Rewrite Initialization & Dynamic Signatures)
 
 > [!IMPORTANT]
-> **Never Simple Swap**: Do **NOT** merely perform a search-and-replace of the `Interpreter` class. Rewrite the model initialization logic to instantiate `CompiledModel` with an explicit hardware fallback cascade (`NPU -> GPU -> CPU`). When NPU is selected, prioritize NPU JIT compilation by instantiating an explicit `Environment` object (`Environment.create(BuiltinNpuAcceleratorProvider(context), envOptions)`) configured with `DispatchLibraryDir` and `CompilerPluginLibraryDir` pointing to `context.applicationInfo.nativeLibraryDir`.
+> **Never Simple Swap**: Do **NOT** merely perform a search-and-replace of the `Interpreter` class. Rewrite the model initialization logic to instantiate `CompiledModel` with an explicit hardware fallback cascade (`NPU -> GPU -> CPU`). When NPU is selected, prioritize NPU JIT compilation by instantiating an explicit `Environment` object (`Environment.create(context, BuiltinNpuAcceleratorProvider(context), envOptions)`) configured with `Environment.Option.DispatchLibraryDir` and `Environment.Option.CompilerPluginLibraryDir` pointing to `context.applicationInfo.nativeLibraryDir`.
 
 | Legacy TFLite API | Modern LiteRT V2 Drop-in Replacement |
 |---|---|
 | `org.tensorflow.lite.Interpreter` | `com.google.ai.edge.litert.CompiledModel` |
 | `Interpreter(modelFile, options)` | `CompiledModel.create(modelPath, options, env)` *(via NPU Environment & Fallback Cascade)* |
-| `interpreter.run(input, output)` | `compiledModel.run(inputBuffers, outputBuffers)` |
+| `interpreter.run(input, output)` | `compiledModel.run(inputBuffers, outputBuffers)` (both `List<TensorBuffer>` from `createInputBuffers()` / `createOutputBuffers()`) |
 | `GpuDelegate()` / `NnApiDelegate()` | `CompiledModel.Options(Accelerator.GPU / NPU / CPU)` |
 | `org.tensorflow.lite.flex.FlexDelegate` | Native LiteRT op / `CompiledModel.Options(Accelerator.NPU / GPU)` |
 | `interpreter.getInputTensor(0)` | `compiledModel.getInputTensorType("args_0")` (Fallback: `"input_0"`) |
@@ -146,42 +144,41 @@ To maximize execution speed:
 
 Once Phase 1 compiles and passes self-testing, the agent applies high-value performance features:
 
-### Upgrade 2.A: True Asynchronous Execution (`runAsync`)
-Replace blocking UI thread inference with LiteRT's non-blocking async execution:
+### Upgrade 2.A: Off-main-thread execution with a confined dispatcher
+The Kotlin CompiledModel API has no `runAsync`: `run()` enqueues the work and the readback (`readFloat()`) is the synchronization point. Keep the UI responsive by running create, run and read on one confined dispatcher from a coroutine, and reuse the buffers created once:
 ```kotlin
-// Non-blocking async execution for smooth 60/120 FPS UI viewfinders
-compiledModel.runAsync(inputBuffers, outputBuffers, object : CompiledModel.AsyncCallback {
-    override fun onComplete(outputBuffers: Array<TensorBuffer>) {
-        // Handle output tensor results on completion thread
-        val results = outputBuffers[0].readFloat()
-        updateUI(results)
-    }
-    override fun onError(error: Throwable) {
-        Log.e("LiteRT", "Async inference failed", error)
-    }
-})
-```
+private val modelDispatcher = Dispatchers.IO.limitedParallelism(1)
 
-### Upgrade 2.B: Efficient Zero-Copy I/O Buffer Management
-Bypass intermediate JVM array copying (`FloatArray`, `IntArray`) by using hardware texture buffers and direct memory-mapped `ByteBuffer` streams:
+suspend fun infer(input: FloatArray): FloatArray = withContext(modelDispatcher) {
+    inputBuffers[0].writeFloat(input)
+    compiledModel.run(inputBuffers, outputBuffers)
+    outputBuffers[0].readFloat()
+}
+```
+Time `run()` and `readFloat()` together; timing `run()` alone under-reports GPU work.
+
+### Upgrade 2.B: Buffer reuse and zero-copy interop
+In Kotlin, tensor buffers come from the model (`createInputBuffers()` / `createOutputBuffers()`, or `createInputBuffer(name)`), are filled with `writeFloat` / `writeInt8`, and are reused for every inference; there is no `TensorBuffer.createFromAhwb` in the Kotlin API. `AHardwareBuffer` zero-copy interop is part of the C++ API (`litert::TensorBuffer::CreateFromAhwb` in `litert/cc/litert_tensor_buffer.h`), so use it from the native side when a camera pipeline needs it.
 ```kotlin
-// Vision Zero-Copy: Direct AHardwareBuffer texture interop
-val inputTensorBuffer = TensorBuffer.createFromAhwb(hardwareBuffer)
-compiledModel.run(arrayOf(inputTensorBuffer), outputBuffers)
+// Create once, reuse per frame, close before the model
+val inputBuffers = compiledModel.createInputBuffers()
+val outputBuffers = compiledModel.createOutputBuffers()
+compiledModel.run(inputBuffers, outputBuffers)
 
 // Cleanup lifecycle
-inputTensorBuffer.close()
+inputBuffers.forEach { it.close() }
 outputBuffers.forEach { it.close() }
+compiledModel.close()
 ```
 
 ### Upgrade 2.C: NPU JIT Acceleration & Conditional INT8 Quantization
 1. **Conditional INT8 Quantization**: If NPU JIT is selected and the user opted in, run AI Edge Quantizer (`aeq`) to generate `model_int8.tflite` in `assets/`:
    ```python
-   from ai_edge_quantizer import Quantizer, QuantizationConfig, QuantizationType
-   qt = Quantizer("src/main/assets/model.tflite")
-   qt.quantize_model(QuantizationConfig(weight_type=QuantizationType.INT8, activation_type=QuantizationType.INT8))
-   qt.export_model("src/main/assets/model_int8.tflite")
+   from ai_edge_quantizer import quantizer, recipe
+   qt = quantizer.Quantizer("src/main/assets/model.tflite", recipe.dynamic_wi8_afp32())
+   qt.quantize().export_model("src/main/assets/model_int8.tflite")
    ```
+   (`recipe.static_wi8_ai8()` needs calibration data; see the `accuracy-safe-quantization` skill in this repo for the recipe ladder and the parity gates.)
 2. **NPU JIT Runtime Bundling**: Package vendor shared libraries in `app/src/main/jniLibs/arm64-v8a/` (`libLiteRtDispatch_Qualcomm.so`, `libQnnHtp.so`, etc.). Check local `LITERT_JIT_CACHE_DIR` before network downloads.
 3. **Qualcomm FastRPC Permission**: Declare `<uses-native-library android:name="libcdsprpc.so" android:required="false" />` inside `<application>` in `AndroidManifest.xml`.
 4. **Environment Dispatch & Fallback Cascade**: Pass `DispatchLibraryDir` pointing to `nativeLibraryDir` and implement Kotlin `NPU -> GPU -> CPU` cascade / C++ fail-fast pipeline.
