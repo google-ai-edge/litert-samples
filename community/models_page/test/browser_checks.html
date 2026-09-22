@@ -1,0 +1,361 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>running…</title>
+<style>body { font: 14px/1.5 ui-monospace, Menlo, monospace; margin: 20px; } iframe { width: 1200px; height: 500px; border: 1px solid #999; } .fail { color: #b00020; font-weight: 700; }</style>
+</head>
+<body>
+<!-- Served by test/fixture_server.py at http://127.0.0.1:8765/__checks
+     Each case sets the server's modes, loads the page in the iframe and checks what a visitor would see. -->
+<pre id="out"></pre>
+<iframe id="page" title="page under test"></iframe>
+<script type="module">
+const out = document.getElementById('out');
+const frame = document.getElementById('page');
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+const DEFAULTS = { hf: 'ok', board: 'ok', tree: 'ok', recipes: 'ok', timeout: '0' };
+const RECIPES_DIR = 'https://github.com/google-ai-edge/litert-samples/tree/main/models/';
+const BAD_TEXT = /undefined|NaN|null|Invalid Date|\[object/;
+
+async function load(mode, { settle = true, width = 1200 } = {}) {
+    await fetch('/__mode?' + new URLSearchParams({ ...DEFAULTS, ...mode }));
+    frame.style.width = width + 'px';
+    frame.src = 'about:blank';
+    await sleep(50);
+    const loaded = new Promise(r => frame.addEventListener('load', r, { once: true }));
+    frame.src = '/index.html?case=' + Date.now();
+    await loaded;
+    const doc = frame.contentDocument;
+    for (let i = 0; settle && i < 100 && !doc.getElementById('loading').hidden; i++) await sleep(100);
+    return { doc, win: frame.contentWindow };
+}
+const shown = (doc, id) => { const e = doc.getElementById(id); return Boolean(e) && !e.hidden; };
+const flat = s => s.replace(/\s+/g, ' ').trim();
+const text = (doc, id) => flat(doc.getElementById(id).textContent);
+const cards = doc => [...doc.querySelectorAll('#list .card')];
+const names = doc => cards(doc).map(c => c.querySelector('.name').textContent.trim());
+const card = (doc, name) => cards(doc).find(c => c.querySelector('.name').textContent.trim() === name);
+const pageText = doc => flat(doc.body.innerText);
+function pick(doc, id, value) { const s = doc.getElementById(id); s.value = value; s.dispatchEvent(new Event('change', { bubbles: true })); }
+function check(cond, what) { if (!cond) throw new Error(what); }
+
+const CASES = {
+    'both sources answer: list, stats, benchmarks on the cards from the start': async () => {
+        const { doc } = await load({});
+        check(shown(doc, 'app') && !shown(doc, 'loadError') && !shown(doc, 'boardError') && !shown(doc, 'recipesError') && !shown(doc, 'loading'), 'notices');
+        check(text(doc, 'stats') === '10 models · newest benchmark 2026-09-19', text(doc, 'stats'));
+        check(text(doc, 'count') === '10 models' && cards(doc).length === 10, text(doc, 'count'));
+        check(!names(doc).includes('Test'), 'a repo without files is listed');
+        check(doc.getElementById('fSort').value === 'updated', 'the list starts with the most recently updated');
+        const dates = cards(doc).map(c => (c.querySelector('.meta').textContent.match(/updated (\d{4}-\d{2}-\d{2})/) || [])[1] || '');
+        check(dates.every((d, i) => i === 0 || d <= dates[i - 1]), 'not in date order: ' + dates.join(' '));
+        check(doc.getElementById('fName').offsetParent !== null, 'the search box is not visible');
+        pick(doc, 'fSort', 'benchmarks');
+        check(cards(doc).slice(0, 4).every(c => c.querySelector('.bench')) && !cards(doc).slice(4).some(c => c.querySelector('.bench')), 'benchmarks first');
+        const lines = [...card(doc, 'MobileNet-v2').querySelectorAll('.bench li')].map(li => flat(li.textContent));
+        check(flat(card(doc, 'MobileNet-v2').querySelector('.what').textContent) === 'mobilenet_v2.tflite · median latency', 'what');
+        check(lines.length === 3 && lines[1] === 'Pixel 9 Pro CPU 9.85 ms GPU 6.41 ms 2026-09-18', JSON.stringify(lines));
+        check(flat(card(doc, 'MobileNet-v2').querySelector('.bench .link').textContent) === '+ 14 more benchmarks', 'more');
+        const lm = card(doc, 'Qwen3-0.6B');
+        check(flat(lm.querySelector('.what').textContent) === 'qwen3_0_6b_mixed_int4.litertlm · median decode tokens/s · 1024 prefill, 256 decode tokens', lm.querySelector('.what').textContent);
+        check(flat(lm.querySelector('.bench li').textContent) === 'Pixel 9 Pro CPU 3.3 tok/s GPU 21.9 tok/s 2026-09-19', lm.querySelector('.bench li').textContent);
+        check(!BAD_TEXT.test(pageText(doc)), 'a raw value on the page: ' + (pageText(doc).match(BAD_TEXT) || [])[0]);
+    },
+    'a card without benchmarks: tags, date, links, nothing else': async () => {
+        const { doc } = await load({});
+        const u2 = card(doc, 'U-2-Net');
+        check(!u2.querySelector('.bench') && u2.querySelector('.name a').href === 'https://huggingface.co/litert-community/U-2-Net', 'card');
+        check(/^image-segmentation \d+ \.tflite files? updated \d{4}-\d{2}-\d{2}$/.test(flat(u2.querySelector('.meta').textContent)), flat(u2.querySelector('.meta').textContent));
+        u2.querySelector('button.toggle').click();
+        await sleep(400);
+        const d = doc.querySelector('#list .details');
+        check(!d.querySelector('table') && !/No |Benchmark this|benchmarks were made|Recipe/.test(d.textContent), 'no benchmark section, no call to action, no recipe line');
+        const items = [...d.querySelectorAll('.resources li')].map(li => flat(li.textContent));
+        check(JSON.stringify(items) === JSON.stringify(['Model card · Files', 'Source model: xuebinqin/U-2-Net']), JSON.stringify(items));
+        check(d.querySelector('.resources a[href="https://huggingface.co/xuebinqin/U-2-Net"]') !== null, 'source model link');
+        check(flat(card(doc, 'Gemma3-1B-IT').querySelector('.gated').textContent) === 'Gated · request access on the model page', 'gated tag');
+    },
+    'recipes: the tag, the filter, the resources, and the run behind each benchmark': async () => {
+        const { doc } = await load({});
+        const mc = card(doc, 'MiniCPM5-2B');
+        const tag = mc.querySelector('a.tag.recipe');
+        check(tag && tag.href === RECIPES_DIR + 'minicpm/minicpm5_2b/' && flat(tag.textContent) === 'Recipe · litert-samples', 'recipe tag');
+        check(cards(doc).filter(c => c.querySelector('.tag.recipe')).length === 1, 'one card with a recipe');
+        const chip = doc.querySelector('#fRecipe button[data-value="1"]');
+        check(flat(chip.textContent) === 'With a recipe 1' && !chip.disabled, flat(chip.textContent));
+        chip.click();
+        check(names(doc).join() === 'MiniCPM5-2B' && text(doc, 'count') === '1 model of 10', text(doc, 'count'));
+        card(doc, 'MiniCPM5-2B').querySelector('button.toggle').click();
+        await sleep(400);
+        let items = [...doc.querySelectorAll('#list .details .resources li')].map(li => flat(li.textContent));
+        check(items[1] === 'Source model: openbmb/MiniCPM5-2B', items[1]);
+        check(items[2] === 'Recipe: litert-samples/models/minicpm/minicpm5_2b/', items[2]);
+        check(doc.querySelector(`#list .details .resources a[href="${RECIPES_DIR}minicpm/minicpm5_2b/"]`) !== null, 'recipe link');
+        doc.getElementById('clear').click();
+        check(cards(doc).length === 10 && !doc.querySelector('#fRecipe button[data-value="1"].on'), 'clear resets the recipe filter');
+        card(doc, 'MobileNet-v2').querySelector('button.toggle').click();
+        await sleep(400);
+        const d = doc.querySelector('#list .details');
+        check([...d.querySelectorAll('thead th')].map(th => flat(th.textContent)).pop() === 'Run', 'Run column');
+        check(flat(d.querySelector('tbody tr td.run').textContent) === '2.2.0/android_arm64/benchmark_model 162 runs after 82 warm-up · from results.pb', flat(d.querySelector('tbody tr td.run').textContent));
+        items = [...d.querySelectorAll('.resources li')].map(li => flat(li.textContent));
+        check(JSON.stringify(items) === JSON.stringify(['Model card · Files', 'How these benchmarks were made']), JSON.stringify(items));
+        check(d.querySelector('.resources a[href$="#how-a-row-is-made"]') !== null, 'link to how a row is made');
+        card(doc, 'Qwen3-0.6B').querySelector('button.toggle').click();
+        await sleep(400);
+        const run = flat(doc.querySelector('#list .details tbody tr td.run').textContent);
+        check(run === 'latest/android_arm64/litert_lm/litert_lm_advanced_main sha256 adac974bea14… 5 iterations, 1 of them warm-up · from metrics.pb', run);
+        check(!BAD_TEXT.test(pageText(doc)), 'a raw value on the page: ' + (pageText(doc).match(BAD_TEXT) || [])[0]);
+    },
+    'recipes: 404': async () => recipesDown({ recipes: '404' }),
+    'recipes: no answer before the timeout': async () => recipesDown({ recipes: 'hang', timeout: '1200' }),
+    'recipes: the table has other headers': async () => recipesDown({ recipes: 'notable' }),
+    'recipes: a recipe of a repo the list does not have': async () => {
+        const { doc } = await load({ recipes: 'orphan' });
+        check(shown(doc, 'app') && !shown(doc, 'recipesError') && !doc.querySelector('#list .tag.recipe'), 'states');
+        check(flat(doc.querySelector('#fRecipe button[data-value="1"]').textContent) === 'With a recipe 0', 'count');
+    },
+    'recipes: hostile strings stay text': async () => {
+        const { doc, win } = await load({ recipes: 'hostile' });
+        check(win.__pwned === undefined && !doc.querySelector('#app img, #app script, #list .meta b, #list .meta img'), 'markup got in');
+        check(!card(doc, 'MiniCPM5-2B').querySelector('.tag.recipe') && !card(doc, 'MobileNet-v2').querySelector('.tag.recipe'), 'a bad path gives no recipe');
+        const tag = card(doc, 'U-2-Net').querySelector('a.tag.recipe');
+        check(tag && tag.href === RECIPES_DIR + 'ok/dir/', 'the good row keeps its recipe');
+        card(doc, 'U-2-Net').querySelector('button.toggle').click();
+        await sleep(400);
+        check(win.__pwned === undefined && !doc.querySelector('#app img, #list .resources b') && /Recipe: litert-samples\/models\/ok\/dir\//.test(flat(doc.querySelector('#list .details').textContent)), 'details');
+    },
+    'benchmarked on: platform, device, accelerator narrow the list and the numbers': async () => {
+        const { doc } = await load({});
+        pick(doc, 'fPlatform', 'android'); pick(doc, 'fDevice', 'Pixel 9 Pro'); pick(doc, 'fAccel', 'gpu');
+        check(text(doc, 'count') === '4 models of 10', text(doc, 'count'));
+        const lines = [...card(doc, 'MobileNet-v2').querySelectorAll('.bench li')].map(li => flat(li.textContent));
+        check(lines.length === 1 && lines[0] === 'Pixel 9 Pro GPU 6.41 ms 2026-09-18', JSON.stringify(lines));
+        check(flat(card(doc, 'MobileNet-v2').querySelector('.bench .link').textContent) === '+ 19 more benchmarks', 'the count is against all 20 the details hold');
+        check([...doc.getElementById('fAccel').options].map(o => o.textContent).join() === 'All,CPU,GPU', 'accelerators come from the data');
+        pick(doc, 'fPlatform', 'macos');
+        check(doc.getElementById('fDevice').value === '', 'a device of another platform is dropped');
+        check(flat(card(doc, 'MobileNet-v2').querySelector('.bench li').textContent) === 'Mac Studio (M4 Max) GPU 0.45 ms 2026-09-18', 'mac gpu');
+    },
+    'details: every benchmark of the model, file sizes from the tree, "+ more" opens it': async () => {
+        const { doc } = await load({});
+        card(doc, 'MobileNet-v2').querySelector('.bench .link').click();
+        await sleep(600);
+        const d = doc.querySelector('#list .details');
+        check(d.querySelectorAll('tbody tr').length === 20, `benchmarks ${d.querySelectorAll('tbody tr').length}`);
+        check(!card(doc, 'MobileNet-v2').querySelector('.bench .link'), 'the "+ more" button stays on an open card');
+        check(doc.activeElement === card(doc, 'MobileNet-v2').querySelector('button.toggle'), 'focus is not on the card\'s toggle');
+        check(card(doc, 'MobileNet-v2').querySelector('button.toggle').getAttribute('aria-label') === 'Close details, MobileNet-v2', 'toggle name');
+        check(/mobilenet_v2\.tflite\s*14\.0 MB/.test(d.querySelector('.files').textContent), d.querySelector('.files').textContent);
+        check(doc.querySelectorAll('#list .details').length === 1, 'one open at a time');
+        check(!BAD_TEXT.test(flat(d.innerText)), 'a raw value in the details');
+    },
+    'filters: task, format, name, none left, clear': async () => {
+        const { doc } = await load({});
+        doc.querySelector('#fTask button[data-value="image-classification"]').click();
+        check(names(doc).join() === 'MobileNet-v2', names(doc).join());
+        doc.querySelector('#fFormat button[data-value="litertlm"]').click();
+        check(cards(doc).length === 0 && shown(doc, 'empty'), 'empty state');
+        doc.getElementById('emptyClear').click();
+        check(cards(doc).length === 10 && !shown(doc, 'empty'), 'clear');
+        doc.querySelector('#fFormat button[data-value="task"]').click();
+        check(names(doc).includes('Gemma3-4B-IT') && !names(doc).includes('MobileNet-v2'), '.task');
+        doc.getElementById('clear').click();
+        doc.querySelector('#fBenchmarks button[data-value="1"]').click();
+        check(cards(doc).length === 4 && flat(doc.querySelector('#fBenchmarks button[data-value="1"]').textContent) === 'With benchmarks 4', 'with benchmarks');
+        doc.getElementById('clear').click();
+        const name = doc.getElementById('fName'); name.value = 'whisper-t'; name.dispatchEvent(new Event('input', { bubbles: true }));
+        check(names(doc).join() === 'whisper-tiny', names(doc).join());
+        pick(doc, 'fSort', 'name');
+        doc.getElementById('clear').click();
+        check(names(doc)[0] === 'Gecko-110m-en' && name.value === '', 'sort kept, name cleared');
+        name.value = 'litert'; name.dispatchEvent(new Event('input', { bubbles: true }));
+        check(names(doc).join() === 'gemma-4-E2B-it-litert-lm', 'the org prefix matched: ' + names(doc).join());
+        doc.getElementById('clear').click();
+        check(flat(doc.querySelector('#fTask button[data-value="(other)"]').textContent) === 'Other 1', 'repos without a tag');
+    },
+    'keyboard focus survives a redraw': async () => {
+        const { doc } = await load({});
+        const chip = doc.querySelector('#fTask button[data-value="image-classification"]');
+        chip.focus(); chip.click();
+        check(doc.activeElement && doc.activeElement.dataset.value === 'image-classification' && doc.activeElement.getAttribute('aria-pressed') === 'true', 'chip');
+        const more = doc.getElementById('moreTasks');
+        if (more) { more.focus(); more.click(); check(doc.activeElement.id === 'moreTasks', 'more tasks'); }
+        const toggle = card(doc, 'MobileNet-v2').querySelector('button.toggle');
+        toggle.focus(); toggle.click();
+        await sleep(600);
+        check(doc.activeElement === card(doc, 'MobileNet-v2').querySelector('button.toggle') && doc.activeElement.getAttribute('aria-expanded') === 'true', 'details toggle after the file sizes arrived');
+        doc.querySelector('#fFormat button[data-value="litertlm"]').click();
+        doc.getElementById('emptyClear').click();
+        check(doc.activeElement.id === 'fName', 'after the clear button of the empty notice');
+        check([...doc.querySelectorAll('#list h3.name')].length === 10, 'card names are headings');
+    },
+    'every link that leaves the page opens a new tab': async () => {
+        const { doc } = await load({});
+        card(doc, 'MobileNet-v2').querySelector('button.toggle').click();
+        await sleep(400);
+        const links = [...doc.querySelectorAll('a[href]')].filter(a => !a.getAttribute('href').startsWith('#'));
+        const bad = links.filter(a => a.target !== '_blank' || !/noopener/.test(a.rel)).map(a => a.href);
+        check(links.length > 20 && bad.length === 0, 'links without target/rel: ' + bad.join(' '));
+        check(!doc.querySelector('[style], script:not([src]), [onclick]'), 'inline style or script (the CSP blocks them)');
+    },
+    'a phone-width window: one column, filters folded, no sideways scroll': async () => {
+        const { doc, win } = await load({}, { width: 390 });
+        check(doc.documentElement.scrollWidth <= win.innerWidth, `page is ${doc.documentElement.scrollWidth}px wide in ${win.innerWidth}px`);
+        const panel = () => win.getComputedStyle(doc.getElementById('filterPanel')).display;
+        check(panel() === 'none' && win.getComputedStyle(doc.getElementById('filtersToggle')).display !== 'none', 'filters start folded behind their button');
+        check(doc.getElementById('fName').offsetParent !== null, 'the search box is hidden with the folded filters');
+        doc.getElementById('filtersToggle').click();
+        check(panel() === 'block' && doc.getElementById('filtersToggle').getAttribute('aria-expanded') === 'true', 'the button opens them');
+        doc.getElementById('filtersToggle').click();
+        check(panel() === 'none' && doc.getElementById('filtersToggle').getAttribute('aria-expanded') === 'false', 'and folds them');
+        card(doc, 'MobileNet-v2').querySelector('button.toggle').click();
+        await sleep(400);
+        check(doc.documentElement.scrollWidth <= win.innerWidth, 'details push the page sideways');
+        frame.style.width = '1200px';
+        await sleep(400);
+        check(panel() === 'block' && win.getComputedStyle(doc.getElementById('filtersToggle')).display === 'none', 'filters stay folded after the window widens');
+        frame.style.width = '390px';
+        await sleep(400);
+        check(panel() === 'none', 'filters fold again');
+    },
+    'model list: HTTP 429': async () => {
+        const { doc } = await load({ hf: '429' });
+        check(shown(doc, 'loadError') && !shown(doc, 'app') && !shown(doc, 'loading'), 'states');
+        check(text(doc, 'loadError') === 'Could not load the model list from Hugging Face (HTTP 429). Reload to try again, or see the models at huggingface.co/litert-community.', text(doc, 'loadError'));
+    },
+    'model list: HTTP 500': async () => {
+        const { doc } = await load({ hf: '500' });
+        check(shown(doc, 'loadError') && !shown(doc, 'app') && /HTTP 500/.test(text(doc, 'loadError')), text(doc, 'loadError'));
+    },
+    'model list: connection dropped': async () => {
+        const { doc } = await load({ hf: 'drop' });
+        check(shown(doc, 'loadError') && !shown(doc, 'app') && !shown(doc, 'loading'), text(doc, 'loadError'));
+    },
+    'model list: no answer before the timeout': async () => {
+        const { doc } = await load({ hf: 'hang', timeout: '1200' });
+        check(shown(doc, 'loadError') && /no answer in 1\.2 s/.test(text(doc, 'loadError')), text(doc, 'loadError'));
+    },
+    'model list: an HTML page instead of JSON': async () => {
+        const { doc } = await load({ hf: 'html' });
+        check(shown(doc, 'loadError') && !shown(doc, 'app') && /the answer is not JSON/.test(text(doc, 'loadError')), text(doc, 'loadError'));
+    },
+    'model list: empty answer': async () => {
+        const { doc } = await load({ hf: 'empty' });
+        check(shown(doc, 'loadError') && !shown(doc, 'app') && /came back empty/.test(text(doc, 'loadError')), text(doc, 'loadError'));
+    },
+    'model list: slow answer shows the loading line first': async () => {
+        const { doc } = await load({ hf: 'slow' }, { settle: false });
+        check(shown(doc, 'loading') && !shown(doc, 'app'), 'loading line');
+        for (let i = 0; i < 60 && shown(doc, 'loading'); i++) await sleep(100);
+        check(shown(doc, 'app') && cards(doc).length === 10, 'after the answer');
+    },
+    'model list: four pages': async () => {
+        const { doc } = await load({ hf: 'paged' });
+        check(cards(doc).length === 10, `cards ${cards(doc).length}`);
+    },
+    'model list: entries with missing or odd fields': async () => {
+        const { doc } = await load({ hf: 'sparse' });
+        check(cards(doc).length === 13, `cards ${cards(doc).length}`);
+        check(flat(card(doc, 'no-fields').textContent) === 'no-fields Details', flat(card(doc, 'no-fields').textContent));
+        check(!BAD_TEXT.test(pageText(doc)), 'a raw value on the page: ' + (pageText(doc).match(BAD_TEXT) || [])[0]);
+    },
+    'model list: hostile strings stay text': async () => {
+        const { doc, win } = await load({ hf: 'hostile' });
+        check(win.__pwned === undefined, 'script ran');
+        check(!doc.querySelector('#list img, #list script, #list i, #list .tag b, #list .name b, #filters b, #filters img'), 'markup got in');
+        check(names(doc).includes('<img src=x onerror=window.__pwned=1>'), names(doc).join());
+        doc.querySelector('#fTask button[data-value="<b>bold</b>"]').click();
+        check(cards(doc).length === 1, 'the hostile tag filters like any other');
+        cards(doc)[0].querySelector('button.toggle').click();
+        await sleep(400);
+        check(win.__pwned === undefined && !doc.querySelector('#list img, #list i, #list .resources b'), 'details');
+        const items = [...doc.querySelectorAll('#list .details .resources li')].map(li => flat(li.textContent));
+        check(items[1] === 'Source model: hostile-org/still-a-repo', 'only the well-formed source model stays: ' + items[1]);
+    },
+    'board: 404': async () => boardDown({ board: '404' }),
+    'board: broken JSON': async () => boardDown({ board: 'broken' }),
+    'board: not a board': async () => boardDown({ board: 'noshape' }),
+    'board: no answer before the timeout': async () => boardDown({ board: 'hang', timeout: '1200' }),
+    'board: no rows': async () => boardDown({ board: 'norows' }),
+    'board: a status the page does not know': async () => boardDown({ board: 'renamed' }),
+    'board: repeats and two devices of one name': async () => {
+        const { doc } = await load({ board: 'twins' });
+        const lines = [...card(doc, 'Qwen3-0.6B').querySelectorAll('.bench li')].map(li => flat(li.textContent));
+        check(JSON.stringify(lines) === JSON.stringify(['Pixel 9 Pro, Android 15 (API 35) CPU 4.3 tok/s GPU 22.9 tok/s 2026-09-20', 'Pixel 9 Pro, Android 16 (API 36) CPU 3.3 tok/s GPU 21.9 tok/s 2026-09-19']), JSON.stringify(lines));
+        check(flat(card(doc, 'Qwen3-0.6B').querySelector('.bench .link').textContent) === '+ 2 more benchmarks', 'more');
+    },
+    'board: benchmarks with missing fields': async () => {
+        const { doc } = await load({ board: 'sparse' });
+        check(shown(doc, 'app') && !shown(doc, 'boardError'), 'states');
+        check(text(doc, 'stats') === '10 models', text(doc, 'stats'));
+        check(flat(card(doc, 'Qwen3-0.6B').querySelector('.what').textContent) === 'qwen3_0_6b_mixed_int4.litertlm · median decode tokens/s', 'no token words without token counts');
+        check(flat(card(doc, 'MobileNet-v2').querySelector('.bench li').textContent) === 'Galaxy S25 Ultra CPU — ms GPU — ms', flat(card(doc, 'MobileNet-v2').querySelector('.bench li').textContent));
+        card(doc, 'MobileNet-v2').querySelector('button.toggle').click();
+        await sleep(400);
+        check(!BAD_TEXT.test(pageText(doc)), 'a raw value on the page: ' + (pageText(doc).match(BAD_TEXT) || [])[0]);
+        check([...doc.getElementById('fPlatform').options].map(o => o.textContent).join() === 'All,android,macos,ios', 'platform names fall back to ids');
+    },
+    'board: hostile strings stay text': async () => {
+        const { doc, win } = await load({ board: 'hostile' });
+        card(doc, 'MobileNet-v2').querySelector('button.toggle').click();
+        await sleep(400);
+        check(win.__pwned === undefined && !doc.querySelector('#app img, #app script'), 'markup got in');
+        check(doc.querySelector('#fDevice option[value^="<img"]') !== null, 'the device option holds the string as text');
+    },
+    'board: benchmarks of a repo the list does not have': async () => {
+        const { doc } = await load({ board: 'orphan' });
+        check(cards(doc).length === 10 && !shown(doc, 'boardError') && !/not-in-the-org/.test(pageText(doc)), 'list');
+    },
+    'file sizes: HTTP 500, then a second try works': async () => {
+        const { doc } = await load({ tree: '500' });
+        card(doc, 'MobileNet-v2').querySelector('button.toggle').click();
+        await sleep(600);
+        const d = doc.querySelector('#list .details');
+        check(/File sizes could not be loaded\./.test(d.textContent) && d.querySelectorAll('tbody tr').length === 20, 'note and benchmarks');
+        await fetch('/__mode?tree=ok');
+        card(doc, 'MobileNet-v2').querySelector('button.toggle').click();
+        card(doc, 'MobileNet-v2').querySelector('button.toggle').click();
+        await sleep(600);
+        check(/mobilenet_v2\.tflite\s*14\.0 MB/.test(doc.querySelector('#list .files').textContent), 'sizes after reopening');
+    },
+};
+
+async function boardDown(mode) {
+    const { doc } = await load(mode);
+    check(shown(doc, 'app') && shown(doc, 'boardError') && !shown(doc, 'loadError') && !shown(doc, 'recipesError'), 'states');
+    check(cards(doc).length === 10, `cards ${cards(doc).length}`);
+    check(text(doc, 'stats') === '10 models', text(doc, 'stats'));
+    check(!shown(doc, 'fRows') && doc.querySelector('#fBenchmarks button[data-value="1"]').disabled, 'benchmark filters off');
+    check(!doc.querySelector('#list .bench'), 'no benchmark block');
+    check(card(doc, 'MiniCPM5-2B').querySelector('.tag.recipe') !== null, 'recipes stay when the board is down');
+}
+
+async function recipesDown(mode) {
+    const { doc } = await load(mode);
+    check(shown(doc, 'app') && shown(doc, 'recipesError') && !shown(doc, 'loadError') && !shown(doc, 'boardError'), 'states');
+    check(text(doc, 'recipesError') === 'Recipe links could not be loaded from litert-samples. The recipes are at litert-samples/models.', text(doc, 'recipesError'));
+    check(cards(doc).length === 10 && !doc.querySelector('#list .tag.recipe'), 'no recipe tag');
+    check(doc.querySelector('#fRecipe button[data-value="1"]').disabled && flat(doc.querySelector('#fRecipe button[data-value="1"]').textContent) === 'With a recipe', 'recipe filter off');
+    check(card(doc, 'MobileNet-v2').querySelector('.bench') !== null, 'benchmarks stay when the recipes are down');
+    card(doc, 'MiniCPM5-2B').querySelector('button.toggle').click();
+    await sleep(400);
+    check(!/Recipe/.test(doc.querySelector('#list .details').textContent), 'no recipe line in the details');
+}
+
+const only = new URLSearchParams(location.search).get('only');
+const safe = s => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;');
+let failed = 0, total = 0;
+for (const [name, run] of Object.entries(CASES)) {
+    if (only && !name.includes(only)) continue;
+    total++;
+    try { await run(); out.innerHTML += `PASS  ${safe(name)}\n`; }
+    catch (err) { failed++; out.innerHTML += `<span class="fail">FAIL  ${safe(name)}: ${safe(err.message)}</span>\n`; }
+}
+await fetch('/__mode?' + new URLSearchParams(DEFAULTS));
+out.innerHTML += `\n${total - failed}/${total} passed`;
+document.title = failed ? `FAIL ${failed}/${total}` : `PASS ${total}/${total}`;
+</script>
+</body>
+</html>

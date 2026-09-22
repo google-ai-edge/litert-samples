@@ -1,0 +1,32 @@
+[
+ {
+  "type": "file",
+  "path": ".gitattributes",
+  "size": 1519
+ },
+ {
+  "type": "file",
+  "path": "README.md",
+  "size": 4507
+ },
+ {
+  "type": "file",
+  "path": "mobilenet_v2.tflite",
+  "size": 13975904
+ },
+ {
+  "type": "file",
+  "path": "mobilenet_v2_Google_Tensor_G5_apply_plugin.tflite",
+  "size": 8382816
+ },
+ {
+  "type": "file",
+  "path": "mobilenet_v2_dynamic_wi8_afp32.tflite",
+  "size": 3887792
+ },
+ {
+  "type": "file",
+  "path": "mobilenet_v2_int8_channelwise.tflite",
+  "size": 4005520
+ }
+]

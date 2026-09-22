@@ -1,0 +1,891 @@
+[
+ {
+  "_id": "69856a19c1f638a397f9c2fa",
+  "id": "litert-community/MobileNet-v2",
+  "author": "litert-community",
+  "gated": false,
+  "lastModified": "2026-09-14T03:00:14.000Z",
+  "likes": 5,
+  "trendingScore": 1,
+  "private": false,
+  "sha": "48e55de4765732640b9702c520999e4bf1a1f50f",
+  "downloads": 472,
+  "tags": [
+   "litert",
+   "tflite",
+   "vision",
+   "image-classification",
+   "dataset:imagenet-1k",
+   "arxiv:1801.04381",
+   "model-index",
+   "region:us"
+  ],
+  "pipeline_tag": "image-classification",
+  "library_name": "litert",
+  "createdAt": "2026-02-06T04:12:09.000Z",
+  "modelId": "litert-community/MobileNet-v2",
+  "siblings": [
+   {
+    "rfilename": ".gitattributes"
+   },
+   {
+    "rfilename": "README.md"
+   },
+   {
+    "rfilename": "mobilenet_v2.tflite"
+   },
+   {
+    "rfilename": "mobilenet_v2_Google_Tensor_G5_apply_plugin.tflite"
+   },
+   {
+    "rfilename": "mobilenet_v2_dynamic_wi8_afp32.tflite"
+   },
+   {
+    "rfilename": "mobilenet_v2_int8_channelwise.tflite"
+   }
+  ],
+  "cardData": {
+   "library_name": "litert",
+   "tags": [
+    "vision",
+    "image-classification"
+   ],
+   "datasets": [
+    "imagenet-1k"
+   ],
+   "model-index": [
+    {
+     "name": "MobileNet V2",
+     "results": [
+      {
+       "task": {
+        "type": "image-classification",
+        "name": "Image Classification"
+       },
+       "dataset": {
+        "name": "ImageNet-1k",
+        "type": "imagenet-1k",
+        "config": "default",
+        "split": "validation"
+       },
+       "metrics": [
+        {
+         "name": "Top 1 Accuracy (Full Precision)",
+         "type": "accuracy",
+         "value": 0.7183,
+         "verified": false
+        },
+        {
+         "name": "Top 5 Accuracy (Full Precision)",
+         "type": "accuracy",
+         "value": 0.9031,
+         "verified": false
+        },
+        {
+         "name": "Top 1 Accuracy (Dynamic Quantized wi8 afp32)",
+         "type": "accuracy",
+         "value": 0.7183,
+         "verified": false
+        },
+        {
+         "name": "Top 5 Accuracy (Dynamic Quantized wi8 afp32)",
+         "type": "accuracy",
+         "value": 0.9031,
+         "verified": false
+        }
+       ]
+      }
+     ]
+    }
+   ]
+  }
+ },
+ {
+  "_id": "69d9418c6f91ec4e0e0c2a20",
+  "id": "litert-community/whisper-tiny",
+  "author": "litert-community",
+  "gated": false,
+  "lastModified": "2026-05-03T00:13:20.000Z",
+  "likes": 5,
+  "trendingScore": 0,
+  "private": false,
+  "sha": "d92f0ee1d4316ab0099add38d67ac5f2cc31c8fd",
+  "downloads": 6839,
+  "tags": [
+   "tflite",
+   "automatic-speech-recognition",
+   "base_model:openai/whisper-tiny",
+   "base_model:finetune:openai/whisper-tiny",
+   "license:apache-2.0",
+   "region:us"
+  ],
+  "pipeline_tag": "automatic-speech-recognition",
+  "createdAt": "2026-04-10T18:29:32.000Z",
+  "modelId": "litert-community/whisper-tiny",
+  "siblings": [
+   {
+    "rfilename": ".gitattributes"
+   },
+   {
+    "rfilename": "README.md"
+   },
+   {
+    "rfilename": "whisper_tiny_30s_f32.tflite"
+   },
+   {
+    "rfilename": "whisper_tiny_30s_f32_MediaTek_MT6877.tflite"
+   },
+   {
+    "rfilename": "whisper_tiny_30s_f32_MediaTek_MT6878.tflite"
+   },
+   {
+    "rfilename": "whisper_tiny_30s_f32_MediaTek_MT6879.tflite"
+   },
+   {
+    "rfilename": "whisper_tiny_30s_f32_MediaTek_MT6897.tflite"
+   },
+   {
+    "rfilename": "whisper_tiny_30s_f32_MediaTek_MT6983.tflite"
+   },
+   {
+    "rfilename": "whisper_tiny_30s_f32_MediaTek_MT6985.tflite"
+   },
+   {
+    "rfilename": "whisper_tiny_30s_f32_MediaTek_MT6989.tflite"
+   },
+   {
+    "rfilename": "whisper_tiny_30s_f32_MediaTek_MT6991.tflite"
+   },
+   {
+    "rfilename": "whisper_tiny_30s_f32_MediaTek_MT6993.tflite"
+   },
+   {
+    "rfilename": "whisper_tiny_30s_f32_MediaTek_MT8171.tflite"
+   },
+   {
+    "rfilename": "whisper_tiny_30s_f32_MediaTek_MT8188.tflite"
+   },
+   {
+    "rfilename": "whisper_tiny_30s_f32_MediaTek_MT8189.tflite"
+   },
+   {
+    "rfilename": "whisper_tiny_30s_f32_Qualcomm_SA8255.tflite"
+   },
+   {
+    "rfilename": "whisper_tiny_30s_f32_Qualcomm_SA8295.tflite"
+   },
+   {
+    "rfilename": "whisper_tiny_30s_f32_Qualcomm_SM8450.tflite"
+   },
+   {
+    "rfilename": "whisper_tiny_30s_f32_Qualcomm_SM8550.tflite"
+   },
+   {
+    "rfilename": "whisper_tiny_30s_f32_Qualcomm_SM8650.tflite"
+   },
+   {
+    "rfilename": "whisper_tiny_30s_f32_Qualcomm_SM8750.tflite"
+   },
+   {
+    "rfilename": "whisper_tiny_30s_f32_Qualcomm_SM8850.tflite"
+   },
+   {
+    "rfilename": "whisper_tiny_30s_i8.tflite"
+   }
+  ],
+  "cardData": {
+   "license": "apache-2.0",
+   "base_model": [
+    "openai/whisper-tiny"
+   ],
+   "pipeline_tag": "automatic-speech-recognition"
+  }
+ },
+ {
+  "_id": "6933120140f459ddcd1e34e1",
+  "id": "litert-community/Qwen3-0.6B",
+  "author": "litert-community",
+  "gated": false,
+  "lastModified": "2026-09-19T05:46:25.000Z",
+  "likes": 18,
+  "trendingScore": 0,
+  "private": false,
+  "sha": "154c5de0fc0fc5002a7da570ba8c67edffa32ca2",
+  "downloads": 40046,
+  "tags": [
+   "litert-lm",
+   "litertlm",
+   "qwen",
+   "Qwen3",
+   "text-generation",
+   "en",
+   "arxiv:2505.09388",
+   "base_model:Qwen/Qwen3-0.6B",
+   "base_model:quantized:Qwen/Qwen3-0.6B",
+   "license:apache-2.0",
+   "region:us"
+  ],
+  "pipeline_tag": "text-generation",
+  "library_name": "litert-lm",
+  "createdAt": "2025-12-05T17:10:25.000Z",
+  "modelId": "litert-community/Qwen3-0.6B",
+  "siblings": [
+   {
+    "rfilename": ".gitattributes"
+   },
+   {
+    "rfilename": "Qwen3-0.6B.litertlm"
+   },
+   {
+    "rfilename": "Qwen3-0.6B.mediatek.mt6993.litertlm"
+   },
+   {
+    "rfilename": "Qwen3-0.6B_dynamic_wi4b32_afp32.litertlm"
+   },
+   {
+    "rfilename": "README.md"
+   },
+   {
+    "rfilename": "qwen3_0_6b_mixed_int4.litertlm"
+   }
+  ],
+  "cardData": {
+   "language": [
+    "en"
+   ],
+   "license": "apache-2.0",
+   "license_link": "https://huggingface.co/Qwen/Qwen3-0.6B/blob/main/LICENSE",
+   "pipeline_tag": "text-generation",
+   "base_model": "Qwen/Qwen3-0.6B",
+   "base_model_relation": "quantized",
+   "library_name": "litert-lm",
+   "tags": [
+    "litert-lm",
+    "litertlm",
+    "qwen",
+    "Qwen3"
+   ]
+  }
+ },
+ {
+  "_id": "67d0a1c72846d0f78ffd33e6",
+  "id": "litert-community/Gemma3-1B-IT",
+  "author": "litert-community",
+  "gated": "auto",
+  "lastModified": "2026-09-01T05:31:40.000Z",
+  "likes": 878,
+  "trendingScore": 7,
+  "private": false,
+  "sha": "a6306a4e292016480083b73b8dc6f3f939ae04c3",
+  "downloads": 12824,
+  "tags": [
+   "litert-lm",
+   "chat",
+   "text-generation",
+   "license:gemma",
+   "region:us"
+  ],
+  "pipeline_tag": "text-generation",
+  "library_name": "litert-lm",
+  "createdAt": "2025-03-11T20:49:11.000Z",
+  "modelId": "litert-community/Gemma3-1B-IT",
+  "siblings": [
+   {
+    "rfilename": ".gitattributes"
+   },
+   {
+    "rfilename": "Gemma3-1B-IT_multi-prefill-seq_f32_ekv1280.task"
+   },
+   {
+    "rfilename": "Gemma3-1B-IT_multi-prefill-seq_f32_ekv4096.task"
+   },
+   {
+    "rfilename": "Gemma3-1B-IT_multi-prefill-seq_q4_block128_ekv1280.task"
+   },
+   {
+    "rfilename": "Gemma3-1B-IT_multi-prefill-seq_q4_block128_ekv4096.task"
+   },
+   {
+    "rfilename": "Gemma3-1B-IT_multi-prefill-seq_q4_block32_ekv1280.task"
+   },
+   {
+    "rfilename": "Gemma3-1B-IT_multi-prefill-seq_q4_block32_ekv4096.task"
+   },
+   {
+    "rfilename": "Gemma3-1B-IT_multi-prefill-seq_q4_ekv2048.task"
+   },
+   {
+    "rfilename": "Gemma3-1B-IT_multi-prefill-seq_q4_ekv4096.litertlm"
+   },
+   {
+    "rfilename": "Gemma3-1B-IT_multi-prefill-seq_q8_ekv1280.task"
+   },
+   {
+    "rfilename": "Gemma3-1B-IT_multi-prefill-seq_q8_ekv2048.task"
+   },
+   {
+    "rfilename": "Gemma3-1B-IT_multi-prefill-seq_q8_ekv4096.task"
+   },
+   {
+    "rfilename": "Gemma3-1B-IT_q4_ekv1280_mt6989.litertlm"
+   },
+   {
+    "rfilename": "Gemma3-1B-IT_q4_ekv1280_mt6991.litertlm"
+   },
+   {
+    "rfilename": "Gemma3-1B-IT_q4_ekv1280_mt6993.litertlm"
+   },
+   {
+    "rfilename": "Gemma3-1B-IT_q4_ekv1280_sm8550.litertlm"
+   },
+   {
+    "rfilename": "Gemma3-1B-IT_q4_ekv1280_sm8650.litertlm"
+   },
+   {
+    "rfilename": "Gemma3-1B-IT_q4_ekv1280_sm8750.litertlm"
+   },
+   {
+    "rfilename": "Gemma3-1B-IT_q4_ekv1280_sm8850.litertlm"
+   },
+   {
+    "rfilename": "Gemma3-1B-IT_q8_ekv1280_Google_Tensor_G5.litertlm"
+   },
+   {
+    "rfilename": "Gemma3-1B-IT_q8_ekv1280_Google_Tensor_G6.litertlm"
+   },
+   {
+    "rfilename": "Gemma3-1B-IT_seq128_f32_ekv1280.task"
+   },
+   {
+    "rfilename": "Gemma3-1B-IT_seq128_f32_ekv4096.task"
+   },
+   {
+    "rfilename": "Gemma3-1B-IT_seq128_q4_block128_ekv1280.task"
+   },
+   {
+    "rfilename": "Gemma3-1B-IT_seq128_q4_block128_ekv4096.task"
+   },
+   {
+    "rfilename": "Gemma3-1B-IT_seq128_q4_block32_ekv1280.task"
+   },
+   {
+    "rfilename": "Gemma3-1B-IT_seq128_q4_block32_ekv4096.task"
+   },
+   {
+    "rfilename": "Gemma3-1B-IT_seq128_q8_ekv1280.task"
+   },
+   {
+    "rfilename": "Gemma3-1B-IT_seq128_q8_ekv4096.task"
+   },
+   {
+    "rfilename": "README.md"
+   },
+   {
+    "rfilename": "gemma3-1b-it-int4-web.task"
+   },
+   {
+    "rfilename": "gemma3-1b-it-int4.litertlm"
+   },
+   {
+    "rfilename": "gemma3-1b-it-int4.task"
+   },
+   {
+    "rfilename": "gemma3-1b-it-int8-web.task"
+   },
+   {
+    "rfilename": "gemma3-1b-it-q4_0-web.task"
+   },
+   {
+    "rfilename": "notebook.ipynb"
+   },
+   {
+    "rfilename": "tokenizer.model"
+   }
+  ],
+  "cardData": {
+   "license": "gemma",
+   "base_model": "google/Gemma-3-1B-IT",
+   "pipeline_tag": "text-generation",
+   "library_name": "litert-lm",
+   "tags": [
+    "chat"
+   ],
+   "extra_gated_heading": "Access Gemma3-1B-IT on Hugging Face",
+   "extra_gated_prompt": "To access Gemma3-1B-IT on Hugging Face, you are required to review and agree to the gemma license. To do this, please ensure you are logged in to Hugging Face and click below. Requests are processed immediately.",
+   "extra_gated_button_content": "Acknowledge licensed"
+  }
+ },
+ {
+  "_id": "67d099337f1c0a2490e01329",
+  "id": "litert-community/Gecko-110m-en",
+  "author": "litert-community",
+  "gated": false,
+  "lastModified": "2025-03-12T00:47:31.000Z",
+  "likes": 16,
+  "trendingScore": 0,
+  "private": false,
+  "sha": "61a0d0c2cdc9b4f2c1727e63acb7ad86e68508c2",
+  "downloads": 2217,
+  "tags": [
+   "tflite",
+   "question-answering",
+   "en",
+   "arxiv:2403.20327",
+   "license:apache-2.0",
+   "region:us"
+  ],
+  "pipeline_tag": "question-answering",
+  "createdAt": "2025-03-11T20:12:35.000Z",
+  "modelId": "litert-community/Gecko-110m-en",
+  "siblings": [
+   {
+    "rfilename": ".gitattributes"
+   },
+   {
+    "rfilename": "Gecko_1024_f32.tflite"
+   },
+   {
+    "rfilename": "Gecko_1024_quant.tflite"
+   },
+   {
+    "rfilename": "Gecko_256_f32.tflite"
+   },
+   {
+    "rfilename": "Gecko_256_quant.tflite"
+   },
+   {
+    "rfilename": "Gecko_512_f32.tflite"
+   },
+   {
+    "rfilename": "Gecko_512_quant.tflite"
+   },
+   {
+    "rfilename": "Gecko_64_f32.tflite"
+   },
+   {
+    "rfilename": "Gecko_64_quant.tflite"
+   },
+   {
+    "rfilename": "README.md"
+   },
+   {
+    "rfilename": "sentencepiece.model"
+   }
+  ],
+  "cardData": {
+   "license": "apache-2.0",
+   "language": [
+    "en"
+   ],
+   "pipeline_tag": "question-answering"
+  }
+ },
+ {
+  "_id": "69c476dababacb9018e97cfa",
+  "id": "litert-community/gemma-4-E2B-it-litert-lm",
+  "author": "litert-community",
+  "gated": false,
+  "lastModified": "2026-08-31T13:48:36.000Z",
+  "likes": 432,
+  "trendingScore": 7,
+  "private": false,
+  "sha": "b3ca0d2f076785a8f4b2219ddbd2bdb99954eae1",
+  "downloads": 1212645,
+  "tags": [
+   "litert-lm",
+   "base_model:google/gemma-4-E2B-it",
+   "base_model:finetune:google/gemma-4-E2B-it",
+   "license:apache-2.0",
+   "region:us"
+  ],
+  "library_name": "litert-lm",
+  "createdAt": "2026-03-25T23:59:22.000Z",
+  "modelId": "litert-community/gemma-4-E2B-it-litert-lm",
+  "siblings": [
+   {
+    "rfilename": ".gitattributes"
+   },
+   {
+    "rfilename": "README.md"
+   },
+   {
+    "rfilename": "chat_template.jinja"
+   },
+   {
+    "rfilename": "gemini4_2b_sizes.png"
+   },
+   {
+    "rfilename": "gemma-4-E2B-it-gpu.litertlm"
+   },
+   {
+    "rfilename": "gemma-4-E2B-it-web.litertlm"
+   },
+   {
+    "rfilename": "gemma-4-E2B-it-web.task"
+   },
+   {
+    "rfilename": "gemma-4-E2B-it.litertlm"
+   },
+   {
+    "rfilename": "gemma-4-E2B-it_Google_Tensor_G5.litertlm"
+   },
+   {
+    "rfilename": "gemma-4-E2B-it_Google_Tensor_G6.litertlm"
+   },
+   {
+    "rfilename": "gemma-4-E2B-it_intel_LNL.litertlm"
+   },
+   {
+    "rfilename": "gemma-4-E2B-it_intel_PTL.litertlm"
+   },
+   {
+    "rfilename": "gemma-4-E2B-it_qualcomm_qcs8275.litertlm"
+   },
+   {
+    "rfilename": "gemma-4-E2B-it_qualcomm_sm8750.litertlm"
+   },
+   {
+    "rfilename": "notebook.ipynb"
+   }
+  ],
+  "cardData": {
+   "license": "apache-2.0",
+   "base_model": [
+    "google/gemma-4-E2B-it"
+   ],
+   "tags": [
+    "litert-lm"
+   ]
+  }
+ },
+ {
+  "_id": "682cea5794ed89a9b29084cf",
+  "id": "litert-community/Gemma3-4B-IT",
+  "author": "litert-community",
+  "gated": "auto",
+  "lastModified": "2026-01-09T01:08:00.000Z",
+  "likes": 17,
+  "trendingScore": 1,
+  "private": false,
+  "sha": "a4267503bf792be6c365424b240dd85e0331915f",
+  "downloads": 0,
+  "tags": [
+   "chat",
+   "text-generation",
+   "base_model:google/gemma-3-4b-it",
+   "base_model:finetune:google/gemma-3-4b-it",
+   "license:gemma",
+   "region:us"
+  ],
+  "pipeline_tag": "text-generation",
+  "createdAt": "2025-05-20T20:47:19.000Z",
+  "modelId": "litert-community/Gemma3-4B-IT",
+  "siblings": [
+   {
+    "rfilename": ".gitattributes"
+   },
+   {
+    "rfilename": "README.md"
+   },
+   {
+    "rfilename": "gemma3-4b-it-int4-web.task"
+   },
+   {
+    "rfilename": "gemma3-4b-it-int8-web.task"
+   },
+   {
+    "rfilename": "gemma3-4b-it-q4_0-web.task"
+   }
+  ],
+  "cardData": {
+   "license": "gemma",
+   "base_model": [
+    "google/gemma-3-4b-it",
+    "google/gemma-3-4b-it-qat-q4_0-unquantized"
+   ],
+   "pipeline_tag": "text-generation",
+   "tags": [
+    "chat"
+   ],
+   "extra_gated_heading": "Access Gemma3-4B-IT on Hugging Face",
+   "extra_gated_prompt": "To access Gemma3-12B-IT on Hugging Face, you are required to review and agree to the gemma license. To do this, please ensure you are logged in to Hugging Face and click below. Requests are processed immediately.",
+   "extra_gated_button_content": "Acknowledge licensed"
+  }
+ },
+ {
+  "_id": "6a3b10fcf81b6145d0e37576",
+  "id": "litert-community/U-2-Net",
+  "author": "litert-community",
+  "gated": false,
+  "lastModified": "2026-09-04T16:03:50.000Z",
+  "likes": 1,
+  "trendingScore": 1,
+  "private": false,
+  "sha": "defc203955a46f3cc760deb8c76d96f10331a46c",
+  "downloads": 171,
+  "tags": [
+   "litert",
+   "tflite",
+   "on-device",
+   "android",
+   "background-removal",
+   "salient-object-detection",
+   "image-matting",
+   "u2net",
+   "image-segmentation",
+   "license:apache-2.0",
+   "region:us"
+  ],
+  "pipeline_tag": "image-segmentation",
+  "library_name": "litert",
+  "createdAt": "2026-06-23T23:04:28.000Z",
+  "modelId": "litert-community/U-2-Net",
+  "siblings": [
+   {
+    "rfilename": ".gitattributes"
+   },
+   {
+    "rfilename": "README.md"
+   },
+   {
+    "rfilename": "samples/sample.png"
+   },
+   {
+    "rfilename": "u2net_fp16.tflite"
+   }
+  ],
+  "cardData": {
+   "license": "apache-2.0",
+   "library_name": "litert",
+   "pipeline_tag": "image-segmentation",
+   "base_model": "xuebinqin/U-2-Net",
+   "tags": [
+    "litert",
+    "tflite",
+    "on-device",
+    "android",
+    "background-removal",
+    "salient-object-detection",
+    "image-matting",
+    "u2net"
+   ],
+   "base_model_relation": "quantized"
+  }
+ },
+ {
+  "_id": "6a04c2b00ea571df77666b14",
+  "id": "litert-community/Test",
+  "author": "litert-community",
+  "gated": false,
+  "lastModified": "2026-05-13T18:28:00.000Z",
+  "likes": 0,
+  "trendingScore": 0,
+  "private": false,
+  "sha": "b8b41309582252cdfa4e239414b55197c202d9a4",
+  "downloads": 0,
+  "tags": [
+   "license:apache-2.0",
+   "region:us"
+  ],
+  "createdAt": "2026-05-13T18:28:00.000Z",
+  "modelId": "litert-community/Test",
+  "siblings": [
+   {
+    "rfilename": ".gitattributes"
+   },
+   {
+    "rfilename": "README.md"
+   }
+  ],
+  "cardData": {
+   "license": "apache-2.0"
+  }
+ },
+ {
+  "_id": "6a6421d5ce0f50acd947cc59",
+  "id": "litert-community/whisper-acft",
+  "author": "litert-community",
+  "gated": false,
+  "lastModified": "2026-07-26T11:23:33.000Z",
+  "likes": 3,
+  "trendingScore": 0,
+  "private": false,
+  "sha": "f8ab0a00ea95f6e0f2cee200b18671a599a0b0d6",
+  "downloads": 1735,
+  "tags": [
+   "litert",
+   "tflite",
+   "whisper",
+   "asr",
+   "quantized",
+   "acft",
+   "automatic-speech-recognition",
+   "base_model:openai/whisper-base",
+   "base_model:finetune:openai/whisper-base",
+   "license:apache-2.0",
+   "region:us"
+  ],
+  "pipeline_tag": "automatic-speech-recognition",
+  "library_name": "litert",
+  "createdAt": "2026-07-25T02:39:17.000Z",
+  "modelId": "litert-community/whisper-acft",
+  "siblings": [
+   {
+    "rfilename": ".gitattributes"
+   },
+   {
+    "rfilename": "README.md"
+   },
+   {
+    "rfilename": "base.en/acft_whisper_base.en_10s_drq.tflite"
+   },
+   {
+    "rfilename": "base.en/acft_whisper_base.en_30s_drq.tflite"
+   },
+   {
+    "rfilename": "base.en/acft_whisper_base.en_5s_drq.tflite"
+   },
+   {
+    "rfilename": "base/acft_whisper_base_10s_drq.tflite"
+   },
+   {
+    "rfilename": "base/acft_whisper_base_30s_drq.tflite"
+   },
+   {
+    "rfilename": "base/acft_whisper_base_5s_drq.tflite"
+   },
+   {
+    "rfilename": "small.en/acft_whisper_small.en_10s_drq.tflite"
+   },
+   {
+    "rfilename": "small.en/acft_whisper_small.en_30s_drq.tflite"
+   },
+   {
+    "rfilename": "small.en/acft_whisper_small.en_5s_drq.tflite"
+   },
+   {
+    "rfilename": "small/acft_whisper_small_10s_drq.tflite"
+   },
+   {
+    "rfilename": "small/acft_whisper_small_30s_drq.tflite"
+   },
+   {
+    "rfilename": "small/acft_whisper_small_5s_drq.tflite"
+   },
+   {
+    "rfilename": "tiny.en/acft_whisper_tiny.en_10s_drq.tflite"
+   },
+   {
+    "rfilename": "tiny.en/acft_whisper_tiny.en_30s_drq.tflite"
+   },
+   {
+    "rfilename": "tiny.en/acft_whisper_tiny.en_5s_drq.tflite"
+   },
+   {
+    "rfilename": "tiny/acft_whisper_tiny_10s_drq.tflite"
+   },
+   {
+    "rfilename": "tiny/acft_whisper_tiny_30s_drq.tflite"
+   },
+   {
+    "rfilename": "tiny/acft_whisper_tiny_5s_drq.tflite"
+   }
+  ],
+  "cardData": {
+   "license": "apache-2.0",
+   "base_model": [
+    "openai/whisper-tiny",
+    "openai/whisper-base",
+    "openai/whisper-small",
+    "openai/whisper-tiny.en",
+    "openai/whisper-base.en",
+    "openai/whisper-small.en"
+   ],
+   "tags": [
+    "litert",
+    "tflite",
+    "whisper",
+    "asr",
+    "quantized",
+    "acft"
+   ],
+   "pipeline_tag": "automatic-speech-recognition"
+  }
+ },
+ {
+  "_id": "6a9e9db944a36b26bbc2e262",
+  "id": "litert-community/MiniCPM5-2B",
+  "author": "litert-community",
+  "cardData": {
+   "license": "apache-2.0",
+   "language": [
+    "en",
+    "zh"
+   ],
+   "base_model": [
+    "openbmb/MiniCPM5-2B"
+   ],
+   "base_model_relation": "quantized",
+   "pipeline_tag": "text-generation",
+   "library_name": "litert",
+   "tags": [
+    "minicpm",
+    "minicpm5",
+    "litert",
+    "tflite",
+    "on-device",
+    "edge-ai"
+   ]
+  },
+  "gated": false,
+  "lastModified": "2026-09-15T16:32:35.000Z",
+  "likes": 11,
+  "trendingScore": 1,
+  "private": false,
+  "sha": "f6dd64ef6e117fc6e8af6891ae2096caa3e85a4e",
+  "downloads": 0,
+  "tags": [
+   "litert",
+   "minicpm",
+   "minicpm5",
+   "tflite",
+   "on-device",
+   "edge-ai",
+   "text-generation",
+   "en",
+   "zh",
+   "arxiv:2506.07900",
+   "base_model:openbmb/MiniCPM5-2B",
+   "base_model:quantized:openbmb/MiniCPM5-2B",
+   "license:apache-2.0",
+   "region:us"
+  ],
+  "pipeline_tag": "text-generation",
+  "library_name": "litert",
+  "createdAt": "2026-09-07T11:19:21.000Z",
+  "modelId": "litert-community/MiniCPM5-2B",
+  "siblings": [
+   {
+    "rfilename": ".gitattributes"
+   },
+   {
+    "rfilename": "MiniCPM5-2B_int4.litertlm"
+   },
+   {
+    "rfilename": "MiniCPM5-2B_int8.litertlm"
+   },
+   {
+    "rfilename": "README.md"
+   },
+   {
+    "rfilename": "litertlm_manifest.json"
+   },
+   {
+    "rfilename": "minicpm_wi4c_wi8_afp32.litertlm"
+   },
+   {
+    "rfilename": "minicpm_wi8_afp32.litertlm"
+   }
+  ]
+ }
+]
