@@ -1,4 +1,4 @@
-# benchmark/developer_device_platform
+# Benchmark using Real Devices in Developer Device Platform
 
 [`ddp_benchmark.ipynb`](ddp_benchmark.ipynb) benchmarks [LiteRT](https://github.com/google-ai-edge/litert) (`.tflite`) and
 [LiteRT-LM](https://github.com/google-ai-edge/LiteRT-LM) (`.litertlm`) models on real phones in
