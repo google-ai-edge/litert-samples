@@ -1,0 +1,70 @@
+# Copyright 2026 The Google AI Edge Authors. All Rights Reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#       http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+name: TextToSpeech
+options:
+  bundleIdPrefix: com.google.ai.edge
+  deploymentTarget:
+    iOS: "17.0"
+packages:
+  LiteRT:
+    path: ${LITERT_CHECKOUT}
+targets:
+  TextToSpeech:
+    type: application
+    platform: iOS
+    sources:
+      - path: Sources/MatchaCore
+      - path: Sources/MatchaRuntime
+      - path: Sources/App
+      # A top-level Resources folder inside an iOS app bundle breaks bundle identification.
+      - path: Models
+        type: folder
+        buildPhase: resources
+    dependencies:
+      - package: LiteRT
+        product: LiteRT
+      - package: LiteRT
+        product: LiteRtMetalAccelerator
+    info:
+      path: Info.plist
+      properties:
+        CFBundleDisplayName: Text to Speech
+        MatchaBuildConfiguration: $(CONFIGURATION)
+        MatchaLiteRTCommit: ${LITERT_COMMIT}
+        UIFileSharingEnabled: true
+        LSSupportsOpeningDocumentsInPlace: true
+        UIApplicationSceneManifest:
+          UIApplicationSupportsMultipleScenes: false
+        UILaunchScreen: {}
+        UISupportedInterfaceOrientations:
+          - UIInterfaceOrientationPortrait
+          - UIInterfaceOrientationPortraitUpsideDown
+          - UIInterfaceOrientationLandscapeLeft
+          - UIInterfaceOrientationLandscapeRight
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.google.ai.edge.TextToSpeech
+        SWIFT_VERSION: "5.0"
+        TARGETED_DEVICE_FAMILY: "1,2"
+        # The pinned upstream runtime provides only arm64 simulator slices.
+        "ARCHS[sdk=iphonesimulator*]": arm64
+        CODE_SIGN_STYLE: Automatic
+        LD_RUNPATH_SEARCH_PATHS: "$(inherited) @executable_path/Frameworks"
+        ENABLE_USER_SCRIPT_SANDBOXING: YES
+schemes:
+  TextToSpeech:
+    build:
+      targets:
+        TextToSpeech: all
