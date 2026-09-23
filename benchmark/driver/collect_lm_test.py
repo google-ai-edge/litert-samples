@@ -108,6 +108,14 @@ class CollectLmTest(unittest.TestCase):
         self.assertEqual([l["name"] for l in row["libs"]], ["libLiteRtOpenClAccelerator.so", "libLiteRtTopKOpenClSampler.so"])
         self.assertEqual(row["libs"][0]["source"], "latest/android_arm64/litert_lm")
         self.assertEqual(row["binary"], f"latest/android_arm64/litert_lm/litert_lm_advanced_main, sha256 {SHA}")
+        self.assertEqual(row["file_sha256"], "b1baab462f6be49d70eada79d715c2c52cd9ece0cad00bddf6a2c097d23498e9")
+
+    def test_bundle_without_a_sha_line_keeps_the_row_with_an_empty_file_sha256(self):
+        prov = PROVENANCE.replace("b1baab462f6be49d70eada79d715c2c52cd9ece0cad00bddf6a2c097d23498e9  /data/local/tmp/litert-cli/qwen3_0_6b_mixed_int4.litertlm\n", "")
+        code, err = self.run_collect(self.job("session-1", "gpu-caiman-35", provenance=prov))
+        self.assertEqual(code, 0)
+        self.assertIsNone(self.rows()[0]["file_sha256"])
+        self.assertIn("names no sha256 for qwen3_0_6b_mixed_int4.litertlm", err)
 
     def test_same_row_id_replaces_the_earlier_row(self):
         job = self.job("session-1", "gpu-caiman-35")

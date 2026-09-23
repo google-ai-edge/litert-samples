@@ -16,8 +16,8 @@ names) and writes one row per job to measurements-lm.jsonl: prefill and decode
 tokens/s and time to first token as the median over the iterations after the
 warm-up ones (--warmup-iterations, matrix.yaml `runtime_lm.warmup_iterations`),
 init from the run's one engine creation, every iteration kept in the row. The
-model file, `--max_num_tokens` and the shared libraries pushed beside the binary
-(name and sha256) come from provenance.txt, the GPU API from logcat.txt; the
+model file and its sha256, `--max_num_tokens` and the shared libraries pushed beside
+the binary (name and sha256) come from provenance.txt, the GPU API from logcat.txt; the
 binary that ran must have the sha256 `runtime_lm` in matrix.yaml names, since a
 moved `latest` is a new row. A row with the same row_id replaces the earlier one; a job without a
 decodable proto, or with no iteration beyond the warm-up, is reported on stderr
@@ -57,6 +57,7 @@ MODEL_PATH_RE = re.compile(r"--model_path=(\S+)")
 MAX_TOKENS_RE = re.compile(r"--max_num_tokens=(\d+)")
 BINARY_SHA_RE = re.compile(r"^([0-9a-f]{64})\s+(?:\./)?litert_lm_advanced_main$", re.M)
 LIB_SHA_RE = re.compile(r"^([0-9a-f]{64})\s+(?:\./)?(\S+\.so)$", re.M)
+SHA_LINE_RE = re.compile(r"^([0-9a-f]{64})\s+(\S+)$", re.M)
 
 
 def load_matrix(path: pathlib.Path) -> dict:
@@ -151,8 +152,8 @@ def gpu_api(log: pathlib.Path) -> str | None:
 
 
 def provenance(job_dir: pathlib.Path) -> dict:
-    """From provenance.txt: the model file, the --max_num_tokens, the binary's sha256 and the .so files pushed beside it."""
-    facts: dict = {"file": None, "max_num_tokens": None, "binary_sha256": None, "libs": []}
+    """From provenance.txt: the model file and its sha256, the --max_num_tokens, the binary's sha256 and the .so files pushed beside it."""
+    facts: dict = {"file": None, "file_sha256": None, "max_num_tokens": None, "binary_sha256": None, "libs": []}
     path = job_dir / "provenance.txt"
     if not path.exists():
         return facts
@@ -164,6 +165,8 @@ def provenance(job_dir: pathlib.Path) -> dict:
     if m := BINARY_SHA_RE.search(text):
         facts["binary_sha256"] = m.group(1)
     facts["libs"] = sorted(({"name": name, "sha256": sha} for sha, name in LIB_SHA_RE.findall(text)), key=lambda l: l["name"])
+    if facts["file"]:
+        facts["file_sha256"] = next((sha for sha, name in SHA_LINE_RE.findall(text) if name.rsplit("/", 1)[-1] == facts["file"]), None)
     return facts
 
 
@@ -220,9 +223,11 @@ def collect_job(job_dir: pathlib.Path, session: str, args, matrix: dict, meta: d
         print(f"FAILED {session}/{job}: logcat.txt names no GPU API for a {backend} run", file=sys.stderr)
         return None
     libs = [{"name": l["name"], "source": meta["binary_dir"], "sha256": l["sha256"]} for l in prov["libs"]]
+    if prov["file_sha256"] is None:
+        print(f"collect_lm.py: {session}/{job}: provenance.txt names no sha256 for {file}; the row's file_sha256 is empty", file=sys.stderr)
     return {
         "row_id": f"{args.model}:{file}@{meta['version']}/{args.platform}/{device_id}/{backend}/p{P}-d{D}-n{max_tokens}",
-        "model": args.model, "file": file, "task": task, "model_size_mb": args.model_size_mb,
+        "model": args.model, "file": file, "file_sha256": prov["file_sha256"], "task": task, "model_size_mb": args.model_size_mb,
         "platform": args.platform, "device_id": device_id,
         "device": args.device or entry.get("name", device_id), "os": args.os or entry.get("os"),
         "accelerator": backend, "delegate": delegate,
