@@ -1,26 +1,34 @@
 #!/usr/bin/env python3
 """Turn a LiteRT-LM benchmark session into leaderboard rows.
 
-The session is the output directory `litert_lm_harness.sh` writes on the device
-and a Device Run session pulls back: one `metrics_<run>.pb` per run of the
-LiteRT-LM benchmark binary (`litert.lm.proto.LitertLmMetricsList`, one entry
-per `--num_iterations`), `<run>.log` (its stdout, which names the GPU API) and
-`provenance.txt`. <run> is the backend name (cpu, gpu), with `_2`, `_3` for
-repeats. This script decodes the protos with protoc against LiteRT-LM's
+A session is what `litert benchmark <bundle>.litertlm --ddp` pulls back: one job
+directory per accelerator and device, named <accelerator>-<device id>, the same
+layout collect.py reads for benchmark_model sessions:
+
+  ~/.cache/litert-cli/ddp/<session>/<accelerator>-<device id>/
+      metrics.pb       litert.lm.proto.LitertLmMetricsList, one entry per --num-iterations
+      logcat.txt       the run's logcat (names the GPU API)
+      provenance.txt   device, build, the binary's arguments, sha256 of the pushed files
+
+This script decodes metrics.pb with protoc against LiteRT-LM's
 `litert_lm_metrics.proto` (fetched once into the cache at the ref matrix.yaml
-names) and writes one row per run to measurements-lm.jsonl: prefill and decode
+names) and writes one row per job to measurements-lm.jsonl: prefill and decode
 tokens/s and time to first token as the median over the iterations after the
 warm-up ones (--warmup-iterations, matrix.yaml `runtime_lm.warmup_iterations`),
-init from the run's one engine creation, every iteration kept in the row. A row
-with the same row_id replaces the earlier one; a run without a decodable proto,
-or with no iteration beyond the warm-up, is reported on stderr and not written.
+init from the run's one engine creation, every iteration kept in the row. The
+model file, `--max_num_tokens` and the shared libraries pushed beside the binary
+(name and sha256) come from provenance.txt, the GPU API from logcat.txt; the
+binary that ran must have the sha256 `runtime_lm` in matrix.yaml names, since a
+moved `latest` is a new row. A row with the same row_id replaces the earlier one; a job without a
+decodable proto, or with no iteration beyond the warm-up, is reported on stderr
+and not written.
 
 Usage:
-  collect_lm.py OUTPUT_DIR --model litert-community/Qwen3-0.6B --file qwen3_0_6b_mixed_int4.litertlm
-                --device-id caiman-35 --session session-1234abcd
-                [--platform android] [--runner ddp-http] [--task text-generation]
-                [--runtime-version latest@2026-09-18] [--binary ...] [--max-num-tokens 1280] [--warmup-iterations 1]
-                [--model-size-mb 497.66] [--matrix matrix.yaml] [--data-dir ../leaderboard/data] [--date YYYY-MM-DD]
+  collect_lm.py SESSION_DIR... --model litert-community/Qwen3-0.6B [--model-size-mb 497.66]
+                [--file qwen3_0_6b_mixed_int4.litertlm] [--task text-generation]
+                [--runtime-version latest@2026-09-18] [--binary ...] [--warmup-iterations 1]
+                [--device "Pixel 9 Pro" --os "Android 15 (API 35)"]
+                [--matrix matrix.yaml] [--data-dir ../leaderboard/data] [--date YYYY-MM-DD]
 """
 
 from __future__ import annotations
@@ -44,7 +52,11 @@ PROTOS = ("runtime/proto/litert_lm_metrics.proto", "runtime/proto/engine.proto")
 LITERT_LM_RAW = "https://raw.githubusercontent.com/google-ai-edge/LiteRT-LM/{ref}/"
 MESSAGE = "litert.lm.proto.LitertLmMetricsList"
 GPU_API_RE = re.compile(r"Created (OpenCL|WebGPU|Metal|Vulkan) device|Initializing (\w+)-based API")
-RUN_RE = re.compile(r"^metrics_([a-z]+)(?:_(\d+))?\.pb$")
+# provenance.txt: "args: --backend=gpu --model_path=/data/local/tmp/litert-cli/<file> ... --max_num_tokens=1280 ..."
+MODEL_PATH_RE = re.compile(r"--model_path=(\S+)")
+MAX_TOKENS_RE = re.compile(r"--max_num_tokens=(\d+)")
+BINARY_SHA_RE = re.compile(r"^([0-9a-f]{64})\s+(?:\./)?litert_lm_advanced_main$", re.M)
+LIB_SHA_RE = re.compile(r"^([0-9a-f]{64})\s+(?:\./)?(\S+\.so)$", re.M)
 
 
 def load_matrix(path: pathlib.Path) -> dict:
@@ -76,6 +88,9 @@ def ensure_protos(ref: str) -> pathlib.Path | None:
 
 
 def decode(pb: pathlib.Path, ref: str) -> str | None:
+    if not pb.exists():
+        print(f"collect_lm.py: {pb} not found", file=sys.stderr)
+        return None
     if not shutil.which("protoc"):
         print("collect_lm.py: protoc not found", file=sys.stderr)
         return None
@@ -135,15 +150,103 @@ def gpu_api(log: pathlib.Path) -> str | None:
     return None
 
 
+def provenance(job_dir: pathlib.Path) -> dict:
+    """From provenance.txt: the model file, the --max_num_tokens, the binary's sha256 and the .so files pushed beside it."""
+    facts: dict = {"file": None, "max_num_tokens": None, "binary_sha256": None, "libs": []}
+    path = job_dir / "provenance.txt"
+    if not path.exists():
+        return facts
+    text = path.read_text(errors="replace")
+    if m := MODEL_PATH_RE.search(text):
+        facts["file"] = m.group(1).rsplit("/", 1)[-1]
+    if m := MAX_TOKENS_RE.search(text):
+        facts["max_num_tokens"] = int(m.group(1))
+    if m := BINARY_SHA_RE.search(text):
+        facts["binary_sha256"] = m.group(1)
+    facts["libs"] = sorted(({"name": name, "sha256": sha} for sha, name in LIB_SHA_RE.findall(text)), key=lambda l: l["name"])
+    return facts
+
+
+def collect_job(job_dir: pathlib.Path, session: str, args, matrix: dict, meta: dict) -> dict | None:
+    job = job_dir.name
+    backend, device_id = job.split("-", 1)
+    prov = provenance(job_dir)
+    file = args.file or prov["file"]
+    if not file:
+        print(f"FAILED {session}/{job}: model file name not in provenance.txt; pass --file", file=sys.stderr)
+        return None
+    if args.file and prov["file"] and args.file != prov["file"]:
+        print(f"FAILED {session}/{job}: provenance.txt names {prov['file']}, --file says {args.file}", file=sys.stderr)
+        return None
+    if meta["sha256"]:
+        if not prov["binary_sha256"]:
+            print(f"FAILED {session}/{job}: provenance.txt names no sha256 for the binary; pass --binary and --runtime-version", file=sys.stderr)
+            return None
+        if prov["binary_sha256"] != meta["sha256"]:
+            print(f"FAILED {session}/{job}: the binary that ran (sha256 {prov['binary_sha256'][:8]}...) is not the one"
+                  f" matrix.yaml runtime_lm names ({meta['sha256'][:8]}...): a moved `latest` is a new row, so update"
+                  f" runtime_lm (version and sha256) first, or pass --binary and --runtime-version", file=sys.stderr)
+            return None
+    text = decode(job_dir / "metrics.pb", meta["ref"])
+    if text is None:
+        print(f"FAILED {session}/{job}: metrics.pb not decoded", file=sys.stderr)
+        return None
+    its = parse_iterations(text)
+    if not its or its[0]["prefill_tok_s"] is None:
+        print(f"FAILED {session}/{job}: no LitertLmMetrics with a prefill turn in metrics.pb", file=sys.stderr)
+        return None
+    measured = its[meta["warmup"]:]
+    if not measured:
+        print(f"FAILED {session}/{job}: {len(its)} iteration(s), none beyond the {meta['warmup']} warm-up", file=sys.stderr)
+        return None
+    task = args.task or next((m.get("task") for m in matrix.get("lm_models") or []
+                              if m.get("repo") == args.model and m.get("file") == file), None)
+    if not task:
+        print(f"FAILED {session}/{job}: task unknown for {args.model}:{file}; add it to lm_models in matrix.yaml or pass --task", file=sys.stderr)
+        return None
+    max_tokens = args.max_num_tokens if args.max_num_tokens is not None else prov["max_num_tokens"]
+    P, D = its[0]["prefill_tokens"], its[0]["decode_tokens"]
+    if P is None or D is None or max_tokens is None:
+        print(f"FAILED {session}/{job}: token counts unknown (prefill {P}, decode {D}, max_num_tokens {max_tokens});"
+              f" metrics.pb needs benchmark_params and provenance.txt --max_num_tokens, or pass --max-num-tokens", file=sys.stderr)
+        return None
+    pb = job_dir / "metrics.pb"
+    date = args.date or dt.datetime.fromtimestamp(pb.stat().st_mtime, dt.timezone.utc).date().isoformat()
+    entry = meta["devices"].get(device_id, {})
+    if not args.device and device_id not in meta["devices"]:
+        print(f"collect_lm.py: device {device_id} is not in matrix.yaml; the board will show its id", file=sys.stderr)
+    delegate = gpu_api(job_dir / "logcat.txt") if backend != "cpu" else None
+    if backend != "cpu" and delegate is None:
+        print(f"FAILED {session}/{job}: logcat.txt names no GPU API for a {backend} run", file=sys.stderr)
+        return None
+    libs = [{"name": l["name"], "source": meta["binary_dir"], "sha256": l["sha256"]} for l in prov["libs"]]
+    return {
+        "row_id": f"{args.model}:{file}@{meta['version']}/{args.platform}/{device_id}/{backend}/p{P}-d{D}-n{max_tokens}",
+        "model": args.model, "file": file, "task": task, "model_size_mb": args.model_size_mb,
+        "platform": args.platform, "device_id": device_id,
+        "device": args.device or entry.get("name", device_id), "os": args.os or entry.get("os"),
+        "accelerator": backend, "delegate": delegate,
+        "conditions": {"prefill_tokens": P, "decode_tokens": D, "max_num_tokens": max_tokens,
+                       "iterations": len(its), "warmup_iterations": meta["warmup"]},
+        "metrics": {
+            "prefill_tok_s": median([i["prefill_tok_s"] for i in measured]),
+            "decode_tok_s": median([i["decode_tok_s"] for i in measured]),
+            "ttft_s": median([i["ttft_s"] for i in measured]),
+            "init_total_ms": its[0]["init_total_ms"], "init_executor_ms": its[0]["init_executor_ms"],
+            "peak_mem_mb": median([i["peak_mem_mb"] for i in measured]),
+        },
+        "iterations": [{k: i[k] for k in ("prefill_tok_s", "decode_tok_s", "ttft_s", "init_total_ms")} for i in its],
+        "runtime": "litert-lm", "runtime_version": meta["version"], "binary": meta["binary"], "libs": libs,
+        "runner": args.runner, "session": session, "job": job, "repeat": 1,
+        "source": "metrics.pb", "status": "measured", "date": date,
+    }
+
+
 def main() -> int:
     p = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    p.add_argument("output_dir", type=pathlib.Path, help="the harness output directory (metrics_<run>.pb, <run>.log, provenance.txt)")
+    p.add_argument("session_dirs", nargs="+", type=pathlib.Path, help="a session directory (or one job directory)")
     p.add_argument("--model", required=True, help="Hugging Face repo, e.g. litert-community/Qwen3-0.6B")
-    p.add_argument("--file", required=True, help="the .litertlm file")
-    p.add_argument("--device-id", required=True, help="device id, e.g. caiman-35")
-    p.add_argument("--session", required=True, help="the session id the outputs came from")
-    p.add_argument("--platform", default="android")
-    p.add_argument("--runner", default="ddp-http", help="what produced the session")
+    p.add_argument("--file", help="the .litertlm file; read from provenance.txt when omitted")
     p.add_argument("--task", help="pipeline tag; matrix.yaml lm_models when omitted")
     p.add_argument("--runtime-version", help="LiteRT-LM release or 'latest@<date>'; matrix.yaml runtime_lm.version when omitted")
     p.add_argument("--binary", help="the binary the rows ran; matrix.yaml runtime_lm.binary (+ sha256) when omitted")
@@ -151,82 +254,61 @@ def main() -> int:
     p.add_argument("--max-num-tokens", type=int, help="the --max_num_tokens the run used; provenance.txt when omitted")
     p.add_argument("--warmup-iterations", type=int, help="leading iterations left out of the medians; matrix.yaml runtime_lm.warmup_iterations, else 0")
     p.add_argument("--model-size-mb", type=float, help="the bundle's size in MB (bytes / 1e6, as benchmark_model reports); shown as Model size")
+    p.add_argument("--platform", default="android")
+    p.add_argument("--runner", default="ddp", help="what produced the session")
     p.add_argument("--device", help="device name; matrix.yaml devices when omitted")
     p.add_argument("--os", help="OS shown with the device; matrix.yaml devices when omitted")
     p.add_argument("--matrix", type=pathlib.Path, default=DEFAULT_MATRIX)
     p.add_argument("--data-dir", type=pathlib.Path, default=DEFAULT_DATA_DIR)
-    p.add_argument("--date", help="YYYY-MM-DD; default = the day the protos were written (mtime, UTC)")
+    p.add_argument("--date", help="YYYY-MM-DD; default = the day metrics.pb was written (mtime, UTC)")
     args = p.parse_args()
 
     matrix = load_matrix(args.matrix)
     lm = matrix.get("runtime_lm") or {}
     version = args.runtime_version or lm.get("version")
-    binary = args.binary or (f"{lm['binary']}, sha256 {lm['sha256']}" if lm.get("binary") and lm.get("sha256") else lm.get("binary"))
-    ref = args.proto_ref or lm.get("proto_ref") or "main"
-    task = args.task or next((m.get("task") for m in matrix.get("lm_models") or [] if m.get("repo") == args.model and m.get("file") == args.file), None)
-    if not version or not task:
-        sys.exit("collect_lm.py: runtime version and task are needed (flags, or runtime_lm / lm_models in matrix.yaml)")
+    if not version:
+        sys.exit("collect_lm.py: runtime version is needed (--runtime-version, or runtime_lm.version in matrix.yaml)")
     devices = {}
     for group in ("measured", "planned"):
         for d in (((matrix.get("platforms") or {}).get(args.platform) or {}).get("devices") or {}).get(group) or []:
             devices[d["id"]] = d
-    entry = devices.get(args.device_id, {})
-    out = args.output_dir.expanduser()
-    if not out.is_dir():
-        sys.exit(f"collect_lm.py: not a directory: {out}")
-    max_tokens = args.max_num_tokens
-    prov = out / "provenance.txt"
-    if max_tokens is None and prov.exists():
-        m = re.search(r"max_num_tokens: (\d+)", prov.read_text(errors="replace"))
-        max_tokens = int(m.group(1)) if m else None
-    warmup = args.warmup_iterations if args.warmup_iterations is not None else int(lm.get("warmup_iterations") or 0)
+    meta = {
+        "version": version,
+        "binary": args.binary or (f"{lm['binary']}, sha256 {lm['sha256']}" if lm.get("binary") and lm.get("sha256") else lm.get("binary")),
+        "sha256": None if args.binary or not lm.get("sha256") else str(lm["sha256"]),
+        "binary_dir": (args.binary or lm.get("binary") or "").split(",")[0].rsplit("/", 1)[0] or None,
+        "ref": args.proto_ref or lm.get("proto_ref") or "main",
+        "warmup": args.warmup_iterations if args.warmup_iterations is not None else int(lm.get("warmup_iterations") or 0),
+        "devices": devices,
+    }
 
+    session_dirs = [sd.expanduser() for sd in args.session_dirs]
+    for sd in session_dirs:
+        if not sd.is_dir():
+            sys.exit(f"collect_lm.py: not a directory: {sd}")
     rows, failed = [], 0
-    for pb in sorted(out.glob("metrics_*.pb")):
-        m = RUN_RE.match(pb.name)
-        if not m:
-            continue
-        backend, repeat = m.group(1), int(m.group(2) or 1)
-        run = pb.stem.removeprefix("metrics_")
-        text = decode(pb, ref)
-        its = parse_iterations(text) if text else []
-        if not its or its[0]["prefill_tok_s"] is None:
-            print(f"FAILED {out.name}/{run}: no decodable LitertLmMetrics in {pb.name}", file=sys.stderr)
+    for sd in session_dirs:
+        is_job = (sd / "metrics.pb").exists()
+        jobs = [sd] if is_job else sorted(d for d in sd.iterdir() if d.is_dir())
+        for d in [j for j in jobs if "-" not in j.name]:
+            print(f"collect_lm.py: skipping {d}: not a <accelerator>-<device> job directory", file=sys.stderr)
+        jobs = [j for j in jobs if "-" in j.name]
+        if not jobs:
+            print(f"collect_lm.py: no job directories in {sd}", file=sys.stderr)
             failed += 1
             continue
-        measured = its[warmup:]
-        if not measured:
-            print(f"FAILED {out.name}/{run}: {len(its)} iteration(s), none beyond the {warmup} warm-up", file=sys.stderr)
-            failed += 1
-            continue
-        P, D = its[0]["prefill_tokens"], its[0]["decode_tokens"]
-        date = args.date or dt.datetime.fromtimestamp(pb.stat().st_mtime, dt.timezone.utc).date().isoformat()
-        row = {
-            "row_id": f"{args.model}:{args.file}@{version}/{args.platform}/{args.device_id}/{backend}/p{P}-d{D}-n{max_tokens}"
-                      + (f"/run{repeat}" if repeat > 1 else ""),
-            "model": args.model, "file": args.file, "task": task, "model_size_mb": args.model_size_mb,
-            "platform": args.platform, "device_id": args.device_id,
-            "device": args.device or entry.get("name", args.device_id), "os": args.os or entry.get("os"),
-            "accelerator": backend, "delegate": gpu_api(out / f"{run}.log") if backend != "cpu" else None,
-            "conditions": {"prefill_tokens": P, "decode_tokens": D, "max_num_tokens": max_tokens,
-                           "iterations": len(its), "warmup_iterations": warmup},
-            "metrics": {
-                "prefill_tok_s": median([i["prefill_tok_s"] for i in measured]),
-                "decode_tok_s": median([i["decode_tok_s"] for i in measured]),
-                "ttft_s": median([i["ttft_s"] for i in measured]),
-                "init_total_ms": its[0]["init_total_ms"], "init_executor_ms": its[0]["init_executor_ms"],
-                "peak_mem_mb": median([i["peak_mem_mb"] for i in measured]),
-            },
-            "iterations": [{k: i[k] for k in ("prefill_tok_s", "decode_tok_s", "ttft_s", "init_total_ms")} for i in its],
-            "runtime": "litert-lm", "runtime_version": version, "binary": binary, "libs": lm.get("libs"),
-            "runner": args.runner, "session": args.session, "job": run, "repeat": repeat,
-            "source": "metrics.pb", "status": "measured", "date": date,
-        }
-        rows.append(row)
-        mt = row["metrics"]
-        print(f"{args.session}/{run}: {args.file} {args.platform} {row['device']} {backend} prefill {mt['prefill_tok_s']} tok/s,"
-              f" decode {mt['decode_tok_s']} tok/s, ttft {mt['ttft_s']} s, init {mt['init_total_ms']} ms,"
-              f" {len(its)} iteration(s) with {warmup} warm-up ({row['delegate'] or 'cpu'}), metrics.pb")
+        session = (sd.parent if is_job else sd).name
+        for job_dir in jobs:
+            row = collect_job(job_dir, session, args, matrix, meta)
+            if row is None:
+                failed += 1
+                continue
+            rows.append(row)
+            mt = row["metrics"]
+            print(f"{session}/{row['job']}: {row['file']} {row['platform']} {row['device']} {row['accelerator']}"
+                  f" prefill {mt['prefill_tok_s']} tok/s, decode {mt['decode_tok_s']} tok/s, ttft {mt['ttft_s']} s,"
+                  f" init {mt['init_total_ms']} ms, {row['conditions']['iterations']} iteration(s) with"
+                  f" {meta['warmup']} warm-up ({row['delegate'] or 'cpu'}), metrics.pb")
     if rows:
         args.data_dir.mkdir(parents=True, exist_ok=True)
         path = args.data_dir / "measurements-lm.jsonl"
