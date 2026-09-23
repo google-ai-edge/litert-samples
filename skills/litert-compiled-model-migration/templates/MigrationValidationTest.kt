@@ -32,7 +32,9 @@ class MigrationValidationTest {
         val inputs = compiledModel.createInputBuffers()
         val outputs = compiledModel.createOutputBuffers()
 
-        // TODO: Replace with a real preprocessed input; the element count must match the model.
+        // TODO: Replace with a real preprocessed input. The element count must equal the model's input element
+        // count (a shorter array writes only part of the buffer). The template assumes float input and output;
+        // use writeInt8 / readInt8 for int8 models.
         val inputSize = 100 // replace with actual size
         inputs[0].writeFloat(FloatArray(inputSize) { 0.5f })
 
