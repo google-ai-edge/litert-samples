@@ -48,9 +48,11 @@ def download(url: str, dest: pathlib.Path) -> None:
     req = urllib.request.Request(url)
     if os.environ.get("HF_TOKEN"):
         req.add_header("Authorization", f"Bearer {os.environ['HF_TOKEN']}")
-    with urllib.request.urlopen(req, timeout=120) as r, open(dest, "wb") as f:
+    tmp = dest.with_suffix(dest.suffix + ".part")
+    with urllib.request.urlopen(req, timeout=120) as r, open(tmp, "wb") as f:
         while chunk := r.read(1 << 20):
             f.write(chunk)
+    tmp.rename(dest)
 
 
 def show(cmd: list[str]) -> str:
@@ -67,8 +69,8 @@ def show(cmd: list[str]) -> str:
     return shlex.join(parts)
 
 
-def run_streaming(cmd: list[str]) -> str:
-    """Runs a command, echoing its output, and returns the whole output."""
+def run_streaming(cmd: list[str]) -> tuple[str, int]:
+    """Runs a command, echoing its output, and returns the whole output and the exit code."""
     out: list[str] = []
     with subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True) as p:
         for line in p.stdout:
@@ -76,7 +78,7 @@ def run_streaming(cmd: list[str]) -> str:
             out.append(line)
     if p.returncode != 0:
         print(f"run_matrix.py: command exited {p.returncode}: {shlex.join(cmd)}", file=sys.stderr)
-    return "".join(out)
+    return "".join(out), p.returncode
 
 
 def main() -> int:
@@ -130,7 +132,13 @@ def main() -> int:
             print(f"# download {url} -> {local}")
             announced.add(local)
             if not args.dry_run:
-                download(url, local)
+                try:
+                    download(url, local)
+                except OSError as e:
+                    print(f"run_matrix.py: download failed: {url}: {e}", file=sys.stderr)
+        if not args.dry_run and not local.exists():
+            failures += 1
+            continue
         bench = [args.litert, "benchmark", str(local), "--ddp", f"--{accel}", "--devices", ",".join(devices), "--gcp-project", project]
         collect = [python, str(HERE / "collect.py"), "<session dir from the CLI output>", "--model", m["repo"], "--file", m["file"],
                    "--runtime-version", "<pin from the CLI output>", *extra]
@@ -138,7 +146,9 @@ def main() -> int:
         print(show(collect))
         if args.dry_run:
             continue
-        out = run_streaming(bench)
+        out, code = run_streaming(bench)
+        if code != 0:
+            failures += 1  # the session did not pass as a whole; the jobs it saved are still collected below
         saved = SAVED_RE.findall(out)
         if not saved:
             print(f"run_matrix.py: no output directory reported for {m['repo']} {accel}; skipping collect", file=sys.stderr)
@@ -147,6 +157,8 @@ def main() -> int:
         session_dir = str(pathlib.Path(saved[0]).expanduser().parent)
         pin = BINARY_RE.search(out)
         version = pin.group(1) if pin else (matrix.get("runtime") or {}).get("version")
+        if not pin:
+            print(f"run_matrix.py: no benchmark_model pin in the CLI output; rows take runtime.version {version} from matrix.yaml", file=sys.stderr)
         collect[2] = session_dir
         collect[collect.index("<pin from the CLI output>")] = str(version)
         print(show(collect))

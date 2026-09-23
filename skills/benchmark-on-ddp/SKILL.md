@@ -11,17 +11,17 @@ A board row is done when three things hold:
 2. it names the model file, the platform, the device id, the accelerator and the `benchmark_model` release,
 3. `data/board.json` was rebuilt from `data/measurements.jsonl` and the page shows it.
 
-A number without those is not a row. This skill covers `.tflite` models on [LiteRT](https://github.com/google-ai-edge/litert); [LiteRT-LM](https://github.com/google-ai-edge/LiteRT-LM)
-bundles are not covered. Every DDP session consumes device time billed to the Google Cloud project; the dry run prints every command it would run, so read it first. A run on the Mac you are on bills nothing.
+A number without those is not a row. This skill covers `.tflite` models on [LiteRT](https://github.com/google-ai-edge/litert); a [LiteRT-LM](https://github.com/google-ai-edge/LiteRT-LM)
+bundle is one `litert benchmark <bundle>.litertlm --ddp` session per backend, collected by `collect_lm.py` (the board README, step 5). Every DDP session consumes device time billed to the Google Cloud project; the dry run prints every command it would run, so read it first. A run on the Mac you are on bills nothing.
 
 ## Before you start
 
 - `python3` with PyYAML, and `protoc` on PATH (`brew install protobuf`, or `apt install protobuf-compiler`).
 - For new DDP sessions: `gcloud auth application-default login`, a project with the Device Run API enabled (`--gcp-project` or `LITERT_GCP_PROJECT`),
-  and the `litert` CLI with the `--ddp` target, in review in [LiteRT-CLI](https://github.com/google-ai-edge/LiteRT-CLI); until it lands, install the CLI from the review branch, after which `litert benchmark --help` lists `--ddp`:
+  and the `litert` CLI of [LiteRT-CLI](https://github.com/google-ai-edge/LiteRT-CLI) with the `--ddp` target (the 0.2.0 release predates it):
 
 ```bash
-pip install https://github.com/john-rocky/LiteRT-CLI/archive/refs/heads/benchmark-ddp-target.zip
+pip install litert-cli-nightly
 ```
 
 - For rows from this Mac: nothing more; `run_local.py` fetches the macOS binary of the pinned release.
@@ -82,4 +82,4 @@ means `results.pb` could not be decoded, usually a missing `protoc`: install it 
 ## Tested on
 
 macOS host (Mac Studio, M4 Max, macOS 27.0), Python 3.14, protoc 34.1: the Android rows in the repo (21 model files, 2026-09-18) came from `run_matrix.py` end to end, 42
-sessions on caiman-35 (Pixel 9 Pro) and pa3q-35 (Galaxy S25 Ultra), CPU and GPU, binary 2.2.0; the macOS rows (the same files, 2026-09-18) from `run_local.py` end to end on that Mac; every row was then re-collected from the cached outputs and the board rebuilt (2026-09-18).
+sessions on caiman-35 (Pixel 9 Pro) and pa3q-35 (Galaxy S25 Ultra), CPU and GPU, binary 2.2.0; the macOS rows (the same files, 2026-09-18) from `run_local.py` end to end on that Mac; every row was then re-collected from the cached outputs and the board rebuilt (2026-09-18). The install line above was run in a fresh venv on 2026-09-23 (litert-cli-nightly 0.3.0.dev20260922; `litert benchmark --help` lists `--ddp` and the `.litertlm` bundle options).
