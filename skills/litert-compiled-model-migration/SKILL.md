@@ -49,7 +49,7 @@ Before initiating the LiteRT Compiled Model Migration, please confirm your proje
    Do you want to enable NPU hardware acceleration via JIT on-device compilation?
    - [A] Yes (Recommended - replaces deprecated NNAPI) [Default]
          * If the app uses a Float32 model: Would you like to generate an INT8 integer-quantized model via AI Edge Quantizer for peak NPU speed, or run the original Float32 model?
-           -> Option A.1: Convert to INT8 (Generates model_int8.tflite for NPU matrix engines) [Default]
+           -> Option A.1: Convert to INT8 (Generates model_int8.tflite for NPU matrix engines; validate with `python utilities/tools/check_npu_compatibility.py model_int8.tflite`) [Default]
            -> Option A.2: Keep Float32 (Runs baseline float model directly on NPU)
    - [B] No (GPU and CPU acceleration only)
 
