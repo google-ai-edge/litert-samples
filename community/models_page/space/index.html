@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self'; img-src data:; connect-src 'self' https://huggingface.co/api/models https://huggingface.co/api/models/ https://google-ai-edge.github.io/litert-samples/benchmark/leaderboard/data/board.json https://google-ai-edge.github.io/litert-samples/models/README.md; base-uri 'none'; form-action 'none'">
+    <meta name="description" content="Every model in litert-community, with its source model, its on-device benchmarks and its conversion recipe in litert-samples, where these exist.">
+    <title>LiteRT Models (draft)</title>
+    <link rel="icon" href="data:,">
+    <link rel="stylesheet" href="style.css?v=3">
+</head>
+<body>
+    <p class="draft" role="note">Draft · for review</p>
+    <header>
+        <div class="bar">
+            <span class="brand">LiteRT Models</span>
+            <nav>
+                <a href="#benchmark">How to benchmark</a>
+                <a href="#convert">Convert and run</a>
+                <a href="#how">How this page works</a>
+            </nav>
+        </div>
+    </header>
+
+    <section class="hero">
+        <h1>Find a LiteRT model for your task.</h1>
+        <p>Every model in <a href="https://huggingface.co/litert-community" target="_blank" rel="noopener">litert-community</a>, with its source model, its on-device benchmarks and its conversion recipe in <a href="https://github.com/google-ai-edge/litert-samples" target="_blank" rel="noopener">litert-samples</a>, where these exist.</p>
+        <p class="stats" id="stats" aria-live="polite"></p>
+    </section>
+
+    <noscript><p class="notice">This page reads the model list with JavaScript. The models are at <a href="https://huggingface.co/litert-community" target="_blank" rel="noopener">huggingface.co/litert-community</a>, and the benchmarks on the <a href="https://google-ai-edge.github.io/litert-samples/benchmark/leaderboard/" target="_blank" rel="noopener">leaderboard in litert-samples</a>.</p></noscript>
+
+    <p class="notice" id="loading" role="status">Reading the model list from Hugging Face…</p>
+    <p class="notice error" id="loadError" role="alert" hidden>Could not load the model list from Hugging Face (<span id="loadErrorWhy"></span>). Reload to try again, or see the models at <a href="https://huggingface.co/litert-community" target="_blank" rel="noopener">huggingface.co/litert-community</a>.</p>
+
+    <p class="notice error" id="pageError" role="alert" hidden>This page stopped on an error (<span id="pageErrorWhy"></span>). The models are at <a href="https://huggingface.co/litert-community" target="_blank" rel="noopener">huggingface.co/litert-community</a>.</p>
+
+    <main id="app" hidden>
+        <p class="notice" id="boardError" role="status" hidden>Benchmarks could not be loaded, so models are listed without them. They are also on the <a href="https://google-ai-edge.github.io/litert-samples/benchmark/leaderboard/" target="_blank" rel="noopener">leaderboard in litert-samples</a>.</p>
+        <p class="notice" id="recipesError" role="status" hidden>Recipe links could not be loaded from litert-samples. The recipes are at <a href="https://github.com/google-ai-edge/litert-samples/tree/main/models" target="_blank" rel="noopener">litert-samples/models</a>.</p>
+        <div class="layout">
+            <div id="filters">
+                <button type="button" class="chip" id="filtersToggle" aria-expanded="false" aria-controls="filterPanel">Filters</button>
+                <div id="filterPanel">
+                <div class="group"><h2>Task</h2><div class="chips" id="fTask"></div></div>
+                <div class="group"><h2>Format</h2><div class="chips" id="fFormat"></div></div>
+                <div class="group"><h2>Benchmarks</h2><div class="chips" id="fBenchmarks"></div>
+                    <div class="selects" id="fRows" hidden>
+                        <h3>Benchmarked on</h3>
+                        <label>Platform <select id="fPlatform"></select></label>
+                        <label>Device <select id="fDevice"></select></label>
+                        <label>Accelerator <select id="fAccel"></select></label>
+                    </div>
+                </div>
+                <div class="group"><h2>Recipe in litert-samples</h2><div class="chips" id="fRecipe"></div></div>
+                <button type="button" class="chip" id="clear">Clear filters</button>
+                </div>
+            </div>
+            <section aria-label="Models">
+                <div class="listbar">
+                    <h2 id="count" aria-live="polite"></h2>
+                    <label class="search"><span>Name contains</span> <input type="search" id="fName" autocomplete="off" spellcheck="false"></label>
+                    <label>Sort <select id="fSort"></select></label>
+                </div>
+                <ul id="list"></ul>
+                <p class="notice" id="empty" hidden>No models match these filters. <button type="button" class="chip" id="emptyClear">Clear filters</button></p>
+            </section>
+        </div>
+    </main>
+
+    <section class="block" id="benchmark">
+        <h2>How to benchmark a model</h2>
+        <p><a href="https://github.com/google-ai-edge/LiteRT-CLI" target="_blank" rel="noopener">LiteRT CLI</a> downloads a model from the org and benchmarks it on a phone over adb (<code>--android</code>), on the Mac it runs on (<code>--desktop</code>), or on a lab phone in Google Cloud's <a href="https://docs.cloud.google.com/developer-device-platform/overview" target="_blank" rel="noopener">Developer Device Platform</a> (<code>--ddp</code>, a session billed to your project); <code>--cpu</code>, <code>--gpu</code> and <code>--npu</code> pick the accelerator:</p>
+<pre><code>pip install litert-cli-nightly
+litert download litert-community/MobileNet-v2 --file "*.tflite" --output mobilenet
+litert benchmark mobilenet/mobilenet_v2.tflite --desktop --cpu
+litert benchmark mobilenet/mobilenet_v2.tflite --android --gpu
+litert benchmark mobilenet/mobilenet_v2.tflite --ddp --device caiman-35 --gcp-project your-project-id</code></pre>
+        <p>The CLI's <a href="https://github.com/google-ai-edge/LiteRT-CLI#6-benchmark-a-litert-model" target="_blank" rel="noopener">README</a> lists every form, a <code>.litertlm</code> bundle included. The benchmarks on this page are rows of the <a href="https://google-ai-edge.github.io/litert-samples/benchmark/leaderboard/" target="_blank" rel="noopener">leaderboard in litert-samples</a>; <a href="https://github.com/google-ai-edge/litert-samples/tree/main/benchmark" target="_blank" rel="noopener">litert-samples/benchmark</a> holds the drivers that made them, the iPhone app, and the <a href="https://github.com/google-ai-edge/litert-samples/tree/main/benchmark/leaderboard#how-a-row-is-made" target="_blank" rel="noopener">README</a> on how a row is made.</p>
+    </section>
+
+    <section class="block" id="convert">
+        <h2>Convert and run a model</h2>
+        <ul>
+            <li><a href="https://github.com/google-ai-edge/LiteRT-CLI" target="_blank" rel="noopener">LiteRT CLI</a>: convert, quantize, compile, run and benchmark a model from the command line.</li>
+            <li><a href="https://github.com/google-ai-edge/litert-torch" target="_blank" rel="noopener">litert-torch</a>: PyTorch model conversion with LiteRT.</li>
+            <li><a href="https://github.com/google-ai-edge/litert-samples" target="_blank" rel="noopener">litert-samples</a>: sample apps, the <a href="https://github.com/google-ai-edge/litert-samples/blob/main/models/conversion.md" target="_blank" rel="noopener">conversion guide</a>, and model recipes under <a href="https://github.com/google-ai-edge/litert-samples/tree/main/models" target="_blank" rel="noopener">models/</a>.</li>
+            <li><a href="https://ai.google.dev/edge/litert" target="_blank" rel="noopener">Documentation</a> for LiteRT, and the <a href="https://github.com/google-ai-edge/LiteRT-LM" target="_blank" rel="noopener">LiteRT-LM</a> repo for LLMs.</li>
+        </ul>
+    </section>
+
+    <section class="block" id="how">
+        <details>
+            <summary><h2>How this page works</h2></summary>
+            <p>Models: the Hugging Face API, read when the page loads; repos that hold only a README are left out. Source model: the <code>base_model</code> field of the repo's card. Benchmarks: the data file of the <a href="https://google-ai-edge.github.io/litert-samples/benchmark/leaderboard/" target="_blank" rel="noopener">leaderboard in litert-samples</a>, read when the page loads. Recipes: the model list in <a href="https://github.com/google-ai-edge/litert-samples/blob/main/models/README.md" target="_blank" rel="noopener">litert-samples/models/README.md</a>, read when the page loads. A benchmark is one model file on one platform, device and accelerator, at the newest runtime version measured, and a comparison holds only within one platform, device, accelerator and task. Task is the repo's pipeline tag, and Format the <code>.tflite</code>, <code>.litertlm</code> and <code>.task</code> files a repo holds.</p>
+        </details>
+    </section>
+
+    <footer>
+        <a href="https://github.com/google-ai-edge/litert" target="_blank" rel="noopener">LiteRT</a>
+        <a href="https://github.com/google-ai-edge/LiteRT-LM" target="_blank" rel="noopener">LiteRT-LM</a>
+        <a href="https://ai.google.dev/edge/litert" target="_blank" rel="noopener">Documentation</a>
+        <a href="https://github.com/google-ai-edge/litert-samples" target="_blank" rel="noopener">litert-samples</a>
+        <a href="https://huggingface.co/litert-community" target="_blank" rel="noopener">litert-community</a>
+    </footer>
+
+    <script type="module" src="app.js?v=3"></script>
+</body>
+</html>
