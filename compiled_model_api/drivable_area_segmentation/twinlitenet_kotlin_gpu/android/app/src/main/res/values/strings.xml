@@ -1,0 +1,7 @@
+<resources>
+    <string name="app_name" translatable="false">TwinLiteNet Drivable Area</string>
+    <string name="action_pick_image">Pick image</string>
+    <string name="status_loading">Loading TwinLiteNet on GPU…</string>
+    <string name="status_processing">Segmenting…</string>
+    <string name="status_ready" translatable="false">TwinLiteNet · drivable area + lanes · CompiledModel GPU · %1$d ms</string>
+</resources>
