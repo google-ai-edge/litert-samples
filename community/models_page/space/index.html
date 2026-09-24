@@ -7,7 +7,7 @@
     <meta name="description" content="Every model in litert-community, with its source model, its on-device benchmarks and its conversion recipe in litert-samples, where these exist.">
     <title>LiteRT Models (draft)</title>
     <link rel="icon" href="data:,">
-    <link rel="stylesheet" href="style.css?v=3">
+    <link rel="stylesheet" href="style.css?v=4">
 </head>
 <body>
     <p class="draft" role="note">Draft · for review</p>
@@ -43,6 +43,8 @@
                 <button type="button" class="chip" id="filtersToggle" aria-expanded="false" aria-controls="filterPanel">Filters</button>
                 <div id="filterPanel">
                 <div class="group"><h2>Task</h2><div class="chips" id="fTask"></div></div>
+                <div class="group"><h2>Family</h2><div class="chips" id="fFamily"></div></div>
+                <div class="group"><h2>Size</h2><div class="chips" id="fSize"></div></div>
                 <div class="group"><h2>Format</h2><div class="chips" id="fFormat"></div></div>
                 <div class="group"><h2>Benchmarks</h2><div class="chips" id="fBenchmarks"></div>
                     <div class="selects" id="fRows" hidden>
@@ -76,7 +78,7 @@ litert download litert-community/MobileNet-v2 --file "*.tflite" --output mobilen
 litert benchmark mobilenet/mobilenet_v2.tflite --desktop --cpu
 litert benchmark mobilenet/mobilenet_v2.tflite --android --gpu
 litert benchmark mobilenet/mobilenet_v2.tflite --ddp --device caiman-35 --gcp-project your-project-id</code></pre>
-        <p>The CLI's <a href="https://github.com/google-ai-edge/LiteRT-CLI#6-benchmark-a-litert-model" target="_blank" rel="noopener">README</a> lists every form, a <code>.litertlm</code> bundle included. The benchmarks on this page are rows of the <a href="https://google-ai-edge.github.io/litert-samples/benchmark/leaderboard/" target="_blank" rel="noopener">leaderboard in litert-samples</a>; <a href="https://github.com/google-ai-edge/litert-samples/tree/main/benchmark" target="_blank" rel="noopener">litert-samples/benchmark</a> holds the drivers that made them, the iPhone app, and the <a href="https://github.com/google-ai-edge/litert-samples/tree/main/benchmark/leaderboard#how-a-row-is-made" target="_blank" rel="noopener">README</a> on how a row is made.</p>
+        <p>Each model's details carry the download and desktop lines with its own file name, plus <code>litert run</code> for a <code>.tflite</code> file and <code>litert lm benchmark</code> and <code>litert lm run</code> for a <code>.litertlm</code> bundle. The CLI's <a href="https://github.com/google-ai-edge/LiteRT-CLI#6-benchmark-a-litert-model" target="_blank" rel="noopener">README</a> lists every form, a <code>.litertlm</code> bundle included. The benchmarks on this page are rows of the <a href="https://google-ai-edge.github.io/litert-samples/benchmark/leaderboard/" target="_blank" rel="noopener">leaderboard in litert-samples</a>; <a href="https://github.com/google-ai-edge/litert-samples/tree/main/benchmark" target="_blank" rel="noopener">litert-samples/benchmark</a> holds the drivers that made them, the iPhone app, and the <a href="https://github.com/google-ai-edge/litert-samples/tree/main/benchmark/leaderboard#how-a-row-is-made" target="_blank" rel="noopener">README</a> on how a row is made.</p>
     </section>
 
     <section class="block" id="convert">
@@ -92,7 +94,7 @@ litert benchmark mobilenet/mobilenet_v2.tflite --ddp --device caiman-35 --gcp-pr
     <section class="block" id="how">
         <details>
             <summary><h2>How this page works</h2></summary>
-            <p>Models: the Hugging Face API, read when the page loads; repos that hold only a README are left out. Source model: the <code>base_model</code> field of the repo's card. Benchmarks: the data file of the <a href="https://google-ai-edge.github.io/litert-samples/benchmark/leaderboard/" target="_blank" rel="noopener">leaderboard in litert-samples</a>, read when the page loads. Recipes: the model list in <a href="https://github.com/google-ai-edge/litert-samples/blob/main/models/README.md" target="_blank" rel="noopener">litert-samples/models/README.md</a>, read when the page loads. A benchmark is one model file on one platform, device and accelerator, at the newest runtime version measured, and a comparison holds only within one platform, device, accelerator and task. Task is the repo's pipeline tag, and Format the <code>.tflite</code>, <code>.litertlm</code> and <code>.task</code> files a repo holds.</p>
+            <p>Models: the Hugging Face API, read when the page loads; repos that hold only a README are left out. Source model: the <code>base_model</code> field of the repo's card. Benchmarks: the data file of the <a href="https://google-ai-edge.github.io/litert-samples/benchmark/leaderboard/" target="_blank" rel="noopener">leaderboard in litert-samples</a>, read when the page loads. Recipes: the model list in <a href="https://github.com/google-ai-edge/litert-samples/blob/main/models/README.md" target="_blank" rel="noopener">litert-samples/models/README.md</a>, read when the page loads. A benchmark is one model file on one platform, device and accelerator, at the newest runtime version measured, and a comparison holds only within one platform, device, accelerator and task. Task is the repo's pipeline tag, and Format the <code>.tflite</code>, <code>.litertlm</code> and <code>.task</code> files a repo holds. Family is the leading letters of the source model's name (of the repo's name when the card names none), so <code>gemma-3-1b-it</code> and <code>Gemma3-1B-IT</code> file together; Size is the parameter count in the repo's name or its source model's name, such as 0.6B, 4B or 270M, and a model whose names carry none is under "Size not in the name". The CLI lines in a model's details take the file with the shortest name of each format.</p>
         </details>
     </section>
 
@@ -104,6 +106,6 @@ litert benchmark mobilenet/mobilenet_v2.tflite --ddp --device caiman-35 --gcp-pr
         <a href="https://huggingface.co/litert-community" target="_blank" rel="noopener">litert-community</a>
     </footer>
 
-    <script type="module" src="app.js?v=3"></script>
+    <script type="module" src="app.js?v=4"></script>
 </body>
 </html>

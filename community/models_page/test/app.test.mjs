@@ -5,11 +5,12 @@ import { readFileSync } from 'node:fs';
 import {
     nextLink, normalizeModels, indexBoard, joinRows, filterModels, sortModels, taskCounts, deviceOptions,
     matchingRows, hasBenchmarks, cardSummary, loadModels, esc, fmt, fmtBytes, sourceModels, parseRecipes, joinRecipes,
+    familyOf, sizeOf, bucketOf, familyCounts, sizeCounts, commandLines, SIZE_BUCKETS, SIZE_NONE,
 } from '../space/app.js';
 
 const fixture = name => JSON.parse(readFileSync(new URL(`./fixtures/${name}`, import.meta.url)));
 const recipesText = () => readFileSync(new URL('./fixtures/recipes.md', import.meta.url), 'utf8');
-const NONE = { task: '', format: '', benchmarks: false, recipe: false, platform: '', device: '', accelerator: '', q: '' };
+const NONE = { task: '', family: '', bucket: '', format: '', benchmarks: false, recipe: false, platform: '', device: '', accelerator: '', q: '' };
 function joined() {
     const models = normalizeModels(fixture('models.json'));
     const index = indexBoard(fixture('board.json'));
@@ -46,7 +47,8 @@ test('normalizeModels survives entries with missing or odd fields', () => {
     ]);
     assert.deepEqual(out.map(m => m.id), ['litert-community/a', 'litert-community/c', 'litert-community/d']);
     assert.deepEqual(out[0], { id: 'litert-community/a', name: 'a', task: null, downloads: 0, updated: '', gated: false, empty: false,
-        files: { tflite: [], litertlm: [], task: [] }, formats: [], source: [], recipe: null, rows: [], lmRows: [] });
+        files: { tflite: [], litertlm: [], task: [] }, formats: [], source: [], family: { key: 'a', label: 'a' }, size: null, bucket: 'none',
+        recipe: null, rows: [], lmRows: [] });
     assert.equal(out[1].task, null);
     assert.equal(out[1].gated, true);
     assert.equal(out[1].downloads, 0);
@@ -168,6 +170,91 @@ test('filterModels: task, format, name, benchmarks', () => {
     assert.deepEqual(filterModels(models, { ...NONE, q: 'community/' }), []);
     assert.equal(filterModels(models, { ...NONE, benchmarks: true }).length, 4);
     assert.deepEqual(filterModels(models, { ...NONE, q: 'no such model' }), []);
+});
+
+test('familyOf: the leading letters of the source model, of the repo name without one; sizeOf: the first size token, buckets', () => {
+    assert.deepEqual(familyOf('Gemma3-1B-IT', ['google/Gemma-3-1B-IT']), { key: 'gemma', label: 'Gemma' });
+    assert.deepEqual(familyOf('gemma-4-E2B-it-litert-lm', ['google/gemma-4-E2B-it']), { key: 'gemma', label: 'gemma' });
+    assert.deepEqual(familyOf('MobileNet-v2', []), { key: 'mobilenet', label: 'MobileNet' }, 'the repo name when the card names no source');
+    assert.deepEqual(familyOf('whisper-acft', ['openai/whisper-tiny', 'openai/whisper-base']), { key: 'whisper', label: 'whisper' }, 'the first source of a list');
+    assert.equal(familyOf('7B-model', []), null, 'a name that starts with a digit has no family');
+    assert.equal(sizeOf('Gemma3-1B-IT', []), 1);
+    assert.equal(sizeOf('Qwen3-0.6B', []), 0.6);
+    assert.equal(sizeOf('SmolLM2-135M-Instruct', []), 0.135, 'M is a thousandth of a B');
+    assert.equal(sizeOf('Gecko-110m-en', []), 0.11);
+    assert.equal(sizeOf('gemma-4-E2B-it', []), 2, "Gemma's E2B");
+    assert.equal(sizeOf('gemma_3_270m_it', []), 0.27, 'underscores separate too');
+    assert.equal(sizeOf('phi-4-mini', ['microsoft/Phi-4-mini-instruct']), null, 'a version number is not a size');
+    assert.equal(sizeOf('some-model', ['org/Some-Model-3.8B']), 3.8, 'the source model name when the repo name has none');
+    assert.equal(sizeOf('yolov8m', []), null, 'a letter before the digits is not a size');
+    assert.equal(sizeOf('Qwen3-4bit', []), null, 'a letter after the unit is not a size');
+    assert.equal(sizeOf('Llama-1B-4bit', []), 1, 'the first token wins');
+    assert.equal(sizeOf('efficientnet_b1', []), null);
+    assert.equal(sizeOf('U-2-Net', ['xuebinqin/U-2-Net']), null);
+    assert.equal(bucketOf(0.6), 'upto1b');
+    assert.equal(bucketOf(1), 'upto1b', 'the top bound is inclusive');
+    assert.equal(bucketOf(1.2), '1to4b');
+    assert.equal(bucketOf(4), '1to4b');
+    assert.equal(bucketOf(4.5), 'over4b');
+    assert.equal(bucketOf(null), SIZE_NONE.id);
+    assert.deepEqual(SIZE_BUCKETS.map(b => b.id), ['upto1b', '1to4b', 'over4b']);
+});
+
+test('normalizeModels files each model under a family and a size bucket; familyCounts and sizeCounts count them', () => {
+    const { models } = joined();
+    assert.deepEqual(find(models, 'MiniCPM5-2B').family, { key: 'minicpm', label: 'MiniCPM' });
+    assert.equal(find(models, 'MiniCPM5-2B').size, 2);
+    assert.equal(find(models, 'MiniCPM5-2B').bucket, '1to4b');
+    assert.equal(find(models, 'whisper-acft').bucket, 'none');
+    assert.deepEqual(familyCounts(models), [
+        ['gemma', 3, 'gemma'], ['whisper', 2, 'whisper'], ['gecko', 1, 'Gecko'], ['minicpm', 1, 'MiniCPM'],
+        ['mobilenet', 1, 'MobileNet'], ['qwen', 1, 'Qwen'], ['u', 1, 'U'],
+    ], 'by count, the spelling seen most often as the label, ties by key');
+    const withOther = familyCounts([...models, ...normalizeModels([{ id: 'litert-community/3d-thing', siblings: [{ rfilename: 'a.tflite' }] }])]);
+    assert.deepEqual(withOther[withOther.length - 1], ['(other)', 1, 'Other'], 'repos without a family come last');
+    assert.deepEqual(sizeCounts(models), [['upto1b', 3, '≤1B'], ['1to4b', 3, '1–4B'], ['over4b', 0, '>4B'], ['none', 4, 'Size not in the name']]);
+    assert.equal(sizeCounts(models).reduce((n, [, c]) => n + c, 0), models.length, 'every model is in one bucket');
+});
+
+test('filterModels: family and size bucket', () => {
+    const { models } = joined();
+    assert.deepEqual(names(filterModels(models, { ...NONE, family: 'gemma' })), ['Gemma3-1B-IT', 'gemma-4-E2B-it-litert-lm', 'Gemma3-4B-IT']);
+    assert.deepEqual(names(filterModels(models, { ...NONE, family: 'gemma', bucket: 'upto1b' })), ['Gemma3-1B-IT']);
+    assert.deepEqual(filterModels(models, { ...NONE, family: '(other)' }), [], 'every fixture model has a family');
+    assert.equal(filterModels(models, { ...NONE, bucket: 'none' }).length, 4);
+    assert.equal(filterModels(models, { ...NONE, bucket: 'over4b' }).length, 0);
+});
+
+test('commandLines: the CLI forms with one file of each format filled in, the shortest name; none for a .task-only repo or a name the lines cannot carry', () => {
+    const { models } = joined();
+    const mobilenet = commandLines(find(models, 'MobileNet-v2'));
+    assert.equal(mobilenet.length, 1);
+    assert.deepEqual(mobilenet[0], { format: 'tflite', file: 'mobilenet_v2.tflite', count: 4, lines: [
+        'litert download litert-community/MobileNet-v2 --file "mobilenet_v2.tflite" --output MobileNet-v2',
+        'litert benchmark MobileNet-v2/mobilenet_v2.tflite --desktop --cpu',
+        'litert run MobileNet-v2/mobilenet_v2.tflite --desktop --cpu',
+    ] });
+    const qwen = commandLines(find(models, 'Qwen3-0.6B'));
+    assert.deepEqual(qwen.map(b => b.format), ['litertlm']);
+    assert.deepEqual(qwen[0].lines, [
+        'litert download litert-community/Qwen3-0.6B --file "Qwen3-0.6B.litertlm" --output Qwen3-0.6B',
+        'litert lm benchmark Qwen3-0.6B/Qwen3-0.6B.litertlm',
+        'litert lm run Qwen3-0.6B/Qwen3-0.6B.litertlm --prompt "What is the capital of France?"',
+    ]);
+    assert.deepEqual(commandLines(find(models, 'Gemma3-4B-IT')), [], '.task files have no CLI form');
+    assert.match(commandLines(find(models, 'whisper-acft'))[0].lines[1], /^litert benchmark whisper-acft\/base\/acft_whisper_base_5s_drq\.tflite --desktop --cpu$/, 'a file in a folder keeps its path; of the two shortest names (base/…, tiny/…) the Hub lists base first');
+    assert.equal(commandLines(find(models, 'gemma-4-E2B-it-litert-lm'))[0].file, 'gemma-4-E2B-it.litertlm', 'the shortest name is the plain build, not the -gpu one the Hub lists first');
+    assert.equal(commandLines(find(models, 'Gemma3-1B-IT'))[0].file, 'gemma3-1b-it-int4.litertlm');
+    const odd = normalizeModels([
+        { id: 'litert-community/<img src=x>', siblings: [{ rfilename: 'a.tflite' }] },
+        { id: 'litert-community/spaced', siblings: [{ rfilename: 'my model.tflite' }, { rfilename: 'ok.tflite' }] },
+        { id: 'litert-community/glob', siblings: [{ rfilename: 'x[1].tflite' }] },
+        { id: 'litert-community/both', siblings: [{ rfilename: 'a.tflite' }, { rfilename: 'b.litertlm' }] },
+    ]);
+    assert.deepEqual(commandLines(odd[0]), [], 'a repo id the lines cannot carry');
+    assert.equal(commandLines(odd[1])[0].file, 'ok.tflite', 'a file name the lines can carry');
+    assert.deepEqual(commandLines(odd[2]), [], 'a glob character in the only file name');
+    assert.deepEqual(commandLines(odd[3]).map(b => b.format), ['tflite', 'litertlm'], 'one block per format');
 });
 
 test('filterModels: a platform, device or accelerator keeps only models benchmarked there', () => {
