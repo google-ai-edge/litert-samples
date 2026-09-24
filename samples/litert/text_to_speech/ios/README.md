@@ -35,7 +35,7 @@ Results on an iPhone 17 Pro for the default placement: per-graph times with the 
 
 ## Prerequisites and setup
 
-Use an Apple silicon Mac, Xcode 27, Git with Git LFS, Bazelisk, and XcodeGen. The app targets iOS 17 or later on iPhone and iPad. These setup commands were checked on an M4 Max, macOS 27, Xcode 27.0 RC (27A266a), on 2026-09-20, with LiteRT pinned to the revision below. Simulator builds use arm64 because the pinned runtime contains only that simulator slice.
+Use an Apple silicon Mac, Xcode 27, Git, Bazelisk, and XcodeGen. The app targets iOS 17 or later on iPhone and iPad. These setup commands were checked on an M4 Max, macOS 27, Xcode 27.0 RC (27A266a), on 2026-09-25, with LiteRT pinned to the revision below. Simulator builds use arm64 because the pinned runtime contains only that simulator slice.
 
 Place the LiteRT checkout next to `litert-samples`. From the directory containing `litert-samples`:
 
@@ -43,7 +43,6 @@ Place the LiteRT checkout next to `litert-samples`. From the directory containin
 GIT_LFS_SKIP_SMUDGE=1 git clone https://github.com/google-ai-edge/LiteRT.git LiteRT
 cd LiteRT
 GIT_LFS_SKIP_SMUDGE=1 git checkout ccff78483e972a975b5300242084a6e2147c9776
-git lfs pull --include='litert/prebuilt/ios_arm64/*,litert/prebuilt/ios_sim_arm64/*,litert/prebuilt/macos_arm64/*'
 cd ../litert-samples/samples/litert/text_to_speech/ios
 ```
 
@@ -57,7 +56,7 @@ xcodebuild -project TextToSpeech.xcodeproj -scheme TextToSpeech -destination 'ge
 swift test
 ```
 
-The scripts use the default sibling checkout path. `LITERT_CHECKOUT` can select another pinned checkout. The runtime script builds the C and Metal xcframeworks and packages the OSS macOS library as the third archive required by the package manifest: SwiftPM resolves every binary target the manifest declares, including the macOS one, even for an iOS build. It does not patch LiteRT. A different checkout revision produces a warning identifying the tested and selected revisions. The project references the `LiteRT` and `LiteRtMetalAccelerator` package products and embeds both frameworks.
+The scripts use the default sibling checkout path. `LITERT_CHECKOUT` can select another pinned checkout. The runtime script builds the C and Metal xcframeworks with Bazel and packages the OSS macOS library as the third archive required by the package manifest: SwiftPM resolves every binary target the manifest declares, including the macOS one, even for an iOS build. It does not patch LiteRT. A different checkout revision produces a warning identifying the tested and selected revisions. The project references the `LiteRT` and `LiteRtMetalAccelerator` package products and embeds both frameworks.
 
 The build command above produces an unsigned iOS app. For an unsigned simulator build:
 

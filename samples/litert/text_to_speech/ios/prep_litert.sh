@@ -36,13 +36,6 @@ REVISION="$(git -C "$LITERT_CHECKOUT" rev-parse HEAD)"
 if [ "$REVISION" != "$TESTED_REVISION" ]; then
   echo "WARNING: tested LiteRT revision $TESTED_REVISION; found $REVISION. Continuing." >&2
 fi
-for slice in ios_arm64 ios_sim_arm64; do
-  plugin="$LITERT_CHECKOUT/litert/prebuilt/$slice/libLiteRtMetalAccelerator.dylib"
-  if [ ! -f "$plugin" ] || head -c 80 "$plugin" | LC_ALL=C grep -q 'git-lfs.github.com/spec'; then
-    echo "Missing materialized Metal plugin for $slice. Run git lfs pull for the Apple prebuilt directories listed in README.md." >&2
-    exit 1
-  fi
-done
 (
   cd "$LITERT_CHECKOUT"
   bazelisk build -c opt //litert/swift:CLiteRT //litert/swift:LiteRtMetalAccelerator //litert/swift:CLiteRT_mac
