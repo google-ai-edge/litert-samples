@@ -1,0 +1,10 @@
+<resources>
+    <string name="app_name" translatable="false">3D Face Alignment</string>
+    <string name="action_pick_image">Pick face photo</string>
+    <string name="status_loading">Loading 3DDFA_V2 on GPU…</string>
+    <string name="status_processing">Detecting landmarks on GPU…</string>
+    <string name="status_no_face">No face detected — try a frontal face photo.</string>
+    <string name="status_ready" translatable="false">%1$d landmarks in %2$d ms · 3DDFA_V2 MobileNet · CompiledModel GPU</string>
+    <string name="error_model_load">Failed to load model</string>
+    <string name="error_detection_failed">Face alignment failed</string>
+</resources>
