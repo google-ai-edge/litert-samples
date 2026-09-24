@@ -72,7 +72,7 @@ tomli==2.4.1
 torch==2.12.1
 torchao==0.18.0
 tqdm==4.70.1
-transformers==4.57.6
+transformers==5.10.1
 typing-inspection==0.4.2
 typing_extensions==4.12.2
 urllib3==2.8.0
