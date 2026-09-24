@@ -39,25 +39,25 @@ An iOS application demonstrating real-time and static multi-class image segmenta
 
 ## Prerequisites & Setup
 
-### 1. Building `TensorFlowLite_xcframework` and `TensorFlowLiteC_xcframework` with Delegates
+### 1. Building `TensorFlowLite` and `TensorFlowLiteC` XCFrameworks with Delegates
 
-By default, `//litert/swift:TensorFlowLite_xcframework` builds with no delegates (CPU/XNNPACK only). To enable both **`MetalDelegate`** and **`CoreMLDelegate`**, pass `--define=use_metal_delegate=1` and `--define=use_coreml_delegate=1`:
+By default, `//litert/swift:TensorFlowLite` builds with no delegates (CPU/XNNPACK only). To enable both **`MetalDelegate`** and **`CoreMLDelegate`**, pass `--define=use_metal_delegate=1` and `--define=use_coreml_delegate=1`:
 
 ```bash
 # Navigate to the LiteRT repository
 cd path/to/LiteRT
 
-# Build TensorFlowLite_xcframework and TensorFlowLiteC_xcframework with Metal and CoreML delegates
+# Build TensorFlowLite and TensorFlowLiteC xcframeworks with Metal and CoreML delegates
 bazel build -c opt --config=ios \
   --define=use_metal_delegate=1 \
   --define=use_coreml_delegate=1 \
-  //litert/swift:TensorFlowLite_xcframework \
-  //litert/swift:TensorFlowLiteC_xcframework
+  //litert/swift:TensorFlowLite \
+  //litert/swift:TensorFlowLiteC
 
 # Copy the compiled xcframework archives into LiteRT/prebuilt/
 mkdir -p prebuilt
-cp -f bazel-bin/litert/swift/TensorFlowLite_xcframework.xcframework.zip prebuilt/TensorFlowLite.xcframework.zip
-cp -f bazel-bin/litert/swift/TensorFlowLiteC_xcframework.xcframework.zip prebuilt/TensorFlowLiteC.xcframework.zip
+cp -f bazel-bin/litert/swift/TensorFlowLite.xcframework.zip prebuilt/
+cp -f bazel-bin/litert/swift/TensorFlowLiteC.xcframework.zip prebuilt/
 ```
 
 ### 2. Download the Model File (if not already present)
