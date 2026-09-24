@@ -63,7 +63,7 @@ rich==15.0.0
 safetensors==0.8.0
 scipy==1.18.1
 sentencepiece==0.2.2
-setuptools==81.0.0
+setuptools==83.0.0
 sympy==1.14.0
 tabulate==0.10.0
 termcolor==3.3.0
