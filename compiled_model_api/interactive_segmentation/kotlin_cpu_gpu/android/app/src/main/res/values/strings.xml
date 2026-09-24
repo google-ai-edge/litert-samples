@@ -1,0 +1,10 @@
+<resources>
+    <string name="app_name">Interactive Segmentation</string>
+    <string name="inference_title">Decode Time</string>
+    <string name="inference_value">%d ms</string>
+    <string name="encode_title">Encode Time</string>
+    <string name="delegate">Delegate</string>
+    <string name="iou_title">Mask IoU</string>
+    <string name="pick_image">Pick an image</string>
+    <string name="tap_hint">Tap an object to segment it</string>
+</resources>
