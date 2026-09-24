@@ -260,6 +260,17 @@ const CASES = {
         check(cards(doc).length === 13, `cards ${cards(doc).length}`);
         check(flat(card(doc, 'no-fields').textContent) === 'no-fields Details', flat(card(doc, 'no-fields').textContent));
         check(!BAD_TEXT.test(pageText(doc)), 'a raw value on the page: ' + (pageText(doc).match(BAD_TEXT) || [])[0]);
+        const more = doc.getElementById('moreFamilies');
+        check(more && flat(more.textContent) === 'More families (1)' && doc.querySelectorAll('#fFamily button').length === 10, 'nine families: eight chips and a More button');
+        more.click();
+        check(flat(doc.getElementById('moreFamilies').textContent) === 'Fewer families' && doc.querySelectorAll('#fFamily button').length === 11, 'More opens the rest');
+        card(doc, 'no-fields').querySelector('button.toggle').click();
+        await sleep(300);
+        check(!doc.querySelector('#list .details .commands'), 'no CLI lines without files');
+        card(doc, 'odd-siblings').querySelector('button.toggle').click();
+        await sleep(300);
+        check(/^litert download litert-community\/odd-siblings --file "a\.tflite" --output odd-siblings /.test(flat(doc.querySelector('#list .details .commands code').textContent)), 'the one readable file gives the lines');
+        check(!BAD_TEXT.test(pageText(doc)), 'a raw value on the page: ' + (pageText(doc).match(BAD_TEXT) || [])[0]);
     },
     'model list: hostile strings stay text': async () => {
         const { doc, win } = await load({ hf: 'hostile' });
@@ -273,6 +284,8 @@ const CASES = {
         check(win.__pwned === undefined && !doc.querySelector('#list img, #list i, #list .resources b'), 'details');
         const items = [...doc.querySelectorAll('#list .details .resources li')].map(li => flat(li.textContent));
         check(items[1] === 'Source model: hostile-org/still-a-repo', 'only the well-formed source model stays: ' + items[1]);
+        check(!doc.querySelector('#list .details .commands'), 'no CLI lines for a repo id the lines cannot carry');
+        check(!doc.querySelector('#fFamily b, #fFamily img, #fSize b'), 'family chips are text');
     },
     'board: 404': async () => boardDown({ board: '404' }),
     'board: broken JSON': async () => boardDown({ board: 'broken' }),
@@ -319,6 +332,52 @@ const CASES = {
         card(doc, 'MobileNet-v2').querySelector('button.toggle').click();
         await sleep(600);
         check(/mobilenet_v2\.tflite\s*14\.0 MB/.test(doc.querySelector('#list .files').textContent), 'sizes after reopening');
+    },
+    'filters: family and size chips count from the names, narrow together, clear resets': async () => {
+        const { doc } = await load({});
+        const fam = [...doc.querySelectorAll('#fFamily button')].map(b => flat(b.textContent));
+        check(fam.join('|') === 'Any|gemma 3|whisper 2|Gecko 1|MiniCPM 1|MobileNet 1|Qwen 1|U 1', fam.join('|'));
+        check(!doc.getElementById('moreFamilies'), 'seven families fit without a More button');
+        const size = [...doc.querySelectorAll('#fSize button')].map(b => flat(b.textContent));
+        check(size.join('|') === 'Any|≤1B 3|1–4B 3|>4B 0|Size not in the name 4', size.join('|'));
+        doc.querySelector('#fFamily button[data-value="gemma"]').click();
+        check(names(doc).slice().sort().join() === 'Gemma3-1B-IT,Gemma3-4B-IT,gemma-4-E2B-it-litert-lm' && text(doc, 'count') === '3 models of 10', names(doc).join());
+        doc.querySelector('#fSize button[data-value="upto1b"]').click();
+        check(names(doc).join() === 'Gemma3-1B-IT', 'family and size together: ' + names(doc).join());
+        doc.querySelector('#fSize button[data-value="none"]').click();
+        check(cards(doc).length === 0 && shown(doc, 'empty'), 'no gemma without a size in its name');
+        doc.getElementById('clear').click();
+        check(cards(doc).length === 10 && doc.querySelector('#fFamily button[data-value=""]').classList.contains('on') && doc.querySelector('#fSize button[data-value=""]').classList.contains('on'), 'clear resets family and size');
+        doc.querySelector('#fSize button[data-value="over4b"]').click();
+        check(cards(doc).length === 0 && shown(doc, 'empty'), 'an empty bucket gives the empty state');
+        doc.getElementById('emptyClear').click();
+        check(cards(doc).length === 10, 'clear from the empty state');
+    },
+    'details: the CLI lines carry the model\'s own file, one block per format, a copy button, none for a .task-only repo': async () => {
+        const { doc } = await load({});
+        card(doc, 'MobileNet-v2').querySelector('button.toggle').click();
+        await sleep(400);
+        let d = doc.querySelector('#list .details');
+        check([...d.querySelectorAll('h4')].map(h => flat(h.textContent)).join('|') === 'LiteRT benchmarks benchmark_model|Model files|Benchmark and run this model|Resources', [...d.querySelectorAll('h4')].map(h => flat(h.textContent)).join('|'));
+        const blocks = [...d.querySelectorAll('.commands')];
+        check(blocks.length === 1, `blocks ${blocks.length}`);
+        const lines = 'litert download litert-community/MobileNet-v2 --file "mobilenet_v2.tflite" --output MobileNet-v2\nlitert benchmark MobileNet-v2/mobilenet_v2.tflite --desktop --cpu\nlitert run MobileNet-v2/mobilenet_v2.tflite --desktop --cpu';
+        check(blocks[0].querySelector('code').textContent === lines, blocks[0].querySelector('code').textContent);
+        check(blocks[0].querySelector('button.copy').dataset.copy === lines && flat(blocks[0].querySelector('button.copy').textContent) === 'Copy', 'copy button carries the lines');
+        check(flat(blocks[0].querySelector('.sub').textContent) === 'One of 4 .tflite files, the shortest name; the others are under Model files.', flat(blocks[0].querySelector('.sub').textContent));
+        card(doc, 'Qwen3-0.6B').querySelector('button.toggle').click();
+        await sleep(400);
+        d = doc.querySelector('#list .details');
+        check(d.querySelector('.commands code').textContent === 'litert download litert-community/Qwen3-0.6B --file "Qwen3-0.6B.litertlm" --output Qwen3-0.6B\nlitert lm benchmark Qwen3-0.6B/Qwen3-0.6B.litertlm\nlitert lm run Qwen3-0.6B/Qwen3-0.6B.litertlm --prompt "What is the capital of France?"', d.querySelector('.commands code').textContent);
+        card(doc, 'whisper-acft').querySelector('button.toggle').click();
+        await sleep(400);
+        d = doc.querySelector('#list .details');
+        check(/litert run whisper-acft\/base\/acft_whisper_base_5s_drq\.tflite --desktop --cpu/.test(d.querySelector('.commands code').textContent), 'a file in a folder keeps its path, the shortest name of 18');
+        card(doc, 'Gemma3-4B-IT').querySelector('button.toggle').click();
+        await sleep(400);
+        d = doc.querySelector('#list .details');
+        check(!d.querySelector('.commands') && !/Benchmark and run/.test(d.textContent) && [...d.querySelectorAll('h4')].map(h => flat(h.textContent)).join('|') === 'Model files|Resources', 'a .task-only repo has no CLI block');
+        check(!BAD_TEXT.test(pageText(doc)), 'a raw value on the page: ' + (pageText(doc).match(BAD_TEXT) || [])[0]);
     },
 };
 

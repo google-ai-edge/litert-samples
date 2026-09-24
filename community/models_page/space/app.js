@@ -13,6 +13,7 @@ const TIMEOUT_MS = { models: 20000, board: 8000, recipes: 8000, files: 10000 };
 const MAX_PAGES = 20;
 const CARD_LINES = 3;
 const TASK_CHIPS = 8;
+const FAMILY_CHIPS = 8;
 
 export const FORMATS = ['tflite', 'litertlm', 'task'];
 export const SORTS = [
@@ -21,6 +22,16 @@ export const SORTS = [
     { id: 'downloads', label: 'Most downloads' },
     { id: 'name', label: 'A–Z' },
 ];
+// Parameter-count buckets, in billions, read from a model's name (a first cut; the top bound is inclusive).
+export const SIZE_BUCKETS = [
+    { id: 'upto1b', label: '≤1B', max: 1 },
+    { id: '1to4b', label: '1–4B', max: 4 },
+    { id: 'over4b', label: '>4B', max: Infinity },
+];
+export const SIZE_NONE = { id: 'none', label: 'Size not in the name' };
+// The repo ids and file names the CLI lines are built from: letters, digits and `_ . / -`, starting with a
+// letter or digit, so a line needs no quoting beyond the one the README shows.
+const SAFE_PATH = /^[A-Za-z0-9][\w.\/-]*$/;
 
 // ---- formatting -------------------------------------------------------------------------------
 
@@ -57,6 +68,27 @@ export function sourceModels(card) {
     return [...new Set(list.filter(s => typeof s === 'string' && REPO_ID.test(s)))].slice(0, 8);
 }
 
+// The family a model is filed under: the leading letters of its source model's name, or of the repo's own
+// name when the card names no source, so "google/gemma-3-1b-it" and "Gemma3-1B-IT" both file under gemma.
+// The key is lowercase; the label keeps the spelling it came from.
+export function familyOf(name, source) {
+    const from = source && source.length ? source[0].slice(source[0].indexOf('/') + 1) : name;
+    const m = String(from).match(/^[A-Za-z]+/);
+    return m ? { key: m[0].toLowerCase(), label: m[0] } : null;
+}
+
+// The parameter count a name carries, in billions: the first "1B", "0.6B", "270M" or Gemma's "E2B" token
+// of the repo's name, then of its source models' names. Null when none of them carries one.
+const SIZE_TOKEN = /(?<![A-Za-z0-9])[Ee]?(\d+(?:\.\d+)?)([BbMm])(?![A-Za-z0-9])/;
+export function sizeOf(name, source) {
+    for (const s of [name, ...(source || []).map(id => id.slice(id.indexOf('/') + 1))]) {
+        const m = String(s).replace(/_/g, '-').match(SIZE_TOKEN);
+        if (m) return Number(m[1]) / (m[2].toLowerCase() === 'm' ? 1000 : 1);
+    }
+    return null;
+}
+export const bucketOf = size => (size == null ? SIZE_NONE.id : SIZE_BUCKETS.find(b => size <= b.max).id);
+
 // The `Link: <url>; rel="next"` header the Hub sends when a listing has another page.
 export function nextLink(header) {
     if (!header) return null;
@@ -77,9 +109,12 @@ export function normalizeModels(list) {
             const ext = name.slice(name.lastIndexOf('.') + 1).toLowerCase();
             if (FORMATS.includes(ext)) files[ext].push(name);
         }
+        const name = m.id.includes('/') ? m.id.slice(m.id.indexOf('/') + 1) : m.id;
+        const source = sourceModels(m.cardData);
+        const size = sizeOf(name, source);
         return {
             id: m.id,
-            name: m.id.includes('/') ? m.id.slice(m.id.indexOf('/') + 1) : m.id,
+            name,
             task: typeof m.pipeline_tag === 'string' && m.pipeline_tag ? m.pipeline_tag : null,
             downloads: Number.isFinite(m.downloads) ? m.downloads : 0,
             updated: day(m.lastModified),
@@ -87,7 +122,10 @@ export function normalizeModels(list) {
             empty: names !== null && names.every(n => n === 'README.md' || n === '.gitattributes'),
             files,
             formats: FORMATS.filter(ext => files[ext].length),
-            source: sourceModels(m.cardData),
+            source,
+            family: familyOf(name, source),
+            size,
+            bucket: bucketOf(size),
             recipe: null,
             rows: [],
             lmRows: [],
@@ -135,6 +173,32 @@ export function joinRecipes(models, recipes) {
     const ids = new Set(models.map(m => m.id));
     for (const m of models) m.recipe = recipes.get(m.id) || null;
     return { orphans: [...recipes.keys()].filter(id => !ids.has(id)) };
+}
+
+// The LiteRT CLI lines for one model, each form as the CLI's README shows it with the model's own file
+// filled in: one .tflite file downloaded, benchmarked and run on the machine at hand; one .litertlm bundle
+// downloaded, benchmarked and run. Of several files the one with the shortest name is taken, which is the
+// plain build in this org (a hardware build carries the chip in its name); names of one length keep the
+// Hub's order. The repo's name is the download directory. A repo or file name the lines could not carry as
+// is gives no lines.
+export function commandLines(m) {
+    const dir = m.name;
+    const one = ext => (m.files[ext] || []).filter(f => SAFE_PATH.test(f)).sort((a, b) => a.length - b.length)[0] || null;
+    if (!SAFE_PATH.test(m.id) || !SAFE_PATH.test(dir)) return [];
+    const blocks = [];
+    const tflite = one('tflite');
+    if (tflite) blocks.push({ format: 'tflite', file: tflite, count: m.files.tflite.length, lines: [
+        `litert download ${m.id} --file "${tflite}" --output ${dir}`,
+        `litert benchmark ${dir}/${tflite} --desktop --cpu`,
+        `litert run ${dir}/${tflite} --desktop --cpu`,
+    ] });
+    const lm = one('litertlm');
+    if (lm) blocks.push({ format: 'litertlm', file: lm, count: m.files.litertlm.length, lines: [
+        `litert download ${m.id} --file "${lm}" --output ${dir}`,
+        `litert lm benchmark ${dir}/${lm}`,
+        `litert lm run ${dir}/${lm} --prompt "What is the capital of France?"`,
+    ] });
+    return blocks;
 }
 
 const isRow = r => r && typeof r === 'object' && r.status === 'measured'
@@ -190,6 +254,8 @@ export function filterModels(models, f) {
     const q = (f.q || '').trim().toLowerCase();
     return models.filter(m => {
         if (f.task && (f.task === '(other)' ? m.task !== null : m.task !== f.task)) return false;
+        if (f.family && (f.family === '(other)' ? m.family !== null : !m.family || m.family.key !== f.family)) return false;
+        if (f.bucket && m.bucket !== f.bucket) return false;
         if (f.format && !m.formats.includes(f.format)) return false;
         if (f.recipe && !m.recipe) return false;
         if (q && !m.name.toLowerCase().includes(q)) return false;
@@ -217,6 +283,26 @@ export function taskCounts(models) {
     const counts = new Map();
     for (const m of models) counts.set(m.task || '(other)', (counts.get(m.task || '(other)') || 0) + 1);
     return [...counts.entries()].sort((a, b) => (a[0] === '(other)') - (b[0] === '(other)') || b[1] - a[1] || cmp(a[0], b[0]));
+}
+
+// Families by their number of models, each labelled with the spelling seen most often; repos without one last.
+export function familyCounts(models) {
+    const counts = new Map();
+    for (const m of models) {
+        const key = m.family ? m.family.key : '(other)';
+        const c = counts.get(key) || { n: 0, labels: new Map() };
+        c.n++;
+        if (m.family) c.labels.set(m.family.label, (c.labels.get(m.family.label) || 0) + 1);
+        counts.set(key, c);
+    }
+    const label = (key, c) => (key === '(other)' ? 'Other' : [...c.labels.entries()].sort((a, b) => b[1] - a[1] || cmp(a[0], b[0]))[0][0]);
+    return [...counts.entries()].map(([key, c]) => [key, c.n, label(key, c)])
+        .sort((a, b) => (a[0] === '(other)') - (b[0] === '(other)') || b[1] - a[1] || cmp(a[0], b[0]));
+}
+
+// Every size bucket with its count, the models whose name carries no size last.
+export function sizeCounts(models) {
+    return [...SIZE_BUCKETS, SIZE_NONE].map(b => [b.id, models.filter(m => m.bucket === b.id).length, b.label]);
 }
 
 // Device options under the chosen platform.
@@ -314,7 +400,7 @@ async function loadRecipes() {
 // ---- page -------------------------------------------------------------------------------------
 
 const $ = id => document.getElementById(id);
-const state = { task: '', format: '', benchmarks: false, recipe: false, platform: '', device: '', accelerator: '', q: '', sort: 'updated', open: null, moreTasks: false };
+const state = { task: '', family: '', bucket: '', format: '', benchmarks: false, recipe: false, platform: '', device: '', accelerator: '', q: '', sort: 'updated', open: null, moreTasks: false, moreFamilies: false };
 let MODELS = [];
 let INDEX = null;
 let RECIPES = null;
@@ -331,6 +417,14 @@ function drawFilters() {
     $('fTask').innerHTML = chip('task', '', 'Any', null, !state.task)
         + shown.map(([t, n]) => chip('task', t, t === '(other)' ? 'Other' : t, n, state.task === t)).join('')
         + (tasks.length > TASK_CHIPS ? `<button type="button" class="chip more" id="moreTasks" aria-expanded="${state.moreTasks}">${state.moreTasks ? 'Fewer tasks' : `More tasks (${tasks.length - TASK_CHIPS})`}</button>` : '');
+    const families = familyCounts(MODELS);
+    const shownFamilies = state.moreFamilies ? families : families.slice(0, FAMILY_CHIPS);
+    if (state.family && !shownFamilies.some(([k]) => k === state.family)) shownFamilies.push(families.find(([k]) => k === state.family));
+    $('fFamily').innerHTML = chip('family', '', 'Any', null, !state.family)
+        + shownFamilies.map(([k, n, label]) => chip('family', k, label, n, state.family === k)).join('')
+        + (families.length > FAMILY_CHIPS ? `<button type="button" class="chip more" id="moreFamilies" aria-expanded="${state.moreFamilies}">${state.moreFamilies ? 'Fewer families' : `More families (${families.length - FAMILY_CHIPS})`}</button>` : '');
+    $('fSize').innerHTML = chip('bucket', '', 'Any', null, !state.bucket)
+        + sizeCounts(MODELS).map(([id, n, label]) => chip('bucket', id, label, n, state.bucket === id)).join('');
     $('fFormat').innerHTML = chip('format', '', 'Any', null, !state.format)
         + FORMATS.map(ext => chip('format', ext, `.${ext}`, MODELS.filter(m => m.formats.includes(ext)).length, state.format === ext)).join('');
     $('fBenchmarks').innerHTML = chip('benchmarks', '', 'Any', null, !state.benchmarks)
@@ -442,9 +536,20 @@ function resourcesHtml(m) {
     return `<h4>Resources</h4><ul class="resources">${items.map(i => `<li>${i}</li>`).join('')}</ul>`;
 }
 
+// The CLI lines of the model, one block per format, each with a copy button.
+function commandsHtml(m) {
+    const blocks = commandLines(m);
+    if (!blocks.length) return '';
+    const note = b => (b.count > 1 ? `<p class="sub">One of ${esc(plural(b.count, `.${b.format} file`))}, the shortest name; the others are under Model files.</p>` : '');
+    return `<h4>Benchmark and run this model</h4>
+        <p class="sub"><a href="https://github.com/google-ai-edge/LiteRT-CLI" target="_blank" rel="noopener">LiteRT CLI</a> (<code>pip install litert-cli-nightly</code>) on the machine at hand; <a href="#benchmark">How to benchmark</a> has the phone and lab-phone forms.</p>
+        ${blocks.map(b => `<div class="commands"><pre><code>${esc(b.lines.join('\n'))}</code></pre><button type="button" class="chip copy" data-copy="${esc(b.lines.join('\n'))}">Copy</button>${note(b)}</div>`).join('')}`;
+}
+
 function detailsHtml(m) {
     return `<div class="details">
         ${rowsTable(m.rows)}${lmRowsTable(m.lmRows)}<div class="filesbox">${filesHtml(m)}</div>
+        ${commandsHtml(m)}
         ${resourcesHtml(m)}
     </div>`;
 }
@@ -513,8 +618,23 @@ async function toggleDetails(id) {
     if (box) box.innerHTML = filesHtml(MODELS.find(m => m.id === id));
 }
 
+// Puts the block's lines on the clipboard and says so on the button for a moment. When the browser refuses
+// (no clipboard permission, the page not in the foreground), the lines are selected for a copy by hand.
+async function copyLines(button) {
+    try {
+        await navigator.clipboard.writeText(button.dataset.copy);
+        button.textContent = 'Copied';
+    } catch (err) {
+        console.error('copy', err);
+        const code = button.parentElement.querySelector('code');
+        if (code && window.getSelection) window.getSelection().selectAllChildren(code);
+        button.textContent = 'Selected, copy by hand';
+    }
+    setTimeout(() => { button.textContent = 'Copy'; }, 1500);
+}
+
 function clearFilters() {
-    Object.assign(state, { task: '', format: '', benchmarks: false, recipe: false, platform: '', device: '', accelerator: '', q: '' });
+    Object.assign(state, { task: '', family: '', bucket: '', format: '', benchmarks: false, recipe: false, platform: '', device: '', accelerator: '', q: '' });
     $('fName').value = '';
     draw();
 }
@@ -535,6 +655,7 @@ function wire() {
         if (!b) return;
         if (b.id === 'filtersToggle') return void b.setAttribute('aria-expanded', String($('filters').classList.toggle('open')));
         if (b.id === 'moreTasks') state.moreTasks = !state.moreTasks;
+        else if (b.id === 'moreFamilies') state.moreFamilies = !state.moreFamilies;
         else if (b.id === 'clear') return clearFilters();
         else if (b.dataset.group === 'benchmarks') state.benchmarks = b.dataset.value === '1';
         else if (b.dataset.group === 'recipe') state.recipe = b.dataset.value === '1';
@@ -553,6 +674,8 @@ function wire() {
     $('fName').addEventListener('input', guarded(e => { state.q = e.target.value; drawList(); }));
     $('emptyClear').addEventListener('click', guarded(() => { clearFilters(); $('fName').focus(); }));
     $('list').addEventListener('click', guarded(e => {
+        const c = e.target.closest('button.copy');
+        if (c) return copyLines(c);
         const b = e.target.closest('button[data-id]');
         return b ? toggleDetails(b.dataset.id) : undefined;
     }));

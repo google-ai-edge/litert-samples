@@ -138,6 +138,11 @@ td.key { font-weight: 700; }
 .files li { display: flex; justify-content: space-between; gap: 12px; padding: 3px 0; border-bottom: 1px solid var(--line); font-size: 0.88rem; }
 .files .size { color: var(--muted); white-space: nowrap; font-variant-numeric: tabular-nums; }
 .resources li { padding: 3px 0; font-size: 0.9rem; overflow-wrap: anywhere; }
+.commands { position: relative; margin: 6px 0 10px; }
+.commands pre { margin: 0; padding: 10px 96px 10px 12px; overflow-x: auto; border: 1px solid var(--line); border-radius: 8px; background: var(--panel); }
+.commands pre code { font-size: 0.82rem; overflow-wrap: normal; color: var(--text); }
+.commands .copy { position: absolute; top: 8px; right: 8px; font-size: 0.78rem; padding: 2px 9px; }
+.commands .sub { margin-top: 4px; }
 
 .block { padding-top: 22px; padding-bottom: 22px; border-top: 1px solid var(--line); }
 .block h2 { font-size: 1.15rem; }
