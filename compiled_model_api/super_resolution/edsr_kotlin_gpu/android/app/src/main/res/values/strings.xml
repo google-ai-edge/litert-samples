@@ -1,0 +1,11 @@
+<resources>
+    <string name="app_name" translatable="false">EDSR Super-Resolution</string>
+    <string name="action_pick_image">Pick image</string>
+    <string name="status_loading">Loading EDSR on GPU…</string>
+    <string name="status_processing">Upscaling…</string>
+    <string name="status_ready" translatable="false">EDSR ×4 super-resolution · CompiledModel GPU · %1$d ms · 128 → 512</string>
+    <string name="label_bicubic" translatable="false">Bicubic ×4</string>
+    <string name="label_edsr" translatable="false">EDSR ×4 (GPU)</string>
+    <string name="error_model_load">Failed to load model</string>
+    <string name="error_upscale_failed">Upscaling failed</string>
+</resources>
