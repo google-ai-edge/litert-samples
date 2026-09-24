@@ -1,6 +1,6 @@
 // node test/live_check.mjs — reads the three live sources the page reads and checks what the page assumes about them.
 import assert from 'node:assert/strict';
-import { MODELS_URL, BOARD_URL, RECIPES_URL, nextLink, normalizeModels, indexBoard, joinRows, hasBenchmarks, parseRecipes, joinRecipes } from '../space/app.js';
+import { MODELS_URL, BOARD_URL, RECIPES_URL, nextLink, normalizeModels, indexBoard, joinRows, hasBenchmarks, parseRecipes, joinRecipes, familyCounts, sizeCounts, commandLines } from '../space/app.js';
 
 const fetchAs = async (url, accept) => {
     const res = await fetch(url, { headers: { Accept: accept, Origin: 'https://example.static.hf.space' } });
@@ -41,4 +41,13 @@ assert.deepEqual(joinedRecipes.orphans, [], 'recipes of repos the org list does 
 console.log(`${one.data.length} repos from the API, ${models.length} listed, ${one.data.length - models.length} without files left out, ${models.filter(m => m.source.length).length} with a source model`);
 console.log(`${index.count} benchmarks on ${models.filter(hasBenchmarks).length} models, the newest dated ${index.newest}; platforms ${index.platforms.map(p => p.id).join(', ')}; accelerators ${index.accelerators.join(', ')}`);
 console.log(`${recipes.size} recipes on ${models.filter(m => m.recipe).length} models (${[...recipes.keys()].map(k => k.split('/')[1]).join(', ')}), ${skipped} row(s) the page could not read as one directory for a repo of the org`);
+const families = familyCounts(models);
+const sizes = sizeCounts(models);
+assert.equal(sizes.reduce((n, [, c]) => n + c, 0), models.length, 'every model is in one size bucket');
+const withLines = models.filter(m => commandLines(m).length);
+const taskOnly = models.filter(m => !commandLines(m).length && m.formats.length && m.formats.every(f => f === 'task'));
+console.log(`${families.filter(([k]) => k !== '(other)').length} families, the largest ${families.slice(0, 6).map(([, n, l]) => `${l} ${n}`).join(', ')}; ${(families.find(([k]) => k === '(other)') || [, 0])[1]} without one`);
+console.log(`sizes ${sizes.map(([, n, l]) => `${l} ${n}`).join(', ')}`);
+const noLines = models.filter(m => !commandLines(m).length);
+console.log(`${withLines.length} models with CLI lines, ${noLines.length} without (${taskOnly.length} hold only .task files): ${noLines.map(m => `${m.name} [${m.formats.join(', ') || 'no model file'}]`).join(', ')}`);
 console.log('PASS live_check');
