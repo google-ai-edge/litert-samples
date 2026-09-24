@@ -8,6 +8,14 @@ An iOS application demonstrating real-time and static multi-class image segmenta
 
 ---
 
+## Screenshots
+
+| CPU (`XNNPACK`) | GPU (`MetalDelegate`) | NPU / ANE (`CoreMLDelegate`) |
+|---|---|---|
+| <img src="output/CPU.PNG" alt="CPU XNNPACK Inference" width="250"> | <img src="output/GPU(Metal).PNG" alt="GPU MetalDelegate Inference" width="250"> | <img src="output/NPU(CoreML).PNG" alt="NPU CoreMLDelegate Inference" width="250"> |
+
+---
+
 ## Features
 
 - **3-Way Backend Switching**: Select between **CPU (XNNPACK)**, **GPU (MetalDelegate)**, and **NPU (CoreMLDelegate)** directly in the expandable bottom sheet.
