@@ -1,0 +1,13 @@
+*.iml
+.gradle
+.kotlin
+/local.properties
+/.idea
+.DS_Store
+/build
+/captures
+.externalNativeBuild
+.cxx
+local.properties
+# model files download into the app's private storage at runtime, never committed
+*.tflite
