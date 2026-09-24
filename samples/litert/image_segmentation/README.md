@@ -56,6 +56,26 @@ significantly faster inference on compatible devices.
 
 -   NPU: 6-12ms per frame (10-20x faster than CPU!)
 
+### 3. swift_litert (iOS)
+
+An iOS SwiftUI implementation using the **LiteRT `CompiledModel` Swift API** (`import LiteRT`).
+
+**Features:**
+
+-   Native Swift `Environment`, `CompiledModel`, and `TensorBuffer` APIs
+-   CPU (XNNPACK delegate) and GPU (`LiteRtMetalAccelerator`) backend switching
+-   Real-time camera and gallery image segmentation
+
+### 4. swift_tflite (iOS)
+
+An iOS SwiftUI implementation using the **TensorFlow Lite `Interpreter` Swift API** (`import TensorFlowLite`) integrated into the `LiteRT` Swift Package.
+
+**Features:**
+
+-   Native Swift `Interpreter`, `MetalDelegate`, and `CoreMLDelegate` APIs
+-   3-way hardware backend switching: **CPU (XNNPACK)**, **GPU (`MetalDelegate`)**, and **NPU / Apple Neural Engine (`CoreMLDelegate`)**
+-   Real-time camera and gallery image segmentation
+
 ## Technical Details
 
 ### Model Architecture

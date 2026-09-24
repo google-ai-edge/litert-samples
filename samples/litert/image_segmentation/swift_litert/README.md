@@ -57,9 +57,9 @@ cp -f bazel-bin/litert/swift/LiteRtMetalAccelerator.xcframework.zip prebuilt/
 ```
 
 ### 3. Download the Model File
-Because `selfie_multiclass_256x256.tflite` is excluded via `.gitignore`, download it into the `samples/litert/image_segmentation/ios/` directory before building in Xcode:
+Because `selfie_multiclass_256x256.tflite` is excluded via `.gitignore`, download it into the `samples/litert/image_segmentation/swift_litert/` directory before building in Xcode:
 ```bash
-cd path/to/litert-samples/samples/litert/image_segmentation/ios
+cd path/to/litert-samples/samples/litert/image_segmentation/swift_litert
 curl -L -o selfie_multiclass_256x256.tflite \
   https://storage.googleapis.com/mediapipe-models/image_segmenter/selfie_multiclass_256x256/float32/latest/selfie_multiclass_256x256.tflite
 ```
