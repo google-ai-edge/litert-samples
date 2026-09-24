@@ -2,6 +2,12 @@
 
 Generate speech from English text with the published Matcha-TTS graphs and the LiteRT Swift CompiledModel API.
 
+## Screenshot
+
+<img src="img/screenshot.png" alt="Results of the default placement on an iPhone 17 Pro" width="300">
+
+Results on an iPhone 17 Pro for the default placement: per-graph times with the requested and effective backends, the total, the audio length, and the real-time factor.
+
 ## Features
 
 - Dictionary-first pronunciation with a neural fallback for unknown words.
