@@ -24,10 +24,12 @@ struct SpeechView: View {
         Section("Text") {
           TextField("Enter text", text: $controller.text, axis: .vertical)
             .lineLimit(3...8)
-          HStack {
-            TextField("Seed", text: $controller.seed).keyboardType(.numberPad)
-            Stepper("Steps: \(controller.steps)", value: $controller.steps, in: 1...30)
+          LabeledContent("Seed") {
+            TextField("Seed", text: $controller.seed)
+              .keyboardType(.numberPad)
+              .multilineTextAlignment(.trailing)
           }
+          Stepper("Steps: \(controller.steps)", value: $controller.steps, in: 1...30)
           Button(action: controller.speak) {
             HStack {
               Text(controller.isBusy ? "Working…" : "Speak")
