@@ -70,3 +70,12 @@ Two cautions that apply to all of them:
 
 `torch`, `litert-torch`, and `ai-edge-litert` (the checker verifies through
 the CompiledModel API).
+
+## Testing
+
+Run the isolated unit test suite:
+
+```bash
+pytest utilities/litert_gpu_toolkit/tests -v
+```
+
