@@ -33,6 +33,10 @@ Fixed shapes (256 phonemes, 512 mel frames ≈ 5.9 s); a runtime float mask make
 
 Matcha-LJSpeech is trained on espeak en-us IPA, but espeak is GPL. The clean replacement is a 275k-entry espeak-IPA dictionary (from [OpenPhonemizer](https://github.com/NeuralVox/OpenPhonemizer), Clear BSD) as primary + [DeepPhonemizer](https://github.com/as-ideas/DeepPhonemizer) (MIT) on LiteRT CPU for out-of-dictionary words. Output IPA maps 1:1 onto the keithito 178-symbol set. `MatchaG2P` also normalizes text host-side: ALL-CAPS acronyms are spelled letter-by-letter ("GPU" → "gee pee you") and numbers are read as words ("4090" → "four thousand ninety").
 
+## iOS
+
+- [iOS sample](ios/)
+
 ## Build & run
 
 ```bash

@@ -1,0 +1,9 @@
+# Generated / fetched at build time — see README.md
+Models/
+build/
+.build/
+.swiftpm/
+Info.plist
+*.xcodeproj/
+*.xcworkspace/
+output/
