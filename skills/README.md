@@ -13,3 +13,10 @@ Each skill is a self-contained `SKILL.md` playbook covering one stage of taking 
 * [`benchmark-on-ddp/`](benchmark-on-ddp/) — Measure a LiteRT `.tflite` model with `benchmark_model` on Developer Device Platform (DDP) lab phones through `litert benchmark --ddp`, or on the Mac you run it from, and turn the session into rows of the performance leaderboard under `benchmark/leaderboard`: one matrix entry per model, one session per accelerator, collect, rebuild the board, commit the data.
 * [`compiled-model-app-scaffolding/`](compiled-model-app-scaffolding/) — Build an Android app (Kotlin, Compose) around a verified LiteRT model using the CompiledModel API: app architecture, inference-layer lifecycle rules, model delivery, and UI traps.
 * [`litert-compiled-model-migration/`](litert-compiled-model-migration/) — Rapidly migrate an existing Android application from legacy TensorFlow Lite (TFLite) to the LiteRT CompiledModel API (2.2.0): dependency swap, `CompiledModel` rewrite with buffer reuse, optional NPU JIT acceleration, and an instrumented-test gate.
+
+## Skills in the android/skills form (for app developers' agents)
+
+Two basic skills written in the form of [android/skills](https://github.com/android/skills) (frontmatter, prerequisites, numbered steps, `references/`), for an Android developer's agent rather than a conversion engineer's. They cover creating an app on the CPU and the GPU; NPU, multimodal input and tools are left for later skills.
+
+* [`litert/`](litert/) — Create an Android app that runs a `.tflite` model on the CPU or the GPU with the CompiledModel API: the dependency, where the model file goes, the inference class, the ViewModel and screen, and checking the output on a device.
+* [`litert-lm/`](litert-lm/) — Create an Android app that runs an open text LLM on the CPU or the GPU with the LiteRT-LM Kotlin API: the dependency and manifest entries, getting a `.litertlm` model from litert-community onto the device, engine initialization, a streamed multi-turn conversation, the ViewModel and screen.
