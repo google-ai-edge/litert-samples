@@ -1,0 +1,38 @@
+Laya multilingual Android sample
+
+This sample ports the host-side tokenizer, question builder, decoder, and
+calibration lookup to Kotlin for LiteRT and provides a Compose/MVVM application.
+The host contract and preset schemas follow Laya 0.3.4 by Convai Innovations,
+licensed under Apache License 2.0.
+https://huggingface.co/convaiinnovations/laya
+Checkpoint revision: 1c5edc17a7acd8701df6fc341c0d179f1c62c982
+
+Model conversion changes: static windows, explicit attention and rotary-position
+operations, separate action head, host-side token embedding lookup, and optional
+FP16 storage of fully connected weights. The checkpoint tokenizer and calibration
+provenance are retained. The calibration JSON is an external asset; raw source
+calibration datasets are not included in this module.
+
+The multilingual encoder derives from mmBERT-base, declared MIT by its model card.
+Attribution: Marc Marone, Orion Weller, William Fleshman, Eugene Yang,
+Dawn Lawrie, and Benjamin Van Durme; Johns Hopkins Center for Language and
+Speech Processing and collaborators.
+https://huggingface.co/jhu-clsp/mmBERT-base
+Model-card revision: c5955035435e2bf121cde7f3c8863ef52ff35d82
+The pinned model repository supplies no separate copyright notice or LICENSE.
+The declared MIT permission text and this attribution are preserved without
+inventing a copyright holder or year.
+
+ModernBERT is a collaboration between Answer.AI, LightOn, and contributors,
+building upon MosaicBERT under Apache License 2.0.
+https://github.com/AnswerDotAI/ModernBERT
+Its retained license includes: Copyright 2022 MosaicML Examples authors.
+
+Tokenizer behavior is ported against Hugging Face tokenizers 0.23.2 and
+Transformers 5.17.0. Their Apache License 2.0 texts are retained. Python packages
+are reference tools and are not embedded in this Android application.
+https://github.com/huggingface/tokenizers
+https://github.com/huggingface/transformers
+
+Gradle wrapper files retain their upstream Apache License 2.0 headers.
+Component license texts and exact source URLs are under licenses/.
