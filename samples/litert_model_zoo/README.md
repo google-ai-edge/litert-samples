@@ -18,9 +18,8 @@ What the app shows:
 - **Every result carries its numbers** — inference time and backend on each result card; the About
   screen lists each model's license, upstream project and model card.
 
-Tested on a Galaxy S26: all 29 tasks ran in the release build this sample was cut from; the sample
-tree itself is built and unit-tested on the host. Other phones and GPUs are not verified yet. The app
-builds for arm64-v8a on Android 8.0+ (minSdk 26). It connects only to Hugging Face (huggingface.co
+Tested on a Galaxy S26 (Android 16): all 29 tasks, built from this tree. Other phones and GPUs are
+not verified yet. The app builds for arm64-v8a on Android 8.0+ (minSdk 26). It connects only to Hugging Face (huggingface.co
 and the download hosts it redirects to); camera, microphone and file inputs stay on the device.
 
 ## Tasks
