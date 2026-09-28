@@ -42,8 +42,9 @@ ledger).
 
 *   `sam2_image/` — the image-path encoder/decoder library the video
     graphs build on (Hiera encoder, prompt encoder in-graph, mask
-    decoder) plus its standalone 512 sample (`sam2_main.cc`) and PyTorch
-    parity script.
+    decoder) plus its standalone 512 sample (`sam2_main.cc`, which also
+    runs the frame pre/post-processing as `CreateLambdaRunner` graphs)
+    and PyTorch parity script.
 *   `sam2_video/` — the video graphs (`sam2v_graph.cc`), the video-stack
     weight loader (`sam2v_weights.cc`), the host tracking loop
     (`sam2v_main.cc`), and `verify/` (fp32 weight export from
