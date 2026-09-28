@@ -36,11 +36,11 @@ import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.withContext
 
-import org.tensorflow.lite.support.common.ops.NormalizeOp
-import org.tensorflow.lite.support.image.ImageProcessor
-import org.tensorflow.lite.support.image.TensorImage
-import org.tensorflow.lite.support.image.ops.ResizeOp
-import org.tensorflow.lite.support.image.ops.Rot90Op
+import com.google.ai.edge.litert.support.common.ops.NormalizeOp
+import com.google.ai.edge.litert.support.image.ImageProcessor
+import com.google.ai.edge.litert.support.image.TensorImage
+import com.google.ai.edge.litert.support.image.ops.ResizeOp
+import com.google.ai.edge.litert.support.image.ops.Rot90Op
 
 class ImageSegmentationHelper(private val context: Context) {
   /** As the result of image segmentation, this value emits map of probabilities */
