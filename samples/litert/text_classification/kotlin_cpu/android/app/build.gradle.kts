@@ -37,6 +37,7 @@ android {
     }
     kotlinOptions {
         jvmTarget = "1.8"
+        freeCompilerArgs += "-Xskip-metadata-version-check"
     }
     buildFeatures {
         compose = true
@@ -67,12 +68,8 @@ dependencies {
     implementation(libs.androidx.ui.tooling.preview)
     implementation(libs.androidx.material3)
     implementation(libs.litert)
-    implementation(libs.litert.support) {
-        exclude(group = "com.google.ai.edge.litert", module = "litert-api")
-    }
-    implementation(libs.litert.metadata) {
-        exclude(group = "com.google.ai.edge.litert", module = "litert-api")
-    }
+    implementation(libs.litert.support)
+    implementation(libs.litert.metadata)
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.junit)
     androidTestImplementation(libs.androidx.espresso.core)

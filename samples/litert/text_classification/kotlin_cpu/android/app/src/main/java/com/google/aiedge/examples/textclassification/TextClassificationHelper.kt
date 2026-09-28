@@ -25,8 +25,8 @@ import kotlinx.coroutines.channels.BufferOverflow
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.withContext
-import org.tensorflow.lite.support.common.FileUtil
-import org.tensorflow.lite.support.metadata.MetadataExtractor
+import com.google.ai.edge.litert.support.common.FileUtil
+import com.google.ai.edge.litert.support.metadata.MetadataExtractor
 import com.google.ai.edge.litert.CompiledModel
 import com.google.ai.edge.litert.Accelerator
 import java.io.BufferedReader
