@@ -21,11 +21,10 @@ plugins {
 }
 
 android {
-  namespace = "com.google.ai.edge.examples.model_zoo"
+  namespace = "com.google.ai.edge.examples.litert_model_zoo"
   compileSdk = 36
   defaultConfig {
-    // The id of the published app; the code lives in the samples namespace above.
-    applicationId = "com.mlboydaisuke.edgezoo"
+    applicationId = "com.google.ai.edge.examples.litert_model_zoo"
     minSdk = 26
     targetSdk = 36
     versionCode = 2
