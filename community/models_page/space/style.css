@@ -50,7 +50,6 @@ ul { margin: 0; padding: 0; list-style: none; }
 [hidden] { display: none !important; }
 :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 
-.draft { margin: 0; padding: 6px 20px; text-align: center; font-size: 0.85rem; font-weight: 600; color: var(--warn); background: var(--warn-bg); }
 header { border-bottom: 1px solid var(--line); }
 .bar, .hero, main, .block, footer, .notice { max-width: 1200px; margin: 0 auto; padding-left: 20px; padding-right: 20px; }
 .bar { display: flex; justify-content: space-between; align-items: center; gap: 16px; padding-top: 12px; padding-bottom: 12px; flex-wrap: wrap; }

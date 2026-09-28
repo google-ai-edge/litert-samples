@@ -149,6 +149,27 @@ test('indexBoard throws on a file that is not a board and skips benchmarks it ca
     assert.equal(indexBoard({ rows: board.rows.map(r => ({ ...r, status: 'ok' })) }).count, 0, 'a renamed status leaves nothing to show');
 });
 
+test('a board without LiteRT-LM rows: no LiteRT-LM benchmark is shown or counted, the rest is unchanged', () => {
+    const board = fixture('board.json');
+    const { lm_rows, lm_row_count, lm_models, lm_runtime, lm_runtime_versions, ...older } = board;
+    for (const b of [{ ...board, lm_rows: [], lm_row_count: 0, lm_models: [], lm_runtime_versions: [] }, older]) {
+        const models = normalizeModels(fixture('models.json'));
+        const index = indexBoard(b);
+        assert.deepEqual(joinRows(models, index).orphans, []);
+        const qwen = find(models, 'Qwen3-0.6B');
+        assert.deepEqual(qwen.lmRows, []);
+        assert.equal(hasBenchmarks(qwen), false);
+        assert.equal(cardSummary(qwen.lmRows, 'lm'), null);
+        assert.deepEqual(matchingRows(qwen, NONE), { rows: [], lmRows: [] });
+        assert.equal(index.count, board.rows.length);
+        assert.equal(index.newest, '2026-09-18', 'the newest date comes from the benchmark_model rows alone');
+        assert.deepEqual(names(filterModels(models, { ...NONE, benchmarks: true })).sort(), ['Gecko-110m-en', 'MobileNet-v2', 'whisper-tiny']);
+        assert.deepEqual(index.platforms.map(p => p.id), ['android', 'macos', 'ios']);
+        assert.equal(find(models, 'MobileNet-v2').rows.length, 20, 'the benchmark_model rows are untouched');
+        assert.deepEqual(commandLines(qwen).map(b => b.format), ['litertlm'], 'the CLI lines do not depend on rows');
+    }
+});
+
 test('joinRows attaches benchmarks and reports those of repos the list does not have', () => {
     const { models, orphans } = joined();
     assert.deepEqual(orphans, []);

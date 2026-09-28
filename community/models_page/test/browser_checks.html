@@ -293,6 +293,21 @@ const CASES = {
     'board: no answer before the timeout': async () => boardDown({ board: 'hang', timeout: '1200' }),
     'board: no rows': async () => boardDown({ board: 'norows' }),
     'board: a status the page does not know': async () => boardDown({ board: 'renamed' }),
+    'board: no LiteRT-LM rows: the Qwen3 card has no benchmarks, its details no LiteRT-LM table, the rest as before': async () => {
+        const { doc } = await load({ board: 'nolm' });
+        check(shown(doc, 'app') && !shown(doc, 'boardError'), 'states');
+        check(text(doc, 'stats') === '10 models · newest benchmark 2026-09-18', text(doc, 'stats'));
+        check(flat(doc.querySelector('#fBenchmarks button[data-value="1"]').textContent) === 'With benchmarks 3', flat(doc.querySelector('#fBenchmarks button[data-value="1"]').textContent));
+        const lm = card(doc, 'Qwen3-0.6B');
+        check(!lm.querySelector('.bench'), 'the Qwen3 card shows benchmarks');
+        lm.querySelector('button.toggle').click();
+        await sleep(400);
+        const d = doc.querySelector('#list .details');
+        check(!d.querySelector('table') && !/LiteRT-LM benchmarks|benchmarks were made/.test(d.textContent), 'a LiteRT-LM table or the how-made link without rows');
+        check(/litert lm benchmark Qwen3-0\.6B\/Qwen3-0\.6B\.litertlm/.test(d.querySelector('.commands code').textContent), 'the CLI lines stay');
+        check(flat(card(doc, 'MobileNet-v2').querySelector('.bench li').textContent) === 'Galaxy S25 Ultra CPU 6.18 ms GPU 0.96 ms 2026-09-18', flat(card(doc, 'MobileNet-v2').querySelector('.bench li').textContent));
+        check(!BAD_TEXT.test(pageText(doc)), 'a raw value on the page: ' + (pageText(doc).match(BAD_TEXT) || [])[0]);
+    },
     'board: repeats and two devices of one name': async () => {
         const { doc } = await load({ board: 'twins' });
         const lines = [...card(doc, 'Qwen3-0.6B').querySelectorAll('.bench li')].map(li => flat(li.textContent));
