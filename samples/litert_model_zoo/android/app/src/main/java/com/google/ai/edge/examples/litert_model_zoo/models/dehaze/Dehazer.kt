@@ -22,9 +22,8 @@ import android.graphics.Canvas
 import android.graphics.Matrix
 import android.graphics.Paint
 import android.util.Log
+import com.google.ai.edge.examples.litert_model_zoo.common.CompiledModelRunner
 import com.google.ai.edge.litert.Accelerator
-import com.google.ai.edge.litert.CompiledModel
-import com.google.ai.edge.litert.TensorBuffer
 import java.io.File
 
 /**
@@ -47,9 +46,7 @@ class Dehazer(context: Context, modelFile: File, accelerator: Accelerator = Acce
     private const val PLANE = SIZE * SIZE
   }
 
-  private val model: CompiledModel
-  private val inBufs: List<TensorBuffer>
-  private val outBufs: List<TensorBuffer>
+  private val runner: CompiledModelRunner
   private val inputFloats = FloatArray(3 * PLANE)
   private val pixels256 = IntArray(PLANE)
   private val resized = Bitmap.createBitmap(SIZE, SIZE, Bitmap.Config.ARGB_8888)
@@ -69,10 +66,16 @@ class Dehazer(context: Context, modelFile: File, accelerator: Accelerator = Acce
   private lateinit var fv: FloatArray
 
   init {
-    model = CompiledModel.create(modelFile.absolutePath, CompiledModel.Options(accelerator), null)
-    inBufs = model.createInputBuffers()
-    outBufs = model.createOutputBuffers()
-    Log.i(TAG, "$accelerator compiled OK — ${inBufs.size} in / ${outBufs.size} out")
+    try {
+      runner = CompiledModelRunner.fromFile(modelFile.absolutePath, accelerator)
+    } catch (failure: Throwable) {
+      if (!resized.isRecycled) resized.recycle()
+      throw failure
+    }
+    Log.i(
+      TAG,
+      "$accelerator compiled OK — ${runner.inputBuffers.size} in / ${runner.outputBuffers.size} out",
+    )
   }
 
   /** Runs DehazeFormer on [bitmap] and returns the dehazed full-res bitmap + time (ms). */
@@ -91,9 +94,9 @@ class Dehazer(context: Context, modelFile: File, accelerator: Accelerator = Acce
       inputFloats[PLANE + i] = ((p shr 8) and 0xFF) / 127.5f - 1f
       inputFloats[2 * PLANE + i] = (p and 0xFF) / 127.5f - 1f
     }
-    inBufs[0].writeFloat(inputFloats)
-    model.run(inBufs, outBufs)
-    val param = outBufs[0].readFloat() // [72 * 256 * 256]
+    runner.inputBuffers[0].writeFloat(inputFloats)
+    runner.run()
+    val param = runner.outputBuffers[0].readFloat() // [72 * 256 * 256]
     val out = applyCurves(bitmap, param)
     return out to ((System.nanoTime() - t) / 1_000_000)
   }
@@ -206,7 +209,7 @@ class Dehazer(context: Context, modelFile: File, accelerator: Accelerator = Acce
   }
 
   override fun close() {
-    model.close()
+    runner.close()
     if (!resized.isRecycled) resized.recycle()
   }
 }

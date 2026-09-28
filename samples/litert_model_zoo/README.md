@@ -12,8 +12,9 @@ What the app shows:
   (LiteRT 2.2.0), GPU by default; a few models keep part of their pipeline on CPU by design (the
   Backend column). If the GPU compile fails, the task recompiles on CPU and the result card says why.
 - **Nothing bundled** — the 29 model sets (2.2 GB in total) download on demand from Hugging Face and
-  resume after an interruption; every file is checked against its byte size and SHA-256 before use.
-  The catalog pins each file to a repository revision, so a download always gets the verified file.
+  resume after an interruption; every file is checked against its byte size and SHA-256 before it is
+  committed to storage. The catalog pins each file to a repository revision, so a download always
+  gets the verified file.
 - **Every result carries its numbers** — inference time and backend on each result card; the About
   screen lists each model's license, upstream project and model card.
 
@@ -78,14 +79,16 @@ Models tab.
 
 MVVM + Jetpack Compose (Material 3). Model calls run on single-thread executors, one in the view
 model for photo and audio tasks and one inside the camera pipeline for live frames, because the
-wrappers reuse native buffers; the UI collects a single `UiState`.
+wrappers reuse native buffers; the UI collects a single `UiState`. A task's engine lives as long as
+its screen: leaving the screen releases the graphs and their buffers, and the first run after coming
+back compiles them again.
 
 | File | Role |
 | :-- | :-- |
 | `MainViewModel.kt` | Downloads, task selection, camera and microphone sessions; runs the engines and owns `UiState`. |
 | `data/ModelCatalog.kt` + `assets/models.json` | The 29 catalog rows: files (URL, bytes, SHA-256), license, upstream project, model card, backend. |
 | `data/ModelStore.kt` | Resumable HTTPS download into private storage; byte-size and SHA-256 verification. |
-| `common/CompiledModelRunner.kt` | Lifecycle wrapper over `CompiledModel` with pre-allocated tensor buffers (the same helper as `utilities/common`). |
+| `common/CompiledModelRunner.kt` | Lifecycle wrapper over `CompiledModel` with pre-allocated tensor buffers (from `utilities/common`); every model wrapper compiles its graphs through it, so `close()` and a failed GPU compile release the buffers with the model. |
 | `image/`, `audio/`, `vision/` | Per-task engines: input conversion, GPU-to-CPU fallback, result rendering. |
 | `models/<name>/` | One package per model: preprocessing, the inference call and the decoding math, unit-tested on the JVM. |
 | `view/ModelZooScreen.kt` | Compose screens: Explore, task, Models, About. |
@@ -96,8 +99,9 @@ wrappers reuse native buffers; the UI collects a single `UiState`.
 ./gradlew :app:testDebugUnitTest
 ```
 
-118 JVM tests: catalog validation, download bookkeeping (partial files, resume, SHA-256
-verification), per-model math against fixtures, GPU-to-CPU fallback and the permission flow.
+120 JVM tests: catalog validation, download bookkeeping (partial files, resume, SHA-256
+verification, cancellation), per-model math against fixtures, GPU-to-CPU fallback and the permission
+flow.
 
 ## License
 

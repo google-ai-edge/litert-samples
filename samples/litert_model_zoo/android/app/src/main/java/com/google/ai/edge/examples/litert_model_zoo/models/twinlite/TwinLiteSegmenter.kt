@@ -22,10 +22,10 @@ import android.graphics.Canvas
 import android.graphics.Matrix
 import android.graphics.Paint
 import android.util.Log
+import com.google.ai.edge.examples.litert_model_zoo.common.CompiledModelRunner
 import com.google.ai.edge.litert.Accelerator
 import com.google.ai.edge.litert.CompiledModel
 import com.google.ai.edge.litert.Environment
-import com.google.ai.edge.litert.TensorBuffer
 import java.io.File
 
 /**
@@ -62,15 +62,13 @@ class TwinLiteSegmenter(
     }
   }
 
-  private val model: CompiledModel
+  private val runner: CompiledModelRunner
   private var env: Environment? = null
 
   /** Milliseconds from construction to a model ready to run — what the demo shows. */
   var loadMs: Long = 0
     private set
 
-  private val inBufs: List<TensorBuffer>
-  private val outBufs: List<TensorBuffer>
   private var iDa = 0
   private var iLl = 1
 
@@ -84,26 +82,33 @@ class TwinLiteSegmenter(
 
   init {
     val t0 = System.nanoTime()
-    val options = CompiledModel.Options(accelerator)
-    if (accelerator == Accelerator.NPU) {
-      // The NPU needs the dispatch library directory explicitly: LiteRT only warns
-      // when it is missing and then runs without the NPU. The same directory also
-      // becomes ADSP_LIBRARY_PATH, which is how the Hexagon skel is found.
-      env =
-        Environment.create(
-          context,
-          mapOf(Environment.Option.DispatchLibraryDir to context.applicationInfo.nativeLibraryDir),
-        )
-      options.qualcommOptions =
-        CompiledModel.QualcommOptions(
-          htpPerformanceMode = CompiledModel.QualcommOptions.HtpPerformanceMode.BURST
-        )
+    try {
+      val options = CompiledModel.Options(accelerator)
+      if (accelerator == Accelerator.NPU) {
+        // The NPU needs the dispatch library directory explicitly: LiteRT only warns
+        // when it is missing and then runs without the NPU. The same directory also
+        // becomes ADSP_LIBRARY_PATH, which is how the Hexagon skel is found.
+        env =
+          Environment.create(
+            context,
+            mapOf(Environment.Option.DispatchLibraryDir to context.applicationInfo.nativeLibraryDir),
+          )
+        options.qualcommOptions =
+          CompiledModel.QualcommOptions(
+            htpPerformanceMode = CompiledModel.QualcommOptions.HtpPerformanceMode.BURST
+          )
+      }
+      runner = CompiledModelRunner.fromFile(modelFile.absolutePath, options, env)
+    } catch (failure: Throwable) {
+      runCatching { env?.close() }
+      runCatching { if (!resized.isRecycled) resized.recycle() }
+      throw failure
     }
-    model = CompiledModel.create(modelFile.absolutePath, options, env)
-    inBufs = model.createInputBuffers()
-    outBufs = model.createOutputBuffers()
     loadMs = (System.nanoTime() - t0) / 1_000_000
-    Log.i(TAG, "$accelerator ready in ${loadMs}ms — ${inBufs.size} in / ${outBufs.size} out")
+    Log.i(
+      TAG,
+      "$accelerator ready in ${loadMs}ms — ${runner.inputBuffers.size} in / ${runner.outputBuffers.size} out",
+    )
   }
 
   /** Returns (drivableMask, laneMask) each W*H bytes (1 = foreground) + time (ms). */
@@ -123,16 +128,16 @@ class TwinLiteSegmenter(
       inputFloats[plane + i] = ((p shr 8) and 0xFF) / 255f
       inputFloats[2 * plane + i] = (p and 0xFF) / 255f
     }
-    inBufs[0].writeFloat(inputFloats)
-    model.run(inBufs, outBufs)
-    val da = outBufs[iDa].readFloat() // [2*plane]: class0 at [i], class1 at [plane+i]
-    val ll = outBufs[iLl].readFloat()
+    runner.inputBuffers[0].writeFloat(inputFloats)
+    runner.run()
+    val da = runner.outputBuffers[iDa].readFloat() // [2*plane]: class0 at [i], class1 at [plane+i]
+    val ll = runner.outputBuffers[iLl].readFloat()
     decodeMasks(da, ll, daMask, llMask, plane)
     return Triple(daMask, llMask, (System.nanoTime() - t) / 1_000_000)
   }
 
   override fun close() {
-    model.close()
+    runner.close()
     env?.close()
     if (!resized.isRecycled) resized.recycle()
   }

@@ -22,9 +22,8 @@ import android.graphics.Canvas
 import android.graphics.Matrix
 import android.graphics.Paint
 import android.util.Log
+import com.google.ai.edge.examples.litert_model_zoo.common.CompiledModelRunner
 import com.google.ai.edge.litert.Accelerator
-import com.google.ai.edge.litert.CompiledModel
-import com.google.ai.edge.litert.TensorBuffer
 import java.io.File
 import kotlin.math.atan2
 import kotlin.math.sqrt
@@ -88,9 +87,7 @@ class HeadPoseEstimator(
     ): FloatArray = floatArrayOf(a1 * b2 - a2 * b1, a2 * b0 - a0 * b2, a0 * b1 - a1 * b0)
   }
 
-  private val model: CompiledModel
-  private val inBufs: List<TensorBuffer>
-  private val outBufs: List<TensorBuffer>
+  private val runner: CompiledModelRunner
 
   private val inputFloats = FloatArray(3 * SIZE * SIZE)
   private val pixels = IntArray(SIZE * SIZE)
@@ -99,11 +96,16 @@ class HeadPoseEstimator(
   private val paint = Paint(Paint.FILTER_BITMAP_FLAG)
 
   init {
-    val options = CompiledModel.Options(accelerator)
-    model = CompiledModel.create(modelFile.absolutePath, options, null)
-    inBufs = model.createInputBuffers()
-    outBufs = model.createOutputBuffers()
-    Log.i(TAG, "$accelerator compiled OK — ${inBufs.size} in / ${outBufs.size} out")
+    try {
+      runner = CompiledModelRunner.fromFile(modelFile.absolutePath, accelerator)
+    } catch (failure: Throwable) {
+      if (!resized.isRecycled) resized.recycle()
+      throw failure
+    }
+    Log.i(
+      TAG,
+      "$accelerator compiled OK — ${runner.inputBuffers.size} in / ${runner.outputBuffers.size} out",
+    )
   }
 
   /** Estimate head pose from a face crop bitmap. Returns pose (deg) + time (ms). */
@@ -125,15 +127,15 @@ class HeadPoseEstimator(
       inputFloats[plane + i] = (((p shr 8) and 0xFF) / 255f - MEAN[1]) / STD[1]
       inputFloats[2 * plane + i] = ((p and 0xFF) / 255f - MEAN[2]) / STD[2]
     }
-    inBufs[0].writeFloat(inputFloats)
-    model.run(inBufs, outBufs)
-    val v = outBufs[0].readFloat() // 6D
+    runner.inputBuffers[0].writeFloat(inputFloats)
+    runner.run()
+    val v = runner.outputBuffers[0].readFloat() // 6D
 
     return decode(v) to ((System.nanoTime() - t) / 1_000_000)
   }
 
   override fun close() {
-    model.close()
+    runner.close()
     if (!resized.isRecycled) resized.recycle()
   }
 }

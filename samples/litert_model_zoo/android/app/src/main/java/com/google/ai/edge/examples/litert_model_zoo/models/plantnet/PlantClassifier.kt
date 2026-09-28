@@ -22,9 +22,8 @@ import android.graphics.Canvas
 import android.graphics.Matrix
 import android.graphics.Paint
 import android.util.Log
+import com.google.ai.edge.examples.litert_model_zoo.common.CompiledModelRunner
 import com.google.ai.edge.litert.Accelerator
-import com.google.ai.edge.litert.CompiledModel
-import com.google.ai.edge.litert.TensorBuffer
 import java.io.File
 import org.json.JSONObject
 
@@ -70,9 +69,7 @@ class PlantClassifier(
     JSONObject(labelsFile.readText()).let { json ->
       json.keys().asSequence().toList().sorted().map { json.getString(it) }.toTypedArray()
     }
-  private val model: CompiledModel
-  private val inBufs: List<TensorBuffer>
-  private val outBufs: List<TensorBuffer>
+  private val runner: CompiledModelRunner
 
   private val inputFloats = FloatArray(3 * SIZE * SIZE)
   private val pixels = IntArray(SIZE * SIZE)
@@ -81,11 +78,16 @@ class PlantClassifier(
   private val paint = Paint(Paint.FILTER_BITMAP_FLAG)
 
   init {
-    val options = CompiledModel.Options(accelerator)
-    model = CompiledModel.create(modelFile.absolutePath, options, null)
-    inBufs = model.createInputBuffers()
-    outBufs = model.createOutputBuffers()
-    Log.i(TAG, "$accelerator compiled OK — ${inBufs.size} in / ${outBufs.size} out")
+    try {
+      runner = CompiledModelRunner.fromFile(modelFile.absolutePath, accelerator)
+    } catch (failure: Throwable) {
+      if (!resized.isRecycled) resized.recycle()
+      throw failure
+    }
+    Log.i(
+      TAG,
+      "$accelerator compiled OK — ${runner.inputBuffers.size} in / ${runner.outputBuffers.size} out",
+    )
   }
 
   /** Classify. Returns top-[topK] (species name, probability) + time (ms). */
@@ -108,17 +110,17 @@ class PlantClassifier(
       inputFloats[plane + i] = (((p shr 8) and 0xFF) / 255f - MEAN[1]) / STD[1]
       inputFloats[2 * plane + i] = ((p and 0xFF) / 255f - MEAN[2]) / STD[2]
     }
-    inBufs[0].writeFloat(inputFloats)
+    runner.inputBuffers[0].writeFloat(inputFloats)
 
-    model.run(inBufs, outBufs)
-    val logits = outBufs[0].readFloat() // [1081]
+    runner.run()
+    val logits = runner.outputBuffers[0].readFloat() // [1081]
 
     val preds = decode(logits, labels, topK)
     return preds to ((System.nanoTime() - t) / 1_000_000)
   }
 
   override fun close() {
-    model.close()
+    runner.close()
     if (!resized.isRecycled) resized.recycle()
   }
 }

@@ -18,8 +18,8 @@ package com.google.ai.edge.examples.litert_model_zoo.models.vrwkv
 
 import android.content.Context
 import android.graphics.Bitmap
+import com.google.ai.edge.examples.litert_model_zoo.common.CompiledModelRunner
 import com.google.ai.edge.litert.Accelerator
-import com.google.ai.edge.litert.CompiledModel
 import java.io.File
 
 /**
@@ -50,11 +50,8 @@ class VrwkvClassifier(
     private val STD = floatArrayOf(58.395f, 57.12f, 57.375f)
   }
 
-  private val model =
-    CompiledModel.create(modelFile.absolutePath, CompiledModel.Options(accelerator), null)
-  private val inputs = model.createInputBuffers()
-  private val outputs = model.createOutputBuffers()
   private val labels = labelsFile.bufferedReader().readLines()
+  private val runner = CompiledModelRunner.fromFile(modelFile.absolutePath, accelerator)
 
   /** Token-distance matrix |t-i|, constant for a fixed 196-token grid. */
   private val dist =
@@ -74,10 +71,10 @@ class VrwkvClassifier(
   /** Classifies [bitmap] and returns the top-[k] predictions. */
   fun classify(bitmap: Bitmap, k: Int = 5): List<Prediction> {
     preprocess(bitmap)
-    inputs[0].writeFloat(input)
-    inputs[1].writeFloat(dist)
-    model.run(inputs, outputs)
-    val logits = outputs[0].readFloat()
+    runner.inputBuffers[0].writeFloat(input)
+    runner.inputBuffers[1].writeFloat(dist)
+    runner.run()
+    val logits = runner.outputBuffers[0].readFloat()
     return topK(logits, k)
   }
 
@@ -131,6 +128,6 @@ class VrwkvClassifier(
   }
 
   override fun close() {
-    model.close()
+    runner.close()
   }
 }

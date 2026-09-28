@@ -19,8 +19,8 @@ package com.google.ai.edge.examples.litert_model_zoo.models.dinov2
 import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.Color
+import com.google.ai.edge.examples.litert_model_zoo.common.CompiledModelRunner
 import com.google.ai.edge.litert.Accelerator
-import com.google.ai.edge.litert.CompiledModel
 import java.io.File
 import kotlin.math.sqrt
 
@@ -51,18 +51,15 @@ class Dinov2Features(
     private val STD = floatArrayOf(0.229f, 0.224f, 0.225f)
   }
 
-  private val model =
-    CompiledModel.create(modelFile.absolutePath, CompiledModel.Options(accelerator), null)
-  private val inputs = model.createInputBuffers()
-  private val outputs = model.createOutputBuffers()
+  private val runner = CompiledModelRunner.fromFile(modelFile.absolutePath, accelerator)
   private val input = FloatArray(3 * SIZE * SIZE)
 
   /** Runs DINOv2 and returns the 32×32 PCA feature map as an ARGB bitmap. */
   fun featureMap(bitmap: Bitmap): Bitmap {
     preprocess(bitmap)
-    inputs[0].writeFloat(input)
-    model.run(inputs, outputs)
-    val features = outputs[0].readFloat()
+    runner.inputBuffers[0].writeFloat(input)
+    runner.run()
+    val features = runner.outputBuffers[0].readFloat()
     return pcaToBitmap(features)
   }
 
@@ -221,6 +218,6 @@ class Dinov2Features(
   }
 
   override fun close() {
-    model.close()
+    runner.close()
   }
 }

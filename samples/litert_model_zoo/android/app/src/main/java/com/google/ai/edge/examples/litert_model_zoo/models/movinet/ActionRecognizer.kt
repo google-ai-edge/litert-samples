@@ -22,9 +22,8 @@ import android.graphics.Canvas
 import android.graphics.Matrix
 import android.graphics.Paint
 import android.util.Log
+import com.google.ai.edge.examples.litert_model_zoo.common.CompiledModelRunner
 import com.google.ai.edge.litert.Accelerator
-import com.google.ai.edge.litert.CompiledModel
-import com.google.ai.edge.litert.TensorBuffer
 import java.io.File
 
 /**
@@ -72,9 +71,7 @@ class ActionRecognizer(
     }
   }
 
-  private val model: CompiledModel
-  private val inBufs: List<TensorBuffer>
-  private val outBufs: List<TensorBuffer>
+  private val runner: CompiledModelRunner
 
   /** Start index into inBufs for each temporal conv's stream frames. */
   private val streamOffset = IntArray(STREAM_DIMS.size)
@@ -88,24 +85,32 @@ class ActionRecognizer(
   private val paint = Paint(Paint.FILTER_BITMAP_FLAG)
 
   init {
-    val options = CompiledModel.Options(accelerator)
-    model = CompiledModel.create(modelFile.absolutePath, options, null)
-    inBufs = model.createInputBuffers()
-    outBufs = model.createOutputBuffers()
-    Log.i(TAG, "$accelerator compiled OK — ${inBufs.size} inputs / ${outBufs.size} outputs")
-
-    var off = 1
-    for (c in STREAM_DIMS.indices) {
-      streamOffset[c] = off
-      off += STREAM_DIMS[c]
+    var created: CompiledModelRunner? = null
+    try {
+      runner = CompiledModelRunner.fromFile(modelFile.absolutePath, accelerator).also { created = it }
+      Log.i(
+        TAG,
+        "$accelerator compiled OK — ${runner.inputBuffers.size} inputs / ${runner.outputBuffers.size} outputs",
+      )
+      var off = 1
+      for (c in STREAM_DIMS.indices) {
+        streamOffset[c] = off
+        off += STREAM_DIMS[c]
+      }
+      val inBufs = runner.inputBuffers
+      for (i in 0 until N_POOL) poolSums[i] = FloatArray(inBufs[29 + i].readFloat().size)
+      inBufs[ONE_IN].writeFloat(floatArrayOf(1f)) // constant decoupler input
+      reset()
+    } catch (failure: Throwable) {
+      runCatching { created?.close() }
+      runCatching { if (!resized.isRecycled) resized.recycle() }
+      throw failure
     }
-    for (i in 0 until N_POOL) poolSums[i] = FloatArray(inBufs[29 + i].readFloat().size)
-    inBufs[ONE_IN].writeFloat(floatArrayOf(1f)) // constant decoupler input
-    reset()
   }
 
   /** Zero all recurrent state (restart the classification window). */
   fun reset() {
+    val inBufs = runner.inputBuffers
     for (k in 1..28) inBufs[k].writeFloat(FloatArray(inBufs[k].readFloat().size))
     for (i in 0 until N_POOL) {
       java.util.Arrays.fill(poolSums[i], 0f)
@@ -116,9 +121,11 @@ class ActionRecognizer(
 
   /** Run one streaming frame given the pre-filled input[0]. Updates all state. */
   private fun runFrame(): FloatArray {
+    val inBufs = runner.inputBuffers
+    val outBufs = runner.outputBuffers
     frameCount += 1f
     inBufs[INV_COUNT_IN].writeFloat(floatArrayOf(1f / frameCount))
-    model.run(inBufs, outBufs)
+    runner.run()
     val logits = outBufs[0].readFloat()
 
     // stream buffers: shift register (drop oldest, append current) host-side
@@ -153,7 +160,7 @@ class ActionRecognizer(
       inputFloats[plane + i] = ((p shr 8) and 0xFF) / 255f
       inputFloats[2 * plane + i] = (p and 0xFF) / 255f
     }
-    inBufs[0].writeFloat(inputFloats)
+    runner.inputBuffers[0].writeFloat(inputFloats)
     val logits = runFrame()
     val preds = topK(logits, topK)
     val ms = (System.nanoTime() - t) / 1_000_000
@@ -162,7 +169,7 @@ class ActionRecognizer(
   }
 
   override fun close() {
-    model.close()
+    runner.close()
     if (!resized.isRecycled) resized.recycle()
   }
 }

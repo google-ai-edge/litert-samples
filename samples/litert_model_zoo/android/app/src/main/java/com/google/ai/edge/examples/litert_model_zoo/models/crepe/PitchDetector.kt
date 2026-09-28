@@ -16,8 +16,8 @@
 
 package com.google.ai.edge.examples.litert_model_zoo.models.crepe
 
+import com.google.ai.edge.examples.litert_model_zoo.common.CompiledModelRunner
 import com.google.ai.edge.litert.Accelerator
-import com.google.ai.edge.litert.CompiledModel
 import java.io.Closeable
 import kotlin.math.log2
 import kotlin.math.roundToInt
@@ -88,10 +88,7 @@ class PitchDetector(modelFile: java.io.File, accelerator: Accelerator) : Closeab
     }
   }
 
-  private val model =
-    CompiledModel.create(modelFile.absolutePath, CompiledModel.Options(accelerator), null)
-  private val inBuf = model.createInputBuffers()
-  private val outBuf = model.createOutputBuffers()
+  private val runner = CompiledModelRunner.fromFile(modelFile.absolutePath, accelerator)
 
   /**
    * hz: detected pitch (Hz); confidence: peak bin activation 0..1; note/cents: nearest note +
@@ -112,16 +109,14 @@ class PitchDetector(modelFile: java.io.File, accelerator: Accelerator) : Closeab
   fun detect(frame: FloatArray): Pitch {
     val x = normalizeFrame(frame)
 
-    inBuf[0].writeFloat(x)
-    model.run(inBuf, outBuf)
-    val act = outBuf[0].readFloat()
+    runner.inputBuffers[0].writeFloat(x)
+    runner.run()
+    val act = runner.outputBuffers[0].readFloat()
 
     return decodeActivations(act)
   }
 
   override fun close() {
-    inBuf.forEach { it.close() }
-    outBuf.forEach { it.close() }
-    model.close()
+    runner.close()
   }
 }

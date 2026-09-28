@@ -16,8 +16,8 @@
 
 package com.google.ai.edge.examples.litert_model_zoo.models.basicpitch
 
+import com.google.ai.edge.examples.litert_model_zoo.common.CompiledModelRunner
 import com.google.ai.edge.litert.Accelerator
-import com.google.ai.edge.litert.CompiledModel
 import java.io.Closeable
 import java.io.File
 
@@ -72,13 +72,11 @@ class Transcriber(modelDir: File, accelerator: Accelerator) : Closeable {
 
   data class Note(val startSec: Double, val endSec: Double, val midi: Int, val amplitude: Float)
 
-  private val model: CompiledModel = run {
+  private val runner: CompiledModelRunner = run {
     val f = File(modelDir, "basicpitch.tflite")
-    check(f.exists()) { "Model not found: ${f.name}. Run scripts/install_to_device.sh first." }
-    CompiledModel.create(f.absolutePath, CompiledModel.Options(accelerator), null)
+    check(f.exists()) { "Model not found: ${f.name}. Download this task first." }
+    CompiledModelRunner.fromFile(f.absolutePath, accelerator)
   }
-  private val inBuf = model.createInputBuffers()
-  private val outBuf = model.createOutputBuffers()
 
   /** pcm mono 22 050 Hz -> full-track note/onset posteriorgrams [framesTotal][88]. */
   fun posteriorgrams(
@@ -97,11 +95,11 @@ class Transcriber(modelDir: File, accelerator: Accelerator) : Closeable {
       java.util.Arrays.fill(x, 0f)
       val n = minOf(N_SAMPLES, pcm.size - start)
       if (n > 0) System.arraycopy(pcm, start, x, 0, n)
-      inBuf[0].writeFloat(x)
-      model.run(inBuf, outBuf)
+      runner.inputBuffers[0].writeFloat(x)
+      runner.run()
       // outputs ordered: contour [172*264], note [172*88], onset [172*88]
-      val noteW = outBuf[1].readFloat()
-      val onsetW = outBuf[2].readFloat()
+      val noteW = runner.outputBuffers[1].readFloat()
+      val onsetW = runner.outputBuffers[2].readFloat()
       val f0 = start / FFT_HOP
       val keepFrom = if (w == 0) 0 else OVERLAP / FFT_HOP / 2 // 15
       for (t in keepFrom until N_FRAMES) {
@@ -116,10 +114,7 @@ class Transcriber(modelDir: File, accelerator: Accelerator) : Closeable {
     return Pair(note, onset)
   }
 
-  /** Simple note-event decoding: onset-triggered, sustained while note posterior stays high. */
   override fun close() {
-    inBuf.forEach { it.close() }
-    outBuf.forEach { it.close() }
-    model.close()
+    runner.close()
   }
 }

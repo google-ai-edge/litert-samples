@@ -18,8 +18,8 @@ package com.google.ai.edge.examples.litert_model_zoo.models.nima
 
 import android.content.Context
 import android.graphics.Bitmap
+import com.google.ai.edge.examples.litert_model_zoo.common.CompiledModelRunner
 import com.google.ai.edge.litert.Accelerator
-import com.google.ai.edge.litert.CompiledModel
 import java.io.File
 
 /**
@@ -33,22 +33,22 @@ class NimaScorer(
   aestheticFile: File,
   technicalFile: File? = null,
   accelerator: Accelerator = Accelerator.GPU,
-) {
+) : AutoCloseable {
 
   companion object {
     const val SIZE = 224
   }
 
-  private val aesthetic =
-    CompiledModel.create(aestheticFile.absolutePath, CompiledModel.Options(accelerator), null)
-  private val aIn = aesthetic.createInputBuffers()
-  private val aOut = aesthetic.createOutputBuffers()
+  private val aesthetic = CompiledModelRunner.fromFile(aestheticFile.absolutePath, accelerator)
   private val technical =
     technicalFile?.let {
-      CompiledModel.create(it.absolutePath, CompiledModel.Options(accelerator), null)
+      try {
+        CompiledModelRunner.fromFile(it.absolutePath, accelerator)
+      } catch (failure: Throwable) {
+        aesthetic.close()
+        throw failure
+      }
     }
-  private val tIn = technical?.createInputBuffers()
-  private val tOut = technical?.createOutputBuffers()
 
   /** MobileNet preprocessing: resize 224², RGB, NHWC, scaled to [-1, 1]. */
   private fun preprocess(bm: Bitmap): FloatArray {
@@ -75,21 +75,21 @@ class NimaScorer(
 
   fun score(bm: Bitmap): Scores {
     val x = preprocess(bm)
-    aIn[0].writeFloat(x)
-    aesthetic.run(aIn, aOut)
-    val distribution = aOut[0].readFloat()
+    aesthetic.inputBuffers[0].writeFloat(x)
+    aesthetic.run()
+    val distribution = aesthetic.outputBuffers[0].readFloat()
     val technicalScore =
-      if (technical != null && tIn != null && tOut != null) {
-        tIn[0].writeFloat(x)
-        technical.run(tIn, tOut)
-        val technicalDistribution = tOut[0].readFloat()
+      if (technical != null) {
+        technical.inputBuffers[0].writeFloat(x)
+        technical.run()
+        val technicalDistribution = technical.outputBuffers[0].readFloat()
         meanScore(technicalDistribution)
       } else null
     return Scores(meanScore(distribution), technicalScore, distribution)
   }
 
-  fun close() {
-    aesthetic.close()
+  override fun close() {
     technical?.close()
+    aesthetic.close()
   }
 }

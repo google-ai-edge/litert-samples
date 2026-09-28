@@ -16,8 +16,8 @@
 
 package com.google.ai.edge.examples.litert_model_zoo.models.dac
 
+import com.google.ai.edge.examples.litert_model_zoo.common.CompiledModelRunner
 import com.google.ai.edge.litert.Accelerator
-import com.google.ai.edge.litert.CompiledModel
 import java.io.Closeable
 import java.io.File
 
@@ -42,25 +42,30 @@ class DacCodec(private val modelDir: File, private val accelerator: Accelerator)
     const val DECODER = "dac_16khz_deconly_zs_fp16.tflite"
   }
 
-  private fun load(name: String): CompiledModel {
+  private fun load(name: String): CompiledModelRunner {
     val f = File(modelDir, name)
-    check(f.exists()) { "Model not found: $name. Push it first:\n  scripts/install_to_device.sh" }
-    return CompiledModel.create(f.absolutePath, CompiledModel.Options(accelerator), null)
+    check(f.exists()) { "Model not found: $name. Download this task first." }
+    return CompiledModelRunner.fromFile(f.absolutePath, accelerator)
   }
 
-  private val encoder = load(ENCODER)
-  private val decoder =
+  private val encoder: CompiledModelRunner
+  private val decoder: CompiledModelRunner
+  private val rvq: DacRVQ
+
+  init {
+    var createdEncoder: CompiledModelRunner? = null
+    var createdDecoder: CompiledModelRunner? = null
     try {
-      load(DECODER)
-    } catch (failure: Exception) {
-      encoder.close()
+      encoder = load(ENCODER).also { createdEncoder = it }
+      decoder = load(DECODER).also { createdDecoder = it }
+      rvq = DacRVQ(File(modelDir, "dac_rvq.bin").readBytes())
+    } catch (failure: Throwable) {
+      // A CPU retry by the caller must not inherit two GPU graphs that nobody closes.
+      runCatching { createdDecoder?.close() }
+      runCatching { createdEncoder?.close() }
       throw failure
     }
-  private val rvq = DacRVQ(File(modelDir, "dac_rvq.bin").readBytes())
-  private val encIn = encoder.createInputBuffers()
-  private val encOut = encoder.createOutputBuffers()
-  private val decIn = decoder.createInputBuffers()
-  private val decOut = decoder.createOutputBuffers()
+  }
 
   data class Result(
     val audio: FloatArray,
@@ -72,25 +77,21 @@ class DacCodec(private val modelDir: File, private val accelerator: Accelerator)
   /** Full encode -> quantize -> decode round-trip of a 16000-sample clip. */
   fun roundTrip(audio: FloatArray): Result {
     val t0 = System.nanoTime()
-    encIn[0].writeFloat(audio)
-    encoder.run(encIn, encOut)
-    val z = encOut[0].readFloat()
+    encoder.inputBuffers[0].writeFloat(audio)
+    encoder.run()
+    val z = encoder.outputBuffers[0].readFloat()
     val codes = rvq.encode(z, T)
     val t1 = System.nanoTime()
     val zq = rvq.decode(codes, T)
-    decIn[0].writeFloat(zq)
-    decoder.run(decIn, decOut)
-    val out = decOut[0].readFloat()
+    decoder.inputBuffers[0].writeFloat(zq)
+    decoder.run()
+    val out = decoder.outputBuffers[0].readFloat()
     val t2 = System.nanoTime()
     return Result(out, codes, (t1 - t0) / 1_000_000, (t2 - t1) / 1_000_000)
   }
 
   override fun close() {
-    encIn.forEach { it.close() }
-    encOut.forEach { it.close() }
-    decIn.forEach { it.close() }
-    decOut.forEach { it.close() }
-    encoder.close()
     decoder.close()
+    encoder.close()
   }
 }

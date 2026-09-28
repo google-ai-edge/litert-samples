@@ -16,8 +16,8 @@
 
 package com.google.ai.edge.examples.litert_model_zoo.models.cmgan
 
+import com.google.ai.edge.examples.litert_model_zoo.common.CompiledModelRunner
 import com.google.ai.edge.litert.Accelerator
-import com.google.ai.edge.litert.CompiledModel
 import java.io.Closeable
 import java.io.File
 import kotlin.math.cos
@@ -93,13 +93,11 @@ class NoiseSuppressor(modelDir: File, accelerator: Accelerator) : Closeable {
     }
   }
 
-  private val model: CompiledModel = run {
+  private val runner: CompiledModelRunner = run {
     val f = File(modelDir, "cmgan_fp16.tflite")
-    check(f.exists()) { "Model not found: ${f.name}. Run scripts/install_to_device.sh first." }
-    CompiledModel.create(f.absolutePath, CompiledModel.Options(accelerator), null)
+    check(f.exists()) { "Model not found: ${f.name}. Download this task first." }
+    CompiledModelRunner.fromFile(f.absolutePath, accelerator)
   }
-  private val inBuf = model.createInputBuffers()
-  private val outBuf = model.createOutputBuffers()
 
   /** Enhance a mono 16 kHz track. Returns the denoised track (same length). */
   fun enhance(pcm: FloatArray, onProgress: (Int, Int) -> Unit): FloatArray {
@@ -123,10 +121,10 @@ class NoiseSuppressor(modelDir: File, accelerator: Accelerator) : Closeable {
         x[PAD - j] = x[PAD + j]
         x[PAD + CHUNK - 1 + j] = x[PAD + CHUNK - 1 - j]
       }
-      inBuf[0].writeFloat(x)
-      model.run(inBuf, outBuf)
-      val er = outBuf[0].readFloat() // [321 * 201] compressed real
-      val ei = outBuf[1].readFloat()
+      runner.inputBuffers[0].writeFloat(x)
+      runner.run()
+      val er = runner.outputBuffers[0].readFloat() // [321 * 201] compressed real
+      val ei = runner.outputBuffers[1].readFloat()
       val seg = istft(er, ei) // [CHUNK]
       val n = min(CHUNK, pcm.size - start)
       for (i in 0 until n) { // equal-weight overlap-add
@@ -138,10 +136,7 @@ class NoiseSuppressor(modelDir: File, accelerator: Accelerator) : Closeable {
     return out
   }
 
-  /** Un-compress (mag^0.3 -> mag) + inverse STFT + hamming overlap-add, trim center pad. */
   override fun close() {
-    inBuf.forEach { it.close() }
-    outBuf.forEach { it.close() }
-    model.close()
+    runner.close()
   }
 }

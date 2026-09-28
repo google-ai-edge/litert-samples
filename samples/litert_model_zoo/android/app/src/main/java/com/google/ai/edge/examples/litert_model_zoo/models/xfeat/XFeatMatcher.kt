@@ -18,8 +18,8 @@ package com.google.ai.edge.examples.litert_model_zoo.models.xfeat
 
 import android.content.Context
 import android.graphics.Bitmap
+import com.google.ai.edge.examples.litert_model_zoo.common.CompiledModelRunner
 import com.google.ai.edge.litert.Accelerator
-import com.google.ai.edge.litert.CompiledModel
 import java.io.Closeable
 import java.io.File
 import kotlin.math.exp
@@ -53,13 +53,10 @@ class XFeatMatcher(ctx: Context, modelFile: File, accelerator: Accelerator = Acc
 
   data class Match(val x0: Float, val y0: Float, val x1: Float, val y1: Float, val sim: Float)
 
-  private val model: CompiledModel = run {
-    val f = modelFile
-    check(f.exists()) { "Model not found: ${f.name}. Download this task first." }
-    CompiledModel.create(f.absolutePath, CompiledModel.Options(accelerator), null)
+  private val runner: CompiledModelRunner = run {
+    check(modelFile.exists()) { "Model not found: ${modelFile.name}. Download this task first." }
+    CompiledModelRunner.fromFile(modelFile.absolutePath, accelerator)
   }
-  private val inBuf = model.createInputBuffers()
-  private val outBuf = model.createOutputBuffers()
 
   /** bitmap (any size) -> grayscale 640x480, per-image instance norm (host side). */
   fun preprocess(bm: Bitmap): FloatArray {
@@ -87,11 +84,11 @@ class XFeatMatcher(ctx: Context, modelFile: File, accelerator: Accelerator = Acc
 
   /** Run the GPU graph and decode top-K keypoints + descriptors. */
   fun extract(gray: FloatArray): Features {
-    inBuf[0].writeFloat(gray)
-    model.run(inBuf, outBuf)
-    val feats = outBuf[0].readFloat() // [64, 60, 80]
-    val heat = outBuf[2].readFloat() // [60, 80] reliability
-    val klog = outBuf[1].readFloat() // [65, 60, 80] cell logits (64 pos + dustbin)
+    runner.inputBuffers[0].writeFloat(gray)
+    runner.run()
+    val feats = runner.outputBuffers[0].readFloat() // [64, 60, 80]
+    val heat = runner.outputBuffers[2].readFloat() // [60, 80] reliability
+    val klog = runner.outputBuffers[1].readFloat() // [65, 60, 80] cell logits (64 pos + dustbin)
 
     check(feats.size == D * GH * GW && heat.size == GH * GW && klog.size == 65 * GH * GW) {
       "XFeat output shape mismatch: descriptors=${feats.size}, reliability=${heat.size}, keypointLogits=${klog.size}"
@@ -208,8 +205,6 @@ class XFeatMatcher(ctx: Context, modelFile: File, accelerator: Accelerator = Acc
   }
 
   override fun close() {
-    inBuf.forEach { it.close() }
-    outBuf.forEach { it.close() }
-    model.close()
+    runner.close()
   }
 }

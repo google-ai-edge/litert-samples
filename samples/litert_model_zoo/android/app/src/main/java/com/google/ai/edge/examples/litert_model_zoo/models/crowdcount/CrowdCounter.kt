@@ -22,9 +22,8 @@ import android.graphics.Canvas
 import android.graphics.Matrix
 import android.graphics.Paint
 import android.util.Log
+import com.google.ai.edge.examples.litert_model_zoo.common.CompiledModelRunner
 import com.google.ai.edge.litert.Accelerator
-import com.google.ai.edge.litert.CompiledModel
-import com.google.ai.edge.litert.TensorBuffer
 import java.io.File
 
 /**
@@ -57,9 +56,7 @@ class CrowdCounter(context: Context, modelFile: File, accelerator: Accelerator =
   /** One inference result: [density] is an OUT×OUT map whose sum is [count]. */
   data class Result(val density: FloatArray, val count: Float, val inferenceMs: Long)
 
-  private val model: CompiledModel
-  private val inBufs: List<TensorBuffer>
-  private val outBufs: List<TensorBuffer>
+  private val runner: CompiledModelRunner
   private val inputFloats = FloatArray(3 * SIZE * SIZE)
   private val pixels = IntArray(SIZE * SIZE)
   private val resized = Bitmap.createBitmap(SIZE, SIZE, Bitmap.Config.ARGB_8888)
@@ -67,10 +64,16 @@ class CrowdCounter(context: Context, modelFile: File, accelerator: Accelerator =
   private val paint = Paint(Paint.FILTER_BITMAP_FLAG)
 
   init {
-    model = CompiledModel.create(modelFile.absolutePath, CompiledModel.Options(accelerator), null)
-    inBufs = model.createInputBuffers()
-    outBufs = model.createOutputBuffers()
-    Log.i(TAG, "$accelerator compiled OK — ${inBufs.size} in / ${outBufs.size} out")
+    try {
+      runner = CompiledModelRunner.fromFile(modelFile.absolutePath, accelerator)
+    } catch (failure: Throwable) {
+      if (!resized.isRecycled) resized.recycle()
+      throw failure
+    }
+    Log.i(
+      TAG,
+      "$accelerator compiled OK — ${runner.inputBuffers.size} in / ${runner.outputBuffers.size} out",
+    )
   }
 
   /** Runs DM-Count on [bitmap] and returns the density map + person count + time. */
@@ -90,15 +93,15 @@ class CrowdCounter(context: Context, modelFile: File, accelerator: Accelerator =
       inputFloats[plane + i] = (((p shr 8) and 0xFF) / 255f - MEAN[1]) / STD[1]
       inputFloats[2 * plane + i] = ((p and 0xFF) / 255f - MEAN[2]) / STD[2]
     }
-    inBufs[0].writeFloat(inputFloats)
-    model.run(inBufs, outBufs)
-    val density = outBufs[0].readFloat() // [64*64] non-negative density
+    runner.inputBuffers[0].writeFloat(inputFloats)
+    runner.run()
+    val density = runner.outputBuffers[0].readFloat() // [64*64] non-negative density
     val sum = sumDensity(density)
     return Result(density, sum, (System.nanoTime() - t) / 1_000_000)
   }
 
   override fun close() {
-    model.close()
+    runner.close()
     if (!resized.isRecycled) resized.recycle()
   }
 }

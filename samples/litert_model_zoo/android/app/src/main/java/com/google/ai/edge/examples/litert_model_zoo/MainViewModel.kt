@@ -58,6 +58,7 @@ import java.io.File
 import java.util.concurrent.Executors
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.NonCancellable
@@ -80,6 +81,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
   private val store = ModelStore(File(application.filesDir, "models"))
   private val downloads = mutableMapOf<String, Job>()
   private val deleting = mutableSetOf<String>()
+  /** The task the current screen is waiting on; [navigate] drops it so the next screen is usable. */
+  @Volatile private var taskJob: Job? = null
   private var detector: DetectionEngine? = null
   private var synthesizer: MatchaEngine? = null
   private var recognizer: ZipformerEngine? = null
@@ -114,7 +117,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             }
           }
         val visibleTasks = catalog.tasks
-        mutable.update { it.copy(tasks = visibleTasks) }
+        // The catalog is usable at once; download states fill in per task behind it.
+        mutable.update { it.copy(tasks = visibleTasks, loading = false) }
         for (entry in visibleTasks) {
           val download = store.inspect(entry)
           mutable.update { it.copy(downloads = it.downloads + (entry.taskId to download)) }
@@ -134,15 +138,34 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     cameraEnabled = false
     stopRecording(transcribe = false)
     player.close()
+    // A task still running for the old screen keeps its worker thread until its native call
+    // returns; cancelling stops it at the next suspension point and its result is dropped by the
+    // generation checks. The next screen must not inherit its busy flag. A delete in progress is
+    // not a task job and keeps the flag until it finishes.
+    val running = taskJob
+    val cancelledTask = running != null
+    running?.cancel()
+    taskJob = null
+    // Every engine belongs to one screen: closing them here returns the native buffers, and for
+    // TTS the pronunciation dictionary, before the next task compiles its own graphs. The cleanup
+    // runs on the same single-thread dispatcher as the tasks, so it queues behind a running one.
     cleanupScope.launch {
       try {
         singleImageEngine?.second?.close()
         batchAudioEngine?.second?.close()
+        detector?.close()
+        synthesizer?.close()
+        recognizer?.close()
       } catch (failure: Throwable) {
-        showError(TaskFailures.message(failure))
+        if (failure is CancellationException) throw failure
+        // The screen that owned these engines is gone; the next one gets no banner for it.
+        Log.w("ModelZooTask", "Engine cleanup failed", failure)
       } finally {
         singleImageEngine = null
         batchAudioEngine = null
+        detector = null
+        synthesizer = null
+        recognizer = null
       }
     }
     audioWaveforms = emptyList()
@@ -151,6 +174,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         screen = screen,
         selectedTaskId = taskId,
         downloadConfirmation = null,
+        busy = if (cancelledTask) false else it.busy,
         camera = false,
         image = null,
         boxes = emptyList(),
@@ -964,18 +988,27 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
   private fun runTask(block: suspend () -> Unit) {
     if (state.value.busy || state.value.recording) return
+    val generation = navigationGeneration
     mutable.update { it.copy(busy = true, error = null) }
-    viewModelScope.launch(inferenceDispatcher) {
-      try {
-        block()
-      } catch (e: CancellationException) {
-        throw e
-      } catch (e: Throwable) {
-        showError(TaskFailures.message(e))
-      } finally {
-        mutable.update { it.copy(busy = false) }
+    val job =
+      viewModelScope.launch(inferenceDispatcher, start = CoroutineStart.LAZY) {
+        try {
+          block()
+        } catch (e: CancellationException) {
+          throw e
+        } catch (e: Throwable) {
+          if (generation == navigationGeneration) showError(TaskFailures.message(e))
+        } finally {
+          // Only a task started on the current screen may clear its busy flag; a task the user
+          // navigated away from finishes silently, after navigate() already cleared it.
+          if (generation == navigationGeneration) {
+            taskJob = null
+            mutable.update { it.copy(busy = false) }
+          }
+        }
       }
-    }
+    taskJob = job
+    job.start()
   }
 
   private fun readImage(uri: Uri): Bitmap {

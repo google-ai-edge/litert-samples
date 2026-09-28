@@ -19,12 +19,16 @@ package com.google.ai.edge.examples.litert_model_zoo.data
 import android.util.Log
 import java.io.File
 import java.io.FileOutputStream
+import java.io.IOException
 import java.net.HttpURLConnection
 import java.net.URL
 import java.security.MessageDigest
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.awaitCancellation
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.ensureActive
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import org.json.JSONObject
 
@@ -60,7 +64,9 @@ class ModelStore(
           val finalFile = File(dir, file.name)
           if (finalFile.isFile) finalFile.length() else File(dir, "${file.name}.part").length()
         }
-      val ready = entry.canDownload && entry.files.all { verify(File(dir, it.name), it) }
+      // A committed file was hashed before download() renamed it into place, so a cold start only
+      // checks that every file is there at its catalog size instead of re-reading gigabytes.
+      val ready = entry.canDownload && entry.files.all { isCommitted(File(dir, it.name), it) }
       DownloadState(
         if (ready) DownloadStatus.READY
         else if (present > 0) DownloadStatus.PAUSED else DownloadStatus.MISSING,
@@ -79,7 +85,7 @@ class ModelStore(
         currentCoroutineContext().ensureActive()
         val fileStartedNanos = System.nanoTime()
         val target = File(dir, modelFile.name)
-        if (verify(target, modelFile)) {
+        if (isCommitted(target, modelFile)) {
           completed += modelFile.bytes
         } else {
           val part = File(dir, "${modelFile.name}.part")
@@ -95,7 +101,19 @@ class ModelStore(
             connection.instanceFollowRedirects = true
             connection.setRequestProperty("Accept-Encoding", "identity")
             if (offset > 0) connection.setRequestProperty("Range", "bytes=$offset-")
+            // Pause and Delete cancel this coroutine, but the socket calls below block for up to
+            // the 30 s timeout. The child coroutine is cancelled with the download and tears the
+            // connection down from the cancelling side, so the blocked call fails at once.
+            coroutineScope {
+              val abortOnCancel = launch {
+                try {
+                  awaitCancellation()
+                } finally {
+                  runCatching { connection.disconnect() }
+                }
+              }
             try {
+              currentCoroutineContext().ensureActive()
               val code = connection.responseCode
               downloadEvent("response", entry, modelFile, offset, fileStartedNanos, code)
               check(connection.url.protocol == "https") { "Insecure download redirect" }
@@ -138,8 +156,17 @@ class ModelStore(
                   }
                 }
               }
+              // A connection torn down by cancellation can also end the stream early instead of
+              // throwing; that is a pause, not a short download.
+              currentCoroutineContext().ensureActive()
+            } catch (failure: IOException) {
+              // A call torn down by cancellation reports as cancelled, not as a download error.
+              currentCoroutineContext().ensureActive()
+              throw failure
             } finally {
+              abortOnCancel.cancel()
               connection.disconnect()
+            }
             }
           }
           check(part.length() >= modelFile.bytes) {
@@ -206,8 +233,17 @@ class ModelStore(
   }
 
   companion object {
+    /**
+     * True for a file that [download] committed: present at its catalog size, for an entry whose
+     * digest is known. The content was verified once, before the atomic rename; the app's private
+     * storage is the only writer afterwards.
+     */
+    fun isCommitted(file: File, expected: ModelFile): Boolean =
+      expected.sha256 != null && file.isFile && file.length() == expected.bytes
+
+    /** Byte size and SHA-256 of [file] against the catalog; run once per downloaded file. */
     fun verify(file: File, expected: ModelFile): Boolean {
-      if (expected.sha256 == null || !file.isFile || file.length() != expected.bytes) return false
+      if (!isCommitted(file, expected)) return false
       val digest = MessageDigest.getInstance("SHA-256")
       file.inputStream().use { input ->
         val buffer = ByteArray(64 * 1024)

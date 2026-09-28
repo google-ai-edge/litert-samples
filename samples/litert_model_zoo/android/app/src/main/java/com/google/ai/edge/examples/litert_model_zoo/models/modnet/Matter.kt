@@ -22,9 +22,8 @@ import android.graphics.Canvas
 import android.graphics.Matrix
 import android.graphics.Paint
 import android.util.Log
+import com.google.ai.edge.examples.litert_model_zoo.common.CompiledModelRunner
 import com.google.ai.edge.litert.Accelerator
-import com.google.ai.edge.litert.CompiledModel
-import com.google.ai.edge.litert.TensorBuffer
 import java.io.File
 
 /**
@@ -67,9 +66,7 @@ class Matter(context: Context, modelFile: File, accelerator: Accelerator = Accel
     const val SIZE = 512
   }
 
-  private val model: CompiledModel
-  private val inBufs: List<TensorBuffer>
-  private val outBufs: List<TensorBuffer>
+  private val runner: CompiledModelRunner
 
   private val inputFloats = FloatArray(3 * SIZE * SIZE)
   private val pixels = IntArray(SIZE * SIZE)
@@ -80,11 +77,17 @@ class Matter(context: Context, modelFile: File, accelerator: Accelerator = Accel
   private val paint = Paint(Paint.FILTER_BITMAP_FLAG)
 
   init {
-    val options = CompiledModel.Options(accelerator)
-    model = CompiledModel.create(modelFile.absolutePath, options, null)
-    inBufs = model.createInputBuffers()
-    outBufs = model.createOutputBuffers()
-    Log.i(TAG, "$accelerator compiled OK — ${inBufs.size} in / ${outBufs.size} out")
+    try {
+      runner = CompiledModelRunner.fromFile(modelFile.absolutePath, accelerator)
+    } catch (failure: Throwable) {
+      if (!resized.isRecycled) resized.recycle()
+      if (!result.isRecycled) result.recycle()
+      throw failure
+    }
+    Log.i(
+      TAG,
+      "$accelerator compiled OK — ${runner.inputBuffers.size} in / ${runner.outputBuffers.size} out",
+    )
   }
 
   /**
@@ -104,10 +107,10 @@ class Matter(context: Context, modelFile: File, accelerator: Accelerator = Accel
       inputFloats[plane + i] = (((p shr 8) and 0xFF) / 255f - 0.5f) / 0.5f
       inputFloats[2 * plane + i] = ((p and 0xFF) / 255f - 0.5f) / 0.5f
     }
-    inBufs[0].writeFloat(inputFloats)
+    runner.inputBuffers[0].writeFloat(inputFloats)
 
-    model.run(inBufs, outBufs)
-    val matte = outBufs[0].readFloat() // [512*512] alpha 0..1
+    runner.run()
+    val matte = runner.outputBuffers[0].readFloat() // [512*512] alpha 0..1
 
     compositePixels(matte, pixels, bgColor, outPixels, plane)
     result.setPixels(outPixels, 0, SIZE, 0, 0, SIZE, SIZE)
@@ -115,7 +118,7 @@ class Matter(context: Context, modelFile: File, accelerator: Accelerator = Accel
   }
 
   override fun close() {
-    model.close()
+    runner.close()
     if (!resized.isRecycled) resized.recycle()
     if (!result.isRecycled) result.recycle()
   }

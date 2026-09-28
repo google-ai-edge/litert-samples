@@ -17,6 +17,13 @@
 package com.google.ai.edge.examples.litert_model_zoo.data
 
 import java.io.File
+import java.net.InetAddress
+import java.net.ServerSocket
+import java.util.concurrent.CountDownLatch
+import java.util.concurrent.TimeUnit
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.cancelAndJoin
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertArrayEquals
 import org.junit.Assert.assertEquals
@@ -38,6 +45,58 @@ class ModelStoreTest {
     assertFalse("Same length cannot bypass content integrity", ModelStore.verify(file, expected))
     file.writeText("ab")
     assertFalse("A short file cannot be ready", ModelStore.verify(file, expected))
+  }
+
+  @Test
+  fun inspectTrustsACommittedFileBySizeWithoutRehashingIt() = runBlocking {
+    val entry = CatalogFixture.entry()
+    val store = ModelStore(temporary.newFolder(), eventLogger = {})
+    // Same byte count as the catalog row but different bytes: download() hashed the real file
+    // before committing it, so a cold start only checks that the file is there at its size.
+    val file = modelFile(store, entry).apply { writeText("abd") }
+    assertTrue(ModelStore.isCommitted(file, entry.files.single()))
+    assertFalse(ModelStore.verify(file, entry.files.single()))
+    assertEquals(DownloadStatus.READY, store.inspect(entry).status)
+    file.writeText("ab")
+    assertFalse("A short file is a paused download", ModelStore.isCommitted(file, entry.files.single()))
+    assertEquals(DownloadStatus.PAUSED, store.inspect(entry).status)
+  }
+
+  @Test
+  fun cancellingADownloadAbortsABlockedSocketCall() = runBlocking {
+    // A server that accepts the connection and never answers: the client blocks in responseCode.
+    val server = ServerSocket(0, 1, InetAddress.getLoopbackAddress())
+    val accepted = CountDownLatch(1)
+    val hold =
+      Thread {
+          runCatching { server.accept().use { accepted.countDown(); Thread.sleep(60_000) } }
+        }
+        .apply {
+          isDaemon = true
+          start()
+        }
+    try {
+      val original = CatalogFixture.entry()
+      val entry =
+        original.copy(
+          files =
+            original.files.map {
+              it.copy(url = "http://127.0.0.1:${server.localPort}/${it.name}")
+            }
+        )
+      val store = ModelStore(temporary.newFolder(), eventLogger = {})
+      val job = launch(Dispatchers.IO) { store.download(entry) {} }
+      assertTrue("the download reached the server", accepted.await(10, TimeUnit.SECONDS))
+      val started = System.nanoTime()
+      job.cancelAndJoin()
+      val waitedMs = (System.nanoTime() - started) / 1_000_000
+      assertTrue("cancel took $waitedMs ms; the 30 s socket timeout must not apply", waitedMs < 5_000)
+      assertTrue(job.isCancelled)
+      assertEquals(DownloadStatus.MISSING, store.inspect(entry).status)
+    } finally {
+      hold.interrupt()
+      server.close()
+    }
   }
 
   @Test

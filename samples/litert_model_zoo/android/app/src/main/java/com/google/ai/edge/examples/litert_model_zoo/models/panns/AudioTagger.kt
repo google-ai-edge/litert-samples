@@ -16,8 +16,8 @@
 
 package com.google.ai.edge.examples.litert_model_zoo.models.panns
 
+import com.google.ai.edge.examples.litert_model_zoo.common.CompiledModelRunner
 import com.google.ai.edge.litert.Accelerator
-import com.google.ai.edge.litert.CompiledModel
 import java.io.Closeable
 import java.io.File
 
@@ -49,32 +49,31 @@ class AudioTagger(private val modelDir: File, accelerator: Accelerator) : Closea
       .useLines { it.filter { l -> l.isNotBlank() }.toList() }
       .toTypedArray()
 
+  init {
+    // Checked before any native allocation so a bad label file leaves nothing to release.
+    require(labels.size == NUM_CLASSES) { "labels=${labels.size}, expected $NUM_CLASSES" }
+  }
+
   private val mel = MelSpectrogram(File(modelDir, "mel_basis.bin").readBytes())
 
-  private val model: CompiledModel = run {
+  private val runner: CompiledModelRunner = run {
     val f = File(modelDir, MODEL)
-    check(f.exists()) { "Model not found: $MODEL. Push it first:\n  scripts/install_to_device.sh" }
-    CompiledModel.create(f.absolutePath, CompiledModel.Options(accelerator), null)
+    check(f.exists()) { "Model not found: $MODEL. Download this task first." }
+    CompiledModelRunner.fromFile(f.absolutePath, accelerator)
   }
-  private val inBuf = model.createInputBuffers()
-  private val outBuf = model.createOutputBuffers()
 
   data class Tag(val label: String, val prob: Float)
 
   data class Result(val tags: List<Tag>, val probs: FloatArray, val melMs: Long, val gpuMs: Long)
-
-  init {
-    require(labels.size == NUM_CLASSES) { "labels=${labels.size}, expected $NUM_CLASSES" }
-  }
 
   /** Tag a 32 kHz mono clip (pads/truncates to 10 s). Returns the top-K tags by probability. */
   fun tag(audio: FloatArray, topK: Int = 10): Result {
     val t0 = System.nanoTime()
     val logmel = mel.compute(audio) // [1001*64]
     val t1 = System.nanoTime()
-    inBuf[0].writeFloat(logmel)
-    model.run(inBuf, outBuf)
-    val probs = outBuf[0].readFloat()
+    runner.inputBuffers[0].writeFloat(logmel)
+    runner.run()
+    val probs = runner.outputBuffers[0].readFloat()
     val t2 = System.nanoTime()
 
     val idx = (0 until NUM_CLASSES).sortedByDescending { probs[it] }.take(topK)
@@ -83,8 +82,6 @@ class AudioTagger(private val modelDir: File, accelerator: Accelerator) : Closea
   }
 
   override fun close() {
-    inBuf.forEach { it.close() }
-    outBuf.forEach { it.close() }
-    model.close()
+    runner.close()
   }
 }

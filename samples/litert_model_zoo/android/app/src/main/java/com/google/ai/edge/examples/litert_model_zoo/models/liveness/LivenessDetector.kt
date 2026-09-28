@@ -22,9 +22,8 @@ import android.graphics.Canvas
 import android.graphics.Matrix
 import android.graphics.Paint
 import android.util.Log
+import com.google.ai.edge.examples.litert_model_zoo.common.CompiledModelRunner
 import com.google.ai.edge.litert.Accelerator
-import com.google.ai.edge.litert.CompiledModel
-import com.google.ai.edge.litert.TensorBuffer
 import java.io.File
 
 /**
@@ -52,9 +51,7 @@ class LivenessDetector(
     }
   }
 
-  private val model: CompiledModel
-  private val inBufs: List<TensorBuffer>
-  private val outBufs: List<TensorBuffer>
+  private val runner: CompiledModelRunner
   private val inputFloats = FloatArray(3 * SIZE * SIZE)
   private val pixels = IntArray(SIZE * SIZE)
   private val resized = Bitmap.createBitmap(SIZE, SIZE, Bitmap.Config.ARGB_8888)
@@ -62,10 +59,16 @@ class LivenessDetector(
   private val paint = Paint(Paint.FILTER_BITMAP_FLAG)
 
   init {
-    model = CompiledModel.create(modelFile.absolutePath, CompiledModel.Options(accelerator), null)
-    inBufs = model.createInputBuffers()
-    outBufs = model.createOutputBuffers()
-    Log.i(TAG, "$accelerator compiled OK — ${inBufs.size} in / ${outBufs.size} out")
+    try {
+      runner = CompiledModelRunner.fromFile(modelFile.absolutePath, accelerator)
+    } catch (failure: Throwable) {
+      if (!resized.isRecycled) resized.recycle()
+      throw failure
+    }
+    Log.i(
+      TAG,
+      "$accelerator compiled OK — ${runner.inputBuffers.size} in / ${runner.outputBuffers.size} out",
+    )
   }
 
   /** Returns (isLive, liveScore, ms) from a face crop bitmap. */
@@ -87,15 +90,15 @@ class LivenessDetector(
       inputFloats[plane + i] = ((p shr 8) and 0xFF) / 255f // G
       inputFloats[2 * plane + i] = ((p shr 16) and 0xFF) / 255f // R
     }
-    inBufs[0].writeFloat(inputFloats)
-    model.run(inBufs, outBufs)
-    val o = outBufs[0].readFloat() // [3] softmax
+    runner.inputBuffers[0].writeFloat(inputFloats)
+    runner.run()
+    val o = runner.outputBuffers[0].readFloat() // [3] softmax
     val (isLive, live) = decode(o)
     return Triple(isLive, live, (System.nanoTime() - t) / 1_000_000)
   }
 
   override fun close() {
-    model.close()
+    runner.close()
     if (!resized.isRecycled) resized.recycle()
   }
 }

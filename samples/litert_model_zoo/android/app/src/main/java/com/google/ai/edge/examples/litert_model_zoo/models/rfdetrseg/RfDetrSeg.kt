@@ -17,9 +17,11 @@
 package com.google.ai.edge.examples.litert_model_zoo.models.rfdetrseg
 
 import android.content.Context
+import com.google.ai.edge.examples.litert_model_zoo.common.CompiledModelRunner
 import com.google.ai.edge.litert.Accelerator
 import com.google.ai.edge.litert.CompiledModel
 import com.google.ai.edge.litert.Environment
+import com.google.ai.edge.litert.TensorBuffer
 import java.io.Closeable
 import java.io.File
 import java.nio.ByteBuffer
@@ -125,24 +127,14 @@ class RfDetrSeg(
       closeActions.add { it.close() }
     } // ONE shared env — a null env leaks an OpenCL context per create
 
-  private fun load(name: String): CompiledModel =
+  private fun load(name: String): CompiledModelRunner =
     try {
       val f = File(modelDir, name)
       check(f.exists()) { "Model not downloaded: $name" }
-      CompiledModel.create(f.absolutePath, CompiledModel.Options(accelerator), env).also {
+      CompiledModelRunner.fromFile(f.absolutePath, CompiledModel.Options(accelerator), env).also {
         closeActions.add { it.close() }
       }
-    } catch (failure: Exception) {
-      close()
-      throw failure
-    }
-
-  private fun buffers(model: CompiledModel, input: Boolean) =
-    try {
-      (if (input) model.createInputBuffers() else model.createOutputBuffers()).also { values ->
-        values.forEach { buffer -> closeActions.add { buffer.close() } }
-      }
-    } catch (failure: Exception) {
+    } catch (failure: Throwable) {
       close()
       throw failure
     }
@@ -155,7 +147,18 @@ class RfDetrSeg(
       val out = FloatArray(n)
       ByteBuffer.wrap(bytes).order(ByteOrder.LITTLE_ENDIAN).asFloatBuffer().get(out)
       out
-    } catch (failure: Exception) {
+    } catch (failure: Throwable) {
+      close()
+      throw failure
+    }
+
+  /** Buffer slot by float capacity (robust to converter ordering); closes everything on a miss. */
+  private fun slot(buffers: List<TensorBuffer>, floatCount: Int): Int =
+    try {
+      buffers
+        .indexOfFirst { it.readFloat().size == floatCount }
+        .also { check(it >= 0) { "RF-DETR-Seg tensor shape mismatch" } }
+    } catch (failure: Throwable) {
       close()
       throw failure
     }
@@ -164,51 +167,31 @@ class RfDetrSeg(
 
   private val ga = load(MODEL_A)
   private val gb = load(MODEL_B)
-  private val aIn = buffers(ga, true)
-  private val aOut = buffers(ga, false)
-  private val bIn = buffers(gb, true)
-  private val bOut = buffers(gb, false)
+  private val aIn = ga.inputBuffers
+  private val aOut = ga.outputBuffers
+  private val bIn = gb.inputBuffers
+  private val bOut = gb.outputBuffers
 
-  // Resolve buffer slots by float capacity (robust to converter ordering).
-  private val aImage = aIn.indexOfFirst { it.readFloat().size == 3 * SIZE * SIZE }
-  private val aClspos = aIn.indexOfFirst { it.readFloat().size == 384 }
-  private val aPospatch = aIn.indexOfFirst { it.readFloat().size == NPROP * 384 }
-  private val aEncClass = aOut.indexOfFirst { it.readFloat().size == NPROP * NCLS }
-  private val aEncDelta = aOut.indexOfFirst { it.readFloat().size == NPROP * 4 }
-  private val aMemory = aOut.indexOfFirst { it.readFloat().size == NPROP * HID }
-  private val bMemSlot = bIn.indexOfFirst { it.readFloat().size == NPROP * HID }
-  private val bRefSlot = bIn.indexOfFirst { it.readFloat().size == NQ * 4 }
-  private val bQfSlot = bIn.indexOfFirst { it.readFloat().size == NQ * HID }
-  private val bBoxes = bOut.indexOfFirst { it.readFloat().size == NQ * 4 }
-  private val bLogits = bOut.indexOfFirst { it.readFloat().size == NQ * NCLS }
-  private val bMasks = bOut.indexOfFirst { it.readFloat().size == NQ * MASK * MASK }
+  private val aImage = slot(aIn, 3 * SIZE * SIZE)
+  private val aClspos = slot(aIn, 384)
+  private val aPospatch = slot(aIn, NPROP * 384)
+  private val aEncClass = slot(aOut, NPROP * NCLS)
+  private val aEncDelta = slot(aOut, NPROP * 4)
+  private val aMemory = slot(aOut, NPROP * HID)
+  private val bMemSlot = slot(bIn, NPROP * HID)
+  private val bRefSlot = slot(bIn, NQ * 4)
+  private val bQfSlot = slot(bIn, NQ * HID)
+  private val bBoxes = slot(bOut, NQ * 4)
+  private val bLogits = slot(bOut, NQ * NCLS)
+  private val bMasks = slot(bOut, NQ * MASK * MASK)
 
   init {
     try {
-      check(
-        listOf(
-            aImage,
-            aClspos,
-            aPospatch,
-            aEncClass,
-            aEncDelta,
-            aMemory,
-            bMemSlot,
-            bRefSlot,
-            bQfSlot,
-            bBoxes,
-            bLogits,
-            bMasks,
-          )
-          .all { it >= 0 }
-      ) {
-        "RF-DETR-Seg tensor shape mismatch"
-      }
       // The host-fed constants never change — write them once.
       aIn[aClspos].writeFloat(loadAsset("clspos.bin", 384))
       aIn[aPospatch].writeFloat(loadAsset("pospatch.bin", NPROP * 384))
       bIn[bQfSlot].writeFloat(loadAsset("query_feat.bin", NQ * HID))
-    } catch (failure: Exception) {
+    } catch (failure: Throwable) {
       close()
       throw failure
     }
@@ -225,7 +208,7 @@ class RfDetrSeg(
       chw[2 * hw + i] = (rgb[i * 3 + 2] / 255f - MEAN[2]) / STD[2]
     }
     aIn[aImage].writeFloat(chw)
-    ga.run(aIn, aOut)
+    ga.run()
     val encClass = aOut[aEncClass].readFloat() // [676*91]
     val encDelta = aOut[aEncDelta].readFloat() // [676*4]
     val memory = aOut[aMemory].readFloat() // [676*256], x2 on the graph side
@@ -264,7 +247,7 @@ class RfDetrSeg(
     // ---- Graph B: decoder + box/class heads + mask head (GPU) ----
     bIn[bMemSlot].writeFloat(memory)
     bIn[bRefSlot].writeFloat(refpoint)
-    gb.run(bIn, bOut)
+    gb.run()
     val boxes = bOut[bBoxes].readFloat() // [100*4] cxcywh in [0,1]
     val logits = bOut[bLogits].readFloat() // [100*91]
     val masks = bOut[bMasks].readFloat() // [100*78*78] raw logits
