@@ -60,7 +60,8 @@ object OpenSourceCredits {
       ),
       // License names and URLs are from the exact resolved Maven POMs, not inferred from LiteRT.
       OpenSourceCredit(
-        "Additional SDK terms: Google Play AI Delivery 0.1.1-alpha01, Asset Delivery 2.3.0 and Core Common 2.0.4",
+        "Additional SDK terms: Google Play AI Delivery 0.1.1-alpha01, Asset Delivery 2.3.0 " +
+          "and Core Common 2.0.4",
         "Play Core Software Development Kit Terms of Service",
         "https://developer.android.com/guide/playcore/license",
         "https://developer.android.com/guide/playcore",
@@ -78,9 +79,9 @@ object OpenSourceCredits {
   const val pannsAttribution =
     "PANNs: Large-Scale Pretrained Audio Neural Networks for Audio Pattern Recognition — " +
       "Qiuqiang Kong, Yin Cao, Turab Iqbal, Yuxuan Wang, Wenwu Wang and Mark D. Plumbley. " +
-      "Pretrained CNN14 weights are licensed under Creative Commons Attribution 4.0 International " +
-      "(CC-BY-4.0). The litert-community conversion uses an FP16 CNN graph with the log-mel " +
-      "frontend on the host. This app uses those converted model files unchanged. " +
+      "Pretrained CNN14 weights are licensed under Creative Commons Attribution 4.0 " +
+      "International (CC-BY-4.0). The litert-community conversion uses an FP16 CNN graph with " +
+      "the log-mel frontend on the host. This app uses those converted model files unchanged. " +
       "AudioSet class labels and ontology: © Google, CC-BY-4.0. No endorsement is implied."
   const val ccByLicenseUrl = "https://creativecommons.org/licenses/by/4.0/"
   const val pannsSourceUrl = "https://zenodo.org/records/3987831"

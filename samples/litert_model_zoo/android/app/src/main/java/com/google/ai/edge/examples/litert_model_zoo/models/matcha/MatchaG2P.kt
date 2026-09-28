@@ -116,7 +116,11 @@ class MatchaG2P(modelDir: File) : Closeable {
           (if (parts[0].isNotEmpty()) intToWords(parts[0].toLongOrNull() ?: 0L) else listOf("zero"))
             .toMutableList()
         words.add("point")
-        for (d in parts[1]) if (d.isDigit()) words.add(ONES[d - '0'])
+        for (d in parts[1]) {
+          if (d.isDigit()) {
+            words.add(ONES[d - '0'])
+          }
+        }
         return words
       }
       return intToWords(tok.toLongOrNull() ?: return emptyList())
@@ -134,7 +138,9 @@ class MatchaG2P(modelDir: File) : Closeable {
         w.add(TENS[n / 10])
         n %= 10
       }
-      if (n > 0) w.add(ONES[n])
+      if (n > 0) {
+        w.add(ONES[n])
+      }
       return w
     }
 
@@ -147,13 +153,16 @@ class MatchaG2P(modelDir: File) : Closeable {
         groups.add((n % 1000).toInt())
         n /= 1000
       }
-      if (groups.size > SCALES.size)
+      if (groups.size > SCALES.size) {
         return n0.toString().map { ONES[it - '0'] } // too big -> digit by digit
+      }
       val out = ArrayList<String>()
       for (i in groups.indices.reversed()) {
         if (groups[i] == 0) continue
         out.addAll(under1000(groups[i]))
-        if (SCALES[i].isNotEmpty()) out.add(SCALES[i])
+        if (SCALES[i].isNotEmpty()) {
+          out.add(SCALES[i])
+        }
       }
       return out
     }
@@ -176,9 +185,15 @@ class MatchaG2P(modelDir: File) : Closeable {
   init {
     val meta = JSONObject(File(modelDir, "g2p_meta.json").readText())
     val c2i = meta.getJSONObject("char2idx")
-    for (k in c2i.keys()) if (k.length == 1) char2idx[k[0]] = c2i.getInt(k)
+    for (k in c2i.keys()) {
+      if (k.length == 1) {
+        char2idx[k[0]] = c2i.getInt(k)
+      }
+    }
     val i2p = meta.getJSONObject("idx2ph")
-    for (k in i2p.keys()) idx2ph[k.toInt()] = i2p.getString(k)
+    for (k in i2p.keys()) {
+      idx2ph[k.toInt()] = i2p.getString(k)
+    }
     charRepeats = meta.getInt("char_repeats")
     start = meta.getInt("start")
     end = meta.getInt("end")
@@ -192,7 +207,9 @@ class MatchaG2P(modelDir: File) : Closeable {
     val syms = cfg.getJSONArray("symbols")
     for (i in 0 until syms.length()) {
       val s = syms.getString(i)
-      if (s.length == 1) symbolToId[s[0]] = i
+      if (s.length == 1) {
+        symbolToId[s[0]] = i
+      }
     }
 
     // espeak-IPA dictionary (primary G2P):  word<TAB>ipa per line
@@ -202,7 +219,9 @@ class MatchaG2P(modelDir: File) : Closeable {
       .use { r ->
         r.forEachLine { ln ->
           val t = ln.indexOf('\t')
-          if (t > 0) dict[ln.substring(0, t)] = ln.substring(t + 1)
+          if (t > 0) {
+            dict[ln.substring(0, t)] = ln.substring(t + 1)
+          }
         }
       }
     val f = File(modelDir, MODEL)
@@ -222,7 +241,9 @@ class MatchaG2P(modelDir: File) : Closeable {
     var first = true
     fun add(p: String) {
       if (p.isNotEmpty()) {
-        if (!first) ipa.append(' ')
+        if (!first) {
+          ipa.append(' ')
+        }
         ipa.append(p)
         first = false
       }
@@ -231,14 +252,19 @@ class MatchaG2P(modelDir: File) : Closeable {
       val tok = m.value
       when {
         ACRO.matches(tok) -> add(tok.lowercase().mapNotNull { LETTER[it] }.joinToString(""))
-        tok[0].isDigit() -> for (w in numToWords(tok)) add(dict[w] ?: phonemizeWord(w))
+        tok[0].isDigit() ->
+          for (w in numToWords(tok)) {
+            add(dict[w] ?: phonemizeWord(w))
+          }
         WORD.matches(tok) ->
           add(dict[tok.lowercase()] ?: phonemizeWord(tok.lowercase())) // dict primary, neural OOV
         else -> ipa.append(tok) // punctuation: attach to the preceding word
       }
     }
     val out = ArrayList<Int>(ipa.length)
-    for (ch in ipa) symbolToId[ch]?.let { out.add(it) }
+    for (ch in ipa) {
+      symbolToId[ch]?.let { out.add(it) }
+    }
     return out.toIntArray()
   }
 
@@ -246,7 +272,9 @@ class MatchaG2P(modelDir: File) : Closeable {
   fun phonemizeWord(word: String): String {
     val ids = ArrayList<Int>(maxt)
     ids.add(start)
-    for (c in word) char2idx[c]?.let { id -> repeat(charRepeats) { ids.add(id) } }
+    for (c in word) {
+      char2idx[c]?.let { id -> repeat(charRepeats) { ids.add(id) } }
+    }
     ids.add(end)
     val len = minOf(ids.size, maxt)
     val inBuf = FloatArray(maxt) { if (it < len) ids[it].toFloat() else 0f }
@@ -271,7 +299,11 @@ class MatchaG2P(modelDir: File) : Closeable {
       prev = best
       val ph = idx2ph[best] ?: continue
       if (ph in special || best == 0) continue
-      for (ch in ph) if (ch != '-') sb.append(ch) // strip acronym hyphens
+      for (ch in ph) {
+        if (ch != '-') {
+          sb.append(ch) // strip acronym hyphens
+        }
+      }
     }
     return sb.toString()
   }

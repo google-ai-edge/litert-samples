@@ -53,7 +53,9 @@ class PpocrImageEngine(context: Context, modelDir: File, preferredBackend: Strin
     val lines = ArrayList<Pair<PpocrDetector.Box, String>>()
     for (b in boxes) {
       val text = r.recognize(cropResize(img, b))
-      if (text.isNotBlank()) lines.add(b to text)
+      if (text.isNotBlank()) {
+        lines.add(b to text)
+      }
     }
     val ms = (System.nanoTime() - t0) / 1_000_000.0
     val annotated = img.copy(Bitmap.Config.ARGB_8888, true)
@@ -79,13 +81,15 @@ class PpocrImageEngine(context: Context, modelDir: File, preferredBackend: Strin
       text =
         com.google.ai.edge.examples.litert_model_zoo.ResultCounts.boxes(lines.size) +
           " with text." +
-          if (lines.isEmpty()) ""
-          else
+          if (lines.isEmpty()) {
+            ""
+          } else {
             "\n" +
               OcrReadingOrder.lines(
                   lines.map { (box, text) -> OcrDisplayBox(box.x0, box.y0, box.x1, box.y1, text) }
                 )
-                .joinToString("\n"),
+                .joinToString("\n")
+          },
       inferenceMs = ms,
       backend = compiled.backend,
       fallbackReason = compiled.fallbackReason,
@@ -141,12 +145,14 @@ class PpocrImageEngine(context: Context, modelDir: File, preferredBackend: Strin
     val px = IntArray(nw * PpocrRecognizer.H)
     rz.getPixels(px, 0, nw, 0, 0, nw, PpocrRecognizer.H)
     val out = FloatArray(PpocrRecognizer.H * PpocrRecognizer.W * 3)
-    for (y in 0 until PpocrRecognizer.H) for (x in 0 until nw) {
-      val p = px[y * nw + x]
-      val o = (y * PpocrRecognizer.W + x) * 3
-      out[o] = ((p shr 16) and 0xFF).toFloat()
-      out[o + 1] = ((p shr 8) and 0xFF).toFloat()
-      out[o + 2] = (p and 0xFF).toFloat()
+    for (y in 0 until PpocrRecognizer.H) {
+      for (x in 0 until nw) {
+        val p = px[y * nw + x]
+        val o = (y * PpocrRecognizer.W + x) * 3
+        out[o] = ((p shr 16) and 0xFF).toFloat()
+        out[o + 1] = ((p shr 8) and 0xFF).toFloat()
+        out[o + 2] = (p and 0xFF).toFloat()
+      }
     }
     return out
   }

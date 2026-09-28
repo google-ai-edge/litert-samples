@@ -99,13 +99,17 @@ class MelSpectrogram(bytes: ByteArray) {
         im[i] = 0f
       }
       fft(re, im, N_FFT)
-      for (f in 0 until N_FREQS) power[f] = re[f] * re[f] + im[f] * im[f]
+      for (f in 0 until N_FREQS) {
+        power[f] = re[f] * re[f] + im[f] * im[f]
+      }
 
       val base = t * N_MELS
       for (mel in 0 until N_MELS) {
         var sum = 0f
         val wbase = mel * N_FREQS
-        for (f in 0 until N_FREQS) sum += melBasis[wbase + f] * power[f]
+        for (f in 0 until N_FREQS) {
+          sum += melBasis[wbase + f] * power[f]
+        }
         out[base + mel] = (10.0 * log10(maxOf(sum, 1e-10f).toDouble())).toFloat()
       }
     }

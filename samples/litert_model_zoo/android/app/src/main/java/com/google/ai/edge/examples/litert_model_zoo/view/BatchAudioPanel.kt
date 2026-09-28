@@ -54,14 +54,16 @@ internal fun BatchAudioPanel(
       if (state.busy) {
         val progress = state.audioProgress
         Text(
-          if (progress == null) stringResource(R.string.tiger_preparing)
-          else
+          if (progress == null) {
+            stringResource(R.string.tiger_preparing)
+          } else {
             stringResource(
               R.string.tiger_stem_progress,
               progress.stem,
               progress.chunk,
               progress.totalChunks,
             )
+          }
         )
         LinearProgressIndicator(Modifier.fillMaxWidth())
       }
@@ -80,14 +82,18 @@ internal fun BatchAudioPanel(
     ) {
       Text("Choose WAV and run")
     }
-    if (state.recording) Text("Recording: %.1f s".format(state.recordedSeconds))
+    if (state.recording) {
+      Text("Recording: %.1f s".format(state.recordedSeconds))
+    }
   }
 }
 
 @Composable
 internal fun BatchAudioResultPanel(state: UiState, vm: MainViewModel) {
   Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-    if (state.audioSummary.isNotBlank()) SelectionContainer { Text(state.audioSummary) }
+    if (state.audioSummary.isNotBlank()) {
+      SelectionContainer { Text(state.audioSummary) }
+    }
     if (state.pitchHz.isNotEmpty()) {
       val maximum = state.pitchHz.maxOrNull()?.coerceAtLeast(1f) ?: 1f
       Text("Pitch (Hz) · confidence shown by line opacity")
@@ -114,8 +120,12 @@ internal fun BatchAudioResultPanel(state: UiState, vm: MainViewModel) {
         style = MaterialTheme.typography.bodySmall,
       )
     }
-    if (state.audioOutputs.isNotEmpty()) PlaybackProgress(state)
-    if (state.playing) OutlinedButton(onClick = vm::stopPlayback) { Text("Stop playback") }
+    if (state.audioOutputs.isNotEmpty()) {
+      PlaybackProgress(state)
+    }
+    if (state.playing) {
+      OutlinedButton(onClick = vm::stopPlayback) { Text("Stop playback") }
+    }
     state.audioOutputs.forEachIndexed { index, name ->
       OutlinedButton(
         onClick = { vm.playAudioOutput(index) },

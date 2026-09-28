@@ -51,7 +51,9 @@ class DacRVQ(bytes: ByteArray) {
   init {
     val buf = ByteBuffer.wrap(bytes).order(ByteOrder.LITTLE_ENDIAN)
     fun fill(a: FloatArray) {
-      for (i in a.indices) a[i] = buf.float
+      for (i in a.indices) {
+        a[i] = buf.float
+      }
     }
     for (i in 0 until NQ) {
       fill(cb[i])
@@ -67,7 +69,9 @@ class DacRVQ(bytes: ByteArray) {
           n += v * v
         }
         n = sqrt(n).coerceAtLeast(1e-12f)
-        for (d in 0 until DIM) cbn[i][k * DIM + d] = cb[i][k * DIM + d] / n
+        for (d in 0 until DIM) {
+          cbn[i][k * DIM + d] = cb[i][k * DIM + d] / n
+        }
       }
     }
   }
@@ -84,19 +88,25 @@ class DacRVQ(bytes: ByteArray) {
         for (d in 0 until DIM) {
           var s = bIn[i][d]
           val wrow = d * HID
-          for (c in 0 until HID) s += wIn[i][wrow + c] * residual[c * t + tt]
+          for (c in 0 until HID) {
+            s += wIn[i][wrow + c] * residual[c * t + tt]
+          }
           proj[d] = s
           pn += s * s
         }
         pn = sqrt(pn).coerceAtLeast(1e-12f)
-        for (d in 0 until DIM) proj[d] /= pn
+        for (d in 0 until DIM) {
+          proj[d] /= pn
+        }
         // cosine-argmax over codebook
         var best = -1e30f
         var code = 0
         for (k in 0 until SIZE) {
           var dot = 0f
           val cr = k * DIM
-          for (d in 0 until DIM) dot += proj[d] * cbn[i][cr + d]
+          for (d in 0 until DIM) {
+            dot += proj[d] * cbn[i][cr + d]
+          }
           if (dot > best) {
             best = dot
             code = k
@@ -108,7 +118,9 @@ class DacRVQ(bytes: ByteArray) {
         for (c in 0 until HID) {
           var s = bOut[i][c]
           val wrow = c * DIM
-          for (d in 0 until DIM) s += wOut[i][wrow + d] * cb[i][cr + d]
+          for (d in 0 until DIM) {
+            s += wOut[i][wrow + d] * cb[i][cr + d]
+          }
           residual[c * t + tt] -= s
         }
       }
@@ -125,7 +137,9 @@ class DacRVQ(bytes: ByteArray) {
         for (c in 0 until HID) {
           var s = bOut[i][c]
           val wrow = c * DIM
-          for (d in 0 until DIM) s += wOut[i][wrow + d] * cb[i][cr + d]
+          for (d in 0 until DIM) {
+            s += wOut[i][wrow + d] * cb[i][cr + d]
+          }
           zq[c * t + tt] += s
         }
       }

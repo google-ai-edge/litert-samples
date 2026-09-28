@@ -63,7 +63,9 @@ class PpocrRecognizer(
             best = c
           }
         }
-        if (best != prev && best != 0) sb.append(chars[best]) // CTC collapse: drop repeats + blank
+        if (best != prev && best != 0) {
+          sb.append(chars[best]) // CTC collapse: drop repeats + blank
+        }
         prev = best
       }
       return sb.toString()

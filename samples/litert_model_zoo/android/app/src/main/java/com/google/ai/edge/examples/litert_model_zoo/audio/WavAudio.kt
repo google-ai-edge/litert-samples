@@ -25,8 +25,11 @@ object WavAudio {
 
   fun read16k(bytes: ByteArray): FloatArray {
     val audio = readMono(bytes)
-    return if (audio.sampleRate != 16000) resample(audio.samples, audio.sampleRate, 16000)
-    else audio.samples
+    return if (audio.sampleRate != 16000) {
+      resample(audio.samples, audio.sampleRate, 16000)
+    } else {
+      audio.samples
+    }
   }
 
   /** Preserve the source sample rate for task-specific audio frontends. */
@@ -80,7 +83,9 @@ object WavAudio {
       if (channels > 1) {
         FloatArray(pcmSamples.size / channels) { i ->
           var sum = 0f
-          for (ch in 0 until channels) sum += pcmSamples[i * channels + ch]
+          for (ch in 0 until channels) {
+            sum += pcmSamples[i * channels + ch]
+          }
           sum / channels
         }
       } else {

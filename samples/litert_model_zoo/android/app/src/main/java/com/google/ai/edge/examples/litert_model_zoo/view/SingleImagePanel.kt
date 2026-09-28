@@ -103,13 +103,15 @@ internal fun SingleImagePanel(
       ) {
         Text(stringResource(R.string.run_image))
       }
-    } else
+    } else {
       Text(stringResource(R.string.single_image_hint), style = MaterialTheme.typography.bodyMedium)
-    if (entry.taskId == "super-resolution-real-esrgan")
+    }
+    if (entry.taskId == "super-resolution-real-esrgan") {
       Text(
         stringResource(R.string.super_resolution_input_limit),
         style = MaterialTheme.typography.bodySmall,
       )
+    }
   }
 }
 
@@ -149,16 +151,18 @@ internal fun SingleImageResultPanel(entry: ModelEntry, state: UiState) {
           )
         }
       }
-    } else
+    } else {
       ImagePreview(
         output,
         stringResource(R.string.output_image),
         transparent = transparent,
         displayAspectRatio = displayAspectRatio,
       )
+    }
   }
-  if (state.imageOutputText.isNotBlank())
+  if (state.imageOutputText.isNotBlank()) {
     SelectionContainer { Text(state.imageOutputText, style = MaterialTheme.typography.bodyLarge) }
+  }
 }
 
 /** The frame itself has the fitted bitmap's bounds; backgrounds cannot leak into letterboxing. */
@@ -190,8 +194,9 @@ internal fun ImagePreview(
   displayAspectRatio: Float = bitmap.width.toFloat() / bitmap.height,
 ) {
   FittedImageFrame(bitmap, compact, displayAspectRatio) {
-    if (background != null) Box(Modifier.fillMaxSize().background(background))
-    else if (transparent)
+    if (background != null) {
+      Box(Modifier.fillMaxSize().background(background))
+    } else if (transparent) {
       Canvas(Modifier.fillMaxSize()) {
         val tile = 12.dp.toPx()
         for (row in 0 until kotlin.math.ceil(size.height / tile).toInt()) {
@@ -204,6 +209,7 @@ internal fun ImagePreview(
           }
         }
       }
+    }
     Image(
       bitmap.asImageBitmap(),
       description,

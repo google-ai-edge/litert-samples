@@ -46,18 +46,23 @@ class RamImageEngine(context: Context, modelDir: File, preferredBackend: String)
       text =
         com.google.ai.edge.examples.litert_model_zoo.ResultCounts.tags(tags.size) +
           " above the model thresholds." +
-          if (tags.isEmpty()) ""
-          else
+          if (tags.isEmpty()) {
+            ""
+          } else {
             "\n" +
               tags.joinToString("\n") {
                 String.format(Locale.US, "%s — %.1f%%", it.name, it.prob * 100)
-              },
+              }
+          },
       inferenceMs = ms,
       backend = compiled.backend,
       fallbackReason = compiled.fallbackReason,
       backendDetails =
-        if (compiled.backend == "CPU") "All four graphs: CPU."
-        else "Swin stages 0–2 and tag head: GPU; stage 3 and reweight: CPU.",
+        if (compiled.backend == "CPU") {
+          "All four graphs: CPU."
+        } else {
+          "Swin stages 0–2 and tag head: GPU; stage 3 and reweight: CPU."
+        },
     )
   }
 

@@ -48,7 +48,9 @@ class PitchDetector(modelFile: java.io.File, accelerator: Accelerator) : Closeab
     fun normalizeFrame(frame: FloatArray): FloatArray {
       val x = FloatArray(WINDOW)
       var mean = 0f
-      for (i in 0 until WINDOW) mean += frame[i]
+      for (i in 0 until WINDOW) {
+        mean += frame[i]
+      }
       mean /= WINDOW
       var v = 0f
       for (i in 0 until WINDOW) {
@@ -56,7 +58,9 @@ class PitchDetector(modelFile: java.io.File, accelerator: Accelerator) : Closeab
         v += d * d
       }
       val std = maxOf(sqrt(v / WINDOW), 1e-10f)
-      for (i in 0 until WINDOW) x[i] = (frame[i] - mean) / std
+      for (i in 0 until WINDOW) {
+        x[i] = (frame[i] - mean) / std
+      }
 
       return x
     }
@@ -64,7 +68,11 @@ class PitchDetector(modelFile: java.io.File, accelerator: Accelerator) : Closeab
     fun decodeActivations(act: FloatArray): Pitch {
       // weighted average of cents over ±4 bins around the peak (torchcrepe 'weighted_argmax')
       var c = 0
-      for (i in 1 until BINS) if (act[i] > act[c]) c = i
+      for (i in 1 until BINS) {
+        if (act[i] > act[c]) {
+          c = i
+        }
+      }
       val s = maxOf(0, c - 4)
       val e = minOf(BINS, c + 5)
       var num = 0.0

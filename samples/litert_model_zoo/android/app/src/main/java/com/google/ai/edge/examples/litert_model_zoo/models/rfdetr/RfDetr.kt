@@ -96,7 +96,9 @@ class RfDetr(private val modelDir: File, private val accelerator: Accelerator = 
         val base = p * NCLS
         for (c in 0 until NCLS) {
           val v = encClass[base + c]
-          if (v > m) m = v
+          if (v > m) {
+            m = v
+          }
         }
         maxScore[p] = m
       }
@@ -150,8 +152,11 @@ class RfDetr(private val modelDir: File, private val accelerator: Accelerator = 
         for (i in group.indices) {
           if (taken[i]) continue
           out.add(group[i])
-          for (j in i + 1 until group.size) if (!taken[j] && iou(group[i], group[j]) > IOU_THRESH)
-            taken[j] = true
+          for (j in i + 1 until group.size) {
+            if (!taken[j] && iou(group[i], group[j]) > IOU_THRESH) {
+              taken[j] = true
+            }
+          }
         }
       }
       return out.sortedByDescending { it.score }

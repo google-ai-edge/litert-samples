@@ -99,7 +99,8 @@ class MoViNetImageEngine(context: Context, directory: File, backend: String) : S
       backend = loaded.backend,
       fallbackReason = loaded.fallbackReason,
       backendDetails =
-        "GPU compile fails on LiteRT 2.2.0 (RELU_0_TO_1); runs on CPU. Streaming state is retained; the wrapper resets its window every 64 frames.",
+        "GPU compile fails on LiteRT 2.2.0 (RELU_0_TO_1); runs on CPU. Streaming state is " +
+          "retained; the wrapper resets its window every 64 frames.",
       metrics =
         mapOf(
           "topActions" to
@@ -178,7 +179,9 @@ class HeadPoseImageEngine(context: Context, directory: File, backend: String) : 
     val s = minOf(bmp.width, bmp.height)
     val crop = Bitmap.createBitmap(bmp, (bmp.width - s) / 2, (bmp.height - s) / 2, s, s)
     val (pose, ms) = loaded.runner.estimate(crop)
-    if (crop !== bmp) crop.recycle()
+    if (crop !== bmp) {
+      crop.recycle()
+    }
     val output = bmp.ownedCopy()
     drawHeadPose(Canvas(output), output.width, output.height, pose)
     return ImageTaskOutput(
@@ -218,13 +221,16 @@ class LivenessImageEngine(context: Context, directory: File, backend: String) : 
     val s = minOf(bmp.width, bmp.height)
     val crop = Bitmap.createBitmap(bmp, (bmp.width - s) / 2, (bmp.height - s) / 2, s, s)
     val (isLive, score, ms) = loaded.runner.detect(crop)
-    if (crop !== bmp) crop.recycle()
+    if (crop !== bmp) {
+      crop.recycle()
+    }
     val output = bmp.ownedCopy()
     drawLiveness(Canvas(output), output.width, output.height, isLive, score)
     return ImageTaskOutput(
       bitmap = output,
       text =
-        "${if (isLive) "LIVE" else "SPOOF"} · Live score ${String.format(Locale.US, "%.1f", score * 100)}%\nCenter your face in the frame.",
+        "${if (isLive) "LIVE" else "SPOOF"} · Live score " +
+          "${String.format(Locale.US, "%.1f", score * 100)}%\nCenter your face in the frame.",
       inferenceMs = ms.toDouble(),
       backend = loaded.backend,
       fallbackReason = loaded.fallbackReason,

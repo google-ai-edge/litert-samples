@@ -58,7 +58,10 @@ class ModelStoreTest {
     assertFalse(ModelStore.verify(file, entry.files.single()))
     assertEquals(DownloadStatus.READY, store.inspect(entry).status)
     file.writeText("ab")
-    assertFalse("A short file is a paused download", ModelStore.isCommitted(file, entry.files.single()))
+    assertFalse(
+      "A short file is a paused download",
+      ModelStore.isCommitted(file, entry.files.single()),
+    )
     assertEquals(DownloadStatus.PAUSED, store.inspect(entry).status)
   }
 
@@ -69,7 +72,12 @@ class ModelStoreTest {
     val accepted = CountDownLatch(1)
     val hold =
       Thread {
-          runCatching { server.accept().use { accepted.countDown(); Thread.sleep(60_000) } }
+          runCatching {
+            server.accept().use {
+              accepted.countDown()
+              Thread.sleep(60_000)
+            }
+          }
         }
         .apply {
           isDaemon = true
@@ -90,7 +98,10 @@ class ModelStoreTest {
       val started = System.nanoTime()
       job.cancelAndJoin()
       val waitedMs = (System.nanoTime() - started) / 1_000_000
-      assertTrue("cancel took $waitedMs ms; the 30 s socket timeout must not apply", waitedMs < 5_000)
+      assertTrue(
+        "cancel took $waitedMs ms; the 30 s socket timeout must not apply",
+        waitedMs < 5_000,
+      )
       assertTrue(job.isCancelled)
       assertEquals(DownloadStatus.MISSING, store.inspect(entry).status)
     } finally {

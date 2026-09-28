@@ -77,10 +77,18 @@ class PpocrDetector(
           val p = stack.removeLast()
           val px = p % SIZE
           val py = p / SIZE
-          if (px < x0) x0 = px
-          if (px > x1) x1 = px
-          if (py < y0) y0 = py
-          if (py > y1) y1 = py
+          if (px < x0) {
+            x0 = px
+          }
+          if (px > x1) {
+            x1 = px
+          }
+          if (py < y0) {
+            y0 = py
+          }
+          if (py > y1) {
+            y1 = py
+          }
           area++
           scoreSum += prob[p]
           if (px > 0 && bin[p - 1] && label[p - 1] == -1) {

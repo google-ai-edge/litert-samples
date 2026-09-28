@@ -68,8 +68,13 @@ class ModelStore(
       // checks that every file is there at its catalog size instead of re-reading gigabytes.
       val ready = entry.canDownload && entry.files.all { isCommitted(File(dir, it.name), it) }
       DownloadState(
-        if (ready) DownloadStatus.READY
-        else if (present > 0) DownloadStatus.PAUSED else DownloadStatus.MISSING,
+        if (ready) {
+          DownloadStatus.READY
+        } else if (present > 0) {
+          DownloadStatus.PAUSED
+        } else {
+          DownloadStatus.MISSING
+        },
         present,
         entry.totalBytes,
       )
@@ -89,8 +94,9 @@ class ModelStore(
           completed += modelFile.bytes
         } else {
           val part = File(dir, "${modelFile.name}.part")
-          if (part.length() > modelFile.bytes)
+          if (part.length() > modelFile.bytes) {
             check(part.delete()) { "Cannot discard oversized partial file" }
+          }
           var offset = part.length()
           val initialBytes = offset
           downloadEvent("start", entry, modelFile, offset, fileStartedNanos)
@@ -100,7 +106,9 @@ class ModelStore(
             connection.readTimeout = 30_000
             connection.instanceFollowRedirects = true
             connection.setRequestProperty("Accept-Encoding", "identity")
-            if (offset > 0) connection.setRequestProperty("Range", "bytes=$offset-")
+            if (offset > 0) {
+              connection.setRequestProperty("Range", "bytes=$offset-")
+            }
             // Pause and Delete cancel this coroutine, but the socket calls below block for up to
             // the 30 s timeout. The child coroutine is cancelled with the download and tears the
             // connection down from the cancelling side, so the blocked call fails at once.
@@ -112,61 +120,63 @@ class ModelStore(
                   runCatching { connection.disconnect() }
                 }
               }
-            try {
-              currentCoroutineContext().ensureActive()
-              val code = connection.responseCode
-              downloadEvent("response", entry, modelFile, offset, fileStartedNanos, code)
-              check(connection.url.protocol == "https") { "Insecure download redirect" }
-              check(code == 200 || code == 206) { "Download returned HTTP $code" }
-              if (code == 206) {
-                val range = connection.getHeaderField("Content-Range") ?: ""
-                check(range.startsWith("bytes $offset-") && range.endsWith("/${modelFile.bytes}")) {
-                  "Invalid resume response"
+              try {
+                currentCoroutineContext().ensureActive()
+                val code = connection.responseCode
+                downloadEvent("response", entry, modelFile, offset, fileStartedNanos, code)
+                check(connection.url.protocol == "https") { "Insecure download redirect" }
+                check(code == 200 || code == 206) { "Download returned HTTP $code" }
+                if (code == 206) {
+                  val range = connection.getHeaderField("Content-Range") ?: ""
+                  check(
+                    range.startsWith("bytes $offset-") && range.endsWith("/${modelFile.bytes}")
+                  ) {
+                    "Invalid resume response"
+                  }
+                } else {
+                  offset = 0
                 }
-              } else {
-                offset = 0
-              }
-              connection.inputStream.use { input ->
-                FileOutputStream(part, offset > 0).use { output ->
-                  val buffer = ByteArray(64 * 1024)
-                  var lastReport = 0L
-                  var lastLog = 0L
-                  while (true) {
-                    currentCoroutineContext().ensureActive()
-                    val count = input.read(buffer)
-                    if (count < 0) break
-                    check(offset + count <= modelFile.bytes) { "Download exceeds catalog size" }
-                    output.write(buffer, 0, count)
-                    offset += count
-                    val now = System.nanoTime()
-                    if (now - lastLog >= 1_000_000_000L) {
-                      downloadEvent("progress", entry, modelFile, offset, fileStartedNanos, code)
-                      lastLog = now
-                    }
-                    if (now - lastReport >= 100_000_000L) {
-                      progress(
-                        DownloadState(
-                          DownloadStatus.DOWNLOADING,
-                          completed + offset,
-                          entry.totalBytes,
+                connection.inputStream.use { input ->
+                  FileOutputStream(part, offset > 0).use { output ->
+                    val buffer = ByteArray(64 * 1024)
+                    var lastReport = 0L
+                    var lastLog = 0L
+                    while (true) {
+                      currentCoroutineContext().ensureActive()
+                      val count = input.read(buffer)
+                      if (count < 0) break
+                      check(offset + count <= modelFile.bytes) { "Download exceeds catalog size" }
+                      output.write(buffer, 0, count)
+                      offset += count
+                      val now = System.nanoTime()
+                      if (now - lastLog >= 1_000_000_000L) {
+                        downloadEvent("progress", entry, modelFile, offset, fileStartedNanos, code)
+                        lastLog = now
+                      }
+                      if (now - lastReport >= 100_000_000L) {
+                        progress(
+                          DownloadState(
+                            DownloadStatus.DOWNLOADING,
+                            completed + offset,
+                            entry.totalBytes,
+                          )
                         )
-                      )
-                      lastReport = now
+                        lastReport = now
+                      }
                     }
                   }
                 }
+                // A connection torn down by cancellation can also end the stream early instead of
+                // throwing; that is a pause, not a short download.
+                currentCoroutineContext().ensureActive()
+              } catch (failure: IOException) {
+                // A call torn down by cancellation reports as cancelled, not as a download error.
+                currentCoroutineContext().ensureActive()
+                throw failure
+              } finally {
+                abortOnCancel.cancel()
+                connection.disconnect()
               }
-              // A connection torn down by cancellation can also end the stream early instead of
-              // throwing; that is a pause, not a short download.
-              currentCoroutineContext().ensureActive()
-            } catch (failure: IOException) {
-              // A call torn down by cancellation reports as cancelled, not as a download error.
-              currentCoroutineContext().ensureActive()
-              throw failure
-            } finally {
-              abortOnCancel.cancel()
-              connection.disconnect()
-            }
             }
           }
           check(part.length() >= modelFile.bytes) {
@@ -178,7 +188,8 @@ class ModelStore(
           if (!verify(part, modelFile)) {
             part.delete()
             error(
-              "SHA-256 or byte-size verification failed for ${modelFile.name}; retry starts this file again"
+              "SHA-256 or byte-size verification failed for ${modelFile.name}; " +
+                "retry starts this file again"
             )
           }
           check(!target.exists() || target.delete()) { "Cannot replace invalid model file" }
@@ -226,9 +237,15 @@ class ModelStore(
         .put("bytes", bytes)
         .put("totalBytes", file.bytes)
         .put("elapsedMs", (System.nanoTime() - started) / 1_000_000.0)
-    if (http != null) value.put("httpStatus", http)
-    if (initialBytes != null) value.put("initialPartBytes", initialBytes)
-    if (event == "sha_ok") value.put("sha256", file.sha256)
+    if (http != null) {
+      value.put("httpStatus", http)
+    }
+    if (initialBytes != null) {
+      value.put("initialPartBytes", initialBytes)
+    }
+    if (event == "sha_ok") {
+      value.put("sha256", file.sha256)
+    }
     eventLogger(value.toString())
   }
 

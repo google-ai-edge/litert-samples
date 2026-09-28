@@ -185,8 +185,12 @@ class MatchaSynthesizer(private val modelDir: File, private val preferredBackend
     run {
       var p = 0
       for (f in 0 until yLen) {
-        while (p < MAX_TEXT - 1 && cum[p] <= f) p++
-        for (c in 0 until N_FEATS) muY[c * MAX_MEL + f] = mu[c * MAX_TEXT + p]
+        while (p < MAX_TEXT - 1 && cum[p] <= f) {
+          p++
+        }
+        for (c in 0 until N_FEATS) {
+          muY[c * MAX_MEL + f] = mu[c * MAX_TEXT + p]
+        }
       }
     }
     val ymask = FloatArray(MAX_MEL) { if (it < yLen) 1f else 0f }
@@ -194,8 +198,11 @@ class MatchaSynthesizer(private val modelDir: File, private val preferredBackend
     // ---- Euler ODE: x_{k+1} = x_k + dt * decoder(x_k, mu_y, sin_emb(t), mask) ----
     val rnd = if (seed != null) java.util.Random(seed) else java.util.Random()
     val x = FloatArray(N_FEATS * MAX_MEL)
-    for (c in 0 until N_FEATS) for (f in 0 until yLen) x[c * MAX_MEL + f] =
-      rnd.nextGaussian().toFloat()
+    for (c in 0 until N_FEATS) {
+      for (f in 0 until yLen) {
+        x[c * MAX_MEL + f] = rnd.nextGaussian().toFloat()
+      }
+    }
     val dt = 1f / nSteps
     var tcur = 0f
     for (step in 0 until nSteps) {
@@ -205,15 +212,19 @@ class MatchaSynthesizer(private val modelDir: File, private val preferredBackend
       decIn[3].writeFloat(ymask)
       decoder.run()
       val v = decOut[0].readFloat()
-      for (i in x.indices) x[i] += dt * v[i]
+      for (i in x.indices) {
+        x[i] += dt * v[i]
+      }
       tcur += dt
     }
 
     // ---- denormalize + zero pad -> mel -> vocoder (GPU) -> waveform ----
     val mel = FloatArray(N_FEATS * MAX_MEL)
-    for (c in 0 until N_FEATS) for (f in 0 until yLen) {
-      val i = c * MAX_MEL + f
-      mel[i] = x[i] * MEL_STD + MEL_MEAN
+    for (c in 0 until N_FEATS) {
+      for (f in 0 until yLen) {
+        val i = c * MAX_MEL + f
+        mel[i] = x[i] * MEL_STD + MEL_MEAN
+      }
     }
     vocIn[0].writeFloat(mel)
     vocoder.run()

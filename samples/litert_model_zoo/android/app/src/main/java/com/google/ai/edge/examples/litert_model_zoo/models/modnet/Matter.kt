@@ -80,13 +80,18 @@ class Matter(context: Context, modelFile: File, accelerator: Accelerator = Accel
     try {
       runner = CompiledModelRunner.fromFile(modelFile.absolutePath, accelerator)
     } catch (failure: Throwable) {
-      if (!resized.isRecycled) resized.recycle()
-      if (!result.isRecycled) result.recycle()
+      if (!resized.isRecycled) {
+        resized.recycle()
+      }
+      if (!result.isRecycled) {
+        result.recycle()
+      }
       throw failure
     }
     Log.i(
       TAG,
-      "$accelerator compiled OK — ${runner.inputBuffers.size} in / ${runner.outputBuffers.size} out",
+      "$accelerator compiled OK — ${runner.inputBuffers.size} in / " +
+        "${runner.outputBuffers.size} out",
     )
   }
 
@@ -119,7 +124,11 @@ class Matter(context: Context, modelFile: File, accelerator: Accelerator = Accel
 
   override fun close() {
     runner.close()
-    if (!resized.isRecycled) resized.recycle()
-    if (!result.isRecycled) result.recycle()
+    if (!resized.isRecycled) {
+      resized.recycle()
+    }
+    if (!result.isRecycled) {
+      result.recycle()
+    }
   }
 }

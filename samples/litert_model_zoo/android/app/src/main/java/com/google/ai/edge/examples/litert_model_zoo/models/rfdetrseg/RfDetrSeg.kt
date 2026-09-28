@@ -79,8 +79,11 @@ class RfDetrSeg(
         for (i in group.indices) {
           if (taken[i]) continue
           out.add(group[i])
-          for (j in i + 1 until group.size) if (!taken[j] && iou(group[i], group[j]) > IOU_THRESH)
-            taken[j] = true
+          for (j in i + 1 until group.size) {
+            if (!taken[j] && iou(group[i], group[j]) > IOU_THRESH) {
+              taken[j] = true
+            }
+          }
         }
       }
       return out.sortedByDescending { it.score }
@@ -212,7 +215,9 @@ class RfDetrSeg(
     val encClass = aOut[aEncClass].readFloat() // [676*91]
     val encDelta = aOut[aEncDelta].readFloat() // [676*4]
     val memory = aOut[aMemory].readFloat() // [676*256], x2 on the graph side
-    for (i in memory.indices) memory[i] *= 0.5f // invert the output-copy trick
+    for (i in memory.indices) {
+      memory[i] *= 0.5f // invert the output-copy trick
+    }
 
     // ---- host: proposal-grid combine -> topk-100 -> gather -> two-stage reparam ----
     val maxScore = FloatArray(NPROP)
@@ -221,7 +226,9 @@ class RfDetrSeg(
       val base = p * NCLS
       for (c in 0 until NCLS) {
         val v = encClass[base + c]
-        if (v > m) m = v
+        if (v > m) {
+          m = v
+        }
       }
       maxScore[p] = m
     }

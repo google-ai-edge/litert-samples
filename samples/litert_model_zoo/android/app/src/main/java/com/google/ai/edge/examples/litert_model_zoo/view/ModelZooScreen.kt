@@ -128,11 +128,12 @@ fun ModelZooScreen(state: UiState, vm: MainViewModel, activity: ComponentActivit
             )
           )
           Text(stringResource(R.string.download_confirm_storage))
-          if (confirmation.metered)
+          if (confirmation.metered) {
             Text(
               stringResource(R.string.download_metered_warning),
               color = MaterialTheme.colorScheme.error,
             )
+          }
         }
       },
       confirmButton = {
@@ -210,7 +211,7 @@ fun ModelZooScreen(state: UiState, vm: MainViewModel, activity: ComponentActivit
           CircularProgressIndicator()
           Text(stringResource(R.string.loading))
         }
-      } else
+      } else {
         when (state.screen) {
           "models" -> ModelsScreen(state, vm)
           "about" -> AboutScreen(state, vm)
@@ -218,6 +219,7 @@ fun ModelZooScreen(state: UiState, vm: MainViewModel, activity: ComponentActivit
           "task" -> selected?.let { TaskScreen(it, state, vm, activity) }
           else -> HomeScreen(state, vm)
         }
+      }
     }
   }
 }
@@ -231,21 +233,27 @@ private fun NavigationMark(screen: String, description: String, active: Boolean)
     when (screen) {
       "home" -> {
         val side = size.width * 0.3f
-        for (x in listOf(0.1f, 0.6f)) for (y in listOf(0.1f, 0.6f)) drawRoundRect(
-          color,
-          Offset(size.width * x, size.height * y),
-          Size(side, side),
-          androidx.compose.ui.geometry.CornerRadius(2.dp.toPx()),
-          style = Stroke(stroke),
-        )
+        for (x in listOf(0.1f, 0.6f)) {
+          for (y in listOf(0.1f, 0.6f)) {
+            drawRoundRect(
+              color,
+              Offset(size.width * x, size.height * y),
+              Size(side, side),
+              androidx.compose.ui.geometry.CornerRadius(2.dp.toPx()),
+              style = Stroke(stroke),
+            )
+          }
+        }
       }
       "models" -> {
-        for (y in listOf(0.2f, 0.5f, 0.8f)) drawLine(
-          color,
-          Offset(size.width * 0.15f, size.height * y),
-          Offset(size.width * 0.85f, size.height * y),
-          stroke,
-        )
+        for (y in listOf(0.2f, 0.5f, 0.8f)) {
+          drawLine(
+            color,
+            Offset(size.width * 0.15f, size.height * y),
+            Offset(size.width * 0.85f, size.height * y),
+            stroke,
+          )
+        }
       }
       else -> {
         drawCircle(color, size.width * 0.4f, style = Stroke(stroke))
@@ -314,9 +322,11 @@ private fun ModelControls(
     } else {
       LinearProgressIndicator(
         progress = {
-          if (entry.totalBytes > 0)
+          if (entry.totalBytes > 0) {
             (download.receivedBytes.toDouble() / entry.totalBytes).toFloat().coerceIn(0f, 1f)
-          else 0f
+          } else {
+            0f
+          }
         },
         modifier = Modifier.fillMaxWidth(),
       )
@@ -361,11 +371,12 @@ private fun ModelControls(
         }
       }
     }
-  } else
+  } else {
     Text(
       stringResource(R.string.verification_pending),
       style = MaterialTheme.typography.bodyMedium,
     )
+  }
 }
 
 @Composable
@@ -374,7 +385,9 @@ internal fun DetailsSection(content: @Composable () -> Unit) {
   TextButton(onClick = { expanded = !expanded }) {
     Text(if (expanded) "Hide details" else "Details")
   }
-  if (expanded) Column(verticalArrangement = Arrangement.spacedBy(8.dp)) { content() }
+  if (expanded) {
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) { content() }
+  }
 }
 
 @Composable
@@ -397,9 +410,13 @@ private fun TaskScreen(
     ContextCompat.checkSelfPermission(context, permission) == PackageManager.PERMISSION_GRANTED
   fun deniedMessage(permission: String): String =
     context.getString(
-      if (permission == Manifest.permission.CAMERA) R.string.camera_permission_denied
-      else if (entry.taskId == "speech-recognition") R.string.microphone_permission_denied
-      else R.string.microphone_audio_permission_denied
+      if (permission == Manifest.permission.CAMERA) {
+        R.string.camera_permission_denied
+      } else if (entry.taskId == "speech-recognition") {
+        R.string.microphone_permission_denied
+      } else {
+        R.string.microphone_audio_permission_denied
+      }
     )
   fun denied(permission: String) {
     permissionHistory.edit().putBoolean(permission, true).apply()
@@ -412,7 +429,9 @@ private fun TaskScreen(
     ) {
       vm.clearError()
       permissionSettings = permission
-    } else vm.showError(deniedMessage(permission))
+    } else {
+      vm.showError(deniedMessage(permission))
+    }
   }
   val imagePicker =
     rememberLauncherForActivityResult(ActivityResultContracts.PickVisualMedia()) { uri ->
@@ -433,15 +452,21 @@ private fun TaskScreen(
     vm.clearError()
     if (permission == Manifest.permission.CAMERA) {
       if (pendingPhoto) photo.launch(null) else vm.setCamera(true)
-    } else vm.startRecording()
+    } else {
+      vm.startRecording()
+    }
   }
   val cameraPermission =
     rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
-      if (granted) continuePermissionAction(Manifest.permission.CAMERA)
-      else denied(Manifest.permission.CAMERA)
+      if (granted) {
+        continuePermissionAction(Manifest.permission.CAMERA)
+      } else {
+        denied(Manifest.permission.CAMERA)
+      }
     }
-  if (state.camera && entry.taskId in (RealtimeImageTasks.ids + "object-detection"))
+  if (state.camera && entry.taskId in (RealtimeImageTasks.ids + "object-detection")) {
     CameraSession(activity, vm)
+  }
   val ready = state.downloads[entry.taskId]?.status == DownloadStatus.READY
   val wavPicker =
     rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
@@ -457,16 +482,22 @@ private fun TaskScreen(
     rememberLauncherForActivityResult(speechSaveContract) { uri -> uri?.let(vm::saveSpeech) }
   val microphonePermission =
     rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
-      if (granted) continuePermissionAction(Manifest.permission.RECORD_AUDIO)
-      else denied(Manifest.permission.RECORD_AUDIO)
+      if (granted) {
+        continuePermissionAction(Manifest.permission.RECORD_AUDIO)
+      } else {
+        denied(Manifest.permission.RECORD_AUDIO)
+      }
     }
   val settingsLauncher =
     rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) {
       val permission = pendingSettingsPermission
       pendingSettingsPermission = null
       if (permission != null) {
-        if (isGranted(permission)) continuePermissionAction(permission)
-        else vm.showError(deniedMessage(permission))
+        if (isGranted(permission)) {
+          continuePermissionAction(permission)
+        } else {
+          vm.showError(deniedMessage(permission))
+        }
       }
     }
   fun requestPermission(permission: String) {
@@ -490,17 +521,24 @@ private fun TaskScreen(
       title = {
         Text(
           stringResource(
-            if (permission == Manifest.permission.CAMERA) R.string.camera_rationale_title
-            else R.string.microphone_rationale_title
+            if (permission == Manifest.permission.CAMERA) {
+              R.string.camera_rationale_title
+            } else {
+              R.string.microphone_rationale_title
+            }
           )
         )
       },
       text = {
         Text(
           stringResource(
-            if (permission == Manifest.permission.CAMERA) R.string.camera_rationale
-            else if (entry.taskId == "speech-recognition") R.string.microphone_rationale
-            else R.string.microphone_audio_rationale
+            if (permission == Manifest.permission.CAMERA) {
+              R.string.camera_rationale
+            } else if (entry.taskId == "speech-recognition") {
+              R.string.microphone_rationale
+            } else {
+              R.string.microphone_audio_rationale
+            }
           )
         )
       },
@@ -508,8 +546,11 @@ private fun TaskScreen(
         TextButton(
           onClick = {
             permissionRationale = null
-            if (permission == Manifest.permission.CAMERA) cameraPermission.launch(permission)
-            else microphonePermission.launch(permission)
+            if (permission == Manifest.permission.CAMERA) {
+              cameraPermission.launch(permission)
+            } else {
+              microphonePermission.launch(permission)
+            }
           }
         ) {
           Text(stringResource(R.string.permission_continue))
@@ -559,11 +600,14 @@ private fun TaskScreen(
   val listState = rememberLazyListState()
   LaunchedEffect(state.selectedTaskId) { listState.scrollToItem(0) }
   LaunchedEffect(state.inputImage, state.secondaryImage) {
-    if (state.inputImage != null && state.inferenceMs == null && !state.camera)
+    if (state.inputImage != null && state.inferenceMs == null && !state.camera) {
       listState.animateScrollToItem(0)
+    }
   }
   LaunchedEffect(state.inferenceMs, state.busy) {
-    if (state.inferenceMs != null && !state.busy && !state.camera) listState.animateScrollToItem(2)
+    if (state.inferenceMs != null && !state.busy && !state.camera) {
+      listState.animateScrollToItem(2)
+    }
   }
   BoxWithConstraints(Modifier.fillMaxSize().guardNavigationTaps(navigationTapGuard)) {
     // Reserve the rest of the viewport outside the natural-size result card. This lets the
@@ -594,13 +638,16 @@ private fun TaskScreen(
           DetailsSection {
             Text(entry.model, style = MaterialTheme.typography.titleSmall)
             ModelControls(entry, state, vm, showFiles = true)
-            if (entry.taskId == "video-action-recognition")
+            if (entry.taskId == "video-action-recognition") {
               Text(
                 stringResource(R.string.movinet_cpu_note),
                 style = MaterialTheme.typography.bodySmall,
               )
+            }
           }
-          if (!ready) ModelControls(entry, state, vm)
+          if (!ready) {
+            ModelControls(entry, state, vm)
+          }
         }
       }
       item(key = "task-input") {
@@ -620,12 +667,14 @@ private fun TaskScreen(
               },
               enabled = !state.busy && !state.camera,
             )
-            if (state.camera) DetectionImage(state, compact = true)
-            else
+            if (state.camera) {
+              DetectionImage(state, compact = true)
+            } else {
               state.inputImage?.let {
                 ImagePreview(it, stringResource(R.string.input_image), compact = true)
               }
-            if (!state.camera)
+            }
+            if (!state.camera) {
               Button(
                 onClick = vm::runDetectionImage,
                 modifier = Modifier.fillMaxWidth(),
@@ -633,10 +682,12 @@ private fun TaskScreen(
               ) {
                 Text(stringResource(R.string.run_image))
               }
+            }
             OutlinedButton(
               onClick = {
-                if (state.camera) vm.setCamera(false)
-                else {
+                if (state.camera) {
+                  vm.setCamera(false)
+                } else {
                   pendingPhoto = false
                   requestCamera()
                 }
@@ -657,7 +708,7 @@ private fun TaskScreen(
                 "Live camera · ${state.cameraFrames} frames processed",
                 style = MaterialTheme.typography.bodySmall,
               )
-            } else
+            } else {
               SingleImagePanel(
                 entry,
                 state,
@@ -677,11 +728,13 @@ private fun TaskScreen(
                   )
                 },
               )
+            }
             if (entry.taskId in RealtimeImageTasks.ids) {
               OutlinedButton(
                 onClick = {
-                  if (state.camera) vm.setCamera(false)
-                  else {
+                  if (state.camera) {
+                    vm.setCamera(false)
+                  } else {
                     pendingPhoto = false
                     requestCamera()
                   }
@@ -693,15 +746,17 @@ private fun TaskScreen(
                   stringResource(if (state.camera) R.string.stop_camera else R.string.start_camera)
                 )
               }
-              if (entry.taskId in setOf("head-pose-estimation", "face-liveness-anti-spoofing"))
+              if (entry.taskId in setOf("head-pose-estimation", "face-liveness-anti-spoofing")) {
                 Text("Center a face in the frame.", style = MaterialTheme.typography.bodySmall)
+              }
             }
           } else if (entry.taskId in BatchAudioTasks.ids) {
-            if (entry.taskId == "audio-source-separation")
+            if (entry.taskId == "audio-source-separation") {
               Text(
                 stringResource(R.string.tiger_duration_hint),
                 style = MaterialTheme.typography.bodyMedium,
               )
+            }
             BatchAudioPanel(
               state,
               vm,
@@ -737,8 +792,9 @@ private fun TaskScreen(
             ) {
               Text(stringResource(R.string.pick_wav))
             }
-            if (state.recording)
+            if (state.recording) {
               Text(stringResource(R.string.recording_seconds, state.recordedSeconds))
+            }
           } else {
             Text(stringResource(R.string.speak_hint), style = MaterialTheme.typography.bodyMedium)
             OutlinedTextField(
@@ -816,7 +872,7 @@ private fun TaskScreen(
                         stringResource(if (state.playing) R.string.stop_playback else R.string.play)
                       )
                     }
-                    if (state.speechExportReady)
+                    if (state.speechExportReady) {
                       OutlinedButton(
                         onClick = {
                           try {
@@ -835,16 +891,21 @@ private fun TaskScreen(
                       ) {
                         Text(
                           stringResource(
-                            if (state.speechSaving) R.string.saving_speech_wav
-                            else R.string.save_speech_wav
+                            if (state.speechSaving) {
+                              R.string.saving_speech_wav
+                            } else {
+                              R.string.save_speech_wav
+                            }
                           )
                         )
                       }
-                    if (state.speechSaved)
+                    }
+                    if (state.speechSaved) {
                       Text(
                         stringResource(R.string.speech_wav_saved),
                         style = MaterialTheme.typography.bodySmall,
                       )
+                    }
                   }
                 }
                 Text(
@@ -860,17 +921,20 @@ private fun TaskScreen(
                   )
                 }
                 DetailsSection {
-                  if (state.backendDetails.isNotBlank())
+                  if (state.backendDetails.isNotBlank()) {
                     Text(state.backendDetails, style = MaterialTheme.typography.bodySmall)
-                  if (state.imageOutputDetails.isNotBlank())
+                  }
+                  if (state.imageOutputDetails.isNotBlank()) {
                     SelectionContainer {
                       Text(state.imageOutputDetails, style = MaterialTheme.typography.bodySmall)
                     }
-                  if (entry.taskId == "video-action-recognition")
+                  }
+                  if (entry.taskId == "video-action-recognition") {
                     Text(
                       stringResource(R.string.movinet_cpu_note),
                       style = MaterialTheme.typography.bodySmall,
                     )
+                  }
                   state.fallbackReason?.let {
                     Text(
                       stringResource(R.string.fallback, it),
@@ -899,8 +963,12 @@ private fun Modifier.guardNavigationTaps(guard: NavigationTapGuard): Modifier =
         if (event.changes.any { it.pressed && !it.previousPressed }) {
           ignoreGesture = ignoreGesture || !guard.allows(SystemClock.uptimeMillis())
         }
-        if (ignoreGesture) event.changes.forEach { it.consume() }
-        if (event.changes.none { it.pressed }) ignoreGesture = false
+        if (ignoreGesture) {
+          event.changes.forEach { it.consume() }
+        }
+        if (event.changes.none { it.pressed }) {
+          ignoreGesture = false
+        }
       }
     }
   }
@@ -993,7 +1061,7 @@ private fun CameraSession(activity: ComponentActivity, vm: MainViewModel) {
     val future = ProcessCameraProvider.getInstance(activity)
     future.addListener(
       {
-        if (!disposed)
+        if (!disposed) {
           runCatching {
               future.get()
               pipeline.start(activity)
@@ -1004,6 +1072,7 @@ private fun CameraSession(activity: ComponentActivity, vm: MainViewModel) {
                 activity.getString(R.string.camera_failed, it.message ?: it.javaClass.simpleName)
               )
             }
+        }
       },
       ContextCompat.getMainExecutor(activity),
     )
@@ -1011,7 +1080,9 @@ private fun CameraSession(activity: ComponentActivity, vm: MainViewModel) {
       disposed = true
       pipeline.enabled = false
       vm.setCamera(false)
-      if (future.isDone) runCatching { future.get().unbindAll() }
+      if (future.isDone) {
+        runCatching { future.get().unbindAll() }
+      }
       pipeline.close()
     }
   }
@@ -1069,20 +1140,22 @@ private fun AboutScreen(state: UiState, vm: MainViewModel) {
             TextButton(onClick = { open(entry.license.url) }) {
               Text(stringResource(R.string.license_link))
             }
-            if (entry.upstream.isNotBlank())
+            if (entry.upstream.isNotBlank()) {
               TextButton(onClick = { open(entry.upstream) }) {
                 Text(stringResource(R.string.upstream_link))
               }
+            }
           }
           entry.componentLicenses.forEach { component ->
             TextButton(onClick = { open(component.url) }) {
               Text(stringResource(R.string.component_license, component.component, component.name))
             }
           }
-          if (entry.modelCard.isNotBlank())
+          if (entry.modelCard.isNotBlank()) {
             TextButton(onClick = { open(entry.modelCard) }) {
               Text(stringResource(R.string.model_card_link))
             }
+          }
         }
       }
     }
@@ -1121,8 +1194,11 @@ private fun OpenSourceLicensesScreen(vm: MainViewModel) {
 
 @Composable
 private fun sizeLabel(bytes: Long): String =
-  if (bytes >= 1_000_000_000) stringResource(R.string.size_gb, bytes / 1_000_000_000.0)
-  else stringResource(R.string.size_mb, bytes / 1_000_000.0)
+  if (bytes >= 1_000_000_000) {
+    stringResource(R.string.size_gb, bytes / 1_000_000_000.0)
+  } else {
+    stringResource(R.string.size_mb, bytes / 1_000_000.0)
+  }
 
 @Composable
 private fun entryState(state: DownloadState?): String {

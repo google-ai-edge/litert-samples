@@ -177,7 +177,9 @@ object RemainingImageTasks {
           val features = runner.featureMap(request.bitmap)
           val display =
             Bitmap.createScaledBitmap(features, Dinov2Features.SIZE, Dinov2Features.SIZE, false)
-          if (display !== features) features.recycle()
+          if (display !== features) {
+            features.recycle()
+          }
           Rendered(
             display,
             "DINOv2 patch features · PCA to RGB",
@@ -255,7 +257,11 @@ object RemainingImageTasks {
     val O = CrowdCounter.OUT
     val ovPixels = IntArray(O * O)
     var maxV = 1e-5f
-    for (v in result.density) if (v > maxV) maxV = v
+    for (v in result.density) {
+      if (v > maxV) {
+        maxV = v
+      }
+    }
     for (i in 0 until O * O) {
       val v = (result.density[i] / maxV).coerceIn(0f, 1f)
       val a = (v * 220).toInt()

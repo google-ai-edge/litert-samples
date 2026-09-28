@@ -61,7 +61,8 @@ class ZipformerEngine(context: Context, modelDir: File, preferredBackend: String
     val ms = (System.nanoTime() - start) / 1_000_000.0
     Log.i(
       "ModelZooZipformer",
-      "transcript=${result.text} fbank=${result.fbankMs}ms model=${result.gpuMs}ms backend=${loaded.backend}",
+      "transcript=${result.text} fbank=${result.fbankMs}ms model=${result.gpuMs}ms " +
+        "backend=${loaded.backend}",
     )
     return AudioTextResult(result.text, ms, result.fbankMs, loaded.backend, loaded.fallbackReason)
   }

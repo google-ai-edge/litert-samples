@@ -67,13 +67,22 @@ class Upscaler(context: Context, modelFile: File, accelerator: Accelerator = Acc
     try {
       runner = CompiledModelRunner.fromFile(modelFile.absolutePath, accelerator)
     } catch (failure: Throwable) {
-      runCatching { if (!lrBitmap.isRecycled) lrBitmap.recycle() }
-      runCatching { if (!hrBitmap.isRecycled) hrBitmap.recycle() }
+      runCatching {
+        if (!lrBitmap.isRecycled) {
+          lrBitmap.recycle()
+        }
+      }
+      runCatching {
+        if (!hrBitmap.isRecycled) {
+          hrBitmap.recycle()
+        }
+      }
       throw failure
     }
     Log.i(
       TAG,
-      "$accelerator compiled OK — ${runner.inputBuffers.size} in / ${runner.outputBuffers.size} out",
+      "$accelerator compiled OK — ${runner.inputBuffers.size} in / " +
+        "${runner.outputBuffers.size} out",
     )
   }
 
@@ -106,7 +115,11 @@ class Upscaler(context: Context, modelFile: File, accelerator: Accelerator = Acc
 
   override fun close() {
     runner.close()
-    if (!lrBitmap.isRecycled) lrBitmap.recycle()
-    if (!hrBitmap.isRecycled) hrBitmap.recycle()
+    if (!lrBitmap.isRecycled) {
+      lrBitmap.recycle()
+    }
+    if (!hrBitmap.isRecycled) {
+      hrBitmap.recycle()
+    }
   }
 }

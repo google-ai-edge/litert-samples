@@ -62,7 +62,9 @@ class RamTagger(
       val hits = ArrayList<Tag>()
       for (i in 0 until NCLASS) {
         val p = 1f / (1f + exp(-logits[i]))
-        if (p > thresh[i]) hits.add(Tag(tags[i], p))
+        if (p > thresh[i]) {
+          hits.add(Tag(tags[i], p))
+        }
       }
       hits.sortByDescending { it.prob }
       return if (hits.size > topK) hits.subList(0, topK) else hits

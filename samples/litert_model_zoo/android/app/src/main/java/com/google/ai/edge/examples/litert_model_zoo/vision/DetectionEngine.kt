@@ -64,7 +64,9 @@ class DetectionEngine(modelDir: File, preferredBackend: String = "gpu") : AutoCl
       val ms = (System.nanoTime() - t0) / 1e6f
       return DetectionResult(dets, ms, backend, fallbackReason)
     } finally {
-      if (square !== bitmap) square.recycle()
+      if (square !== bitmap) {
+        square.recycle()
+      }
     }
   }
 

@@ -25,7 +25,10 @@ class PackagedCatalogTest {
   fun packagedCatalogUsesOnlyTheDocumentedFields() {
     val json = CatalogFixture.packagedJson()
     val root = JSONObject(json)
-    assertEquals(setOf("schemaVersion", "runtimeVersion", "tasks"), root.keys().asSequence().toSet())
+    assertEquals(
+      setOf("schemaVersion", "runtimeVersion", "tasks"),
+      root.keys().asSequence().toSet(),
+    )
     val fields =
       setOf(
         "task",

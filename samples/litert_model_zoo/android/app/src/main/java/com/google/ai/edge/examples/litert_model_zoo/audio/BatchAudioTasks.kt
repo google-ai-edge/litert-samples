@@ -199,7 +199,8 @@ private class CrepeTask(directory: File, preferred: String) : AudioTaskEngine {
   override fun run(request: AudioTaskRequest): AudioTaskOutput {
     val started = System.nanoTime()
     val audio = request.atRate(PitchDetector.SAMPLE_RATE)
-    // Container framing is I/O adaptation; every frame uses the wrapper's normalization and decoder.
+    // Container framing is I/O adaptation; every frame uses the wrapper's
+    // normalization and decoder.
     val hop = 1600
     val curve =
       (audio.indices step hop).map { offset ->
@@ -217,7 +218,9 @@ private class CrepeTask(directory: File, preferred: String) : AudioTaskEngine {
       }
     return AudioTaskOutput(
       curve.joinToString("\n") {
-        "${number(it["timeSeconds"] as Double)} s: ${number((it["hz"] as Float).toDouble())} Hz · ${it["note"]} · confidence ${number((it["confidence"] as Float).toDouble())}"
+        "${number(it["timeSeconds"] as Double)} s: " +
+          "${number((it["hz"] as Float).toDouble())} Hz · ${it["note"]} · " +
+          "confidence ${number((it["confidence"] as Float).toDouble())}"
       },
       metrics =
         mapOf(
@@ -302,7 +305,8 @@ private class CmganTask(directory: File, preferred: String) : AudioTaskEngine {
     val waves =
       listOf(NamedWaveform("Before", original, 16000), NamedWaveform("Enhanced", enhanced, 16000))
     return AudioTaskOutput(
-      "Enhanced ${number(enhanced.size / 16000.0)} s · peak ${number(enhanced.maxOf { abs(it) }.toDouble(), 4)}",
+      "Enhanced ${number(enhanced.size / 16000.0)} s · " +
+        "peak ${number(enhanced.maxOf { abs(it) }.toDouble(), 4)}",
       waves,
       mapOf("waveforms" to waves.map(::waveMetrics)),
       elapsed(started),
@@ -316,7 +320,8 @@ private class TigerTask(directory: File, preferred: String) : AudioTaskEngine {
   private val compiler =
     AudioCompiler(
       preferred,
-      "The TIGER wrapper loads one stem graph at a time inside each call; timing includes graph compilation and prior stems' inverse STFT",
+      "The TIGER wrapper loads one stem graph at a time inside each call; timing includes graph " +
+        "compilation and prior stems' inverse STFT",
     )
   private val wrapper =
     TigerSeparator(directory) { file ->

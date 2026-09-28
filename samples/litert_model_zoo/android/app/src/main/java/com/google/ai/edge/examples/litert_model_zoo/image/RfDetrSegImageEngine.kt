@@ -55,7 +55,9 @@ class RfDetrSegImageEngine(context: Context, modelDir: File, preferredBackend: S
       try {
         bitmapToRgb(square)
       } finally {
-        if (square !== frame) square.recycle()
+        if (square !== frame) {
+          square.recycle()
+        }
       }
     val t0 = System.nanoTime()
     val dets = compiled.runner.detect(rgb)
@@ -86,7 +88,9 @@ class RfDetrSegImageEngine(context: Context, modelDir: File, preferredBackend: S
     val oy = (height - dh) / 2f
     val imageRect = RectF(ox, oy, ox + dw, oy + dh)
     canvas.drawBitmap(bm, null, imageRect, null)
-    for (mb in masks) canvas.drawBitmap(mb, null, imageRect, maskPaint)
+    for (mb in masks) {
+      canvas.drawBitmap(mb, null, imageRect, maskPaint)
+    }
     for ((i, d) in dets.withIndex()) {
       val color = PALETTE[i % PALETTE.size] // per-instance color, matching the mask tint
       box.color = color
@@ -108,12 +112,14 @@ class RfDetrSegImageEngine(context: Context, modelDir: File, preferredBackend: S
     }
     masks.forEach { it.recycle() }
     val summary =
-      if (dets.isEmpty()) "No objects found"
-      else
+      if (dets.isEmpty()) {
+        "No objects found"
+      } else {
         dets.joinToString("\n") { d ->
           val name = labels.getOrNull(d.cls)?.ifBlank { "id ${d.cls}" } ?: "id ${d.cls}"
           "$name ${(d.score * 100).toInt()}%"
         }
+      }
     return ImageTaskOutput(
       bitmap = result,
       text = summary,
@@ -140,7 +146,11 @@ class RfDetrSegImageEngine(context: Context, modelDir: File, preferredBackend: S
   private fun maskBitmap(d: RfDetrSeg.Detection, i: Int): Bitmap {
     val tint = (PALETTE[i % PALETTE.size] and 0x00FFFFFF) or (110 shl 24)
     val px = IntArray(RfDetrSeg.MASK * RfDetrSeg.MASK)
-    for (i in px.indices) if (d.mask[i] > 0f) px[i] = tint
+    for (i in px.indices) {
+      if (d.mask[i] > 0f) {
+        px[i] = tint
+      }
+    }
     return Bitmap.createBitmap(px, RfDetrSeg.MASK, RfDetrSeg.MASK, Bitmap.Config.ARGB_8888)
   }
 

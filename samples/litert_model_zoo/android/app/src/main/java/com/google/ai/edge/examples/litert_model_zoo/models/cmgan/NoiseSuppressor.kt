@@ -74,7 +74,9 @@ class NoiseSuppressor(modelDir: File, accelerator: Accelerator) : Closeable {
         // inverse one-sided real DFT (direct synthesis; N=400 is not radix-2)
         for (n in 0 until NFFT) {
           var acc = re[0] * cosT[0][n]
-          for (k in 1 until ENC - 1) acc += 2f * (re[k] * cosT[k][n] - im[k] * sinT[k][n])
+          for (k in 1 until ENC - 1) {
+            acc += 2f * (re[k] * cosT[k][n] - im[k] * sinT[k][n])
+          }
           acc += re[ENC - 1] * cosT[ENC - 1][n] - im[ENC - 1] * sinT[ENC - 1][n]
           frame[n] = acc / NFFT
         }
@@ -103,7 +105,9 @@ class NoiseSuppressor(modelDir: File, accelerator: Accelerator) : Closeable {
   fun enhance(pcm: FloatArray, onProgress: (Int, Int) -> Unit): FloatArray {
     // whole-utterance RMS normalization (evaluation.py): x' = x * c, output / c
     var p = 0.0
-    for (v in pcm) p += v * v
+    for (v in pcm) {
+      p += v * v
+    }
     val c = sqrt(pcm.size / (p + 1e-12)).toFloat()
 
     val out = FloatArray(pcm.size)
@@ -132,7 +136,11 @@ class NoiseSuppressor(modelDir: File, accelerator: Accelerator) : Closeable {
         weight[start + i] += 1f
       }
     }
-    for (i in out.indices) if (weight[i] > 1f) out[i] /= weight[i]
+    for (i in out.indices) {
+      if (weight[i] > 1f) {
+        out[i] /= weight[i]
+      }
+    }
     return out
   }
 

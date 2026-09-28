@@ -78,7 +78,9 @@ class XFeatMatcher(ctx: Context, modelFile: File, accelerator: Accelerator = Acc
       varSum += d * d
     }
     val inv = (1.0 / sqrt(varSum / g.size + 1e-5)).toFloat()
-    for (i in g.indices) g[i] = ((g[i] - mean.toFloat()) * inv)
+    for (i in g.indices) {
+      g[i] = ((g[i] - mean.toFloat()) * inv)
+    }
     return g
   }
 
@@ -91,7 +93,8 @@ class XFeatMatcher(ctx: Context, modelFile: File, accelerator: Accelerator = Acc
     val klog = runner.outputBuffers[1].readFloat() // [65, 60, 80] cell logits (64 pos + dustbin)
 
     check(feats.size == D * GH * GW && heat.size == GH * GW && klog.size == 65 * GH * GW) {
-      "XFeat output shape mismatch: descriptors=${feats.size}, reliability=${heat.size}, keypointLogits=${klog.size}"
+      "XFeat output shape mismatch: descriptors=${feats.size}, reliability=${heat.size}, " +
+        "keypointLogits=${klog.size}"
     }
 
     // per-cell softmax over 65 -> pixel scores * reliability
@@ -103,7 +106,9 @@ class XFeatMatcher(ctx: Context, modelFile: File, accelerator: Accelerator = Acc
         var mx = Float.NEGATIVE_INFINITY
         for (c in 0 until 65) {
           cell[c] = klog[(c * GH + cy) * GW + cx]
-          if (cell[c] > mx) mx = cell[c]
+          if (cell[c] > mx) {
+            mx = cell[c]
+          }
         }
         var sum = 0f
         for (c in 0 until 65) {
@@ -124,15 +129,19 @@ class XFeatMatcher(ctx: Context, modelFile: File, accelerator: Accelerator = Acc
         val s = scoreMap[y * W + x]
         if (s < 1e-4f) continue
         var isMax = true
-        loop@ for (dy in -2..2) for (dx in -2..2) {
-          val yy = y + dy
-          val xx = x + dx
-          if (yy in 0 until H && xx in 0 until W && scoreMap[yy * W + xx] > s) {
-            isMax = false
-            break@loop
+        loop@ for (dy in -2..2) {
+          for (dx in -2..2) {
+            val yy = y + dy
+            val xx = x + dx
+            if (yy in 0 until H && xx in 0 until W && scoreMap[yy * W + xx] > s) {
+              isMax = false
+              break@loop
+            }
           }
         }
-        if (isMax) cand.add(Triple(x, y, s))
+        if (isMax) {
+          cand.add(Triple(x, y, s))
+        }
       }
     }
     cand.sortByDescending { it.third }
@@ -165,7 +174,9 @@ class XFeatMatcher(ctx: Context, modelFile: File, accelerator: Accelerator = Acc
         norm += v * v
       }
       norm = sqrt(norm) + 1e-9f
-      for (d in 0 until D) desc[i][d] /= norm
+      for (d in 0 until D) {
+        desc[i][d] /= norm
+      }
     }
     return Features(xs, ys, sc, desc)
   }
@@ -184,7 +195,9 @@ class XFeatMatcher(ctx: Context, modelFile: File, accelerator: Accelerator = Acc
         var s = 0f
         val da = a.desc[i]
         val db = b.desc[j]
-        for (d in 0 until D) s += da[d] * db[d]
+        for (d in 0 until D) {
+          s += da[d] * db[d]
+        }
         if (s > simB[i]) {
           simB[i] = s
           bestB[i] = j
@@ -198,8 +211,9 @@ class XFeatMatcher(ctx: Context, modelFile: File, accelerator: Accelerator = Acc
     val out = ArrayList<Match>()
     for (i in 0 until na) {
       val j = bestB[i]
-      if (j >= 0 && bestA[j] == i && simB[i] >= MIN_COSSIM)
+      if (j >= 0 && bestA[j] == i && simB[i] >= MIN_COSSIM) {
         out.add(Match(a.xs[i], a.ys[i], b.xs[j], b.ys[j], simB[i]))
+      }
     }
     return out
   }

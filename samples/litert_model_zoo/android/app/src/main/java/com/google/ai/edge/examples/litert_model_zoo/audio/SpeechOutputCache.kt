@@ -81,6 +81,8 @@ internal object FloatWaveWriter {
       }
       buffer.putInt(sample.toRawBits())
     }
-    if (buffer.position() > 0) destination.write(buffer.array(), 0, buffer.position())
+    if (buffer.position() > 0) {
+      destination.write(buffer.array(), 0, buffer.position())
+    }
   }
 }

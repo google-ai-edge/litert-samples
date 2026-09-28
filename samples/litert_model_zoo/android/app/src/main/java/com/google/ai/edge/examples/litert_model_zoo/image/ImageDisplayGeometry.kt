@@ -52,9 +52,11 @@ object ImageDisplayGeometry {
         inputHeight != null &&
         inputWidth > 0 &&
         inputHeight > 0
-    )
+    ) {
       inputWidth.toFloat() / inputHeight
-    else outputWidth.toFloat() / outputHeight
+    } else {
+      outputWidth.toFloat() / outputHeight
+    }
   }
 
   /** XFeat displays two scenes side by side; preserve each photo's ratio independently. */

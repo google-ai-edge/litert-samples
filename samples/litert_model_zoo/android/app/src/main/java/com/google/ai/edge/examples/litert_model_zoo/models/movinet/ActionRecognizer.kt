@@ -60,7 +60,9 @@ class ActionRecognizer(
       val idx = (logits.indices).sortedByDescending { logits[it] }.take(k)
       val maxLogit = logits[idx.first()]
       var sumExp = 0.0
-      for (v in logits) sumExp += Math.exp((v - maxLogit).toDouble())
+      for (v in logits) {
+        sumExp += Math.exp((v - maxLogit).toDouble())
+      }
       return idx.map { i ->
         Prediction(
           i,
@@ -87,10 +89,12 @@ class ActionRecognizer(
   init {
     var created: CompiledModelRunner? = null
     try {
-      runner = CompiledModelRunner.fromFile(modelFile.absolutePath, accelerator).also { created = it }
+      runner =
+        CompiledModelRunner.fromFile(modelFile.absolutePath, accelerator).also { created = it }
       Log.i(
         TAG,
-        "$accelerator compiled OK — ${runner.inputBuffers.size} inputs / ${runner.outputBuffers.size} outputs",
+        "$accelerator compiled OK — ${runner.inputBuffers.size} inputs / " +
+          "${runner.outputBuffers.size} outputs",
       )
       var off = 1
       for (c in STREAM_DIMS.indices) {
@@ -98,12 +102,18 @@ class ActionRecognizer(
         off += STREAM_DIMS[c]
       }
       val inBufs = runner.inputBuffers
-      for (i in 0 until N_POOL) poolSums[i] = FloatArray(inBufs[29 + i].readFloat().size)
+      for (i in 0 until N_POOL) {
+        poolSums[i] = FloatArray(inBufs[29 + i].readFloat().size)
+      }
       inBufs[ONE_IN].writeFloat(floatArrayOf(1f)) // constant decoupler input
       reset()
     } catch (failure: Throwable) {
       runCatching { created?.close() }
-      runCatching { if (!resized.isRecycled) resized.recycle() }
+      runCatching {
+        if (!resized.isRecycled) {
+          resized.recycle()
+        }
+      }
       throw failure
     }
   }
@@ -111,7 +121,9 @@ class ActionRecognizer(
   /** Zero all recurrent state (restart the classification window). */
   fun reset() {
     val inBufs = runner.inputBuffers
-    for (k in 1..28) inBufs[k].writeFloat(FloatArray(inBufs[k].readFloat().size))
+    for (k in 1..28) {
+      inBufs[k].writeFloat(FloatArray(inBufs[k].readFloat().size))
+    }
     for (i in 0 until N_POOL) {
       java.util.Arrays.fill(poolSums[i], 0f)
       inBufs[29 + i].writeFloat(poolSums[i])
@@ -133,14 +145,18 @@ class ActionRecognizer(
       val s = outBufs[1 + c].readFloat()
       val base = streamOffset[c]
       val dp = STREAM_DIMS[c]
-      for (i in 0 until dp - 1) inBufs[base + i].writeFloat(inBufs[base + i + 1].readFloat())
+      for (i in 0 until dp - 1) {
+        inBufs[base + i].writeFloat(inBufs[base + i + 1].readFloat())
+      }
       inBufs[base + dp - 1].writeFloat(s)
     }
     // pooling: accumulate running sum host-side
     for (i in 0 until N_POOL) {
       val mean = outBufs[12 + i].readFloat()
       val sum = poolSums[i]
-      for (j in sum.indices) sum[j] += mean[j]
+      for (j in sum.indices) {
+        sum[j] += mean[j]
+      }
       inBufs[29 + i].writeFloat(sum)
     }
     return logits
@@ -164,13 +180,17 @@ class ActionRecognizer(
     val logits = runFrame()
     val preds = topK(logits, topK)
     val ms = (System.nanoTime() - t) / 1_000_000
-    if (frameCount >= windowFrames) reset()
+    if (frameCount >= windowFrames) {
+      reset()
+    }
     return preds to ms
   }
 
   override fun close() {
     runner.close()
-    if (!resized.isRecycled) resized.recycle()
+    if (!resized.isRecycled) {
+      resized.recycle()
+    }
   }
 }
 

@@ -101,11 +101,13 @@ private fun ExploreTaskCard(entry: ModelEntry, download: DownloadState?, onClick
       DownloadStatus.STARTING -> "Starting…"
       DownloadStatus.DOWNLOADING -> {
         val percent =
-          if ((download?.totalBytes ?: 0L) > 0L)
+          if ((download?.totalBytes ?: 0L) > 0L) {
             ((download!!.receivedBytes.toDouble() / download.totalBytes) * 100)
               .toInt()
               .coerceIn(0, 100)
-          else 0
+          } else {
+            0
+          }
         "$percent% downloading"
       }
       DownloadStatus.PAUSED -> "Paused"
@@ -154,11 +156,17 @@ private fun ExploreTaskCard(entry: ModelEntry, download: DownloadState?, onClick
       )
       Surface(
         color =
-          if (ready) MaterialTheme.colorScheme.primaryContainer
-          else MaterialTheme.colorScheme.surfaceVariant,
+          if (ready) {
+            MaterialTheme.colorScheme.primaryContainer
+          } else {
+            MaterialTheme.colorScheme.surfaceVariant
+          },
         contentColor =
-          if (ready) MaterialTheme.colorScheme.onPrimaryContainer
-          else MaterialTheme.colorScheme.onSurfaceVariant,
+          if (ready) {
+            MaterialTheme.colorScheme.onPrimaryContainer
+          } else {
+            MaterialTheme.colorScheme.onSurfaceVariant
+          },
         shape = MaterialTheme.shapes.small,
       ) {
         Text(

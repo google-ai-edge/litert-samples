@@ -62,12 +62,15 @@ class LivenessDetector(
     try {
       runner = CompiledModelRunner.fromFile(modelFile.absolutePath, accelerator)
     } catch (failure: Throwable) {
-      if (!resized.isRecycled) resized.recycle()
+      if (!resized.isRecycled) {
+        resized.recycle()
+      }
       throw failure
     }
     Log.i(
       TAG,
-      "$accelerator compiled OK — ${runner.inputBuffers.size} in / ${runner.outputBuffers.size} out",
+      "$accelerator compiled OK — ${runner.inputBuffers.size} in / " +
+        "${runner.outputBuffers.size} out",
     )
   }
 
@@ -99,6 +102,8 @@ class LivenessDetector(
 
   override fun close() {
     runner.close()
-    if (!resized.isRecycled) resized.recycle()
+    if (!resized.isRecycled) {
+      resized.recycle()
+    }
   }
 }

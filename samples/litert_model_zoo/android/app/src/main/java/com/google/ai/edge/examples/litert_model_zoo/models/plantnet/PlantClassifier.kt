@@ -53,7 +53,9 @@ class PlantClassifier(
       val idx = logits.indices.sortedByDescending { logits[it] }.take(topK)
       val mx = logits[idx.first()]
       var sum = 0.0
-      for (v in logits) sum += Math.exp((v - mx).toDouble())
+      for (v in logits) {
+        sum += Math.exp((v - mx).toDouble())
+      }
       val preds =
         idx.map { i -> names[i] to (Math.exp((logits[i] - mx).toDouble()) / sum).toFloat() }
       return preds
@@ -81,12 +83,15 @@ class PlantClassifier(
     try {
       runner = CompiledModelRunner.fromFile(modelFile.absolutePath, accelerator)
     } catch (failure: Throwable) {
-      if (!resized.isRecycled) resized.recycle()
+      if (!resized.isRecycled) {
+        resized.recycle()
+      }
       throw failure
     }
     Log.i(
       TAG,
-      "$accelerator compiled OK — ${runner.inputBuffers.size} in / ${runner.outputBuffers.size} out",
+      "$accelerator compiled OK — ${runner.inputBuffers.size} in / " +
+        "${runner.outputBuffers.size} out",
     )
   }
 
@@ -121,6 +126,8 @@ class PlantClassifier(
 
   override fun close() {
     runner.close()
-    if (!resized.isRecycled) resized.recycle()
+    if (!resized.isRecycled) {
+      resized.recycle()
+    }
   }
 }

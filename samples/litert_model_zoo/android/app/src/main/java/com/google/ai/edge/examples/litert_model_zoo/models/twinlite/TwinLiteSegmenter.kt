@@ -91,7 +91,9 @@ class TwinLiteSegmenter(
         env =
           Environment.create(
             context,
-            mapOf(Environment.Option.DispatchLibraryDir to context.applicationInfo.nativeLibraryDir),
+            mapOf(
+              Environment.Option.DispatchLibraryDir to context.applicationInfo.nativeLibraryDir
+            ),
           )
         options.qualcommOptions =
           CompiledModel.QualcommOptions(
@@ -101,13 +103,18 @@ class TwinLiteSegmenter(
       runner = CompiledModelRunner.fromFile(modelFile.absolutePath, options, env)
     } catch (failure: Throwable) {
       runCatching { env?.close() }
-      runCatching { if (!resized.isRecycled) resized.recycle() }
+      runCatching {
+        if (!resized.isRecycled) {
+          resized.recycle()
+        }
+      }
       throw failure
     }
     loadMs = (System.nanoTime() - t0) / 1_000_000
     Log.i(
       TAG,
-      "$accelerator ready in ${loadMs}ms — ${runner.inputBuffers.size} in / ${runner.outputBuffers.size} out",
+      "$accelerator ready in ${loadMs}ms — ${runner.inputBuffers.size} in / " +
+        "${runner.outputBuffers.size} out",
     )
   }
 
@@ -139,6 +146,8 @@ class TwinLiteSegmenter(
   override fun close() {
     runner.close()
     env?.close()
-    if (!resized.isRecycled) resized.recycle()
+    if (!resized.isRecycled) {
+      resized.recycle()
+    }
   }
 }

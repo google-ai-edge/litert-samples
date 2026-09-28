@@ -67,7 +67,9 @@ class ZipformerAsr(
             arg = c
           }
         }
-        if (arg != BLANK && arg != prev) sb.append(pieces[arg] ?: "")
+        if (arg != BLANK && arg != prev) {
+          sb.append(pieces[arg] ?: "")
+        }
         prev = arg
       }
       return sb.toString().replace('▁', ' ').trim()

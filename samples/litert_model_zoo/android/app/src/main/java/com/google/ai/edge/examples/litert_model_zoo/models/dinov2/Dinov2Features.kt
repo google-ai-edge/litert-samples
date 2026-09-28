@@ -204,8 +204,12 @@ class Dinov2Features(
         var lo = proj[c][0]
         var hi = proj[c][0]
         for (x in proj[c]) {
-          if (x < lo) lo = x
-          if (x > hi) hi = x
+          if (x < lo) {
+            lo = x
+          }
+          if (x > hi) {
+            hi = x
+          }
         }
         val span = (hi - lo).takeIf { it > 1e-6f } ?: 1f
         IntArray(N_PATCH) { (((proj[c][it] - lo) / span) * 255f).toInt().coerceIn(0, 255) }

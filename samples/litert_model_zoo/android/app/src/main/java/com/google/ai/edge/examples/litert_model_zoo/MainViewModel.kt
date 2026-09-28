@@ -81,7 +81,9 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
   private val store = ModelStore(File(application.filesDir, "models"))
   private val downloads = mutableMapOf<String, Job>()
   private val deleting = mutableSetOf<String>()
-  /** The task the current screen is waiting on; [navigate] drops it so the next screen is usable. */
+  /**
+   * The task the current screen is waiting on; [navigate] drops it so the next screen is usable.
+   */
   @Volatile private var taskJob: Job? = null
   private var detector: DetectionEngine? = null
   private var synthesizer: MatchaEngine? = null
@@ -258,7 +260,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         .filter { it != model.taskId }
         .sumOf { DownloadSafety.requiredFreeBytes(entry(it).totalBytes) }
     check(DownloadSafety.hasSpace(model.totalBytes, available, reserved)) {
-      "Not enough storage. This download needs ${DownloadSafety.requiredFreeBytes(model.totalBytes)} free bytes " +
+      "Not enough storage. This download needs " +
+        "${DownloadSafety.requiredFreeBytes(model.totalBytes)} free bytes " +
         "(twice its size), in addition to space reserved for other downloads."
     }
   }
@@ -323,8 +326,9 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
   }
 
   fun delete(taskId: String) {
-    if (state.value.busy || state.value.camera || state.value.recording || !deleting.add(taskId))
+    if (state.value.busy || state.value.camera || state.value.recording || !deleting.add(taskId)) {
       return
+    }
     mutable.update { it.copy(busy = true) }
     viewModelScope.launch {
       downloads[taskId]?.cancel()
@@ -435,8 +439,9 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     if (state.value.selectedTaskId != "image-matching") return
     runTask {
       val bitmap = withContext(Dispatchers.IO) { readImage(uri) }
-      if (generation != navigationGeneration || cleared) bitmap.recycle()
-      else
+      if (generation != navigationGeneration || cleared) {
+        bitmap.recycle()
+      } else {
         mutable.update {
           it.copy(
             secondaryImage = bitmap,
@@ -445,6 +450,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             imageOutputDetails = "",
           )
         }
+      }
     }
   }
 
@@ -462,11 +468,18 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             maxOf(1, (bitmap.height * scale).toInt()),
             true,
           )
-          .also { if (it !== bitmap) bitmap.recycle() }
-      } else bitmap
+          .also {
+            if (it !== bitmap) {
+              bitmap.recycle()
+            }
+          }
+      } else {
+        bitmap
+      }
     mutable.update {
-      if (cleared || generation != navigationGeneration || it.selectedTaskId != taskId) it
-      else
+      if (cleared || generation != navigationGeneration || it.selectedTaskId != taskId) {
+        it
+      } else {
         it.copy(
           inputImage = displayed,
           image = null,
@@ -480,6 +493,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
           backendDetails = "",
           error = null,
         )
+      }
     }
   }
 
@@ -529,15 +543,19 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             .second
             .run(ImageTaskRequest(working, secondaryBitmap = secondary))
         val output =
-          if (result.bitmap === working) working.copy(Bitmap.Config.ARGB_8888, false)
-          else result.bitmap
+          if (result.bitmap === working) {
+            working.copy(Bitmap.Config.ARGB_8888, false)
+          } else {
+            result.bitmap
+          }
         if (cleared || generation != navigationGeneration || state.value.selectedTaskId != taskId) {
           output?.recycle()
           return@runTask
         }
         mutable.update {
-          if (cleared || generation != navigationGeneration || it.selectedTaskId != taskId) it
-          else
+          if (cleared || generation != navigationGeneration || it.selectedTaskId != taskId) {
+            it
+          } else {
             it.copy(
               outputImage = output,
               imageOutputText = result.text,
@@ -547,6 +565,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
               fallbackReason = result.fallbackReason,
               backendDetails = result.backendDetails,
             )
+          }
         }
       } finally {
         input?.takeUnless { it.isRecycled }?.recycle()
@@ -573,8 +592,11 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     runBlocking(inferenceDispatcher) {
       if (!cameraEnabled || cleared) return@runBlocking
       try {
-        if (state.value.selectedTaskId in RealtimeImageTasks.ids) publishRealtimeImage(bitmap)
-        else publishDetection(bitmap, realtime = true)
+        if (state.value.selectedTaskId in RealtimeImageTasks.ids) {
+          publishRealtimeImage(bitmap)
+        } else {
+          publishDetection(bitmap, realtime = true)
+        }
       } catch (e: Throwable) {
         cameraEnabled = false
         mutable.update { it.copy(camera = false, error = TaskFailures.message(e)) }
@@ -607,8 +629,9 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         return
       }
       mutable.update {
-        if (generation != navigationGeneration || !cameraEnabled || it.selectedTaskId != taskId) it
-        else
+        if (generation != navigationGeneration || !cameraEnabled || it.selectedTaskId != taskId) {
+          it
+        } else {
           it.copy(
             outputImage = display,
             imageOutputText = result.text,
@@ -619,9 +642,12 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             backendDetails = result.backendDetails,
             cameraFrames = it.cameraFrames + 1,
           )
+        }
       }
     } finally {
-      if (!working.isRecycled) working.recycle()
+      if (!working.isRecycled) {
+        working.recycle()
+      }
     }
   }
 
@@ -629,8 +655,11 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     val generation = navigationGeneration
     val engine = detectionEngine()
     val result = engine.detect(bitmap)
-    if (cleared || state.value.selectedTaskId != "object-detection" || (realtime && !cameraEnabled))
+    if (
+      cleared || state.value.selectedTaskId != "object-detection" || (realtime && !cameraEnabled)
+    ) {
       return
+    }
     val snapshot = bitmap.copy(Bitmap.Config.ARGB_8888, false)
     mutable.update {
       if (
@@ -638,8 +667,9 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
           generation != navigationGeneration ||
           it.selectedTaskId != "object-detection" ||
           (realtime && !cameraEnabled)
-      )
+      ) {
         return@update it
+      }
       it.copy(
         image = snapshot,
         boxes = result.boxes,
@@ -655,7 +685,9 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
   fun synthesize() {
     val text = state.value.inputText
     val generation = navigationGeneration
-    if (state.value.playing) stopPlayback()
+    if (state.value.playing) {
+      stopPlayback()
+    }
     runTask {
       val entry = entry("text-to-speech")
       check(state.value.downloads[entry.taskId]?.status == DownloadStatus.READY) {
@@ -668,8 +700,9 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         cleared ||
           generation != navigationGeneration ||
           state.value.selectedTaskId != "text-to-speech"
-      )
+      ) {
         return@runTask
+      }
       speech = result.samples
       speechRate = result.sampleRate
       speechCached = false
@@ -685,8 +718,11 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         )
       }
       mutable.update {
-        if (cleared || generation != navigationGeneration || it.selectedTaskId != "text-to-speech")
+        if (
+          cleared || generation != navigationGeneration || it.selectedTaskId != "text-to-speech"
+        ) {
           return@update it
+        }
         it.copy(
           audioReady = true,
           speechExportReady = speechCached,
@@ -707,8 +743,9 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
       state.value.busy ||
         state.value.recording ||
         state.value.selectedTaskId !in (BatchAudioTasks.ids + "speech-recognition")
-    )
+    ) {
       return
+    }
     val selectedTask = state.value.selectedTaskId ?: return
     if (state.value.downloads[selectedTask]?.status != DownloadStatus.READY) {
       showError("Download and verify the audio model first")
@@ -747,13 +784,17 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
               count = session.count
             }
             mutable.update {
-              if (it.recording && session.generation == navigationGeneration)
+              if (it.recording && session.generation == navigationGeneration) {
                 it.copy(recordedSeconds = count / 16000f)
-              else it
+              } else {
+                it
+              }
             }
             if (count == session.samples.size) {
               viewModelScope.launch {
-                if (synchronized(captureLock) { recordingSession === session }) stopRecording()
+                if (synchronized(captureLock) { recordingSession === session }) {
+                  stopRecording()
+                }
               }
             }
           }
@@ -792,9 +833,11 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         )
       }
       runTask {
-        if (session.taskId in BatchAudioTasks.ids)
+        if (session.taskId in BatchAudioTasks.ids) {
           processBatchAudio(samples, 16000, session.taskId, session.generation)
-        else transcribeSamples(samples, session.generation)
+        } else {
+          transcribeSamples(samples, session.generation)
+        }
       }
     }
   }
@@ -822,18 +865,20 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             }
           WavAudio.readMono(bytes) to audioDisplayName(uri)
         }
-      if (cleared || generation != navigationGeneration || state.value.selectedTaskId != taskId)
+      if (cleared || generation != navigationGeneration || state.value.selectedTaskId != taskId) {
         return@runTask
+      }
       mutable.update {
         it.copy(
           audioInputName = displayName,
           audioInputSeconds = samples.samples.size / samples.sampleRate.toFloat(),
         )
       }
-      if (taskId in BatchAudioTasks.ids)
+      if (taskId in BatchAudioTasks.ids) {
         processBatchAudio(samples.samples, samples.sampleRate, taskId, generation)
-      else
+      } else {
         transcribeSamples(WavAudio.resample(samples.samples, samples.sampleRate, 16000), generation)
+      }
     }
   }
 
@@ -860,13 +905,17 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
       engine.run(
         AudioTaskRequest(samples, sampleRate) { stem, chunk, total ->
           mutable.update {
-            if (cleared || generation != navigationGeneration || it.selectedTaskId != taskId) it
-            else it.copy(audioProgress = AudioStageProgress(stem, chunk, total))
+            if (cleared || generation != navigationGeneration || it.selectedTaskId != taskId) {
+              it
+            } else {
+              it.copy(audioProgress = AudioStageProgress(stem, chunk, total))
+            }
           }
         }
       )
-    if (cleared || generation != navigationGeneration || state.value.selectedTaskId != taskId)
+    if (cleared || generation != navigationGeneration || state.value.selectedTaskId != taskId) {
       return
+    }
     audioWaveforms = listOf(NamedWaveform("Input", samples, sampleRate)) + result.waveforms
     val pitch =
       (result.metrics["f0Hz"] as? List<*>)?.mapNotNull { (it as? Number)?.toFloat() }.orEmpty()
@@ -875,8 +924,9 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         ?.mapNotNull { (it as? Number)?.toFloat() }
         .orEmpty()
     mutable.update {
-      if (generation != navigationGeneration || it.selectedTaskId != taskId) it
-      else
+      if (generation != navigationGeneration || it.selectedTaskId != taskId) {
+        it
+      } else {
         it.copy(
           audioSummary = result.summary,
           audioOutputs = audioWaveforms.map { wave -> wave.name },
@@ -888,6 +938,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
           pitchConfidence = confidence,
           pitchHopSeconds = (result.metrics["hopSeconds"] as? Number)?.toFloat() ?: 0.1f,
         )
+      }
     }
   }
 
@@ -911,8 +962,9 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     mutable.update {
       if (
         cleared || generation != navigationGeneration || it.selectedTaskId != "speech-recognition"
-      )
+      ) {
         return@update it
+      }
       it.copy(
         transcript = result.text,
         inferenceMs = result.inferenceMs,
@@ -943,16 +995,21 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
       try {
         player.play(samples, sampleRate, ticket) { elapsed, total ->
           mutable.update {
-            if (generation != navigationGeneration || cleared) it
-            else it.copy(playbackElapsedSeconds = elapsed, playbackTotalSeconds = total)
+            if (generation != navigationGeneration || cleared) {
+              it
+            } else {
+              it.copy(playbackElapsedSeconds = elapsed, playbackTotalSeconds = total)
+            }
           }
         }
       } catch (e: Throwable) {
-        if (generation == navigationGeneration && player.isCurrent(ticket))
+        if (generation == navigationGeneration && player.isCurrent(ticket)) {
           showError(TaskFailures.message(e))
+        }
       } finally {
-        if (generation == navigationGeneration && player.isCurrent(ticket))
+        if (generation == navigationGeneration && player.isCurrent(ticket)) {
           mutable.update { it.copy(playing = false) }
+        }
       }
     }
   }
@@ -997,7 +1054,9 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         } catch (e: CancellationException) {
           throw e
         } catch (e: Throwable) {
-          if (generation == navigationGeneration) showError(TaskFailures.message(e))
+          if (generation == navigationGeneration) {
+            showError(TaskFailures.message(e))
+          }
         } finally {
           // Only a task started on the current screen may clear its busy flag; a task the user
           // navigated away from finishes silently, after navigate() already cleared it.
@@ -1040,13 +1099,15 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
       }
     val orientation =
       resolver.openInputStream(uri).use { input ->
-        if (input == null) ExifInterface.ORIENTATION_NORMAL
-        else
+        if (input == null) {
+          ExifInterface.ORIENTATION_NORMAL
+        } else {
           runCatching {
               ExifInterface(input)
                 .getAttributeInt(ExifInterface.TAG_ORIENTATION, ExifInterface.ORIENTATION_NORMAL)
             }
             .getOrDefault(ExifInterface.ORIENTATION_NORMAL)
+        }
       }
     val matrix = Matrix()
     when (orientation) {
@@ -1066,7 +1127,9 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     }
     if (matrix.isIdentity) return bitmap
     return Bitmap.createBitmap(bitmap, 0, 0, bitmap.width, bitmap.height, matrix, true).also {
-      if (it !== bitmap) bitmap.recycle()
+      if (it !== bitmap) {
+        bitmap.recycle()
+      }
     }
   }
 

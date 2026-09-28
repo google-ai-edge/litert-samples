@@ -124,7 +124,11 @@ class AudioPlayback : AutoCloseable {
     } catch (e: Exception) {
       if (synchronized(monitor) { ticket == generation }) throw e
     } finally {
-      synchronized(monitor) { if (active === track) active = null }
+      synchronized(monitor) {
+        if (active === track) {
+          active = null
+        }
+      }
       track.setPlaybackPositionUpdateListener(null)
       track.release()
     }

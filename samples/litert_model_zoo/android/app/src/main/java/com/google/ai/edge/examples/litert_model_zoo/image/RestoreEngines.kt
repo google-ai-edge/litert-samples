@@ -96,7 +96,8 @@ class EdsrEngine(context: Context, modelDir: File, preferredBackend: String) : S
     val output = checkNotNull(bitmap.copy(Bitmap.Config.ARGB_8888, false))
     return ImageTaskOutput(
       output,
-      "Model 128 × 128 → 512 × 512. The photo is resized to the model’s square input; display restores its original aspect ratio.",
+      "Model 128 × 128 → 512 × 512. The photo is resized to the model’s square input; display " +
+        "restores its original aspect ratio.",
       ms.toDouble(),
       loaded.backend,
       loaded.fallbackReason,

@@ -67,7 +67,9 @@ class NimaScorer(
 
   internal fun meanScore(dist: FloatArray): Float {
     var s = 0f
-    for (i in dist.indices) s += (i + 1) * dist[i]
+    for (i in dist.indices) {
+      s += (i + 1) * dist[i]
+    }
     return s
   }
 
@@ -84,7 +86,9 @@ class NimaScorer(
         technical.run()
         val technicalDistribution = technical.outputBuffers[0].readFloat()
         meanScore(technicalDistribution)
-      } else null
+      } else {
+        null
+      }
     return Scores(meanScore(distribution), technicalScore, distribution)
   }
 

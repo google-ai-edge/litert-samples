@@ -32,8 +32,16 @@ class PpocrMathTest {
   @Test
   fun textBoxFloodFillExpandsAcceptedRegionAndRejectsLowConfidence() {
     val p = FloatArray(PpocrDetector.SIZE * PpocrDetector.SIZE)
-    for (y in 20..27) for (x in 30..37) p[y * PpocrDetector.SIZE + x] = 0.9f
-    for (y in 50..57) for (x in 50..57) p[y * PpocrDetector.SIZE + x] = 0.4f
+    for (y in 20..27) {
+      for (x in 30..37) {
+        p[y * PpocrDetector.SIZE + x] = 0.9f
+      }
+    }
+    for (y in 50..57) {
+      for (x in 50..57) {
+        p[y * PpocrDetector.SIZE + x] = 0.4f
+      }
+    }
     assertEquals(listOf(PpocrDetector.Box(28, 18, 39, 29)), PpocrDetector.boxes(p))
   }
 }

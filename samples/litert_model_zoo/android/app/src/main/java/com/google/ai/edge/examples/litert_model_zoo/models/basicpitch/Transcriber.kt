@@ -57,15 +57,21 @@ class Transcriber(modelDir: File, accelerator: Accelerator) : Closeable {
             peak[k] = note[t][k]
           } else if (on) {
             if (note[t][k] < frameTh) {
-              if (t - active[k] >= minFrames)
+              if (t - active[k] >= minFrames) {
                 events.add(Note(active[k] * FRAME_SEC, t * FRAME_SEC, k + MIDI_OFFSET, peak[k]))
+              }
               active[k] = -1
-            } else if (note[t][k] > peak[k]) peak[k] = note[t][k]
+            } else if (note[t][k] > peak[k]) {
+              peak[k] = note[t][k]
+            }
           }
         }
       }
-      for (k in 0 until N_NOTES) if (active[k] >= 0 && note.size - active[k] >= minFrames)
-        events.add(Note(active[k] * FRAME_SEC, note.size * FRAME_SEC, k + MIDI_OFFSET, peak[k]))
+      for (k in 0 until N_NOTES) {
+        if (active[k] >= 0 && note.size - active[k] >= minFrames) {
+          events.add(Note(active[k] * FRAME_SEC, note.size * FRAME_SEC, k + MIDI_OFFSET, peak[k]))
+        }
+      }
       return events.sortedBy { it.startSec }
     }
   }
@@ -94,7 +100,9 @@ class Transcriber(modelDir: File, accelerator: Accelerator) : Closeable {
       val start = w * HOP
       java.util.Arrays.fill(x, 0f)
       val n = minOf(N_SAMPLES, pcm.size - start)
-      if (n > 0) System.arraycopy(pcm, start, x, 0, n)
+      if (n > 0) {
+        System.arraycopy(pcm, start, x, 0, n)
+      }
       runner.inputBuffers[0].writeFloat(x)
       runner.run()
       // outputs ordered: contour [172*264], note [172*88], onset [172*88]

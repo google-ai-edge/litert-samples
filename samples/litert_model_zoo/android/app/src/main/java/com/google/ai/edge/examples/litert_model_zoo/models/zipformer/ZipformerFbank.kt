@@ -103,12 +103,16 @@ internal constructor(private val mel: FloatArray, private val win: FloatArray) {
         im[i] = 0f
       }
       fft(re, im)
-      for (k in 0 until NBIN) power[k] = re[k] * re[k] + im[k] * im[k]
+      for (k in 0 until NBIN) {
+        power[k] = re[k] * re[k] + im[k] * im[k]
+      }
       val row = out[t]
       for (m in 0 until NMEL) {
         var acc = 0f
         val off = m * NBIN
-        for (k in 0 until NBIN) acc += mel[off + k] * power[k]
+        for (k in 0 until NBIN) {
+          acc += mel[off + k] * power[k]
+        }
         row[m] = ln(max(acc, EPS))
       }
     }

@@ -56,8 +56,12 @@ class BgRemover(
       var mn = Float.MAX_VALUE
       var mx = -Float.MAX_VALUE
       for (v in full) {
-        if (v < mn) mn = v
-        if (v > mx) mx = v
+        if (v < mn) {
+          mn = v
+        }
+        if (v > mx) {
+          mx = v
+        }
       }
       val inv = 1f / (mx - mn + 1e-6f)
       val out = FloatArray(OUT * OUT)
@@ -122,11 +126,16 @@ class BgRemover(
       loadMs = (System.nanoTime() - t0) / 1_000_000
       Log.i(
         TAG,
-        "$accelerator ready in ${loadMs}ms — ${runner.inputBuffers.size} in / ${runner.outputBuffers.size} out",
+        "$accelerator ready in ${loadMs}ms — ${runner.inputBuffers.size} in / " +
+          "${runner.outputBuffers.size} out",
       )
     } catch (failure: Throwable) {
       runCatching { env?.close() }
-      runCatching { if (!resized.isRecycled) resized.recycle() }
+      runCatching {
+        if (!resized.isRecycled) {
+          resized.recycle()
+        }
+      }
       throw failure
     }
   }
@@ -164,6 +173,8 @@ class BgRemover(
   override fun close() {
     runner.close()
     env?.close()
-    if (!resized.isRecycled) resized.recycle()
+    if (!resized.isRecycled) {
+      resized.recycle()
+    }
   }
 }

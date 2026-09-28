@@ -22,8 +22,10 @@ import kotlinx.coroutines.CancellationException
 object TaskFailures {
   fun message(failure: Throwable): String {
     if (failure is CancellationException) throw failure
-    return if (failure is OutOfMemoryError)
+    return if (failure is OutOfMemoryError) {
       "Not enough memory to load or run this model. Close other tasks and try again."
-    else failure.message?.takeIf { it.isNotBlank() } ?: failure.javaClass.simpleName
+    } else {
+      failure.message?.takeIf { it.isNotBlank() } ?: failure.javaClass.simpleName
+    }
   }
 }

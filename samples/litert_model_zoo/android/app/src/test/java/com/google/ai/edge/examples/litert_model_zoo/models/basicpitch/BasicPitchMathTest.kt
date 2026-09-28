@@ -24,7 +24,9 @@ class BasicPitchMathTest {
   fun onsetStartsNoteFramePosteriorSustainsAndMinimumDurationFilters() {
     val note = Array(6) { FloatArray(88) }
     val onset = Array(6) { FloatArray(88) }
-    for (frame in 1..4) note[frame][48] = if (frame == 3) 0.9f else 0.6f
+    for (frame in 1..4) {
+      note[frame][48] = if (frame == 3) 0.9f else 0.6f
+    }
     onset[1][48] = 0.7f
     note[0][0] = 0.8f
     onset[0][0] = 0.9f

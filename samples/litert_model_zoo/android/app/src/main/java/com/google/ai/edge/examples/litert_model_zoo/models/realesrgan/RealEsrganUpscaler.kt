@@ -81,7 +81,7 @@ class RealEsrganUpscaler(
     try {
       Log.i(TAG, "Loading model: $modelFile")
       val options = CompiledModel.Options(accelerator)
-      if (accelerator == Accelerator.GPU)
+      if (accelerator == Accelerator.GPU) {
         try {
           options.gpuOptions =
             CompiledModel.GpuOptions(
@@ -102,11 +102,16 @@ class RealEsrganUpscaler(
               null,
             )
         } catch (_: Exception) {}
+      }
       runner = CompiledModelRunner.fromFile(modelFile.absolutePath, options, null)
       Log.i(TAG, "$accelerator FP32 compiled OK")
       Log.i(TAG, "Model ready: ${TILE_SIZE}x${TILE_SIZE} -> ${OUTPUT_TILE}x${OUTPUT_TILE}")
     } catch (failure: Throwable) {
-      runCatching { if (!tileBitmap.isRecycled) tileBitmap.recycle() }
+      runCatching {
+        if (!tileBitmap.isRecycled) {
+          tileBitmap.recycle()
+        }
+      }
       throw failure
     }
   }
@@ -176,7 +181,9 @@ class RealEsrganUpscaler(
           }
 
         val upscaled = upscaleTile(tile)
-        if (tile !== input) tile.recycle()
+        if (tile !== input) {
+          tile.recycle()
+        }
 
         // Draw to result at 4x position
         val dstX = srcX * OUTPUT_SCALE
