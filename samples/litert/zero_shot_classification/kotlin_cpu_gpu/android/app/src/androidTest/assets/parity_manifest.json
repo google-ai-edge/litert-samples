@@ -1,0 +1,11 @@
+{
+  "repository": "litert-community/Laya-Multilingual-LiteRT",
+  "revision": "058cbf34ed2c6a2854ec60e9534c229d08740387",
+  "files": [
+    {
+      "name": "fixtures/gate_rows_s256.json",
+      "size_bytes": 1018117,
+      "sha256": "037bd3c83f02f5aade4c559984a55d31cd4c231af493aee5fb880a4af35a7aa8"
+    }
+  ]
+}

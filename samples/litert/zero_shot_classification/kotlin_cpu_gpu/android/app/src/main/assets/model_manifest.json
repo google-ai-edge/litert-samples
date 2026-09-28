@@ -1,0 +1,41 @@
+{
+  "repository": "litert-community/Laya-Multilingual-LiteRT",
+  "revision": "058cbf34ed2c6a2854ec60e9534c229d08740387",
+  "files": [
+    {
+      "name": "laya_ml_s256_embeds_wfp16.tflite",
+      "size_bytes": 250889408,
+      "sha256": "f55216170734e38eb287f46de4f11cb1863afba30c09f586650f1ce7b03de81e"
+    },
+    {
+      "name": "laya_ml_act_head_fp32.tflite",
+      "size_bytes": 795816,
+      "sha256": "30da532a8b752fdc82351740b0194d440a13d342ed77b9f8848978f1a96cf16d"
+    },
+    {
+      "name": "laya_ml_calibration.json",
+      "size_bytes": 9156,
+      "sha256": "80e148c68154b607e7bb66446f064b1fe5da649e1074c917b25e02551a566f2c"
+    },
+    {
+      "name": "tokenizer.json",
+      "size_bytes": 34363188,
+      "sha256": "609d8f4c067cd3950f88594c5a802616cea245823836ef5848ee4fc40aab5b6f"
+    },
+    {
+      "name": "tokenizer_config.json",
+      "size_bytes": 524,
+      "sha256": "6c6b2d8e3c84ce0e671c129cd6b374b235d6f9863042a5836358d00a89bbb5a1"
+    },
+    {
+      "name": "token_embeddings_fp16.bin",
+      "size_bytes": 393216000,
+      "sha256": "58608f7bbd72e03adb3e2db8c4942407058eaeaac38e3abec1d6cb01c1512265"
+    },
+    {
+      "name": "token_embeddings.json",
+      "size_bytes": 801,
+      "sha256": "8b25844d858ace3833b69354a60536111e9bbcecb2e305bee7971e8dfcbd83ef"
+    }
+  ]
+}
