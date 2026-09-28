@@ -33,34 +33,52 @@ Opt-in patches (import from litert_gpu_toolkit.patches):
     patch_grid_sample, patch_safe_layernorm, patch_rmsnorm, patch_instance_norm,
     patch_maxpool_zeropad, patch_gelu(model, approximation="tanh"),
     pixelshuffle_to_conv_transpose.
+
+Post-conversion checks on any .tflite (no torch needed):
+    check_gpu_compatibility(path)      # GPU vs CPU, every signature
+    bisect_gpu_divergence(path)        # first op whose GPU result is wrong
 """
 
-from litert_gpu_toolkit.converter import convert_for_gpu
-from litert_gpu_toolkit.patches import (
-    SafeInstanceNorm2d,
-    SigmoidGELU,
-    TanhGELU,
-    ZeroPadMaxPool,
-    ZeroStuffConvT1d,
-    ZeroStuffConvT2d,
-    apply_all_patches,
-    hierarchical_mean,
-    patch_conv_transpose,
-    patch_gelu,
-    patch_grid_sample,
-    patch_instance_norm,
-    patch_maxpool_zeropad,
-    patch_rmsnorm,
-    patch_safe_layernorm,
-    pixelshuffle_to_conv_transpose,
-    safe_rms,
+from litert_gpu_toolkit.checker import (
+    bisect_gpu_divergence,
+    check_gpu_compatibility,
+    print_bisect_report,
+    print_report,
 )
-from litert_gpu_toolkit.checker import check_gpu_compatibility
+
+try:
+    from litert_gpu_toolkit.converter import convert_for_gpu
+    from litert_gpu_toolkit.patches import (
+        SafeInstanceNorm2d,
+        SigmoidGELU,
+        TanhGELU,
+        ZeroPadMaxPool,
+        ZeroStuffConvT1d,
+        ZeroStuffConvT2d,
+        apply_all_patches,
+        hierarchical_mean,
+        patch_conv_transpose,
+        patch_gelu,
+        patch_grid_sample,
+        patch_instance_norm,
+        patch_maxpool_zeropad,
+        patch_rmsnorm,
+        patch_safe_layernorm,
+        pixelshuffle_to_conv_transpose,
+        safe_rms,
+    )
+except ImportError:
+    # torch / litert-torch are not installed: the checker and the bisect
+    # still work on an existing .tflite (numpy + ai-edge-litert only).
+    pass
 
 __all__ = [
     "convert_for_gpu",
     "apply_all_patches",
     "check_gpu_compatibility",
+    "bisect_gpu_divergence",
+    "print_report",
+    "print_bisect_report",
     "SafeInstanceNorm2d",
     "SigmoidGELU",
     "TanhGELU",
