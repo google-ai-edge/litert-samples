@@ -23,9 +23,8 @@ import android.graphics.Color
 import android.graphics.Paint
 import android.graphics.RectF
 import android.util.Log
+import com.google.ai.edge.examples.litert_model_zoo.common.CompiledModelRunner
 import com.google.ai.edge.litert.Accelerator
-import com.google.ai.edge.litert.CompiledModel
-import com.google.ai.edge.litert.TensorBuffer
 import java.io.File
 
 /**
@@ -46,8 +45,7 @@ class DA3Predictor(context: Context, modelDir: File, accelerator: Accelerator = 
     private val STD = floatArrayOf(0.229f, 0.224f, 0.225f)
   }
 
-  private val compiledModel: CompiledModel
-  private val inputBuffers: List<TensorBuffer>
+  private val runner: CompiledModelRunner
   private val inputFloats = FloatArray(3 * MODEL_H * MODEL_W)
   private val pixels = IntArray(MODEL_H * MODEL_W)
   private val canvasBmp = Bitmap.createBitmap(MODEL_W, MODEL_H, Bitmap.Config.ARGB_8888)
@@ -57,26 +55,13 @@ class DA3Predictor(context: Context, modelDir: File, accelerator: Accelerator = 
     private set
 
   init {
-    compiledModel =
-      try {
-        CompiledModel.create(
-          File(modelDir, MODEL_FILE).absolutePath,
-          CompiledModel.Options(accelerator),
-          null,
-        )
-      } catch (failure: Exception) {
-        canvasBmp.recycle()
-        throw failure
-      }
+    try {
+      runner = CompiledModelRunner.fromFile(File(modelDir, MODEL_FILE).absolutePath, accelerator)
+    } catch (failure: Throwable) {
+      canvasBmp.recycle()
+      throw failure
+    }
     acceleratorName = if (accelerator == Accelerator.GPU) "GPU" else "CPU"
-    inputBuffers =
-      try {
-        compiledModel.createInputBuffers()
-      } catch (failure: Exception) {
-        compiledModel.close()
-        canvasBmp.recycle()
-        throw failure
-      }
   }
 
   fun predict(src: Bitmap): DA3Result {
@@ -107,15 +92,9 @@ class DA3Predictor(context: Context, modelDir: File, accelerator: Accelerator = 
       inputFloats[plane + i] = (((p shr 8) and 0xFF) / 255f - MEAN[1]) / STD[1]
       inputFloats[2 * plane + i] = ((p and 0xFF) / 255f - MEAN[2]) / STD[2]
     }
-    inputBuffers[0].writeFloat(inputFloats)
-
-    val out = compiledModel.run(inputBuffers)
-    val depth =
-      try {
-        out[0].readFloat()
-      } finally {
-        out.forEach { it.close() }
-      }
+    runner.inputBuffers[0].writeFloat(inputFloats)
+    runner.run()
+    val depth = runner.outputBuffers[0].readFloat()
 
     val ms = (System.nanoTime() - t) / 1_000_000
     Log.i(TAG, "Inference: ${ms}ms ($acceleratorName)")
@@ -127,8 +106,7 @@ class DA3Predictor(context: Context, modelDir: File, accelerator: Accelerator = 
   }
 
   override fun close() {
-    inputBuffers.forEach { it.close() }
-    compiledModel.close()
+    runner.close()
     canvasBmp.recycle()
   }
 }

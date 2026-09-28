@@ -17,8 +17,8 @@
 package com.google.ai.edge.examples.litert_model_zoo.models.zipformer
 
 import android.content.Context
+import com.google.ai.edge.examples.litert_model_zoo.common.CompiledModelRunner
 import com.google.ai.edge.litert.Accelerator
-import com.google.ai.edge.litert.CompiledModel
 import java.io.Closeable
 import java.io.File
 
@@ -74,10 +74,10 @@ class ZipformerAsr(
     }
   }
 
-  private fun loadModel(): CompiledModel {
+  private fun loadModel(): CompiledModelRunner {
     val f = File(modelDir, MODEL)
     check(f.exists()) { "Model not found: $MODEL. Download this task from Models first." }
-    return CompiledModel.create(f.absolutePath, CompiledModel.Options(accelerator), null)
+    return CompiledModelRunner.fromFile(f.absolutePath, accelerator)
   }
 
   private val fbank = ZipformerFbank(ctx)
@@ -87,22 +87,9 @@ class ZipformerAsr(
       line.substring(cut + 1).trim().toInt() to line.substring(0, cut)
     }
 
-  private val model = loadModel()
-  private val inBufs =
-    try {
-      model.createInputBuffers()
-    } catch (e: Exception) {
-      model.close()
-      throw e
-    }
-  private val outBufs =
-    try {
-      model.createOutputBuffers()
-    } catch (e: Exception) {
-      inBufs.forEach { it.close() }
-      model.close()
-      throw e
-    }
+  private val runner = loadModel()
+  private val inBufs = runner.inputBuffers
+  private val outBufs = runner.outputBuffers
   // resolve slots by float capacity (robust to converter ordering)
   private val fbankSlot = slot {
     inBufs.indexOfFirst { it.readFloat().size == FBANK_LEN * ZipformerFbank.NMEL }
@@ -135,7 +122,7 @@ class ZipformerAsr(
       val bias = FloatArray(len) { i -> if (i * ds < valid50) 0f else -1000f }
       inBufs[biasSlots[r]].writeFloat(bias)
     }
-    model.run(inBufs, outBufs)
+    runner.run()
     val logits = outBufs[logitsSlot].readFloat() // [T_OUT * NCLASS] (readback syncs GPU)
     val t2 = System.nanoTime()
 
@@ -146,14 +133,12 @@ class ZipformerAsr(
   private fun slot(find: () -> Int): Int =
     try {
       find().also { check(it >= 0) { "Model tensor layout does not match the Zipformer wrapper" } }
-    } catch (e: Exception) {
+    } catch (e: Throwable) {
       close()
       throw e
     }
 
   override fun close() {
-    inBufs.forEach { it.close() }
-    outBufs.forEach { it.close() }
-    model.close()
+    runner.close()
   }
 }

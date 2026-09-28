@@ -17,9 +17,8 @@
 package com.google.ai.edge.examples.litert_model_zoo.models.matcha
 
 import android.util.Log
+import com.google.ai.edge.examples.litert_model_zoo.common.CompiledModelRunner
 import com.google.ai.edge.litert.Accelerator
-import com.google.ai.edge.litert.CompiledModel
-import com.google.ai.edge.litert.TensorBuffer
 import java.io.Closeable
 import java.io.File
 import java.nio.ByteBuffer
@@ -82,8 +81,7 @@ class MatchaSynthesizer(private val modelDir: File, private val preferredBackend
     }
   }
 
-  private val loaded = mutableListOf<CompiledModel>()
-  private val buffers = mutableListOf<TensorBuffer>()
+  private val loaded = mutableListOf<CompiledModelRunner>()
   private val placements = linkedMapOf<String, String>()
   private val fallbacks = mutableListOf<String>()
 
@@ -96,14 +94,14 @@ class MatchaSynthesizer(private val modelDir: File, private val preferredBackend
   val fallbackReason: String?
     get() = fallbacks.takeIf { it.isNotEmpty() }?.joinToString("; ")
 
-  private fun load(name: String, acc: Accelerator = Accelerator.GPU): CompiledModel {
+  private fun load(name: String, acc: Accelerator = Accelerator.GPU): CompiledModelRunner {
     val f = File(modelDir, name)
     val requested = if (preferredBackend.equals("cpu", ignoreCase = true)) Accelerator.CPU else acc
     return try {
       check(f.isFile) { "Model not downloaded: $name" }
       val model =
         try {
-          CompiledModel.create(f.absolutePath, CompiledModel.Options(requested), null).also {
+          CompiledModelRunner.fromFile(f.absolutePath, requested).also {
             placements[name] = if (requested == Accelerator.GPU) "GPU" else "CPU"
           }
         } catch (e: Exception) {
@@ -112,25 +110,13 @@ class MatchaSynthesizer(private val modelDir: File, private val preferredBackend
             "$name GPU compilation failed; using CPU: ${e.message ?: e.javaClass.simpleName}"
           Log.w("ModelZooMatcha", reason, e)
           fallbacks.add(reason)
-          CompiledModel.create(f.absolutePath, CompiledModel.Options(Accelerator.CPU), null).also {
+          CompiledModelRunner.fromFile(f.absolutePath, Accelerator.CPU).also {
             placements[name] = "CPU"
           }
         }
       loaded.add(model)
       model
-    } catch (e: Exception) {
-      loaded.asReversed().forEach { runCatching { it.close() } }
-      throw e
-    }
-  }
-
-  private fun createBuffers(model: CompiledModel, input: Boolean): List<TensorBuffer> {
-    return try {
-      (if (input) model.createInputBuffers() else model.createOutputBuffers()).also {
-        buffers.addAll(it)
-      }
-    } catch (e: Exception) {
-      buffers.asReversed().forEach { runCatching { it.close() } }
+    } catch (e: Throwable) {
       loaded.asReversed().forEach { runCatching { it.close() } }
       throw e
     }
@@ -145,12 +131,12 @@ class MatchaSynthesizer(private val modelDir: File, private val preferredBackend
   // the decoder is exact; RTF stays realtime (~0.93). textenc + vocoder run on GPU.
   private val decoder = load(DECODER, Accelerator.CPU)
   private val vocoder = load(VOCODER)
-  private val teIn = createBuffers(textenc, true)
-  private val teOut = createBuffers(textenc, false)
-  private val decIn = createBuffers(decoder, true)
-  private val decOut = createBuffers(decoder, false)
-  private val vocIn = createBuffers(vocoder, true)
-  private val vocOut = createBuffers(vocoder, false)
+  private val teIn = textenc.inputBuffers
+  private val teOut = textenc.outputBuffers
+  private val decIn = decoder.inputBuffers
+  private val decOut = decoder.outputBuffers
+  private val vocIn = vocoder.inputBuffers
+  private val vocOut = vocoder.outputBuffers
 
   data class Result(val audio: FloatArray, val frames: Int, val steps: Int, val ms: Long)
 
@@ -181,7 +167,7 @@ class MatchaSynthesizer(private val modelDir: File, private val preferredBackend
     // ---- text encoder (GPU) -> mu[1,80,T], logw[1,1,T] ----
     teIn[0].writeFloat(embX)
     teIn[1].writeFloat(tmask)
-    textenc.run(teIn, teOut)
+    textenc.run()
     val mu = teOut[0].readFloat() // [80*MAX_TEXT], channel-major
     val logw = teOut[1].readFloat() // [MAX_TEXT]
 
@@ -217,7 +203,7 @@ class MatchaSynthesizer(private val modelDir: File, private val preferredBackend
       decIn[1].writeFloat(muY)
       decIn[2].writeFloat(sinPosEmb(tcur))
       decIn[3].writeFloat(ymask)
-      decoder.run(decIn, decOut)
+      decoder.run()
       val v = decOut[0].readFloat()
       for (i in x.indices) x[i] += dt * v[i]
       tcur += dt
@@ -230,7 +216,7 @@ class MatchaSynthesizer(private val modelDir: File, private val preferredBackend
       mel[i] = x[i] * MEL_STD + MEL_MEAN
     }
     vocIn[0].writeFloat(mel)
-    vocoder.run(vocIn, vocOut)
+    vocoder.run()
     val wavFull = vocOut[0].readFloat() // [MAX_MEL*HOP]
     val n = yLen * HOP
     val audio = FloatArray(n) { wavFull[it].coerceIn(-1f, 1f) }
@@ -239,14 +225,7 @@ class MatchaSynthesizer(private val modelDir: File, private val preferredBackend
   }
 
   override fun close() {
-    teIn.forEach { it.close() }
-    teOut.forEach { it.close() }
-    decIn.forEach { it.close() }
-    decOut.forEach { it.close() }
-    vocIn.forEach { it.close() }
-    vocOut.forEach { it.close() }
-    textenc.close()
-    decoder.close()
-    vocoder.close()
+    loaded.asReversed().forEach { it.close() }
+    loaded.clear()
   }
 }

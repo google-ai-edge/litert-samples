@@ -17,14 +17,14 @@
 package com.google.ai.edge.examples.litert_model_zoo.audio
 
 import android.util.Log
+import com.google.ai.edge.examples.litert_model_zoo.common.CompiledModelRunner
 import com.google.ai.edge.examples.litert_model_zoo.models.basicpitch.Transcriber
 import com.google.ai.edge.examples.litert_model_zoo.models.cmgan.NoiseSuppressor
 import com.google.ai.edge.examples.litert_model_zoo.models.crepe.PitchDetector
 import com.google.ai.edge.examples.litert_model_zoo.models.dac.DacCodec
-import com.google.ai.edge.litert.Accelerator
-import com.google.ai.edge.litert.CompiledModel
 import com.google.ai.edge.examples.litert_model_zoo.models.panns.AudioTagger
 import com.google.ai.edge.examples.litert_model_zoo.models.tiger.TigerSeparator
+import com.google.ai.edge.litert.Accelerator
 import java.io.File
 import java.util.Locale
 import kotlin.math.abs
@@ -320,9 +320,7 @@ private class TigerTask(directory: File, preferred: String) : AudioTaskEngine {
     )
   private val wrapper =
     TigerSeparator(directory) { file ->
-      compiler.create(file.name) {
-        CompiledModel.create(file.absolutePath, CompiledModel.Options(it), null)
-      }
+      compiler.create(file.name) { CompiledModelRunner.fromFile(file.absolutePath, it) }
     }
   override val backend
     get() = compiler.snapshot

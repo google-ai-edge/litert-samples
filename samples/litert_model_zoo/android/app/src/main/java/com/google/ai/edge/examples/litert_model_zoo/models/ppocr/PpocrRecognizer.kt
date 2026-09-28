@@ -16,9 +16,8 @@
 
 package com.google.ai.edge.examples.litert_model_zoo.models.ppocr
 
+import com.google.ai.edge.examples.litert_model_zoo.common.CompiledModelRunner
 import com.google.ai.edge.litert.Accelerator
-import com.google.ai.edge.litert.CompiledModel
-import com.google.ai.edge.litert.TensorBuffer
 import java.io.Closeable
 import java.io.File
 
@@ -38,15 +37,7 @@ class PpocrRecognizer(
   private fun <T : AutoCloseable> own(create: () -> T): T =
     try {
       create().also { ownedResources.add(it) }
-    } catch (failure: Exception) {
-      close()
-      throw failure
-    }
-
-  private fun ownBuffers(create: () -> List<TensorBuffer>): List<TensorBuffer> =
-    try {
-      create().also { ownedResources.addAll(it) }
-    } catch (failure: Exception) {
+    } catch (failure: Throwable) {
       close()
       throw failure
     }
@@ -79,10 +70,10 @@ class PpocrRecognizer(
     }
   }
 
-  private fun load(name: String): CompiledModel {
+  private fun load(name: String): CompiledModelRunner {
     val f = File(modelDir, name)
     check(f.exists()) { "Model not found: $name. Download the model in Models first." }
-    return own { CompiledModel.create(f.absolutePath, CompiledModel.Options(accelerator), null) }
+    return own { CompiledModelRunner.fromFile(f.absolutePath, accelerator) }
   }
 
   private val numClasses: Int
@@ -95,8 +86,6 @@ class PpocrRecognizer(
   }
 
   private val rec = load(MODEL)
-  private val inBuf = ownBuffers { rec.createInputBuffers() }
-  private val outBuf = ownBuffers { rec.createOutputBuffers() }
 
   /** crop: H*W*3 row-major [0,255] of a resized+padded text line. Returns recognized text. */
   fun recognize(crop: FloatArray): String {
@@ -107,9 +96,9 @@ class PpocrRecognizer(
       chw[hw + i] = (crop[i * 3 + 1] / 255f - 0.5f) / 0.5f
       chw[2 * hw + i] = (crop[i * 3 + 2] / 255f - 0.5f) / 0.5f
     }
-    inBuf[0].writeFloat(chw)
-    rec.run(inBuf, outBuf)
-    val logits = outBuf[0].readFloat() // [T*numClasses]
+    rec.inputBuffers[0].writeFloat(chw)
+    rec.run()
+    val logits = rec.outputBuffers[0].readFloat() // [T*numClasses]
     return decode(logits, chars)
   }
 

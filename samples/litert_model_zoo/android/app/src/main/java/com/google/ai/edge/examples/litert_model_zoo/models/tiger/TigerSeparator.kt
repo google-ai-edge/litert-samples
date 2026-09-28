@@ -16,8 +16,7 @@
 
 package com.google.ai.edge.examples.litert_model_zoo.models.tiger
 
-import com.google.ai.edge.litert.CompiledModel
-import com.google.ai.edge.litert.TensorBuffer
+import com.google.ai.edge.examples.litert_model_zoo.common.CompiledModelRunner
 import java.io.Closeable
 import java.io.File
 
@@ -30,8 +29,10 @@ import java.io.File
  * overlap-add run on the host. Per DnR convention each graph contributes one stem: dialog=source 2,
  * effect=source 1, music=source 0.
  */
-class TigerSeparator(private val modelDir: File, private val createModel: (File) -> CompiledModel) :
-  Closeable {
+class TigerSeparator(
+  private val modelDir: File,
+  private val createModel: (File) -> CompiledModelRunner,
+) : Closeable {
 
   companion object {
     const val SR = 44100
@@ -66,13 +67,11 @@ class TigerSeparator(private val modelDir: File, private val createModel: (File)
       val out = FloatArray(pcm.size)
       val weight = FloatArray(pcm.size)
       val model = createModel(modelFile(stem))
-      val inBuf = model.createInputBuffers()
-      val outBuf = model.createOutputBuffers()
       try {
         for (c in 0 until nChunks) {
           onProgress(stem, c + 1, nChunks)
           val start = c * HOP_CHUNK
-          val seg = separateChunk(model, inBuf, outBuf, pcm, start, SRC_INDEX[stem]!!)
+          val seg = separateChunk(model, pcm, start, SRC_INDEX[stem]!!)
           // equal-weight overlap-add (reference wav_chunk_inference averages overlaps)
           val n = minOf(CHUNK, pcm.size - start)
           for (i in 0 until n) {
@@ -81,8 +80,6 @@ class TigerSeparator(private val modelDir: File, private val createModel: (File)
           }
         }
       } finally {
-        inBuf.forEach { it.close() }
-        outBuf.forEach { it.close() }
         model.close()
       }
       for (i in out.indices) if (weight[i] > 1f) out[i] /= weight[i]
@@ -92,9 +89,7 @@ class TigerSeparator(private val modelDir: File, private val createModel: (File)
   }
 
   private fun separateChunk(
-    model: CompiledModel,
-    inBuf: List<TensorBuffer>,
-    outBuf: List<TensorBuffer>,
+    model: CompiledModelRunner,
     pcm: FloatArray,
     start: Int,
     srcIdx: Int,
@@ -109,10 +104,10 @@ class TigerSeparator(private val modelDir: File, private val createModel: (File)
       x[PAD - j] = x[PAD + j] // left reflect
       x[PAD + CHUNK - 1 + j] = x[PAD + CHUNK - 1 - j] // right reflect
     }
-    inBuf[0].writeFloat(x)
-    model.run(inBuf, outBuf)
-    val real = outBuf[0].readFloat() // [3 * 1025 * 1040]
-    val imag = outBuf[1].readFloat()
+    model.inputBuffers[0].writeFloat(x)
+    model.run()
+    val real = model.outputBuffers[0].readFloat() // [3 * 1025 * 1040]
+    val imag = model.outputBuffers[1].readFloat()
     val plane = Istft.ENC * FRAMES
     val re = real.copyOfRange(srcIdx * plane, (srcIdx + 1) * plane)
     val im = imag.copyOfRange(srcIdx * plane, (srcIdx + 1) * plane)

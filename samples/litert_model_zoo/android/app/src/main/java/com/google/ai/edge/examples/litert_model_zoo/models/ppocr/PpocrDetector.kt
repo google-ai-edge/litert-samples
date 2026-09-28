@@ -16,9 +16,8 @@
 
 package com.google.ai.edge.examples.litert_model_zoo.models.ppocr
 
+import com.google.ai.edge.examples.litert_model_zoo.common.CompiledModelRunner
 import com.google.ai.edge.litert.Accelerator
-import com.google.ai.edge.litert.CompiledModel
-import com.google.ai.edge.litert.TensorBuffer
 import java.io.Closeable
 import java.io.File
 
@@ -39,15 +38,7 @@ class PpocrDetector(
   private fun <T : AutoCloseable> own(create: () -> T): T =
     try {
       create().also { ownedResources.add(it) }
-    } catch (failure: Exception) {
-      close()
-      throw failure
-    }
-
-  private fun ownBuffers(create: () -> List<TensorBuffer>): List<TensorBuffer> =
-    try {
-      create().also { ownedResources.addAll(it) }
-    } catch (failure: Exception) {
+    } catch (failure: Throwable) {
       close()
       throw failure
     }
@@ -131,15 +122,13 @@ class PpocrDetector(
 
   data class Box(val x0: Int, val y0: Int, val x1: Int, val y1: Int)
 
-  private fun load(name: String): CompiledModel {
+  private fun load(name: String): CompiledModelRunner {
     val f = File(modelDir, name)
     check(f.exists()) { "Model not found: $name. Download the model in Models first." }
-    return own { CompiledModel.create(f.absolutePath, CompiledModel.Options(accelerator), null) }
+    return own { CompiledModelRunner.fromFile(f.absolutePath, accelerator) }
   }
 
   private val det = load(MODEL)
-  private val inBuf = ownBuffers { det.createInputBuffers() }
-  private val outBuf = ownBuffers { det.createOutputBuffers() }
 
   /** rgb: SIZE*SIZE*3 row-major [0,255]. Returns the [SIZE*SIZE] prob map. */
   fun probMap(rgb: FloatArray): FloatArray {
@@ -150,9 +139,9 @@ class PpocrDetector(
       chw[hw + i] = (rgb[i * 3 + 1] / 255f - MEAN[1]) / STD[1]
       chw[2 * hw + i] = (rgb[i * 3 + 2] / 255f - MEAN[2]) / STD[2]
     }
-    inBuf[0].writeFloat(chw)
-    det.run(inBuf, outBuf)
-    return outBuf[0].readFloat() // [SIZE*SIZE]
+    det.inputBuffers[0].writeFloat(chw)
+    det.run()
+    return det.outputBuffers[0].readFloat() // [SIZE*SIZE]
   }
 
   override fun close() {

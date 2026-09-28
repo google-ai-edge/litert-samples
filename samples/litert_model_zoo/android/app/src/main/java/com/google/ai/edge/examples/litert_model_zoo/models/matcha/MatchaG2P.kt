@@ -16,9 +16,8 @@
 
 package com.google.ai.edge.examples.litert_model_zoo.models.matcha
 
+import com.google.ai.edge.examples.litert_model_zoo.common.CompiledModelRunner
 import com.google.ai.edge.litert.Accelerator
-import com.google.ai.edge.litert.CompiledModel
-import com.google.ai.edge.litert.TensorBuffer
 import java.io.BufferedReader
 import java.io.Closeable
 import java.io.File
@@ -162,9 +161,7 @@ class MatchaG2P(modelDir: File) : Closeable {
 
   private val dict = HashMap<String, String>(300_000)
 
-  private val g2p: CompiledModel
-  private val gIn: List<TensorBuffer>
-  private val gOut: List<TensorBuffer>
+  private val g2p: CompiledModelRunner
 
   private val char2idx = HashMap<Char, Int>()
   private val idx2ph = HashMap<Int, String>()
@@ -210,20 +207,9 @@ class MatchaG2P(modelDir: File) : Closeable {
       }
     val f = File(modelDir, MODEL)
     check(f.exists()) { "G2P model not downloaded: $MODEL" }
-    g2p = CompiledModel.create(f.absolutePath, CompiledModel.Options(Accelerator.CPU), null)
-    try {
-      gIn = g2p.createInputBuffers()
-    } catch (e: Exception) {
-      g2p.close()
-      throw e
-    }
-    try {
-      gOut = g2p.createOutputBuffers()
-    } catch (e: Exception) {
-      gIn.forEach { it.close() }
-      g2p.close()
-      throw e
-    }
+    // Last step on purpose: everything above is plain JVM memory, so nothing needs closing if
+    // the graph fails to compile.
+    g2p = CompiledModelRunner.fromFile(f.absolutePath, Accelerator.CPU)
   }
 
   /**
@@ -265,9 +251,9 @@ class MatchaG2P(modelDir: File) : Closeable {
     val len = minOf(ids.size, maxt)
     val inBuf = FloatArray(maxt) { if (it < len) ids[it].toFloat() else 0f }
 
-    gIn[0].writeFloat(inBuf)
-    g2p.run(gIn, gOut)
-    val logits = gOut[0].readFloat() // [maxt * nPh]
+    g2p.inputBuffers[0].writeFloat(inBuf)
+    g2p.run()
+    val logits = g2p.outputBuffers[0].readFloat() // [maxt * nPh]
 
     val sb = StringBuilder()
     var prev = -1
@@ -291,8 +277,6 @@ class MatchaG2P(modelDir: File) : Closeable {
   }
 
   override fun close() {
-    gIn.forEach { it.close() }
-    gOut.forEach { it.close() }
     g2p.close()
   }
 }

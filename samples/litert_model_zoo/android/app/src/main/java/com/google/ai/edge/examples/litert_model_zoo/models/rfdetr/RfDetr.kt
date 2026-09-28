@@ -16,8 +16,8 @@
 
 package com.google.ai.edge.examples.litert_model_zoo.models.rfdetr
 
+import com.google.ai.edge.examples.litert_model_zoo.common.CompiledModelRunner
 import com.google.ai.edge.litert.Accelerator
-import com.google.ai.edge.litert.CompiledModel
 import com.google.ai.edge.litert.TensorBuffer
 import java.io.Closeable
 import java.io.File
@@ -47,14 +47,6 @@ class RfDetr(private val modelDir: File, private val accelerator: Accelerator = 
   private fun <T : AutoCloseable> owned(create: () -> T): T =
     try {
       create().also { resources.add(it) }
-    } catch (failure: Throwable) {
-      close()
-      throw failure
-    }
-
-  private fun buffers(create: () -> List<TensorBuffer>): List<TensorBuffer> =
-    try {
-      create().also { resources.addAll(it) }
     } catch (failure: Throwable) {
       close()
       throw failure
@@ -196,18 +188,18 @@ class RfDetr(private val modelDir: File, private val accelerator: Accelerator = 
     val h: Float,
   )
 
-  private fun load(name: String): CompiledModel {
+  private fun load(name: String): CompiledModelRunner {
     val f = File(modelDir, name)
     check(f.exists()) { "Model not found: $name. Download this task from Models first." }
-    return CompiledModel.create(f.absolutePath, CompiledModel.Options(accelerator), null)
+    return CompiledModelRunner.fromFile(f.absolutePath, accelerator)
   }
 
   private val ga = owned { load(MODEL_A) }
   private val gb = owned { load(MODEL_B) }
-  private val aIn = buffers { ga.createInputBuffers() }
-  private val aOut = buffers { ga.createOutputBuffers() }
-  private val bIn = buffers { gb.createInputBuffers() }
-  private val bOut = buffers { gb.createOutputBuffers() }
+  private val aIn = ga.inputBuffers
+  private val aOut = ga.outputBuffers
+  private val bIn = gb.inputBuffers
+  private val bOut = gb.outputBuffers
 
   // Resolve output/input buffer slots by float capacity (robust to converter ordering).
   private val aEncClass = slot(aOut, NPROP * NCLS)
@@ -225,7 +217,7 @@ class RfDetr(private val modelDir: File, private val accelerator: Accelerator = 
     // ---- Graph A: backbone + encoder + proposal heads (GPU) ----
     val chw = normalizeRgb(rgb)
     aIn[0].writeFloat(chw)
-    ga.run(aIn, aOut)
+    ga.run()
     val encClass = aOut[aEncClass].readFloat() // [576*91]
     val encCoord = aOut[aEncCoord].readFloat() // [576*4]
     val memory = aOut[aMemory].readFloat() // [576*256]
@@ -237,7 +229,7 @@ class RfDetr(private val modelDir: File, private val accelerator: Accelerator = 
     // ---- Graph B: two-stage combine + decoder + heads (GPU) ----
     bIn[bMemSlot].writeFloat(memory)
     bIn[bTsSlot].writeFloat(ts)
-    gb.run(bIn, bOut)
+    gb.run()
     val boxes = bOut[bBoxes].readFloat() // [300*4] cxcywh in [0,1]
     val logits = bOut[bLogits].readFloat() // [300*91]
 

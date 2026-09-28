@@ -22,9 +22,8 @@ import android.graphics.Canvas
 import android.graphics.Matrix
 import android.graphics.Paint
 import android.util.Log
+import com.google.ai.edge.examples.litert_model_zoo.common.CompiledModelRunner
 import com.google.ai.edge.litert.Accelerator
-import com.google.ai.edge.litert.CompiledModel
-import com.google.ai.edge.litert.TensorBuffer
 import java.io.File
 
 /**
@@ -54,9 +53,7 @@ class Upscaler(context: Context, modelFile: File, accelerator: Accelerator = Acc
     }
   }
 
-  private val model: CompiledModel
-  private val inBufs: List<TensorBuffer>
-  private val outBufs: List<TensorBuffer>
+  private val runner: CompiledModelRunner
 
   private val inputFloats = FloatArray(3 * LR * LR)
   private val lrPixels = IntArray(LR * LR)
@@ -67,23 +64,17 @@ class Upscaler(context: Context, modelFile: File, accelerator: Accelerator = Acc
   private val paint = Paint(Paint.FILTER_BITMAP_FLAG)
 
   init {
-    var createdModel: CompiledModel? = null
-    var createdInputs: List<TensorBuffer>? = null
-    var createdOutputs: List<TensorBuffer>? = null
     try {
-      val options = CompiledModel.Options(accelerator)
-      model = CompiledModel.create(modelFile.absolutePath, options, null).also { createdModel = it }
-      inBufs = model.createInputBuffers().also { createdInputs = it }
-      outBufs = model.createOutputBuffers().also { createdOutputs = it }
-      Log.i(TAG, "$accelerator compiled OK — ${inBufs.size} in / ${outBufs.size} out")
+      runner = CompiledModelRunner.fromFile(modelFile.absolutePath, accelerator)
     } catch (failure: Throwable) {
-      createdOutputs?.forEach { runCatching { it.close() } }
-      createdInputs?.forEach { runCatching { it.close() } }
-      runCatching { createdModel?.close() }
       runCatching { if (!lrBitmap.isRecycled) lrBitmap.recycle() }
       runCatching { if (!hrBitmap.isRecycled) hrBitmap.recycle() }
       throw failure
     }
+    Log.i(
+      TAG,
+      "$accelerator compiled OK — ${runner.inputBuffers.size} in / ${runner.outputBuffers.size} out",
+    )
   }
 
   /** Upscale a low-res bitmap 4× (input is resized to 128×128). Returns 512×512 HR + time (ms). */
@@ -103,9 +94,9 @@ class Upscaler(context: Context, modelFile: File, accelerator: Accelerator = Acc
       inputFloats[plane + i] = ((p shr 8) and 0xFF) / 255f
       inputFloats[2 * plane + i] = (p and 0xFF) / 255f
     }
-    inBufs[0].writeFloat(inputFloats)
-    model.run(inBufs, outBufs)
-    val o = outBufs[0].readFloat() // [3*512*512] planar RGB 0..1
+    runner.inputBuffers[0].writeFloat(inputFloats)
+    runner.run()
+    val o = runner.outputBuffers[0].readFloat() // [3*512*512] planar RGB 0..1
     val hp = HR * HR
     fillNchwPixels(o, hp, hrPixels)
 
@@ -114,9 +105,7 @@ class Upscaler(context: Context, modelFile: File, accelerator: Accelerator = Acc
   }
 
   override fun close() {
-    inBufs.forEach { it.close() }
-    outBufs.forEach { it.close() }
-    model.close()
+    runner.close()
     if (!lrBitmap.isRecycled) lrBitmap.recycle()
     if (!hrBitmap.isRecycled) hrBitmap.recycle()
   }

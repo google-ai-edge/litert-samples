@@ -17,9 +17,8 @@
 package com.google.ai.edge.examples.litert_model_zoo.models.ram
 
 import android.graphics.Bitmap
+import com.google.ai.edge.examples.litert_model_zoo.common.CompiledModelRunner
 import com.google.ai.edge.litert.Accelerator
-import com.google.ai.edge.litert.CompiledModel
-import com.google.ai.edge.litert.TensorBuffer
 import java.io.File
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
@@ -42,15 +41,7 @@ class RamTagger(
   private fun <T : AutoCloseable> own(create: () -> T): T =
     try {
       create().also { ownedResources.add(it) }
-    } catch (failure: Exception) {
-      close()
-      throw failure
-    }
-
-  private fun ownBuffers(create: () -> List<TensorBuffer>): List<TensorBuffer> =
-    try {
-      create().also { ownedResources.addAll(it) }
-    } catch (failure: Exception) {
+    } catch (failure: Throwable) {
       close()
       throw failure
     }
@@ -91,41 +82,17 @@ class RamTagger(
     }
 
   private val g1 = own {
-    CompiledModel.create(
-      f("ram_swin_s012_fp16.tflite").absolutePath,
-      CompiledModel.Options(accelerator),
-      null,
-    )
+    CompiledModelRunner.fromFile(f("ram_swin_s012_fp16.tflite").absolutePath, accelerator)
   }
-  private val g1In = ownBuffers { g1.createInputBuffers() }
-  private val g1Out = ownBuffers { g1.createOutputBuffers() }
   private val c2 = own {
-    CompiledModel.create(
-      f("ram_stage3_tail_fp16.tflite").absolutePath,
-      CompiledModel.Options(Accelerator.CPU),
-      null,
-    )
+    CompiledModelRunner.fromFile(f("ram_stage3_tail_fp16.tflite").absolutePath, Accelerator.CPU)
   }
-  private val c2In = ownBuffers { c2.createInputBuffers() }
-  private val c2Out = ownBuffers { c2.createOutputBuffers() }
   private val rw = own {
-    CompiledModel.create(
-      f("ram_reweight_fp16.tflite").absolutePath,
-      CompiledModel.Options(Accelerator.CPU),
-      null,
-    )
+    CompiledModelRunner.fromFile(f("ram_reweight_fp16.tflite").absolutePath, Accelerator.CPU)
   }
-  private val rwIn = ownBuffers { rw.createInputBuffers() }
-  private val rwOut = ownBuffers { rw.createOutputBuffers() }
   private val th = own {
-    CompiledModel.create(
-      f("ram_taghead_fp16.tflite").absolutePath,
-      CompiledModel.Options(accelerator),
-      null,
-    )
+    CompiledModelRunner.fromFile(f("ram_taghead_fp16.tflite").absolutePath, accelerator)
   }
-  private val thIn = ownBuffers { th.createInputBuffers() }
-  private val thOut = ownBuffers { th.createOutputBuffers() }
 
   private fun preprocess(bm: Bitmap): FloatArray {
     val s = Bitmap.createScaledBitmap(bm, SIZE, SIZE, true)
@@ -145,25 +112,25 @@ class RamTagger(
   data class Tag(val name: String, val prob: Float)
 
   fun tag(bm: Bitmap, topK: Int = 40): List<Tag> {
-    g1In[0].writeFloat(preprocess(bm))
-    g1.run(g1In, g1Out)
-    val feat = g1Out[0].readFloat() // [144*1536]
+    g1.inputBuffers[0].writeFloat(preprocess(bm))
+    g1.run()
+    val feat = g1.outputBuffers[0].readFloat() // [144*1536]
 
-    c2In[0].writeFloat(feat)
-    c2.run(c2In, c2Out)
-    val iemb = c2Out[0].readFloat() // [145*512]
+    c2.inputBuffers[0].writeFloat(feat)
+    c2.run()
+    val iemb = c2.outputBuffers[0].readFloat() // [145*512]
     val cls = iemb.copyOfRange(0, TDIM) // token 0
 
-    rwIn[0].writeFloat(cls)
-    rw.run(rwIn, rwOut)
-    val queries = rwOut[0].readFloat() // [4585*768]
+    rw.inputBuffers[0].writeFloat(cls)
+    rw.run()
+    val queries = rw.outputBuffers[0].readFloat() // [4585*768]
 
-    for (b in thIn) {
+    for (b in th.inputBuffers) {
       val n = b.readFloat().size
       b.writeFloat(if (n == queries.size) queries else iemb)
     }
-    th.run(thIn, thOut)
-    val logits = thOut[0].readFloat() // [4585]
+    th.run()
+    val logits = th.outputBuffers[0].readFloat() // [4585]
 
     return selectTags(logits, tags, thresh, topK)
   }

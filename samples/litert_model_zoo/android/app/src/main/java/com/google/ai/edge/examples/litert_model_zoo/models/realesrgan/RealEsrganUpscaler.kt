@@ -23,9 +23,9 @@ import android.graphics.Color
 import android.graphics.Matrix
 import android.graphics.Paint
 import android.util.Log
+import com.google.ai.edge.examples.litert_model_zoo.common.CompiledModelRunner
 import com.google.ai.edge.litert.Accelerator
 import com.google.ai.edge.litert.CompiledModel
-import com.google.ai.edge.litert.TensorBuffer
 import java.io.File
 
 /**
@@ -68,8 +68,7 @@ class RealEsrganUpscaler(
     }
   }
 
-  private val compiledModel: CompiledModel
-  private val inputBuffers: List<TensorBuffer>
+  private val runner: CompiledModelRunner
 
   // Pre-allocated buffers for single tile
   private val inputFloats = FloatArray(TILE_SIZE * TILE_SIZE * 3)
@@ -79,8 +78,6 @@ class RealEsrganUpscaler(
   private val paint = Paint(Paint.FILTER_BITMAP_FLAG)
 
   init {
-    var createdModel: CompiledModel? = null
-    var createdInputs: List<TensorBuffer>? = null
     try {
       Log.i(TAG, "Loading model: $modelFile")
       val options = CompiledModel.Options(accelerator)
@@ -105,14 +102,10 @@ class RealEsrganUpscaler(
               null,
             )
         } catch (_: Exception) {}
-      compiledModel =
-        CompiledModel.create(modelFile.absolutePath, options, null).also { createdModel = it }
+      runner = CompiledModelRunner.fromFile(modelFile.absolutePath, options, null)
       Log.i(TAG, "$accelerator FP32 compiled OK")
-      inputBuffers = compiledModel.createInputBuffers().also { createdInputs = it }
       Log.i(TAG, "Model ready: ${TILE_SIZE}x${TILE_SIZE} -> ${OUTPUT_TILE}x${OUTPUT_TILE}")
     } catch (failure: Throwable) {
-      createdInputs?.forEach { runCatching { it.close() } }
-      runCatching { createdModel?.close() }
       runCatching { if (!tileBitmap.isRecycled) tileBitmap.recycle() }
       throw failure
     }
@@ -133,15 +126,9 @@ class RealEsrganUpscaler(
       inputFloats[idx++] = Color.green(pixel) / 255f
       inputFloats[idx++] = Color.blue(pixel) / 255f
     }
-    inputBuffers[0].writeFloat(inputFloats)
-
-    val resultBuffers = compiledModel.run(inputBuffers)
-    val output =
-      try {
-        outputFromNchw(resultBuffers[0].readFloat())
-      } finally {
-        resultBuffers.forEach { it.close() }
-      }
+    runner.inputBuffers[0].writeFloat(inputFloats)
+    runner.run()
+    val output = outputFromNchw(runner.outputBuffers[0].readFloat())
 
     // Convert output to bitmap
     val outPixels = IntArray(OUTPUT_TILE * OUTPUT_TILE)
@@ -207,8 +194,7 @@ class RealEsrganUpscaler(
   }
 
   override fun close() {
-    inputBuffers.forEach { it.close() }
-    compiledModel.close()
+    runner.close()
     tileBitmap.recycle()
   }
 }

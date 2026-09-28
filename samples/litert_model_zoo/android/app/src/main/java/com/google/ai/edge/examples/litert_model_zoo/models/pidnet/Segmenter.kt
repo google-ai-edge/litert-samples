@@ -22,9 +22,8 @@ import android.graphics.Canvas
 import android.graphics.Matrix
 import android.graphics.Paint
 import android.util.Log
+import com.google.ai.edge.examples.litert_model_zoo.common.CompiledModelRunner
 import com.google.ai.edge.litert.Accelerator
-import com.google.ai.edge.litert.CompiledModel
-import com.google.ai.edge.litert.TensorBuffer
 import java.io.File
 
 /**
@@ -67,9 +66,7 @@ class Segmenter(
     }
   }
 
-  private val model: CompiledModel
-  private val inBufs: List<TensorBuffer>
-  private val outBufs: List<TensorBuffer>
+  private val runner: CompiledModelRunner
 
   private val inputFloats = FloatArray(3 * INPUT * INPUT)
   private val pixels = IntArray(INPUT * INPUT)
@@ -80,35 +77,17 @@ class Segmenter(
   private val paint = Paint(Paint.FILTER_BITMAP_FLAG)
 
   init {
-    val options = CompiledModel.Options(accelerator)
-    model =
-      try {
-        CompiledModel.create(File(modelDir, modelFileName).absolutePath, options, null)
-      } catch (failure: Exception) {
-        resized.recycle()
-        labelBitmap.recycle()
-        throw failure
-      }
-    inBufs =
-      try {
-        model.createInputBuffers()
-      } catch (failure: Exception) {
-        model.close()
-        resized.recycle()
-        labelBitmap.recycle()
-        throw failure
-      }
-    outBufs =
-      try {
-        model.createOutputBuffers()
-      } catch (failure: Exception) {
-        inBufs.forEach { it.close() }
-        model.close()
-        resized.recycle()
-        labelBitmap.recycle()
-        throw failure
-      }
-    Log.i(TAG, "$accelerator compiled OK — ${inBufs.size} in / ${outBufs.size} out")
+    try {
+      runner = CompiledModelRunner.fromFile(File(modelDir, modelFileName).absolutePath, accelerator)
+    } catch (failure: Throwable) {
+      resized.recycle()
+      labelBitmap.recycle()
+      throw failure
+    }
+    Log.i(
+      TAG,
+      "$accelerator compiled OK — ${runner.inputBuffers.size} in / ${runner.outputBuffers.size} out",
+    )
   }
 
   /** Segment one frame. Returns a 128x128 Cityscapes-colored label bitmap + time (ms). */
@@ -126,10 +105,10 @@ class Segmenter(
       inputFloats[plane + i] = (((p shr 8) and 0xFF) / 255f - MEAN[1]) / STD[1]
       inputFloats[2 * plane + i] = ((p and 0xFF) / 255f - MEAN[2]) / STD[2]
     }
-    inBufs[0].writeFloat(inputFloats)
+    runner.inputBuffers[0].writeFloat(inputFloats)
 
-    model.run(inBufs, outBufs)
-    val logits = outBufs[0].readFloat() // [19, 128, 128] (NCHW, batch dropped)
+    runner.run()
+    val logits = runner.outputBuffers[0].readFloat() // [19, 128, 128] (NCHW, batch dropped)
 
     // argmax over 19 classes per pixel -> colored label map
     val hw = OUT * OUT
@@ -142,9 +121,7 @@ class Segmenter(
   }
 
   override fun close() {
-    inBufs.forEach { it.close() }
-    outBufs.forEach { it.close() }
-    model.close()
+    runner.close()
     if (!resized.isRecycled) resized.recycle()
     if (!labelBitmap.isRecycled) labelBitmap.recycle()
   }
