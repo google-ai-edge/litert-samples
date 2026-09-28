@@ -43,12 +43,21 @@ include(":app")
 // NPU runtime libraries
 include(":litert_npu_runtime_libraries:runtime_strings")
 
-include(":litert_npu_runtime_libraries:mediatek_runtime")
+include(":litert_npu_runtime_libraries:mediatek_runtime_common")
+include(":litert_npu_runtime_libraries:mediatek_runtime_v8")
+include(":litert_npu_runtime_libraries:mediatek_runtime_v9")
 
 include(":litert_npu_runtime_libraries:google_tensor_runtime")
 
-include(":litert_npu_runtime_libraries:samsung_runtime")
+// include(":litert_npu_runtime_libraries:samsung_runtime")
 
+include(":litert_npu_runtime_libraries:qualcomm_runtime_common")
+include(":litert_npu_runtime_libraries:qualcomm_runtime_dsp")
+include(":litert_npu_runtime_libraries:qualcomm_runtime_htp")
+
+include(":litert_npu_runtime_libraries:qualcomm_runtime_v65")
+include(":litert_npu_runtime_libraries:qualcomm_runtime_v66")
+include(":litert_npu_runtime_libraries:qualcomm_runtime_v68")
 include(":litert_npu_runtime_libraries:qualcomm_runtime_v69")
 
 include(":litert_npu_runtime_libraries:qualcomm_runtime_v73")

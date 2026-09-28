@@ -55,10 +55,17 @@ android {
   packaging { resources { excludes += "/META-INF/{AL2.0,LGPL2.1}" } }
 
   // NPU runtime libraries
-  dynamicFeatures.add(":litert_npu_runtime_libraries:mediatek_runtime")
+  dynamicFeatures.add(":litert_npu_runtime_libraries:mediatek_runtime_common")
+  dynamicFeatures.add(":litert_npu_runtime_libraries:mediatek_runtime_v8")
+  dynamicFeatures.add(":litert_npu_runtime_libraries:mediatek_runtime_v9")
   dynamicFeatures.add(":litert_npu_runtime_libraries:google_tensor_runtime")
-  dynamicFeatures.add(":litert_npu_runtime_libraries:samsung_runtime")
-  dynamicFeatures.add(":litert_npu_runtime_libraries:qualcomm_runtime_v69")
+  // dynamicFeatures.add(":litert_npu_runtime_libraries:samsung_runtime")
+  dynamicFeatures.add(":litert_npu_runtime_libraries:qualcomm_runtime_common")
+  dynamicFeatures.add(":litert_npu_runtime_libraries:qualcomm_runtime_dsp")
+  dynamicFeatures.add(":litert_npu_runtime_libraries:qualcomm_runtime_htp")
+  dynamicFeatures.add(":litert_npu_runtime_libraries:qualcomm_runtime_v65")
+  dynamicFeatures.add(":litert_npu_runtime_libraries:qualcomm_runtime_v66")
+  dynamicFeatures.add(":litert_npu_runtime_libraries:qualcomm_runtime_v68")
   dynamicFeatures.add(":litert_npu_runtime_libraries:qualcomm_runtime_v73")
   dynamicFeatures.add(":litert_npu_runtime_libraries:qualcomm_runtime_v75")
   dynamicFeatures.add(":litert_npu_runtime_libraries:qualcomm_runtime_v79")
@@ -95,6 +102,8 @@ dependencies {
   implementation(libs.litert.support) {
     exclude(group = "com.google.ai.edge.litert", module = "litert-api")
   }
+
+  implementation(libs.litert.gpu)
 
   implementation(libs.androidx.core.ktx)
   implementation(libs.androidx.lifecycle.runtime.ktx)
