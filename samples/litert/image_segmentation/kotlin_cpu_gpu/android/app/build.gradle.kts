@@ -33,7 +33,7 @@ android {
 
   defaultConfig {
     applicationId = "com.google.ai.edge.examples.image_segmentation"
-    minSdk = 23
+    minSdk = 24
     targetSdk = 33
     versionCode = 1
     versionName = "1.0"
@@ -57,7 +57,10 @@ android {
     sourceCompatibility = JavaVersion.VERSION_1_8
     targetCompatibility = JavaVersion.VERSION_1_8
   }
-  kotlinOptions { jvmTarget = "1.8" }
+  kotlinOptions {
+    jvmTarget = "1.8"
+    freeCompilerArgs += "-Xskip-metadata-version-check"
+  }
   buildFeatures { compose = true }
   packaging { resources { excludes += "/META-INF/{AL2.0,LGPL2.1}" } }
 
@@ -86,14 +89,9 @@ dependencies {
   implementation(libs.androidx.material.icons.core)
   implementation(libs.androidx.material.icons.extended)
   implementation(libs.androidx.material2)
-  implementation(libs.litert) {
-    exclude(group = "com.google.ai.edge.litert", module = "litert-support")
-    exclude(group = "com.google.ai.edge.litert", module = "litert-support-api")
-  }
+  implementation(libs.litert)
   implementation(libs.litert.gpu)
-  implementation(libs.litert.support) {
-    exclude(group = "com.google.ai.edge.litert", module = "litert-api")
-  }
+  implementation(libs.litert.support)
   implementation(libs.androidx.camera.core)
   implementation(libs.androidx.camera.lifecycle)
   implementation(libs.androidx.camera.view)
