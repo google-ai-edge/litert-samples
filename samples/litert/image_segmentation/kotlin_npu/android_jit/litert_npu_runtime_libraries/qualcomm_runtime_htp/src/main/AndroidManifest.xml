@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:dist="http://schemas.android.com/apk/distribution">
+
+    <!-- Holds the QNN libraries shared by every HTP SoC (libQnnHtp.so, and libQnnHtpPrepare.so in
+         the JIT variant). The device groups below are the union of the groups declared by
+         qualcomm_runtime_v68 .. qualcomm_runtime_v81; keep them in sync. -->
+    <dist:module
+        dist:instant="false"
+        dist:title="@string/title_qualcomm_runtime_htp">
+        <dist:delivery>
+            <dist:install-time>
+                <dist:conditions>
+                    <dist:device-groups>
+                        <dist:device-group dist:name="Qualcomm_SM8350"/>
+                        <dist:device-group dist:name="Qualcomm_SM8450"/>
+                        <dist:device-group dist:name="Qualcomm_SM8550"/>
+                        <dist:device-group dist:name="Qualcomm_SM8650"/>
+                        <dist:device-group dist:name="Qualcomm_SM8750"/>
+                        <dist:device-group dist:name="Qualcomm_SM8850"/>
+                    </dist:device-groups>
+                </dist:conditions>
+            </dist:install-time>
+        </dist:delivery>
+        <dist:fusing dist:include="true" />
+    </dist:module>
+</manifest>

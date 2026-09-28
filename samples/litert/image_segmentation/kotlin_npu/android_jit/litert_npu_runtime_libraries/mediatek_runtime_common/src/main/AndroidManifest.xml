@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:dist="http://schemas.android.com/apk/distribution">
+
+    <!-- The device groups below are the union of the groups declared by every
+         mediatek_runtime_v* module, so this module is installed whenever one of
+         them is. Keep it in sync when a new mediatek_runtime_v* module is added. -->
+    <dist:module
+        dist:instant="false"
+        dist:title="@string/title_mediatek_runtime_common">
+        <dist:delivery>
+            <dist:install-time>
+                <dist:conditions>
+                    <dist:device-groups>
+                        <dist:device-group dist:name="Mediatek_MT6877"/>
+                        <dist:device-group dist:name="Mediatek_MT6878"/>
+                        <dist:device-group dist:name="Mediatek_MT6879"/>
+                        <dist:device-group dist:name="Mediatek_MT6893"/>
+                        <dist:device-group dist:name="Mediatek_MT6897"/>
+                        <dist:device-group dist:name="Mediatek_MT6983"/>
+                        <dist:device-group dist:name="Mediatek_MT6985"/>
+                        <dist:device-group dist:name="Mediatek_MT6989"/>
+                        <dist:device-group dist:name="Mediatek_MT6991"/>
+                        <dist:device-group dist:name="Mediatek_MT6993"/>
+                    </dist:device-groups>
+                </dist:conditions>
+            </dist:install-time>
+        </dist:delivery>
+        <dist:fusing dist:include="true" />
+    </dist:module>
+</manifest>
