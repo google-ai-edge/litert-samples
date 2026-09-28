@@ -79,6 +79,7 @@ cc_binary(
         "@com_google_absl//absl/flags:flag",
         "@com_google_absl//absl/flags:parse",
         "@com_google_absl//absl/status",
+        "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings",
         "@litert_archive//litert/cc:litert_common",
         "@litert_archive//litert/cc:litert_environment",
@@ -90,6 +91,7 @@ cc_binary(
         "@litert_archive//tensor:datatypes",
         "@litert_archive//tensor/backends/tflite:arithmetic_tflite",
         "@litert_archive//tensor/backends/tflite:tflite_flatbuffer_conversion",
+        "@litert_archive//tensor/runners/litert:lambda_model_runner",
         "@litert_archive//tensor/runners/litert:litert_dynamic_runner",
     ],
 )
