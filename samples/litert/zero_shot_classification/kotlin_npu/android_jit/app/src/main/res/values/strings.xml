@@ -1,0 +1,68 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+  <string name="app_name">Laya zero-shot classification (NPU)</string>
+  <string name="status_loading_tokenizer">Loading tokenizer…</string>
+  <string name="status_compiling_npu">Compiling for the NPU… (the first launch can take a minute)</string>
+  <string name="status_compiling_gpu">Compiling GPU…</string>
+  <string name="status_loading_cpu">Loading CPU model…</string>
+  <string name="status_warming_up">Warming up the full pipeline…</string>
+  <string name="status_npu_ready">Ready · NPU</string>
+  <string name="status_gpu_ready">Ready · GPU FP32</string>
+  <string name="status_cpu_ready">Ready · CPU</string>
+  <string name="status_running">Answering questions…</string>
+  <string name="status_error">Model unavailable</string>
+  <string name="status_not_downloaded">Model files not downloaded</string>
+  <string name="status_downloading">Downloading model files…</string>
+  <string name="download_start">Download (%1$s)</string>
+  <string name="download_resume">Resume download (%1$s of %2$s)</string>
+  <string name="download_progress" translatable="false">%1$s / %2$s</string>
+  <string name="download_retry">Retry</string>
+  <string name="download_no_space">Needs %1$s free, %2$s available</string>
+  <string name="download_wifi_recommended">Wi-Fi recommended</string>
+  <string name="error_message">%1$s</string>
+  <string name="error_nonfinite">The model returned a nonfinite value. Try another accelerator.</string>
+  <string name="launch_to_ready">Launch to Ready: %1$.2f ms</string>
+  <string name="accelerator_title">Accelerator</string>
+  <string name="accelerator_npu">NPU</string>
+  <string name="accelerator_gpu">GPU (FP32)</string>
+  <string name="accelerator_cpu">CPU</string>
+  <string name="use_gpu">Use GPU</string>
+  <string name="use_cpu">Use CPU</string>
+  <string name="npu_unavailable">NPU: needs a supported Qualcomm SoC and the app installed with its NPU runtime.</string>
+  <string name="preset_email">Email triage</string>
+  <string name="preset_triage">Support intent</string>
+  <string name="preset_moderation">Moderation</string>
+  <string name="preset_selected">Preset: %1$s</string>
+  <string name="example_language">Example</string>
+  <string name="language_japanese">JA</string>
+  <string name="language_english">EN</string>
+  <string name="email_subject">Subject</string>
+  <string name="email_body">Body</string>
+  <string name="support_message">Support message</string>
+  <string name="moderation_post">Post to review</string>
+  <string name="example_email_ja_subject">更新後に画像を添付できません</string>
+  <string name="example_email_ja_body">サポート窓口ご担当者様\n昨日アプリを更新してから、問い合わせフォームに画像を添付すると画面が閉じてしまいます。文章だけなら送信できます。来週の作業で使いたいので、確認方法を教えてください。</string>
+  <string name="example_email_en_subject">Cannot attach an image after the update</string>
+  <string name="example_email_en_body">Hello support,\nSince updating the app yesterday, the support form closes when I attach an image. Sending text alone still works. I need it for a task next week. Could you tell me how to check this?</string>
+  <string name="example_support_ja">利用料金が二重に請求されています。明日までに支払いを確認する必要があります。余分な請求の返金方法を教えてください。何度も確認することになり、少し困っています。</string>
+  <string name="example_support_en">I was charged twice for the same subscription. I need to confirm the payment by tomorrow. Please tell me how to get the extra charge refunded. Having to check this repeatedly has been frustrating.</string>
+  <string name="example_moderation_ja">その説明には賛成できません。今朝は保存ボタンを押しても内容が残りませんでした。同じ状況を試した方がいたら、手順を共有してもらえると助かります。</string>
+  <string name="example_moderation_en">I disagree with that explanation. This morning, pressing Save did not keep my changes. If anyone has tried the same steps, please share what happened so we can compare the results.</string>
+  <string name="calibration_title">Probability calibration</string>
+  <string name="calibrated">calibrated</string>
+  <string name="uncalibrated">T=1 (uncalibrated)</string>
+  <string name="run">Run</string>
+  <string name="run_summary">Run total: %1$.2f ms · %2$d tokens · %3$d questions</string>
+  <string name="token_count_hint">Tokens across all question prompts, excluding padding.</string>
+  <string name="results_title">Results</string>
+  <string name="result_choice">Answer: %1$s</string>
+  <string name="result_score">Score: %1$.4f</string>
+  <string name="result_true_probability">True probability: %1$.4f</string>
+  <string name="score_legend">Score legend and probabilities</string>
+  <string name="score_level">Level %1$d</string>
+  <string name="option_true">True</string>
+  <string name="option_false">False</string>
+  <string name="option_probability" translatable="false">%1$.2f%%</string>
+  <string name="result_confidence">Confidence: %1$.4f</string>
+  <string name="result_timing" translatable="false">%1$.2f ms</string>
+</resources>
