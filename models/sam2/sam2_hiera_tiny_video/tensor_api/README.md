@@ -103,6 +103,31 @@ compute precision is fp16; set `--gpu_precision` explicitly when
 comparing against fp32 references, and use `--gpu_buffer_storage=buffer`
 (texture storage silently falls back to CPU on these tensor sizes).
 
+## Graph-level optimizations
+
+The graph code applies these rewrites at build time. None of them changes
+the math: outputs match the direct construction up to fp32 rounding, and
+the CPU fp32 parity results are unchanged (see below).
+
+*   **Image encoder (Hiera).** The 1/sqrt(d) attention scale is folded
+    into the q rows of `qkv`. Windows stay 4-D (`[nH, nW*ws, ws, C]`),
+    which drops the reshapes around `FullyConnected` and the q-pool
+    `MaxPool2D`. `proj` runs after window unpartition. Single-head blocks
+    skip the head transposes. When a map needs window padding, `qkv` runs
+    on the unpadded map without its bias, and the bias is added after
+    padding. Padded tokens therefore still carry `qkv = bias`, as in Hiera,
+    which zero-pads the block input before `qkv`.
+*   **Image mask decoder.** The attention scale is folded into `q_proj`.
+
+| Signature (CPU fp32 flatbuffer) | Before | After |
+|---|---|---|
+| video `encode` (1024) / image `encode_image` (512) | 594 / 595 ops | 521 / 522 ops |
+| image `decode_mask` | 276 ops | 269 ops |
+
+Parity after these rewrites (CPU fp32): `sam2_image/verify/sam2_torch_ref.py`
+at 512 reports PARITY: PASS, with all correlations at 1.000000 and IoU scores
+identical to the reference.
+
 ## Measured highlights
 
 *   Parity vs the HF streaming reference (fp32, 10-frame synthetic clip,
