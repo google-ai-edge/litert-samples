@@ -37,35 +37,14 @@ class LayaEngine(context: Context, val storage: Storage = Storage.WFP16) : Close
   /** Storage changes graph weights only; GPU arithmetic remains explicitly FP32 in both cases. */
   enum class Storage(val argument: String) {
     WFP16("wfp16"),
-    FP32("fp32");
-
-    companion object {
-      /** Parses a supported intent selector, rejecting unknown values. */
-      fun fromArgument(value: String): Storage =
-        when (value.lowercase()) {
-          "wfp16" -> WFP16
-          "fp32" -> FP32
-          else -> error("Unknown graph storage: $value; expected wfp16 or fp32")
-        }
-    }
+    FP32("fp32"),
   }
 
   /** Selects the accelerator explicitly; NPU and GPU creation never silently fall back. */
   enum class Backend(val accelerator: Accelerator) {
     NPU(Accelerator.NPU),
     GPU(Accelerator.GPU),
-    CPU(Accelerator.CPU);
-
-    companion object {
-      /** Parses a supported intent selector, rejecting unknown values. */
-      fun fromArgument(value: String): Backend =
-        when (value.lowercase()) {
-          "npu" -> NPU
-          "gpu" -> GPU
-          "cpu" -> CPU
-          else -> error("Unknown accelerator: $value; expected npu, gpu or cpu")
-        }
-    }
+    CPU(Accelerator.CPU),
   }
 
   /** Includes output readback because GPU run() can enqueue work asynchronously. */
@@ -388,9 +367,18 @@ class LayaEngine(context: Context, val storage: Storage = Storage.WFP16) : Close
     /** Runtime pin shared with the version catalog and gate metadata. */
     const val LITERT_VERSION = "2.2.0"
 
+    /** Parses a supported accelerator selector, rejecting unknown values. */
+    fun backendFromArgument(value: String): Backend =
+      when (value.lowercase()) {
+        "npu" -> Backend.NPU
+        "gpu" -> Backend.GPU
+        "cpu" -> Backend.CPU
+        else -> error("Unknown accelerator: $value; expected npu, gpu or cpu")
+      }
+
     /**
      * True when LiteRT lists this Qualcomm SoC and the NPU runtime module was installed with the
-     * app (a bundletool or Play install for the device's group; a plain APK install has no runtime).
+     * app: a bundletool or Play install for the device's group. A plain APK has no runtime.
      */
     fun isNpuAvailable(context: Context): Boolean {
       val provider = npuProvider(context)

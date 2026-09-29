@@ -92,7 +92,9 @@ class LayaEmbeddings(tableFile: File, metadataFile: File) : Closeable {
     /** Complete row-major binary16 table size. */
     const val SIZE_BYTES = 393_216_000L
 
-    /** Exact IEEE-754 binary16 → binary32 expansion, including signed zero, subnormals and NaNs. */
+    /**
+     * Exact IEEE-754 binary16 → binary32 expansion, including signed zero, subnormals and NaNs.
+     */
     fun halfToFloat(bits: Int): Float {
       val sign = (bits and 0x8000) shl 16
       val exponent = (bits ushr 10) and 0x1f

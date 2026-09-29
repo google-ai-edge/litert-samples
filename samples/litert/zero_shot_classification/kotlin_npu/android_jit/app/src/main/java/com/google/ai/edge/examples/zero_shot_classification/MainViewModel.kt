@@ -84,7 +84,7 @@ class MainViewModel(private val context: Context) : ViewModel() {
       }
     val backend =
       try {
-        LayaEngine.Backend.fromArgument(accelerator ?: saved)
+        LayaEngine.backendFromArgument(accelerator ?: saved)
       } catch (failure: IllegalStateException) {
         showFailure(failure)
         return
