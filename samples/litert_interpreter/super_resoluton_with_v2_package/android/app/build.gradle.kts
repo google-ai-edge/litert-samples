@@ -35,14 +35,8 @@ android {
         sourceCompatibility = JavaVersion.VERSION_1_8
         targetCompatibility = JavaVersion.VERSION_1_8
     }
-    kotlinOptions {
-        jvmTarget = "1.8"
-    }
     buildFeatures {
         compose = true
-    }
-    composeOptions {
-        kotlinCompilerExtensionVersion = "1.5.1"
     }
     packaging {
         resources {
@@ -51,13 +45,18 @@ android {
     }
 }
 
+// Add the compiler configuration at the top level
+kotlin {
+    compilerOptions {
+        jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_1_8)
+    }
+}
 
 // Import DownloadModels task
 project.ext.set("ASSET_DIR", "$projectDir/src/main/assets")
 apply(from = "download_model.gradle")
 
 dependencies {
-
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.lifecycle.runtime.ktx)
     implementation(libs.androidx.lifecycle.runtime.compose)
@@ -71,10 +70,10 @@ dependencies {
     implementation(libs.androidx.material2)
     implementation(libs.litert)
     implementation(libs.litert.support) {
-      exclude(group = "com.google.ai.edge.litert", module = "litert-api")
+        exclude(group = "com.google.ai.edge.litert", module = "litert-api")
     }
     implementation(libs.litert.metadata) {
-      exclude(group = "com.google.ai.edge.litert", module = "litert-api")
+        exclude(group = "com.google.ai.edge.litert", module = "litert-api")
     }
     implementation(libs.androidx.camera.core)
     implementation(libs.androidx.camera.lifecycle)
