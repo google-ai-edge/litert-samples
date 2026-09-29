@@ -83,33 +83,25 @@ class ImageSegmentationHelper(private val context: Context) {
           "model/segmentation_multiclass_cpu_gpu.tflite",
           if (accelerator != Accelerator.NPU) accelerator else Accelerator.CPU,
         )
-      val mtkNpuModelProvider =
-        AiPackModelProvider(
-          context,
-          "selfie_multiclass_mtk",
-          "model/segmentation_multiclass_mtk.tflite",
-        ) {
-          buildSet {
-            if (
-              accelerator == Accelerator.NPU && NpuCompatibilityChecker.Mediatek.isDeviceSupported()
-            )
-              add(Accelerator.NPU)
-          }
-        }
       val npuModelProvider =
         AiPackModelProvider(context, "selfie_multiclass", "model/segmentation_multiclass.tflite") {
           buildSet {
             if (
               accelerator == Accelerator.NPU &&
                 (NpuCompatibilityChecker.Qualcomm.isDeviceSupported() ||
+                  NpuCompatibilityChecker.Mediatek.isDeviceSupported() ||
                   NpuCompatibilityChecker.GoogleTensor.isDeviceSupported())
             )
               add(Accelerator.NPU)
           }
         }
       val aiPackModelProvider =
-        ModelSelector(cpuGpuModelProvider, mtkNpuModelProvider, npuModelProvider).selectModel(env)
+        ModelSelector(cpuGpuModelProvider, npuModelProvider).selectModel(env)
 
+      Log.i(
+        TAG,
+        "Selected model: path=${aiPackModelProvider.getPath()}, type=${aiPackModelProvider.getType()}, accelerators=${aiPackModelProvider.getCompatibleAccelerators()}"
+      )
       withContext(singleThreadDispatcher) {
         val options = CompiledModel.Options(aiPackModelProvider.getCompatibleAccelerators()).apply {
           if (acceleratorEnum == AcceleratorEnum.NPU) {
@@ -118,17 +110,26 @@ class ImageSegmentationHelper(private val context: Context) {
             )
           }
         }
+        val path = aiPackModelProvider.getPath()
         val model =
           if (aiPackModelProvider.getType() == ModelProvider.Type.ASSET) {
             CompiledModel.create(
               context.assets,
-              aiPackModelProvider.getPath(),
+              path,
+              options,
+              if (acceleratorEnum == AcceleratorEnum.NPU) env else null,
+            )
+          } else if (path.endsWith(".apk")) {
+            Log.i(TAG, "Path is split APK ($path), loading model/segmentation_multiclass.tflite from context.assets")
+            CompiledModel.create(
+              context.assets,
+              "model/segmentation_multiclass.tflite",
               options,
               if (acceleratorEnum == AcceleratorEnum.NPU) env else null,
             )
           } else {
             CompiledModel.create(
-              aiPackModelProvider.getPath(),
+              path,
               options,
               if (acceleratorEnum == AcceleratorEnum.NPU) env else null,
             )
@@ -137,7 +138,7 @@ class ImageSegmentationHelper(private val context: Context) {
         Log.d(TAG, "Created an image segmenter")
       }
     } catch (e: Exception) {
-      Log.i(TAG, "Create LiteRT from selfie_multiclass is failed: ${e.message}")
+      Log.e(TAG, "Create LiteRT from selfie_multiclass failed", e)
       _error.emit(e)
     }
   }
