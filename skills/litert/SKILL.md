@@ -3,7 +3,7 @@ name: litert
 description: Creates an Android app that runs a .tflite model on the CPU or the GPU with the LiteRT CompiledModel API in Kotlin. Use this skill to build a new app around a vision, audio or embedding model, or to add on-device inference to an existing app - the dependency, where the model file goes, the inference class, the ViewModel and screen, and checking the output on a device.
 license: Apache-2.0
 metadata:
-  last-updated: '2026-09-23'
+  last-updated: '2026-09-29'
   keywords: [LiteRT, CompiledModel, tflite, Android app, GPU]
 ---
 
@@ -25,6 +25,8 @@ dependencies { implementation("com.google.ai.edge.litert:litert:2.2.0") }
 ```
 
 Put the model at `app/src/main/assets/model.tflite` (`noCompress` keeps it memory-mappable); a model too large to bundle is downloaded into `context.filesDir` and loaded with `CompiledModel.create(filePath, options)`.
+
+With AGP 9.x the build stops at `processDebugMainManifest`: `litert` 2.2.0 and its dependency `litert-api` 2.2.0 both declare the namespace `com.google.ai.edge.litert` (https://github.com/google-ai-edge/LiteRT/issues/8474); AGP 8.x reports it as a warning and builds. For 2.2.0, add `android.uniquePackageNames=false` to `gradle.properties` before the first build. Excluding `litert-api` does not work: `CompiledModel` and `Accelerator` are in it, and the build then fails at `compileDebugKotlin`. The setting also hides the same clash between any other two libraries, so remove it when you move to a LiteRT version that builds without it.
 
 ### 2. Write the inference class
 
