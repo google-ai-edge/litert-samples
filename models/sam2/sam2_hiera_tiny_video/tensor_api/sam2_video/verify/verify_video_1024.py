@@ -130,10 +130,14 @@ def compare(dump_dir, nmm, tag):
                  dptr=float(np.abs(ref["ptr"][t] - ptr).max()),
                  dmem=float(np.abs(ref["mem"][t] - mem).max()),
                  cmem=corr(ref["mem"][t], mem))
+        pf_path = f"{p}_pixfeat.f32"
         if t == 0:
             r["dpf"], r["cpf"] = 0.0, 1.0
+        elif not os.path.exists(pf_path):
+            # --path=fused keeps pix_feat inside the step signature.
+            r["dpf"], r["cpf"] = 0.0, float("nan")
         else:
-            pf = np.fromfile(f"{p}_pixfeat.f32", np.float32)  # (HW,HD) token-major
+            pf = np.fromfile(pf_path, np.float32)  # (HW,HD) token-major
             rpf = ref["pix_feat"][t].reshape(HD, HW).T.ravel()
             r["dpf"] = float(np.abs(rpf - pf).max())
             r["cpf"] = corr(rpf, pf)

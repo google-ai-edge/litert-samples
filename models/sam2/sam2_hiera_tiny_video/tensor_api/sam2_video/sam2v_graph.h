@@ -123,6 +123,39 @@ struct MemorizeInputs {
   }
 };
 
+// Everything the host needs after one object step, produced in-graph (the
+// fused step_* signatures): the host loop of sam2v_main.cc between decode and
+// memorize — best of mask tokens 1..3 by iou (first max wins), no-object
+// handling (mask -> -1024, pointer -> no_obj_ptr, occ = 1), the 4x bilinear
+// upsample (align_corners=false) and mask_for_mem (binarized when prompted,
+// sigmoid otherwise; *20 - 10) — then the memory encoder.
+struct StepOutputs {
+  TfTensor mem;           // [1, HW, 64] memory for the bank
+  TfTensor ptr;           // [1, 256] object pointer for the bank
+  TfTensor low_mask;      // [1, S/4, S/4] chosen logits (display)
+  TfTensor object_score;  // [1, 1]
+  TfTensor iou;           // [1, 1] predicted iou of the chosen mask
+  std::vector<TfTensor> AsList() const {
+    return {mem, ptr, low_mask, object_score, iou};
+  }
+};
+
+// decode -> in-graph post -> memorize. The decoder's nomem input doubles as
+// the prompted flag (1.0 on the conditioning frame, 0.0 on tracked frames);
+// keep it a graph INPUT — baked as a constant it creates constant-constant
+// MUL/SUB nodes the GPU delegate rejects.
+//
+// `multimask` follows SAM 2's rule (multimask_max_pt_num = 1): true for 0-1
+// prompt points (tracked frames, single click) -> best of tokens 1..3 by iou;
+// false for 2+ points -> token 0 unless its stability score (area of
+// logits > 0.05 / area > -0.05) is below 0.98, then the best of 1..3; the
+// object pointer is always token 0's (HF Sam2VideoModel semantics).
+StepOutputs BuildStep(const Sam2VideoConfig& config,
+                      const VideoDecoderInputs& dec_in,
+                      const TfTensor& pix_raw, const WeightMap& weights,
+                      bool multimask = true, int binarize_mode = -1,
+                      ConstCache* cache = nullptr);
+
 MemCondInputs MakeMemCondInputs(const Sam2VideoConfig& config, int nmm);
 VideoDecoderInputs MakeVideoDecoderInputs(const Sam2VideoConfig& config);
 MemorizeInputs MakeMemorizeInputs(const Sam2VideoConfig& config);
@@ -131,9 +164,13 @@ MemorizeInputs MakeMemorizeInputs(const Sam2VideoConfig& config);
 TfTensor BuildMemCond(const Sam2VideoConfig& config, int nmm,
                       const MemCondInputs& inputs, const WeightMap& weights,
                       ConstCache* cache = nullptr);
+// mask_mode: 0 = all 4 masks and object pointers (the classic `decode`
+// signature); 1 = masks/pointers 1..3 only (BuildStep, multimask); 2 = all 4
+// masks, pointer 0 only (BuildStep, single mask).
 VideoDecoderOutputs BuildVideoDecoder(const Sam2VideoConfig& config,
                                       const VideoDecoderInputs& inputs,
                                       const WeightMap& weights,
+                                      int mask_mode = 0,
                                       ConstCache* cache = nullptr);
 // mem [1, 4096, 64] token-major output, named "mem".
 TfTensor BuildMemorize(const Sam2VideoConfig& config,
