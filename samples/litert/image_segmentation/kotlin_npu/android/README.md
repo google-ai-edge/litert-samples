@@ -17,9 +17,10 @@ users: https://ai.google.dev/edge/litert/next/npu
 WARNING: Before building the app, please follow instructions above to setup NPU
 models and runtime correctly.
 
+WARNING: The version of NPU runtime libraries has to match the runtime maven package, which is available in `gradle/libs.versions.toml`.
+
 Please make sure your AI Pack and NPU runtime are being placed under the project
-root folder (current folder for this gradle project) and copy the 
-`device_targeting_configuration.xml` from your AI Pack to `./app` folder.
+root folder (current folder for this gradle project).
 
 From the app's root directory, run:
 
@@ -27,7 +28,7 @@ From the app's root directory, run:
 $ ./gradlew bundle
 ```
 
-And it will produce the app bundle at under thde `./app` folder
+And it will produce the app bundle under the `./app` folder
 `./build/outputs/bundle/release/app-release.aab`.
 
 ## Install the app bundle to a device for local testing
@@ -55,18 +56,27 @@ Learn more about local testing, see [this doc](https://developer.android.com/goo
 
 Currently, the following devices are supported:
 
-| Vendor   | SoC Model | Android version | Group Name                 |
-|----------|-----------|-----------------|----------------------------|
-| Qualcomm | SM8450    |  S+             | Qualcomm_SM8450            |
-| Qualcomm | SM8550    |  S+             | Qualcomm_SM8550            |
-| Qualcomm | SM8650    |  S+             | Qualcomm_SM8650            |
-| Qualcomm | SM8750    |  S+             | Qualcomm_SM8750            |
-| Qualcomm | SM8850    |  S+             | Qualcomm_SM8850            |
-| Mediatek | MT6878    |  15             | Mediatek_MT6878_ANDROID_15 |
-| Mediatek | MT6897    |  15             | Mediatek_MT6897_ANDROID_15 |
-| Mediatek | MT6983    |  15             | Mediatek_MT6983_ANDROID_15 |
-| Mediatek | MT6985    |  15             | Mediatek_MT6985_ANDROID_15 |
-| Mediatek | MT6989    |  15             | Mediatek_MT6989_ANDROID_15 |
-| Mediatek | MT6991    |  15             | Mediatek_MT6991_ANDROID_15 |
-| Google   | Tensor G5 |  16             | Google_Tensor_G5           |
-| Samsung  | E9965     |  16             | Samsung_Exynos_2600        |
+| Vendor   | SoC Model | Android version | Group Name       |
+|----------|-----------|-----------------|------------------|
+| Qualcomm | SM7150    |  S+             | Qualcomm_SM7150  |
+| Qualcomm | SM8250    |  S+             | Qualcomm_SM8250  |
+| Qualcomm | SM8350    |  S+             | Qualcomm_SM8350  |
+| Qualcomm | SM8450    |  S+             | Qualcomm_SM8450  |
+| Qualcomm | SM8550    |  S+             | Qualcomm_SM8550  |
+| Qualcomm | SM8650    |  S+             | Qualcomm_SM8650  |
+| Qualcomm | SM8750    |  S+             | Qualcomm_SM8750  |
+| Qualcomm | SM8850    |  S+             | Qualcomm_SM8850  |
+| Mediatek | MT6877    |  15             | Mediatek_MT6877  |
+| Mediatek | MT6878    |  15             | Mediatek_MT6878  |
+| Mediatek | MT6879    |  15             | Mediatek_MT6879  |
+| Mediatek | MT6893    |  15             | Mediatek_MT6893  |
+| Mediatek | MT6897    |  15             | Mediatek_MT6897  |
+| Mediatek | MT6983    |  15             | Mediatek_MT6983  |
+| Mediatek | MT6985    |  15             | Mediatek_MT6985  |
+| Mediatek | MT6989    |  15             | Mediatek_MT6989  |
+| Mediatek | MT6991    |  15             | Mediatek_MT6991  |
+| Mediatek | MT6993    |  15             | Mediatek_MT6993  |
+| Google   | Tensor G3 |  16             | Google_Tensor_G3 |
+| Google   | Tensor G4 |  16             | Google_Tensor_G4 |
+| Google   | Tensor G5 |  16             | Google_Tensor_G5 |
+| Google   | Tensor G6 |  16             | Google_Tensor_G6 |
