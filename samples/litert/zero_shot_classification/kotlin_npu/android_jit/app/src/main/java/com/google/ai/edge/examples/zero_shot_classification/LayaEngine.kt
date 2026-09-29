@@ -31,7 +31,8 @@ import java.util.concurrent.Executors
 
 /**
  * Single-row multilingual Laya execution on the NPU (Qualcomm HTP, compiled on the device), the GPU
- * at explicit FP32, or the CPU, with no silent fallback to another accelerator.
+ * at explicit FP32, or the CPU. The app never switches accelerators by itself; LiteRT 2.2.0 runs
+ * the graph on the CPU when its NPU compile fails, which ModelParityTest checks for.
  */
 class LayaEngine(context: Context, val storage: Storage = Storage.WFP16) : Closeable {
   /** Storage changes graph weights only; GPU arithmetic remains explicitly FP32 in both cases. */
@@ -40,7 +41,7 @@ class LayaEngine(context: Context, val storage: Storage = Storage.WFP16) : Close
     FP32("fp32"),
   }
 
-  /** Selects the accelerator explicitly; NPU and GPU creation never silently fall back. */
+  /** Selects the accelerator explicitly. */
   enum class Backend(val accelerator: Accelerator) {
     NPU(Accelerator.NPU),
     GPU(Accelerator.GPU),
@@ -157,6 +158,12 @@ class LayaEngine(context: Context, val storage: Storage = Storage.WFP16) : Close
       requireWindow(window)
       check(backend != Backend.NPU || isNpuAvailable(appContext)) {
         "The NPU runtime is not installed for this device; see the README."
+      }
+      check(
+        backend != Backend.NPU ||
+          Accelerator.NPU in LayaProcessRuntime.environment(appContext).getAvailableAccelerators()
+      ) {
+        "LiteRT could not load the NPU runtime on this device."
       }
       mainGraph(window, backend)
       actGraph(backend)
@@ -383,16 +390,29 @@ class LayaEngine(context: Context, val storage: Storage = Storage.WFP16) : Close
     fun isNpuAvailable(context: Context): Boolean {
       val provider = npuProvider(context)
       val libraryDir = File(provider.getLibraryDir())
-      return provider.isDeviceSupported() && NPU_LIBRARIES.all { File(libraryDir, it).isFile }
+      return provider.isDeviceSupported() &&
+        NPU_LIBRARIES.all { File(libraryDir, it).isFile } &&
+        libraryDir.list().orEmpty().any { it.startsWith("libQnnHtpV") && it.endsWith("Skel.so") }
     }
 
     /** The app ships the Qualcomm runtime modules only. */
     internal fun npuProvider(context: Context) =
       BuiltinNpuAcceleratorProvider(context, NpuCompatibilityChecker.Qualcomm)
 
-    /** File names from the LiteRT 2.2.0 Qualcomm runtime that the NPU path loads first. */
+    /**
+     * File names from the LiteRT 2.2.0 Qualcomm runtime that the on-device compile loads, besides
+     * the SoC's own libQnnHtpV<NN>Stub.so and libQnnHtpV<NN>Skel.so.
+     */
     private val NPU_LIBRARIES =
-      listOf("libLiteRtDispatch_Qualcomm.so", "libLiteRtCompilerPlugin_Qualcomm.so", "libQnnHtp.so")
+      listOf(
+        "libLiteRtDispatch_Qualcomm.so",
+        "libLiteRtCompilerPlugin_Qualcomm.so",
+        "libQnnHtp.so",
+        "libQnnSystem.so",
+        "libQnnHtpPrepare.so",
+        "libQnnIr.so",
+        "libQnnSaver.so",
+      )
     private const val SIGNATURE = "serving_default"
     /** Shared files required by either graph storage choice. */
     val REQUIRED_FILES =

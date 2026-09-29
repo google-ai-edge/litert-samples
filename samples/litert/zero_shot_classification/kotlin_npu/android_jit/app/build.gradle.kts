@@ -25,7 +25,8 @@ android {
   compileSdk = 36
 
   defaultConfig {
-    applicationId = "com.google.ai.edge.examples.zero_shot_classification"
+    // Its own id, so it installs next to the CPU/GPU app, which pins another model revision.
+    applicationId = "com.google.ai.edge.examples.zero_shot_classification.npu"
     minSdk = 31
     targetSdk = 35
     versionCode = 1

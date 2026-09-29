@@ -76,11 +76,14 @@ class MainViewModel(private val context: Context) : ViewModel() {
     if (started || cleared) return
     started = true
     launchStartedNs = launchedAtNs
-    val default = if (npuAvailable) "npu" else "gpu"
-    // A saved NPU choice from an install with the NPU runtime falls back to the GPU without it.
+    // An NPU start that never reached Ready (the process died while compiling) falls back to the
+    // GPU, and so does a saved NPU choice from an install that had the NPU runtime.
+    val npuUsable = npuAvailable && !preferences.getBoolean(NPU_PENDING, false)
+    preferences.edit().remove(NPU_PENDING).apply()
+    val default = if (npuUsable) "npu" else "gpu"
     val saved =
       (preferences.getString("accelerator", default) ?: default).let {
-        if (it == "npu" && !npuAvailable) "gpu" else it
+        if (it == "npu" && !npuUsable) "gpu" else it
       }
     val backend =
       try {
@@ -225,6 +228,9 @@ class MainViewModel(private val context: Context) : ViewModel() {
           )
         }
         compiling = true
+        if (backend == LayaEngine.Backend.NPU) {
+          preferences.edit().putBoolean(NPU_PENDING, true).commit()
+        }
         val compileStartedNs = System.nanoTime()
         helper.initialize(backend)
         val compileMs = milliseconds(System.nanoTime() - compileStartedNs)
@@ -237,6 +243,7 @@ class MainViewModel(private val context: Context) : ViewModel() {
         questions(state.preset).forEach { (id, question) ->
           answer(helper, state, id, LayaJson.asObject(question))
         }
+        preferences.edit().remove(NPU_PENDING).apply()
         val readyAtNs = System.nanoTime()
         val warmupMs = milliseconds(readyAtNs - warmStartedNs)
         val launchToReadyMs =
@@ -258,8 +265,10 @@ class MainViewModel(private val context: Context) : ViewModel() {
             "embedding_map_ms=${helper.embeddingLoadMs} compile_ms=$compileMs warmup_ms=$warmupMs",
         )
       } catch (failure: Exception) {
+        preferences.edit().remove(NPU_PENDING).apply()
         showFailure(failure, fallback = if (compiling) fallbackFor(backend) else null)
       } catch (failure: LinkageError) {
+        preferences.edit().remove(NPU_PENDING).apply()
         showFailure(failure, fallback = if (compiling) fallbackFor(backend) else null)
       }
     }
@@ -492,6 +501,9 @@ class MainViewModel(private val context: Context) : ViewModel() {
 
   companion object {
     private const val PROGRESS_STEP_BYTES = 1_000_000L
+
+    /** Set while an NPU compile runs; still set at the next launch if the process died in it. */
+    private const val NPU_PENDING = "npu_pending"
 
     // One download per process, so two ViewModel instances never write the same .part file.
     private val downloading = AtomicBoolean(false)

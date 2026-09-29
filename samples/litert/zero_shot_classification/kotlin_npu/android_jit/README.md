@@ -6,7 +6,7 @@ The NPU computes in FP16. The graph this app downloads, from revision `32f1b84d`
 
 ## Set up the NPU runtime
 
-Do this before any Gradle command: the build includes the runtime modules. The NPU runtime is Qualcomm's and is not in this repository. From this folder, put the LiteRT v2.2.0 release asset under `litert_npu_runtime_libraries/` and let its script add the Qualcomm AI Runtime libraries (a 2.3 GB download):
+Do this before any Gradle command: the build includes the runtime modules. The NPU runtime is Qualcomm's and is not in this repository. From this folder, put the LiteRT v2.2.0 release asset under `litert_npu_runtime_libraries/` and let its script add the Qualcomm AI Runtime libraries (a 2.3 GB download; the script uses `wget` and `unzip`):
 
 ```sh
 curl -LO https://github.com/google-ai-edge/LiteRT/releases/download/v2.2.0/litert_npu_runtime_libraries_jit.zip
@@ -33,18 +33,18 @@ java -jar bundletool-all.jar install-apks --apks=zero_shot.apks --device-groups=
 | SM8750 | `Qualcomm_SM8750` |
 | SM8850 | `Qualcomm_SM8850` |
 
-Tested on a Galaxy S26 (SM8850). The other three groups are included because LiteRT 2.2.0 lists their SoCs; they are not tested. Installed without the runtime module (for example with `./gradlew installDebug`), the app disables the NPU choice and runs on the GPU or the CPU. The first launch downloads the model files (679 MB), as the CPU/GPU app does.
+Tested on a Galaxy S26 (SM8850). The other three groups are included because LiteRT 2.2.0 lists their SoCs; they are not tested. Installed without the runtime module (for example with `./gradlew installDebug`), the app disables the NPU choice and runs on the GPU or the CPU. The app has its own application id, so it installs next to the CPU/GPU app; its first launch downloads the model files (679 MB).
 
 ## Check on the device
 
-The on-device check runs the 201 published reference rows on the NPU, the GPU and the CPU. It needs the debug bundle, installed the same way:
+The on-device check runs the 201 published reference rows on the NPU, the GPU and the CPU. LiteRT 2.2.0 runs the graph on the CPU when its NPU compile fails, so the NPU test also requires LiteRT's log line that the whole graph went to the NPU. The check needs the debug bundle, installed the same way:
 
 ```sh
 ./gradlew bundleDebug :app:assembleDebugAndroidTest
 java -jar bundletool-all.jar build-apks --bundle=app/build/outputs/bundle/debug/app-debug.aab --output=zero_shot_debug.apks --local-testing --overwrite
 java -jar bundletool-all.jar install-apks --apks=zero_shot_debug.apks --device-groups=Qualcomm_SM8850
 adb install -t app/build/outputs/apk/androidTest/debug/app-debug-androidTest.apk
-adb shell am instrument -w -e class com.google.ai.edge.examples.zero_shot_classification.ModelParityTest com.google.ai.edge.examples.zero_shot_classification.test/androidx.test.runner.AndroidJUnitRunner
+adb shell am instrument -w -e class com.google.ai.edge.examples.zero_shot_classification.ModelParityTest com.google.ai.edge.examples.zero_shot_classification.npu.test/androidx.test.runner.AndroidJUnitRunner
 ```
 
 ## Performance
