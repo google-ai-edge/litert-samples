@@ -55,7 +55,7 @@ class MainActivity : Activity() {
         }
         status = TextView(this).apply {
             textSize = 15f
-            text = "Loading Qwen3-TTS (three graphs, ~1.2 GB)…"
+            text = "Loading Qwen3-TTS (about 1 GB of graphs)…"
         }
         input = EditText(this).apply {
             setText("Hello! This is Qwen3 text to speech running on device.")
@@ -92,10 +92,11 @@ class MainActivity : Activity() {
                 val t0 = System.currentTimeMillis()
                 val e = Qwen3TtsEngine(filesDir)
                 engine = e
+                Log.i(tag, "graphs: ${e.graphNames}")
                 val tokenizerOk = tokenizerSelfTest(e)
                 val ms = System.currentTimeMillis() - t0
                 runOnUiThread {
-                    status.text = "Ready (loaded in ${ms / 1000.0}s" +
+                    status.text = "Ready (loaded in ${ms / 1000.0}s; ${e.graphNames}" +
                         (if (tokenizerOk) "" else "; TOKENIZER SELF-TEST FAILED, see logcat") +
                         "). CPU-only; expect a few seconds per second of audio."
                     speak.isEnabled = true
