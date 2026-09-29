@@ -163,30 +163,39 @@ std::vector<uint8_t> SdpaAttributes(float scale) {
 TfTensor AttentionRaw(const TfTensor& q, const TfTensor& k, const TfTensor& v,
                       float scale) {
   TfTensor scores = BatchMatMul(q, k, /*adj_x=*/false, /*adj_y=*/true);
-  scores = Mul(scores, ConstScalar(scale));
+  if (scale != 1.0f) scores = Mul(scores, ConstScalar(scale));
   TfTensor attn = Softmax(scores);
   return BatchMatMul(attn, v);
 }
 
-// Multi-head attention over token tensors. q [B,Nq,C], k/v [B,Nk,C] with C
-// = heads * head_dim -> [B,Nq,C]. Composite emission presents BSND operands
-// ([B,N,H,D], the odml.scaled_dot_product_attention delegate contract); the
-// decomposition transposes to BNSD and runs the same math, so CPU execution
-// is identical either way.
-TfTensor Mha(BuildContext& ctx, const TfTensor& q, const TfTensor& k,
-             const TfTensor& v, int heads) {
-  const auto& qs = q.GetShape();
-  const auto& ks = k.GetShape();
-  int b = qs[0];
-  int nq = qs[1];
-  int nk = ks[1];
-  int c = qs[2];
-  int hd = c / heads;
-  float scale = 1.0f / std::sqrt(static_cast<float>(hd));
+// Scales a constant tensor by `scale` at graph build time.
+TfTensor ScaleConst(const TfTensor& t, float scale, const std::string& name) {
+  std::vector<float> vals = HostFloats(t);
+  for (float& v : vals) v *= scale;
+  return ConstFloats(vals, t.GetShape(), name);
+}
 
-  TfTensor q4 = Reshape(q, {b, nq, heads, hd});
-  TfTensor k4 = Reshape(k, {b, nk, heads, hd});
-  TfTensor v4 = Reshape(v, {b, nk, heads, hd});
+// Multi-head attention over tensors with arbitrary leading spatial dims and
+// trailing channel dim C = heads * head_dim. Reshapes directly to the
+// attention layout and back to `out_shape`. When `q` is already pre-scaled by
+// 1/sqrt(head_dim), pass `scale = 1.0f` to omit the score-matrix Mul.
+TfTensor Mha(BuildContext& ctx, const TfTensor& q, const TfTensor& k,
+             const TfTensor& v, int batch, int nq, int nk, int heads,
+             const std::vector<int>& out_shape, float scale = 1.0f) {
+  int c = q.GetShape().back();
+  int hd = c / heads;
+
+  if (!ctx.config.use_sdpa_composite && !ctx.config.use_rbmm_attention &&
+      heads == 1) {
+    TfTensor qt = Reshape(q, {1, batch, nq, hd});
+    TfTensor kt = Reshape(k, {1, batch, nk, hd});
+    TfTensor vt = Reshape(v, {1, batch, nk, hd});
+    return Reshape(AttentionRaw(qt, kt, vt, scale), out_shape);
+  }
+
+  TfTensor q4 = Reshape(q, {batch, nq, heads, hd});
+  TfTensor k4 = Reshape(k, {batch, nk, heads, hd});
+  TfTensor v4 = Reshape(v, {batch, nk, heads, hd});
 
   TfTensor out;
   if (ctx.config.use_sdpa_composite) {
@@ -204,19 +213,13 @@ TfTensor Mha(BuildContext& ctx, const TfTensor& q, const TfTensor& k,
         },
         q4, k4, v4);
   } else if (ctx.config.use_rbmm_attention) {
-    // QK + AV odml.runtime_bmm pair with in-graph scale + softmax between.
-    // Both sides bound at the full length (elem2 = nk): dst-bounded QK
-    // writes every column and src-bounded AV reduces every position, so
-    // the composition is complete computation — no stale-tail hazard at
-    // full fill (that needs active < S).
     TfTensor qt = Transpose(q4, {0, 2, 1, 3});   // [B,H,M,D]
     TfTensor kt = Transpose(k4, {0, 2, 1, 3});   // [B,H,N,D]
     TfTensor param = ctx.RbmmParam(nk);
     TfTensor scores = RuntimeBmm(qt, kt, param, /*is_src=*/false);
-    scores = Mul(scores, ConstScalar(scale));
+    if (scale != 1.0f) scores = Mul(scores, ConstScalar(scale));
     TfTensor attn = Softmax(scores);             // [B,H,M,N]
-    TfTensor v4t = Transpose(v4, {0, 2, 3, 1});  // [B,H,D,N] (positions on
-                                                 // channels — the AV layout)
+    TfTensor v4t = Transpose(v4, {0, 2, 3, 1});  // [B,H,D,N]
     TfTensor o = RuntimeBmm(attn, v4t, param, /*is_src=*/true);  // [B,H,M,D]
     out = Transpose(o, {0, 2, 1, 3});
   } else {
@@ -226,15 +229,20 @@ TfTensor Mha(BuildContext& ctx, const TfTensor& q, const TfTensor& k,
     TfTensor o = AttentionRaw(qt, kt, vt, scale);
     out = Transpose(o, {0, 2, 1, 3});
   }
-  return Reshape(out, {b, nq, c});
+  return Reshape(out, out_shape);
 }
 
-// <=4-D window partition: [1,H,W,C] -> [nH*nW, ws, ws, C] (+pad). Splits H
-// into the batch, transposes, then splits W — this transposes row/col
-// WITHIN each window, which WindowUnpartition exactly inverts; window
-// attention (position already added) and the square symmetric query pooling
-// are order-equivariant, so results are numerically identical to the 6-D
-// reference form (proven at corr 1.0 in the converted-path work).
+TfTensor Mha(BuildContext& ctx, const TfTensor& q, const TfTensor& k,
+             const TfTensor& v, int heads, float scale = 1.0f) {
+  const auto& qs = q.GetShape();
+  const auto& ks = k.GetShape();
+  return Mha(ctx, q, k, v, qs[0], qs[1], ks[1], heads, qs, scale);
+}
+
+// <=4-D window partition: [1,H,W,C] -> [nH, nW*ws, ws, C] (+pad). Splits H
+// into the batch, transposes, then keeps nW*ws packed so projections and
+// stride-2 query pooling run directly without an extra Reshape; Mha reshapes
+// once into [nH*nW, ws*ws, heads, hd].
 TfTensor WindowPartition(const TfTensor& x, int h, int w, int c, int ws,
                          int* n_h, int* n_w) {
   int pad_h = (ws - h % ws) % ws;
@@ -246,16 +254,14 @@ TfTensor WindowPartition(const TfTensor& x, int h, int w, int c, int ws,
   *n_h = hp / ws;
   *n_w = wp / ws;
   t = Reshape(t, {*n_h, ws, wp, c});
-  t = Transpose(t, {0, 2, 1, 3});  // [nH, Wp, ws, C]
-  return Reshape(t, {(*n_h) * (*n_w), ws, ws, c});
+  return Transpose(t, {0, 2, 1, 3});  // [nH, Wp, ws, C]
 }
 
-// Exact inverse of WindowPartition at (possibly pooled) window size ws2,
-// cropping any padding down to [1, h, w, C].
+// Exact inverse of WindowPartition at (possibly pooled) window size ws2
+// from [nH, nW*ws2, ws2, C], cropping any padding down to [1, h, w, C].
 TfTensor WindowUnpartition(const TfTensor& windows, int n_h, int n_w, int ws2,
                            int h, int w, int c) {
-  TfTensor t = Reshape(windows, {n_h, n_w * ws2, ws2, c});
-  t = Transpose(t, {0, 2, 1, 3});  // [nH, ws2, nW*ws2, C]
+  TfTensor t = Transpose(windows, {0, 2, 1, 3});  // [nH, ws2, nW*ws2, C]
   int hp = n_h * ws2;
   int wp = n_w * ws2;
   t = Reshape(t, {1, hp, wp, c});
@@ -270,6 +276,8 @@ TfTensor MultiScaleBlock(BuildContext& ctx, const Sam2Config::BlockSpec& spec,
   const int dim = spec.dim;
   const int dim_out = spec.dim_out;
   const int h = spec.grid_in;
+  const int hd = dim_out / spec.heads;
+  const float q_scale = 1.0f / std::sqrt(static_cast<float>(hd));
 
   TfTensor shortcut = x;
   TfTensor xn = LayerNorm(ctx, x, W(weights, prefix + ".norm1.weight"),
@@ -284,49 +292,193 @@ TfTensor MultiScaleBlock(BuildContext& ctx, const Sam2Config::BlockSpec& spec,
     }
   }
 
-  // Tokens for attention: windows into the batch axis, or the full grid.
-  TfTensor tokens = xn;
+  // Fold 1/sqrt(hd) into the Q rows ([0, dim_out)) of the combined QKV
+  // projection at build time so the input is read by a single FullyConnected
+  // kernel while still eliminating the runtime score-matrix Mul.
+  std::vector<float> qkv_w =
+      HostFloats(W(weights, prefix + ".attn.qkv.weight"));
+  std::vector<float> qkv_b = HostFloats(W(weights, prefix + ".attn.qkv.bias"));
+  const size_t q_elems = static_cast<size_t>(dim_out) * dim;
+  for (size_t i = 0; i < q_elems; ++i) qkv_w[i] *= q_scale;
+  for (int i = 0; i < dim_out; ++i) qkv_b[i] *= q_scale;
+  TfTensor qkv_weight =
+      ConstFloats(qkv_w, {3 * dim_out, dim}, prefix + ".attn.qkv.weight");
+  TfTensor qkv_bias =
+      ConstFloats(qkv_b, {3 * dim_out}, prefix + ".attn.qkv.bias");
+  // When the map is not a multiple of the window, Hiera zero-pads the block
+  // INPUT before its qkv projection, so padded tokens carry qkv = bias and
+  // take part in attention as keys/values. Projecting the unpadded map
+  // WITHOUT bias, zero-padding, then adding the bias reproduces that exactly
+  // while skipping the projection of the padding (max-pooling q commutes with
+  // the per-channel bias).
+  auto bias_part = [&](int begin, int count, const std::string& suffix) {
+    return ConstFloats(std::vector<float>(qkv_b.begin() + begin,
+                                          qkv_b.begin() + begin + count),
+                       {count}, prefix + ".attn.qkv.bias" + suffix);
+  };
+
+  const int grid_out = spec.grid_out;
+  const int win = spec.window;
+  const int ws2 = (win > 0 && spec.q_stride > 0) ? win / spec.q_stride : win;
+  const bool plain_attn =
+      !ctx.config.use_sdpa_composite && !ctx.config.use_rbmm_attention;
   int n_h = 1;
   int n_w = 1;
   int batch = 1;
   int n = h * h;
-  int win = spec.window;
-  if (win > 0) {
-    tokens = WindowPartition(tokens, h, h, dim, win, &n_h, &n_w);
+  int nq = grid_out * grid_out;
+
+  TfTensor attn;
+  if (plain_attn && spec.q_stride == 0) {
+    TfTensor qkv;
+    if (win > 0 && h % win != 0) {
+      qkv = WindowPartition(FullyConnected(xn, qkv_weight), h, h, 3 * dim_out,
+                            win, &n_h, &n_w);
+      qkv = Add(qkv, qkv_bias);
+      batch = n_h * n_w;
+      n = win * win;
+      nq = ws2 * ws2;
+    } else {
+      TfTensor tokens = xn;
+      if (win > 0) {
+        tokens = WindowPartition(tokens, h, h, dim, win, &n_h, &n_w);
+        batch = n_h * n_w;
+        n = win * win;
+        nq = ws2 * ws2;
+        if (spec.heads == 1) {
+          tokens = Reshape(tokens, {1, batch, n, dim});
+        }
+      }
+      qkv = FullyConnected(tokens, qkv_weight, qkv_bias);
+    }
+    if (spec.heads == 1) {
+      TfTensor q = Slice(qkv, {0, 0, 0, 0}, {1, batch, n, dim_out});
+      TfTensor k = Slice(qkv, {0, 0, 0, dim_out}, {1, batch, n, dim_out});
+      TfTensor v = Slice(qkv, {0, 0, 0, 2 * dim_out}, {1, batch, n, dim_out});
+      TfTensor o = AttentionRaw(q, k, v, /*scale=*/1.0f);
+      attn = win > 0 ? Reshape(o, {n_h, n_w * ws2, ws2, dim_out})
+                     : Reshape(o, {1, grid_out, grid_out, dim_out});
+    } else if (batch == 1) {
+      qkv = Transpose(Reshape(qkv, {1, n, 3 * spec.heads, hd}), {0, 2, 1, 3});
+      TfTensor qt = Slice(qkv, {0, 0, 0, 0}, {1, spec.heads, n, hd});
+      TfTensor kt = Slice(qkv, {0, spec.heads, 0, 0}, {1, spec.heads, n, hd});
+      TfTensor vt =
+          Slice(qkv, {0, 2 * spec.heads, 0, 0}, {1, spec.heads, n, hd});
+      TfTensor o = AttentionRaw(qt, kt, vt, /*scale=*/1.0f);
+      attn =
+          Reshape(Transpose(o, {0, 2, 1, 3}), {1, grid_out, grid_out, dim_out});
+    } else {
+      const int bh = spec.heads * batch;
+      qkv = Reshape(
+          Transpose(Reshape(qkv, {batch, n, 3 * spec.heads, hd}), {2, 0, 1, 3}),
+          {1, 3 * bh, n, hd});
+      TfTensor qt = Slice(qkv, {0, 0, 0, 0}, {1, bh, n, hd});
+      TfTensor kt = Slice(qkv, {0, bh, 0, 0}, {1, bh, n, hd});
+      TfTensor vt = Slice(qkv, {0, 2 * bh, 0, 0}, {1, bh, n, hd});
+      TfTensor o = AttentionRaw(qt, kt, vt, /*scale=*/1.0f);
+      attn = Reshape(
+          Transpose(Reshape(o, {spec.heads, batch, n, hd}), {1, 2, 0, 3}),
+          {n_h, n_w * ws2, ws2, dim_out});
+    }
+  } else if (plain_attn && spec.q_stride > 0) {
+    TfTensor q;
+    TfTensor kv;
+    if (win > 0 && h % win != 0) {
+      TfTensor qkv = FullyConnected(xn, qkv_weight);
+      q = Slice(qkv, {0, 0, 0, 0}, {1, h, h, dim_out});
+      q = MaxPool2D(q, spec.q_stride, spec.q_stride, spec.q_stride,
+                    spec.q_stride, kPaddingValid);
+      q = WindowPartition(q, grid_out, grid_out, dim_out, ws2, &n_h, &n_w);
+      q = Add(q, bias_part(0, dim_out, ".q"));
+      kv = Slice(qkv, {0, 0, 0, dim_out}, {1, h, h, 2 * dim_out});
+      kv = WindowPartition(kv, h, h, 2 * dim_out, win, &n_h, &n_w);
+      kv = Add(kv, bias_part(dim_out, 2 * dim_out, ".kv"));
+    } else {
+      TfTensor tokens = WindowPartition(xn, h, h, dim, win, &n_h, &n_w);
+      TfTensor qkv = FullyConnected(tokens, qkv_weight, qkv_bias);
+      std::vector<int> q_slice = tokens.GetShape();
+      q_slice.back() = dim_out;
+      q = Slice(qkv, {0, 0, 0, 0}, q_slice);
+      q = MaxPool2D(q, spec.q_stride, spec.q_stride, spec.q_stride,
+                    spec.q_stride, kPaddingValid);
+      std::vector<int> kv_slice = tokens.GetShape();
+      kv_slice.back() = 2 * dim_out;
+      kv = Slice(qkv, {0, 0, 0, dim_out}, kv_slice);
+    }
     batch = n_h * n_w;
     n = win * win;
+    nq = ws2 * ws2;
+    const int bh = spec.heads * batch;
+    TfTensor qt = Reshape(
+        Transpose(Reshape(q, {batch, nq, spec.heads, hd}), {2, 0, 1, 3}),
+        {1, bh, nq, hd});
+    kv = Reshape(
+        Transpose(Reshape(kv, {batch, n, 2 * spec.heads, hd}), {2, 0, 1, 3}),
+        {1, 2 * bh, n, hd});
+    TfTensor kt = Slice(kv, {0, 0, 0, 0}, {1, bh, n, hd});
+    TfTensor vt = Slice(kv, {0, bh, 0, 0}, {1, bh, n, hd});
+    TfTensor o = AttentionRaw(qt, kt, vt, /*scale=*/1.0f);
+    attn = Reshape(
+        Transpose(Reshape(o, {spec.heads, batch, nq, hd}), {1, 2, 0, 3}),
+        {n_h, n_w * ws2, ws2, dim_out});
+  } else {
+    TfTensor q;
+    TfTensor k;
+    TfTensor v;
+    if (win > 0 && h % win != 0) {
+      TfTensor qkv = FullyConnected(xn, qkv_weight);
+      if (spec.q_stride > 0) {
+        q = Slice(qkv, {0, 0, 0, 0}, {1, h, h, dim_out});
+        q = MaxPool2D(q, spec.q_stride, spec.q_stride, spec.q_stride,
+                      spec.q_stride, kPaddingValid);
+        q = WindowPartition(q, grid_out, grid_out, dim_out, ws2, &n_h, &n_w);
+        q = Add(q, bias_part(0, dim_out, ".q"));
+        TfTensor kv = Slice(qkv, {0, 0, 0, dim_out}, {1, h, h, 2 * dim_out});
+        kv = WindowPartition(kv, h, h, 2 * dim_out, win, &n_h, &n_w);
+        kv = Add(kv, bias_part(dim_out, 2 * dim_out, ".kv"));
+        std::vector<int> kv_slice = kv.GetShape();
+        kv_slice.back() = dim_out;
+        k = Slice(kv, {0, 0, 0, 0}, kv_slice);
+        v = Slice(kv, {0, 0, 0, dim_out}, kv_slice);
+      } else {
+        qkv = WindowPartition(qkv, h, h, 3 * dim_out, win, &n_h, &n_w);
+        qkv = Add(qkv, qkv_bias);
+        std::vector<int> slice_shape = qkv.GetShape();
+        slice_shape.back() = dim_out;
+        q = Slice(qkv, {0, 0, 0, 0}, slice_shape);
+        k = Slice(qkv, {0, 0, 0, dim_out}, slice_shape);
+        v = Slice(qkv, {0, 0, 0, 2 * dim_out}, slice_shape);
+      }
+      batch = n_h * n_w;
+      n = win * win;
+      nq = ws2 * ws2;
+    } else {
+      TfTensor tokens = xn;
+      if (win > 0) {
+        tokens = WindowPartition(tokens, h, h, dim, win, &n_h, &n_w);
+        batch = n_h * n_w;
+        n = win * win;
+        nq = ws2 * ws2;
+      }
+      TfTensor qkv = FullyConnected(tokens, qkv_weight, qkv_bias);
+      std::vector<int> slice_shape = tokens.GetShape();
+      slice_shape.back() = dim_out;
+      q = Slice(qkv, {0, 0, 0, 0}, slice_shape);
+      k = Slice(qkv, {0, 0, 0, dim_out}, slice_shape);
+      v = Slice(qkv, {0, 0, 0, 2 * dim_out}, slice_shape);
+      if (spec.q_stride > 0) {
+        q = MaxPool2D(q, spec.q_stride, spec.q_stride, spec.q_stride,
+                      spec.q_stride, kPaddingValid);
+      }
+    }
+    attn = Mha(ctx, q, k, v, batch, nq, n, spec.heads, q.GetShape(),
+               /*scale=*/1.0f);
   }
-  tokens = Reshape(tokens, {batch, n, dim});
-
-  TfTensor qkv = FullyConnected(tokens, W(weights, prefix + ".attn.qkv.weight"),
-                                W(weights, prefix + ".attn.qkv.bias"));
-  TfTensor q = Slice(qkv, {0, 0, 0}, {batch, n, dim_out});
-  TfTensor k = Slice(qkv, {0, 0, dim_out}, {batch, n, dim_out});
-  TfTensor v = Slice(qkv, {0, 0, 2 * dim_out}, {batch, n, dim_out});
-
-  int nq = n;
-  if (spec.q_stride > 0) {
-    int side = win > 0 ? win : h;
-    q = Reshape(q, {batch, side, side, dim_out});
-    q = MaxPool2D(q, spec.q_stride, spec.q_stride, spec.q_stride,
-                  spec.q_stride, kPaddingValid);
-    int side2 = side / spec.q_stride;
-    nq = side2 * side2;
-    q = Reshape(q, {batch, nq, dim_out});
+  if (win > 0) {
+    attn = WindowUnpartition(attn, n_h, n_w, ws2, grid_out, grid_out, dim_out);
   }
-
-  TfTensor attn = Mha(ctx, q, k, v, spec.heads);
   attn = FullyConnected(attn, W(weights, prefix + ".attn.proj.weight"),
                         W(weights, prefix + ".attn.proj.bias"));
-
-  int grid_out = spec.grid_out;
-  if (win > 0) {
-    int ws2 = spec.q_stride > 0 ? win / spec.q_stride : win;
-    attn = Reshape(attn, {batch, ws2, ws2, dim_out});
-    attn = WindowUnpartition(attn, n_h, n_w, ws2, grid_out, grid_out, dim_out);
-  } else {
-    attn = Reshape(attn, {1, grid_out, grid_out, dim_out});
-  }
 
   TfTensor merged = Add(shortcut, attn);
   TfTensor m = LayerNorm(ctx, merged, W(weights, prefix + ".norm2.weight"),
@@ -346,13 +498,18 @@ TfTensor SamAttention(BuildContext& ctx, const TfTensor& q_in,
                       const TfTensor& k_in, const TfTensor& v_in,
                       const std::string& prefix, const WeightMap& weights,
                       int heads) {
-  TfTensor q = FullyConnected(q_in, W(weights, prefix + ".q_proj.weight"),
-                              W(weights, prefix + ".q_proj.bias"));
+  const TfTensor& qw = W(weights, prefix + ".q_proj.weight");
+  const TfTensor& qb = W(weights, prefix + ".q_proj.bias");
+  const int hd = qw.GetShape()[0] / heads;
+  const float q_scale = 1.0f / std::sqrt(static_cast<float>(hd));
+  TfTensor q =
+      FullyConnected(q_in, ScaleConst(qw, q_scale, prefix + ".q_proj.weight"),
+                     ScaleConst(qb, q_scale, prefix + ".q_proj.bias"));
   TfTensor k = FullyConnected(k_in, W(weights, prefix + ".k_proj.weight"),
                               W(weights, prefix + ".k_proj.bias"));
   TfTensor v = FullyConnected(v_in, W(weights, prefix + ".v_proj.weight"),
                               W(weights, prefix + ".v_proj.bias"));
-  TfTensor out = Mha(ctx, q, k, v, heads);
+  TfTensor out = Mha(ctx, q, k, v, heads, /*scale=*/1.0f);
   return FullyConnected(out, W(weights, prefix + ".out_proj.weight"),
                         W(weights, prefix + ".out_proj.bias"));
 }
