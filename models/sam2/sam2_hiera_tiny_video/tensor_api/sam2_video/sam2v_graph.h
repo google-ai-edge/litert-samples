@@ -29,6 +29,8 @@
 #ifndef MODELS_SAM2_SAM2_HIERA_TINY_VIDEO_TENSOR_API_SAM2_VIDEO_SAM2V_GRAPH_H_
 #define MODELS_SAM2_SAM2_HIERA_TINY_VIDEO_TENSOR_API_SAM2_VIDEO_SAM2V_GRAPH_H_
 
+#include <functional>
+#include <map>
 #include <string>
 #include <vector>
 
@@ -40,6 +42,22 @@ namespace litert::tensor::examples::sam2_video {
 using ::litert::tensor::examples::sam2::Sam2Config;
 using ::litert::tensor::examples::sam2::TfTensor;
 using ::litert::tensor::examples::sam2::WeightMap;
+
+// Constants baked from the weights at graph-build time (pre-scaled
+// projections, sign-baked RoPE tables, position grids, ...). Pass ONE cache
+// to every Build* call that goes into the same ModelFactory so the signatures
+// share a single copy of each constant in the flatbuffer. Use a fresh cache
+// per WeightMap: entries are keyed by name, not by weight contents. Build*
+// calls without a cache (nullptr) bake their own copies, which is correct but
+// duplicates the constants across signatures.
+class ConstCache {
+ public:
+  const TfTensor& GetOrCreate(const std::string& key,
+                              const std::function<TfTensor()>& make);
+
+ private:
+  std::map<std::string, TfTensor> entries_;
+};
 
 struct Sam2VideoConfig {
   Sam2Config image;  // image_size = 1024 for the video pipeline
@@ -111,13 +129,16 @@ MemorizeInputs MakeMemorizeInputs(const Sam2VideoConfig& config);
 
 // pix_feat [1, G, G, 256] token-major output, named "pix_feat".
 TfTensor BuildMemCond(const Sam2VideoConfig& config, int nmm,
-                      const MemCondInputs& inputs, const WeightMap& weights);
+                      const MemCondInputs& inputs, const WeightMap& weights,
+                      ConstCache* cache = nullptr);
 VideoDecoderOutputs BuildVideoDecoder(const Sam2VideoConfig& config,
                                       const VideoDecoderInputs& inputs,
-                                      const WeightMap& weights);
+                                      const WeightMap& weights,
+                                      ConstCache* cache = nullptr);
 // mem [1, 4096, 64] token-major output, named "mem".
 TfTensor BuildMemorize(const Sam2VideoConfig& config,
-                       const MemorizeInputs& inputs, const WeightMap& weights);
+                       const MemorizeInputs& inputs, const WeightMap& weights,
+                       ConstCache* cache = nullptr);
 
 }  // namespace litert::tensor::examples::sam2_video
 

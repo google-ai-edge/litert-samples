@@ -118,15 +118,32 @@ the CPU fp32 parity results are unchanged (see below).
     padding. Padded tokens therefore still carry `qkv = bias`, as in Hiera,
     which zero-pads the block input before `qkv`.
 *   **Image mask decoder.** The attention scale is folded into `q_proj`.
+*   **Memory attention.** The rotate-half RoPE sign is baked into the
+    `sin` table, so the rotation is `x*cos + swap_halves(x)*sin`, with no
+    `Neg` op. The attention scale is folded into the q projection.
+*   **Video mask decoder.** The attention scale is folded into q. The
+    duplicate `keys + key_pe` add is removed. The no-memory and no-mask
+    biases are combined before the full-map add. The mask head's
+    `BatchMatMul` uses rank-4 operands.
+*   **Shared baked constants.** `s2v::ConstCache` is passed to every
+    `Build*` call that goes into one `ModelFactory`. Constants derived from
+    the weights at build time (pre-scaled projections, sign-baked RoPE
+    tables, the dense PE grid) are then stored once, not once per
+    signature.
 
 | Signature (CPU fp32 flatbuffer) | Before | After |
 |---|---|---|
 | video `encode` (1024) / image `encode_image` (512) | 594 / 595 ops | 521 / 522 ops |
 | image `decode_mask` | 276 ops | 269 ops |
+| `memcond7` / `memcond2` | 346 / 346 ops | 313 / 313 ops |
+| `decode` | 274 ops | 266 ops |
+| `sam2_video.tflite` (1024, fp32) | 212.6 MB | 207.4 MB |
 
 Parity after these rewrites (CPU fp32): `sam2_image/verify/sam2_torch_ref.py`
 at 512 reports PARITY: PASS, with all correlations at 1.000000 and IoU scores
-identical to the reference.
+identical to the reference. `verify_video_1024.py compare` on the 10-frame
+clip gives min mask-IoU 1.0000 and max|dmask| 0.008 for both bank sizes,
+the same as before.
 
 ## Measured highlights
 

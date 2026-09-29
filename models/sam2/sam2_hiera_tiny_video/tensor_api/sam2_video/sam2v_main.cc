@@ -276,19 +276,21 @@ absl::Status Run() {
   consts.tpos_b = HostFloatsOf(weights, "obj_ptr_tpos_proj.bias");
 
   // ---- Build the five signatures (shared weights, one flatbuffer). ----
+  // One cache for the whole model: signatures share each baked constant.
+  s2v::ConstCache cache;
   sam2::EncoderInputs enc_in = sam2::MakeEncoderInputs(img);
   sam2::EncoderOutputs enc_out = sam2::BuildEncoder(img, enc_in, weights);
   enc_out.image_embeddings.SetName("pix_raw");
 
   s2v::MemCondInputs mc7_in = s2v::MakeMemCondInputs(config, 7);
-  s2v::TfTensor mc7_out = s2v::BuildMemCond(config, 7, mc7_in, weights);
+  s2v::TfTensor mc7_out = s2v::BuildMemCond(config, 7, mc7_in, weights, &cache);
   s2v::MemCondInputs mc2_in = s2v::MakeMemCondInputs(config, 2);
-  s2v::TfTensor mc2_out = s2v::BuildMemCond(config, 2, mc2_in, weights);
+  s2v::TfTensor mc2_out = s2v::BuildMemCond(config, 2, mc2_in, weights, &cache);
   s2v::VideoDecoderInputs dec_in = s2v::MakeVideoDecoderInputs(config);
   s2v::VideoDecoderOutputs dec_out =
-      s2v::BuildVideoDecoder(config, dec_in, weights);
+      s2v::BuildVideoDecoder(config, dec_in, weights, &cache);
   s2v::MemorizeInputs mem_in = s2v::MakeMemorizeInputs(config);
-  s2v::TfTensor mem_out = s2v::BuildMemorize(config, mem_in, weights);
+  s2v::TfTensor mem_out = s2v::BuildMemorize(config, mem_in, weights, &cache);
 
   ModelFactory factory;
   auto add_sig = [&](std::vector<s2v::TfTensor> ins,
