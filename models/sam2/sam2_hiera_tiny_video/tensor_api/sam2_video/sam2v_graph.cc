@@ -188,6 +188,15 @@ TfTensor Rope(const TfTensor& x, const TfTensor& cos, const TfTensor& sin) {
   return Add(Mul(x, cos), Mul(SwapHalf(x), sin));
 }
 
+// Exact step indicator in {0, 1} for x > 0 using only Relu, Mul, and Sub:
+//   StepPos(x, scale) = 1 - Relu(1 - scale * Relu(x))
+// Avoids Greater/GreaterEqual/Cast(bool->fp32) so fused step signatures stay
+// 100% in a single WebGPU delegate partition without CPU fallback.
+TfTensor StepPos(const TfTensor& x, float scale = 1e4f) {
+  const TfTensor one = ConstScalar(1.0f);
+  return Sub(one, Relu(Sub(one, Mul(Relu(x), ConstScalar(scale)))));
+}
+
 }  // namespace
 
 const TfTensor& ConstCache::GetOrCreate(const std::string& key,
@@ -382,7 +391,7 @@ TfTensor BuildMemCond(const Sam2VideoConfig& config, int nmm,
 VideoDecoderOutputs BuildVideoDecoder(const Sam2VideoConfig& config,
                                       const VideoDecoderInputs& inputs,
                                       const WeightMap& weights,
-                                      ConstCache* cache_in) {
+                                      int mask_mode, ConstCache* cache_in) {
   ConstCache local_cache;
   ConstCache& cache = cache_in ? *cache_in : local_cache;
   const Sam2Config& img = config.image;
@@ -489,40 +498,182 @@ VideoDecoderOutputs BuildVideoDecoder(const Sam2VideoConfig& config,
   up = Add(up, inputs.feat_s0);
   up = Gelu(up);  // [1, mg, mg, 32]
 
-  // Heads: ALL four mask tokens (host picks argmax iou over 1..3).
+  // Heads:
+  //   mask_mode == 0: all 4 masks [1,4,mg,mg], all 4 obj_ptr [1,4,256]
+  //   mask_mode == 1 (multimask=true in BuildStep): masks 1..3 [1,3,mg,mg],
+  //                   obj_ptr 1..3 [1,3,256] (token 0 is never selected)
+  //   mask_mode == 2 (multimask=false in BuildStep): all 4 masks [1,4,mg,mg],
+  //                   obj_ptr 0 only [1,1,256] (token 0's ptr is always used)
   TfTensor obj_tok = Slice(queries, {0, 0, 0}, {1, 1, img.d_model});
   TfTensor iou_tok = Slice(queries, {0, 1, 0}, {1, 1, img.d_model});
+  const int first_mask = (mask_mode == 1) ? 1 : 0;
+  const int num_masks = 4 - first_mask;
   std::vector<TfTensor> hyper;
-  hyper.reserve(4);
-  for (int i = 0; i < 4; ++i) {
+  hyper.reserve(num_masks);
+  for (int i = first_mask; i < 4; ++i) {
     TfTensor tok = Slice(queries, {0, 2 + i, 0}, {1, 1, img.d_model});
     hyper.push_back(SamMlp3(
         tok, absl::StrCat(dec, ".output_hypernetworks_mlps.", i), weights,
         /*sigmoid_output=*/false));  // [1,1,32]
   }
-  // 4D operands keep the BatchMatMul in one GPU partition.
-  TfTensor hyper_all = Reshape(
-      Concatenation({hyper[0], hyper[1], hyper[2], hyper[3]}, /*axis=*/1),
-      {1, 1, 4, 32});
+  TfTensor hyper_cat =
+      num_masks == 3
+          ? Concatenation({hyper[0], hyper[1], hyper[2]}, /*axis=*/1)
+          : Concatenation({hyper[0], hyper[1], hyper[2], hyper[3]}, /*axis=*/1);
+  TfTensor hyper_all = Reshape(hyper_cat, {1, 1, num_masks, 32});
   TfTensor up_flat = Reshape(up, {1, 1, mg * mg, 32});
   TfTensor masks = BatchMatMul(hyper_all, up_flat, /*adj_x=*/false,
-                               /*adj_y=*/true);  // [1,1,4,mg*mg]
+                               /*adj_y=*/true);  // [1,1,num_masks,mg*mg]
 
   VideoDecoderOutputs out;
-  out.masks = Reshape(masks, {1, 4, mg, mg});
+  out.masks = Reshape(masks, {1, num_masks, mg, mg});
   out.masks.SetName("masks");
   TfTensor iou4 = SamMlp3(iou_tok, dec + ".iou_prediction_head", weights,
                           /*sigmoid_output=*/true);  // [1,1,4]
   out.iou_scores = Reshape(iou4, {1, 4});
   out.iou_scores.SetName("iou_scores");
-  TfTensor ptr_toks = Slice(queries, {0, 2, 0}, {1, 4, img.d_model});
+  TfTensor ptr_toks = (mask_mode == 1)
+                          ? Slice(queries, {0, 3, 0}, {1, 3, img.d_model})
+                      : (mask_mode == 2)
+                          ? Slice(queries, {0, 2, 0}, {1, 1, img.d_model})
+                          : Slice(queries, {0, 2, 0}, {1, 4, img.d_model});
   out.obj_ptr = SamMlp3(ptr_toks, "obj_ptr_proj", weights,
-                        /*sigmoid_output=*/false);  // [1,4,256]
+                        /*sigmoid_output=*/false);
   out.obj_ptr.SetName("obj_ptr");
   TfTensor obj = SamMlp3(obj_tok, dec + ".pred_obj_score_head", weights,
                          /*sigmoid_output=*/false);
   out.object_score = Reshape(obj, {1, 1});
   out.object_score.SetName("object_score");
+  return out;
+}
+
+StepOutputs BuildStep(const Sam2VideoConfig& config,
+                      const VideoDecoderInputs& dec_in,
+                      const TfTensor& pix_raw, const WeightMap& weights,
+                      bool multimask, int binarize_mode,
+                      ConstCache* cache_in) {
+  ConstCache local_cache;
+  ConstCache& cache = cache_in ? *cache_in : local_cache;
+  const int mg = config.image.mask_grid();
+  const int plane = mg * mg;
+  const int s = config.image.image_size;
+  const int hd = config.hidden;
+  const int mask_mode = multimask ? 1 : 2;
+  VideoDecoderOutputs dec =
+      BuildVideoDecoder(config, dec_in, weights, mask_mode, &cache);
+  const TfTensor kOne = ConstScalar(1.0f);
+  const TfTensor kTieEps = ConstScalar(1e-5f);
+
+  // One-hot over mask tokens 1..3 where the FIRST max wins, using StepPos
+  // (Relu/Mul/Sub) so there are no BOOL tensors or Cast ops.
+  TfTensor s1 = Slice(dec.iou_scores, {0, 1}, {1, 1});
+  TfTensor s2 = Slice(dec.iou_scores, {0, 2}, {1, 1});
+  TfTensor s3 = Slice(dec.iou_scores, {0, 3}, {1, 1});
+  TfTensor ge12 = StepPos(Add(Sub(s1, s2), kTieEps), 1e4f);
+  TfTensor ge13 = StepPos(Add(Sub(s1, s3), kTieEps), 1e4f);
+  TfTensor ge23 = StepPos(Add(Sub(s2, s3), kTieEps), 1e4f);
+  TfTensor w1 = Mul(ge12, ge13);
+  TfTensor w2 = Mul(Sub(kOne, w1), ge23);
+  TfTensor w3 = Sub(Sub(kOne, w1), w2);
+
+  TfTensor best_mask;
+  TfTensor best_ptr;
+  TfTensor best_iou;
+  if (multimask) {
+    TfTensor w123 =
+        Reshape(Concatenation({w1, w2, w3}, /*axis=*/1), {1, 1, 1, 3});
+    best_mask = Reshape(
+        BatchMatMul(w123, Reshape(dec.masks, {1, 1, 3, plane}),
+                    /*adj_x=*/false, /*adj_y=*/false),
+        {1, 1, mg, mg});
+    best_ptr = Reshape(
+        BatchMatMul(w123, Reshape(dec.obj_ptr, {1, 1, 3, hd}),
+                    /*adj_x=*/false, /*adj_y=*/false),
+        {1, 1, hd});
+    TfTensor iou13 = Slice(dec.iou_scores, {0, 1}, {1, 3});
+    best_iou = Reshape(
+        BatchMatMul(w123, Reshape(iou13, {1, 1, 3, 1}),
+                    /*adj_x=*/false, /*adj_y=*/false),
+        {1, 1});
+  } else {
+    // 2+ points: single-mask token 0 unless unstable (dynamic multimask via
+    // stability). Mean over the last axis of a 4D tensor avoids fp16 overflow
+    // and matches LayerNorm's 4D reduction layout on WebGPU.
+    TfTensor m0 =
+        Reshape(Slice(dec.masks, {0, 0, 0, 0}, {1, 1, mg, mg}),
+                {1, 1, 1, plane});
+    TfTensor gt_pos = StepPos(Add(m0, ConstScalar(-0.05f)), 1e4f);
+    TfTensor gt_neg = StepPos(Add(m0, ConstScalar(0.05f)), 1e4f);
+    TfTensor diff = Sub(gt_pos, Mul(gt_neg, ConstScalar(0.98f)));
+    TfTensor mean_diff = Reshape(Mean(diff, {3}, /*keep_dims=*/true), {1, 1});
+    TfTensor stable = StepPos(
+        Add(Mul(mean_diff, ConstScalar(4096.0f)), ConstScalar(5e-4f)), 2e3f);
+    TfTensor unstable = Sub(kOne, stable);
+    TfTensor zero11 = cache.GetOrCreate("zero_1x1", [&] {
+      return ConstFloats({0.0f}, {1, 1}, "zero_1x1");
+    });
+    TfTensor e0 = cache.GetOrCreate("e0_1x4", [&] {
+      return ConstFloats({1.0f, 0.0f, 0.0f, 0.0f}, {1, 4}, "e0_1x4");
+    });
+    TfTensor w_best = Concatenation({zero11, w1, w2, w3}, /*axis=*/1);
+    TfTensor w_single = Reshape(
+        Add(Mul(e0, stable), Mul(w_best, unstable)), {1, 1, 1, 4});
+    best_mask = Reshape(
+        BatchMatMul(w_single, Reshape(dec.masks, {1, 1, 4, plane}),
+                    /*adj_x=*/false, /*adj_y=*/false),
+        {1, 1, mg, mg});
+    best_iou = Reshape(
+        BatchMatMul(w_single, Reshape(dec.iou_scores, {1, 1, 4, 1}),
+                    /*adj_x=*/false, /*adj_y=*/false),
+        {1, 1});
+    best_ptr = dec.obj_ptr;  // [1, 1, hd] (always token 0)
+  }
+
+  // No-object handling: a = object_score > 0.
+  TfTensor a = StepPos(dec.object_score, 1e4f);  // [1, 1]
+  TfTensor not_a = Sub(kOne, a);
+  TfTensor a4 = Reshape(a, {1, 1, 1, 1});
+  TfTensor not_a4 = Reshape(not_a, {1, 1, 1, 1});
+  TfTensor low = Add(Mul(best_mask, a4), Mul(not_a4, ConstScalar(-1024.0f)));
+  TfTensor no_obj_ptr = cache.GetOrCreate("no_obj_ptr_row", [&] {
+    return ConstFloats(HostFloats(W(weights, "no_obj_ptr")), {1, 1, hd},
+                       "no_obj_ptr_row");
+  });
+  TfTensor ptr = Add(Mul(best_ptr, Reshape(a, {1, 1, 1})),
+                     Mul(no_obj_ptr, Reshape(not_a, {1, 1, 1})));
+
+  // Upsample low-res mask [1, 1, mg, mg] -> [1, mg, mg, 1] -> [1, s, s, 1]
+  // via native ResizeBilinear (replaces 2x constant-weight FullyConnected +
+  // 2x Transpose + 2x Reshape).
+  TfTensor high = ResizeBilinear(Reshape(low, {1, mg, mg, 1}), {s, s},
+                                 /*align_corners=*/false,
+                                 /*half_pixel_centers=*/true);
+  TfTensor mfm;
+  if (binarize_mode == 1) {
+    mfm = Sub(Mul(StepPos(high, 1e4f), ConstScalar(20.0f)), ConstScalar(10.0f));
+  } else if (binarize_mode == 0) {
+    mfm = Sub(Mul(Logistic(high), ConstScalar(20.0f)), ConstScalar(10.0f));
+  } else {
+    TfTensor prompted = dec_in.nomem;  // [1,1,1,1]
+    TfTensor stepped = Mul(StepPos(high, 1e4f), ConstScalar(20.0f));
+    TfTensor sig = Mul(Logistic(high), ConstScalar(20.0f));
+    mfm = Sub(Add(Mul(prompted, stepped), Mul(Sub(kOne, prompted), sig)),
+              ConstScalar(10.0f));
+  }
+
+  MemorizeInputs mi{.pix_raw = pix_raw, .mask_for_mem = mfm,
+                    .occ = Reshape(not_a, {1, 1, 1})};
+  StepOutputs out;
+  out.mem = BuildMemorize(config, mi, weights, &cache);
+  out.mem.SetName("mem");
+  out.ptr = Reshape(ptr, {1, hd});
+  out.ptr.SetName("ptr");
+  out.low_mask = Reshape(low, {1, mg, mg});
+  out.low_mask.SetName("low_mask");
+  out.object_score = Reshape(dec.object_score, {1, 1});
+  out.object_score.SetName("object_score");
+  out.iou = Reshape(best_iou, {1, 1});
+  out.iou.SetName("iou");
   return out;
 }
 

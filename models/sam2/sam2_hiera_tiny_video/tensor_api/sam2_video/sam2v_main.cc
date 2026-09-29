@@ -33,6 +33,7 @@
 #include "litert/cc/litert_options.h"
 #include "litert/cc/options/litert_gpu_options.h"
 #include "tensor/backends/tflite/tflite_flatbuffer_conversion.h"
+#include "tensor/buffer.h"
 #include "tensor/datatypes.h"
 #include "models/sam2/sam2_hiera_tiny_video/tensor_api/sam2_image/sam2_config.h"
 #include "models/sam2/sam2_hiera_tiny_video/tensor_api/sam2_image/sam2_graph.h"
@@ -53,6 +54,16 @@ ABSL_FLAG(std::string, gpu_precision, "fp16",
           "default; fp32 for CPU-parity verification)");
 ABSL_FLAG(std::string, gpu_buffer_storage, "default",
           "default|buffer|texture2d");
+ABSL_FLAG(int, image_size, 1024,
+          "Model input side: 1024 (native), 512 or 384 (the smaller sizes need "
+          "a weight file with the resolution-dependent tables re-derived)");
+ABSL_FLAG(std::string, attention, "raw",
+          "raw|sdpa — image-encoder attention as raw ops or the "
+          "odml.scaled_dot_product_attention composite (fused on delegates "
+          "that support it; identical math on CPU)");
+ABSL_FLAG(std::string, norms, "raw",
+          "raw|composite — image-path LayerNorms as raw ops or the "
+          "odml.layer_norm composite");
 ABSL_FLAG(int, nmm, 7, "Memory-bank slots used by the loop (7 or 2)");
 ABSL_FLAG(int, frames, 10, "Frames to track");
 ABSL_FLAG(std::string, frames_file, "",
@@ -63,6 +74,10 @@ ABSL_FLAG(double, click_x, 400.0, "Frame-0 click x in image space");
 ABSL_FLAG(double, click_y, 512.0, "Frame-0 click y in image space");
 ABSL_FLAG(std::string, dump_dir, "",
           "If set, write per-frame mask/obj/ptr/mem/pix_feat raw fp32");
+ABSL_FLAG(std::string, path, "classic",
+          "classic|fused — classic runs memcond/decode/memorize with the host "
+          "post-processing in between; fused runs one step_prompt / step{nmm} "
+          "signature per frame (post-processing in-graph)");
 ABSL_FLAG(int, bench_loops, 1,
           "Repeat the whole clip N times and report warm per-stage medians "
           "(first pass excluded when N > 1)");
@@ -76,13 +91,14 @@ using ::litert::tensor::Type;
 namespace sam2 = ::litert::tensor::examples::sam2;
 namespace s2v = ::litert::tensor::examples::sam2_video;
 
-constexpr int kSize = 1024;
-constexpr int kGrid = 64;                 // top-level feature grid
-constexpr int kHw = kGrid * kGrid;        // 4096
+// Resolution-dependent sizes, set from --image_size at the start of Run().
+int kSize = 1024;
+int kGrid = 64;                           // top-level feature grid
+int kHw = kGrid * kGrid;                  // 4096
 constexpr int kHidden = 256;
 constexpr int kMemCh = 64;
-constexpr int kMaskGrid = 256;            // low-res mask side
-constexpr int kPlane = kMaskGrid * kMaskGrid;
+int kMaskGrid = 256;                      // low-res mask side
+int kPlane = kMaskGrid * kMaskGrid;
 constexpr int kNptrFrames = 16;
 constexpr int kPtrSplit = 4;
 constexpr int kNptr = kNptrFrames * kPtrSplit;  // 64
@@ -91,6 +107,7 @@ constexpr int kNptr = kNptrFrames * kPtrSplit;  // 64
 // zero weight in fp32, so parity is unaffected.
 constexpr float kMaskNeg = -30000.0f;
 constexpr float kNoObjScore = -1024.0f;
+constexpr int kMaxClicks = 8;  // step_prompt{2..8} signatures
 constexpr float kMemScale = 20.0f;
 constexpr float kMemBias = -10.0f;
 constexpr float kTwoPi = 6.283185307179586f;
@@ -182,7 +199,7 @@ std::vector<float> HostFloatsOf(const s2v::WeightMap& weights,
   return std::vector<float>(data, data + lock.size() / sizeof(float));
 }
 
-// Bilinear 256 -> 1024, align_corners=false (torch semantics).
+// Bilinear kMaskGrid -> kSize (4x), align_corners=false (torch semantics).
 void Upsample1024(const float* low, std::vector<float>& high) {
   const float scale = static_cast<float>(kMaskGrid) / kSize;  // 0.25
   for (int y = 0; y < kSize; ++y) {
@@ -228,7 +245,7 @@ std::vector<float> CircleFrame() {
 }
 
 struct StageTimes {
-  std::vector<double> encode, memcond, decode, memorize, host, e2e;
+  std::vector<double> encode, memcond, decode, memorize, host, step, e2e;
 };
 
 absl::Status Run() {
@@ -237,9 +254,28 @@ absl::Status Run() {
     return absl::InvalidArgumentError("--nmm must be 7 or 2");
   }
   const int T = absl::GetFlag(FLAGS_frames);
+  kSize = absl::GetFlag(FLAGS_image_size);
+  if (kSize != 1024 && kSize != 512 && kSize != 384) {
+    return absl::InvalidArgumentError("--image_size must be 1024, 512 or 384");
+  }
+  kGrid = kSize / 16;
+  kHw = kGrid * kGrid;
+  kMaskGrid = kSize / 4;
+  kPlane = kMaskGrid * kMaskGrid;
 
-  s2v::Sam2VideoConfig config;  // image_size = 1024
+  s2v::Sam2VideoConfig config;
   sam2::Sam2Config& img = config.image;
+  img.image_size = kSize;
+  const std::string attention = absl::GetFlag(FLAGS_attention);
+  const std::string norms = absl::GetFlag(FLAGS_norms);
+  if (attention != "raw" && attention != "sdpa") {
+    return absl::InvalidArgumentError("--attention must be raw|sdpa");
+  }
+  if (norms != "raw" && norms != "composite") {
+    return absl::InvalidArgumentError("--norms must be raw|composite");
+  }
+  img.use_sdpa_composite = attention == "sdpa";
+  img.use_layer_norm_composite = norms == "composite";
   // The encoder emits the raw top-level feature map; the video decoder adds
   // the no-memory row itself, on the conditioning frame, via its nomem input.
   img.fold_no_mem_embed = false;
@@ -288,9 +324,47 @@ absl::Status Run() {
   s2v::TfTensor mc2_out = s2v::BuildMemCond(config, 2, mc2_in, weights, &cache);
   s2v::VideoDecoderInputs dec_in = s2v::MakeVideoDecoderInputs(config);
   s2v::VideoDecoderOutputs dec_out =
-      s2v::BuildVideoDecoder(config, dec_in, weights, &cache);
+      s2v::BuildVideoDecoder(config, dec_in, weights, /*mask_mode=*/0,
+                             &cache);
   s2v::MemorizeInputs mem_in = s2v::MakeMemorizeInputs(config);
   s2v::TfTensor mem_out = s2v::BuildMemorize(config, mem_in, weights, &cache);
+
+  // Fused per-object steps (decode + in-graph host post + memorize, and for
+  // tracked frames memory attention in front): no host round trip inside a
+  // frame. The tracking sparse row is baked; nomem stays an input (see
+  // BuildStep).
+  auto const_f32 = [](std::vector<float> v, std::vector<int> shape) {
+    return s2v::TfTensor({.type = Type::kFP32,
+                          .shape = std::move(shape),
+                          .buffer = ::litert::tensor::OwningCpuBuffer::Copy<
+                              Type::kFP32>(v)});
+  };
+  s2v::VideoDecoderInputs sp_in = s2v::MakeVideoDecoderInputs(config);
+  s2v::TfTensor sp_raw({.name = "pix_raw",
+                        .type = Type::kFP32,
+                        .shape = {1, img.embed_grid(), img.embed_grid(),
+                                  img.d_model}});
+  sp_in.pix_feat = sp_raw;
+  s2v::StepOutputs sp_out =
+      s2v::BuildStep(config, sp_in, sp_raw, weights, /*multimask=*/true,
+                     /*binarize_mode=*/1, &cache);
+  struct TrackStep {
+    s2v::MemCondInputs mc;
+    s2v::VideoDecoderInputs dec;
+    s2v::StepOutputs out;
+  };
+  auto build_track_step = [&](int n) {
+    s2v::MemCondInputs mc = s2v::MakeMemCondInputs(config, n);
+    s2v::VideoDecoderInputs dec = s2v::MakeVideoDecoderInputs(config);
+    dec.pix_feat = s2v::BuildMemCond(config, n, mc, weights, &cache);
+    dec.sparse = const_f32(consts.track_sparse, {1, 2, kHidden});
+    s2v::StepOutputs out =
+        s2v::BuildStep(config, dec, mc.pix_raw, weights, /*multimask=*/true,
+                       /*binarize_mode=*/0, &cache);
+    return TrackStep{mc, dec, out};
+  };
+  TrackStep st7 = build_track_step(7);
+  TrackStep st2 = build_track_step(2);
 
   ModelFactory factory;
   auto add_sig = [&](std::vector<s2v::TfTensor> ins,
@@ -311,6 +385,38 @@ absl::Status Run() {
   if (!st.ok()) return st;
   st = add_sig(mem_in.AsList(), {mem_out}, "memorize");
   if (!st.ok()) return st;
+  st = add_sig({sp_raw, sp_in.feat_s1, sp_in.feat_s0, sp_in.sparse, sp_in.nomem},
+               sp_out.AsList(), "step_prompt");
+  if (!st.ok()) return st;
+  // Multi-click prompts: step_prompt{k} takes k positive/negative points +
+  // the not-a-point pad (sparse [1, k+1, 256]) — SAM's exact encoding for k
+  // clicks, one signature per count (padding extra slots would not be
+  // neutral in the decoder's token attention).
+  for (int k = 2; k <= kMaxClicks; ++k) {
+    s2v::VideoDecoderInputs in = s2v::MakeVideoDecoderInputs(config);
+    s2v::TfTensor raw({.name = "pix_raw",
+                       .type = Type::kFP32,
+                       .shape = {1, img.embed_grid(), img.embed_grid(),
+                                 img.d_model}});
+    in.pix_feat = raw;
+    in.sparse = s2v::TfTensor({.name = "sparse",
+                               .type = Type::kFP32,
+                               .shape = {1, k + 1, kHidden}});
+    s2v::StepOutputs out =
+        s2v::BuildStep(config, in, raw, weights, /*multimask=*/false,
+                       /*binarize_mode=*/1, &cache);
+    st = add_sig({raw, in.feat_s1, in.feat_s0, in.sparse, in.nomem},
+                 out.AsList(), absl::StrCat("step_prompt", k));
+    if (!st.ok()) return st;
+  }
+  for (auto* ts : {&st7, &st2}) {
+    std::vector<s2v::TfTensor> ins = ts->mc.AsList();
+    ins.push_back(ts->dec.feat_s1);
+    ins.push_back(ts->dec.feat_s0);
+    ins.push_back(ts->dec.nomem);
+    st = add_sig(ins, ts->out.AsList(), ts == &st7 ? "step7" : "step2");
+    if (!st.ok()) return st;
+  }
 
   const std::string tflite_path = absl::GetFlag(FLAGS_tflite_path);
   auto save_status = factory.Save(tflite_path);
@@ -365,7 +471,7 @@ absl::Status Run() {
             clip.size() * sizeof(float));
     if (static_cast<size_t>(in.gcount()) != clip.size() * sizeof(float)) {
       return absl::InvalidArgumentError(
-          "frames_file wrong size (need T*1024*1024*3 fp32)");
+          "frames_file wrong size (need T*S*S*3 fp32, S = --image_size)");
     }
   } else {
     std::cout << "frames_file empty: static circle fixture (bench only, no "
@@ -379,6 +485,13 @@ absl::Status Run() {
 
   const std::string dump_dir = absl::GetFlag(FLAGS_dump_dir);
   const std::string memcond_sig = absl::StrCat("memcond", nmm);
+  const std::string path = absl::GetFlag(FLAGS_path);
+  if (path != "classic" && path != "fused") {
+    return absl::InvalidArgumentError("--path must be classic|fused");
+  }
+  const bool fused = path == "fused";
+  // The fixed-bank inputs feed memcond{N} (classic) or step{N} (fused).
+  const std::string bank_sig = fused ? absl::StrCat("step", nmm) : memcond_sig;
   const int mem_len = nmm * kHw + kNptr;
   const int bench_loops = absl::GetFlag(FLAGS_bench_loops);
 
@@ -462,37 +575,102 @@ absl::Status Run() {
 
         auto rebind = runner.GetOutput("encode", "pix_raw");
         if (!rebind.ok()) return rebind.status();
-        st2 = runner.SetInput(memcond_sig, "pix_raw", *rebind);
+        st2 = runner.SetInput(bank_sig, "pix_raw", *rebind);
         if (!st2.ok()) return st2;
-        st2 = runner.SetInput(memcond_sig, "mem_bank",
+        st2 = runner.SetInput(bank_sig, "mem_bank",
                               Create("mem_bank", Type::kFP32,
                                      {1, nmm, kHw, kMemCh}, std::move(mem)));
         if (!st2.ok()) return st2;
-        st2 = runner.SetInput(memcond_sig, "slot_tpe",
+        st2 = runner.SetInput(bank_sig, "slot_tpe",
                               Create("slot_tpe", Type::kFP32,
                                      {1, nmm, 1, kMemCh}, std::move(tpe)));
         if (!st2.ok()) return st2;
-        st2 = runner.SetInput(memcond_sig, "ptr_tok",
+        st2 = runner.SetInput(bank_sig, "ptr_tok",
                               Create("ptr_tok", Type::kFP32,
                                      {1, 1, kNptr, kMemCh},
                                      std::move(ptr_tok)));
         if (!st2.ok()) return st2;
-        st2 = runner.SetInput(memcond_sig, "ptr_pos",
+        st2 = runner.SetInput(bank_sig, "ptr_pos",
                               Create("ptr_pos", Type::kFP32,
                                      {1, 1, kNptr, kMemCh},
                                      std::move(ptr_pos)));
         if (!st2.ok()) return st2;
-        st2 = runner.SetInput(memcond_sig, "key_mask",
+        st2 = runner.SetInput(bank_sig, "key_mask",
                               Create("key_mask", Type::kFP32,
                                      {1, 1, 1, mem_len}, std::move(km)));
         if (!st2.ok()) return st2;
-        auto m0 = tick();
-        st2 = runner.Run(memcond_sig);
+        if (!fused) {
+          auto m0 = tick();
+          st2 = runner.Run(memcond_sig);
+          if (!st2.ok()) return st2;
+          memcond_ms = ms(m0, tick());
+          if (record) times.memcond.push_back(memcond_ms);
+          st2 = ReadFloats(runner, memcond_sig, "pix_feat", pix_feat);
+          if (!st2.ok()) return st2;
+        }
+      }
+
+      if (fused) {
+        // One signature: [memory attention] + decode + in-graph post +
+        // memorize. The bank inputs (tracked frames) are already set above.
+        const std::string sig = prompted ? "step_prompt" : bank_sig;
+        auto pix = runner.GetOutput("encode", "pix_raw");
+        if (!pix.ok()) return pix.status();
+        if (prompted) {
+          st2 = runner.SetInput(sig, "pix_raw", *pix);
+          if (!st2.ok()) return st2;
+          st2 = runner.SetInput(
+              sig, "sparse",
+              Create("sparse", Type::kFP32, {1, 2, kHidden},
+                     consts.ClickSparse(
+                         static_cast<float>(absl::GetFlag(FLAGS_click_x)),
+                         static_cast<float>(absl::GetFlag(FLAGS_click_y)))));
+          if (!st2.ok()) return st2;
+        }
+        for (const std::string& name :
+             {std::string("feat_s1"), std::string("feat_s0")}) {
+          auto rebind = runner.GetOutput("encode", name);
+          if (!rebind.ok()) return rebind.status();
+          st2 = runner.SetInput(sig, name, *rebind);
+          if (!st2.ok()) return st2;
+        }
+        st2 = runner.SetInput(sig, "nomem",
+                              Create("nomem", Type::kFP32, {1, 1, 1, 1},
+                                     std::vector<float>{prompted ? 1.0f : 0.0f}));
         if (!st2.ok()) return st2;
-        memcond_ms = ms(m0, tick());
-        if (record) times.memcond.push_back(memcond_ms);
-        st2 = ReadFloats(runner, memcond_sig, "pix_feat", pix_feat);
+        auto s0 = tick();
+        st2 = runner.Run(sig);
         if (!st2.ok()) return st2;
+        std::vector<float> low, obj, iou, mem_t, ptr_t;
+        for (auto [name, out] :
+             {std::pair<const char*, std::vector<float>*>{"low_mask", &low},
+              {"object_score", &obj}, {"iou", &iou}, {"mem", &mem_t},
+              {"ptr", &ptr_t}}) {
+          st2 = ReadFloats(runner, sig, name, *out);
+          if (!st2.ok()) return st2;
+        }
+        if (record) times.step.push_back(ms(s0, tick()));
+        spatial_bank[t] = std::move(mem_t);
+        ptr_bank[t] = std::move(ptr_t);
+        if (record) times.e2e.push_back(ms(t_start, tick()));
+        int fg = 0;
+        for (float v : low) fg += v > 0.0f ? 1 : 0;
+        std::cout << absl::StrCat("frame ", t, ": fg=", fg, " obj=", obj[0],
+                                  " iou_best=", iou[0],
+                                  prompted ? " (prompted)" : "", " [fused]")
+                  << std::endl;
+        if (!dump_dir.empty() && loop == 0) {
+          std::string p = absl::StrCat("f", t < 10 ? "0" : "", t);
+          for (auto [suffix, data] :
+               {std::pair<const char*, const std::vector<float>*>{"_mask", &low},
+                {"_ptr", &ptr_bank[t]}, {"_mem", &spatial_bank[t]}}) {
+            st2 = DumpFile(dump_dir, p + suffix, *data);
+            if (!st2.ok()) return st2;
+          }
+          st2 = DumpFile(dump_dir, p + "_obj", {obj[0]});
+          if (!st2.ok()) return st2;
+        }
+        continue;
       }
 
       // 2. decode
@@ -629,10 +807,14 @@ absl::Status Run() {
       "SAM2 video · LiteRT Tensor API (",
       use_gpu ? absl::StrCat("gpu ", absl::GetFlag(FLAGS_gpu_precision))
               : "cpu fp32",
-      ", 1024x1024, nmm=", nmm, ", T=", T, ", loops=", bench_loops, ")\n",
-      "medians ms: encode=", Median(times.encode),
-      " memcond=", Median(times.memcond), " decode=", Median(times.decode),
-      " memorize=", Median(times.memorize), " host=", Median(times.host),
+      ", ", kSize, "x", kSize, ", nmm=", nmm, ", T=", T, ", loops=", bench_loops, ")\n",
+      fused ? absl::StrCat("path=fused, medians ms: encode=", Median(times.encode),
+                           " step=", Median(times.step))
+            : absl::StrCat("path=classic, medians ms: encode=", Median(times.encode),
+                           " memcond=", Median(times.memcond),
+                           " decode=", Median(times.decode),
+                           " memorize=", Median(times.memorize),
+                           " host=", Median(times.host)),
       " e2e/frame=", Median(times.e2e), "\n");
   if (!dump_dir.empty()) {
     std::cout << "dumped per-frame outputs to " << dump_dir << std::endl;

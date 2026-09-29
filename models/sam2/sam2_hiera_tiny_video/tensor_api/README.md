@@ -95,7 +95,20 @@ sam2v_main --weights=sam2_tiny_1024_video.safetensors \
   --accelerator=gpu --gpu_precision=fp16 --gpu_buffer_storage=buffer \
   --dump_dir=<dir> [--bench_loops=3]
 python3 sam2_video/verify/verify_video_1024.py compare --dump_dir=<dir> --nmm 7
+
+# Same loop, one fused step signature per frame
+sam2v_main ... --path=fused --dump_dir=<dir2>
+python3 sam2_video/verify/verify_video_1024.py compare --dump_dir=<dir2> --nmm 7
+
+# Smaller input sizes (512 or 384): re-derive the resolution-dependent tables
+python3 sam2_video/verify/export_weights_size.py --size 512 \
+  --base sam2_tiny_1024_video.safetensors --out sam2_tiny_512_video.safetensors
+sam2v_main --weights=sam2_tiny_512_video.safetensors --image_size=512 ...
 ```
+
+`--attention=sdpa` and `--norms=composite` emit the image-path attention
+and LayerNorms as `odml.scaled_dot_product_attention` / `odml.layer_norm`
+composites for delegates that fuse them. The math on CPU is identical.
 
 GPU runs on macOS need `libLiteRtMetalAccelerator.dylib` (shipped in the
 target's runfiles) in the working directory. The Metal delegate's default
@@ -105,9 +118,10 @@ comparing against fp32 references, and use `--gpu_buffer_storage=buffer`
 
 ## Graph-level optimizations
 
-The graph code applies these rewrites at build time. None of them changes
-the math: outputs match the direct construction up to fp32 rounding, and
-the CPU fp32 parity results are unchanged (see below).
+The graph code applies these rewrites at build time. Apart from the
+fused-step indicator noted below, none of them changes the math: outputs
+match the direct construction up to fp32 rounding, and the CPU fp32 parity
+results are unchanged (see below).
 
 *   **Image encoder (Hiera).** The 1/sqrt(d) attention scale is folded
     into the q rows of `qkv`. Windows stay 4-D (`[nH, nW*ws, ws, C]`),
@@ -125,6 +139,18 @@ the CPU fp32 parity results are unchanged (see below).
     duplicate `keys + key_pe` add is removed. The no-memory and no-mask
     biases are combined before the full-map add. The mask head's
     `BatchMatMul` uses rank-4 operands.
+*   **Fused per-object steps (`--path=fused`).** `BuildStep` puts decode,
+    the host post-processing and memorize into one signature. For tracked
+    frames, memory attention also runs inside the signature. The
+    post-processing covers best-mask selection with SAM 2's
+    multimask/stability rule, no-object handling, the 4x bilinear upsample
+    and `mask_for_mem`. A frame is then one `step_prompt{k}` or `step{nmm}`
+    call per object, with no host round trip inside the frame. Thresholds
+    and gates use `1 - Relu(1 - s*Relu(x))` (s = 1e4) instead of
+    `Greater`/`Cast(bool)`. The step graphs therefore contain no BOOL
+    tensors and stay in one GPU delegate partition. The indicator equals
+    `x > 0` except within about 1e-4 of the threshold. The classic
+    `--path=classic` host loop is unchanged.
 *   **Shared baked constants.** `s2v::ConstCache` is passed to every
     `Build*` call that goes into one `ModelFactory`. Constants derived from
     the weights at build time (pre-scaled projections, sign-baked RoPE
@@ -138,12 +164,14 @@ the CPU fp32 parity results are unchanged (see below).
 | `memcond7` / `memcond2` | 346 / 346 ops | 313 / 313 ops |
 | `decode` | 274 ops | 266 ops |
 | `sam2_video.tflite` (1024, fp32) | 212.6 MB | 207.4 MB |
+| + fused `step_prompt`, `step_prompt2..8`, `step2`, `step7` | — | 420, 449, 729 ops; 208.2 MB total with the shared constants |
 
 Parity after these rewrites (CPU fp32): `sam2_image/verify/sam2_torch_ref.py`
 at 512 reports PARITY: PASS, with all correlations at 1.000000 and IoU scores
 identical to the reference. `verify_video_1024.py compare` on the 10-frame
 clip gives min mask-IoU 1.0000 and max|dmask| 0.008 for both bank sizes,
-the same as before.
+the same as before. `--path=fused` gives the same results for both bank
+sizes.
 
 ## Measured highlights
 
