@@ -4,6 +4,7 @@
 
 #include <cmath>
 #include <cstdint>
+#include <functional>
 #include <string>
 #include <vector>
 
@@ -70,18 +71,26 @@ TfTensor LayerNorm(const TfTensor& x, const TfTensor& weight,
   return Add(Mul(normed, weight), bias);
 }
 
+TfTensor ScaleConst(ConstCache& cache, const TfTensor& t, float scale,
+                    const std::string& name) {
+  return cache.GetOrCreate(name + "@scaled", [&] {
+    std::vector<float> vals = HostFloats(t);
+    for (float& v : vals) v *= scale;
+    return ConstFloats(vals, t.GetShape(), name);
+  });
+}
+
 // Rank-4 BNSD attention core (batch dim always kept — the rank-3 form is
 // silently mis-computed by the ML Drift delegate; image-path lesson).
-TfTensor AttentionRaw(const TfTensor& q, const TfTensor& k, const TfTensor& v,
-                      float scale) {
+// `q` is already pre-scaled by 1/sqrt(d_k).
+TfTensor AttentionRaw(const TfTensor& q, const TfTensor& k, const TfTensor& v) {
   TfTensor scores = BatchMatMul(q, k, /*adj_x=*/false, /*adj_y=*/true);
-  scores = Mul(scores, ConstScalar(scale));
   TfTensor attn = Softmax(scores);
   return BatchMatMul(attn, v);
 }
 
 // Multi-head attention over [B,N,C] token tensors (raw path only; the video
-// decoder reuses the image decoder's verified shapes).
+// decoder reuses the image decoder's verified shapes). `q` is pre-scaled.
 TfTensor Mha(const TfTensor& q, const TfTensor& k, const TfTensor& v,
              int heads) {
   const auto& qs = q.GetShape();
@@ -91,19 +100,26 @@ TfTensor Mha(const TfTensor& q, const TfTensor& k, const TfTensor& v,
   int nk = ks[1];
   int c = qs[2];
   int hd = c / heads;
-  float scale = 1.0f / std::sqrt(static_cast<float>(hd));
   TfTensor q4 = Transpose(Reshape(q, {b, nq, heads, hd}), {0, 2, 1, 3});
   TfTensor k4 = Transpose(Reshape(k, {b, nk, heads, hd}), {0, 2, 1, 3});
   TfTensor v4 = Transpose(Reshape(v, {b, nk, heads, hd}), {0, 2, 1, 3});
-  TfTensor o = Transpose(AttentionRaw(q4, k4, v4, scale), {0, 2, 1, 3});
+  TfTensor o = Transpose(AttentionRaw(q4, k4, v4), {0, 2, 1, 3});
   return Reshape(o, {b, nq, c});
 }
 
-TfTensor SamAttention(const TfTensor& q_in, const TfTensor& k_in,
-                      const TfTensor& v_in, const std::string& prefix,
-                      const WeightMap& weights, int heads) {
-  TfTensor q = FullyConnected(q_in, W(weights, prefix + ".q_proj.weight"),
-                              W(weights, prefix + ".q_proj.bias"));
+TfTensor SamAttention(ConstCache& cache, const TfTensor& q_in,
+                      const TfTensor& k_in, const TfTensor& v_in,
+                      const std::string& prefix, const WeightMap& weights,
+                      int heads) {
+  const TfTensor& qw_t = W(weights, prefix + ".q_proj.weight");
+  const TfTensor& qb_t = W(weights, prefix + ".q_proj.bias");
+  const int c = qw_t.GetShape()[0];
+  const int hd = c / heads;
+  const float q_scale = 1.0f / std::sqrt(static_cast<float>(hd));
+
+  TfTensor q =
+      FullyConnected(q_in, ScaleConst(cache, qw_t, q_scale, prefix + ".q_proj.weight"),
+                     ScaleConst(cache, qb_t, q_scale, prefix + ".q_proj.bias"));
   TfTensor k = FullyConnected(k_in, W(weights, prefix + ".k_proj.weight"),
                               W(weights, prefix + ".k_proj.bias"));
   TfTensor v = FullyConnected(v_in, W(weights, prefix + ".v_proj.weight"),
@@ -151,8 +167,9 @@ TfTensor BakeDensePeGrid(const std::vector<float>& gaussian, int grid) {
   return ConstFloats(out, {1, grid * grid, 256}, "dense_pe_grid");
 }
 
-// rotate_half on the last axis: [-x[..., d/2:], x[..., :d/2]].
-TfTensor RotateHalf(const TfTensor& x) {
+// Swaps the two halves of the last axis: [x[..., d/2:], x[..., :d/2]].
+// The negation of the first half is baked into the signed sin table.
+TfTensor SwapHalf(const TfTensor& x) {
   const auto& s = x.GetShape();
   int d = s.back();
   std::vector<int> begin_hi(s.size(), 0);
@@ -162,16 +179,23 @@ TfTensor RotateHalf(const TfTensor& x) {
   std::vector<int> begin_lo(s.size(), 0);
   TfTensor hi = Slice(x, begin_hi, size_lo);
   TfTensor lo = Slice(x, begin_lo, size_lo);
-  return Concatenation({Neg(hi), lo},
+  return Concatenation({hi, lo},
                        /*axis=*/static_cast<int>(s.size()) - 1);
 }
 
-// Rotate-half RoPE against tables broadcast over leading dims.
+// Rotate-half RoPE against sign-baked tables (`sin` has -sin on [:d/2]).
 TfTensor Rope(const TfTensor& x, const TfTensor& cos, const TfTensor& sin) {
-  return Add(Mul(x, cos), Mul(RotateHalf(x), sin));
+  return Add(Mul(x, cos), Mul(SwapHalf(x), sin));
 }
 
 }  // namespace
+
+const TfTensor& ConstCache::GetOrCreate(const std::string& key,
+                                        const std::function<TfTensor()>& make) {
+  auto it = entries_.find(key);
+  if (it == entries_.end()) it = entries_.emplace(key, make()).first;
+  return it->second;
+}
 
 MemCondInputs MakeMemCondInputs(const Sam2VideoConfig& config, int nmm) {
   const int hw = config.hw();
@@ -232,51 +256,85 @@ MemorizeInputs MakeMemorizeInputs(const Sam2VideoConfig& config) {
 }
 
 TfTensor BuildMemCond(const Sam2VideoConfig& config, int nmm,
-                      const MemCondInputs& inputs, const WeightMap& weights) {
+                      const MemCondInputs& inputs, const WeightMap& weights,
+                      ConstCache* cache_in) {
+  ConstCache local_cache;
+  ConstCache& cache = cache_in ? *cache_in : local_cache;
   const int hw = config.hw();
   const int hd = config.hidden;
   const int mc = config.mem_ch;
-  const int np = config.n_ptr();
-  const int len = config.mem_len(nmm);
+  const int num_layers = config.ma_layers;
   const float scale = 1.0f / std::sqrt(static_cast<float>(hd));
   const float eps = config.ln_eps;
+  const std::string ck = absl::StrCat("@", config.image.image_size);
 
   // Baked tables (per-resolution constants from the export).
-  TfTensor cos = ConstFloats(HostFloats(W(weights, "tables.rope_cos")),
-                             {1, 1, hw, hd}, "rope_cos");
-  TfTensor sin = ConstFloats(HostFloats(W(weights, "tables.rope_sin")),
-                             {1, 1, hw, hd}, "rope_sin");
-  TfTensor vpos = ConstFloats(HostFloats(W(weights, "tables.vision_pos_scaled")),
-                              {1, 1, hw, hd}, "vision_pos_scaled");
-  TfTensor mem_pos = ConstFloats(HostFloats(W(weights, "tables.mem_pos")),
-                                 {1, 1, hw, mc}, "mem_pos");
+  // Bake the rotate-half sign (-sin on [:hd/2]) into sin so runtime SwapHalf
+  // needs no Neg op, and bake 1/sqrt(hd) into the query tables so attention
+  // scores need no Mul op.
+  const std::vector<float> raw_cos = HostFloats(W(weights, "tables.rope_cos"));
+  const std::vector<float> raw_sin = HostFloats(W(weights, "tables.rope_sin"));
+  std::vector<float> signed_sin = raw_sin;
+  std::vector<float> scaled_cos(raw_cos.size());
+  std::vector<float> scaled_sin(raw_sin.size());
+  for (int t = 0; t < hw; ++t) {
+    for (int c = 0; c < hd; ++c) {
+      const size_t idx = static_cast<size_t>(t) * hd + c;
+      if (c < hd / 2) signed_sin[idx] = -signed_sin[idx];
+      scaled_cos[idx] = raw_cos[idx] * scale;
+      scaled_sin[idx] = signed_sin[idx] * scale;
+    }
+  }
+
+  TfTensor cos_q = cache.GetOrCreate("rope_cos_q" + ck, [&] {
+    return ConstFloats(scaled_cos, {1, 1, hw, hd}, "rope_cos_q");
+  });
+  TfTensor sin_q = cache.GetOrCreate("rope_sin_q" + ck, [&] {
+    return ConstFloats(scaled_sin, {1, 1, hw, hd}, "rope_sin_q");
+  });
+  TfTensor cos_k = cache.GetOrCreate("rope_cos_k" + ck, [&] {
+    return ConstFloats(raw_cos, {1, 1, hw, hd}, "rope_cos_k");
+  });
+  TfTensor sin_k = cache.GetOrCreate("rope_sin_k" + ck, [&] {
+    return ConstFloats(signed_sin, {1, 1, hw, hd}, "rope_sin_k");
+  });
+  TfTensor vpos = cache.GetOrCreate("vision_pos_scaled" + ck, [&] {
+    return ConstFloats(HostFloats(W(weights, "tables.vision_pos_scaled")),
+                       {1, 1, hw, hd}, "vision_pos_scaled");
+  });
+  TfTensor mem_pos = cache.GetOrCreate("mem_pos" + ck, [&] {
+    return ConstFloats(HostFloats(W(weights, "tables.mem_pos")),
+                       {1, 1, hw, mc}, "mem_pos");
+  });
 
   // Queries: raw features to token-major + 0.1 * vision position encoding.
   TfTensor x = Add(Reshape(inputs.pix_raw, {1, 1, hw, hd}), vpos);
 
-  // Memory tokens and their position rows.
+  // Memory tokens and their position rows: keep spatial [1,nmm,hw,mc] and
+  // pointer [1,1,np,mc] separate for K so RoPE broadcasts contiguously over
+  // [hw,hd] without slicing [1,1,len,hd].
   TfTensor spatial = Reshape(inputs.mem_bank, {1, 1, nmm * hw, mc});
   TfTensor memory = Concatenation({spatial, inputs.ptr_tok}, /*axis=*/2);
   TfTensor spatial_pos = Add(mem_pos, inputs.slot_tpe);  // [1,nmm,hw,mc]
-  TfTensor keys_pos = Concatenation(
-      {Reshape(spatial_pos, {1, 1, nmm * hw, mc}), inputs.ptr_pos},
-      /*axis=*/2);
-  TfTensor keys_in = Add(memory, keys_pos);
+  TfTensor keys_sp = Add(inputs.mem_bank, spatial_pos);  // [1,nmm,hw,mc]
+  TfTensor keys_ptr = Add(inputs.ptr_tok, inputs.ptr_pos);  // [1,1,np,mc]
 
-  for (int l = 0; l < config.ma_layers; ++l) {
+  for (int l = 0; l < num_layers; ++l) {
     const std::string p = absl::StrCat("memory_attention.layers.", l);
-    // --- self attention (RoPE on q and k) ---
+    // --- self attention (1/sqrt(hd) baked into cos_q/sin_q) ---
     TfTensor h = LayerNorm(x, W(weights, p + ".norm1.weight"),
                            W(weights, p + ".norm1.bias"), eps);
-    TfTensor q = Rope(FullyConnected(h, W(weights, p + ".self_attn.q_proj.weight"),
-                                     W(weights, p + ".self_attn.q_proj.bias")),
-                      cos, sin);
-    TfTensor k = Rope(FullyConnected(h, W(weights, p + ".self_attn.k_proj.weight"),
-                                     W(weights, p + ".self_attn.k_proj.bias")),
-                      cos, sin);
+    TfTensor q = Rope(
+        FullyConnected(h, W(weights, p + ".self_attn.q_proj.weight"),
+                       W(weights, p + ".self_attn.q_proj.bias")),
+        cos_q, sin_q);
+    TfTensor k = Rope(
+        FullyConnected(h, W(weights, p + ".self_attn.k_proj.weight"),
+                       W(weights, p + ".self_attn.k_proj.bias")),
+        cos_k, sin_k);
     TfTensor v = FullyConnected(h, W(weights, p + ".self_attn.v_proj.weight"),
                                 W(weights, p + ".self_attn.v_proj.bias"));
-    TfTensor sa = AttentionRaw(q, k, v, scale);
+    TfTensor sa = AttentionRaw(q, k, v);
     sa = FullyConnected(sa, W(weights, p + ".self_attn.out_proj.weight"),
                         W(weights, p + ".self_attn.out_proj.bias"));
     x = Add(x, sa);
@@ -286,19 +344,19 @@ TfTensor BuildMemCond(const Sam2VideoConfig& config, int nmm,
                   W(weights, p + ".norm2.bias"), eps);
     q = Rope(FullyConnected(h, W(weights, p + ".cross_attn_image.q_proj.weight"),
                             W(weights, p + ".cross_attn_image.q_proj.bias")),
-             cos, sin);
-    k = FullyConnected(keys_in,
-                       W(weights, p + ".cross_attn_image.k_proj.weight"),
+             cos_q, sin_q);
+    TfTensor k_sp =
+        FullyConnected(keys_sp, W(weights, p + ".cross_attn_image.k_proj.weight"),
                        W(weights, p + ".cross_attn_image.k_proj.bias"));
-    TfTensor k_sp = Reshape(Slice(k, {0, 0, 0, 0}, {1, 1, nmm * hw, hd}),
-                            {1, nmm, hw, hd});
-    k_sp = Reshape(Rope(k_sp, cos, sin), {1, 1, nmm * hw, hd});
-    TfTensor k_ptr = Slice(k, {0, 0, nmm * hw, 0}, {1, 1, np, hd});
+    k_sp = Reshape(Rope(k_sp, cos_k, sin_k), {1, 1, nmm * hw, hd});
+    TfTensor k_ptr =
+        FullyConnected(keys_ptr, W(weights, p + ".cross_attn_image.k_proj.weight"),
+                       W(weights, p + ".cross_attn_image.k_proj.bias"));
     k = Concatenation({k_sp, k_ptr}, /*axis=*/2);
     v = FullyConnected(memory, W(weights, p + ".cross_attn_image.v_proj.weight"),
                        W(weights, p + ".cross_attn_image.v_proj.bias"));
     TfTensor scores = BatchMatMul(q, k, /*adj_x=*/false, /*adj_y=*/true);
-    scores = Add(Mul(scores, ConstScalar(scale)), inputs.key_mask);
+    scores = Add(scores, inputs.key_mask);
     TfTensor ca = BatchMatMul(Softmax(scores), v);
     ca = FullyConnected(ca, W(weights, p + ".cross_attn_image.out_proj.weight"),
                         W(weights, p + ".cross_attn_image.out_proj.bias"));
@@ -312,7 +370,6 @@ TfTensor BuildMemCond(const Sam2VideoConfig& config, int nmm,
     h = FullyConnected(h, W(weights, p + ".linear2.weight"),
                        W(weights, p + ".linear2.bias"));
     x = Add(x, h);
-    (void)len;
   }
   x = LayerNorm(x, W(weights, "memory_attention.norm.weight"),
                 W(weights, "memory_attention.norm.bias"), eps);
@@ -324,7 +381,10 @@ TfTensor BuildMemCond(const Sam2VideoConfig& config, int nmm,
 
 VideoDecoderOutputs BuildVideoDecoder(const Sam2VideoConfig& config,
                                       const VideoDecoderInputs& inputs,
-                                      const WeightMap& weights) {
+                                      const WeightMap& weights,
+                                      ConstCache* cache_in) {
+  ConstCache local_cache;
+  ConstCache& cache = cache_in ? *cache_in : local_cache;
   const Sam2Config& img = config.image;
   const int eg = img.embed_grid();
   const int mg = img.mask_grid();
@@ -333,33 +393,40 @@ VideoDecoderOutputs BuildVideoDecoder(const Sam2VideoConfig& config,
   const std::string dec = "sam_mask_decoder";
   const std::string tr = dec + ".transformer";
 
-  // pix_feat + nomem * no_mem_embed (the conditioning-frame path).
-  TfTensor no_mem = ConstFloats(HostFloats(W(weights, "no_mem_embed")),
-                                {1, 1, 1, img.d_model}, "no_mem_row");
-  TfTensor pix = Add(inputs.pix_feat, Mul(no_mem, inputs.nomem));
-
-  // Tokens: [obj_score | iou | mask x4 | sparse x2].
-  std::vector<float> token_data;
-  for (const char* name :
-       {"sam_mask_decoder.obj_score_token.weight",
-        "sam_mask_decoder.iou_token.weight",
-        "sam_mask_decoder.mask_tokens.weight"}) {
-    std::vector<float> rows = HostFloats(W(weights, name));
-    token_data.insert(token_data.end(), rows.begin(), rows.end());
-  }
-  TfTensor output_tokens =
-      ConstFloats(token_data, {1, 6, img.d_model}, "output_tokens");
+  // Tokens: [obj_score | iou | mask x4 | sparse rows (k points + pad)].
+  const std::string ck = absl::StrCat("@", img.image_size);
+  TfTensor output_tokens = cache.GetOrCreate("output_tokens" + ck, [&] {
+    std::vector<float> token_data;
+    for (const char* name :
+         {"sam_mask_decoder.obj_score_token.weight",
+          "sam_mask_decoder.iou_token.weight",
+          "sam_mask_decoder.mask_tokens.weight"}) {
+      std::vector<float> rows = HostFloats(W(weights, name));
+      token_data.insert(token_data.end(), rows.begin(), rows.end());
+    }
+    return ConstFloats(token_data, {1, 6, img.d_model}, "output_tokens");
+  });
   TfTensor tokens = Concatenation({output_tokens, inputs.sparse}, /*axis=*/1);
 
-  // Image side: += no-mask dense prompt row; flatten; baked dense PE.
+  // Image side: pix_feat + (nomem * no_mem_embed + no_mask_dense); flatten;
+  // baked dense PE. Combining the two [1,1,1,256] biases first avoids a second
+  // full [1,eg,eg,256] Add pass over pix_feat.
+  TfTensor no_mem = cache.GetOrCreate("no_mem_row" + ck, [&] {
+    return ConstFloats(HostFloats(W(weights, "no_mem_embed")),
+                       {1, 1, 1, img.d_model}, "no_mem_row");
+  });
   std::vector<float> gaussian = HostFloats(W(
       weights, "sam_prompt_encoder.pe_layer.positional_encoding_gaussian_matrix"));
-  std::vector<float> no_mask =
-      HostFloats(W(weights, "sam_prompt_encoder.no_mask_embed.weight"));
-  TfTensor src = Add(pix, ConstFloats(no_mask, {1, 1, 1, img.d_model},
-                                      "no_mask_dense"));
+  TfTensor no_mask_dense = cache.GetOrCreate("no_mask_dense" + ck, [&] {
+    return ConstFloats(
+        HostFloats(W(weights, "sam_prompt_encoder.no_mask_embed.weight")),
+        {1, 1, 1, img.d_model}, "no_mask_dense");
+  });
+  TfTensor dense_bias = Add(Mul(no_mem, inputs.nomem), no_mask_dense);
+  TfTensor src = Add(inputs.pix_feat, dense_bias);
   TfTensor keys = Reshape(src, {1, n_img, img.d_model});
-  TfTensor kpe = BakeDensePeGrid(gaussian, eg);
+  TfTensor kpe = cache.GetOrCreate("dense_pe_grid" + ck,
+                             [&] { return BakeDensePeGrid(gaussian, eg); });
 
   // Two-way transformer (2 blocks + final token->image attention) — the
   // image path's verified construction, on 8 tokens.
@@ -368,19 +435,19 @@ VideoDecoderOutputs BuildVideoDecoder(const Sam2VideoConfig& config,
   for (int l = 0; l < 2; ++l) {
     std::string p = absl::StrCat(tr, ".layers.", l);
     if (l == 0) {
-      queries = SamAttention(queries, queries, queries, p + ".self_attn",
+      queries = SamAttention(cache, queries, queries, queries, p + ".self_attn",
                              weights, 8);
     } else {
       TfTensor q = Add(queries, qpe);
       queries = Add(queries,
-                    SamAttention(q, q, queries, p + ".self_attn", weights, 8));
+                    SamAttention(cache, q, q, queries, p + ".self_attn", weights, 8));
     }
     queries = LayerNorm(queries, W(weights, p + ".norm1.weight"),
                         W(weights, p + ".norm1.bias"), eps);
 
     TfTensor q = Add(queries, qpe);
     TfTensor k = Add(keys, kpe);
-    queries = Add(queries, SamAttention(q, k, keys,
+    queries = Add(queries, SamAttention(cache, q, k, keys,
                                         p + ".cross_attn_token_to_image",
                                         weights, 8));
     queries = LayerNorm(queries, W(weights, p + ".norm2.weight"),
@@ -394,8 +461,7 @@ VideoDecoderOutputs BuildVideoDecoder(const Sam2VideoConfig& config,
                         W(weights, p + ".norm3.bias"), eps);
 
     q = Add(queries, qpe);
-    k = Add(keys, kpe);
-    keys = Add(keys, SamAttention(k, q, queries,
+    keys = Add(keys, SamAttention(cache, k, q, queries,
                                   p + ".cross_attn_image_to_token", weights,
                                   8));
     keys = LayerNorm(keys, W(weights, p + ".norm4.weight"),
@@ -403,7 +469,7 @@ VideoDecoderOutputs BuildVideoDecoder(const Sam2VideoConfig& config,
   }
   TfTensor q_final = Add(queries, qpe);
   TfTensor k_final = Add(keys, kpe);
-  queries = Add(queries, SamAttention(q_final, k_final, keys,
+  queries = Add(queries, SamAttention(cache, q_final, k_final, keys,
                                       tr + ".final_attn_token_to_image",
                                       weights, 8));
   queries = LayerNorm(queries, W(weights, tr + ".norm_final_attn.weight"),
@@ -426,19 +492,21 @@ VideoDecoderOutputs BuildVideoDecoder(const Sam2VideoConfig& config,
   // Heads: ALL four mask tokens (host picks argmax iou over 1..3).
   TfTensor obj_tok = Slice(queries, {0, 0, 0}, {1, 1, img.d_model});
   TfTensor iou_tok = Slice(queries, {0, 1, 0}, {1, 1, img.d_model});
-  TfTensor mask_toks = Slice(queries, {0, 2, 0}, {1, 4, img.d_model});
   std::vector<TfTensor> hyper;
+  hyper.reserve(4);
   for (int i = 0; i < 4; ++i) {
-    TfTensor tok = Slice(mask_toks, {0, i, 0}, {1, 1, img.d_model});
+    TfTensor tok = Slice(queries, {0, 2 + i, 0}, {1, 1, img.d_model});
     hyper.push_back(SamMlp3(
         tok, absl::StrCat(dec, ".output_hypernetworks_mlps.", i), weights,
         /*sigmoid_output=*/false));  // [1,1,32]
   }
-  TfTensor hyper_all = Concatenation({hyper[0], hyper[1], hyper[2], hyper[3]},
-                                     /*axis=*/1);  // [1,4,32]
-  TfTensor up_flat = Reshape(up, {1, mg * mg, 32});
+  // 4D operands keep the BatchMatMul in one GPU partition.
+  TfTensor hyper_all = Reshape(
+      Concatenation({hyper[0], hyper[1], hyper[2], hyper[3]}, /*axis=*/1),
+      {1, 1, 4, 32});
+  TfTensor up_flat = Reshape(up, {1, 1, mg * mg, 32});
   TfTensor masks = BatchMatMul(hyper_all, up_flat, /*adj_x=*/false,
-                               /*adj_y=*/true);  // [1,4,mg*mg]
+                               /*adj_y=*/true);  // [1,1,4,mg*mg]
 
   VideoDecoderOutputs out;
   out.masks = Reshape(masks, {1, 4, mg, mg});
@@ -447,7 +515,8 @@ VideoDecoderOutputs BuildVideoDecoder(const Sam2VideoConfig& config,
                           /*sigmoid_output=*/true);  // [1,1,4]
   out.iou_scores = Reshape(iou4, {1, 4});
   out.iou_scores.SetName("iou_scores");
-  out.obj_ptr = SamMlp3(mask_toks, "obj_ptr_proj", weights,
+  TfTensor ptr_toks = Slice(queries, {0, 2, 0}, {1, 4, img.d_model});
+  out.obj_ptr = SamMlp3(ptr_toks, "obj_ptr_proj", weights,
                         /*sigmoid_output=*/false);  // [1,4,256]
   out.obj_ptr.SetName("obj_ptr");
   TfTensor obj = SamMlp3(obj_tok, dec + ".pred_obj_score_head", weights,
@@ -458,7 +527,10 @@ VideoDecoderOutputs BuildVideoDecoder(const Sam2VideoConfig& config,
 }
 
 TfTensor BuildMemorize(const Sam2VideoConfig& config,
-                       const MemorizeInputs& inputs, const WeightMap& weights) {
+                       const MemorizeInputs& inputs, const WeightMap& weights,
+                       ConstCache* cache_in) {
+  ConstCache local_cache;
+  ConstCache& cache = cache_in ? *cache_in : local_cache;
   const int g = config.image.embed_grid();
   const int hw = config.hw();
   const float eps = config.ln_eps_2d;
@@ -517,8 +589,10 @@ TfTensor BuildMemorize(const Sam2VideoConfig& config,
 
   // Token-major + occ * occlusion embedding.
   TfTensor mem = Reshape(f, {1, hw, config.mem_ch});
-  TfTensor no_obj = ConstFloats(HostFloats(W(weights, "no_obj_embed_spatial")),
-                                {1, 1, config.mem_ch}, "no_obj_embed_row");
+  TfTensor no_obj = cache.GetOrCreate("no_obj_embed_row", [&] {
+    return ConstFloats(HostFloats(W(weights, "no_obj_embed_spatial")),
+                       {1, 1, config.mem_ch}, "no_obj_embed_row");
+  });
   mem = Add(mem, Mul(no_obj, inputs.occ));
   mem.SetName("mem");
   return mem;
