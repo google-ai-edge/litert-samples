@@ -43,8 +43,6 @@ include(":app")
 // AI packs
 include(":ai_pack:selfie_multiclass")
 
-include(":ai_pack:selfie_multiclass_mtk")
-
 // NPU runtime libraries
 include(":litert_npu_runtime_libraries:runtime_strings")
 

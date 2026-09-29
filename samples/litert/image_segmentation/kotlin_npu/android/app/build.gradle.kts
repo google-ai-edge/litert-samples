@@ -56,7 +56,6 @@ android {
 
   // AI packs
   assetPacks.add(":ai_pack:selfie_multiclass")
-  assetPacks.add(":ai_pack:selfie_multiclass_mtk")
 
   // NPU runtime libraries
   dynamicFeatures.add(":litert_npu_runtime_libraries:mediatek_runtime_common")
@@ -70,6 +69,7 @@ android {
   dynamicFeatures.add(":litert_npu_runtime_libraries:qualcomm_runtime_v65")
   dynamicFeatures.add(":litert_npu_runtime_libraries:qualcomm_runtime_v66")
   dynamicFeatures.add(":litert_npu_runtime_libraries:qualcomm_runtime_v68")
+  dynamicFeatures.add(":litert_npu_runtime_libraries:qualcomm_runtime_v69")
   dynamicFeatures.add(":litert_npu_runtime_libraries:qualcomm_runtime_v73")
   dynamicFeatures.add(":litert_npu_runtime_libraries:qualcomm_runtime_v75")
   dynamicFeatures.add(":litert_npu_runtime_libraries:qualcomm_runtime_v79")
