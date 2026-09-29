@@ -50,7 +50,7 @@ The prompt window is 256 tokens, and longer text is cut on the right. The model 
 
 ## Android app on the NPU (`kotlin_npu/android_jit`)
 
-The same app with the encoder on the Qualcomm NPU as a third accelerator choice. LiteRT compiles the graph for the NPU on the phone and caches it. The NPU runtime comes from the LiteRT release and the Qualcomm AI Runtime, and the app is installed as a bundle for the phone's Snapdragon generation; [`kotlin_npu/android_jit/README.md`](kotlin_npu/android_jit/README.md) has the steps and the numbers.
+The same app with the encoder on the Qualcomm NPU as a third accelerator choice. LiteRT compiles the graph for the NPU on the phone and caches it. The NPU runtime comes from the LiteRT release and the Qualcomm AI Runtime, and the app is installed as a bundle for the phone's Qualcomm SoC (device group); [`kotlin_npu/android_jit/README.md`](kotlin_npu/android_jit/README.md) has the steps and the numbers.
 
 ## Conversion
 
