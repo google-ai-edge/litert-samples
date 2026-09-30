@@ -45,8 +45,16 @@ platforms:
     name: iOS
     rows: app
     # iOS runs no standalone binary: rows come from the app under benchmark/ios,
-    # which builds benchmark_model from LiteRT's source and runs it on a phone.
-    # The session names the phone, its OS and the source tag (see ../ios/README.md).
+    # which builds benchmark_model from LiteRT's source and runs it on a phone,
+    # either attached to a Mac (run_ios.sh) or in Developer Device Platform, where
+    # the app's XCTest runs it (run_ddp_ios.py, runner ddp). The session names the
+    # phone, its OS and the source tag (see ../ios/README.md).
+    devices:
+      # DDP iPhones measured so far; `id`, `name` and `os` from the device catalog.
+      measured:
+        - id: iphone16pro-18-3
+          name: iPhone 16 Pro
+          os: iOS 18.3
 
 runtime_lm:
   # LiteRT-LM's benchmark binary the LLM rows ran: `litert benchmark <bundle>.litertlm --ddp`
