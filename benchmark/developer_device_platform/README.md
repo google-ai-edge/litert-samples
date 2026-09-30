@@ -60,4 +60,5 @@ peak memory, confirm the OpenCL delegate actually loaded, and chart the comparis
 
 - [`../leaderboard/`](../leaderboard): a leaderboard of results collected this way, plus the drivers in
   [`../driver/`](../driver) that run the same DDP sessions in batch from a workstation.
-- [`../ios/`](../ios): the same `benchmark_model` on a locally attached iPhone.
+- [`../ios/`](../ios): the same `benchmark_model` on a locally attached iPhone, or on a DDP iPhone as an XCTest
+  (`run_ddp_ios.py` there submits `gcloud beta device-run sessions submit xctest`).

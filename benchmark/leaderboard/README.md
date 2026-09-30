@@ -4,7 +4,7 @@ A performance leaderboard of [LiteRT](https://github.com/google-ai-edge/litert) 
 `data/board.json`, one row per model file, platform, device and accelerator, measured with LiteRT's `benchmark_model`
 at one pinned release: Android rows on Developer Device Platform (DDP) lab phones through `litert benchmark --ddp`, macOS
 rows with the same release's macOS binary through `run_local.py`, iOS rows from the app in `../ios/`, which builds the tool
-from source. A second table holds [LiteRT-LM](https://github.com/google-ai-edge/LiteRT-LM) rows: prefill and decode tokens/s
+from source and runs it on an iPhone attached to a Mac or, as an XCTest, on a DDP iPhone. A second table holds [LiteRT-LM](https://github.com/google-ai-edge/LiteRT-LM) rows: prefill and decode tokens/s
 of a `.litertlm` bundle under LiteRT-LM's benchmark binary, run on a DDP phone through `litert benchmark <bundle>.litertlm --ddp`.
 The page fetches `data/` relative to itself, and the drivers in `../driver/` take `--data-dir`.
 
@@ -18,7 +18,7 @@ the group (LiteRT-LM rows listed by model, device and backend); a comparison hol
 | Column | Meaning |
 |---|---|
 | Model | Hugging Face repo and the `.tflite` file; the task chip is the repo's pipeline tag |
-| Platform, Device | `android`, `macos` or `ios`; the device id with its name and OS, from `matrix.yaml` for DDP devices and from the machine itself for a Mac or an iPhone |
+| Platform, Device | `android`, `macos` or `ios`; the device id with its name and OS, from `matrix.yaml` for DDP Android devices, from the lab's device catalog for a DDP iPhone, and from the machine itself for a Mac or an iPhone on a Mac |
 | Accelerator | `cpu` or `gpu` with the delegate `runtime_info.pb` names (the log's name where a session has no such file); nodes delegated N/M counts the primary subgraph's nodes that delegate replaced, so a `gpu` row with a low N ran most of the graph on the CPU, and partitions is the runtime's count for the whole graph (the delegate's runs and the runs that stay off it); n/a where a session has no `runtime_info.pb` and its log no `Replacing N out of M` line |
 | Median, Avg, p95, Init, First inference, Footprint, Runs | `results.pb` (`tflite.tools.benchmark.BenchmarkResult`): latency in ms, overall memory footprint in MB, and the inference runs completed; each row reports p95 and the run count from a single session |
 | Runtime, Date | the `benchmark_model` release; the row's Binary field names the build it ran (a bucket object, or the source tag for iOS). Date is the day the outputs were written or pulled |
@@ -50,7 +50,8 @@ python3 ../driver/run_local.py --dry-run
 python3 ../driver/run_local.py
 ```
 
-4. Or turn sessions you already have into rows, then rebuild the board; a session from `../ios/run_ios.sh` goes in the same way:
+4. Or turn sessions you already have into rows, then rebuild the board; a session from `../ios/run_ios.sh` or
+   `../ios/run_ddp_ios.py` goes in the same way:
 
 ```bash
 python3 ../driver/collect.py ~/.cache/litert-cli/ddp/session-fff9643f --model litert-community/MobileNet-v2
