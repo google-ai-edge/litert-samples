@@ -39,25 +39,39 @@ An iOS application demonstrating real-time and static multi-class image segmenta
 
 ## Prerequisites & Setup
 
-### 1. Building `TensorFlowLite` and `TensorFlowLiteC` XCFrameworks with Delegates
+### 1. Building `TensorFlowLiteC`, `TensorFlowLiteCCoreML`, and `TensorFlowLiteCMetal` XCFrameworks
 
-By default, `//litert/swift:TensorFlowLite` builds with no delegates (CPU/XNNPACK only). To enable both **`MetalDelegate`** and **`CoreMLDelegate`**, pass `--define=use_metal_delegate=1` and `--define=use_coreml_delegate=1`:
+The `TensorFlowLite` Swift module is built directly from source in the `LiteRT` Swift Package, while the C runtime and delegate implementations are provided as separate prebuilt binary xcframeworks:
+
+- `TensorFlowLiteC.xcframework.zip`: Core C runtime (XNNPACK / CPU).
+- `TensorFlowLiteCCoreML.xcframework.zip`: Apple Core ML / Neural Engine delegate (`CoreMLDelegate`).
+- `TensorFlowLiteCMetal.xcframework.zip`: Apple Metal GPU delegate (`MetalDelegate`).
+
+To compile these packages:
 
 ```bash
 # Navigate to the LiteRT repository
 cd path/to/LiteRT
 
-# Build TensorFlowLite and TensorFlowLiteC xcframeworks with Metal and CoreML delegates
+# 1. Build TensorFlowLiteC runtime
+bazel build -c opt --config=ios \
+  //litert/swift:TensorFlowLiteC
+
+# 2. Build TensorFlowLiteCCoreML delegate
+bazel build -c opt --config=ios \
+  --define=use_coreml_delegate=1 \
+  //litert/swift:TensorFlowLiteCCoreML
+
+# 3. Build TensorFlowLiteCMetal delegate
 bazel build -c opt --config=ios \
   --define=use_metal_delegate=1 \
-  --define=use_coreml_delegate=1 \
-  //litert/swift:TensorFlowLite \
-  //litert/swift:TensorFlowLiteC
+  //litert/swift:TensorFlowLiteCMetal
 
 # Copy the compiled xcframework archives into LiteRT/prebuilt/
 mkdir -p prebuilt
-cp -f bazel-bin/litert/swift/TensorFlowLite.xcframework.zip prebuilt/
 cp -f bazel-bin/litert/swift/TensorFlowLiteC.xcframework.zip prebuilt/
+cp -f bazel-bin/litert/swift/TensorFlowLiteCCoreML.xcframework.zip prebuilt/
+cp -f bazel-bin/litert/swift/TensorFlowLiteCMetal.xcframework.zip prebuilt/
 ```
 
 ### 2. Download the Model File (if not already present)
