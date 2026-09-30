@@ -24,9 +24,6 @@ platforms:
       # `name` its displayName and `os` its osVersion (an Android API level), all
       # from the device catalog (GET /devices); the board shows `name` and `os`.
       measured:
-        - id: caiman-35
-          name: Pixel 9 Pro
-          os: Android 15 (API 35)
         - id: pa3q-35
           name: Galaxy S25 Ultra
           os: Android 15 (API 35)
