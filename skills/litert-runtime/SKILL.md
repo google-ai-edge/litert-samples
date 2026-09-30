@@ -3,11 +3,11 @@ name: litert-runtime
 description: Creates an Android app that runs a .tflite model on the CPU or the GPU with the LiteRT CompiledModel API in Kotlin. Use this skill to build a new app around a vision, audio or embedding model, or to add on-device inference to an existing app - the dependency, where the model file goes, the inference class, the ViewModel and screen, and checking the output on a device.
 license: Apache-2.0
 metadata:
-  last-updated: '2026-09-29'
+  last-updated: '2026-09-30'
   keywords: [LiteRT, CompiledModel, tflite, Android app, GPU]
 ---
 
-This skill provides step-by-step guidance for building an Android app that runs a `.tflite` model with the LiteRT CompiledModel API (`com.google.ai.edge.litert:litert` 2.x; overview: https://ai.google.dev/edge/litert/android, sources: https://github.com/google-ai-edge/litert) on the CPU or the GPU. The Interpreter API is not covered. For language models, use the LiteRT-LM skill (https://github.com/google-ai-edge/LiteRT-LM).
+This skill provides step-by-step guidance for building an Android app that runs a `.tflite` model with the LiteRT CompiledModel API (`com.google.ai.edge.litert:litert` 2.x; overview: https://ai.google.dev/edge/litert/android, sources: https://github.com/google-ai-edge/litert) on the CPU or the GPU. The Interpreter API is not covered. For language models, use the `litert-lm` skill from https://github.com/google-ai-edge/litert-samples/tree/main/skills (LiteRT-LM: https://github.com/google-ai-edge/LiteRT-LM).
 
 ## Prerequisites
 

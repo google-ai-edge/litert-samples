@@ -7,7 +7,7 @@ metadata:
   keywords: [LiteRT-LM, litertlm, Gemma, on-device LLM, Android app, GPU]
 ---
 
-This skill provides step-by-step guidance for building an Android app that runs an open text LLM through the LiteRT-LM Kotlin API (`com.google.ai.edge.litertlm`; guide: https://ai.google.dev/edge/litert-lm/android, sources: https://github.com/google-ai-edge/LiteRT-LM) on the CPU or the GPU. The model is one `.litertlm` file. Images, audio, tool calling and NPU backends are not covered. For classic models (vision, audio), use the `litert-runtime` skill (https://github.com/google-ai-edge/litert).
+This skill provides step-by-step guidance for building an Android app that runs an open text LLM through the LiteRT-LM Kotlin API (`com.google.ai.edge.litertlm`; guide: https://ai.google.dev/edge/litert-lm/android, sources: https://github.com/google-ai-edge/LiteRT-LM) on the CPU or the GPU. The model is one `.litertlm` file. Images, audio, tool calling and NPU backends are not covered. For vision and audio models, use the `litert-runtime` skill from https://github.com/google-ai-edge/litert-samples/tree/main/skills (LiteRT: https://github.com/google-ai-edge/litert).
 
 ## Prerequisites
 
