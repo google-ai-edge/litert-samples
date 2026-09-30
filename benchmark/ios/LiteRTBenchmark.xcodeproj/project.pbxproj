@@ -16,8 +16,20 @@
 		80C667C7C02EEBEAAC10D0EB /* libLiteRtMetalAccelerator.dylib in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = DD3E7548BF2010EF009FB1C2 /* libLiteRtMetalAccelerator.dylib */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
 		850B2C2D798DE358093AD7B0 /* CoreML.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = BE43F4F77AA0529651049122 /* CoreML.framework */; };
 		9B0802CCA9CA880A9FD65FA4 /* AppDelegate.mm in Sources */ = {isa = PBXBuildFile; fileRef = BBEEC4123FE2F7CA3A98A9E8 /* AppDelegate.mm */; };
+		A47AAB25273EAEEDA271D5C5 /* LiteRTBenchmarkTests.mm in Sources */ = {isa = PBXBuildFile; fileRef = 5F6EC452B0F107242CAACAD7 /* LiteRTBenchmarkTests.mm */; };
+		CDCA74223B6EF86FB729F72C /* BenchmarkRun.mm in Sources */ = {isa = PBXBuildFile; fileRef = F4C7223F90B43EB1111B5EE3 /* BenchmarkRun.mm */; };
 		F12A81739F8C9C677B5B63B8 /* Accelerate.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = A1F25A8EF1E79BBBFFB19422 /* Accelerate.framework */; };
 /* End PBXBuildFile section */
+
+/* Begin PBXContainerItemProxy section */
+		B9082739E4963BE47A779943 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 400C424C85177D60324834B8 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = E898EAAB780133D8076302B2;
+			remoteInfo = LiteRTBenchmark;
+		};
+/* End PBXContainerItemProxy section */
 
 /* Begin PBXCopyFilesBuildPhase section */
 		D409220B8C9C9B43BD90DBCD /* Embed Frameworks */ = {
@@ -36,6 +48,7 @@
 /* Begin PBXFileReference section */
 		4130F03315E11844DB81C70C /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
 		5C1193C8FEFD9099C1D42D48 /* main.mm */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.objcpp; path = main.mm; sourceTree = "<group>"; };
+		5F6EC452B0F107242CAACAD7 /* LiteRTBenchmarkTests.mm */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.objcpp; path = LiteRTBenchmarkTests.mm; sourceTree = "<group>"; };
 		83FCB2E0BA7887E12A4C3AC7 /* LiteRTBenchmark.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = LiteRTBenchmark.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		8B67C1F48FA360CFD6A3A2FF /* SceneDelegate.mm */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.objcpp; path = SceneDelegate.mm; sourceTree = "<group>"; };
 		95ACEDFD357A61D89D0B9976 /* Foundation.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Foundation.framework; path = System/Library/Frameworks/Foundation.framework; sourceTree = SDKROOT; };
@@ -44,10 +57,13 @@
 		A9EED9546CE2E582BE86820A /* SceneDelegate.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = SceneDelegate.h; sourceTree = "<group>"; };
 		BBEEC4123FE2F7CA3A98A9E8 /* AppDelegate.mm */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.objcpp; path = AppDelegate.mm; sourceTree = "<group>"; };
 		BE43F4F77AA0529651049122 /* CoreML.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = CoreML.framework; path = System/Library/Frameworks/CoreML.framework; sourceTree = SDKROOT; };
+		CCE07889AD97A61EC88FD9F4 /* BenchmarkRun.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = BenchmarkRun.h; sourceTree = "<group>"; };
 		D629B36F85DB54FF44EDAD6D /* AppDelegate.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = AppDelegate.h; sourceTree = "<group>"; };
 		DD3E7548BF2010EF009FB1C2 /* libLiteRtMetalAccelerator.dylib */ = {isa = PBXFileReference; lastKnownFileType = "compiled.mach-o.dylib"; name = libLiteRtMetalAccelerator.dylib; path = Frameworks/libLiteRtMetalAccelerator.dylib; sourceTree = "<group>"; };
 		E67F559852D740646D93EA3A /* Metal.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Metal.framework; path = System/Library/Frameworks/Metal.framework; sourceTree = SDKROOT; };
 		EF44E3CDF91C809E82E40FBE /* UIKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = UIKit.framework; path = System/Library/Frameworks/UIKit.framework; sourceTree = SDKROOT; };
+		F4C7223F90B43EB1111B5EE3 /* BenchmarkRun.mm */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.objcpp; path = BenchmarkRun.mm; sourceTree = "<group>"; };
+		FE75EC2AD119F0931E656FAA /* LiteRTBenchmarkTests.xctest */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.cfbundle; path = LiteRTBenchmarkTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -67,10 +83,19 @@
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
+		42F563B8ED2AEBAC8BDC721D /* Tests */ = {
+			isa = PBXGroup;
+			children = (
+				5F6EC452B0F107242CAACAD7 /* LiteRTBenchmarkTests.mm */,
+			);
+			path = Tests;
+			sourceTree = "<group>";
+		};
 		74C81373136708629B828DBE = {
 			isa = PBXGroup;
 			children = (
 				996E147F92DE69AE10C843B3 /* Sources */,
+				42F563B8ED2AEBAC8BDC721D /* Tests */,
 				DB751C7A4FEA7F26E3233AE6 /* Frameworks */,
 				971919CC1B91D0D10750514A /* Products */,
 			);
@@ -80,6 +105,7 @@
 			isa = PBXGroup;
 			children = (
 				83FCB2E0BA7887E12A4C3AC7 /* LiteRTBenchmark.app */,
+				FE75EC2AD119F0931E656FAA /* LiteRTBenchmarkTests.xctest */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -89,6 +115,8 @@
 			children = (
 				D629B36F85DB54FF44EDAD6D /* AppDelegate.h */,
 				BBEEC4123FE2F7CA3A98A9E8 /* AppDelegate.mm */,
+				CCE07889AD97A61EC88FD9F4 /* BenchmarkRun.h */,
+				F4C7223F90B43EB1111B5EE3 /* BenchmarkRun.mm */,
 				4130F03315E11844DB81C70C /* Info.plist */,
 				5C1193C8FEFD9099C1D42D48 /* main.mm */,
 				A9EED9546CE2E582BE86820A /* SceneDelegate.h */,
@@ -114,6 +142,24 @@
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
+		42C206D3D7801C7C1F317E31 /* LiteRTBenchmarkTests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = C843F84A30990DFF762150B4 /* Build configuration list for PBXNativeTarget "LiteRTBenchmarkTests" */;
+			buildPhases = (
+				5EE59DEF105BF65E01F1FC6A /* Sources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				9F4C2E13C9830CD2097F02BA /* PBXTargetDependency */,
+			);
+			name = LiteRTBenchmarkTests;
+			packageProductDependencies = (
+			);
+			productName = LiteRTBenchmarkTests;
+			productReference = FE75EC2AD119F0931E656FAA /* LiteRTBenchmarkTests.xctest */;
+			productType = "com.apple.product-type.bundle.unit-test";
+		};
 		E898EAAB780133D8076302B2 /* LiteRTBenchmark */ = {
 			isa = PBXNativeTarget;
 			buildConfigurationList = FB2C25CA09F8DEBA59B4CD82 /* Build configuration list for PBXNativeTarget "LiteRTBenchmark" */;
@@ -142,6 +188,10 @@
 				BuildIndependentTargetsInParallel = YES;
 				LastUpgradeCheck = 1430;
 				TargetAttributes = {
+					42C206D3D7801C7C1F317E31 = {
+						DevelopmentTeam = "";
+						ProvisioningStyle = Automatic;
+					};
 					E898EAAB780133D8076302B2 = {
 						DevelopmentTeam = "";
 						ProvisioningStyle = Automatic;
@@ -163,22 +213,40 @@
 			projectRoot = "";
 			targets = (
 				E898EAAB780133D8076302B2 /* LiteRTBenchmark */,
+				42C206D3D7801C7C1F317E31 /* LiteRTBenchmarkTests */,
 			);
 		};
 /* End PBXProject section */
 
 /* Begin PBXSourcesBuildPhase section */
+		5EE59DEF105BF65E01F1FC6A /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				A47AAB25273EAEEDA271D5C5 /* LiteRTBenchmarkTests.mm in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		9CB1725CB9963AD114206566 /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
 				9B0802CCA9CA880A9FD65FA4 /* AppDelegate.mm in Sources */,
+				CDCA74223B6EF86FB729F72C /* BenchmarkRun.mm in Sources */,
 				22FE04F8C32833EF5183D82B /* SceneDelegate.mm in Sources */,
 				5FE93533CFF54885AC42D76A /* main.mm in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXSourcesBuildPhase section */
+
+/* Begin PBXTargetDependency section */
+		9F4C2E13C9830CD2097F02BA /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = E898EAAB780133D8076302B2 /* LiteRTBenchmark */;
+			targetProxy = B9082739E4963BE47A779943 /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
 
 /* Begin XCBuildConfiguration section */
 		43F41117BDB37C17FB3449D3 /* Release */ = {
@@ -195,8 +263,8 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				OTHER_LDFLAGS = "-ObjC -all_load";
-				PRODUCT_BUNDLE_IDENTIFIER = com.example.LiteRTBenchmark;
+				OTHER_LDFLAGS = "-ObjC -all_load -Xlinker -export_dynamic";
+				PRODUCT_BUNDLE_IDENTIFIER = "$(LITERT_BENCHMARK_BUNDLE_ID)";
 				SDKROOT = iphoneos;
 				TARGETED_DEVICE_FAMILY = "1,2";
 			};
@@ -250,6 +318,7 @@
 				GCC_WARN_UNUSED_FUNCTION = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
 				IPHONEOS_DEPLOYMENT_TARGET = 15.0;
+				LITERT_BENCHMARK_BUNDLE_ID = com.example.LiteRTBenchmark;
 				MTL_ENABLE_DEBUG_INFO = NO;
 				MTL_FAST_MATH = YES;
 				PRODUCT_NAME = "$(TARGET_NAME)";
@@ -314,6 +383,7 @@
 				GCC_WARN_UNUSED_FUNCTION = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
 				IPHONEOS_DEPLOYMENT_TARGET = 15.0;
+				LITERT_BENCHMARK_BUNDLE_ID = com.example.LiteRTBenchmark;
 				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
 				MTL_FAST_MATH = YES;
 				ONLY_ACTIVE_ARCH = YES;
@@ -339,16 +409,61 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				OTHER_LDFLAGS = "-ObjC -all_load";
-				PRODUCT_BUNDLE_IDENTIFIER = com.example.LiteRTBenchmark;
+				OTHER_LDFLAGS = "-ObjC -all_load -Xlinker -export_dynamic";
+				PRODUCT_BUNDLE_IDENTIFIER = "$(LITERT_BENCHMARK_BUNDLE_ID)";
 				SDKROOT = iphoneos;
 				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
+		D2B5CA4C51DDF7AC76CB08CD /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				GENERATE_INFOPLIST_FILE = YES;
+				HEADER_SEARCH_PATHS = "$(PROJECT_DIR)/Sources";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@loader_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = "$(LITERT_BENCHMARK_BUNDLE_ID).tests";
+				SDKROOT = iphoneos;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/LiteRTBenchmark.app/LiteRTBenchmark";
+			};
+			name = Release;
+		};
+		EF3B6647F972168CA85D080D /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				GENERATE_INFOPLIST_FILE = YES;
+				HEADER_SEARCH_PATHS = "$(PROJECT_DIR)/Sources";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@loader_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = "$(LITERT_BENCHMARK_BUNDLE_ID).tests";
+				SDKROOT = iphoneos;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/LiteRTBenchmark.app/LiteRTBenchmark";
 			};
 			name = Debug;
 		};
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
+		C843F84A30990DFF762150B4 /* Build configuration list for PBXNativeTarget "LiteRTBenchmarkTests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				EF3B6647F972168CA85D080D /* Debug */,
+				D2B5CA4C51DDF7AC76CB08CD /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
 		E793D2BF71F172075B0C0553 /* Build configuration list for PBXProject "LiteRTBenchmark" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (

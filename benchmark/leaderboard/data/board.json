@@ -1,10 +1,10 @@
 {
- "generated_at": "2026-09-19T03:08:57Z",
+ "generated_at": "2026-09-30T03:10:20Z",
  "runtime": "litert",
  "runtime_versions": [
   "2.2.0"
  ],
- "row_count": 128,
+ "row_count": 130,
  "models": [
   "litert-community/Gecko-110m-en",
   "litert-community/MobileNet-v2",
@@ -40,7 +40,7 @@
   {
    "id": "ios",
    "name": "iOS",
-   "rows": 2
+   "rows": 4
   }
  ],
  "devices": [
@@ -58,6 +58,11 @@
    "id": "mac-studio-m4-max",
    "name": "Mac Studio (M4 Max)",
    "platform": "macos"
+  },
+  {
+   "id": "iphone16pro-18-3",
+   "name": "iPhone 16 Pro",
+   "platform": "ios"
   },
   {
    "id": "iphone17pro",
@@ -5609,6 +5614,94 @@
    "job": "gpu-mac-studio-m4-max",
    "status": "measured",
    "date": "2026-09-18"
+  },
+  {
+   "row_id": "litert-community/MobileNet-v2:mobilenet_v2.tflite@2.2.0/ios/iphone16pro-18-3/cpu",
+   "model": "litert-community/MobileNet-v2",
+   "file": "mobilenet_v2.tflite",
+   "task": "image-classification",
+   "model_size_mb": 13.9759045,
+   "platform": "ios",
+   "device_id": "iphone16pro-18-3",
+   "device": "iPhone 16 Pro",
+   "os": "iOS 18.3",
+   "accelerator": "cpu",
+   "delegate": "TfLiteXNNPackDelegate",
+   "nodes_delegated": 70,
+   "nodes_total": 70,
+   "partitions": 1,
+   "latency_ms": {
+    "median": 2.158,
+    "avg": 2.15919828,
+    "p5": 2.04,
+    "p95": 2.269,
+    "min": 2.016,
+    "max": 2.695,
+    "stddev": 0.071,
+    "init": 5.078,
+    "first_inference": 3.875,
+    "warm_up_avg": 2.2163229
+   },
+   "memory_mb": {
+    "init_footprint": 14.02,
+    "overall_footprint": 21.84
+   },
+   "runs": 464,
+   "warmup_runs": 226,
+   "throughput_mb_s": 265.940735,
+   "source": "results.pb",
+   "runtime": "litert",
+   "runtime_version": "2.2.0",
+   "binary": "source v2.2.0 (145c7523f), XCTest (Release) in benchmark/ios",
+   "runner": "ddp",
+   "session": "session-3a1e00a0-c0b3-41ed-81f0-0df6679a6435",
+   "job": "cpu-iphone16pro-18-3",
+   "status": "measured",
+   "date": "2026-09-30"
+  },
+  {
+   "row_id": "litert-community/MobileNet-v2:mobilenet_v2.tflite@2.2.0/ios/iphone16pro-18-3/gpu",
+   "model": "litert-community/MobileNet-v2",
+   "file": "mobilenet_v2.tflite",
+   "task": "image-classification",
+   "model_size_mb": 13.9759045,
+   "platform": "ios",
+   "device_id": "iphone16pro-18-3",
+   "device": "iPhone 16 Pro",
+   "os": "iOS 18.3",
+   "accelerator": "gpu",
+   "delegate": "LITERT_METAL",
+   "nodes_delegated": 70,
+   "nodes_total": 70,
+   "partitions": 1,
+   "latency_ms": {
+    "median": 0.931,
+    "avg": 0.933661044,
+    "p5": 0.909,
+    "p95": 0.967,
+    "min": 0.894,
+    "max": 1.055,
+    "stddev": 0.018,
+    "init": 382.679,
+    "first_inference": 4.985,
+    "warm_up_avg": 1.02998555
+   },
+   "memory_mb": {
+    "init_footprint": 28.05,
+    "overall_footprint": 60.94
+   },
+   "runs": 1071,
+   "warmup_runs": 486,
+   "throughput_mb_s": 615.018433,
+   "source": "results.pb",
+   "runtime": "litert",
+   "runtime_version": "2.2.0",
+   "binary": "source v2.2.0 (145c7523f), XCTest (Release) in benchmark/ios",
+   "runner": "ddp",
+   "session": "session-36f966b7-0eb6-4478-9540-8a729bdc0078",
+   "job": "gpu-iphone16pro-18-3",
+   "status": "measured",
+   "date": "2026-09-30"
   },
   {
    "row_id": "litert-community/MobileNet-v2:mobilenet_v2.tflite@2.2.0/ios/iphone17pro/cpu",

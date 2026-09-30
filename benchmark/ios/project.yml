@@ -13,6 +13,9 @@ settings:
     DEVELOPMENT_TEAM: ""
     CLANG_CXX_LANGUAGE_STANDARD: c++17
     CLANG_ENABLE_OBJC_ARC: YES
+    # The app's bundle id; the test bundle's is derived from it. build_xctest.sh sets both at
+    # once from BUNDLE_ID, and the DDP driver names this id in the push and pull paths.
+    LITERT_BENCHMARK_BUNDLE_ID: com.example.LiteRTBenchmark
 targets:
   LiteRTBenchmark:
     type: application
@@ -39,10 +42,11 @@ targets:
           - UIInterfaceOrientationPortrait
     settings:
       base:
-        PRODUCT_BUNDLE_IDENTIFIER: com.example.LiteRTBenchmark
+        PRODUCT_BUNDLE_IDENTIFIER: $(LITERT_BENCHMARK_BUNDLE_ID)
         # -all_load keeps the static registrations (accelerator options parsers, vendor flags)
-        # that the linker would otherwise drop from the static framework.
-        OTHER_LDFLAGS: "-ObjC -all_load"
+        # that the linker would otherwise drop from the static framework; -export_dynamic keeps
+        # the app's own symbols visible to the test bundle that loads into it.
+        OTHER_LDFLAGS: "-ObjC -all_load -Xlinker -export_dynamic"
         FRAMEWORK_SEARCH_PATHS: "$(PROJECT_DIR)/Frameworks"
         TARGETED_DEVICE_FAMILY: "1,2"
     dependencies:
@@ -58,10 +62,31 @@ targets:
       - sdk: Accelerate.framework
       - sdk: CoreML.framework
       - sdk: Metal.framework
+  # The same benchmark as an XCTest hosted by the app, for a device lab that runs iOS tests
+  # (see Tests/LiteRTBenchmarkTests.mm and run_ddp_ios.py). It calls the framework through the
+  # app's own symbols, so it links nothing of its own.
+  LiteRTBenchmarkTests:
+    type: bundle.unit-test
+    platform: iOS
+    sources:
+      - path: Tests
+    dependencies:
+      - target: LiteRTBenchmark
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: $(LITERT_BENCHMARK_BUNDLE_ID).tests
+        GENERATE_INFOPLIST_FILE: YES
+        HEADER_SEARCH_PATHS: "$(PROJECT_DIR)/Sources"
 schemes:
   LiteRTBenchmark:
     build:
       targets:
         LiteRTBenchmark: all
+        LiteRTBenchmarkTests: [test]
     run:
       config: Release
+    test:
+      # Release, so the archive build_xctest.sh sends to a lab is the build the rows come from.
+      config: Release
+      targets:
+        - LiteRTBenchmarkTests
