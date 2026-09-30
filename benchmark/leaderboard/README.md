@@ -88,4 +88,5 @@ through `run_matrix.py` (42 sessions, 2026-09-18) and on a Mac Studio (M4 Max, m
 through `run_local.py` (42 runs, one session per file, 2026-09-18), every job with results; `mobilenet_v2.tflite` from
 [litert-community/MobileNet-v2](https://huggingface.co/litert-community/MobileNet-v2) on an iPhone 17 Pro (iOS 27.0) through
 the app in `../ios/` built from LiteRT v2.2.0 (`145c7523f`), one `run_ios.sh` session on 2026-09-17. LiteRT-LM rows: none on
-the board; `data/measurements-lm.jsonl` is empty. The board was rebuilt on 2026-10-01 with Python 3.14.
+the board; `data/measurements-lm.jsonl` is empty. The two `litert benchmark` lines of step 5 were run on 2026-09-30 with
+litert-cli-nightly 0.3.0.dev20260929 on pa3q-35, CPU and GPU. The board was rebuilt on 2026-10-01 with Python 3.14.
