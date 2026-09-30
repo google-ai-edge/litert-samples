@@ -1,5 +1,5 @@
 ---
-name: litert
+name: litert-runtime
 description: Creates an Android app that runs a .tflite model on the CPU or the GPU with the LiteRT CompiledModel API in Kotlin. Use this skill to build a new app around a vision, audio or embedding model, or to add on-device inference to an existing app - the dependency, where the model file goes, the inference class, the ViewModel and screen, and checking the output on a device.
 license: Apache-2.0
 metadata:
