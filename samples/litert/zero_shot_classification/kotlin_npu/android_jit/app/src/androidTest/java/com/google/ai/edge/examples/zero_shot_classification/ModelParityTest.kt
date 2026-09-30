@@ -16,6 +16,7 @@
 
 package com.google.ai.edge.examples.zero_shot_classification
 
+import android.app.Instrumentation
 import android.content.Context
 import android.content.res.AssetManager
 import android.os.Build
@@ -28,6 +29,7 @@ import java.io.File
 import kotlin.math.abs
 import kotlin.math.sqrt
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Assume.assumeTrue
@@ -52,15 +54,41 @@ class ModelParityTest {
     checkParity(LayaEngine.Backend.NPU)
     // LiteRT 2.2.0 runs the graph on the CPU when its NPU compile fails, so the rows alone do not
     // prove the NPU ran. Its log line does: the whole graph became one NPU dispatch node.
-    val command = "logcat -d -v raw --pid=${Process.myPid()} -s tflite:I"
-    val output = instrumentation.uiAutomation.executeShellCommand(command)
-    val log =
-      ParcelFileDescriptor.AutoCloseInputStream(output).bufferedReader().use { it.readText() }
     assertTrue(
       "No full NPU delegation in the log: the graph ran on the CPU",
       Regex("Replacing (\\d+) out of \\1 node\\(s\\) with delegate \\(DispatchDelegate\\)")
-        .containsMatchIn(log),
+        .containsMatchIn(processLog(instrumentation, "tflite:I")),
     )
+  }
+
+  /**
+   * LiteRT 2.2.0 starts the NPU runtime once per process, from the options of the first graph
+   * compiled in it, so a GPU graph compiled first has to carry the NPU performance mode; without
+   * it a later NPU graph runs about five times slower. LiteRT logs when that first compile had no
+   * Qualcomm options. The check needs its own process, before any NPU graph:
+   * `am instrument -w -e class <package>.ModelParityTest#npuAfterGpu ...`.
+   */
+  @Test
+  fun npuAfterGpu() {
+    val instrumentation = InstrumentationRegistry.getInstrumentation()
+    val context = instrumentation.targetContext
+    assumeTrue("No NPU runtime for this device", LayaEngine.isNpuAvailable(context))
+    ensureFiles(context, instrumentation.context.assets)
+    LayaEngine(context).use { engine ->
+      engine.initialize(LayaEngine.Backend.GPU)
+      engine.initialize(LayaEngine.Backend.NPU)
+    }
+    assertFalse(
+      "The GPU graph started the NPU runtime without the NPU options",
+      processLog(instrumentation, "litert:E").contains("Failed to parse qnn options"),
+    )
+  }
+
+  /** This process's log lines for one logcat filter such as `tflite:I`. */
+  private fun processLog(instrumentation: Instrumentation, filter: String): String {
+    val command = "logcat -d -v raw --pid=${Process.myPid()} -s $filter"
+    val output = instrumentation.uiAutomation.executeShellCommand(command)
+    return ParcelFileDescriptor.AutoCloseInputStream(output).bufferedReader().use { it.readText() }
   }
 
   @Test

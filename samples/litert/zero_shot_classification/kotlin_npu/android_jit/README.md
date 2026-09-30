@@ -45,7 +45,10 @@ java -jar bundletool-all.jar build-apks --bundle=app/build/outputs/bundle/debug/
 java -jar bundletool-all.jar install-apks --apks=zero_shot_debug.apks --device-groups=Qualcomm_SM8850
 adb install -t app/build/outputs/apk/androidTest/debug/app-debug-androidTest.apk
 adb shell am instrument -w -e class com.google.ai.edge.examples.zero_shot_classification.ModelParityTest com.google.ai.edge.examples.zero_shot_classification.npu.test/androidx.test.runner.AndroidJUnitRunner
+adb shell am instrument -w -e class com.google.ai.edge.examples.zero_shot_classification.ModelParityTest#npuAfterGpu com.google.ai.edge.examples.zero_shot_classification.npu.test/androidx.test.runner.AndroidJUnitRunner
 ```
+
+The second line runs one check in a fresh process: LiteRT 2.2.0 starts the NPU runtime once per process, from the options of the first graph compiled in it, so the app compiles every graph, GPU and CPU ones too, with the NPU performance mode. Without that, switching from the GPU to the NPU in the app leaves the NPU about five times slower than a launch on the NPU.
 
 ## Performance
 
