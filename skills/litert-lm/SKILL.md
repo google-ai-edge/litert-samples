@@ -3,7 +3,7 @@ name: litert-lm
 description: Creates an Android app that runs an open text LLM on the device, on the CPU or the GPU, with the LiteRT-LM Kotlin API. Use this skill to build a new chat, summarization or extraction app with a .litertlm model from Hugging Face litert-community (Gemma, Qwen, Llama, Phi) - the dependency and manifest entries, getting the model file onto the device, engine initialization, a streamed multi-turn conversation, the ViewModel and screen.
 license: Apache-2.0
 metadata:
-  last-updated: '2026-09-23'
+  last-updated: '2026-09-30'
   keywords: [LiteRT-LM, litertlm, Gemma, on-device LLM, Android app, GPU]
 ---
 
@@ -26,7 +26,7 @@ This skill provides step-by-step guidance for building an Android app that runs 
 
 ### 1. Pick a model from litert-community
 
-Choose a `.litertlm` file at https://huggingface.co/litert-community. The file name carries the quantization (`q8`, `q4`, `wi4b32`) and the KV cache size (`ekv1280`, `ekv4096`); the model card names the tested backend. A small model is the right start: `litert-community/Qwen3-0.6B` downloads without a login, while the Gemma repos are gated (an accepted license and a Hugging Face token are needed to download). Converting a model yourself is a separate step: [get a model](references/get-a-model.md).
+Choose a `.litertlm` file at https://huggingface.co/litert-community. Start with a powerful model such as `litert-community/gemma-4-E2B-it-litert-lm` or a smaller model like `litert-community/Qwen3-0.6B`. The file to download is `gemma-4-E2B-it.litertlm` (2.6 GB) from the first and `Qwen3-0.6B.litertlm` (0.6 GB) from the second; both run on the CPU and the GPU. A SoC suffix such as `_Google_Tensor_G5` or `.mediatek.mt6993` marks an NPU build (not covered here). The model card names the tested backends and the size. Converting a model yourself is a separate step: [get a model](references/get-a-model.md).
 
 ### 2. Put the model file on the device
 

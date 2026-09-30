@@ -2,7 +2,7 @@
 
 ## litert-community first
 
-https://huggingface.co/litert-community holds one repo per model (`litert-community/Qwen3-0.6B`, `litert-community/Gemma3-1B-IT`, ...). Choose a `.litertlm` file; its name carries the variant: `q8`, `q4` or `wi4b32` (int4 weights, block 32) for the quantization, `ekv1280` or `ekv4096` for the KV cache size (the longest prompt plus reply, in tokens), and a SoC suffix such as `.mediatek.mt6993` for an NPU build, which this skill does not use. The model card says which backend the file was tested on and its size. Gemma repos are gated: downloading needs an accepted license and a Hugging Face token; Qwen3 files download without one.
+https://huggingface.co/litert-community holds one repo per model, such as `litert-community/gemma-4-E2B-it-litert-lm` and `litert-community/Qwen3-0.6B`; the files to download from these two are `gemma-4-E2B-it.litertlm` and `Qwen3-0.6B.litertlm`, which run on the CPU and the GPU. The other files carry their variant in the name: `wi4b32` (int4 weights, block 32), `q8` or `q4` for the quantization, `ekv1280` or `ekv4096` for the context length (prompt plus reply, in tokens), and a SoC suffix such as `_Google_Tensor_G5` or `.mediatek.mt6993` for an NPU build (not covered here). The model card says which backend each file was tested on and its size.
 
 The download URL is `https://huggingface.co/<repo>/resolve/main/<file>`. The file stays out of `assets/` and the APK.
 
