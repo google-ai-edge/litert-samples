@@ -20,6 +20,7 @@ import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.Color
 import android.graphics.Matrix
+import android.os.Build
 import android.os.SystemClock
 import android.util.Log
 import androidx.core.graphics.scale
@@ -28,6 +29,7 @@ import com.google.ai.edge.litert.Accelerator
 import com.google.ai.edge.litert.BuiltinNpuAcceleratorProvider
 import com.google.ai.edge.litert.CompiledModel
 import com.google.ai.edge.litert.Environment
+import com.google.ai.edge.litert.NpuCompatibilityChecker
 import java.nio.ByteBuffer
 import java.nio.FloatBuffer
 import java.util.Random
@@ -66,12 +68,21 @@ class ImageSegmentationHelper(private val context: Context) {
   private var segmenter: Segmenter? = null
   private val singleThreadDispatcher = Dispatchers.IO.limitedParallelism(1, "ModelDispatcher")
 
+  private val npuCompatibilityChecker =
+    object : NpuCompatibilityChecker {
+      override fun isDeviceSupported(): Boolean =
+        NpuCompatibilityChecker.Default.isDeviceSupported() ||
+          (Build.SOC_MANUFACTURER.trim().equals("Intel", ignoreCase = true) &&
+            Build.SUPPORTED_ABIS.any { it.equals("x86_64", ignoreCase = true) })
+    }
+
   /** Init a CompiledModel from AI Pack. */
   suspend fun initSegmenter(acceleratorEnum: AcceleratorEnum = AcceleratorEnum.CPU) {
     cleanup()
     try {
       val accelerator = toAccelerator(acceleratorEnum)
-      val env = Environment.create(BuiltinNpuAcceleratorProvider(context))
+      val env =
+        Environment.create(BuiltinNpuAcceleratorProvider(context, npuCompatibilityChecker))
 
       val options = CompiledModel.Options(accelerator).apply {
         qualcommOptions = CompiledModel.QualcommOptions(
