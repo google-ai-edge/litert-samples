@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+  <string name="save_speech_wav">Save WAV</string>
+  <string name="saving_speech_wav">Saving WAV…</string>
+  <string name="speech_wav_saved">WAV saved.</string>
+  <string name="speech_cache_failed">Speech is ready, but its WAV could not be saved: %1$s</string>
+  <string name="speech_export_failed">The WAV could not be saved: %1$s</string>
+</resources>

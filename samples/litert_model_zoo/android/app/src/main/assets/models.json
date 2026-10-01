@@ -1,0 +1,864 @@
+{
+  "schemaVersion": 1,
+  "runtimeVersion": "2.2.0",
+  "tasks": [
+    {
+      "task": "Object Detection",
+      "taskId": "object-detection",
+      "group": "Vision",
+      "model": "RF-DETR Nano",
+      "files": [
+        {
+          "name": "rfdetr_graphA_fp16.tflite",
+          "url": "https://huggingface.co/litert-community/RF-DETR-Nano-LiteRT/resolve/66cb5541ffc9ad5cc4977230927472923cacd42d/rfdetr_graphA_fp16.tflite",
+          "bytes": 48634176,
+          "sha256": "de71a9c0c3fb2e1c617f3a79b2ce3541ea33b7ceb9bd5e7edd752b067efe33a1"
+        },
+        {
+          "name": "rfdetr_graphB_fp16.tflite",
+          "url": "https://huggingface.co/litert-community/RF-DETR-Nano-LiteRT/resolve/66cb5541ffc9ad5cc4977230927472923cacd42d/rfdetr_graphB_fp16.tflite",
+          "bytes": 7594960,
+          "sha256": "ced9a6b29f8196c6d66c9864a11f4fd2d7e23bb5ab2d0d83f49101f85321fc86"
+        }
+      ],
+      "license": {
+        "name": "Apache-2.0",
+        "url": "https://github.com/roboflow/rf-detr/blob/develop/LICENSE"
+      },
+      "upstream": "https://github.com/roboflow/rf-detr",
+      "modelCard": "https://huggingface.co/litert-community/RF-DETR-Nano-LiteRT",
+      "backend": "gpu",
+      "inputKind": "camera_image",
+      "outputKind": "boxes"
+    },
+    {
+      "task": "Video Action Recognition",
+      "taskId": "video-action-recognition",
+      "group": "Vision",
+      "model": "MoViNet-A0 stream",
+      "files": [
+        {
+          "name": "movinet_a0_stream.tflite",
+          "url": "https://huggingface.co/litert-community/MoViNet-A0-Stream-LiteRT/resolve/a21743c58801227b8265f47b136cb096fe22989d/movinet_a0_stream.tflite",
+          "bytes": 15131688,
+          "sha256": "0565d6e2173caf3e144e6a0a6461edfef9dc5cccacf9a093f311f8a8f05434c8"
+        }
+      ],
+      "license": {
+        "name": "Apache-2.0",
+        "url": "https://github.com/Atze00/MoViNet-pytorch/blob/main/LICENSE"
+      },
+      "upstream": "https://github.com/Atze00/MoViNet-pytorch",
+      "modelCard": "https://huggingface.co/litert-community/MoViNet-A0-Stream-LiteRT",
+      "backend": "cpu",
+      "inputKind": "camera_image",
+      "outputKind": "visualization"
+    },
+    {
+      "task": "Semantic Segmentation",
+      "taskId": "semantic-segmentation",
+      "group": "Vision",
+      "model": "PIDNet-S",
+      "files": [
+        {
+          "name": "pidnet_s.tflite",
+          "url": "https://huggingface.co/litert-community/PIDNet-S-Cityscapes-LiteRT/resolve/3d79fd7a49278c81649fbe180091f96feead56fd/pidnet_s.tflite",
+          "bytes": 30645332,
+          "sha256": "9f11e66b223eefb9a35ca70bf1451b6a0104623e4c178e422f7cf3eb72eace26"
+        }
+      ],
+      "license": {
+        "name": "MIT",
+        "url": "https://github.com/XuJiacong/PIDNet/blob/main/LICENSE"
+      },
+      "upstream": "https://github.com/XuJiacong/PIDNet",
+      "modelCard": "https://huggingface.co/litert-community/PIDNet-S-Cityscapes-LiteRT",
+      "backend": "gpu",
+      "inputKind": "image",
+      "outputKind": "visualization"
+    },
+    {
+      "task": "Lane Detection",
+      "taskId": "lane-detection",
+      "group": "Vision",
+      "model": "TwinLiteNet",
+      "files": [
+        {
+          "name": "twinlite.tflite",
+          "url": "https://huggingface.co/litert-community/TwinLiteNet-LiteRT/resolve/63f53ec91dd9fddcafbbb30c99646447711af4ee/twinlite.tflite",
+          "bytes": 3084552,
+          "sha256": "d4d2397e8fcd70007151231e6106caf62ec2ae902b78c3e7095ebd1105289917"
+        }
+      ],
+      "license": {
+        "name": "MIT",
+        "url": "https://github.com/chequanghuy/TwinLiteNet/blob/main/LICENSE"
+      },
+      "upstream": "https://github.com/chequanghuy/TwinLiteNet",
+      "modelCard": "https://huggingface.co/litert-community/TwinLiteNet-LiteRT",
+      "backend": "gpu",
+      "inputKind": "camera_image",
+      "outputKind": "visualization"
+    },
+    {
+      "task": "Super-Resolution",
+      "taskId": "super-resolution",
+      "group": "Vision",
+      "model": "EDSR-base x4",
+      "files": [
+        {
+          "name": "edsr.tflite",
+          "url": "https://huggingface.co/litert-community/EDSR-x4-LiteRT/resolve/670eaa25a390838226c7e3e61b0dd1ea4e5bc3ba/edsr.tflite",
+          "bytes": 7714836,
+          "sha256": "77fdb8655436844e94187ce6675f5c8c73ed5bf3080327d8ebe96e15da829bde"
+        }
+      ],
+      "license": {
+        "name": "Apache-2.0",
+        "url": "https://github.com/eugenesiow/super-image/blob/main/LICENSE"
+      },
+      "upstream": "https://huggingface.co/eugenesiow/edsr-base",
+      "modelCard": "https://huggingface.co/litert-community/EDSR-x4-LiteRT",
+      "backend": "gpu",
+      "inputKind": "image",
+      "outputKind": "visualization"
+    },
+    {
+      "task": "Image Dehazing",
+      "taskId": "image-dehazing",
+      "group": "Vision",
+      "model": "DehazeFormer-MCT",
+      "files": [
+        {
+          "name": "dehazeformer_base.tflite",
+          "url": "https://huggingface.co/litert-community/DehazeFormer-MCT-LiteRT/resolve/7249e3942b1a762f0c9691487537f171f10f3f5d/dehazeformer_base.tflite",
+          "bytes": 16777548,
+          "sha256": "ebd9756d55fbcf519a2887bfcef3b85788fec67fd81eb1642539fb8afa7c001e"
+        }
+      ],
+      "license": {
+        "name": "MIT",
+        "url": "https://github.com/IDKiro/DehazeFormer/blob/main/LICENSE"
+      },
+      "upstream": "https://github.com/IDKiro/DehazeFormer",
+      "modelCard": "https://huggingface.co/litert-community/DehazeFormer-MCT-LiteRT",
+      "backend": "gpu",
+      "inputKind": "image",
+      "outputKind": "visualization"
+    },
+    {
+      "task": "Face Liveness / Anti-Spoofing",
+      "taskId": "face-liveness-anti-spoofing",
+      "group": "Vision",
+      "model": "Silent-Face MiniFASNetV2",
+      "files": [
+        {
+          "name": "silentface.tflite",
+          "url": "https://huggingface.co/litert-community/Silent-Face-Anti-Spoofing-LiteRT/resolve/a93eeab801f4b1c2568fb7fa863f4553a50c4b0d/silentface.tflite",
+          "bytes": 1850744,
+          "sha256": "4ff758f470b757d9005b418c9978693f09b8f2a5e7b7ee848c160db21208e1b2"
+        }
+      ],
+      "license": {
+        "name": "Apache-2.0",
+        "url": "https://github.com/minivision-ai/Silent-Face-Anti-Spoofing/blob/master/LICENSE"
+      },
+      "upstream": "https://github.com/minivision-ai/Silent-Face-Anti-Spoofing",
+      "modelCard": "https://huggingface.co/litert-community/Silent-Face-Anti-Spoofing-LiteRT",
+      "backend": "gpu",
+      "inputKind": "camera_image",
+      "outputKind": "visualization"
+    },
+    {
+      "task": "Head Pose Estimation",
+      "taskId": "head-pose-estimation",
+      "group": "Vision",
+      "model": "6DRepNet",
+      "files": [
+        {
+          "name": "6drepnet.tflite",
+          "url": "https://huggingface.co/litert-community/6DRepNet-HeadPose-LiteRT/resolve/6a7d8fe0ca042d1524e3912d3371a61d0af45528/6drepnet.tflite",
+          "bytes": 157328736,
+          "sha256": "44cc9679a18242fac31c9ad369465caad93a34c721eed3fe0ff003f712769dee"
+        }
+      ],
+      "license": {
+        "name": "MIT",
+        "url": "https://github.com/thohemp/6DRepNet/blob/master/LICENSE"
+      },
+      "upstream": "https://github.com/thohemp/6DRepNet",
+      "modelCard": "https://huggingface.co/litert-community/6DRepNet-HeadPose-LiteRT",
+      "backend": "gpu",
+      "inputKind": "camera_image",
+      "outputKind": "visualization"
+    },
+    {
+      "task": "Crowd Counting",
+      "taskId": "crowd-counting",
+      "group": "Vision",
+      "model": "DM-Count",
+      "files": [
+        {
+          "name": "dmcount.tflite",
+          "url": "https://huggingface.co/litert-community/DM-Count-Crowd-LiteRT/resolve/5934338595e4d963b9f73f1c5b903bce4abc5b7a/dmcount.tflite",
+          "bytes": 86027724,
+          "sha256": "1d997cd01b508e512c94f835140fad043eab98f81daa82b713dc22c340e9fad1"
+        }
+      ],
+      "license": {
+        "name": "MIT",
+        "url": "https://github.com/cvlab-stonybrook/DM-Count/blob/master/LICENSE"
+      },
+      "upstream": "https://github.com/cvlab-stonybrook/DM-Count",
+      "modelCard": "https://huggingface.co/litert-community/DM-Count-Crowd-LiteRT",
+      "backend": "gpu",
+      "inputKind": "image",
+      "outputKind": "visualization"
+    },
+    {
+      "task": "Instance Segmentation",
+      "taskId": "instance-segmentation",
+      "group": "Vision",
+      "model": "RF-DETR-Seg Nano",
+      "files": [
+        {
+          "name": "clspos.bin",
+          "url": "https://huggingface.co/litert-community/RF-DETR-Seg-Nano-LiteRT/resolve/8fee237c534786c1e7593dde45a0f806ffa31afd/clspos.bin",
+          "bytes": 1536,
+          "sha256": "11371e5ccb86a769f96e5eeb658f303715da8f26c4ff6158fef726a2ebd69bd8"
+        },
+        {
+          "name": "pospatch.bin",
+          "url": "https://huggingface.co/litert-community/RF-DETR-Seg-Nano-LiteRT/resolve/8fee237c534786c1e7593dde45a0f806ffa31afd/pospatch.bin",
+          "bytes": 1038336,
+          "sha256": "f7e9ba735aa5b820ed4eb4604bea7c2082873815381b5ef069f67d881beb1d81"
+        },
+        {
+          "name": "query_feat.bin",
+          "url": "https://huggingface.co/litert-community/RF-DETR-Seg-Nano-LiteRT/resolve/8fee237c534786c1e7593dde45a0f806ffa31afd/query_feat.bin",
+          "bytes": 102400,
+          "sha256": "936babdfe6f5f52c246d9b4453d879cb2743339868a99d23b90e7c88f34adec2"
+        },
+        {
+          "name": "refpoint_embed.bin",
+          "url": "https://huggingface.co/litert-community/RF-DETR-Seg-Nano-LiteRT/resolve/8fee237c534786c1e7593dde45a0f806ffa31afd/refpoint_embed.bin",
+          "bytes": 1600,
+          "sha256": "e5713e5fe84a3df26598af65ce29e3a513097b20071849019b3e1f3a8c156c26"
+        },
+        {
+          "name": "rfdetrseg_graphA_fp16.tflite",
+          "url": "https://huggingface.co/litert-community/RF-DETR-Seg-Nano-LiteRT/resolve/8fee237c534786c1e7593dde45a0f806ffa31afd/rfdetrseg_graphA_fp16.tflite",
+          "bytes": 47028736,
+          "sha256": "1b85a919c19a1832b729f546c3f60ceca179b669258d7ab244fac96890bf630a"
+        },
+        {
+          "name": "rfdetrseg_graphB_fp16.tflite",
+          "url": "https://huggingface.co/litert-community/RF-DETR-Seg-Nano-LiteRT/resolve/8fee237c534786c1e7593dde45a0f806ffa31afd/rfdetrseg_graphB_fp16.tflite",
+          "bytes": 14783408,
+          "sha256": "71ad26d20f3f5bc15b8fc73384a1ce3ad0ceb6b4f994bb042662641aea071ae7"
+        }
+      ],
+      "license": {
+        "name": "Apache-2.0",
+        "url": "https://github.com/roboflow/rf-detr/blob/develop/LICENSE"
+      },
+      "upstream": "https://github.com/roboflow/rf-detr",
+      "modelCard": "https://huggingface.co/litert-community/RF-DETR-Seg-Nano-LiteRT",
+      "backend": "gpu",
+      "inputKind": "image",
+      "outputKind": "visualization"
+    },
+    {
+      "task": "Background Removal",
+      "taskId": "background-removal",
+      "group": "Vision",
+      "model": "ormbg",
+      "files": [
+        {
+          "name": "ormbg.tflite",
+          "url": "https://huggingface.co/litert-community/ormbg-LiteRT/resolve/8dfdacc4ebceafd4d55195fdbd3baf8470610518/ormbg.tflite",
+          "bytes": 176240148,
+          "sha256": "f6e359cf35c55e7bf216eb3141f6d76828667a5e8e67a929f53e9f7f38fae030"
+        }
+      ],
+      "license": {
+        "name": "Apache-2.0",
+        "url": "https://huggingface.co/schirrmacher/ormbg"
+      },
+      "upstream": "https://huggingface.co/schirrmacher/ormbg",
+      "modelCard": "https://huggingface.co/litert-community/ormbg-LiteRT",
+      "backend": "gpu",
+      "inputKind": "image",
+      "outputKind": "visualization"
+    },
+    {
+      "task": "Portrait Matting",
+      "taskId": "portrait-matting",
+      "group": "Vision",
+      "model": "MODNet",
+      "files": [
+        {
+          "name": "modnet.tflite",
+          "url": "https://huggingface.co/litert-community/MODNet-LiteRT/resolve/4d5bd22bde15c8ae5e215ca4799513844979a431/modnet.tflite",
+          "bytes": 26166776,
+          "sha256": "f7d1e9eca9562abddb60e4b0a3ed0c29441ef09cd621954978f1613914cc64bc"
+        }
+      ],
+      "license": {
+        "name": "Apache-2.0",
+        "url": "https://github.com/ZHKKKe/MODNet/blob/master/LICENSE"
+      },
+      "upstream": "https://github.com/ZHKKKe/MODNet",
+      "modelCard": "https://huggingface.co/litert-community/MODNet-LiteRT",
+      "backend": "gpu",
+      "inputKind": "image",
+      "outputKind": "visualization"
+    },
+    {
+      "task": "Dense Feature Visualization",
+      "taskId": "dense-feature-visualization",
+      "group": "Vision",
+      "model": "DINOv2 ViT-S/14",
+      "files": [
+        {
+          "name": "dinov2_s_fp16.tflite",
+          "url": "https://huggingface.co/litert-community/DINOv2-ViT-S14-LiteRT/resolve/f3be8d98c2e3241ee59dd39a6c24f8d5ea72f593/dinov2_s_fp16.tflite",
+          "bytes": 44893248,
+          "sha256": "c0697093316b777de2c79ed895f74c864136840309ecb2aab6f51cbe0c228e7f"
+        }
+      ],
+      "license": {
+        "name": "Apache-2.0",
+        "url": "https://github.com/facebookresearch/dinov2/blob/main/LICENSE"
+      },
+      "upstream": "https://github.com/facebookresearch/dinov2",
+      "modelCard": "https://huggingface.co/litert-community/DINOv2-ViT-S14-LiteRT",
+      "backend": "gpu",
+      "inputKind": "image",
+      "outputKind": "visualization"
+    },
+    {
+      "task": "Speech Recognition",
+      "taskId": "speech-recognition",
+      "group": "Audio",
+      "model": "Zipformer-small (CR-CTC)",
+      "files": [
+        {
+          "name": "zipformer_ctc_small_fp16.tflite",
+          "url": "https://huggingface.co/litert-community/Zipformer-medium-CR-CTC-LiteRT/resolve/7732ad6c15ec43402968d5ae04acfa7a204027f5/zipformer_ctc_small_fp16.tflite",
+          "bytes": 46216688,
+          "sha256": "ff6d70c7e8cfdfcf994be625456ca6543e0dbcc76fd4fd428e2138642d0852ba"
+        },
+        {
+          "name": "tokens.txt",
+          "url": "https://huggingface.co/litert-community/Zipformer-medium-CR-CTC-LiteRT/resolve/7732ad6c15ec43402968d5ae04acfa7a204027f5/tokens.txt",
+          "bytes": 5048,
+          "sha256": "49e3c2646595fd907228b3c6787069658f67b17377c60aeb8619c4551b2316fb"
+        }
+      ],
+      "license": {
+        "name": "Apache-2.0",
+        "url": "https://github.com/k2-fsa/icefall/blob/master/LICENSE"
+      },
+      "upstream": "https://github.com/k2-fsa/icefall",
+      "modelCard": "https://huggingface.co/litert-community/Zipformer-medium-CR-CTC-LiteRT",
+      "backend": "gpu",
+      "inputKind": "microphone_wav",
+      "outputKind": "text"
+    },
+    {
+      "task": "Text-to-Speech",
+      "taskId": "text-to-speech",
+      "group": "Audio",
+      "model": "Matcha-TTS",
+      "files": [
+        {
+          "name": "config.json",
+          "url": "https://huggingface.co/litert-community/Matcha-TTS/resolve/143eb4236e8c81ea6849ede31f7f088ea2393cfa/config.json",
+          "bytes": 2071,
+          "sha256": "7363e9e4dda1613aebff7005f2e8c0c76d9b0a1cac31de0f3483bef3089c6906"
+        },
+        {
+          "name": "dp_g2p_matcha_fp16.tflite",
+          "url": "https://huggingface.co/litert-community/Matcha-TTS/resolve/143eb4236e8c81ea6849ede31f7f088ea2393cfa/dp_g2p_matcha_fp16.tflite",
+          "bytes": 25785872,
+          "sha256": "6e4b481f6874dfabc32ce73bf6f0ea1ba6ab5986ee6f76a27779364be8a53c73"
+        },
+        {
+          "name": "emb.bin",
+          "url": "https://huggingface.co/litert-community/Matcha-TTS/resolve/143eb4236e8c81ea6849ede31f7f088ea2393cfa/emb.bin",
+          "bytes": 136704,
+          "sha256": "18be34cda4afa1f59b9fb0b80d03f048bd9dd650e29846e4c6467e0b614c1ee7"
+        },
+        {
+          "name": "g2p_dict.txt.gz",
+          "url": "https://huggingface.co/litert-community/Matcha-TTS/resolve/143eb4236e8c81ea6849ede31f7f088ea2393cfa/g2p_dict.txt.gz",
+          "bytes": 1762038,
+          "sha256": "5b3493a8cd4d20b72c7b91415afaf3f32335ebd81f349698e1cedc898c59f979"
+        },
+        {
+          "name": "g2p_meta.json",
+          "url": "https://huggingface.co/litert-community/Matcha-TTS/resolve/143eb4236e8c81ea6849ede31f7f088ea2393cfa/g2p_meta.json",
+          "bytes": 1904,
+          "sha256": "7b87bfeaaa072be236e8491d771b0cb97cc92c3e5d83e3558fff8849868810f5"
+        },
+        {
+          "name": "matcha_decoder_fp16.tflite",
+          "url": "https://huggingface.co/litert-community/Matcha-TTS/resolve/143eb4236e8c81ea6849ede31f7f088ea2393cfa/matcha_decoder_fp16.tflite",
+          "bytes": 22614528,
+          "sha256": "2c2e70235f0daaa9d82366416aad69b4f6e916f080a2da8b4b3b759f7cfd3069"
+        },
+        {
+          "name": "matcha_textenc_fp16.tflite",
+          "url": "https://huggingface.co/litert-community/Matcha-TTS/resolve/143eb4236e8c81ea6849ede31f7f088ea2393cfa/matcha_textenc_fp16.tflite",
+          "bytes": 14774576,
+          "sha256": "adf2642699b09a9f0cc302a64396554ac698401d93cffad4462792d6df8589a5"
+        },
+        {
+          "name": "matcha_vocoder_fp16.tflite",
+          "url": "https://huggingface.co/litert-community/Matcha-TTS/resolve/143eb4236e8c81ea6849ede31f7f088ea2393cfa/matcha_vocoder_fp16.tflite",
+          "bytes": 28973856,
+          "sha256": "7d0b4d975eb1558d02c0fa781b329f5fc650cfee6bffcf311de4b190d62020ac"
+        }
+      ],
+      "license": {
+        "name": "MIT",
+        "url": "https://github.com/shivammehta25/Matcha-TTS/blob/main/LICENSE"
+      },
+      "upstream": "https://github.com/shivammehta25/Matcha-TTS",
+      "modelCard": "https://huggingface.co/litert-community/Matcha-TTS",
+      "backend": "gpu",
+      "inputKind": "text",
+      "outputKind": "audio",
+      "componentLicenses": [
+        {
+          "component": "Matcha-TTS and HiFi-GAN",
+          "name": "MIT",
+          "url": "https://github.com/shivammehta25/Matcha-TTS/blob/main/LICENSE"
+        },
+        {
+          "component": "DeepPhonemizer",
+          "name": "MIT",
+          "url": "https://github.com/as-ideas/DeepPhonemizer/blob/master/LICENSE"
+        },
+        {
+          "component": "OpenPhonemizer dictionary",
+          "name": "BSD-3-Clause-Clear",
+          "url": "https://github.com/NeuralVox/OpenPhonemizer/blob/main/LICENSE"
+        }
+      ]
+    },
+    {
+      "task": "Audio Codec",
+      "taskId": "audio-codec",
+      "group": "Audio",
+      "model": "DAC 16kHz",
+      "files": [
+        {
+          "name": "dac_16khz_deconly_zs_fp16.tflite",
+          "url": "https://huggingface.co/litert-community/DAC-16kHz-LiteRT/resolve/07e52bf19210ee172f180c898563f13dfc8c6e40/dac_16khz_deconly_zs_fp16.tflite",
+          "bytes": 105009840,
+          "sha256": "052ebafe8f4a687b6c2ff73622bf25889eb74e9ccd31058a1e4910abc3cdfcb3"
+        },
+        {
+          "name": "dac_16khz_encoder_fp16.tflite",
+          "url": "https://huggingface.co/litert-community/DAC-16kHz-LiteRT/resolve/07e52bf19210ee172f180c898563f13dfc8c6e40/dac_16khz_encoder_fp16.tflite",
+          "bytes": 43238560,
+          "sha256": "b32e86c670856e2ed45dbd885dfcf38650e6078c86facd165cb2e234d3499101"
+        },
+        {
+          "name": "dac_rvq.bin",
+          "url": "https://huggingface.co/litert-community/DAC-16kHz-LiteRT/resolve/07e52bf19210ee172f180c898563f13dfc8c6e40/dac_rvq.bin",
+          "bytes": 1229184,
+          "sha256": "d3e20e3ec3d6b08e0db16ceb3744e63d5b4ceed1815c32bca0e198cb2edd68d4"
+        }
+      ],
+      "license": {
+        "name": "MIT",
+        "url": "https://github.com/descriptinc/descript-audio-codec/blob/main/LICENSE"
+      },
+      "upstream": "https://github.com/descriptinc/descript-audio-codec",
+      "modelCard": "https://huggingface.co/litert-community/DAC-16kHz-LiteRT",
+      "backend": "gpu",
+      "inputKind": "audio",
+      "outputKind": "audio"
+    },
+    {
+      "task": "Audio Classification",
+      "taskId": "audio-classification",
+      "group": "Audio",
+      "model": "PANNs CNN14",
+      "files": [
+        {
+          "name": "audioset_labels.txt",
+          "url": "https://huggingface.co/litert-community/PANNs-CNN14-AudioSet-LiteRT/resolve/d9bade70b0224209ab4ab7145e1923c21641c626/audioset_labels.txt",
+          "bytes": 6337,
+          "sha256": "83e2e4fd16cbe86f94f3fe23954a4d302c013e20e7981b5ce7466e50126a1e3d"
+        },
+        {
+          "name": "cnn14_audioset_fp16.tflite",
+          "url": "https://huggingface.co/litert-community/PANNs-CNN14-AudioSet-LiteRT/resolve/d9bade70b0224209ab4ab7145e1923c21641c626/cnn14_audioset_fp16.tflite",
+          "bytes": 161533712,
+          "sha256": "26e52a285ff324778c7b90642e9733b47a46071622ecba93d42ca14ec19a467f"
+        },
+        {
+          "name": "mel_basis.bin",
+          "url": "https://huggingface.co/litert-community/PANNs-CNN14-AudioSet-LiteRT/resolve/d9bade70b0224209ab4ab7145e1923c21641c626/mel_basis.bin",
+          "bytes": 131328,
+          "sha256": "50edbf75f0ffdb5bf295a54cb3b9c4ad27b841be1119255f0f785552b99f13bd"
+        }
+      ],
+      "license": {
+        "name": "CC-BY-4.0",
+        "url": "https://creativecommons.org/licenses/by/4.0/"
+      },
+      "upstream": "https://github.com/qiuqiangkong/audioset_tagging_cnn",
+      "modelCard": "https://huggingface.co/litert-community/PANNs-CNN14-AudioSet-LiteRT",
+      "backend": "gpu",
+      "inputKind": "audio",
+      "outputKind": "visualization"
+    },
+    {
+      "task": "Pitch Detection",
+      "taskId": "pitch-detection",
+      "group": "Audio",
+      "model": "CREPE full",
+      "files": [
+        {
+          "name": "crepe_full_fp16.tflite",
+          "url": "https://huggingface.co/litert-community/CREPE-pitch-LiteRT/resolve/1e8468cf812abfb734469949560095f60fd554d0/crepe_full_fp16.tflite",
+          "bytes": 44526768,
+          "sha256": "0d83823c1a538ae7454d04bc872bab92bcb9b20f731145d95203c37121cdc077"
+        }
+      ],
+      "license": {
+        "name": "MIT",
+        "url": "https://github.com/marl/crepe/blob/master/LICENSE"
+      },
+      "upstream": "https://github.com/marl/crepe",
+      "modelCard": "https://huggingface.co/litert-community/CREPE-pitch-LiteRT",
+      "backend": "gpu",
+      "inputKind": "audio",
+      "outputKind": "visualization"
+    },
+    {
+      "task": "Audio Source Separation",
+      "taskId": "audio-source-separation",
+      "group": "Audio",
+      "model": "TIGER-DnR",
+      "files": [
+        {
+          "name": "tiger_dialog_fp16.tflite",
+          "url": "https://huggingface.co/litert-community/TIGER-DnR-LiteRT/resolve/913f4086381ee2ae3c31421a6a6e17c807a7a497/tiger_dialog_fp16.tflite",
+          "bytes": 16116992,
+          "sha256": "318e0cec4ded4e73e646ba876eab1244e667c3bc0fb52cfbd20edcce29214d3d"
+        },
+        {
+          "name": "tiger_effect_fp16.tflite",
+          "url": "https://huggingface.co/litert-community/TIGER-DnR-LiteRT/resolve/913f4086381ee2ae3c31421a6a6e17c807a7a497/tiger_effect_fp16.tflite",
+          "bytes": 16116992,
+          "sha256": "46c608782339106f6e13c7c94d08f7dd54989210f880de361daae975507ba219"
+        },
+        {
+          "name": "tiger_music_fp16.tflite",
+          "url": "https://huggingface.co/litert-community/TIGER-DnR-LiteRT/resolve/913f4086381ee2ae3c31421a6a6e17c807a7a497/tiger_music_fp16.tflite",
+          "bytes": 16116992,
+          "sha256": "7a97fe583d5bea5fec57635fdcf8498aad97b8b97006c6e7492d305711d2aaa5"
+        }
+      ],
+      "license": {
+        "name": "Apache-2.0",
+        "url": "https://www.apache.org/licenses/LICENSE-2.0"
+      },
+      "upstream": "https://huggingface.co/JusperLee/TIGER-DnR",
+      "modelCard": "https://huggingface.co/litert-community/TIGER-DnR-LiteRT",
+      "backend": "gpu",
+      "inputKind": "audio",
+      "outputKind": "audio"
+    },
+    {
+      "task": "Speech Enhancement",
+      "taskId": "speech-enhancement",
+      "group": "Audio",
+      "model": "CMGAN",
+      "files": [
+        {
+          "name": "cmgan_fp16.tflite",
+          "url": "https://huggingface.co/litert-community/CMGAN-LiteRT/resolve/f0275a7644d50253a11744c09073167536670499/cmgan_fp16.tflite",
+          "bytes": 4227776,
+          "sha256": "4039920c3922c74f564a06f46fdaca3cca7be81f3b367992424585f20f776b4a"
+        }
+      ],
+      "license": {
+        "name": "MIT",
+        "url": "https://github.com/ruizhecao96/CMGAN/blob/main/LICENSE"
+      },
+      "upstream": "https://github.com/ruizhecao96/CMGAN",
+      "modelCard": "https://huggingface.co/litert-community/CMGAN-LiteRT",
+      "backend": "gpu",
+      "inputKind": "audio",
+      "outputKind": "audio"
+    },
+    {
+      "task": "Music Transcription",
+      "taskId": "music-transcription",
+      "group": "Audio",
+      "model": "Basic Pitch",
+      "files": [
+        {
+          "name": "basicpitch.tflite",
+          "url": "https://huggingface.co/litert-community/Basic-Pitch-LiteRT/resolve/e636f08f6247e51b103fdb73d98a1bacd9d249f4/basicpitch.tflite",
+          "bytes": 842628,
+          "sha256": "90114a9cc7e934582d8137531317c5e7faa27aae9b2a6462e9d9422e58522b9a"
+        }
+      ],
+      "license": {
+        "name": "Apache-2.0",
+        "url": "https://www.apache.org/licenses/LICENSE-2.0"
+      },
+      "upstream": "https://github.com/spotify/basic-pitch",
+      "modelCard": "https://huggingface.co/litert-community/Basic-Pitch-LiteRT",
+      "backend": "gpu",
+      "inputKind": "audio",
+      "outputKind": "visualization"
+    },
+    {
+      "task": "Image Matching",
+      "taskId": "image-matching",
+      "group": "Vision",
+      "model": "XFeat",
+      "files": [
+        {
+          "name": "xfeat_fp16.tflite",
+          "url": "https://huggingface.co/litert-community/xfeat-litert/resolve/f5001dcae042fa6f79e1407b6d6d1ade01a76c27/xfeat_fp16.tflite",
+          "bytes": 1415024,
+          "sha256": "b3ff3c12e5bad9bde8c0a421a1bd18ceca35b6a1c01a51dcac79f2614df37a0f"
+        }
+      ],
+      "license": {
+        "name": "Apache-2.0",
+        "url": "https://www.apache.org/licenses/LICENSE-2.0"
+      },
+      "upstream": "https://github.com/verlab/accelerated_features",
+      "modelCard": "https://huggingface.co/litert-community/xfeat-litert",
+      "backend": "gpu",
+      "inputKind": "image_pair",
+      "outputKind": "visualization"
+    },
+    {
+      "task": "Image tagging",
+      "taskId": "image-tagging",
+      "group": "Vision",
+      "model": "RAM++",
+      "files": [
+        {
+          "name": "ram_reweight_fp16.tflite",
+          "url": "https://huggingface.co/litert-community/RAM-Plus-LiteRT/resolve/9b338f08c46f0c72f282848de0dedae3e39555ce/ram_reweight_fp16.tflite",
+          "bytes": 240240688,
+          "sha256": "ec82e3739418a8a14c2f40f8930d67f2d0cbc2e6412dbacaa879820ac283a464"
+        },
+        {
+          "name": "ram_stage3_tail_fp16.tflite",
+          "url": "https://huggingface.co/litert-community/RAM-Plus-LiteRT/resolve/9b338f08c46f0c72f282848de0dedae3e39555ce/ram_stage3_tail_fp16.tflite",
+          "bytes": 123024816,
+          "sha256": "c46e40cab69f070a4b7ba86b9de29f15148f9c67804c5e0888290d243f24ed4e"
+        },
+        {
+          "name": "ram_swin_s012_fp16.tflite",
+          "url": "https://huggingface.co/litert-community/RAM-Plus-LiteRT/resolve/9b338f08c46f0c72f282848de0dedae3e39555ce/ram_swin_s012_fp16.tflite",
+          "bytes": 416508368,
+          "sha256": "6751c7c553ee348caa84f5906b2f667d2113db34b5e0c687adf950990735cc59"
+        },
+        {
+          "name": "ram_tag_list.txt",
+          "url": "https://huggingface.co/litert-community/RAM-Plus-LiteRT/resolve/9b338f08c46f0c72f282848de0dedae3e39555ce/ram_tag_list.txt",
+          "bytes": 41904,
+          "sha256": "5d96d2f7225527480ad773aaac76b6e5c08a18adf6eae9ca7d2ab923d5e7bd8b"
+        },
+        {
+          "name": "ram_tag_threshold.bin",
+          "url": "https://huggingface.co/litert-community/RAM-Plus-LiteRT/resolve/9b338f08c46f0c72f282848de0dedae3e39555ce/ram_tag_threshold.bin",
+          "bytes": 18340,
+          "sha256": "7f04df9d5d649e4bbdf0822a954099eeeae1ddfbffb2ad75c360f668d39fdc6d"
+        },
+        {
+          "name": "ram_taghead_fp16.tflite",
+          "url": "https://huggingface.co/litert-community/RAM-Plus-LiteRT/resolve/9b338f08c46f0c72f282848de0dedae3e39555ce/ram_taghead_fp16.tflite",
+          "bytes": 26846512,
+          "sha256": "9bf5d0a588c01d5f06d5b49f0bf67334bade7a9195c0565fb30f6af67dc41b1f"
+        }
+      ],
+      "license": {
+        "name": "Apache-2.0",
+        "url": "https://www.apache.org/licenses/LICENSE-2.0"
+      },
+      "upstream": "https://github.com/xinyu1205/recognize-anything",
+      "modelCard": "https://huggingface.co/litert-community/RAM-Plus-LiteRT",
+      "backend": "mixed",
+      "inputKind": "image",
+      "outputKind": "visualization"
+    },
+    {
+      "task": "Image quality",
+      "taskId": "image-quality",
+      "group": "Vision",
+      "model": "NIMA aesthetic",
+      "files": [
+        {
+          "name": "nima_aesthetic_fp16.tflite",
+          "url": "https://huggingface.co/litert-community/NIMA-LiteRT/resolve/5e27e756cf38d2e738ee0c7c5d6f1c43f2073038/nima_aesthetic_fp16.tflite",
+          "bytes": 6448632,
+          "sha256": "a5051a0fcced735682735e3e0fd58ee54c83ed664282a003f52235b3dbcb9320"
+        }
+      ],
+      "license": {
+        "name": "Apache-2.0",
+        "url": "https://www.apache.org/licenses/LICENSE-2.0"
+      },
+      "upstream": "https://github.com/idealo/image-quality-assessment",
+      "modelCard": "https://huggingface.co/litert-community/NIMA-LiteRT",
+      "backend": "gpu",
+      "inputKind": "image",
+      "outputKind": "visualization"
+    },
+    {
+      "task": "Image Classification",
+      "taskId": "image-classification",
+      "group": "Vision",
+      "model": "Vision-RWKV-S",
+      "files": [
+        {
+          "name": "vrwkv_s_fp16.tflite",
+          "url": "https://huggingface.co/litert-community/Vision-RWKV-S-LiteRT/resolve/184992fed3c7bb2761220287bcd0a496959e4e39/vrwkv_s_fp16.tflite",
+          "bytes": 48220560,
+          "sha256": "8015269594520f50e4ce6fb3bf4812a79ec5414fc66373370f5e2739ef545b4d"
+        },
+        {
+          "name": "imagenet_classes.txt",
+          "url": "https://huggingface.co/litert-community/Vision-RWKV-S-LiteRT/resolve/184992fed3c7bb2761220287bcd0a496959e4e39/imagenet_classes.txt",
+          "bytes": 10472,
+          "sha256": "1f386e0d1cb6e28b9c2dac651c3dea6801e98ad1b41a14ce6bb1a093d72069f5"
+        }
+      ],
+      "license": {
+        "name": "Apache-2.0",
+        "url": "https://github.com/OpenGVLab/Vision-RWKV/blob/master/LICENSE"
+      },
+      "upstream": "https://github.com/OpenGVLab/Vision-RWKV",
+      "modelCard": "https://huggingface.co/litert-community/Vision-RWKV-S-LiteRT",
+      "backend": "gpu",
+      "inputKind": "image",
+      "outputKind": "visualization"
+    },
+    {
+      "task": "Fine-Grained Classification",
+      "taskId": "fine-grained-classification",
+      "group": "Vision",
+      "model": "PlantNet-300K ResNet18",
+      "files": [
+        {
+          "name": "plantnet.tflite",
+          "url": "https://huggingface.co/litert-community/PlantNet-300K-ResNet18-LiteRT/resolve/54f7b14eda047a73bc1f3c9cacb16b14e2146acc/plantnet.tflite",
+          "bytes": 46942600,
+          "sha256": "6f59f046c6a86593713aca76a3ab7bb55b520265eb66f5a77a114e450b1ccbf5"
+        },
+        {
+          "name": "plantnet300K_species_id_2_name.json",
+          "url": "https://huggingface.co/litert-community/PlantNet-300K-ResNet18-LiteRT/resolve/54f7b14eda047a73bc1f3c9cacb16b14e2146acc/plantnet300K_species_id_2_name.json",
+          "bytes": 46964,
+          "sha256": "9c8185db8ebb75958ffa77c8c1b1012b8e3dd493fc64c7cfb33f2049df084d23"
+        }
+      ],
+      "license": {
+        "name": "Apache-2.0",
+        "url": "https://huggingface.co/cpoisson/plantnet300k-resnet18"
+      },
+      "upstream": "https://huggingface.co/cpoisson/plantnet300k-resnet18",
+      "modelCard": "https://huggingface.co/litert-community/PlantNet-300K-ResNet18-LiteRT",
+      "backend": "gpu",
+      "inputKind": "image",
+      "outputKind": "visualization"
+    },
+    {
+      "task": "OCR",
+      "taskId": "ocr",
+      "group": "Vision",
+      "model": "PP-OCRv5",
+      "files": [
+        {
+          "name": "ppocr_det_fp16.tflite",
+          "url": "https://huggingface.co/litert-community/PP-OCRv5-LiteRT/resolve/cc63dcd9fa8d9a8e29906c8973ff39670d7fb5a0/ppocr_det_fp16.tflite",
+          "bytes": 10094464,
+          "sha256": "b635b1d7f0e171a19beda7e8f386a62d4f0a3a1c46ed42a09603a902f2059ccc"
+        },
+        {
+          "name": "ppocr_rec_fp16.tflite",
+          "url": "https://huggingface.co/litert-community/PP-OCRv5-LiteRT/resolve/cc63dcd9fa8d9a8e29906c8973ff39670d7fb5a0/ppocr_rec_fp16.tflite",
+          "bytes": 17173552,
+          "sha256": "ef7bb5aba20a1717101f0f112dd8cb1ed8b043ebaf96af05a395c6905ca66456"
+        },
+        {
+          "name": "ppocrv5_dict.txt",
+          "url": "https://huggingface.co/litert-community/PP-OCRv5-LiteRT/resolve/cc63dcd9fa8d9a8e29906c8973ff39670d7fb5a0/ppocrv5_dict.txt",
+          "bytes": 74012,
+          "sha256": "d1979e9f794c464c0d2e0b70a7fe14dd978e9dc644c0e71f14158cdf8342af1b"
+        }
+      ],
+      "license": {
+        "name": "Apache-2.0",
+        "url": "https://github.com/PaddlePaddle/PaddleOCR/blob/main/LICENSE"
+      },
+      "upstream": "https://github.com/PaddlePaddle/PaddleOCR",
+      "modelCard": "https://huggingface.co/litert-community/PP-OCRv5-LiteRT",
+      "backend": "gpu",
+      "inputKind": "image",
+      "outputKind": "text"
+    },
+    {
+      "task": "Super Resolution",
+      "taskId": "super-resolution-real-esrgan",
+      "group": "Vision",
+      "model": "Real-ESRGAN x4v3",
+      "files": [
+        {
+          "name": "realesr_general_x4v3.tflite",
+          "url": "https://huggingface.co/litert-community/real-esrgan-x4v3-litert/resolve/0a6fc35ba3e34e80b53f43089c1d2b612d33bea9/realesr_general_x4v3.tflite",
+          "bytes": 3549456,
+          "sha256": "6d597b46d812ada42bdde641ec6e78c0ef0b78ff5a825fcfd74b9a1b3bcbe9a4"
+        }
+      ],
+      "license": {
+        "name": "BSD-3-Clause",
+        "url": "https://github.com/xinntao/Real-ESRGAN/blob/master/LICENSE"
+      },
+      "upstream": "https://github.com/xinntao/Real-ESRGAN",
+      "modelCard": "https://huggingface.co/litert-community/real-esrgan-x4v3-litert",
+      "backend": "gpu",
+      "inputKind": "image",
+      "outputKind": "visualization"
+    },
+    {
+      "task": "Monocular Geometry Estimation",
+      "taskId": "monocular-geometry-estimation",
+      "group": "Vision",
+      "model": "Depth Anything 3 Small",
+      "files": [
+        {
+          "name": "da3_small_gpu_fp16.tflite",
+          "url": "https://huggingface.co/litert-community/Depth-Anything-3-Small-LiteRT/resolve/1ebd31737fcb7842d61ad22722b59cd8053829f2/da3_small_gpu_fp16.tflite",
+          "bytes": 55035456,
+          "sha256": "e170369a72ba1bba7486a4d2de555639fccd0595a9bb5b5349f7733ed4aebd1f"
+        }
+      ],
+      "license": {
+        "name": "Apache-2.0",
+        "url": "https://github.com/ByteDance-Seed/Depth-Anything-3"
+      },
+      "upstream": "https://github.com/ByteDance-Seed/Depth-Anything-3",
+      "modelCard": "https://huggingface.co/litert-community/Depth-Anything-3-Small-LiteRT",
+      "backend": "gpu",
+      "inputKind": "image",
+      "outputKind": "visualization"
+    }
+  ]
+}
