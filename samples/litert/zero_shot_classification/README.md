@@ -35,14 +35,14 @@ cd kotlin_cpu_gpu/android
 ./gradlew :app:installDebug        # or open in Android Studio
 ```
 
-The app is a Kotlin port of the same host code (tokenizer, prompt builder, table lookup, decoder) with a Compose UI; both graphs run through the Compiled Model API on the GPU (FP32) or the CPU. When the model files are missing, the app shows **Download (679 MB)**. It fetches the seven files from Hugging Face at a pinned revision into its private storage and checks each one against the SHA-256 in `app/src/main/assets/model_manifest.json`. Keep the app open while it downloads: closing it pauses the download, and the next launch offers **Resume download** from the bytes on disk. Uninstalling the app or clearing its storage deletes the files. Then pick a question preset (email triage, support intent, moderation), load the Japanese or English example or type your own text, choose GPU or CPU, and tap Run. `./gradlew :app:connectedDebugAndroidTest` runs the on-device check against the 201 published reference rows.
+The app is a Kotlin port of the same host code (tokenizer, prompt builder, table lookup, decoder) with a Compose UI; both graphs run through the Compiled Model API on the GPU (FP32) or the CPU. When the model files are missing, the app shows **Download (679 MB)**. It fetches the seven files from Hugging Face at a pinned revision into its private storage and checks each one against the SHA-256 in `app/src/main/assets/model_manifest.json`. Keep the app open while it downloads: closing it pauses the download, and the next launch offers **Resume download** from the bytes on disk. Uninstalling the app or clearing its storage deletes the files. Then pick a question preset (email triage, support intent, moderation), choose GPU or CPU, and tap Run. The app opens on an English example email; the language toggle loads the Japanese one, and you can type your own text instead. `./gradlew :app:connectedDebugAndroidTest` runs the on-device check against the 201 published reference rows.
 
 ## Performance
 
 | Galaxy S26, LiteRT 2.2.0, release build | GPU (FP32) | CPU |
 |---|---|---|
 | Launch to Ready | 2.3 s | 1.5 s |
-| Five questions (the email preset, 529 tokens) | 0.29–0.31 s | 0.49–0.50 s |
+| Five questions (the email preset, Japanese example, 529 tokens) | 0.29–0.31 s | 0.49–0.50 s |
 
 Launch to Ready includes loading the tokenizer and the model, compiling, and a warm-up pass. In the on-device check (debug build), the two graphs take 51 ms per question on the GPU (median of 200 rows). The debug build from `installDebug` took 3.1–3.3 s to Ready and 0.34–0.36 s for five questions on the GPU. The on-device check matches the official laya 0.3.4 answers on both accelerators: the same top answer on all 81 choice and score questions of the 201 rows, with a maximum probability difference of 0.0014.
 

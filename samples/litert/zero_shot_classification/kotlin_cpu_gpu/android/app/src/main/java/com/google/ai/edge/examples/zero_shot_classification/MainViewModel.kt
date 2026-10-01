@@ -60,8 +60,8 @@ class MainViewModel(private val context: Context) : ViewModel() {
   private val mutableUiState =
     MutableStateFlow(
       UiState(
-        inputSubject = context.getString(R.string.example_email_ja_subject),
-        inputText = context.getString(R.string.example_email_ja_body),
+        inputSubject = context.getString(R.string.example_email_en_subject),
+        inputText = context.getString(R.string.example_email_en_body),
       )
     )
 
