@@ -1,0 +1,169 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>SAM 2 · Tensor API</title>
+  <link rel="stylesheet" href="/src/style.css" />
+</head>
+<body>
+<div class="app">
+  <header class="top">
+    <div class="brand">
+      <span class="logo" aria-hidden="true"></span>
+      <h1>Segment Anything 2 <span class="muted">· C++ Tensor API → wasm</span></h1>
+    </div>
+    <div class="badges">
+      <span class="pill" id="backendPill">Loading…</span>
+      <span class="pill ghost" id="perfPill">– ms / frame</span>
+      <details class="about">
+        <summary title="About this demo">About</summary>
+        <div class="aboutBody">
+          SAM 2.1 Hiera-Tiny video tracking running entirely in your browser. The whole pipeline is C++:
+          every stage (preprocess · encode · per-object prompt / track steps with the memory bank · the
+          mask composite you see) is a LiteRT Tensor API model, wired together with LiteRT's
+          ModelChain and compiled to WebAssembly. The models execute on WebGPU through LiteRT.js.
+          Nothing leaves your device.
+          <br /><br />Keys: <kbd>Space</kbd> play / pause · <kbd>←</kbd> <kbd>→</kbd> step frames.
+        </div>
+      </details>
+    </div>
+  </header>
+
+  <section class="stage">
+    <div class="canvasWrap" id="canvasWrap">
+      <canvas id="view" width="960" height="540"></canvas>
+      <canvas id="marks" width="960" height="540"></canvas>
+      <div class="overlayMsg" id="overlayMsg">
+        <div class="spinner" id="spinner"></div>
+        <p id="overlayText">Loading model…</p>
+        <div class="progress slim" id="loadProgress"><div class="bar" id="loadBar"></div></div>
+      </div>
+    </div>
+    <div class="transport">
+      <button class="icon" id="playBtn" title="Play / pause (space)" disabled>▶</button>
+      <div class="scrub">
+        <canvas id="timeline" height="6"></canvas>
+        <input type="range" id="scrubber" min="0" max="0" value="0" disabled aria-label="Frame" />
+      </div>
+      <span class="counter" id="counter">0 / 0</span>
+    </div>
+    <p class="stats" id="stats"></p>
+  </section>
+
+  <nav class="tabs" id="dockTabs" role="tablist" aria-label="Controls">
+    <button data-tab="source" class="on" role="tab">1 · Source</button>
+    <button data-tab="objects" role="tab">2 · Objects</button>
+    <button data-tab="track" role="tab">3 · Track</button>
+    <button data-tab="effects" role="tab">4 · Effects</button>
+  </nav>
+
+  <footer class="dock" id="dock" data-tab="source">
+    <section class="panel" data-panel="source">
+      <h2><span class="num">1</span> Source</h2>
+      <div class="row">
+        <label class="btn" id="uploadBtn">
+          <input type="file" id="fileInput" accept="video/*" hidden />
+          Upload video
+        </label>
+        <button class="btn" id="demoBtn" title="Load the chosen sample clip (8 s @ 24 fps)">Sample video</button>
+        <select id="sampleSel" aria-label="Sample clip" title="Sample clip">
+          <option value="football" selected>Football</option>
+          <option value="flowers">Flowers</option>
+        </select>
+        <button class="btn" id="camBtn">Use camera</button>
+      </div>
+      <div class="row small">
+        <label>Sample <select id="fpsSel">
+          <option value="5">5 fps</option>
+          <option value="10">10 fps</option>
+          <option value="15">15 fps</option>
+          <option value="30" selected>30 fps</option>
+        </select></label>
+        <label>Max <select id="secSel">
+          <option value="3">3 s</option>
+          <option value="6" selected>6 s</option>
+          <option value="10">10 s</option>
+          <option value="20">20 s</option>
+        </select></label>
+      </div>
+      <div class="seg" id="liveSeg" role="radiogroup" aria-label="Camera display" hidden>
+        <button data-v="smooth" title="Camera video at its full frame rate, composited with the latest masks">Smooth video</button>
+        <button data-v="aligned" title="Each processed frame with its own masks (exact, updates at the pipeline's rate)">Aligned masks</button>
+      </div>
+      <p class="hint" id="clipInfo">No video loaded.</p>
+    </section>
+
+    <section class="panel" data-panel="objects">
+      <h2><span class="num">2</span> Objects</h2>
+      <div class="chips">
+        <ul class="objects" id="objectList"></ul>
+        <button class="btn ghost" id="addObjBtn">+ Add object</button>
+      </div>
+      <div class="row clickTools">
+        <div class="seg" id="polSeg" role="radiogroup" aria-label="Click type">
+          <button data-v="pos" class="on" title="Clicks add areas to the selected object">＋ Positive</button>
+          <button data-v="neg" title="Clicks remove areas from the selected object">− Negative</button>
+          <button data-v="box" title="Drag a box around the object">▭ Box</button>
+        </div>
+        <button class="btn" id="resetObjBtn" title="Clear the selected object's clicks and mask">Reset</button>
+      </div>
+      <form class="row gemma" id="gemmaForm" autocomplete="off">
+        <div class="askBox">
+          <input id="gemmaAsk" type="text" placeholder="Ask Gemma: the ball, all players…"
+                 aria-label="Describe the objects for Gemma to find" />
+          <button class="mic" id="micBtn" type="button" title="Speak (Chrome speech recognition)"
+                  aria-label="Speak the objects to find">🎤</button>
+        </div>
+        <select id="gemmaModel" aria-label="Gemma model" title="Gemma 4 model: in the browser (WebGPU) or on the LiteRT-LM server">
+          <optgroup label="Browser">
+            <option value="web:gemma4-e4b">E4B web</option>
+            <option value="web:gemma4-e2b">E2B web</option>
+          </optgroup>
+          <optgroup label="Server">
+            <option value="gemma-4-e4b">E4B srv</option>
+            <option value="gemma-4-e2b">E2B srv</option>
+          </optgroup>
+        </select>
+        <button class="btn" id="gemmaBtn" type="submit" title="Gemma finds the objects and draws boxes for SAM 2">Find</button>
+      </form>
+      <p class="hint" id="objHint">Click to add points, or choose Box and drag around the object. Tracking starts from that frame.</p>
+    </section>
+
+    <section class="panel" data-panel="track">
+      <h2><span class="num">3</span> Track</h2>
+      <div class="seg" id="sizeSeg" role="radiogroup" aria-label="Model resolution">
+        <button data-v="384" title="384×384 input: fastest, 96×96 mask logits">384 · fastest</button>
+        <button data-v="512" title="512×512 input: finer masks (128×128 logits), ~2x slower">512 · finer</button>
+        <button data-v="1024" title="1024×1024 native input: finest masks (256×256 logits), much slower">1024 · best</button>
+      </div>
+      <div class="seg" id="memSeg" role="radiogroup" aria-label="Memory bank">
+        <button data-v="7" title="7 memory frames: most robust tracking (slower)">7-frame memory</button>
+        <button data-v="2" class="on" title="2 memory frames: faster memory attention (default)">2-frame</button>
+      </div>
+      <button class="btn primary" id="trackBtn" disabled>Track objects</button>
+      <div class="progress" id="progress" hidden><div class="bar" id="progressBar"></div></div>
+      <p class="hint" id="trackInfo"></p>
+    </section>
+
+    <section class="panel" data-panel="effects">
+      <h2><span class="num">4</span> Effects</h2>
+      <div class="seg" id="fxSeg" role="radiogroup" aria-label="Effect">
+        <button data-v="overlay" class="on">Overlay</button>
+        <button data-v="spotlight">Spotlight</button>
+        <button data-v="cutout">Cutout</button>
+      </div>
+      <div class="labeled">
+        <span>Outline</span>
+        <div class="seg" id="outlineSeg" role="radiogroup" aria-label="Outline width">
+          <button data-v="1.5" title="Thin contour">Thin</button>
+          <button data-v="3" class="on" title="Medium contour (default)">Medium</button>
+          <button data-v="6" title="Thick contour">Thick</button>
+        </div>
+      </div>
+    </section>
+  </footer>
+</div>
+<script type="module" src="/src/main.ts"></script>
+</body>
+</html>

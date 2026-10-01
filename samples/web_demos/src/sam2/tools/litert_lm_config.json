@@ -1,0 +1,6 @@
+{
+  "models": {
+    "gemma-4-e4b": {"backend": "gpu", "vision_backend": "gpu"},
+    "gemma-4-e2b": {"backend": "gpu", "vision_backend": "gpu"}
+  }
+}
