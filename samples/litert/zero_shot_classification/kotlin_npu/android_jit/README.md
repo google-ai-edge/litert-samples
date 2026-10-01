@@ -8,7 +8,7 @@ The NPU computes in FP16. The graph this app downloads, from revision `32f1b84d`
 |---|---|---|
 | <img src="img/gpu_then_npu.gif" alt="The app on a Galaxy S26: the English example run on the GPU, then the accelerator switched to the NPU and the run repeated" width="300"> | <img src="img/npu.png" alt="Ready on the NPU: the run total and the first answer with its six options" width="300"> | <img src="img/gpu.png" alt="Ready on the GPU: the run total and the first answer with its six options" width="300"> |
 
-On screen: the app's English example (524 tokens), one run each; the recording plays at 1.5x, and its switch to the NPU read LiteRT's compile cache, while the first launch on a phone compiles for about a minute. The Performance table below measures the Japanese example (529 tokens).
+On screen: the app's English example (524 tokens), one run each; the recording plays at 1.5x, and its switch to the NPU read LiteRT's compile cache, while the first launch on a phone compiles for about a minute.
 
 ## Set up the NPU runtime
 
@@ -61,6 +61,6 @@ The second line runs one check in a fresh process: LiteRT 2.2.0 starts the NPU r
 | Galaxy S26, LiteRT 2.2.0, release build | NPU | GPU (FP32) |
 |---|---|---|
 | Launch to Ready | 1.1 s | 2.4 s |
-| Five questions (the email preset, 529 tokens) | 0.19 s | 0.30 s |
+| Five questions (the email preset, Japanese example, 529 tokens) | 0.19 s | 0.30 s |
 
 Launch to Ready includes loading the tokenizer and the model, compiling, and a warm-up pass; on the NPU the compile read LiteRT's cache. The first launch on a phone compiles for the NPU for about a minute (69 s in the on-device check); later launches read the cache (0.2 to 0.3 s). In the on-device check (debug build, 201 rows), one question takes 33 ms on the NPU, 53 ms on the GPU and 244 ms on the CPU (medians). All three give the same top answer as the official laya 0.3.4 on the 81 choice and score questions; the largest probability difference is 0.0069 on the NPU and 0.0014 on the GPU and the CPU. The NPU runs with the BURST performance mode.

@@ -63,7 +63,7 @@ data class UiState(
   val inputSubject: String,
   val inputText: String,
   val preset: Preset = Preset.EMAIL,
-  val language: ExampleLanguage = ExampleLanguage.JA,
+  val language: ExampleLanguage = ExampleLanguage.EN,
   val accelerator: LayaEngine.Backend = LayaEngine.Backend.GPU,
   /** LiteRT lists this SoC and the NPU runtime module is installed; otherwise NPU is disabled. */
   val npuAvailable: Boolean = false,
