@@ -30,6 +30,15 @@
         android:supportsRtl="true"
         android:theme="@style/Theme.ImageSegmentation"
         tools:targetApi="33">
+        <!-- Intel NPU driver libraries loaded by OpenVINO from /vendor. Optional, so devices
+             from other vendors are not affected. -->
+        <uses-native-library
+            android:name="libze_loader.so"
+            android:required="false" />
+        <uses-native-library
+            android:name="libze_intel_npu.so"
+            android:required="false" />
+
         <activity
             android:name=".MainActivity"
             android:exported="true"
