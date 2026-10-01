@@ -1,0 +1,36 @@
+# Toolchains and dependencies (installed by the setup steps in README.md)
+third_party/
+node_modules/
+
+# Build outputs
+wasm/build/
+app/dist/
+# copied from @litertjs/core by `npm install`
+app/public/litert-wasm/
+
+# Model files: 150-230 MB each, over GitHub's 100 MB limit; built by
+# tools/build_models.sh (or distribute via Git LFS / a release asset).
+app/public/models/*.tflite
+app/public/models/sam2_tiny_*_video.safetensors
+# (app/public/models/sam2_host_consts.safetensors, 75 KB, is checked in.)
+
+# Test outputs
+app/test/e2e/screenshots/
+app/test/e2e/_*.mjs
+app/src/chain/litert_reexport.ts
+
+# Python / OS / editor
+__pycache__/
+*.pyc
+.venv/
+.DS_Store
+.vscode/
+.idea/
+*.log
+
+# Local weight exports / links (tools/build_models.sh writes to $ARTIFACTS)
+weights/
+
+# Local weights, test clips and run outputs ($ARTIFACTS), Gemma server venv
+artifacts/
+.venv-litertlm/

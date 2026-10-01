@@ -1,0 +1,263 @@
+:root {
+  --bg: #0b0d12;
+  --panel: #141821;
+  --panel-2: #1b202b;
+  --line: #262c3a;
+  --text: #e8ebf2;
+  --muted: #8a93a6;
+  --accent: #5b8cff;
+  --accent-2: #a46bff;
+  --warn: #f5a524;
+  --radius: 12px;
+  --gap: 12px;
+  color-scheme: dark;
+}
+
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+html, body { height: 100%; }
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font: 14px/1.4 ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+}
+kbd {
+  font: 11px ui-monospace, SFMono-Regular, Menlo, monospace; padding: 1px 5px; border-radius: 4px;
+  border: 1px solid var(--line); background: var(--panel-2);
+}
+
+/* One screen tall: header / video (takes the rest) / controls dock. The page
+   itself never scrolls; only very short windows fall back to scrolling. */
+.app {
+  height: 100dvh; min-height: 540px;
+  /* minmax(0, 1fr): no child (e.g. a long stats line) may widen the page. */
+  display: grid; grid-template-columns: minmax(0, 1fr); grid-template-rows: auto minmax(0, 1fr) auto;
+  gap: 10px;
+  padding: 10px max(16px, env(safe-area-inset-right)) max(12px, env(safe-area-inset-bottom)) max(16px, env(safe-area-inset-left));
+  max-width: 1600px; margin: 0 auto;
+}
+
+/* ---------------------------------------------------------------- header */
+.top { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; }
+.brand { display: flex; gap: 10px; align-items: center; min-width: 0; }
+.logo {
+  width: 26px; height: 26px; border-radius: 8px; flex: none;
+  background: conic-gradient(from 200deg, var(--accent), var(--accent-2), #ff6b9a, var(--accent));
+}
+h1 { margin: 0; font-size: 16px; font-weight: 650; letter-spacing: -0.01em; white-space: nowrap; }
+.muted { color: var(--muted); font-weight: 500; }
+.badges { display: flex; gap: 8px; align-items: center; flex-wrap: nowrap; min-width: 0; max-width: 100%; }
+/* The backend label is long; on narrow screens it truncates instead of widening the page. */
+#backendPill { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pill {
+  padding: 4px 10px; border-radius: 999px; font-size: 12px; font-weight: 600; white-space: nowrap;
+  background: linear-gradient(90deg, rgba(91,140,255,.18), rgba(164,107,255,.18));
+  border: 1px solid rgba(123,140,255,.45);
+}
+.pill.ghost { background: transparent; border-color: var(--line); color: var(--muted); font-variant-numeric: tabular-nums; }
+#perfPill { min-width: 20ch; text-align: center; }
+.pill.warn { border-color: var(--warn); color: var(--warn); background: rgba(245,165,36,.1); }
+.about { position: relative; }
+.about summary {
+  list-style: none; cursor: pointer; font-size: 12px; color: var(--muted); padding: 4px 10px;
+  border: 1px solid var(--line); border-radius: 999px;
+}
+.about summary::-webkit-details-marker { display: none; }
+.about[open] summary { color: var(--text); }
+.aboutBody {
+  position: absolute; right: 0; top: calc(100% + 6px); z-index: 10; width: min(360px, 86vw);
+  background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 12px 14px;
+  font-size: 12.5px; color: var(--muted); box-shadow: 0 12px 30px rgba(0,0,0,.45);
+}
+
+/* ---------------------------------------------------------------- stage */
+.stage { min-height: 0; min-width: 0; display: flex; flex-direction: column; gap: 6px; }
+.canvasWrap {
+  position: relative; flex: 1; min-height: 0; background: #000; border-radius: var(--radius);
+  overflow: hidden; border: 1px solid var(--line);
+}
+/* object-fit keeps the frame letterboxed inside whatever space is left. */
+#view, #marks { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; display: block; }
+#view { cursor: crosshair; touch-action: none; }  /* box drags must not scroll / zoom */
+#marks { pointer-events: none; }
+#view.busy { cursor: progress; }
+.overlayMsg {
+  position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center;
+  gap: 12px; background: rgba(8,10,14,.82); text-align: center; padding: 20px;
+}
+.overlayMsg p { margin: 0; color: var(--text); font-weight: 600; }
+.spinner {
+  width: 28px; height: 28px; border-radius: 50%; border: 3px solid #2a3142; border-top-color: var(--accent);
+  animation: spin 0.9s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+
+.transport { display: flex; align-items: center; gap: 12px; flex: none; }
+.icon {
+  width: 34px; height: 34px; border-radius: 50%; border: 1px solid var(--line); background: var(--panel);
+  color: var(--text); font-size: 13px; cursor: pointer; flex: none;
+}
+.icon:disabled { opacity: .4; cursor: not-allowed; }
+.scrub { position: relative; flex: 1; height: 22px; display: flex; align-items: center; min-width: 0; }
+#timeline { position: absolute; left: 0; right: 0; top: 8px; width: 100%; height: 6px; border-radius: 3px; background: var(--panel-2); }
+#scrubber { position: relative; width: 100%; margin: 0; background: transparent; appearance: none; height: 22px; }
+#scrubber::-webkit-slider-runnable-track { height: 6px; background: transparent; }
+#scrubber::-webkit-slider-thumb {
+  appearance: none; width: 14px; height: 14px; border-radius: 50%; background: white; margin-top: -4px;
+  box-shadow: 0 0 0 3px rgba(91,140,255,.45);
+}
+.counter { color: var(--muted); font-variant-numeric: tabular-nums; font-size: 12.5px; min-width: 62px; text-align: right; }
+/* Metric cells: fixed height, values right-aligned in reserved widths with
+   tabular digits, so per-frame updates never move or resize anything. */
+.stats {
+  margin: 0; color: var(--muted); font-size: 12px; flex: none; height: 18px;
+  display: flex; align-items: center; gap: 16px; overflow: hidden; white-space: nowrap;
+}
+.metric { flex: none; display: inline-flex; align-items: baseline; gap: 5px; }
+.metric b {
+  display: inline-block; text-align: right; color: var(--text); font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+.metric:last-child { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.metric:last-child b { color: var(--muted); font-weight: 500; }
+
+/* ---------------------------------------------------------------- dock */
+.tabs { display: none; }
+.dock {
+  display: grid; gap: var(--gap);
+  /* Objects is the busiest panel (object list, click tools, Ask Gemma row). */
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.35fr) minmax(0, 1.15fr) minmax(0, 1fr);
+}
+.panel {
+  background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius);
+  padding: 10px 12px; display: flex; flex-direction: column; gap: 8px; min-width: 0;
+}
+.panel h2 {
+  margin: 0; font-size: 11.5px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase;
+  color: var(--muted); display: flex; gap: 7px; align-items: center;
+}
+.num {
+  width: 17px; height: 17px; border-radius: 50%; display: inline-grid; place-items: center;
+  font-size: 10px; background: var(--panel-2); border: 1px solid var(--line); color: var(--text);
+  letter-spacing: 0;
+}
+.row { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
+.small { font-size: 12px; color: var(--muted); gap: 12px; }
+select {
+  background: var(--panel-2); color: var(--text); border: 1px solid var(--line); border-radius: 6px;
+  padding: 2px 5px; font: inherit; margin-left: 4px;
+}
+.hint {
+  color: var(--muted); font-size: 12px; line-height: 1.4; margin: 0;
+  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
+  height: 2.8em;  /* always two lines tall: messages never change the dock height */
+  flex: none;
+}
+
+.btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+  padding: 7px 12px; border-radius: 8px; border: 1px solid var(--line); background: var(--panel-2);
+  color: var(--text); font: inherit; font-size: 13px; font-weight: 600; cursor: pointer; user-select: none;
+  transition: border-color .15s, background .15s, opacity .15s; white-space: nowrap;
+}
+.btn:hover:not(:disabled) { border-color: #3a4357; background: #222838; }
+.btn:disabled { opacity: .45; cursor: not-allowed; }
+.btn.primary { background: linear-gradient(90deg, var(--accent), var(--accent-2)); border: 0; color: white; }
+.btn.primary:hover:not(:disabled) { filter: brightness(1.08); background: linear-gradient(90deg, var(--accent), var(--accent-2)); }
+.btn.ghost { background: transparent; border-style: dashed; padding: 5px 10px; border-radius: 999px; font-size: 12.5px; }
+.btn.danger { background: #3a1d24; border-color: #6b2b3a; }
+.btn.live { border-color: #e5484d; color: #ff8589; }
+.btn.live::before {
+  content: ""; width: 8px; height: 8px; border-radius: 50%; background: #e5484d;
+  animation: pulse 1.2s ease-in-out infinite;
+}
+@keyframes pulse { 50% { opacity: .35; } }
+#trackBtn { width: 100%; }
+
+.seg { display: flex; background: var(--panel-2); border: 1px solid var(--line); border-radius: 8px; padding: 2px; gap: 2px; }
+.seg button {
+  flex: 1; border: 0; background: transparent; color: var(--muted); font: inherit; font-size: 12px;
+  font-weight: 600; padding: 5px 6px; border-radius: 6px; cursor: pointer; white-space: nowrap;
+}
+.seg button.on { background: #2a3142; color: var(--text); }
+.seg button:disabled { cursor: not-allowed; opacity: .5; }
+
+/* Objects as a vertical list, the add button last. The box is three rows tall
+   and scrolls past that, so adding objects never changes the dock height, and
+   the video keeps its size. */
+.chips {
+  position: relative;  /* offsetParent of the rows, for keeping the selection in view */
+  display: flex; flex-direction: column; align-items: stretch; gap: 4px;
+  flex: none; height: calc(3 * 22px + 2 * 4px); overflow: hidden auto; overscroll-behavior: contain;
+  width: 0; min-width: 100%;  /* never widens the panel */
+  scrollbar-width: thin; scrollbar-color: #3a4357 transparent;
+}
+.chips .btn.ghost { flex: none; align-self: flex-start; padding: 2px 10px; }
+.objects { list-style: none; margin: 0; padding: 0; display: contents; }
+.clickTools { flex-wrap: nowrap; }
+.gemma { flex-wrap: nowrap; }
+/* The text box with the mic inside it, at the right end. */
+.askBox { position: relative; flex: 1; min-width: 0; display: flex; }
+.askBox:has(.mic[hidden]) input { padding-right: 8px; }
+.gemma input {
+  flex: 1; min-width: 0; background: var(--panel-2); color: var(--text); border: 1px solid var(--line);
+  border-radius: 6px; padding: 5px 28px 5px 8px; font: inherit; font-size: 13px;
+}
+.gemma input:focus-visible { outline: 2px solid var(--accent, #7b8cff); outline-offset: 1px; }
+.gemma select { margin-left: 0; padding: 4px 5px; }
+.gemma .btn { padding: 5px 12px; }
+.mic {
+  position: absolute; right: 2px; top: 50%; transform: translateY(-50%); width: 24px; height: 24px;
+  display: grid; place-items: center; padding: 0; border: 0; border-radius: 5px; background: none;
+  font-size: 13px; line-height: 1; cursor: pointer; opacity: .75;
+}
+.mic:hover:not(:disabled) { opacity: 1; background: #2a3142; }
+.mic:disabled { opacity: .3; cursor: not-allowed; }
+.mic.listening { opacity: 1; background: #3a1d24; box-shadow: 0 0 0 1px #e5484d inset; animation: pulse 1.2s ease-in-out infinite; }
+.clickTools .seg { flex: 1; }
+.clickTools .btn { padding: 5px 12px; }
+.labeled { display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--muted); }
+.labeled .seg { flex: 1; }
+.obj {
+  display: flex; align-items: center; gap: 7px; flex: none; height: 22px; min-width: 0;
+  padding: 0 6px 0 9px; border-radius: 7px;
+  border: 1px solid var(--line); background: var(--panel-2); cursor: pointer; font-size: 12.5px;
+}
+.obj.sel { border-color: var(--c); box-shadow: 0 0 0 1px var(--c) inset; }
+.obj .dot { width: 10px; height: 10px; border-radius: 50%; background: var(--c); flex: none; }
+.obj .name { font-weight: 600; white-space: nowrap; flex: none; }
+.obj .state { color: var(--muted); font-size: 11.5px; white-space: nowrap; flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.obj .x { border: 0; background: none; color: var(--muted); cursor: pointer; font-size: 15px; padding: 0 2px; line-height: 1; flex: none; }
+.obj .x:hover { color: var(--text); }
+
+.progress { height: 5px; border-radius: 3px; background: var(--panel-2); overflow: hidden; flex: none; }
+/* The track progress bar keeps its space while hidden (no dock height change). */
+#progress[hidden] { display: block !important; visibility: hidden; }
+.progress .bar { height: 100%; width: 0; background: linear-gradient(90deg, var(--accent), var(--accent-2)); transition: width .15s; }
+.progress.slim { width: 220px; height: 4px; }
+
+/* Tablets / phones: one step at a time behind tabs (a 2x2 grid would eat the
+   video's height), so the page never scrolls. */
+@media (max-width: 1100px) {
+  .app { gap: 8px; padding-top: max(8px, env(safe-area-inset-top)); grid-template-rows: auto minmax(0, 1fr) auto auto; }
+  .tabs {
+    display: flex; gap: 2px; background: var(--panel-2); border: 1px solid var(--line); border-radius: 10px; padding: 2px;
+  }
+  .tabs button {
+    flex: 1; border: 0; background: transparent; color: var(--muted); font: inherit; font-size: 12px;
+    font-weight: 600; padding: 7px 4px; border-radius: 8px; cursor: pointer;
+  }
+  .tabs button.on { background: #2a3142; color: var(--text); }
+  .dock { grid-template-columns: 1fr; }
+  .dock .panel { min-height: 150px; }
+  .dock[data-tab="source"] .panel:not([data-panel="source"]),
+  .dock[data-tab="objects"] .panel:not([data-panel="objects"]),
+  .dock[data-tab="track"] .panel:not([data-panel="track"]),
+  .dock[data-tab="effects"] .panel:not([data-panel="effects"]) { display: none; }
+  .panel h2 { display: none; }
+}
+@media (max-width: 760px) {
+  h1 .muted, #perfPill { display: none; }
+}
+#sampleSel { align-self: stretch; margin-left: 0; padding: 0 6px; }

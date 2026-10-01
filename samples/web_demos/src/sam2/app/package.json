@@ -1,0 +1,28 @@
+{
+  "name": "sam2-web-tensorapi",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "typecheck": "tsc",
+    "test": "vitest run",
+    "postinstall": "node tools/copy_assets.mjs",
+    "e2e": "node test/e2e/chain_e2e.mjs",
+    "e2e:ui": "node test/e2e/ui_check.mjs",
+    "e2e:webgpu": "node test/e2e/webgpu_check.mjs",
+    "e2e:gemma": "node test/e2e/gemma_check.mjs"
+  },
+  "dependencies": {
+    "@litertjs/core": "^2.5.3"
+  },
+  "devDependencies": {
+    "@types/node": "^26.6.2",
+    "@webgpu/types": "^0.1.74",
+    "playwright-core": "^1.63.0",
+    "typescript": "^7.0.2",
+    "vite": "^7.3.6",
+    "vitest": "^3.2.7"
+  }
+}
