@@ -48,6 +48,10 @@ Launch to Ready includes loading the tokenizer and the model, compiling, and a w
 
 The prompt window is 256 tokens, and longer text is cut on the right. The model card also has a 512-token graph; this app does not use it.
 
+## Android app on the NPU (`kotlin_npu/android_jit`)
+
+The same app with the encoder on the Qualcomm NPU as a third accelerator choice. LiteRT compiles the graph for the NPU on the phone and caches it. The NPU runtime comes from the LiteRT release and the Qualcomm AI Runtime, and the app is installed as a bundle for the phone's Qualcomm SoC (device group); [`kotlin_npu/android_jit/README.md`](kotlin_npu/android_jit/README.md) has the steps and the numbers.
+
 ## Conversion
 
 The graphs were exported with `litert-torch` 0.9.3. The encoder graph stores its fully connected weights as fp16, written by `ai-edge-quantizer` 0.8.0 (FLOAT_CASTING); the action head stays fp32. The host contract (`HOST_CONTRACT.md`) and the Python host are on the [model card](https://huggingface.co/litert-community/Laya-Multilingual-LiteRT).

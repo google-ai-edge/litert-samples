@@ -1,0 +1,105 @@
+{
+  "email": {
+    "category": {
+      "type": "choice",
+      "instructions": "Which team should handle the email in `body`?",
+      "criteria": {
+        "billing": "invoices, payments, refunds",
+        "technical": "bugs, outages, integrations",
+        "sales": "pricing, demos, new purchases",
+        "security": "phishing, scams, account compromise",
+        "hr": "hiring, leave, payroll",
+        "other": "none of the above"
+      }
+    },
+    "is_spam": {
+      "type": "noul",
+      "instructions": "Is this email unsolicited spam or bulk marketing?"
+    },
+    "is_phishing": {
+      "type": "noul",
+      "instructions": "Is this email a phishing or scam attempt to steal money, credentials, or personal data?",
+      "criteria": {
+        "true": "phishing, scam, or fraud",
+        "false": "a legitimate email"
+      }
+    },
+    "urgency": {
+      "type": "score",
+      "instructions": "How urgent is the request in `body`?",
+      "criteria": [
+        "no time pressure",
+        "needs attention soon",
+        "blocking issue or hard deadline"
+      ]
+    },
+    "needs_reply": {
+      "type": "noul",
+      "instructions": "Does the sender expect a reply?"
+    }
+  },
+  "triage": {
+    "intent": {
+      "type": "choice",
+      "instructions": "What does the customer want in `message`?",
+      "criteria": {
+        "refund": "money returned or a duplicate charge reversed",
+        "technical_help": "a bug, outage or integration problem",
+        "billing_question": "a question about an invoice, plan or payment method",
+        "information": "general information, pricing or how-to",
+        "cancellation": "wants to cancel or downgrade",
+        "other": "none of the other options fits"
+      }
+    },
+    "is_urgent": {
+      "type": "noul",
+      "instructions": "Does `message` communicate time pressure or a deadline?"
+    },
+    "frustration": {
+      "type": "score",
+      "instructions": "How frustrated does the customer sound in `message`?",
+      "criteria": [
+        "calm and neutral",
+        "concerned but civil",
+        "clearly annoyed",
+        "very angry or using strong language"
+      ]
+    },
+    "refund_requested": {
+      "type": "noul",
+      "instructions": "Does the customer ask for money back?"
+    },
+    "churn_risk": {
+      "type": "noul",
+      "instructions": "Does `message` suggest the customer may leave for a competitor or cancel?"
+    }
+  },
+  "moderation": {
+    "toxic": {
+      "type": "noul",
+      "instructions": "Is `post` toxic: rude, disrespectful or likely to make someone leave the discussion?"
+    },
+    "harassment": {
+      "type": "noul",
+      "instructions": "Does `post` target or harass a specific person?"
+    },
+    "threat": {
+      "type": "noul",
+      "instructions": "Does `post` threaten violence, harm or intimidation?"
+    },
+    "spam": {
+      "type": "noul",
+      "instructions": "Is `post` spam or advertising?"
+    },
+    "severity": {
+      "type": "score",
+      "instructions": "How severe is any rule-breaking in `post`?",
+      "criteria": [
+        "no rule-breaking: ordinary on-topic post",
+        "mild: rude tone or off-topic, no target",
+        "clear violation: insults, harassment or spam aimed at someone",
+        "severe: threats, hate speech or calls for violence"
+      ]
+    }
+  }
+}

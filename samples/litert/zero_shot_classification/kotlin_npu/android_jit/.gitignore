@@ -1,0 +1,21 @@
+*.iml
+.gradle
+/local.properties
+/.idea
+.DS_Store
+/build
+/captures
+.externalNativeBuild
+.cxx
+local.properties
+# model files are pushed to the device, never committed
+*.tflite
+test-data/
+validation-data/
+.kotlin/
+# NPU runtime from the LiteRT release and QAIRT (README): never committed
+litert_npu_runtime_libraries/
+litert_npu_runtime_libraries_jit.zip
+# bundletool inputs and outputs from the README steps
+bundletool-all.jar
+*.apks
