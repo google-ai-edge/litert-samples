@@ -48,17 +48,27 @@ Learn more about local testing, see
 
 Currently, the following devices are supported:
 
-| Vendor   | SoC Model | Android version | Group Name                 |
-|----------|-----------|-----------------|----------------------------|
-| Qualcomm | SM8450    |  S+             | Qualcomm_SM8450            |
-| Qualcomm | SM8550    |  S+             | Qualcomm_SM8550            |
-| Qualcomm | SM8650    |  S+             | Qualcomm_SM8650            |
-| Qualcomm | SM8750    |  S+             | Qualcomm_SM8750            |
-| Qualcomm | SM8850    |  S+             | Qualcomm_SM8850            |
-| Mediatek | MT6878    |  15             | Mediatek_MT6878_ANDROID_15 |
-| Mediatek | MT6897    |  15             | Mediatek_MT6897_ANDROID_15 |
-| Mediatek | MT6983    |  15             | Mediatek_MT6983_ANDROID_15 |
-| Mediatek | MT6985    |  15             | Mediatek_MT6985_ANDROID_15 |
-| Mediatek | MT6989    |  15             | Mediatek_MT6989_ANDROID_15 |
-| Mediatek | MT6991    |  15             | Mediatek_MT6991_ANDROID_15 |
-| Samsung  | E9965     |  16             | Samsung_E9965_ANDROID_16   |
+| Vendor   | SoC Model | Android version | Group Name       |
+|----------|-----------|-----------------|------------------|
+| Qualcomm | SM7150    |  S+             | Qualcomm_SM7150  |
+| Qualcomm | SM8250    |  S+             | Qualcomm_SM8250  |
+| Qualcomm | SM8350    |  S+             | Qualcomm_SM8350  |
+| Qualcomm | SM8450    |  S+             | Qualcomm_SM8450  |
+| Qualcomm | SM8550    |  S+             | Qualcomm_SM8550  |
+| Qualcomm | SM8650    |  S+             | Qualcomm_SM8650  |
+| Qualcomm | SM8750    |  S+             | Qualcomm_SM8750  |
+| Qualcomm | SM8850    |  S+             | Qualcomm_SM8850  |
+| Mediatek | MT6877    |  S+             | Mediatek_MT6877  |
+| Mediatek | MT6878    |  S+             | Mediatek_MT6878  |
+| Mediatek | MT6879    |  S+             | Mediatek_MT6879  |
+| Mediatek | MT6893    |  S+             | Mediatek_MT6893  |
+| Mediatek | MT6897    |  S+             | Mediatek_MT6897  |
+| Mediatek | MT6983    |  S+             | Mediatek_MT6983  |
+| Mediatek | MT6985    |  S+             | Mediatek_MT6985  |
+| Mediatek | MT6989    |  S+             | Mediatek_MT6989  |
+| Mediatek | MT6991    |  S+             | Mediatek_MT6991  |
+| Mediatek | MT6993    |  S+             | Mediatek_MT6993  |
+| Google   | Tensor G3 |  16+            | Google_Tensor_G3 |
+| Google   | Tensor G4 |  16+            | Google_Tensor_G4 |
+| Google   | Tensor G5 |  16+            | Google_Tensor_G5 |
+| Google   | Tensor G6 |  16+            | Google_Tensor_G6 |
