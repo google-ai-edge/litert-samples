@@ -4,6 +4,12 @@ The Android app from [`kotlin_cpu_gpu/android`](../../kotlin_cpu_gpu/android) wi
 
 The NPU computes in FP16. The graph this app downloads, from revision `32f1b84d` of [litert-community/Laya-Multilingual-LiteRT](https://huggingface.co/litert-community/Laya-Multilingual-LiteRT), scales its large activations by powers of two and uses a -1e4 attention mask, so FP16 stays finite; in FP32 it computes the same values as the graph the CPU/GPU app uses.
 
+| GPU, then the NPU | Launch on the NPU | Launch on the GPU (FP32) |
+|---|---|---|
+| <img src="img/gpu_then_npu.gif" alt="The app on a Galaxy S26: the English example run on the GPU, then the accelerator switched to the NPU and the run repeated" width="300"> | <img src="img/npu.png" alt="Ready on the NPU: the run total and the first answer with its six options" width="300"> | <img src="img/gpu.png" alt="Ready on the GPU: the run total and the first answer with its six options" width="300"> |
+
+On screen: the app's English example (524 tokens), one run each; the recording plays at 1.5x, and its switch to the NPU read LiteRT's compile cache, while the first launch on a phone compiles for about a minute. The Performance table below measures the Japanese example (529 tokens).
+
 ## Set up the NPU runtime
 
 Do this before any Gradle command: the build includes the runtime modules. The NPU runtime is Qualcomm's and is not in this repository. From this folder, put the LiteRT v2.2.0 release asset under `litert_npu_runtime_libraries/` and let its script add the Qualcomm AI Runtime libraries (a 2.3 GB download; the script uses `wget` and `unzip`):
