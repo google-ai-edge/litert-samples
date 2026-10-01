@@ -62,3 +62,23 @@ Currently, the following devices are supported:
 | Mediatek | MT6989    |  15             | Mediatek_MT6989_ANDROID_15 |
 | Mediatek | MT6991    |  15             | Mediatek_MT6991_ANDROID_15 |
 | Samsung  | E9965     |  16             | Samsung_E9965_ANDROID_16   |
+
+### Intel NPU runtime libraries
+
+The LiteRT Intel plugins come from the
+`litert-npu-runtime-intel-openvino` Maven package. Fetch the OpenVINO and Intel
+NPU compiler libraries they depend on before building:
+
+```sh
+$ ./litert_npu_runtime_libraries/fetch_intel_library.sh
+```
+
+The Intel runtime is packaged for `x86_64` and does not use SoC-specific device
+groups. Build its app bundle with:
+
+```sh
+$ ./gradlew :app:bundleRelease -PintelRuntimeBuild=true
+```
+
+This produces an `x86_64`-only bundle containing the Intel runtime. Without the
+property, the normal ARM multi-vendor bundle is built.
