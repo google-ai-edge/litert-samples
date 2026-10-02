@@ -55,6 +55,7 @@ describe('parseBoxes', () => {
   it('asks in Gemma\'s native detection format', () => {
     expect(detectionPrompt('the ball')).toContain('Detect the ball');
     expect(detectionPrompt('the ball')).toContain('"box_2d"');
+    expect(detectionPrompt('the ball')).toContain('empty list');
   });
 });
 

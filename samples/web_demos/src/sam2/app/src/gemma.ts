@@ -47,9 +47,15 @@ export interface GemmaResult {
 
 export const DEFAULT_SERVER = 'http://127.0.0.1:9379';
 
+/**
+ * Gemma's native detection prompt, plus an explicit way out: small models
+ * otherwise tend to box whatever is salient (flowers for "the players") rather
+ * than answer with nothing.
+ */
 export function detectionPrompt(what: string): string {
   return `Detect ${what}. Output a json list where each entry contains the 2D bounding box in "box_2d" ` +
-      'and a text label in "label".';
+      `and a text label in "label". Only include objects that really are ${what}; ` +
+      `if there is no ${what} in the image, output an empty list: [].`;
 }
 
 const BOX_RE = /"box_2d"\s*:\s*\[\s*(-?[\d.]+)\s*,\s*(-?[\d.]+)\s*,\s*(-?[\d.]+)\s*,\s*(-?[\d.]+)\s*\]/;

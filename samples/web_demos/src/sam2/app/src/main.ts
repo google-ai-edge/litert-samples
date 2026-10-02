@@ -807,9 +807,9 @@ async function findObjects(g: Chosen, what: string, max = maxObjects()): Promise
     throw new Error(`${(e as Error).message}${g.llm ? '' : `. Is LiteRT-LM running? ${GEMMA_START}`}`);
   }
   refresh();
+  console.info(`${g.name} replied to “${what}”:`, found.raw);
   if (!found.boxes.length) {
     objHint(`${g.name} found no “${what}” in this frame (${found.seconds.toFixed(1)} s); your objects are unchanged.`);
-    console.info(`${g.name} replied:`, found.raw);
     return {found: 0, labels, seconds: found.seconds};
   }
   const used = Math.min(found.boxes.length, limit);
