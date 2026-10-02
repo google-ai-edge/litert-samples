@@ -24,7 +24,7 @@ reserves a device, runs the prebuilt `benchmark_model` (LiteRT) or the LiteRT-LM
 
 1. **Environment setup**: set `ddp_gcp_project`, authenticate, enable the Device Run API.
 2. **Benchmark with the LiteRT CLI**: `pip install litert-cli-nightly`, then, on the device set in `ddp_device`
-   (`caiman-35` by default; `gcloud beta device-run devices list` shows the catalog):
+   (`pa3q-35` and `m2q-36` by default; `gcloud beta device-run devices list` shows the catalog):
    - `litert download litert-community/efficientnet_b1` and `litert benchmark ... --ddp --cpu`, then `--gpu`, which report
      latency (median, average, p95), init time and memory footprint per accelerator;
    - `litert download litert-community/Qwen3-0.6B` (a `.litertlm` bundle) and `litert benchmark ... --ddp --gpu`, which
