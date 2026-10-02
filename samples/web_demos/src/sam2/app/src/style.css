@@ -215,6 +215,16 @@ select {
 .mic:hover:not(:disabled) { opacity: 1; background: #2a3142; }
 .mic:disabled { opacity: .3; cursor: not-allowed; }
 .mic.listening { opacity: 1; background: #3a1d24; box-shadow: 0 0 0 1px #e5484d inset; animation: pulse 1.2s ease-in-out infinite; }
+/* The agent's tool calls, one chip each: name(args) and its status. */
+.calls { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 4px; }
+.calls .call {
+  font: 11px/1.4 ui-monospace, SFMono-Regular, Menlo, monospace; color: var(--text); background: var(--panel-2);
+  border: 1px solid var(--line); border-left: 3px solid var(--muted); border-radius: 5px; padding: 2px 7px;
+  max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.calls .call.started { border-left-color: #7b8cff; }
+.calls .call.done { border-left-color: #3ecf8e; }
+.calls .call.error, .calls .call.unknown { border-left-color: #e5484d; }
 .clickTools .seg { flex: 1; }
 .clickTools .btn { padding: 5px 12px; }
 .labeled { display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--muted); }
