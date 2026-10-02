@@ -63,7 +63,7 @@ data class UiState(
   val inputSubject: String,
   val inputText: String,
   val preset: Preset = Preset.EMAIL,
-  val language: ExampleLanguage = ExampleLanguage.JA,
+  val language: ExampleLanguage = ExampleLanguage.EN,
   val accelerator: LayaEngine.Backend = LayaEngine.Backend.GPU,
   val calibrated: Boolean = true,
   val busy: Boolean = true,
