@@ -419,9 +419,9 @@ load("@litert_archive//third_party/models:workspace.bzl", "models")
 models()
 
 # Vendor SDKs
-load("@litert_archive//third_party/arm:workspace.bzl", "arm_deps")
+load("@litert_archive//third_party/arm_vulkan_ml:workspace.bzl", "arm_vulkan_ml_deps")
 
-arm_deps()
+arm_vulkan_ml_deps()
 
 load("@litert_archive//third_party/qairt:workspace.bzl", "qairt")
 
