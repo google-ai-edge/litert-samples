@@ -56,7 +56,7 @@ using TfTensor = ::litert::tensor::examples::sam2::TfTensor;
 using WeightMap = ::litert::tensor::examples::sam2::WeightMap;
 using ::litert::tensor::ModelFactory;
 
-inline constexpr int kMaxObjects = 5;
+inline constexpr int kMaxObjects = 6;
 inline constexpr int kMaxClicks = 8;
 inline constexpr int kNumPtrFrames = 16;
 inline constexpr int kPtrSplit = 4;
@@ -72,6 +72,7 @@ inline constexpr std::array<Rgb, kMaxObjects> kPalette = {{
     {62 / 255.f, 207 / 255.f, 142 / 255.f},
     {240 / 255.f, 82 / 255.f, 156 / 255.f},
     {170 / 255.f, 110 / 255.f, 255 / 255.f},
+    {250 / 255.f, 204 / 255.f, 21 / 255.f},
 }};
 inline constexpr Rgb kCutoutGreen = {0.f, 177 / 255.f, 64 / 255.f};
 

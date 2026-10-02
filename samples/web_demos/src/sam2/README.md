@@ -191,7 +191,7 @@ tools/verify_all.sh 384      # ~2.5 min; also: 512
 | **C. Web demo on WebGPU** | C1 UI | clicks ± / Reset, 192-frame 2-object tracking, effects, layout, camera smooth + aligned |
 | | C2 WebGPU health | hardware adapter (not a fallback) · every signature of both models on WebGPU · zero WebGPU errors, no device loss · GPU buffers bounded across tracking, re-tracking, playback, Reset and camera · steady per-frame time |
 
-Every pipeline run (A2–B3) uses 10 frames and 5 objects (all slots). All runs compare
+Every pipeline run (A2–B3) uses 10 frames and 6 objects (all slots). All runs compare
 against **one cached Hugging Face reference** per (size, memory, clip,
 prompts), computed from the numpy reference of the preprocess graph, so native
 and browser results face the same ground truth and HF runs only once.
@@ -288,7 +288,7 @@ box + negative click).
 Type or say what to select ("the ball", "all players") in the Objects panel and
 press **Find**. **Gemma 4 (E4B or E2B)** looks at the frame on screen
 and returns bounding boxes. Each Find replaces the selection: all objects are
-reset and each box (up to 5) becomes a fresh object with a SAM 2 box prompt,
+reset and each box (up to 6) becomes a fresh object with a SAM 2 box prompt,
 which you can refine with clicks and track as usual. If Gemma finds nothing,
 your objects are kept. Works on video files and the camera.
 

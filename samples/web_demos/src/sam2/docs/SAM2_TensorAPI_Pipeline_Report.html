@@ -369,7 +369,7 @@ TfTensor pixels = Add(Mul(resized, Const(1/std, {3})), Const(-mean/std, {3}));</
 <p>The frame tensor's row stride is padded to a multiple of 16 pixels, so the browser can fill it with a single <code>copyTextureToBuffer</code> from an <code>rgba32float</code> texture (256-byte rows). The graph crops the padding. The average pool is a simple anti-alias before large downscales. It is not the same filter as Hugging Face's video processor, which is why parity is measured on the pipeline's own preprocessed frames (section 9).</p>
 
 <h3>composite (77 ops)</h3>
-<p>This graph reproduces the original demo's WebGL mask renderer. It takes the frame, up to five objects' low-resolution logits, and an 8-float effect vector.</p>
+<p>This graph reproduces the original demo's WebGL mask renderer. It takes the frame, up to six objects' low-resolution logits, and an 8-float effect vector.</p>
 <ol>
   <li>Stack the five masks, <code>ResizeBilinear</code> to H×W (SAM 2's post-processing, <code>align_corners=False</code>).</li>
   <li>Signed distance to the boundary in display pixels: <code>d = l / max(|∇l|, 1e-3)</code>. Central differences are two constant DEPTHWISE_CONV_2D over an edge-replicated border (Slice + Concatenation). Zero padding drew a false outline along the frame edge in fp16. <code>d</code> is clamped to ±1000 so an absent object (logits −1024) cannot overflow fp16.</li>
@@ -484,7 +484,7 @@ device.queue.submit([enc.finish()]);</code></pre>
   <li><b>Ask Gemma.</b> Text to boxes: Gemma 4 (E4B / E2B) on LiteRT-LM, in a small OpenAI-compatible server on the LiteRT-LM Python API on the same machine (language model and vision encoder on the GPU), receives the frame on screen as a JPEG with Gemma's native detection prompt and streams back <code>box_2d = [ymin, xmin, ymax, xmax]</code> in 0–1000; each box becomes a SAM 2 box prompt as soon as it is written. Gemma runs outside the page because LiteRT-LM's web Gemma 4 builds are text-only today. On the sample, "the soccer ball" with E4B gives the whole ball; "all players" fills up to five object slots; the first object appears after ~3 s with E4B (~1.5 s with E2B), then about one per second.</li>
   <li><b>Boxes.</b> The Box tool: drag a rectangle around the object, in file or camera mode. Clicks can then refine it; a new box replaces the previous one. Up to 8 points per object, a box counting as 2.</li>
   <li><b>Camera clicks.</b> Positive and negative clicks accumulate on the selected object (up to 8). Each click re-prompts the object with all its clicks on the newest camera frame, which becomes its prompt frame; Reset clears it. Every pipeline call, including clearing an object, goes through the same queue, so nothing mutates the pipeline during a step.</li>
-  <li><b>UI.</b> The same as the earlier LiteRT.js demo: sample video, upload, up to 5 objects, 8 positive and negative clicks each, 2- or 7-frame memory, 384/512/1024 px, overlay, spotlight and green cutout.</li>
+  <li><b>UI.</b> The same as the earlier LiteRT.js demo: sample video, upload, up to 6 objects, 8 positive and negative clicks each, 2- or 7-frame memory, 384/512/1024 px, overlay, spotlight and green cutout.</li>
 </ul>
 
 <h2 id="verify"><span class="n">9</span>Verification</h2>
