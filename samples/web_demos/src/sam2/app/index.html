@@ -110,7 +110,7 @@
       </div>
       <form class="row gemma" id="gemmaForm" autocomplete="off">
         <div class="askBox">
-          <input id="gemmaAsk" type="text" placeholder="Ask Gemma: the ball, all players…"
+          <input id="gemmaAsk" type="text" placeholder="Ask Gemma: the ball · find the players and cut them out · how fast is this?"
                  aria-label="Describe the objects for Gemma to find" />
           <button class="mic" id="micBtn" type="button" title="Speak (Chrome speech recognition)"
                   aria-label="Speak the objects to find">🎤</button>
@@ -127,6 +127,7 @@
         </select>
         <button class="btn" id="gemmaBtn" type="submit" title="Gemma finds the objects and draws boxes for SAM 2">Find</button>
       </form>
+      <ul class="calls" id="agentLog" aria-label="Gemma's tool calls" aria-live="polite" hidden></ul>
       <p class="hint" id="objHint">Click to add points, or choose Box and drag around the object. Tracking starts from that frame.</p>
     </section>
 

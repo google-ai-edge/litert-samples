@@ -50,9 +50,9 @@ sys.path.insert(0, HERE)  # export_weights.py
 MEAN = np.array([0.485, 0.456, 0.406], np.float32)
 STD = np.array([0.229, 0.224, 0.225], np.float32)
 PALETTE = np.array([[76, 141, 255], [255, 158, 44], [62, 207, 142],
-                    [240, 82, 156], [170, 110, 255]], np.float32) / 255
+                    [240, 82, 156], [170, 110, 255], [250, 204, 21]], np.float32) / 255
 GREEN = np.array([0, 177, 64], np.float32) / 255
-K = 5
+K = 6
 
 
 def parse_prompts(spec):

@@ -27,8 +27,8 @@
 #      errors, bounded GPU memory, steady per-frame time)
 #
 # Every pipeline run (A2, A3, B2, B3) uses 10 frames of the football sample and
-# 5 objects (2 clicks; 1 click; a box + a negative click joining at frame 6;
-# a box; a box joining at frame 3)
+# 6 objects, one per slot (2 clicks; 1 click; a box + a negative click joining
+# at frame 6; a box; a box joining at frame 3; a box on the ball joining at frame 2)
 # and is checked by verify_chain.py: preprocess graph vs numpy, every mask vs
 # HF Sam2VideoModel, composite graph vs numpy. The HF reference is computed
 # once per (size, memory, clip, prompts) from the numpy preprocess reference
@@ -47,7 +47,7 @@ ART="$ARTROOT/chain"
 PY="${PYTHON:-$PROJ/.venv/bin/python}"
 CACHE="$ART/ref_cache"
 CLIP="$ART/football_640x360_24.rgba"
-PROMPTS='0@0:0.44,0.28,1;0.46,0.40,1|1@0:0.484,0.79,1|2@6:0.14,0.32,2;0.215,0.645,3;0.15,0.34,0|3@0:0.194,0.342,2;0.253,0.632,3|4@3:0.594,0.352,2;0.658,0.632,3'
+PROMPTS='0@0:0.44,0.28,1;0.46,0.40,1|1@0:0.484,0.79,1|2@6:0.14,0.32,2;0.215,0.645,3;0.15,0.34,0|3@0:0.194,0.342,2;0.253,0.632,3|4@3:0.594,0.352,2;0.658,0.632,3|5@2:0.45,0.71,2;0.53,0.865,3'
 CONSTS="$PROJ/app/public/models/sam2_host_consts.safetensors"
 BIN="$SAMPLES/bazel-bin/samples/web_demos/src/sam2/cc/sam2_chain_main"
 BZ=(--noenable_platform_specific_config --copt=-w)

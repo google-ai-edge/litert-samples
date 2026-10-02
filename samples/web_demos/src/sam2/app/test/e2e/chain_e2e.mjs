@@ -15,8 +15,9 @@
 
 // End-to-end test of the wasm build: runs test/e2e/chain_e2e.html in system
 // Chrome (WebGPU, JSPI) via playwright-core — the C++ ModelChain pipeline on
-// 24 frames of the football sample with 5 objects (2 clicks; 1 click; a box
-// + a negative click joining at frame 6; a box; a box joining at frame 3) — then verifies the dumps with
+// 24 frames of the football sample with 6 objects (2 clicks; 1 click; a box
+// + a negative click joining at frame 6; a box; a box joining at frame 3; a box
+// joining at frame 2) — then verifies the dumps with
 // tools/verify_chain.py: preprocess vs numpy, every mask vs HF
 // Sam2VideoModel, composites vs numpy.
 //
@@ -50,7 +51,7 @@ if (!existsSync(clip)) {
   execFileSync('ffmpeg', ['-loglevel', 'error', '-y', '-i', video,
     '-frames:v', '24', '-vf', 'scale=640:360', '-f', 'rawvideo', '-pix_fmt', 'rgba', clip]);
 }
-const PROMPTS = '0@0:0.44,0.28,1;0.46,0.40,1|1@0:0.484,0.79,1|2@6:0.14,0.32,2;0.215,0.645,3;0.15,0.34,0|3@0:0.194,0.342,2;0.253,0.632,3|4@3:0.594,0.352,2;0.658,0.632,3';
+const PROMPTS = '0@0:0.44,0.28,1;0.46,0.40,1|1@0:0.484,0.79,1|2@6:0.14,0.32,2;0.215,0.645,3;0.15,0.34,0|3@0:0.194,0.342,2;0.253,0.632,3|4@3:0.594,0.352,2;0.658,0.632,3|5@2:0.45,0.71,2;0.53,0.865,3';
 const tag = args.tag ?? `wasm${size}_${precision}_nmm${nmm}_${effect}${build === 'browser' ? '_browserbuild' : ''}`;
 const dumpDir = resolve(art, tag);
 rmSync(dumpDir, {recursive: true, force: true});
@@ -94,7 +95,7 @@ try {
 }
 console.log(`  loaded in ${(result.loadMs / 1000).toFixed(1)} s` +
   (result.buildMs ? ` (SAM 2 model authored in-browser in ${(result.buildMs / 1000).toFixed(1)} s)` : '') +
-  `; median frame (5 objects, readback of one score) ${result.frameMs.toFixed(1)} ms`);
+  `; median frame (6 objects, readback of one score) ${result.frameMs.toFixed(1)} ms`);
 const minIou = precision === 'fp32' ? '0.95' : '0.85';
 const meanIou = precision === 'fp32' ? '0.99' : '0.98';
 const refCache = args.ref_cache ? ['--ref_cache', args.ref_cache] : [];

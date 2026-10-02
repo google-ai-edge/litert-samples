@@ -231,7 +231,7 @@ The frame tensor's row stride is padded to a multiple of 16 pixels, so the brows
 
 ### composite (77 ops)
 
-This graph reproduces the original demo's WebGL mask renderer. It takes the frame, up to five objects' low-resolution logits, and an 8-float effect vector.
+This graph reproduces the original demo's WebGL mask renderer. It takes the frame, up to six objects' low-resolution logits, and an 8-float effect vector.
 
 1.  Stack the five masks, `ResizeBilinear` to H×W (SAM 2's post-processing, `align_corners=False`).
 2.  Signed distance to the boundary in display pixels: `d = l / max(|∇l|, 1e-3)`. Central differences are two constant DEPTHWISE_CONV_2D over an edge-replicated border (Slice + Concatenation). Zero padding drew a false outline along the frame edge in fp16. `d` is clamped to ±1000 so an absent object (logits −1024) cannot overflow fp16.
@@ -356,7 +356,7 @@ With `?build=browser`, the page downloads the safetensors weights instead of a `
 - **Ask Gemma.** Text to boxes: Gemma 4 (E4B / E2B) on LiteRT-LM, in a small OpenAI-compatible server on the LiteRT-LM Python API on the same machine (language model and vision encoder on the GPU), receives the frame on screen as a JPEG with Gemma's native detection prompt and streams back `box_2d = [ymin, xmin, ymax, xmax]` in 0–1000; each box becomes a SAM 2 box prompt as soon as it is written. Gemma runs outside the page because LiteRT-LM's web Gemma 4 builds are text-only today. On the sample, "the soccer ball" with E4B gives the whole ball; "all players" fills up to five object slots; the first object appears after ~3 s with E4B (~1.5 s with E2B), then about one per second.
 - **Boxes.** The Box tool: drag a rectangle around the object, in file or camera mode. Clicks can then refine it; a new box replaces the previous one. Up to 8 points per object, a box counting as 2.
 - **Camera clicks.** Positive and negative clicks accumulate on the selected object (up to 8). Each click re-prompts the object with all its clicks on the newest camera frame, which becomes its prompt frame; Reset clears it. Every pipeline call, including clearing an object, goes through the same queue, so nothing mutates the pipeline during a step.
-- **UI.** The same as the earlier LiteRT.js demo: sample video, upload, up to 5 objects, 8 positive and negative clicks each, 2- or 7-frame memory, 384/512/1024 px, overlay, spotlight and green cutout.
+- **UI.** The same as the earlier LiteRT.js demo: sample video, upload, up to 6 objects, 8 positive and negative clicks each, 2- or 7-frame memory, 384/512/1024 px, overlay, spotlight and green cutout.
 
 ## 9. Verification
 

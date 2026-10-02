@@ -45,7 +45,7 @@ CLIP=football_640x360_24.rgba
 # The Metal accelerator is loaded from the working directory.
 cp -f "$SAMPLES/bazel-bin/samples/web_demos/src/sam2/cc/sam2_chain_main.runfiles/litert_prebuilts/macos_arm64/libLiteRtMetalAccelerator.dylib" .
 
-PROMPTS='0@0:0.44,0.28,1;0.46,0.40,1|1@0:0.484,0.79,1|2@6:0.14,0.32,2;0.215,0.645,3;0.15,0.34,0|3@0:0.194,0.342,2;0.253,0.632,3|4@3:0.594,0.352,2;0.658,0.632,3'
+PROMPTS='0@0:0.44,0.28,1;0.46,0.40,1|1@0:0.484,0.79,1|2@6:0.14,0.32,2;0.215,0.645,3;0.15,0.34,0|3@0:0.194,0.342,2;0.253,0.632,3|4@3:0.594,0.352,2;0.658,0.632,3|5@2:0.45,0.71,2;0.53,0.865,3'
 TFLITE="sam2_chain_$S.tflite"
 "$BIN" --weights="$ARTROOT/sam2_tiny_${S}_video.safetensors" --image_size=$S \
   --host_consts="$PROJ/app/public/models/sam2_host_consts.safetensors" \

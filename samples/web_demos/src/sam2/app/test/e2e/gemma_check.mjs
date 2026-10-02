@@ -17,7 +17,7 @@
 // LiteRT-LM server (`litert-lm serve`), in system Chrome on WebGPU:
 //   1. "the soccer ball" on frame 1 -> one object with a box prompt, and SAM 2's
 //      mask of it lies on the ball;
-//   2. "all players" -> up to five objects, each with a box prompt,
+//   2. "all players" -> up to six objects, each with a box prompt,
 //      tracking then runs on all of them;
 //   3. camera mode: "the player" -> an object on the newest camera frame;
 //   4. without the server, only the in-browser models are offered.

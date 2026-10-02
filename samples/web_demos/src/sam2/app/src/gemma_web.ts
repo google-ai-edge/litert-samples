@@ -31,6 +31,7 @@
 // also caching it (tee) would buffer gigabytes in memory, because loading is
 // much slower than writing to disk.
 
+import {type AgentEngine} from './agent';
 import {detectionPrompt, type FrameSource, frameToCanvas, type GemmaBox, type GemmaResult, parseBoxes} from './gemma';
 
 export interface WebModel {
@@ -59,10 +60,37 @@ export const webGemmaSupported = () => 'gpu' in navigator && typeof caches !== '
 interface TrustedUrl {h: unknown}
 interface WasmFileset {wasmLoaderPath: TrustedUrl; wasmBinaryPath: TrustedUrl}
 type PromptPart = string | {imageSource: CanvasImageSource | string};
-interface LlmInference {
+export interface LlmInference {
   generateResponse(query: PromptPart[], progress?: (partial: string, done: boolean) => void): Promise<string>;
   cancelProcessing(): void;
   close(): void;
+}
+
+/**
+ * The loaded model as an agent engine (agent.ts): a text turn in Gemma's
+ * chat format, streamed. cancel() stops the generation in flight.
+ */
+export function webEngine(llm: LlmInference): AgentEngine {
+  let cancelled = false;
+  return {
+    async generate(prompt, onPartial) {
+      cancelled = false;
+      let raw = '';
+      try {
+        await llm.generateResponse([`<|turn>user\n${prompt}<turn|>\n<|turn>model\n`], (partial) => {
+          raw += partial;
+          if (!cancelled) onPartial(raw);
+        });
+      } catch (e) {
+        if (!cancelled) throw e;
+      }
+      return raw;
+    },
+    cancel() {
+      cancelled = true;
+      llm.cancelProcessing();
+    },
+  };
 }
 interface GenAiModule {
   FilesetResolver: {forGenAiTasks(): Promise<WasmFileset>};

@@ -21,11 +21,14 @@
 // and executed on WebGPU through LiteRT.js. This file handles the UI, moves
 // frames into the pipeline (GPU copies) and blits its output.
 
+import {runTurn, type ToolContext, type ToolEvent} from './agent';
 import {ChainRuntime, clearModelCache, type Effect, type ProfileMode, type RunProfile} from './chain/runtime';
 import {type DraftBox, GpuView, type Marker} from './display';
 import {DEFAULT_SERVER, detect as gemmaDetect, type GemmaBox, type GemmaResult, listModels as gemmaModels} from './gemma';
-import {detectWeb, isWebModel, loadWebGemma, WEB_MODELS, webGemmaLoaded, webGemmaSupported, webModel} from './gemma_web';
+import {detectWeb, isWebModel, type LlmInference, loadWebGemma, WEB_MODELS, webEngine, webGemmaLoaded, webGemmaSupported, webModel} from './gemma_web';
 import {listening, speechSupported, startDictation, stopDictation} from './speech';
+import {type JsonValue} from './toolcalls';
+import {type AppActions, makeTools} from './tools';
 import {type Clip, decodeVideo, demoClip} from './video';
 
 const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
@@ -33,15 +36,20 @@ const q = new URLSearchParams(location.search);
 
 /** Object colours; object k uses pipeline slot k (the composite graph's palette). */
 const COLORS: Array<[number, number, number]> = [[76, 141, 255], [255, 158, 44], [62, 207, 142],
-  [240, 82, 156], [170, 110, 255]];
+  [240, 82, 156], [170, 110, 255], [250, 204, 21]];
 // One colour per object; the loaded wasm pipeline may compile fewer slots.
 const maxObjects = () => Math.min(COLORS.length, state.engine?.maxObjects ?? COLORS.length);
 const MAX_CLICKS = 8;
 
+// Static files are resolved against the page URL, so the built app also works
+// from a sub-path (e.g. a GCS bucket folder), not only from the server root.
+// Absolute URLs also keep dynamic import() of the wasm loaders page-relative.
+const asset = (path: string) => new URL(path, document.baseURI).href;
+
 const MODELS = {
-  384: {url: '/models/sam2_chain_384.tflite', mb: 164},
-  512: {url: '/models/sam2_chain_512.tflite', mb: 169},
-  1024: {url: '/models/sam2_chain_1024.tflite', mb: 208},
+  384: {url: asset('models/sam2_chain_384.tflite'), mb: 164},
+  512: {url: asset('models/sam2_chain_512.tflite'), mb: 169},
+  1024: {url: asset('models/sam2_chain_1024.tflite'), mb: 208},
 } as const;
 type ModelSize = keyof typeof MODELS;
 
@@ -86,6 +94,8 @@ interface TrackedObject {
   color: [number, number, number];
   /** The prompt: 1..8 clicks (normalized coords) on one frame. */
   point: {frame: number; pts: Click[]} | null;
+  /** What Gemma called it ("soccer ball"), when it came from Ask Gemma. */
+  label?: string;
 }
 
 /** Camera mode: each processed frame is shown with its own masks. */
@@ -225,7 +235,12 @@ function profileSummary(): string {
 const setupText = (n: number) =>
   `${n} object${n === 1 ? '' : 's'} · ${state.engine?.imageSize ?? state.size}px · ${state.nmm}-frame memory`;
 
+/** Recent per-frame times in file mode (prompt and track steps), for the measure tool. */
+const lastTrackMs: number[] = [];
+
 function setStats(frameMs: number, nObjects: number) {
+  lastTrackMs.push(frameMs);
+  if (lastTrackMs.length > 60) lastTrackMs.shift();
   showMetrics([['Last frame', ms(frameMs), 7], ['', setupText(nObjects)]]);
 }
 
@@ -280,11 +295,11 @@ async function loadEngine(size: ModelSize) {
     const {url, mb} = MODELS[size];
     const rt = await ChainRuntime.create({
       modelUrl: url,
-      hostConstsUrl: '/models/sam2_host_consts.safetensors',
-      weightsUrl: q.get('build') === 'browser' ? `/models/sam2_tiny_${size}_video.safetensors` : undefined,
+      hostConstsUrl: asset('models/sam2_host_consts.safetensors'),
+      weightsUrl: q.get('build') === 'browser' ? asset(`models/sam2_tiny_${size}_video.safetensors`) : undefined,
       imageSize: size,
-      litertWasm: '/litert-wasm/',
-      chainWasm: '/wasm/',
+      litertWasm: asset('litert-wasm/'),
+      chainWasm: asset('wasm/'),
       nmm: state.nmm,
       precision,
       cache: q.get('cache') !== '0',  // ?cache=0: always download
@@ -508,7 +523,8 @@ function refresh() {
     const n = o.point?.pts.length ?? 0;
     const status = !o.point ? 'click or box it' : state.live ? `live · ${describePrompt(o.point.pts)}`
       : `${describePrompt(o.point.pts)} · f${o.point.frame + 1}`;
-    li.innerHTML = `<span class="dot"></span><span class="name">Object ${i + 1}</span>` +
+    const name = o.label ? `${i + 1} · ${o.label}` : `Object ${i + 1}`;
+    li.innerHTML = `<span class="dot"></span><span class="name">${name.replace(/</g, '&lt;')}</span>` +
         `<span class="state">${status}</span>`;
     if (state.objects.length > 1) {
       const x = document.createElement('button');
@@ -556,7 +572,7 @@ function refresh() {
       !state.asking && (!!state.clip || live);
   $<HTMLInputElement>('gemmaAsk').disabled = !state.gemma || state.asking;
   $<HTMLButtonElement>('gemmaBtn').disabled = !canAsk;
-  $<HTMLButtonElement>('gemmaBtn').textContent = state.asking ? 'Finding…' : 'Find';
+  $<HTMLButtonElement>('gemmaBtn').textContent = state.asking ? 'Working…' : useAgent() ? 'Ask' : 'Find';
   const sel = $<HTMLSelectElement>('gemmaModel');
   sel.disabled = !state.gemma || state.asking;
   for (const o of sel.options) o.disabled = !!state.gemma && !state.gemma.includes(o.value);
@@ -728,89 +744,301 @@ async function probeGemma() {
   refresh();
 }
 
-/**
- * Gemma 4 finds what the user described in the frame on screen, and the
- * request replaces the selection: all objects are reset and each box (up to
- * 5) becomes a fresh object with a SAM 2 box prompt. Boxes are used as Gemma
- * streams them, so the first mask shows while the rest are still being
- * written. If Gemma finds nothing, or the request fails, the objects are kept.
- * Browser models are downloaded (once, then cached) and loaded on first use.
- */
-async function askGemma(what: string) {
-  if (!state.gemma || state.asking || state.busy || state.tracking) return;
-  if (!(state.live ? state.live.video : state.clip)) return;
-  stopPlayback();
+/** The chosen Gemma: its id, display name, and (browser models) the loaded runtime. */
+interface Chosen {
+  modelId: string;
+  name: string;
+  llm?: LlmInference;
+}
+
+/** Loads the chosen model if it runs in the browser (downloaded once, then cached). */
+async function chooseGemma(): Promise<Chosen> {
   const modelId = $<HTMLSelectElement>('gemmaModel').value;
   const web = isWebModel(modelId) ? webModel(modelId) : undefined;
   const name = web ? `${web.name} (browser)`
     : modelId.replace(/^gemma-4-/i, 'Gemma 4 ').toUpperCase().replace('GEMMA 4', 'Gemma 4');
-  state.asking = true;
-  refresh();
-  const fail = (e: unknown, hint: string) => {
-    console.error(e);
-    objHint(`${name} failed: ${(e as Error).message}. ${hint}`);
-    state.asking = false;
-    refresh();
-  };
-  let llm;
-  if (web) {
-    if (!webGemmaLoaded(modelId)) objHint(`Starting ${name}…`);
-    try {
-      llm = await loadWebGemma(modelId, (text, f) =>
-        objHint(f !== undefined && f < 1 ? `${text} (${(f * 100).toFixed(0)}%)` : text));
-    } catch (e) {
-      return fail(e, 'Needs WebGPU with shader-f16, and ~4 GB free disk for the model cache.');
-    }
+  if (!web) return {modelId, name};
+  if (!webGemmaLoaded(modelId)) objHint(`Starting ${name}…`);
+  try {
+    const llm = await loadWebGemma(modelId, (text, f) =>
+      objHint(f !== undefined && f < 1 ? `${text} (${(f * 100).toFixed(0)}%)` : text));
+    return {modelId, name, llm};
+  } catch (e) {
+    throw new Error(`${(e as Error).message}. Needs WebGPU with shader-f16, and ~4 GB free disk for the model cache.`);
   }
+}
+
+/**
+ * Gemma 4 finds what the user described in the frame on screen, and the
+ * request replaces the selection: all objects are reset and each box (up to
+ * `max`) becomes a fresh object with a SAM 2 box prompt. Boxes are used as
+ * Gemma streams them, so the first mask shows while the rest are still being
+ * written. If Gemma finds nothing, the objects are kept.
+ */
+async function findObjects(g: Chosen, what: string, max = maxObjects()): Promise<{found: number; labels: string[]; seconds: number}> {
+  stopPlayback();
   // The frame on screen now (loading a model can take a while).
   const L = state.live;
   const frame: CanvasImageSource | undefined = L ? L.video : state.clip?.frames[state.frame];
-  if (!frame) return fail(new Error('no frame'), '');
-  objHint(`${name} is looking for “${what}”…`);
+  if (!frame) throw new Error('no frame on screen');
+  objHint(`${g.name} is looking for “${what}”…`);
   const t0 = performance.now();
-  const labels = new Set<string>();
+  const labels: string[] = [];
+  const limit = Math.min(max, maxObjects());
   // One box at a time, in order: the first resets the objects, the others add one each.
   let chain = Promise.resolve();
   const onBox = (b: GemmaBox, i: number) => (chain = chain.then(async () => {
     if (i === 0) resetObjects();
     else addObject();
     const target = state.objects[state.objects.length - 1];
+    target.label = b.label || what;
     state.selected = target.id;
     await addPrompt({box: [{nx: b.x0, ny: b.y0, label: 2}, {nx: b.x1, ny: b.y1, label: 3}]}, target);
-    if (b.label) labels.add(b.label);
-    objHint(`${name}: ${i + 1} found in ${((performance.now() - t0) / 1000).toFixed(1)} s, looking for more…`);
+    if (b.label) labels.push(b.label);
+    objHint(`${g.name}: ${i + 1} found in ${((performance.now() - t0) / 1000).toFixed(1)} s, looking for more…`);
   }));
   let found: GemmaResult;
   try {
-    found = llm
-      ? await detectWeb(llm, frame, what, modelId, onBox, maxObjects())
-      : await gemmaDetect(frame, what, `${modelId},gpu`, GEMMA_SERVER, onBox, maxObjects());
+    found = g.llm
+      ? await detectWeb(g.llm, frame, what, g.modelId, onBox, limit)
+      : await gemmaDetect(frame, what, `${g.modelId},gpu`, GEMMA_SERVER, onBox, limit);
     await chain;
   } catch (e) {
-    return fail(e, llm ? '' : `Is LiteRT-LM running? ${GEMMA_START}`);
+    throw new Error(`${(e as Error).message}${g.llm ? '' : `. Is LiteRT-LM running? ${GEMMA_START}`}`);
+  }
+  refresh();
+  console.info(`${g.name} replied to “${what}”:`, found.raw);
+  if (!found.boxes.length) {
+    objHint(`${g.name} found no “${what}” in this frame (${found.seconds.toFixed(1)} s); your objects are unchanged.`);
+    return {found: 0, labels, seconds: found.seconds};
+  }
+  const used = Math.min(found.boxes.length, limit);
+  objHint(`${g.name} found ${used} (${[...new Set(labels)].join(', ') || what}) in ${found.seconds.toFixed(1)} s` +
+      (used === maxObjects() ? ` (${maxObjects()} objects max)` : '') +
+      '. Refine with clicks or press Track.');
+  return {found: used, labels: [...new Set(labels)], seconds: found.seconds};
+}
+
+/** Find only (the server models, or ?agent=0): the text is what to look for. */
+async function askGemma(what: string) {
+  if (!state.gemma || state.asking || state.busy || state.tracking) return;
+  if (!(state.live ? state.live.video : state.clip)) return;
+  state.asking = true;
+  refresh();
+  try {
+    const g = await chooseGemma();
+    await findObjects(g, what);
+  } catch (e) {
+    console.error(e);
+    objHint(`Gemma failed: ${(e as Error).message}`);
   }
   state.asking = false;
   refresh();
-  if (!found.boxes.length) {
-    objHint(`${name} found no “${what}” in this frame (${found.seconds.toFixed(1)} s); your objects are unchanged.`);
-    console.info(`${name} replied:`, found.raw);
-    return;
+}
+
+// ---------------------------------------------------------------- the agent
+//
+// With a browser model the request is a plan: Gemma answers with tool calls
+// (find objects, change the effect, remove objects, playback, camera, model
+// quality, describe, measure) that run as they stream in. The calls show up
+// as chips under the box, so what the model decided is visible.
+
+/** Browser models run the agent; the server path and ?agent=0 keep plain Find. */
+function useAgent(): boolean {
+  return q.get('agent') !== '0' && isWebModel($<HTMLSelectElement>('gemmaModel').value);
+}
+
+const EFFECT_NAMES: Record<string, Effect> = {overlay: 'overlay', spotlight: 'spotlight', cutout: 'cutout'};
+
+/** What the tools can do to the app. */
+const appActions: AppActions = {
+  maxObjects,
+  findObjects: (what, max, ctx) => agentTurn!.gemma.then(async (g) => {
+    await ctx.afterGeneration;  // one model: the plan must finish streaming before the vision call
+    if (ctx.signal.aborted) throw new Error('cancelled');
+    return findObjects(g, what, max);
+  }),
+  setEffect(effect, outline) {
+    state.effect = EFFECT_NAMES[effect] ?? state.effect;
+    if (outline !== undefined) state.stroke = outline;
+    for (const b of $('fxSeg').querySelectorAll('button')) b.classList.toggle('on', b.dataset.v === state.effect);
+    for (const b of $('outlineSeg').querySelectorAll('button')) b.classList.toggle('on', Number(b.dataset.v) === state.stroke);
+    state.engine?.setEffect(state.effect, state.stroke);
+    rerenderStill();
+  },
+  objects: () => state.objects.map((o) => ({id: o.id, label: o.label ?? '', prompted: !!o.point})),
+  removeObjects(ids) {
+    if (state.tracking) throw new Error('tracking is running; stop it first');
+    for (const id of ids) removeObject(id);
+  },
+  removeAll() {
+    if (state.tracking) throw new Error('tracking is running; stop it first');
+    resetObjects();
+    render();
+  },
+  async playback(action) {
+    if (state.live && action !== 'stop') return 'the camera is live: masks follow automatically';
+    if (!state.clip) throw new Error('no video loaded');
+    switch (action) {
+      case 'track':
+        if (state.tracking) return 'already tracking';
+        if (!state.objects.some((o) => o.point)) throw new Error('nothing to track: find or click an object first');
+        void track();
+        return 'tracking through the video';
+      case 'play':
+        if (!state.playing) togglePlay();
+        return 'playing';
+      case 'pause':
+        stopPlayback();
+        return 'paused';
+      case 'restart':
+        stopPlayback();
+        state.frame = 0;
+        render();
+        return 'at the first frame';
+      case 'stop':
+        if (state.tracking) state.stop = true;
+        stopPlayback();
+        return 'stopped';
+    }
+  },
+  async useCamera(on) {
+    if (on === !!state.live) return on ? 'the camera is already on' : 'the camera is already off';
+    if (on) await startCamera();
+    else await stopCamera();
+    return state.live ? `camera on, ${state.live.width}×${state.live.height}` : 'camera off, back to the video';
+  },
+  async setQuality(size, memory) {
+    const notes: string[] = [];
+    if (memory && memory !== state.nmm) {
+      state.nmm = memory;
+      state.engine?.setMemorySize(memory);
+      for (const b of $('memSeg').querySelectorAll('button')) b.classList.toggle('on', Number(b.dataset.v) === memory);
+      notes.push(`${memory}-frame memory`);
+    }
+    if (size && size !== state.size) {
+      if (state.live) throw new Error('stop the camera to switch models');
+      state.size = size;
+      for (const b of $('sizeSeg').querySelectorAll('button')) b.classList.toggle('on', Number(b.dataset.v) === size);
+      await loadEngine(size);
+      notes.push(`${size} px model loaded`);
+    }
+    return notes.join(', ') || 'already set';
+  },
+  describeScene(): JsonValue {
+    const L = state.live;
+    return {
+      source: L ? {camera: true, width: L.width, height: L.height}
+        : state.clip ? {video: state.clip.name, frames: state.clip.frames.length, fps: state.clip.fps, frame: state.frame + 1} : null,
+      objects: state.objects.filter((o) => o.point).map((o) => ({id: o.id, label: o.label ?? 'unnamed', prompt: describePrompt(o.point!.pts)})),
+      effect: state.effect,
+      model: `${state.size} px, ${state.nmm}-frame memory, WebGPU fp16`,
+      tracking: state.tracking,
+      playing: state.playing,
+    };
+  },
+  measure(): JsonValue {
+    const L = state.live;
+    const med = (xs: number[]) => (xs.length ? [...xs].sort((a, b) => a - b)[xs.length >> 1] : null);
+    const perFrame = L ? med(L.timings.map((t) => t.model)) : med(lastTrackMs);
+    const toScreen = L ? med(L.timings.map((t) => t.toScreen)) : null;
+    return {
+      ms_per_frame: perFrame !== null ? Math.round(perFrame) : null,
+      fps: perFrame ? Math.round(1000 / perFrame) : null,
+      camera_to_screen_ms: toScreen !== null ? Math.round(toScreen) : null,
+      objects: state.objects.filter((o) => o.point).length,
+      model: `${state.size} px, ${state.nmm}-frame memory`,
+      profile: PROFILE ? profileSummary() : 'open with ?profile=gpu for per-stage GPU times',
+      note: perFrame === null ? 'nothing has run yet: track objects or start the camera first' : null,
+    };
+  },
+};
+const tools = makeTools(appActions);
+
+/** The turn in flight. */
+let agentTurn: {gemma: Promise<Chosen>; abort: AbortController} | null = null;
+
+/** A summary line for the prompt, so the model knows what is already true. */
+function sceneLine(): string {
+  const objs = state.objects.filter((o) => o.point);
+  return (state.live ? 'camera is on' : state.clip ? `video "${state.clip.name}" at frame ${state.frame + 1}` : 'no video') +
+      `; ${objs.length ? `tracked: ${objs.map((o) => o.label ?? `object ${o.id}`).join(', ')}` : 'no objects yet'}` +
+      `; effect ${state.effect}; model ${state.size} px.`;
+}
+
+const fmtArgs = (a: Record<string, JsonValue>) => Object.entries(a).map(([k, v]) => `${k}: ${JSON.stringify(v)}`).join(', ');
+
+/** One chip per call, updated in place: name(args) and its status. */
+function showCall(e: ToolEvent) {
+  const log = $('agentLog');
+  log.hidden = false;
+  let li = log.querySelector<HTMLElement>(`[data-id="${e.id}"]`);
+  if (!li) {
+    li = document.createElement('li');
+    li.dataset.id = String(e.id);
+    log.appendChild(li);
   }
-  const used = Math.min(found.boxes.length, maxObjects());
-  objHint(`${name} found ${used} (${[...labels].join(', ') || what}) in ${found.seconds.toFixed(1)} s` +
-      (used === maxObjects() ? ` (${maxObjects()} objects max)` : '') +
-      '. Refine with clicks or press Track.');
+  li.className = `call ${e.status}`;
+  const tail = e.status === 'started' ? '…' : e.status === 'done' ? ` ✓${e.ms !== undefined && e.ms >= 100 ? ` ${(e.ms / 1000).toFixed(1)} s` : ''}`
+    : ` ✗ ${e.error ?? ''}`;
+  li.textContent = `${e.name}(${fmtArgs(e.arguments)})${tail}`;
+  li.title = e.result !== undefined ? JSON.stringify(e.result) : e.error ?? '';
+}
+
+/** Runs the request as an agent turn: Gemma plans with tool calls, the app executes them as they arrive. */
+async function runAgent(utterance: string) {
+  if (!state.gemma || state.asking || state.busy || state.tracking) return;
+  if (!(state.live ? state.live.video : state.clip)) return;
+  state.asking = true;
+  refresh();
+  const log = $('agentLog');
+  log.innerHTML = '';
+  log.hidden = true;
+  const abort = new AbortController();
+  const gemma = chooseGemma();
+  agentTurn = {gemma, abort};
+  try {
+    const g = await gemma;
+    if (!g.llm) throw new Error('the agent needs a browser model');
+    objHint(`${g.name} is working on “${utterance}”…`);
+    const result = await runTurn(utterance, {
+      engine: webEngine(g.llm),
+      tools,
+      scene: sceneLine,
+      onEvent: showCall,
+      onText: (text) => objHint(`${g.name}: ${text}`),
+      signal: abort.signal,
+    });
+    console.info(`${g.name} planned:`, result.raw);
+    if (!result.events.length && !result.text) objHint(`${g.name} had nothing to do for “${utterance}”.`);
+    else if (!result.text && result.events.every((e) => e.status !== 'done')) {
+      objHint(`${g.name} could not do that: ${result.events.map((e) => e.error).filter(Boolean).join('; ')}`);
+    }
+  } catch (e) {
+    console.error(e);
+    objHint(`Gemma failed: ${(e as Error).message}`);
+  }
+  agentTurn = null;
+  state.asking = false;
   refresh();
 }
 
-$('gemmaModel').addEventListener('change', (ev) => ((ev.target as HTMLElement).dataset.chosen = '1'));
+$('gemmaModel').addEventListener('change', (ev) => {
+  (ev.target as HTMLElement).dataset.chosen = '1';
+  refresh();
+});
 $<HTMLFormElement>('gemmaForm').addEventListener('submit', (ev) => {
   ev.preventDefault();
   const what = $<HTMLInputElement>('gemmaAsk').value.trim();
-  if (what) void askGemma(what);
+  if (!what) return;
+  if (useAgent()) void runAgent(what);
+  else void askGemma(what);
+});
+window.addEventListener('keydown', (ev) => {
+  if (ev.code === 'Escape' && agentTurn) agentTurn.abort.abort();
 });
 
-// Voice: Chrome speech recognition fills the box, and a final phrase runs Find.
+// Voice: Chrome speech recognition fills the box, and a final phrase runs it.
 $('micBtn').addEventListener('click', async () => {
   if (listening()) return stopDictation();
   const input = $<HTMLInputElement>('gemmaAsk');
@@ -830,7 +1058,8 @@ $('micBtn').addEventListener('click', async () => {
         refresh();
       },
     });
-    objHint(`Listening (${mode} speech recognition)… say what to find, e.g. “the ball”.`);
+    objHint(`Listening (${mode} speech recognition)… ` + (useAgent()
+      ? 'say what to find or do, e.g. “find all the players and cut them out”.' : 'say what to find, e.g. “the ball”.'));
   } catch (e) {
     objHint(`Speech: ${(e as Error).message}.`);
   }
@@ -1185,8 +1414,8 @@ async function livePrompt(L: Live, add: {click?: Click; box?: [Click, Click]}, t
 // ---------------------------------------------------------------- sample
 
 const SAMPLES = {
-  football: {url: '/assets/football_ai_studio.mp4', name: 'Football (sample video)', fps: 24, seconds: 8},
-  flowers: {url: '/assets/flowers.mp4', name: 'Flowers (sample video)', fps: 24, seconds: 8},
+  football: {url: asset('assets/football_ai_studio.mp4'), name: 'Football (sample video)', fps: 24, seconds: 8},
+  flowers: {url: asset('assets/flowers.mp4'), name: 'Flowers (sample video)', fps: 24, seconds: 8},
 };
 type SampleId = keyof typeof SAMPLES;
 const sampleSel = $<HTMLSelectElement>('sampleSel');

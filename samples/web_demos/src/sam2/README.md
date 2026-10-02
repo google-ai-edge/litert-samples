@@ -191,7 +191,7 @@ tools/verify_all.sh 384      # ~2.5 min; also: 512
 | **C. Web demo on WebGPU** | C1 UI | clicks ± / Reset, 192-frame 2-object tracking, effects, layout, camera smooth + aligned |
 | | C2 WebGPU health | hardware adapter (not a fallback) · every signature of both models on WebGPU · zero WebGPU errors, no device loss · GPU buffers bounded across tracking, re-tracking, playback, Reset and camera · steady per-frame time |
 
-Every pipeline run (A2–B3) uses 10 frames and 5 objects (all slots). All runs compare
+Every pipeline run (A2–B3) uses 10 frames and 6 objects (all slots). All runs compare
 against **one cached Hugging Face reference** per (size, memory, clip,
 prompts), computed from the numpy reference of the preprocess graph, so native
 and browser results face the same ground truth and HF runs only once.
@@ -288,7 +288,7 @@ box + negative click).
 Type or say what to select ("the ball", "all players") in the Objects panel and
 press **Find**. **Gemma 4 (E4B or E2B)** looks at the frame on screen
 and returns bounding boxes. Each Find replaces the selection: all objects are
-reset and each box (up to 5) becomes a fresh object with a SAM 2 box prompt,
+reset and each box (up to 6) becomes a fresh object with a SAM 2 box prompt,
 which you can refine with clicks and track as usual. If Gemma finds nothing,
 your objects are kept. Works on video files and the camera.
 
@@ -318,7 +318,37 @@ GenAI build that also loads the vision encoder and adapter sections; its
 recognition (Web Speech API; `app/src/speech.ts`). Recognition runs on the
 device when Chrome has, or can install, the language pack (`processLocally`,
 Chrome 139+). Otherwise it uses Chrome's server recognition, and the hint says
-so. The phrase fills the box and runs Find.
+so. The phrase fills the box and runs it.
+
+**Tool calling (browser models):** with a browser model the request is a plan,
+not only a query. Gemma 4 gets a short list of the app's own actions as tools
+and answers with calls, one per line
+(`<tool_call>{"name": "set_effect", "arguments": {"effect": "cutout"}}</tool_call>`).
+Each call runs as soon as it is complete in the stream, in order, and shows up
+as a chip under the box (`find_objects(what: "the players") ✓ 2.1 s`). So
+*"find all the players and cut them out"* is `find_objects` then `set_effect`,
+with the first mask on screen while Gemma is still writing the second call.
+
+| Tool | Does |
+|---|---|
+| `find_objects(what, max?)` | The Find above: boxes from the frame on screen, each a SAM 2 box prompt, streamed |
+| `set_effect(effect, outline?)` | overlay / spotlight / cutout |
+| `remove_objects(labels? \| keep? \| all?)` | by Gemma's labels ("keep only the ball") or everything |
+| `playback(action)` | track / play / pause / restart / stop |
+| `use_camera(on)` | live webcam on or off |
+| `set_quality(size?, memory?)` | 384 / 512 / 1024 px model, 2- or 7-frame memory |
+| `describe_scene()` | what is tracked and the settings; Gemma answers in words |
+| `measure()` | measured ms per frame, fps, camera → screen; Gemma answers in words |
+
+`app/src/toolcalls.ts` holds the declarations, the prompt and a tolerant
+streaming parser; `app/src/agent.ts` runs a turn on any engine (the planning
+turn is text-only, so it costs no image tokens; `find_objects` reuses the
+vision call); `app/src/tools.ts` validates arguments and maps them to the
+app's actions. Escape cancels a turn. `?agent=0` restores plain Find, which
+the LiteRT-LM server models always use. The same declarations fit
+LiteRT-LM.js's `AutoToolChat` (native tool calling with constrained decoding)
+once its web Gemma 4 builds take images. Unit tests: `npm test`
+(`test/agent.test.ts`).
 
 The page sends the frame on screen (any frame, or the camera) as a JPEG with
 Gemma's native detection prompt (`Detect … Output a json list … "box_2d" …
