@@ -123,7 +123,7 @@ data class ModelCatalog(
     require(runtimeVersion == "2.2.0") { "Catalog and app runtime must match" }
     tasks.forEach { entry ->
       require(safeId.matches(entry.taskId)) { "Unsafe task ID" }
-      require(entry.group in setOf("Vision", "Audio")) { "Unknown task group" }
+      require(entry.group in setOf("Vision", "Audio", "Text")) { "Unknown task group" }
       require(entry.backend in setOf("gpu", "cpu", "mixed")) { "Unknown backend" }
       require(entry.task.isNotBlank()) { "Missing task description" }
       require(entry.files.map { it.name }.distinct().size == entry.files.size) {

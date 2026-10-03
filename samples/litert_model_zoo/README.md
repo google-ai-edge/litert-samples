@@ -1,6 +1,6 @@
-# LiteRT Model Zoo — vision and audio models in one Android app
+# LiteRT Model Zoo — vision, audio and text models in one Android app
 
-One Android app that runs 29 on-device tasks (21 vision, 8 audio) through the
+One Android app that runs 34 on-device tasks (21 vision, 8 audio, 5 text) through the
 [LiteRT](https://github.com/google-ai-edge/litert)
 [CompiledModel API](https://ai.google.dev/edge/litert/android): pick a task, download its model,
 choose a photo, a live camera frame, a recording, a WAV file or typed text, and read the result
@@ -11,23 +11,26 @@ What the app shows:
 - **One runtime path for every model** — each task compiles its graph with `CompiledModel`
   (LiteRT 2.2.0), GPU by default; a few models keep part of their pipeline on CPU by design (the
   Backend column). If the GPU compile fails, the task recompiles on CPU and the result card says why.
-- **Nothing bundled** — the 29 model sets (2.2 GB in total) download on demand from Hugging Face and
+- **Nothing bundled** — the 34 model sets (5.3 GB in total) download on demand from Hugging Face and
   resume after an interruption; every file is checked against its byte size and SHA-256 before it is
   committed to storage. The catalog pins each file to a repository revision, so a download always
   gets the verified file.
 - **Every result carries its numbers** — inference time and backend on each result card; the About
   screen lists each model's license, upstream project and model card.
 
-Tested on a Galaxy S26 (Android 16): all 29 tasks, built from this tree. Other phones and GPUs are
-not verified yet. The app builds for arm64-v8a on Android 8.0+ (minSdk 26). It connects only to Hugging Face (huggingface.co
-and the download hosts it redirects to); camera, microphone and file inputs stay on the device.
+Tested on a Galaxy S26 (Android 16): the 29 vision and audio tasks in the app, and the five text
+engines through a test harness. The Text screen has run only on an emulator. Other phones and GPUs
+are not verified yet. The app builds for arm64-v8a on Android 8.0+ (minSdk 26). It connects only to
+Hugging Face (huggingface.co and the download hosts it redirects to); camera, microphone and file
+inputs stay on the device.
 
 ## Tasks
 
 The Galaxy S26 column is the median of 10 timed runs after warm-up, measured with an instrumented
 build of the same model wrappers (512×512 image, 640×640 for OCR, 1–11 s audio clips, "Hello world."
-for TTS), from engine entry to the last model-output readback. Source separation compiles its three graphs inside each call, so its time includes
-compilation.
+for TTS, the Text screen's default sentence, question and four options), from engine entry to the
+last model-output readback. Source separation compiles its three graphs inside each call, so its
+time includes compilation.
 
 | Task | Model | Backend | Galaxy S26 | Download | License | Model files |
 | :-- | :-- | :-- | --: | --: | :-- | :-- |
@@ -61,6 +64,31 @@ compilation.
 | Speech Enhancement | CMGAN | GPU | 384 ms | 4.2 MB | [MIT](https://github.com/ruizhecao96/CMGAN/blob/main/LICENSE) | [litert-community/CMGAN-LiteRT](https://huggingface.co/litert-community/CMGAN-LiteRT) |
 | Music Transcription | Basic Pitch | GPU | 504 ms | 0.8 MB | [Apache-2.0](https://www.apache.org/licenses/LICENSE-2.0) | [litert-community/Basic-Pitch-LiteRT](https://huggingface.co/litert-community/Basic-Pitch-LiteRT) |
 
+### Text
+
+| Task | Model | Backend | Galaxy S26 | Download | License | Model files |
+| :-- | :-- | :-- | --: | --: | :-- | :-- |
+| Multilingual text decision (Laya) | Laya multilingual | GPU | 66 ms | 679 MB | [Apache-2.0](https://huggingface.co/litert-community/Laya-Multilingual-LiteRT/blob/32f1b84d55f42a323464fad22594cfc2059e7467/licenses/Laya-APACHE-2.0.txt) | [litert-community/Laya-Multilingual-LiteRT](https://huggingface.co/litert-community/Laya-Multilingual-LiteRT) |
+| Multilingual text decision (Julia-1) | Julia-1 | GPU | 78 ms | 416 MB | [Apache-2.0](https://huggingface.co/litert-community/Julia-1-LiteRT/blob/8f36857c56e891c023060586759c6cdc8baf6b3e/LICENSE) | [litert-community/Julia-1-LiteRT](https://huggingface.co/litert-community/Julia-1-LiteRT) |
+| English text decision (GLiClass-Edge) | GLiClass-Edge v3.0 | GPU | 17 ms | 96 MB | [Apache-2.0](https://huggingface.co/litert-community/GLiClass-Edge-v3.0-LiteRT/blob/88c90950587eb951974c094eef91afa0fe3552c0/LICENSE) | [litert-community/GLiClass-Edge-v3.0-LiteRT](https://huggingface.co/litert-community/GLiClass-Edge-v3.0-LiteRT) |
+| English text decision (Open-Decision) | Open-Decision DeBERTa-v3-large | GPU | 202 ms | 984 MB | [Apache-2.0](https://huggingface.co/litert-community/Open-Decision-DeBERTa-v3-Large-LiteRT/blob/7a276235b795e8ad3ae7ac6a9f237daa2098863a/LICENSE) | [litert-community/Open-Decision-DeBERTa-v3-Large-LiteRT](https://huggingface.co/litert-community/Open-Decision-DeBERTa-v3-Large-LiteRT) |
+| English text decision (GLiNER2.5-Decide) | GLiNER2.5-Decide | GPU | 91 ms | 931 MB | [Apache-2.0](https://huggingface.co/litert-community/GLiNER2.5-Decide-LiteRT/blob/db80197282d11373df084c0ceed67a54544cfa84/LICENSE) | [litert-community/GLiNER2.5-Decide-LiteRT](https://huggingface.co/litert-community/GLiNER2.5-Decide-LiteRT) |
+
+Each text task answers one multiple-choice question about a typed text, with two to four options
+written as `key: description`. Laya reads each option as `key: description`; the other four read the
+description, or the key when there is none. GLiClass-Edge gets the question plus one space as its
+prompt, because its pipeline joins the prompt to the text with no separator. Laya and Open-Decision
+read up to 256 tokens, Julia-1 512, GLiClass-Edge and GLiNER2.5-Decide 128. Laya cuts a longer text
+at the end and shows the token count under Details; the other four refuse it with an error that
+gives the count. Every text graph runs in FP32 on the GPU, as each model repository recommends; if
+the GPU compile fails, the task recompiles on CPU. The five models do not agree on every sentence:
+on the Galaxy S26, with the screen's default sentence, Laya and Julia-1 answer nothing (38.2% and
+99.5%), GLiClass-Edge request (57.9%), and Open-Decision and GLiNER2.5-Decide promise (37.9% and
+46.5%). The Python host in each model repository gives the same answers on a Mac. Laya's model
+repository validated English and Japanese, Julia-1's English only. The encoders (mmBERT, Ettin,
+DeBERTa-v3) are MIT-licensed; the Open-Decision model repository states that the author's training
+data includes BoolQ passages (CC-BY-SA-3.0).
+
 ## Build & run
 
 ```bash
@@ -85,11 +113,12 @@ back compiles them again.
 | File | Role |
 | :-- | :-- |
 | `MainViewModel.kt` | Downloads, task selection, camera and microphone sessions; runs the engines and owns `UiState`. |
-| `data/ModelCatalog.kt` + `assets/models.json` | The 29 catalog rows: files (URL, bytes, SHA-256), license, upstream project, model card, backend. |
+| `data/ModelCatalog.kt` + `assets/models.json` | The catalog rows: files (URL, bytes, SHA-256), license, upstream project, model card, backend. |
 | `data/ModelStore.kt` | Resumable HTTPS download into private storage; byte-size and SHA-256 verification. |
-| `common/CompiledModelRunner.kt` | Lifecycle wrapper over `CompiledModel` with pre-allocated tensor buffers (from `utilities/common`); every model wrapper compiles its graphs through it, so `close()` and a failed GPU compile release the buffers with the model. |
+| `common/CompiledModelRunner.kt` | Lifecycle wrapper over `CompiledModel` with pre-allocated tensor buffers (from `utilities/common`); the vision and audio model wrappers compile their graphs through it, so `close()` and a failed GPU compile release the buffers with the model; the text engines compile through `models/typed_decisions/DecisionGraph.kt`. |
 | `image/`, `audio/`, `vision/` | Per-task engines: input conversion, GPU-to-CPU fallback, result rendering. |
-| `models/<name>/` | One package per model: preprocessing, the inference call and the decoding math, unit-tested on the JVM. |
+| `models/<name>/` | One package per model: preprocessing, the inference call and the decoding math, unit-tested on the JVM; the text engines have no JVM tests yet. |
+| `models/typed_decisions/` + `view/TextDecisionPanel.kt` | The Text tasks: each engine tokenizes the text, question and options for its model, runs its graphs and turns the scores into option probabilities; the panel is the shared input and result screen. |
 | `view/ModelZooScreen.kt` | Compose screens: Explore, task, Models, About. |
 
 ## Tests

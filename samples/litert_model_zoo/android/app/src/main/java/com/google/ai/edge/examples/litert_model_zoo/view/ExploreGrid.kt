@@ -57,7 +57,7 @@ import java.util.Locale
 @Composable
 internal fun HomeScreen(state: UiState, vm: MainViewModel) {
   val groups =
-    listOf("Vision", "Audio")
+    listOf("Vision", "Audio", "Text")
       .map { group -> group to state.tasks.filter { it.group == group } }
       .filter { (_, entries) -> entries.isNotEmpty() }
   LazyVerticalGrid(
@@ -70,7 +70,7 @@ internal fun HomeScreen(state: UiState, vm: MainViewModel) {
     item(span = { GridItemSpan(maxLineSpan) }) {
       Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
         Text(
-          "On-device vision & audio",
+          "On-device vision, audio & text",
           style = MaterialTheme.typography.titleLarge.copy(fontSize = 18.sp, lineHeight = 24.sp),
         )
         val ready = state.tasks.count { state.downloads[it.taskId]?.status == DownloadStatus.READY }

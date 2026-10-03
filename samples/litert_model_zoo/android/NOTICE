@@ -1,0 +1,88 @@
+LiteRT Model Zoo Android app
+
+The Text tasks in app/src/main/java/com/google/ai/edge/examples/litert_model_zoo/models/
+typed_decisions/ include Kotlin host code from the Android samples of five model repositories in
+the litert-community organization on Hugging Face, released under the Apache License 2.0. Each of
+those files names its source file and revision in its first lines. The attribution below comes from
+the NOTICE files of those samples. The models are not part of this app: it downloads them at run
+time, and the About screen links each model's license and component licenses.
+
+Laya multilingual: https://huggingface.co/litert-community/Laya-Multilingual-LiteRT
+
+The host contract and preset schemas follow Laya 0.3.4 by Convai Innovations,
+licensed under Apache License 2.0.
+https://huggingface.co/convaiinnovations/laya
+Checkpoint revision: 1c5edc17a7acd8701df6fc341c0d179f1c62c982
+
+The multilingual encoder derives from mmBERT-base, declared MIT by its model card.
+Attribution: Marc Marone, Orion Weller, William Fleshman, Eugene Yang,
+Dawn Lawrie, and Benjamin Van Durme; Johns Hopkins Center for Language and
+Speech Processing and collaborators.
+https://huggingface.co/jhu-clsp/mmBERT-base
+Model-card revision: c5955035435e2bf121cde7f3c8863ef52ff35d82
+
+ModernBERT is a collaboration between Answer.AI, LightOn, and contributors,
+building upon MosaicBERT under Apache License 2.0.
+https://github.com/AnswerDotAI/ModernBERT
+
+Tokenizer behavior is ported against Hugging Face tokenizers 0.23.2 and
+Transformers 5.17.0.
+https://github.com/huggingface/tokenizers
+https://github.com/huggingface/transformers
+
+Julia-1: https://huggingface.co/litert-community/Julia-1-LiteRT
+
+The request contract follows the Julia runtime in SupersonicLabs/Julia-1 by Supersonic Labs,
+whose model artifacts are released under the Apache License 2.0.
+https://huggingface.co/SupersonicLabs/Julia-1
+Checkpoint revision: a85b127321d580d65176c89ced8273f305745d85
+
+The encoder derives from mmBERT-small, declared MIT by its model card.
+Attribution: Johns Hopkins Center for Language and Speech Processing (JHU CLSP).
+https://huggingface.co/jhu-clsp/mmBERT-small
+
+Tokenizer behavior is ported against Hugging Face tokenizers.
+https://github.com/huggingface/tokenizers
+
+GLiClass-Edge v3.0: https://huggingface.co/litert-community/GLiClass-Edge-v3.0-LiteRT
+
+Model: knowledgator/gliclass-edge-v3.0, revision df03993a2ed98e5e4a0d2dd7efbbd105abe874cf,
+licensed under Apache License 2.0. Its encoder is jhu-clsp/ettin-encoder-32m (a ModernBERT
+encoder), licensed under the MIT License.
+
+The input builder and the decoder are Kotlin ports of the classification path of the gliclass
+package 0.1.20 by Knowledgator (GitHub Knowledgator/GLiClass), licensed under Apache License 2.0:
+ZeroShotClassificationPipeline.prepare_input (labels, separator, prompt, text) and
+_postprocess_logits (softmax / sigmoid decisions). Changes include Kotlin float32 arithmetic, the
+float16 embedding-table upcast, fixed graph windows, and rejection of inputs that do not fit
+instead of truncation.
+
+The tokenizer follows the published tokenizer.json contract of Hugging Face tokenizers and
+transformers (Apache License 2.0): added-token extraction, NFC, the ByteLevel pre-tokenizer and
+byte-level BPE.
+
+Open-Decision DeBERTa-v3-large:
+https://huggingface.co/litert-community/Open-Decision-DeBERTa-v3-Large-LiteRT
+
+The graphs and the float16 word table the app loads are converted from a model published by
+Kotoba Labs Inc. (Mithril, formerly Kotoba Cloud) under the Apache License 2.0.
+https://huggingface.co/litert-community/Open-Decision-DeBERTa-v3-Large-LiteRT
+Base model: microsoft/deberta-v3-large (MIT License), Microsoft.
+The Kotlin tokenizer follows Hugging Face tokenizers' Unigram, Metaspace and Precompiled
+normalizer behavior (Apache License 2.0) and the GLiNER2.5-Decide sample's port.
+
+GLiNER2.5-Decide: https://huggingface.co/litert-community/GLiNER2.5-Decide-LiteRT
+
+Model: fastino/GLiNER2.5-Decide, revision 7ee5da4c2415e32259bcdc0b1a7367c32ce8d6f6,
+licensed under Apache License 2.0 (model card base_model: fastino/gliner2-large-v1).
+Its encoder is DeBERTa-v3-large (microsoft/deberta-v3-large), licensed under the MIT License.
+
+The input builder and the classification decoder are Kotlin ports of the gliner2 2.0.0
+classification path from Fastino AI's GLiNER2 project, licensed under Apache License 2.0:
+processor.py schema and input formatting, processing/word_splitter.py and the
+inference/runtime.py classification post-processing. Changes include Kotlin float32
+arithmetic, the float16 embedding-table upcast, fixed graph windows, and rejection of
+inputs that gliner2 would decode under another task's settings.
+
+The tokenizer follows the published DeBERTa-v3 tokenizer JSON contract of Hugging Face
+tokenizers and transformers (Apache License 2.0).
