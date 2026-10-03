@@ -106,6 +106,7 @@ import com.google.ai.edge.examples.litert_model_zoo.data.ModelEntry
 import com.google.ai.edge.examples.litert_model_zoo.data.OpenSourceCredits
 import com.google.ai.edge.examples.litert_model_zoo.image.RealtimeImageTasks
 import com.google.ai.edge.examples.litert_model_zoo.image.SingleImageTasks
+import com.google.ai.edge.examples.litert_model_zoo.models.typed_decisions.TextDecisionTasks
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -795,6 +796,8 @@ private fun TaskScreen(
             if (state.recording) {
               Text(stringResource(R.string.recording_seconds, state.recordedSeconds))
             }
+          } else if (entry.taskId in TextDecisionTasks.ids) {
+            TextDecisionPanel(state, vm)
           } else {
             Text(stringResource(R.string.speak_hint), style = MaterialTheme.typography.bodyMedium)
             OutlinedTextField(
@@ -852,6 +855,7 @@ private fun TaskScreen(
                   }
                   entry.taskId in SingleImageTasks.ids -> SingleImageResultPanel(entry, state)
                   entry.taskId in BatchAudioTasks.ids -> BatchAudioResultPanel(state, vm)
+                  entry.taskId in TextDecisionTasks.ids -> TextDecisionResultPanel(state)
                   entry.taskId == "speech-recognition" ->
                     SelectionContainer {
                       Text(

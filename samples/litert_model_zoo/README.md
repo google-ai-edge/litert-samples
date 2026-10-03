@@ -61,6 +61,34 @@ compilation.
 | Speech Enhancement | CMGAN | GPU | 384 ms | 4.2 MB | [MIT](https://github.com/ruizhecao96/CMGAN/blob/main/LICENSE) | [litert-community/CMGAN-LiteRT](https://huggingface.co/litert-community/CMGAN-LiteRT) |
 | Music Transcription | Basic Pitch | GPU | 504 ms | 0.8 MB | [Apache-2.0](https://www.apache.org/licenses/LICENSE-2.0) | [litert-community/Basic-Pitch-LiteRT](https://huggingface.co/litert-community/Basic-Pitch-LiteRT) |
 
+### Text
+
+The Text group asks one multiple-choice question about a typed text. Enter the text, a question
+and up to four options written as `key: description`; the result card shows each option's
+probability, the chosen key, the inference time, the backend and the model's token window. The
+screen is the same for the five models below. Each one reads the options the way its model card's
+host code does: Laya renders `key: description`; Julia-1, GLiClass-Edge, Open-Decision and
+GLiNER2.5-Decide read the description, or the key when there is none. That host code is vendored
+under `models/typed_decisions/`, one package per model family, each file starting with a
+`// Vendored from` line that names the file and the revision it was copied from.
+
+- [Laya multilingual](https://huggingface.co/litert-community/Laya-Multilingual-LiteRT): mmBERT-base
+  checkpoint (the card validates English and Japanese), 256-token window, 679 MB. Apache-2.0;
+  encoder mmBERT-base, MIT.
+- [Julia-1](https://huggingface.co/litert-community/Julia-1-LiteRT): mmBERT-small checkpoint (the
+  card validates English), 512-token window, 416 MB. Apache-2.0; encoder mmBERT-small, MIT.
+- [GLiClass-Edge v3.0](https://huggingface.co/litert-community/GLiClass-Edge-v3.0-LiteRT): English,
+  128-token window, 96 MB. Apache-2.0; Ettin encoder, MIT.
+- [Open-Decision DeBERTa-v3-large](https://huggingface.co/litert-community/Open-Decision-DeBERTa-v3-Large-LiteRT):
+  English, 256-token window, 984 MB. Apache-2.0; DeBERTa-v3-large, MIT. The card states that the
+  author's training data includes BoolQ passages (CC-BY-SA-3.0).
+- [GLiNER2.5-Decide](https://huggingface.co/litert-community/GLiNER2.5-Decide-LiteRT): English,
+  128-token window, 931 MB. Apache-2.0; DeBERTa-v3 encoder, MIT.
+
+Every text graph computes in FP32 on the GPU, as each card asks; if the GPU compile fails, the task
+recompiles on CPU. The five text rows were built from this tree; device timings are added when
+measured.
+
 ## Build & run
 
 ```bash
@@ -85,11 +113,12 @@ back compiles them again.
 | File | Role |
 | :-- | :-- |
 | `MainViewModel.kt` | Downloads, task selection, camera and microphone sessions; runs the engines and owns `UiState`. |
-| `data/ModelCatalog.kt` + `assets/models.json` | The 29 catalog rows: files (URL, bytes, SHA-256), license, upstream project, model card, backend. |
+| `data/ModelCatalog.kt` + `assets/models.json` | The catalog rows: files (URL, bytes, SHA-256), license, upstream project, model card, backend. |
 | `data/ModelStore.kt` | Resumable HTTPS download into private storage; byte-size and SHA-256 verification. |
 | `common/CompiledModelRunner.kt` | Lifecycle wrapper over `CompiledModel` with pre-allocated tensor buffers (from `utilities/common`); every model wrapper compiles its graphs through it, so `close()` and a failed GPU compile release the buffers with the model. |
 | `image/`, `audio/`, `vision/` | Per-task engines: input conversion, GPU-to-CPU fallback, result rendering. |
 | `models/<name>/` | One package per model: preprocessing, the inference call and the decoding math, unit-tested on the JVM. |
+| `models/typed_decisions/` + `view/TextDecisionPanel.kt` | The Text group: one request and result shape, one engine per model family over the vendored card host code, and the shared screen. |
 | `view/ModelZooScreen.kt` | Compose screens: Explore, task, Models, About. |
 
 ## Tests
