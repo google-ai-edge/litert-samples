@@ -861,7 +861,7 @@
       "outputKind": "visualization"
     },
     {
-      "task": "Text decision (multilingual)",
+      "task": "Multilingual text decision (Laya)",
       "taskId": "text-decision-laya-multilingual",
       "group": "Text",
       "model": "Laya multilingual",
@@ -926,7 +926,7 @@
       ]
     },
     {
-      "task": "Text decision (multilingual)",
+      "task": "Multilingual text decision (Julia-1)",
       "taskId": "text-decision-julia-1",
       "group": "Text",
       "model": "Julia-1",
@@ -968,7 +968,7 @@
       ]
     },
     {
-      "task": "Text decision (English)",
+      "task": "English text decision (GLiClass-Edge)",
       "taskId": "text-decision-gliclass-edge",
       "group": "Text",
       "model": "GLiClass-Edge v3.0",
@@ -1015,7 +1015,7 @@
       ]
     },
     {
-      "task": "Text decision (English)",
+      "task": "English text decision (Open-Decision)",
       "taskId": "text-decision-open-decision",
       "group": "Text",
       "model": "Open-Decision DeBERTa-v3-large",
@@ -1043,7 +1043,7 @@
         "name": "Apache-2.0",
         "url": "https://huggingface.co/litert-community/Open-Decision-DeBERTa-v3-Large-LiteRT/blob/7a276235b795e8ad3ae7ac6a9f237daa2098863a/LICENSE"
       },
-      "upstream": "https://huggingface.co/litert-community/Open-Decision-DeBERTa-v3-Large-LiteRT",
+      "upstream": "https://huggingface.co/com-kotobalabs",
       "modelCard": "https://huggingface.co/litert-community/Open-Decision-DeBERTa-v3-Large-LiteRT",
       "backend": "gpu",
       "inputKind": "text",
@@ -1057,7 +1057,7 @@
       ]
     },
     {
-      "task": "Text decision (English)",
+      "task": "English text decision (GLiNER2.5-Decide)",
       "taskId": "text-decision-gliner-decide",
       "group": "Text",
       "model": "GLiNER2.5-Decide",
