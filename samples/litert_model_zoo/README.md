@@ -1,6 +1,6 @@
-# LiteRT Model Zoo — vision and audio models in one Android app
+# LiteRT Model Zoo — vision, audio and text models in one Android app
 
-One Android app that runs 29 on-device tasks (21 vision, 8 audio) through the
+One Android app that runs 34 on-device tasks (21 vision, 8 audio, 5 text) through the
 [LiteRT](https://github.com/google-ai-edge/litert)
 [CompiledModel API](https://ai.google.dev/edge/litert/android): pick a task, download its model,
 choose a photo, a live camera frame, a recording, a WAV file or typed text, and read the result
@@ -11,23 +11,25 @@ What the app shows:
 - **One runtime path for every model** — each task compiles its graph with `CompiledModel`
   (LiteRT 2.2.0), GPU by default; a few models keep part of their pipeline on CPU by design (the
   Backend column). If the GPU compile fails, the task recompiles on CPU and the result card says why.
-- **Nothing bundled** — the 29 model sets (2.2 GB in total) download on demand from Hugging Face and
+- **Nothing bundled** — the 34 model sets (5.3 GB in total) download on demand from Hugging Face and
   resume after an interruption; every file is checked against its byte size and SHA-256 before it is
   committed to storage. The catalog pins each file to a repository revision, so a download always
   gets the verified file.
 - **Every result carries its numbers** — inference time and backend on each result card; the About
   screen lists each model's license, upstream project and model card.
 
-Tested on a Galaxy S26 (Android 16): all 29 tasks, built from this tree. Other phones and GPUs are
-not verified yet. The app builds for arm64-v8a on Android 8.0+ (minSdk 26). It connects only to Hugging Face (huggingface.co
-and the download hosts it redirects to); camera, microphone and file inputs stay on the device.
+Tested on a Galaxy S26 (Android 16): all 34 tasks, each when it was added to this tree. Other phones
+and GPUs are not verified yet. The app builds for arm64-v8a on Android 8.0+ (minSdk 26). It connects
+only to Hugging Face (huggingface.co and the download hosts it redirects to); camera, microphone and
+file inputs stay on the device.
 
 ## Tasks
 
 The Galaxy S26 column is the median of 10 timed runs after warm-up, measured with an instrumented
 build of the same model wrappers (512×512 image, 640×640 for OCR, 1–11 s audio clips, "Hello world."
-for TTS), from engine entry to the last model-output readback. Source separation compiles its three graphs inside each call, so its time includes
-compilation.
+for TTS, the Text screen's default sentence, question and four options), from engine entry to the
+last model-output readback. Source separation compiles its three graphs inside each call, so its
+time includes compilation.
 
 | Task | Model | Backend | Galaxy S26 | Download | License | Model files |
 | :-- | :-- | :-- | --: | --: | :-- | :-- |
@@ -72,6 +74,14 @@ GLiNER2.5-Decide read the description, or the key when there is none. That host 
 under `models/typed_decisions/`, one package per model family, each file starting with a
 `// Vendored from` line that names the file and the revision it was copied from.
 
+| Task | Model | Backend | Galaxy S26 | Download | License | Model files |
+| :-- | :-- | :-- | --: | --: | :-- | :-- |
+| Text decision (multilingual) | Laya multilingual | GPU | 66 ms | 679 MB | [Apache-2.0](https://huggingface.co/litert-community/Laya-Multilingual-LiteRT/blob/32f1b84d55f42a323464fad22594cfc2059e7467/licenses/Laya-APACHE-2.0.txt) | [litert-community/Laya-Multilingual-LiteRT](https://huggingface.co/litert-community/Laya-Multilingual-LiteRT) |
+| Text decision (multilingual) | Julia-1 | GPU | 78 ms | 416 MB | [Apache-2.0](https://huggingface.co/litert-community/Julia-1-LiteRT/blob/8f36857c56e891c023060586759c6cdc8baf6b3e/LICENSE) | [litert-community/Julia-1-LiteRT](https://huggingface.co/litert-community/Julia-1-LiteRT) |
+| Text decision (English) | GLiClass-Edge v3.0 | GPU | 17 ms | 96 MB | [Apache-2.0](https://huggingface.co/litert-community/GLiClass-Edge-v3.0-LiteRT/blob/88c90950587eb951974c094eef91afa0fe3552c0/LICENSE) | [litert-community/GLiClass-Edge-v3.0-LiteRT](https://huggingface.co/litert-community/GLiClass-Edge-v3.0-LiteRT) |
+| Text decision (English) | Open-Decision DeBERTa-v3-large | GPU | 202 ms | 984 MB | [Apache-2.0](https://huggingface.co/litert-community/Open-Decision-DeBERTa-v3-Large-LiteRT/blob/7a276235b795e8ad3ae7ac6a9f237daa2098863a/LICENSE) | [litert-community/Open-Decision-DeBERTa-v3-Large-LiteRT](https://huggingface.co/litert-community/Open-Decision-DeBERTa-v3-Large-LiteRT) |
+| Text decision (English) | GLiNER2.5-Decide | GPU | 91 ms | 931 MB | [Apache-2.0](https://huggingface.co/litert-community/GLiNER2.5-Decide-LiteRT/blob/db80197282d11373df084c0ceed67a54544cfa84/LICENSE) | [litert-community/GLiNER2.5-Decide-LiteRT](https://huggingface.co/litert-community/GLiNER2.5-Decide-LiteRT) |
+
 - [Laya multilingual](https://huggingface.co/litert-community/Laya-Multilingual-LiteRT): mmBERT-base
   checkpoint (the card validates English and Japanese), 256-token window, 679 MB. Apache-2.0;
   encoder mmBERT-base, MIT.
@@ -86,8 +96,8 @@ under `models/typed_decisions/`, one package per model family, each file startin
   128-token window, 931 MB. Apache-2.0; DeBERTa-v3 encoder, MIT.
 
 Every text graph computes in FP32 on the GPU, as each card asks; if the GPU compile fails, the task
-recompiles on CPU. The five text rows were built from this tree; device timings are added when
-measured.
+recompiles on CPU. On the Galaxy S26 all five compiled for the GPU, and with the screen's defaults
+each gave the answer its card's Python host gives on a Mac.
 
 ## Build & run
 
