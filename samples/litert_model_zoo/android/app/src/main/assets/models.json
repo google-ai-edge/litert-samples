@@ -1043,7 +1043,7 @@
         "name": "Apache-2.0",
         "url": "https://huggingface.co/litert-community/Open-Decision-DeBERTa-v3-Large-LiteRT/blob/7a276235b795e8ad3ae7ac6a9f237daa2098863a/LICENSE"
       },
-      "upstream": "https://huggingface.co/com-kotobalabs",
+      "upstream": "https://huggingface.co/litert-community/Open-Decision-DeBERTa-v3-Large-LiteRT",
       "modelCard": "https://huggingface.co/litert-community/Open-Decision-DeBERTa-v3-Large-LiteRT",
       "backend": "gpu",
       "inputKind": "text",

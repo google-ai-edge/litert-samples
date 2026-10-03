@@ -66,7 +66,7 @@ https://huggingface.co/litert-community/Open-Decision-DeBERTa-v3-Large-LiteRT
 
 The graphs and the float16 word table the app loads are converted from a model published by
 Kotoba Labs Inc. (Mithril, formerly Kotoba Cloud) under the Apache License 2.0.
-https://huggingface.co/com-kotobalabs
+https://huggingface.co/litert-community/Open-Decision-DeBERTa-v3-Large-LiteRT
 Base model: microsoft/deberta-v3-large (MIT License), Microsoft.
 The Kotlin tokenizer follows Hugging Face tokenizers' Unigram, Metaspace and Precompiled
 normalizer behavior (Apache License 2.0) and the GLiNER2.5-Decide sample's port.
