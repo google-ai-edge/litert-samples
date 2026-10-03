@@ -4,14 +4,16 @@ A performance leaderboard of [LiteRT](https://github.com/google-ai-edge/litert) 
 `data/board.json`, one row per model file, platform, device and accelerator, measured with LiteRT's `benchmark_model`
 at one pinned release: Android rows on Developer Device Platform (DDP) lab phones through `litert benchmark --ddp`, macOS
 rows with the same release's macOS binary through `run_local.py`, iOS rows from the app in `../ios/`, which builds the tool
-from source and runs it on an iPhone attached to a Mac or, as an XCTest, on a DDP iPhone. A second table holds [LiteRT-LM](https://github.com/google-ai-edge/LiteRT-LM) rows: prefill and decode tokens/s
+from source and runs it on an iPhone attached to a Mac or, as an XCTest, on a DDP iPhone. A second table, shown once it has rows, holds [LiteRT-LM](https://github.com/google-ai-edge/LiteRT-LM) rows: prefill and decode tokens/s
 of a `.litertlm` bundle under LiteRT-LM's benchmark binary, run on a DDP phone through `litert benchmark <bundle>.litertlm --ddp`.
-The page fetches `data/` relative to itself, and the drivers in `../driver/` take `--data-dir`.
+The page fetches `data/` relative to itself, and the drivers in `../driver/` take `--data-dir`. The notebooks under
+[`../developer_device_platform/`](../developer_device_platform/) benchmark a model on a DDP phone from a Colab runtime:
+`litert_cli_benchmark.ipynb` runs the same `litert benchmark --ddp`, and `ddp_cli_benchmark.ipynb` calls the DDP CLI directly.
 
 ## What is on the board
 
 A row is one (model repo, file) on one platform, device and accelerator, at the newest runtime version measured.
-`data/measurements.jsonl` (`measurements-lm.jsonl` for LiteRT-LM) keeps every job that wrote results, one line each, and
+`data/measurements.jsonl` (`measurements-lm.jsonl` for LiteRT-LM) keeps the jobs the board is built from, one line each, and
 `data/board.json` is the selection the page reads, grouped by platform and, by default, ordered by median latency inside
 the group (LiteRT-LM rows listed by model, device and backend); a comparison holds only within one platform, device, accelerator and task.
 
@@ -65,8 +67,8 @@ python3 ../driver/build_board.py
    iteration, `runtime_lm.warmup_iterations`), rebuild, look at the page, then commit `data/`:
 
 ```bash
-LITERT_GCP_PROJECT=your-project-id litert benchmark qwen3_0_6b_mixed_int4.litertlm --ddp --device caiman-35 --cpu
-LITERT_GCP_PROJECT=your-project-id litert benchmark qwen3_0_6b_mixed_int4.litertlm --ddp --device caiman-35 --gpu
+LITERT_GCP_PROJECT=your-project-id litert benchmark qwen3_0_6b_mixed_int4.litertlm --ddp --device pa3q-35 --cpu
+LITERT_GCP_PROJECT=your-project-id litert benchmark qwen3_0_6b_mixed_int4.litertlm --ddp --device pa3q-35 --gpu
 python3 ../driver/collect_lm.py ~/.cache/litert-cli/ddp/session-dc8641bc ~/.cache/litert-cli/ddp/session-76a0ebe9 --model litert-community/Qwen3-0.6B --model-size-mb 497.66
 python3 ../driver/build_board.py
 python3 -m http.server 8000
@@ -81,12 +83,10 @@ when the binary that ran has another sha256 than `runtime_lm` names: a moved `la
 
 ## Tested on
 
-`benchmark_model` rows, all at release 2.2.0: the 21 files `matrix.yaml` lists, CPU and GPU, on caiman-35 (Pixel 9 Pro)
-and pa3q-35 (Galaxy S25 Ultra) through `run_matrix.py` (42 sessions, 2026-09-18) and on a Mac Studio (M4 Max, macOS 27.0)
+`benchmark_model` rows, all at release 2.2.0: the 21 files `matrix.yaml` lists, CPU and GPU, on pa3q-35 (Galaxy S25 Ultra)
+through `run_matrix.py` (42 sessions, 2026-09-18) and on a Mac Studio (M4 Max, macOS 27.0)
 through `run_local.py` (42 runs, one session per file, 2026-09-18), every job with results; `mobilenet_v2.tflite` from
 [litert-community/MobileNet-v2](https://huggingface.co/litert-community/MobileNet-v2) on an iPhone 17 Pro (iOS 27.0) through
-the app in `../ios/` built from LiteRT v2.2.0 (`145c7523f`), one `run_ios.sh` session on 2026-09-17. LiteRT-LM rows:
-`qwen3_0_6b_mixed_int4.litertlm` from [litert-community/Qwen3-0.6B](https://huggingface.co/litert-community/Qwen3-0.6B) on
-caiman-35, CPU and GPU, one Device Run session on 2026-09-19 with the `latest` binary of the bucket's `litert_lm/` directory
-as of 2026-09-18 (sha256 `adac974b…`) and the libraries `matrix.yaml` lists beside it, 1024/256 tokens, 5 iterations with the
-first as warm-up. The board was rebuilt on 2026-09-19 with Python 3.14 and protoc 34.1. The two `litert benchmark` lines of step 5 were run on 2026-09-23 with litert-cli-nightly 0.3.0.dev20260922 against the bucket directory as published (sessions cc0825c2 and f264790a on caiman-35, CPU and GPU, both PASSED, the same binary sha256 as the rows above) and collected with `collect_lm.py` into a scratch data directory; the rows above are unchanged.
+the app in `../ios/` built from LiteRT v2.2.0 (`145c7523f`), one `run_ios.sh` session on 2026-09-17. LiteRT-LM rows: none on
+the board; `data/measurements-lm.jsonl` is empty. The two `litert benchmark` lines of step 5 were run on 2026-09-30 with
+litert-cli-nightly 0.3.0.dev20260929 on pa3q-35, CPU and GPU. The board was rebuilt on 2026-10-01 with Python 3.14.

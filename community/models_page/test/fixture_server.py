@@ -8,7 +8,7 @@ this directory goes to the Space.
 
   python3 test/fixture_server.py 8765
   curl 'http://127.0.0.1:8765/__mode?hf=429'        # hf: ok|paged|429|500|drop|slow|hang|html|hostile|sparse|empty
-  curl 'http://127.0.0.1:8765/__mode?board=broken'  # board: ok|404|broken|noshape|norows|renamed|hang|hostile|sparse|twins|orphan
+  curl 'http://127.0.0.1:8765/__mode?board=broken'  # board: ok|404|broken|noshape|norows|nolm|renamed|hang|hostile|sparse|twins|orphan
   curl 'http://127.0.0.1:8765/__mode?tree=500'      # tree: ok|500
   curl 'http://127.0.0.1:8765/__mode?recipes=404'   # recipes: ok|404|hang|notable|hostile|orphan
   curl 'http://127.0.0.1:8765/__mode?timeout=1500'  # the page's fetch timeout in ms (0 = as shipped)
@@ -212,6 +212,8 @@ class Handler(SimpleHTTPRequestHandler):
             board.pop("generated_at", None)
         if mode == "norows":
             board["rows"], board["lm_rows"] = [], []
+        if mode == "nolm":
+            board["lm_rows"], board["lm_row_count"], board["lm_models"], board["lm_runtime_versions"] = [], 0, [], []
         if mode == "renamed":
             for row in board["rows"] + board["lm_rows"]:
                 row["status"] = "ok"
