@@ -1,0 +1,9 @@
+<resources>
+    <string name="app_name" translatable="false">FLUX.2-klein</string>
+    <string name="prompt_hint">Prompt</string>
+    <string name="action_generate">Generate</string>
+    <string name="action_edit">Edit an image</string>
+    <string name="edit_prompt_hint">Edit prompt</string>
+    <string name="label_source_image">Source</string>
+    <string name="label_result_image">Result</string>
+</resources>
