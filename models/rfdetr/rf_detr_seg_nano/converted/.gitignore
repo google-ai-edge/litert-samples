@@ -1,0 +1,4 @@
+*.tflite
+*.bin
+*.log
+__pycache__/
