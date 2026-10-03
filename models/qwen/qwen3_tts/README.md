@@ -1,6 +1,6 @@
 # Qwen3-TTS
 
-[Qwen/Qwen3-TTS-12Hz-0.6B-Base](https://huggingface.co/Qwen/Qwen3-TTS-12Hz-0.6B-Base), the Qwen team's 0.6B speech language model with voice cloning in ten languages, as three fixed-shape `.tflite` graphs (talker, code predictor, codec decoder) for the [LiteRT](https://github.com/google-ai-edge/litert) runtime, with host-side embedding tables and a Python host loop of 491 lines that tokenizes the text, runs the frame loop and returns 24 kHz audio. The graphs and tables are published at [litert-community/Qwen3-TTS-12Hz-0.6B-Base](https://huggingface.co/litert-community/Qwen3-TTS-12Hz-0.6B-Base). Every command in the code blocks on this page was run on ai-edge-litert 2.2.0.
+[Qwen/Qwen3-TTS-12Hz-0.6B-Base](https://huggingface.co/Qwen/Qwen3-TTS-12Hz-0.6B-Base), the Qwen team's 0.6B speech language model with voice cloning in ten languages, as fixed-shape `.tflite` graphs (talker, code predictor, codec decoder) for the [LiteRT](https://github.com/google-ai-edge/litert) runtime, with host-side embedding tables and a Python host loop of 491 lines that tokenizes the text, runs the frame loop and returns 24 kHz audio. The graphs and tables are published at [litert-community/Qwen3-TTS-12Hz-0.6B-Base](https://huggingface.co/litert-community/Qwen3-TTS-12Hz-0.6B-Base). Every command in the code blocks on this page was run on ai-edge-litert 2.2.0.
 
 ## Run
 
@@ -12,7 +12,7 @@ hf download litert-community/Qwen3-TTS-12Hz-0.6B-Base talker_int4.tflite mtp_fp3
 python synthesize.py --model_dir qwen3tts --text "Hello from LiteRT running fully on device." --output hello.wav
 ```
 
-The download is the default set, 1.89 GB; without `--model_dir`, `synthesize.py` fetches the same files into the Hugging Face cache. The output is a 24 kHz mono wav in the bundled demo voice, and the script prints the audio length, the real-time factor and the time of each stage; the runtime's `INFO` lines and its warning that no NPU accelerator loaded are expected on a Mac.
+The download is the reference set, 1.89 GB; without `--model_dir`, `synthesize.py` fetches the same files into the Hugging Face cache. The output is a 24 kHz mono wav in the bundled demo voice, and the script prints the audio length, the real-time factor and the time of each stage; the runtime's `INFO` lines and its warning that no NPU accelerator loaded are expected on a Mac.
 
 ## Which file
 
@@ -20,11 +20,13 @@ The download is the default set, 1.89 GB; without `--model_dir`, `synthesize.py`
 |---|---|---|
 | `talker_int4.tflite` | 0.26 GB | The talker on every host, Python and the Android app; the default |
 | `talker_fp32.tflite` | 1.78 GB | The full-precision talker, seven times the size; with `--greedy` its codes matched the PyTorch model token for token in the conversion's verification |
-| `mtp_fp32.tflite` | 0.44 GB | The code predictor, in every set |
-| `codec_decoder_fp32.tflite` | 0.46 GB | The codec decoder, in every set |
+| `mtp_fp32.tflite` | 0.44 GB | The code predictor: `synthesize.py`, and the Android app with `FAST=0` |
+| `codec_decoder_fp32.tflite` | 0.46 GB | The codec decoder: `synthesize.py`, and the Android app with `FAST=0` |
+| `mtp_folded_int8.tflite` | 0.23 GB | The code predictor in one invoke per frame, int8 weights: the Android app's default; its audio differs from the reference graphs' |
+| `codec_partA.tflite`, `codec_partB.tflite` | 0.16 + 0.29 GB | The codec decoder in two parts: the Android app's default |
 | `tables/` | 0.72 GB | The codec, code-predictor and text embedding tables and the text projection, read by the host loop |
 
-`synthesize.py` picks the talker with `--talker int4` or `--talker fp32`; the other two graphs and the tables are always loaded. `tokenizer.json` is the Qwen2 tokenizer and `voices/demo_speaker.npy` the demo voice. [LiteRT-LM](https://github.com/google-ai-edge/LiteRT-LM) and the Gallery app load `.litertlm` bundles; these graphs load through the LiteRT runtime APIs below, on the CPU.
+`synthesize.py` picks the talker with `--talker int4` or `--talker fp32`; `mtp_fp32.tflite`, `codec_decoder_fp32.tflite` and the tables are always loaded. `tokenizer.json` is the Qwen2 tokenizer and `voices/demo_speaker.npy` the demo voice. [LiteRT-LM](https://github.com/google-ai-edge/LiteRT-LM) and the Gallery app load `.litertlm` bundles; these graphs load through the LiteRT runtime APIs below, on the CPU.
 
 ## Language and voice
 
@@ -60,7 +62,7 @@ This is one talker step, run from the same directory after the download above; `
 
 ## Android and iOS
 
-- Android: the [sample app](../../../samples/litert/text_to_speech_lm/kotlin_cpu/android/) in this repository is a Kotlin port of the loop on the LiteRT CompiledModel API, on the CPU (XNNPACK). In its directory, `./gradlew :app:installDebug` builds and installs it and `./install_to_device.sh` downloads the graphs, the tables, the demo voice and the app's tokenizer files and pushes them into the app; then type a sentence, pick a language and tap Speak.
+- Android: the [sample app](../../../samples/litert/text_to_speech_lm/kotlin_cpu/android/) in this repository is a Kotlin port of the loop on the LiteRT CompiledModel API, on the CPU (XNNPACK). In its directory, `./gradlew :app:installDebug` builds and installs it and `./install_to_device.sh` downloads the graphs, the tables, the demo voice and the app's tokenizer files and pushes them into the app (the folded code predictor and the two-part codec by default; `FAST=0` for the reference graphs). The app names the set it loaded in its status line; then type a sentence, pick a language and tap Speak.
 - iOS: the graphs load through the LiteRT [CompiledModel C++ API](https://ai.google.dev/edge/litert/next/cpp) on the CPU (XNNPACK), and the host loop is a port of `qwen3_tts_pipeline.py`. Sample apps for the runtime are listed in [`models/README.md`](../../README.md#where-to-find-examples).
 
 ## Tested on
@@ -70,13 +72,13 @@ Times from the stage prints of `synthesize.py` and from the Kotlin app's log lin
 | Device | Runtime | Audio | Prefill / talker / code predictor / codec | Whole sentence | Peak memory |
 |---|---|---|---|---|---|
 | Mac M4 Max, CPU, 8 threads (code predictor 1) | ai-edge-litert 2.2.0, `synthesize.py` | 3.20 s, 40 frames | 0.17 s / 0.94 s / 6.37 s / 0.45 s | 7.9 s, real-time factor 2.5 | 5.0 GB |
-| Galaxy S26 (SM-S942Q), CPU, 4 threads (code predictor 2) | Kotlin sample app, LiteRT 2.1.5 | 2.40 s, 30 frames | 0.26 s / 0.82 s / 10.15 s / 1.23 s | 12.5 s, real-time factor 5.2 | |
+| Galaxy S26 (SM-S942Q), CPU, 4 threads (code predictor 2), reference graphs | Kotlin sample app, LiteRT 2.1.5 | 2.40 s, 30 frames | 0.26 s / 0.82 s / 10.15 s / 1.23 s | 12.5 s, real-time factor 5.2 | |
 
 The Mac row's wav transcribes back to its sentence apart from the name LiteRT. The phone row is the run after a cool-down to 36 °C; the three measured runs before it, on the warm phone, took 15 to 29 s. The phone's audio was not captured, and iOS was not measured for this page.
 
 ## Conversion
 
-How the three graphs and the tables were built and verified step by step against the PyTorch model (the talker checkpoint and its export, the code predictor graph, the codec decoder, the host tables, voice enrollment): [`converted/`](converted/); the same model authored with the [LiteRT Tensor API](https://github.com/google-ai-edge/LiteRT/tree/main/tensor): [`tensor_api/`](tensor_api/); the cookbook's [recipe list](../../conversion.md#13-recipes-in-this-directory) names this recipe.
+How the three reference graphs and the tables were built and verified step by step against the PyTorch model (the talker checkpoint and its export, the code predictor graph, the codec decoder, the host tables, voice enrollment): [`converted/`](converted/); the same model authored with the [LiteRT Tensor API](https://github.com/google-ai-edge/LiteRT/tree/main/tensor): [`tensor_api/`](tensor_api/); the cookbook's [recipe list](../../conversion.md#13-recipes-in-this-directory) names this recipe.
 
 ## References
 

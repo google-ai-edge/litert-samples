@@ -28,15 +28,23 @@ import kotlin.math.min
 /**
  * Qwen3-TTS on LiteRT: the host-orchestrated Compiled Model decode loop.
  *
- * Runs three graphs — talker LM (prefill_32/decode signatures, KV 1024), MTP
- * code-predictor decode step (17-slot KV, invoked 16x per audio frame), and
- * the codec decoder (64-frame chunks -> 24 kHz PCM) — plus host-side BPE
- * tokenization, embedding-table lookups, prompt assembly, and sampling. It is
- * a Kotlin port of the Python reference pipeline in the sibling `python/`
- * directory, which reproduces the PyTorch implementation token-for-token
- * under greedy decoding.
+ * Runs the talker LM (prefill_32/decode signatures, KV 1024), the MTP code
+ * predictor and the codec decoder (64-frame chunks -> 24 kHz PCM), plus
+ * host-side BPE tokenization, embedding-table lookups, prompt assembly, and
+ * sampling. It is a Kotlin port of the Python reference pipeline in the sibling
+ * `python/` directory. With the reference graphs and greedy decoding it
+ * reproduces the PyTorch implementation token-for-token.
  *
- * All model files live in [dir] (pushed by `install_to_device.sh`).
+ * The MTP and codec graphs come in two forms, and the engine takes the one it
+ * finds in [dir]. Reference graphs: `mtp_fp32.tflite`, one decode step per
+ * invoke (17-slot KV, invoked 16x per audio frame), and
+ * `codec_decoder_fp32.tflite`. Folded and split graphs, which the model
+ * repository also publishes: `mtp_folded_int8.tflite`, the MTP inner loop in
+ * one invoke per frame with int8 weights and the 15 residual codes chosen by
+ * argmax inside the graph, and the codec decoder in two parts,
+ * `codec_partA.tflite` (fp32) and `codec_partB.tflite` (run with XNNPACK's
+ * FORCE_FP16 flag). `install_to_device.sh` installs the folded and split
+ * graphs by default and the reference graphs with `FAST=0`.
  */
 class Qwen3TtsEngine(private val dir: File) {
 
@@ -63,6 +71,9 @@ class Qwen3TtsEngine(private val dir: File) {
         private const val CODEC_CHUNK = 64
         private const val CODEC_CTX = 25
         private const val UPSAMPLE = 1920
+        // TFLITE_XNNPACK_DELEGATE_FLAG_FORCE_FP16: ask XNNPACK to run an fp32
+        // graph in fp16 (CompiledModel.CpuOptions.xnnPackFlags).
+        private const val XNNPACK_FORCE_FP16 = 4
         const val SAMPLE_RATE = 24000
         const val MAX_FRAMES = 512
 
@@ -92,17 +103,54 @@ class Qwen3TtsEngine(private val dir: File) {
         File(dir, "text_projection_fp32.npz"), listOf("w1", "b1", "w2", "b2"))
     val speaker: FloatArray = Npy.loadFloats(File(dir, "demo_speaker.npy"))
 
-    private fun load(name: String, threads: Int): CompiledModel {
+    private fun load(name: String, threads: Int, xnnPackFlags: Int? = null): CompiledModel {
         val f = File(dir, name)
         check(f.exists()) { "Model not found: $name — run install_to_device.sh" }
         val options = CompiledModel.Options(Accelerator.CPU)
-        options.cpuOptions = CompiledModel.CpuOptions(threads, null, null)
+        options.cpuOptions = CompiledModel.CpuOptions(threads, xnnPackFlags, null)
         return CompiledModel.create(f.absolutePath, options, null)
     }
 
+    /** True when the folded MTP graph is in [dir], where it replaces the reference graph. */
+    val mtpFolded = File(dir, "mtp_folded_int8.tflite").exists()
+
+    /** True when both parts of the split codec are in [dir], where they replace the decoder. */
+    val codecSplit = checkSplitCodec()
+
+    // One part of the split codec is an incomplete install, not a reason to fall back;
+    // checked before the first graph loads.
+    private fun checkSplitCodec(): Boolean {
+        val a = File(dir, "codec_partA.tflite").exists()
+        val b = File(dir, "codec_partB.tflite").exists()
+        check(a == b) {
+            "Split codec needs codec_partA.tflite and codec_partB.tflite; found only " +
+                (if (a) "Part A" else "Part B") + " — run install_to_device.sh"
+        }
+        return a
+    }
+
     private val talker = load("talker_int4.tflite", 4)
-    private val mtp = load("mtp_fp32.tflite", 2)
-    private val codec = load("codec_decoder_fp32.tflite", 4)
+    // The reference MTP graph keeps the pipeline's 2 threads; the folded graph, one
+    // larger invoke per frame, gets the 4 the other graphs use.
+    private val mtp = if (mtpFolded) {
+        load("mtp_folded_int8.tflite", 4)
+    } else {
+        load("mtp_fp32.tflite", 2)
+    }
+    private val codecA = if (codecSplit) {
+        load("codec_partA.tflite", 4)
+    } else {
+        null
+    }
+    private val codec = if (codecSplit) {
+        load("codec_partB.tflite", 4, XNNPACK_FORCE_FP16)
+    } else {
+        load("codec_decoder_fp32.tflite", 4)
+    }
+
+    /** File names of the graphs in use, for the status line and the log. */
+    val graphNames = "talker_int4 + " + (if (mtpFolded) "mtp_folded_int8" else "mtp_fp32") +
+        " + " + (if (codecSplit) "codec_partA + codec_partB" else "codec_decoder_fp32")
 
     private val kvNames = (0 until 28).flatMap {
         listOf("kv_cache_k_$it", "kv_cache_v_$it")
@@ -121,7 +169,10 @@ class Qwen3TtsEngine(private val dir: File) {
      *
      * With [greedy] the loop matches the Python reference (and hence the
      * PyTorch implementation) token-for-token; otherwise top-k/temperature
-     * sampling with the model's default parameters.
+     * sampling with the model's default parameters. Both apply to the first
+     * codebook and, with the reference MTP graph, to the 15 residual codebooks.
+     * With the folded MTP graph the residual codes are the graph's argmax
+     * whatever [greedy] says, so the two graph sets produce different audio.
      */
     fun synthesize(
         text: String, language: String = "english",
@@ -316,15 +367,40 @@ class Qwen3TtsEngine(private val dir: File) {
     class Step(val logits: FloatArray, val hidden: FloatArray)
 
     // ------------------------------------------------------------------
-    // MTP inner loop: one decode-step graph invoked 16x per frame.
-    // Inputs (positional): embed, pos, mask, k_all, v_all.
-    // Outputs (positional): logits_all [15,2048], k_all, v_all.
+    // MTP inner loop. Reference graph: one decode step invoked 16x per frame.
+    //   Inputs (positional): embed, pos, mask, k_all, v_all.
+    //   Outputs (positional): logits_all [15,2048], k_all, v_all.
+    // Folded graph: the whole loop in one invoke per frame.
+    //   Inputs (positional): past_hidden [1,1,1024], cb0_embed [1,1,1024],
+    //   noise [15,2048]. Outputs (positional): codes [15] int32, logits [15,2048].
     // ------------------------------------------------------------------
-    private val mtpIn = mtp.createInputBuffers()   // embed, pos, mask, k, v
-    private val mtpOutPing = mtp.createOutputBuffers() // logits, k, v
-    private val mtpOutPong = mtp.createOutputBuffers()
+    private val mtpIn = mtp.createInputBuffers()
+    private val mtpOutPing = mtp.createOutputBuffers()
+    private val mtpOutPong = if (mtpFolded) emptyList() else mtp.createOutputBuffers()
+
+    init {
+        if (mtpFolded) {
+            // The graph adds a noise row to each codebook's logits before its argmax;
+            // zeros make the choice greedy.
+            mtpIn[2].writeFloat(FloatArray(15 * MTP_VOCAB))
+        }
+    }
 
     private fun mtpFrame(
+        hidden: FloatArray, cb0: Int, greedy: Boolean, rnd: Random,
+    ): IntArray {
+        if (mtpFolded) return mtpFrameFolded(hidden, cb0)
+        return mtpFrameStep(hidden, cb0, greedy, rnd)
+    }
+
+    private fun mtpFrameFolded(hidden: FloatArray, cb0: Int): IntArray {
+        mtpIn[0].writeFloat(hidden)
+        mtpIn[1].writeFloat(codecRow(cb0))
+        mtp.run(mtpIn, mtpOutPing)
+        return mtpOutPing[0].readInt() // codes [15]
+    }
+
+    private fun mtpFrameStep(
         hidden: FloatArray, cb0: Int, greedy: Boolean, rnd: Random,
     ): IntArray {
         val zero = FloatArray(MTP_KV_FLOATS)
@@ -372,8 +448,25 @@ class Qwen3TtsEngine(private val dir: File) {
     // ------------------------------------------------------------------
     private fun decodeCodes(frames: List<IntArray>): FloatArray {
         if (frames.isEmpty()) return FloatArray(0)
-        val codecIn = codec.createInputBuffers()
-        val codecOut = codec.createOutputBuffers()
+        // Reference graph: codes [1,16,64] -> wav. Split codec: Part A codes -> hidden
+        // [1,1024,64], Part B hidden -> wav; Part A's output buffers are Part B's inputs
+        // (a TensorBuffer is not tied to the model that created it).
+        val codesIn = (codecA ?: codec).createInputBuffers()
+        val partAOut = codecA?.createOutputBuffers() ?: emptyList()
+        val wavOut = codec.createOutputBuffers()
+        try {
+            return decodeChunks(frames, codesIn, partAOut, wavOut)
+        } finally {
+            for (b in codesIn + partAOut + wavOut) {
+                b.close()
+            }
+        }
+    }
+
+    private fun decodeChunks(
+        frames: List<IntArray>, codesIn: List<TensorBuffer>,
+        partAOut: List<TensorBuffer>, wavOut: List<TensorBuffer>,
+    ): FloatArray {
         val pieces = ArrayList<FloatArray>()
         var i = 0
         while (i < frames.size) {
@@ -389,9 +482,14 @@ class Qwen3TtsEngine(private val dir: File) {
                     buf[q * CODEC_CHUNK + t] = frame[q]
                 }
             }
-            codecIn[0].writeInt(buf)
-            codec.run(codecIn, codecOut)
-            val wav = codecOut[0].readFloat()
+            codesIn[0].writeInt(buf)
+            if (codecA != null) {
+                codecA.run(codesIn, partAOut)
+                codec.run(partAOut, wavOut)
+            } else {
+                codec.run(codesIn, wavOut)
+            }
+            val wav = wavOut[0].readFloat()
             pieces.add(wav.copyOfRange(ctx * UPSAMPLE, n * UPSAMPLE))
             i = j
         }
@@ -499,8 +597,12 @@ class Qwen3TtsEngine(private val dir: File) {
     }
 
     fun close() {
+        for (b in mtpIn + mtpOutPing + mtpOutPong) {
+            b.close()
+        }
         talker.close()
         mtp.close()
+        codecA?.close()
         codec.close()
     }
 }
