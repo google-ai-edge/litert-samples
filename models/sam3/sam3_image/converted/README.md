@@ -46,7 +46,7 @@ Converted with **litert-torch** (NCHW preserved). All three graphs pass the stat
 
 | construct | rewrite |
 |---|---|
-| ViT attention with 5-D/6-D/8-D tensors | ≤4-D head split, window partition and RoPE. A raw export of the trunk reaches only **corr 0.607**: the converter mis-lowers these, so this is a correctness fix, not just a delegate constraint |
+| ViT attention with 5-D/6-D/8-D tensors | ≤4-D head split, window partition and RoPE. The GPU delegates reject >4-D tensors. The raw export's **corr 0.607** comes from [google-ai-edge/litert-torch#1061](https://github.com/google-ai-edge/litert-torch/issues/1061), not from the >4-D ops (note below the table) |
 | interleaved real RoPE (2p, 2p+1) | permute the q and k rows of the fused qkv weight so the rotation becomes a contiguous half-split; exact, because q·k is invariant under a shared channel permutation |
 | tiled 24²→72² absolute position | baked into a constant buffer |
 | window partition | reshape → transpose → reshape → **transpose**. The cheaper order-swap trick is *not* valid here: RoPE is position dependent inside the window, so the extra transpose is required to restore the layout |
@@ -60,6 +60,8 @@ Converted with **litert-torch** (NCHW preserved). All three graphs pass the stat
 | `nn.GroupNorm` | 4-D manual with hierarchical means (a single reduce over 2.6M elements overflows the fp16 accumulator) |
 | all-constant op chains | tied to a runtime zero derived from the input; the delegates refuse ops whose inputs are all constant and the converter does not fold them |
 | global attention, 5184×5184 scores | exact query chunking (`--chunks`, default 9): the score tensor would otherwise need 860 MB in fp16 per global block |
+
+**Note on the raw-export number.** The stock trunk stores its RoPE cos and sin as `.real` / `.imag` views of one complex buffer. The converter's constant cache merges two non-contiguous constants of one shape ([google-ai-edge/litert-torch#1061](https://github.com/google-ai-edge/litert-torch/issues/1061), fix in flight in [google-ai-edge/litert-torch#1063](https://github.com/google-ai-edge/litert-torch/pull/1063)), so RoPE rotates with cos in both slots and the raw trunk reaches only corr 0.607. Baking cos and sin as contiguous buffers, which the ≤4-D rewrite does anyway, sidesteps it. With the fix applied, the raw trunk converts at corr 1.0000.
 
 fp16 quantization is applied to the **matmul-class weights only** (`FULLY_CONNECTED`, `CONV_2D`, `DEPTHWISE_CONV_2D`). Quantizing every constant leaves a `DEQUANTIZE` feeding an elementwise op, or one shared by several consumers, which the Metal delegate refuses at compile time.
 
