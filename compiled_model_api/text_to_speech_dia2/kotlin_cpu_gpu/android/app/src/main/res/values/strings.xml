@@ -1,0 +1,5 @@
+<resources>
+    <string name="app_name" translatable="false">Dia2 TTS</string>
+    <string name="text_hint">Type an [S1]/[S2] dialogue script…</string>
+    <string name="action_speak">▶ Speak</string>
+</resources>
