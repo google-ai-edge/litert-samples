@@ -1,0 +1,10 @@
+<resources>
+    <string name="app_name" translatable="false">UFLD Lane Detection</string>
+    <string name="action_pick_image">Pick image</string>
+    <string name="status_loading">Loading UFLD on GPU…</string>
+    <string name="status_processing">Detecting lanes…</string>
+    <string name="status_ready" translatable="false">UFLD · lane detection · CompiledModel GPU · %1$d ms · %2$d points</string>
+    <string name="error_model_missing">Model not found. Push it first with install_to_device.sh:\n%1$s</string>
+    <string name="error_model_load">Failed to load model</string>
+    <string name="error_detect_failed">Lane detection failed</string>
+</resources>
