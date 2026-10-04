@@ -1,0 +1,461 @@
+<!DOCTYPE html>
+<html lang="en" translate="no">
+<head>
+<meta charset="UTF-8">
+<meta name="google" content="notranslate">
+<title>running…</title>
+<style>body { font: 14px/1.5 ui-monospace, Menlo, monospace; margin: 20px; } iframe { width: 1200px; height: 500px; border: 1px solid #999; } .fail { color: #b00020; font-weight: 700; }</style>
+</head>
+<body>
+<!-- Served by test/fixture_server.py at http://127.0.0.1:8766/__checks
+     Each case sets the server's modes, loads the page in the iframe and checks what a visitor would see.
+     The title reads "running…" until the last case is done, then PASS or FAIL with the counts. -->
+<pre id="out"></pre>
+<iframe id="page" title="page under test"></iframe>
+<script type="module">
+const out = document.getElementById('out');
+const frame = document.getElementById('page');
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+const DEFAULTS = { hf: 'ok', card: 'ok', samples: 'ok', demos: 'ok', break: 'ok', timeout: '0' };
+const HUB = 'https://huggingface.co/';
+const TREE = 'https://github.com/google-ai-edge/litert-samples/tree/main/';
+const BAD_TEXT = /undefined|NaN|null|Invalid Date|\[object/;
+const PARTS = ['trending', 'recent', 'picks', 'samples', 'demos'];
+const LOADING = PARTS.map(p => `${p}Loading`);
+const ERRORS = PARTS.map(p => `${p}Error`);
+
+async function load(mode, { settle = true, width = 1200 } = {}) {
+    const set = await fetch('/__mode?' + new URLSearchParams({ ...DEFAULTS, ...mode }));
+    if (!set.ok) throw new Error(`the server does not know this mode: ${JSON.stringify(mode)}`);
+    frame.style.width = width + 'px';
+    frame.src = 'about:blank';
+    await sleep(50);
+    const loaded = new Promise(r => frame.addEventListener('load', r, { once: true }));
+    frame.src = '/index.html?case=' + Date.now();
+    await loaded;
+    const doc = frame.contentDocument;
+    for (let i = 0; settle && i < 100 && LOADING.some(id => !doc.getElementById(id).hidden); i++) await sleep(100);
+    return { doc, win: frame.contentWindow };
+}
+const shown = (doc, id) => { const e = doc.getElementById(id); return Boolean(e) && !e.hidden; };
+const flat = s => s.replace(/\s+/g, ' ').trim();
+const text = (doc, id) => flat(doc.getElementById(id).textContent);
+const rows = (doc, list) => [...doc.querySelectorAll(`#${list} > li`)];
+const names = (doc, list) => rows(doc, list).map(r => flat(r.querySelector('.name').textContent));
+const row = (doc, list, name) => rows(doc, list).find(r => flat(r.querySelector('.name').textContent) === name);
+const part = (r, cls) => { const e = r.querySelector(cls); return e ? flat(e.textContent) : ''; };
+const pageText = doc => flat(doc.body.innerText);
+const same = (a, b) => JSON.stringify(a) === JSON.stringify(b);
+function check(cond, what) { if (!cond) throw new Error(what); }
+const noRaw = doc => check(!BAD_TEXT.test(pageText(doc)), 'a raw value on the page: ' + (pageText(doc).match(BAD_TEXT) || [])[0]);
+// What a hostile string must not have brought in: an element the page never writes, a handler attribute, a
+// link to a site or a scheme the page does not link to.
+const SITES = ['https://huggingface.co/', 'https://github.com/google-ai-edge/', 'https://google-ai-edge.github.io/', 'https://ai.google.dev/'];
+function noMarkup(doc, win) {
+    check(win.__pwned === undefined, 'a script ran');
+    const odd = [...doc.querySelectorAll('main *')].filter(e => !['SECTION', 'DIV', 'H2', 'H3', 'H4', 'P', 'UL', 'LI', 'A', 'B', 'CODE', 'SPAN', 'DETAILS', 'SUMMARY'].includes(e.tagName));
+    check(odd.length === 0, 'an element the page does not write: ' + odd.map(e => e.tagName).join(' '));
+    const handlers = [...doc.querySelectorAll('main *')].flatMap(e => [...e.attributes].filter(a => /^on|^style$|^src$/i.test(a.name)).map(a => `${e.tagName} ${a.name}`));
+    check(handlers.length === 0, 'an attribute the page does not write: ' + handlers.join(', '));
+    const hrefs = [...doc.querySelectorAll('main a')].map(a => a.getAttribute('href')).filter(h => !h.startsWith('#') && !SITES.some(s => h.startsWith(s)));
+    check(hrefs.length === 0, 'a link to another site or scheme: ' + hrefs.join(' '));
+}
+// Which parts show their notice, which their rows: `down` names the parts expected to show the notice.
+function states(doc, down = []) {
+    check(!LOADING.some(id => shown(doc, id)), 'still reading: ' + LOADING.filter(id => shown(doc, id)).join(' '));
+    for (const p of PARTS) {
+        const failed = down.includes(p);
+        check(shown(doc, `${p}Error`) === failed, `${p}: the notice is ${failed ? 'missing' : 'showing: ' + text(doc, `${p}Error`)}`);
+        if (failed) check(doc.querySelectorAll(`#${p} li`).length === 0, `${p}: rows next to its notice`);
+    }
+}
+
+const TRENDING = ['gemma-4-E2B-it-litert-lm', 'Gemma3-1B-IT', 'Fun-ASR-Nano-2512', 'functiongemma-270m-ft-mobile-actions', 'gemma-4-12B-it-litert-lm', 'embeddinggemma-300m',
+    'Bonsai-Image-ternary-4B', 'gemma-4-E4B-it-litert-lm', 'GLiNER2.5-Small-LiteRT', 'laya-LiteRT', 'Laya-Multilingual-LiteRT', 'GLiNER2.5-Decide-LiteRT'];
+const TRENDING_MORE = ['MobileNet-v2', 'PaddleOCR-VL-1.6', 'Nemotron-3-Diarization-LiteRT', 'Audio8-TTS-Preview-0.6b', 'decider-2b-vision-LiteRT', 'Julia-1-LiteRT', 'MiniCPM5-2B'];
+const RECENT = ['Kev-4B-LiteRT', 'Kev-0.8B-LiteRT', 'Qwen3-ASR-1.7B', 'GLiNER2.5-Multi-LiteRT', 'Julia-1-LiteRT', 'decider-2b-vision-LiteRT', 'Audio8-TTS-Preview-0.6b',
+    'Fun-ASR-Nano-2512', 'GLiNER2.5-Decide-LiteRT', 'Nemotron-3-Diarization-LiteRT', 'Laya-English-LiteRT', 'Laya-Multilingual-LiteRT'];
+const SAMPLES = ['samples/litert/google/sample_app_tpu', 'samples/litert/image_generation', 'samples/litert/phototalk_sample_app', 'samples/litert/qualcomm/gemma3/npu',
+    'samples/litert/semantic_similarity', 'samples/litert/speech_recognition', 'samples/litert/text_to_speech', 'samples/litert/zero_shot_classification',
+    'samples/litert_lm/reachy-voice-robot'];
+// The parts as they look when their own source answered.
+const stand = {
+    lists: doc => check(same(names(doc, 'trendingList'), TRENDING) && same(names(doc, 'recentList'), RECENT), 'the model lists changed'),
+    picks: doc => check(rows(doc, 'picksList').length === 6, 'the picks changed'),
+    samples: doc => check(same(names(doc, 'samplesList'), SAMPLES), 'the samples changed: ' + names(doc, 'samplesList').join(' ')),
+    demos: doc => check(same(names(doc, 'demosList'), ['Gemma4', 'Gemma3n', 'Gemma3']), 'the demos changed'),
+};
+const others = (doc, ...keys) => keys.forEach(k => stand[k](doc));
+
+const CASES = {
+    'all four sources answer: both model lists, the picks, the samples and the demos': async () => {
+        const { doc } = await load({});
+        states(doc);
+        check(!shown(doc, 'trendingEmpty') && !shown(doc, 'samplesPartial') && !shown(doc, 'samplesEmpty'), 'a notice of an empty or partial list');
+        others(doc, 'lists', 'picks', 'samples', 'demos');
+        check(text(doc, 'picksTitle') === '🌟 Community\'s Picks of the Week', text(doc, 'picksTitle'));
+        check(![...names(doc, 'trendingList'), ...names(doc, 'recentList'), ...names(doc, 'recentMoreList')].includes('Test'), 'a repo without files is listed');
+        check(!names(doc, 'samplesList').includes('samples/litert/image_segmentation'), 'a sample of a model that is on neither list');
+        noRaw(doc);
+    },
+    'a model list shows 12 models and folds the next ones, with their number': async () => {
+        const { doc } = await load({});
+        check(shown(doc, 'trendingMore') && !doc.getElementById('trendingMore').open && text(doc, 'trendingMore').startsWith('7 more'), text(doc, 'trendingMore').slice(0, 40));
+        check(same(names(doc, 'trendingMoreList'), TRENDING_MORE), names(doc, 'trendingMoreList').join(' '));
+        check(shown(doc, 'recentMore') && flat(doc.querySelector('#recentMore summary').textContent) === '24 more' && rows(doc, 'recentMoreList').length === 24, 'the fold of the newest');
+        check(names(doc, 'recentMoreList')[0] === 'laya-LiteRT', names(doc, 'recentMoreList')[0]);
+        const fold = () => doc.getElementById('trendingMore').getBoundingClientRect().height;
+        check(fold() < 60, `the folded rows take room while the fold is closed: ${fold()}px`);
+        doc.querySelector('#trendingMore summary').click();
+        await sleep(100);
+        check(doc.getElementById('trendingMore').open && fold() > 300, `the fold does not open: ${fold()}px`);
+    },
+    'a model row: its page, task, formats, source model; the Hub\'s two counts under Trending, the date under Recently created': async () => {
+        const { doc } = await load({});
+        const gemma = row(doc, 'trendingList', 'gemma-4-E2B-it-litert-lm');
+        check(gemma.querySelector('.name a').href === HUB + 'litert-community/gemma-4-E2B-it-litert-lm', 'model link');
+        check(part(gemma, '.facts') === '459 likes · 1,398,895 downloads last month', part(gemma, '.facts'));
+        check(part(gemma, '.meta') === '.litertlm .task 3 samples from google/gemma-4-E2B-it', part(gemma, '.meta'));
+        check(gemma.querySelector('.meta a[href="https://huggingface.co/google/gemma-4-E2B-it"]') !== null, 'source model link');
+        const asr = row(doc, 'trendingList', 'Fun-ASR-Nano-2512');
+        check(part(asr, '.meta') === 'automatic-speech-recognition .litertlm from FunAudioLLM/Fun-ASR-Nano-2512', part(asr, '.meta'));
+        check(part(row(doc, 'trendingList', 'Gemma3-1B-IT'), '.meta') === 'text-generation .litertlm .task Gated 2 samples from google/Gemma-3-1B-IT', part(row(doc, 'trendingList', 'Gemma3-1B-IT'), '.meta'));
+        check(part(row(doc, 'trendingMoreList', 'Julia-1-LiteRT'), '.facts') === '1 like · 27 downloads last month', 'one like is singular');
+        check(part(row(doc, 'recentList', 'Kev-4B-LiteRT'), '.facts') === 'created 2026-10-03', part(row(doc, 'recentList', 'Kev-4B-LiteRT'), '.facts'));
+        check(part(row(doc, 'recentList', 'Fun-ASR-Nano-2512'), '.facts') === 'created 2026-09-27', 'a count under Recently created');
+        const dates = [...rows(doc, 'recentList'), ...rows(doc, 'recentMoreList')].map(r => (part(r, '.facts').match(/^created (\d{4}-\d{2}-\d{2})$/) || [])[1] || '');
+        check(dates.length === 36 && dates.every((d, i) => d && (i === 0 || d <= dates[i - 1])), 'not newest first: ' + dates.join(' '));
+        check(![...rows(doc, 'trendingList'), ...rows(doc, 'trendingMoreList')].some(r => /created/.test(part(r, '.facts'))), 'a date under Trending');
+        check(!/trending score/i.test(text(doc, 'trending')) && !/\b11\b/.test(flat(gemma.textContent)), 'the trending score is on a row');
+        check(part(row(doc, 'recentMoreList', 'whisper-acft'), '.meta').endsWith('from openai/whisper-tiny and 5 more'), part(row(doc, 'recentMoreList', 'whisper-acft'), '.meta'));
+    },
+    'the marks: Pick on a model the picks link, Sample on a model a sample runs, each leading to it': async () => {
+        const { doc } = await load({});
+        const picked = list => rows(doc, list).filter(r => r.querySelector('.tag.pick')).map(r => part(r, '.name')).join();
+        check(picked('trendingList') === 'laya-LiteRT,Laya-Multilingual-LiteRT', 'picked under Trending: ' + picked('trendingList'));
+        check(picked('trendingMoreList') === 'PaddleOCR-VL-1.6,Nemotron-3-Diarization-LiteRT,Audio8-TTS-Preview-0.6b,decider-2b-vision-LiteRT', 'picked in the fold: ' + picked('trendingMoreList'));
+        check(picked('recentList') === 'decider-2b-vision-LiteRT,Audio8-TTS-Preview-0.6b,Nemotron-3-Diarization-LiteRT,Laya-English-LiteRT,Laya-Multilingual-LiteRT', 'picked under Recently created: ' + picked('recentList'));
+        check(row(doc, 'trendingList', 'laya-LiteRT').querySelector('.tag.pick').getAttribute('href') === '#picks', 'the Pick mark leads to the picks');
+        const laya = row(doc, 'trendingList', 'Laya-Multilingual-LiteRT').querySelector('a.tag.sample');
+        check(laya && flat(laya.textContent) === 'Sample · zero_shot_classification' && laya.href === TREE + 'samples/litert/zero_shot_classification', 'one sample: its directory');
+        const many = row(doc, 'trendingList', 'gemma-4-E2B-it-litert-lm').querySelector('a.tag.sample');
+        check(many && flat(many.textContent) === '3 samples' && many.getAttribute('href') === '#samples', 'three samples: the samples part');
+        check(!row(doc, 'recentList', 'Kev-4B-LiteRT').querySelector('.tag.sample, .tag.pick'), 'a mark on a model with neither');
+    },
+    'the picks: each item as the card has it, its links kept, the sample of a picked model under it, no count': async () => {
+        const { doc } = await load({});
+        const picks = rows(doc, 'picksList');
+        check(flat(picks[1].querySelector('p').textContent) === 'PaddleOCR-VL-1.6 (Image-Text-to-Text) High-accuracy vision-language model tailored for robust on-device document understanding and OCR tasks.', flat(picks[1].textContent));
+        check(picks[1].querySelector('b a').href === HUB + 'litert-community/PaddleOCR-VL-1.6' && flat(picks[1].querySelector('code').textContent) === 'Image-Text-to-Text', 'bold link and task');
+        check(picks[0].querySelectorAll('p a').length === 3 && flat(picks[0].querySelector('b').textContent) === 'Laya Series', 'the first pick: a name and three links');
+        check(/\(multilingual\) Convai Innovations' text encoders/.test(flat(picks[0].textContent)), 'the second line of the first pick');
+        const tag = picks[0].querySelector('.meta a.tag.sample');
+        check(tag && flat(tag.textContent) === 'Sample · zero_shot_classification', 'the sample under the first pick');
+        check(!picks[1].querySelector('.meta'), 'a sample under a pick that has none');
+        check(!/\d+ likes?|downloads last month/.test(text(doc, 'picksList')), 'a count on a pick');
+        check(doc.querySelector('#picks .lead a').href === HUB + 'litert-community', 'the way to the card');
+    },
+    'the samples and the demos: directory, task, platform and the models of the list; title, description and likes': async () => {
+        const { doc } = await load({});
+        const zero = row(doc, 'samplesList', 'samples/litert/zero_shot_classification');
+        check(zero.querySelector('.name a').href === TREE + 'samples/litert/zero_shot_classification', 'sample link');
+        check(part(zero, '.what') === 'Zero-shot text classification with questions defined at run time (choice, score, yes/no)', part(zero, '.what'));
+        check(part(zero, '.facts') === 'Android (Kotlin on GPU/CPU and NPU) · runs Laya-Multilingual-LiteRT', part(zero, '.facts'));
+        const speech = part(row(doc, 'samplesList', 'samples/litert/speech_recognition'), '.facts');
+        check(speech === 'Android; Python for conversion · runs parakeet-tdt-0.6b-v3, parakeet-ctc-0.6b, moonshine-tiny, whisper-tiny, Qwen3-ASR-0.6B', 'only the models the list has: ' + speech);
+        check(!/API|CompiledModel/.test(text(doc, 'samplesList')), 'the API column is shown');
+        const demo = row(doc, 'demosList', 'Gemma4');
+        check(demo.querySelector('.name a').href === HUB + 'spaces/tylermullen/Gemma4', 'demo link');
+        check(part(demo, '.what') === 'Chat with Gemma 4 models fully in the browser via MediaPipe' && part(demo, '.facts') === 'tylermullen/Gemma4 · 33 likes', part(demo, '.facts'));
+    },
+    'every link that leaves the page opens a new tab; the others stay on it; nothing inline; one name, the draft marks': async () => {
+        const { doc } = await load({});
+        const links = [...doc.querySelectorAll('a[href]')];
+        const leaving = links.filter(a => !a.getAttribute('href').startsWith('#'));
+        const bad = leaving.filter(a => a.target !== '_blank' || !/noopener/.test(a.rel)).map(a => a.href);
+        check(leaving.length > 100 && bad.length === 0, 'links without target/rel: ' + bad.join(' '));
+        const inPage = links.filter(a => a.getAttribute('href').startsWith('#'));
+        check(inPage.length >= 4 && inPage.every(a => doc.getElementById(a.getAttribute('href').slice(1))), 'an in-page link without its target');
+        check(!doc.querySelector('[style], script:not([src]), [onclick]'), 'inline style or script (the CSP blocks them)');
+        check(flat(doc.querySelector('.draft').textContent) === 'Draft · for review' && doc.title === 'Trending models (draft)', 'the draft marks');
+        check(flat(doc.querySelector('.brand').textContent) === 'Trending models' && flat(doc.querySelector('h1').textContent).startsWith('Trending models'), 'the name');
+        const headings = [...doc.querySelectorAll('main h2, main h3')].filter(h => !h.closest('li')).map(h => flat(h.textContent));
+        check(same(headings, ['Trending', 'Recently created', '🌟 Community\'s Picks of the Week', 'Samples', 'In litert-samples', 'Demos on Hugging Face']), headings.join(' | '));
+    },
+    'a wide window: the two model lists and the picks side by side; a middle one: the picks under them; a phone: one column, no sideways scroll': async () => {
+        const { doc, win } = await load({});
+        const box = id => doc.getElementById(id).getBoundingClientRect();
+        check(box('trending').left < box('recent').left && box('recent').left < box('picks').left && Math.abs(box('picks').top - box('trending').top) < 2, 'three columns at 1200 px');
+        frame.style.width = '1000px';
+        await sleep(300);
+        check(box('trending').left < box('recent').left && Math.round(box('picks').left) === Math.round(box('trending').left) && box('picks').top > box('trending').bottom - 2, 'two columns and the picks below at 1000 px');
+        check(doc.documentElement.scrollWidth <= win.innerWidth, `1000 px: the page is ${doc.documentElement.scrollWidth}px wide`);
+        frame.style.width = '390px';
+        await sleep(300);
+        check(doc.documentElement.scrollWidth <= win.innerWidth, `page is ${doc.documentElement.scrollWidth}px wide in ${win.innerWidth}px`);
+        check(Math.round(box('trending').left) === Math.round(box('recent').left) && box('recent').top > box('trending').bottom - 2 && box('picks').top > box('recent').bottom - 2, 'one column at 390 px, in the order of the page');
+        const [a, b] = rows(doc, 'samplesList');
+        check(Math.round(a.getBoundingClientRect().left) === Math.round(b.getBoundingClientRect().left), 'the samples are side by side at 390 px');
+        doc.querySelector('#recentMore summary').click();
+        await sleep(100);
+        check(doc.documentElement.scrollWidth <= win.innerWidth, 'the folded rows push the page sideways');
+        frame.style.width = '1200px';
+    },
+    'model list: HTTP 429': async () => {
+        const { doc } = await load({ hf: '429' });
+        states(doc, ['trending', 'recent']);
+        check(text(doc, 'trendingError') === 'The model list could not be loaded from Hugging Face (HTTP 429). Reload to try again, or see the list on Hugging Face.', text(doc, 'trendingError'));
+        check(/HTTP 429/.test(text(doc, 'recentError')) && !shown(doc, 'trendingEmpty') && !shown(doc, 'trendingMore') && !shown(doc, 'recentMore'), 'both lists say so, and nothing else');
+        others(doc, 'picks', 'demos');
+        check(same(names(doc, 'samplesList'), ['samples/litert/zero_shot_classification']), 'without the model list, the samples of the picks: ' + names(doc, 'samplesList').join(' '));
+        check(part(rows(doc, 'samplesList')[0], '.facts') === 'Android (Kotlin on GPU/CPU and NPU) · runs Laya-Multilingual-LiteRT', 'the model as the table spells it: ' + part(rows(doc, 'samplesList')[0], '.facts'));
+        noRaw(doc);
+    },
+    'model list: HTTP 500': async () => modelsDown({ hf: '500' }, /HTTP 500/),
+    'model list: connection dropped': async () => modelsDown({ hf: 'drop' }, /\(no connection\)/),
+    'model list: no answer before the timeout': async () => modelsDown({ hf: 'hang', timeout: '1200' }, /no answer in 1\.2 s/),
+    'model list: an HTML page instead of JSON': async () => modelsDown({ hf: 'html' }, /the answer is not JSON/),
+    'model list: empty answer': async () => modelsDown({ hf: 'empty' }, /came back empty/),
+    'model list: a listing that never ends': async () => modelsDown({ hf: 'endless' }, /the listing did not end/),
+    'model list and card both unreadable: no sample to list, and the page says so': async () => {
+        const { doc } = await load({ hf: '500', card: '404' });
+        states(doc, ['trending', 'recent', 'picks']);
+        check(shown(doc, 'samplesEmpty') && rows(doc, 'samplesList').length === 0 && text(doc, 'samplesEmpty') === 'No sample runs a model listed above.', text(doc, 'samplesEmpty'));
+        others(doc, 'demos');
+    },
+    'card: slow answer; the model lists do not wait for it, the samples do': async () => {
+        const { doc } = await load({ card: 'slow' }, { settle: false });
+        for (let i = 0; i < 15 && (shown(doc, 'trendingLoading') || shown(doc, 'demosLoading')); i++) await sleep(100);
+        check(shown(doc, 'picksLoading') && shown(doc, 'samplesLoading'), 'the loading lines of the picks and of the samples');
+        others(doc, 'lists', 'demos');
+        for (let i = 0; i < 60 && shown(doc, 'picksLoading'); i++) await sleep(100);
+        states(doc);
+        others(doc, 'picks', 'samples');
+    },
+    'samples unreadable while the model list is still read: the page says so at once': async () => {
+        const { doc } = await load({ hf: 'slow', samples: '404' }, { settle: false });
+        for (let i = 0; i < 15 && shown(doc, 'samplesLoading'); i++) await sleep(100);
+        check(shown(doc, 'samplesError') && shown(doc, 'trendingLoading'), 'the samples notice waits for the model list');
+        for (let i = 0; i < 60 && shown(doc, 'trendingLoading'); i++) await sleep(100);
+        states(doc, ['samples']);
+    },
+    'model list: slow answer; the picks and the demos do not wait for it, the samples do': async () => {
+        const { doc } = await load({ hf: 'slow' }, { settle: false });
+        for (let i = 0; i < 15 && (shown(doc, 'picksLoading') || shown(doc, 'demosLoading')); i++) await sleep(100);
+        check(shown(doc, 'trendingLoading') && shown(doc, 'recentLoading') && shown(doc, 'samplesLoading'), 'the loading lines of the parts that need the model list');
+        others(doc, 'picks', 'demos');
+        check(!doc.querySelector('.tag.pick'), 'a mark before the list is there');
+        check(doc.querySelector('#trendingLoading a[href^="https://huggingface.co/models"]') !== null, 'the loading line has no way out');
+        for (let i = 0; i < 60 && shown(doc, 'trendingLoading'); i++) await sleep(100);
+        states(doc);
+        others(doc, 'lists', 'samples');
+        check(rows(doc, 'trendingList').some(r => r.querySelector('.tag.pick')), 'the marks after the answer');
+    },
+    'demos: slow answer; the model lists, the picks and the samples do not wait for it': async () => {
+        const { doc } = await load({ demos: 'slow' }, { settle: false });
+        for (let i = 0; i < 15 && (shown(doc, 'trendingLoading') || shown(doc, 'picksLoading') || shown(doc, 'samplesLoading')); i++) await sleep(100);
+        check(shown(doc, 'demosLoading'), 'the demos did not take their time');
+        others(doc, 'lists', 'picks', 'samples');
+        for (let i = 0; i < 60 && shown(doc, 'demosLoading'); i++) await sleep(100);
+        others(doc, 'demos');
+    },
+    'model list: four pages': async () => {
+        const { doc } = await load({ hf: 'paged' });
+        states(doc);
+        others(doc, 'lists', 'samples');
+        check(rows(doc, 'recentMoreList').length === 24, 'the fold after four pages');
+    },
+    'model list: no model with a trending score above zero': async () => {
+        const { doc } = await load({ hf: 'quiet' });
+        states(doc);
+        check(shown(doc, 'trendingEmpty') && rows(doc, 'trendingList').length === 0 && !shown(doc, 'trendingMore'), 'the empty notice');
+        check(same(names(doc, 'recentList'), RECENT), 'the newest models are still listed');
+    },
+    'model list: no trending score in the answer': async () => {
+        const { doc } = await load({ hf: 'noscore' });
+        states(doc, ['trending']);
+        check(/\(the model list carries no trending score\)/.test(text(doc, 'trendingError')) && !shown(doc, 'trendingEmpty'), text(doc, 'trendingError'));
+        check(same(names(doc, 'recentList'), RECENT), 'the newest models are still listed');
+        others(doc, 'picks', 'demos');
+        check(same(names(doc, 'samplesList'), SAMPLES.filter(s => s !== 'samples/litert/qualcomm/gemma3/npu')), 'the samples of the models that are still listed: ' + names(doc, 'samplesList').join(' '));
+    },
+    'model list: no creation date in the answer': async () => {
+        const { doc } = await load({ hf: 'nodate' });
+        states(doc, ['recent']);
+        check(/\(the model list carries no creation date\)/.test(text(doc, 'recentError')), text(doc, 'recentError'));
+        check(same(names(doc, 'trendingList'), TRENDING), 'the trending models are still listed');
+        check(row(doc, 'samplesList', 'samples/litert/zero_shot_classification') && !row(doc, 'samplesList', 'samples/litert/speech_recognition'), 'the samples of the models that are still listed');
+    },
+    'model list: entries with missing or odd fields': async () => {
+        const { doc } = await load({ hf: 'sparse' });
+        states(doc);
+        const odd = row(doc, 'trendingList', 'odd-siblings');
+        check(names(doc, 'trendingList')[0] === 'odd-siblings' && part(odd, '.meta') === '.tflite' && !odd.querySelector('.facts'), 'a row with nothing to count: ' + flat(odd.textContent));
+        check(part(row(doc, 'recentList', 'odd-siblings'), '.facts') === 'created 2026-10-04', 'its date');
+        const all = ['trendingList', 'trendingMoreList', 'recentList', 'recentMoreList'].flatMap(l => names(doc, l));
+        check(!all.includes('no-fields') && !all.includes('odd-fields'), 'a repo without a score or a date is on a list');
+        check(!/\b0 (likes|downloads)/.test(pageText(doc)), 'a count of zero is shown');
+        noRaw(doc);
+    },
+    'model list: hostile strings stay text': async () => {
+        const { doc, win } = await load({ hf: 'hostile' });
+        noMarkup(doc, win);
+        check(names(doc, 'trendingList')[0] === 'hostile-fields' && !pageText(doc).includes('onerror'), 'the entry with a repo id is listed, the one without is not: ' + names(doc, 'trendingList')[0]);
+        const meta = part(rows(doc, 'trendingList')[0], '.meta');
+        check(meta === '<b>bold</b> .tflite from hostile-org/still-a-repo', 'only the well-formed source model stays: ' + meta);
+    },
+    'picks: the card answers 404': async () => picksDown({ card: '404' }, /HTTP 404/),
+    'picks: the card answers 500': async () => picksDown({ card: '500' }, /HTTP 500/),
+    'picks: no answer before the timeout': async () => picksDown({ card: 'hang', timeout: '1200' }, /no answer in 1\.2 s/),
+    'picks: an HTML page instead of the card': async () => picksDown({ card: 'html' }, /has no picks heading/),
+    'picks: the card has no heading with the word': async () => picksDown({ card: 'noheading' }, /has no picks heading/),
+    'picks: the heading has no list under it': async () => picksDown({ card: 'noitems' }, /have no items/),
+    'picks: the heading in another spelling and at another level': async () => {
+        const { doc } = await load({ card: 'renamed' });
+        states(doc);
+        check(text(doc, 'picksTitle') === 'our pick' && rows(doc, 'picksList').length === 6, text(doc, 'picksTitle'));
+    },
+    'picks: a loosely written section: numbered items, an item a comment hides, a rule, items under an item, tags, a link to another site': async () => {
+        const { doc } = await load({ card: 'loose' });
+        states(doc);
+        const picks = rows(doc, 'picksList').map(p => flat(p.querySelector('p').textContent));
+        check(same(picks, ['First (Task) One. Second line of one.', 'Second on the site, docs, elsewhere.', 'Series Third <fourth> and last']), JSON.stringify(picks));
+        const hrefs = [...doc.querySelectorAll('#picksList p a')].map(a => a.getAttribute('href'));
+        check(same(hrefs, [HUB + 'litert-community/Laya-Multilingual-LiteRT', 'https://ai.google.dev/edge/litert', HUB + 'litert-community/PaddleOCR-VL-1.6']), 'the links that stay links: ' + hrefs.join(' '));
+        check(text(doc, 'picksTitle') === 'Our picks', 'the heading with "picks", not the one with "pick" above it: ' + text(doc, 'picksTitle'));
+        check(!/Chosen by|Older|not a pick|Hidden|\* \* \*/.test(text(doc, 'picksList')), 'a line outside the items, or one a comment hides, is shown');
+        check(row(doc, 'trendingMoreList', 'PaddleOCR-VL-1.6').querySelector('.tag.pick') && !row(doc, 'trendingList', 'laya-LiteRT').querySelector('.tag.pick'), 'the marks follow the items');
+    },
+    'picks: hostile strings stay text': async () => {
+        const { doc, win } = await load({ card: 'hostile' });
+        noMarkup(doc, win);
+        check(!doc.querySelector('#picks .pick b:not(:has(a)), #picksTitle *'), 'markup got in');
+        check(text(doc, 'picksTitle') === 'Picks window.__pwned=1', text(doc, 'picksTitle'));
+        const picks = rows(doc, 'picksList');
+        check(picks.length === 3 && picks[0].querySelector('b a').href === HUB + 'litert-community/Laya-Multilingual-LiteRT', 'the good item keeps its link');
+        const hrefs = [...doc.querySelectorAll('#picksList p a')].map(a => a.href);
+        check(hrefs.length === 2 && hrefs.every(h => h.startsWith(HUB)), 'a link to another site or scheme: ' + hrefs.join(' '));
+        check(flat(picks[1].textContent) === '[x](javascript:alert(1)) y z w bold window.__pwned=1', flat(picks[1].textContent));
+        check(flat(picks[2].textContent) === 'name & co <i>code</i> !img', flat(picks[2].textContent));
+        others(doc, 'lists');
+    },
+    'samples: both tables answer 404': async () => samplesDown({ samples: '404' }, /HTTP 404/),
+    'samples: both tables answer 500': async () => samplesDown({ samples: '500' }, /HTTP 500/),
+    'samples: no answer before the timeout': async () => samplesDown({ samples: 'hang', timeout: '1200' }, /no answer in 1\.2 s/),
+    'samples: the tables have other headers': async () => samplesDown({ samples: 'notable' }, /no samples table in the README/),
+    'samples: one table answers 404, the other is listed and the page says which is missing': async () => {
+        const { doc } = await load({ samples: 'one404' });
+        states(doc);
+        check(shown(doc, 'samplesPartial'), 'the notice of the missing table');
+        check(text(doc, 'samplesPartial') === 'One sample table could not be loaded (samples/litert/README.md), so its samples are missing from this list.', text(doc, 'samplesPartial'));
+        check(names(doc, 'samplesList').join() === 'samples/litert_lm/reachy-voice-robot', names(doc, 'samplesList').join());
+        check(flat(row(doc, 'trendingList', 'gemma-4-E2B-it-litert-lm').querySelector('a.tag.sample').textContent) === 'Sample · reachy-voice-robot', 'the mark counts what was read');
+        others(doc, 'lists', 'picks', 'demos');
+    },
+    'samples: no row names a model of the org': async () => {
+        const { doc } = await load({ samples: 'none' });
+        states(doc);
+        check(shown(doc, 'samplesEmpty') && rows(doc, 'samplesList').length === 0 && !doc.querySelector('.tag.sample'), 'the empty notice');
+    },
+    'samples: hostile strings stay text': async () => {
+        const { doc, win } = await load({ samples: 'hostile' });
+        noMarkup(doc, win);
+        check(names(doc, 'samplesList').join() === 'samples/litert/ok_dir,samples/litert_lm/ok_dir', names(doc, 'samplesList').join());
+        const first = rows(doc, 'samplesList')[0];
+        check(!first.querySelector('.what') && part(first, '.facts') === 'phone · runs MobileNet-v2', 'the tags of a cell are dropped: ' + flat(first.textContent));
+    },
+    'demos: the collection answers 404': async () => demosDown({ demos: '404' }, /HTTP 404/),
+    'demos: the collection answers 500': async () => demosDown({ demos: '500' }, /HTTP 500/),
+    'demos: no answer before the timeout': async () => demosDown({ demos: 'hang', timeout: '1200' }, /no answer in 1\.2 s/),
+    'demos: an HTML page instead of JSON': async () => demosDown({ demos: 'html' }, /the answer is not JSON/),
+    'demos: the answer is not a collection': async () => demosDown({ demos: 'noshape' }, /the answer is not a collection/),
+    'demos: the collection lists no Space': async () => demosDown({ demos: 'empty' }, /the collection lists no Space/),
+    'demos: hostile strings stay text, and what is not a Space is left out': async () => {
+        const { doc, win } = await load({ demos: 'hostile' });
+        noMarkup(doc, win);
+        check(names(doc, 'demosList').join() === '<img src=x onerror=window.__pwned=1>' && rows(doc, 'demosList')[0].querySelector('.name a').href === HUB + 'spaces/someone/demo', 'only the well-formed Space stays');
+        check(part(rows(doc, 'demosList')[0], '.what') === '<script>window.__pwned=1<\/script>', part(rows(doc, 'demosList')[0], '.what'));
+    },
+    'a part whose rows cannot be drawn says so, and the others stand': async () => {
+        for (const broken of PARTS) {
+            const { doc } = await load({ break: broken });
+            states(doc, [broken]);
+            check(/\(fixture break\)/.test(text(doc, `${broken}Error`)), `${broken}: ${text(doc, `${broken}Error`)}`);
+            check(PARTS.filter(p => p !== broken).every(p => doc.querySelectorAll(`#${p} li`).length > 0), `${broken}: another part lost its rows`);
+            if (broken === 'picks') check(text(doc, 'picksTitle') === 'Picks', 'the heading of picks that could not be drawn: ' + text(doc, 'picksTitle'));
+        }
+    },
+    'rows that cannot be drawn after the first twelve: the notice, and none of the rows already made': async () => {
+        const { doc } = await load({ break: 'fold' });
+        states(doc, ['trending']);
+        check(/\(fixture break\)/.test(text(doc, 'trendingError')) && !shown(doc, 'trendingMore') && !shown(doc, 'trendingEmpty'), text(doc, 'trendingError'));
+        check(same(names(doc, 'recentList'), RECENT), 'the other list lost its rows');
+    },
+    'every source fails: five notices, each with its way out, and nothing else': async () => {
+        const { doc } = await load({ hf: '500', card: '404', samples: '404', demos: '404' });
+        states(doc, PARTS);
+        check(ERRORS.every(id => doc.querySelector(`#${id} a[href^="https://"]`)), 'a notice without a link');
+        check(doc.querySelectorAll('main li').length === 0, 'rows next to the notices');
+        check(text(doc, 'picksTitle') === 'Picks', text(doc, 'picksTitle'));
+        noRaw(doc);
+    },
+};
+
+async function modelsDown(mode, why) {
+    const { doc } = await load(mode);
+    states(doc, ['trending', 'recent']);
+    check(why.test(text(doc, 'trendingError')) && why.test(text(doc, 'recentError')), text(doc, 'trendingError'));
+    check(!shown(doc, 'trendingEmpty') && !shown(doc, 'trendingMore') && !shown(doc, 'recentMore'), 'the empty notice or a fold next to the error');
+    others(doc, 'picks', 'demos');
+    check(same(names(doc, 'samplesList'), ['samples/litert/zero_shot_classification']), 'without the model list, the samples of the picks: ' + names(doc, 'samplesList').join(' '));
+}
+
+async function picksDown(mode, why) {
+    const { doc } = await load(mode);
+    states(doc, ['picks']);
+    check(why.test(text(doc, 'picksError')) && /They are on the litert-community page\.$/.test(text(doc, 'picksError')), text(doc, 'picksError'));
+    check(text(doc, 'picksTitle') === 'Picks', 'the heading falls back: ' + text(doc, 'picksTitle'));
+    check(rows(doc, 'trendingList').length === 12 && !doc.querySelector('.tag.pick'), 'a Pick mark on a model row without the picks');
+    others(doc, 'lists', 'samples', 'demos');
+    noRaw(doc);
+}
+
+async function samplesDown(mode, why) {
+    const { doc } = await load(mode);
+    states(doc, ['samples']);
+    check(why.test(text(doc, 'samplesError')) && /The samples are at litert-samples\/samples\.$/.test(text(doc, 'samplesError')), text(doc, 'samplesError'));
+    check(!shown(doc, 'samplesPartial') && !shown(doc, 'samplesEmpty') && !doc.querySelector('.tag.sample'), 'another samples notice, or a Sample mark without the samples');
+    others(doc, 'lists', 'picks', 'demos');
+    noRaw(doc);
+}
+
+async function demosDown(mode, why) {
+    const { doc } = await load(mode);
+    states(doc, ['demos']);
+    check(why.test(text(doc, 'demosError')) && /The org's collections are on the litert-community page\.$/.test(text(doc, 'demosError')), text(doc, 'demosError'));
+    others(doc, 'lists', 'picks', 'samples');
+    noRaw(doc);
+}
+
+let failed = 0;
+const only = new URLSearchParams(location.search).get('only');
+const cases = Object.entries(CASES).filter(([name]) => !only || name.includes(only));
+if (!cases.length) throw new Error(`no case is named "${only}": the title stays "running…"`);
+for (const [name, run] of cases) {
+    try {
+        await run();
+        out.append(`PASS  ${name}\n`);
+    } catch (err) {
+        failed++;
+        const line = document.createElement('span');
+        line.className = 'fail';
+        line.textContent = `FAIL  ${name}: ${err.message}\n`;
+        out.append(line);
+    }
+}
+await fetch('/__mode?' + new URLSearchParams(DEFAULTS));
+out.append(`\n${cases.length} cases, ${cases.length - failed} PASS, ${failed} FAIL\n`);
+document.title = failed ? `FAIL ${failed} of ${cases.length}` : `PASS ${cases.length}/${cases.length}`;
+</script>
+</body>
+</html>
