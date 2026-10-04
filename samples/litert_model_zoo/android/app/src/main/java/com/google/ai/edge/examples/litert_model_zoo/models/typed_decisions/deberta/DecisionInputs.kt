@@ -15,7 +15,8 @@
  */
 
 // Vendored from https://huggingface.co/litert-community/Open-Decision-DeBERTa-v3-Large-LiteRT/blob/7a276235b795e8ad3ae7ac6a9f237daa2098863a/android/sample/app/src/main/java/com/opendecision/DecisionInputs.kt (Apache-2.0)
-// formatted for this repository's 100-column and brace rules; no logic change
+// Formatted for this repository. One change from the source: EmbeddingTable.lookup reads each
+// row with one bulk read into reused arrays.
 package com.google.ai.edge.examples.litert_model_zoo.models.typed_decisions.deberta
 
 import java.io.Closeable
@@ -157,18 +158,31 @@ class DecisionInputs(private val tokenizer: DecisionTokenizer) {
           .asShortBuffer()
     }
 
-    /** `inputs_embeds` for the padded [inputIds]: `[N,1024]` row-major, pad rows included. */
+    /** One table row of float16 bits, filled by one bulk read per looked-up ID. */
+    private val row = ShortArray(HIDDEN_SIZE)
+
+    /** The embeddings [lookup] returns, reused while N stays the same. */
+    private var embeds = FloatArray(0)
+
+    /**
+     * `inputs_embeds` for the padded [inputIds]: `[N,1024]` row-major, pad rows included. Each row
+     * is copied with one bulk read and widened through [HALF_TO_FLOAT]. The returned array is
+     * reused by the next call.
+     */
     fun lookup(inputIds: IntArray): FloatArray {
-      val out = FloatArray(inputIds.size * HIDDEN_SIZE)
+      if (embeds.size != inputIds.size * HIDDEN_SIZE) {
+        embeds = FloatArray(inputIds.size * HIDDEN_SIZE)
+      }
       for ((position, id) in inputIds.withIndex()) {
         require(id in 0 until VOCABULARY_SIZE) { "Token id $id is outside the table" }
-        val base = id * HIDDEN_SIZE
+        shorts.position(id * HIDDEN_SIZE)
+        shorts.get(row, 0, HIDDEN_SIZE)
         val offset = position * HIDDEN_SIZE
         for (c in 0 until HIDDEN_SIZE) {
-          out[offset + c] = halfToFloat(shorts.get(base + c))
+          embeds[offset + c] = HALF_TO_FLOAT[row[c].toInt() and 0xffff]
         }
       }
-      return out
+      return embeds
     }
 
     override fun close() = channel.close()
@@ -213,5 +227,8 @@ class DecisionInputs(private val tokenizer: DecisionTokenizer) {
         }
       return java.lang.Float.intBitsToFloat(bits)
     }
+
+    /** [halfToFloat] of every float16 bit pattern, indexed by the unsigned bits. */
+    private val HALF_TO_FLOAT = FloatArray(1 shl 16) { halfToFloat(it.toShort()) }
   }
 }

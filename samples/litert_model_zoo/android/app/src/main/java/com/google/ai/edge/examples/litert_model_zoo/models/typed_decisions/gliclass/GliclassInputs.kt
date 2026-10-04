@@ -15,6 +15,8 @@
  */
 
 // Vendored from https://huggingface.co/litert-community/GLiClass-Edge-v3.0-LiteRT/blob/88c90950587eb951974c094eef91afa0fe3552c0/android/sample/app/src/main/java/com/gliclass/GliclassInputs.kt (Apache-2.0)
+// One change from the source: EmbeddingTable.lookup reads each row with one bulk read into
+// reused arrays.
 package com.google.ai.edge.examples.litert_model_zoo.models.typed_decisions.gliclass
 
 import java.io.Closeable
@@ -51,7 +53,10 @@ class GliclassInputs(private val tokenizer: GliclassTokenizer, private val table
       get() = labelPositions.size
   }
 
-  /** Graph-ready inputs for one window: [inputIds] and [attentionMask] have N entries. */
+  /**
+   * Graph-ready inputs for one window: [inputIds] and [attentionMask] have N entries. [embeds] is
+   * the table's reused array: the next [prepare] overwrites it.
+   */
   data class Prepared(
     val encoded: Encoded,
     val window: Int,
@@ -142,18 +147,30 @@ class GliclassInputs(private val tokenizer: GliclassTokenizer, private val table
       }
     }
 
-    /** Row-major `[1,N,384]` float32 embeddings of N IDs. Absolute reads keep the position. */
+    /** One table row of float16 bits, filled by one bulk read per looked-up ID. */
+    private val row = ShortArray(HIDDEN_SIZE)
+
+    /** The embeddings [lookup] returns, reused while N stays the same. */
+    private var embeds = FloatArray(0)
+
+    /**
+     * Row-major `[1,N,384]` float32 embeddings of N IDs, each row copied with one bulk read. The
+     * returned array is reused by the next call.
+     */
     fun lookup(ids: IntArray): FloatArray {
-      val out = FloatArray(ids.size * HIDDEN_SIZE)
-      for ((row, id) in ids.withIndex()) {
+      if (embeds.size != ids.size * HIDDEN_SIZE) {
+        embeds = FloatArray(ids.size * HIDDEN_SIZE)
+      }
+      for ((position, id) in ids.withIndex()) {
         require(id in 0 until VOCABULARY_SIZE) { "Token ID outside the embedding table: $id" }
-        val source = id * HIDDEN_SIZE
-        val target = row * HIDDEN_SIZE
+        values.position(id * HIDDEN_SIZE)
+        values.get(row, 0, HIDDEN_SIZE)
+        val target = position * HIDDEN_SIZE
         for (column in 0 until HIDDEN_SIZE) {
-          out[target + column] = HALF_TO_FLOAT[values.get(source + column).toInt() and 0xffff]
+          embeds[target + column] = HALF_TO_FLOAT[row[column].toInt() and 0xffff]
         }
       }
-      return out
+      return embeds
     }
 
     override fun close() = channel.close()

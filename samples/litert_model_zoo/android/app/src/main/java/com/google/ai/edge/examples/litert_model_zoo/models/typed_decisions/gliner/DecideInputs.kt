@@ -15,6 +15,8 @@
  */
 
 // Vendored from https://huggingface.co/litert-community/GLiNER2.5-Decide-LiteRT/blob/db80197282d11373df084c0ceed67a54544cfa84/android/app/src/main/java/com/gliner25decide/DecideInputs.kt (Apache-2.0)
+// One change from the source: EmbeddingTable.lookup reads each row with one bulk read into
+// reused arrays.
 package com.google.ai.edge.examples.litert_model_zoo.models.typed_decisions.gliner
 
 import java.io.Closeable
@@ -200,25 +202,35 @@ class DecideInputs(private val tokenizer: GlinerTokenizer) {
       }
     }
 
+    /** One table row of float16 bits, filled by one bulk read per looked-up ID. */
+    private val row = ShortArray(HIDDEN_SIZE)
+
+    /** The embeddings [lookup] returns, reused while N stays the same. */
+    private var embeds = FloatArray(0)
+
     /** Raw float16 bits of one table value, for tests. */
     fun halfBits(id: Int, column: Int): Int =
       values.get(id * HIDDEN_SIZE + column).toInt() and 0xffff
 
     /**
      * Returns row-major `[1,N,1024]` float32 embeddings for N padded IDs, matching `fixed_inputs`
-     * fed from the float16 table with host upcast. Absolute reads keep the buffer position unused.
+     * fed from the float16 table with host upcast. Each row is copied with one bulk read. The
+     * returned array is reused by the next call: write it to the graph before looking up again.
      */
     fun lookup(ids: IntArray): FloatArray {
-      val out = FloatArray(ids.size * HIDDEN_SIZE)
-      for ((row, id) in ids.withIndex()) {
+      if (embeds.size != ids.size * HIDDEN_SIZE) {
+        embeds = FloatArray(ids.size * HIDDEN_SIZE)
+      }
+      for ((position, id) in ids.withIndex()) {
         require(id in 0 until VOCABULARY_SIZE) { "Tokenizer ID outside embedding table: $id" }
-        val source = id * HIDDEN_SIZE
-        val target = row * HIDDEN_SIZE
+        values.position(id * HIDDEN_SIZE)
+        values.get(row, 0, HIDDEN_SIZE)
+        val target = position * HIDDEN_SIZE
         for (column in 0 until HIDDEN_SIZE) {
-          out[target + column] = HALF_TO_FLOAT[values.get(source + column).toInt() and 0xffff]
+          embeds[target + column] = HALF_TO_FLOAT[row[column].toInt() and 0xffff]
         }
       }
-      return out
+      return embeds
     }
 
     /** Releases the file channel when the host runtime no longer needs embedding lookups. */
