@@ -24,9 +24,9 @@ import com.google.ai.edge.examples.litert_model_zoo.models.typed_decisions.TextD
 import java.io.File
 
 /**
- * Julia-1 (S512, host token lookup) through the card's vendored host: each option is scored as its
- * description (a key stands for itself when it has none), strict encoding rejects a request that
- * does not fit the window, and the answer is the plain softmax of the marker logits.
+ * Julia-1 (S512, host token lookup) through the model card's vendored host: each option is scored
+ * as its description (a key stands for itself when it has none), strict encoding rejects a request
+ * that does not fit the window, and the answer is the plain softmax of the marker logits.
  */
 class JuliaDecider(modelDir: File, backend: String = "gpu") : TextDecisionEngine {
   private val tokenizer = JuliaTokenizer(File(modelDir, "tokenizer.json"))

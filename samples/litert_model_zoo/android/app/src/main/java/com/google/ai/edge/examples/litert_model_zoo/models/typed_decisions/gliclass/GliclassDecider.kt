@@ -24,7 +24,7 @@ import com.google.ai.edge.examples.litert_model_zoo.models.typed_decisions.TextD
 import java.io.File
 
 /**
- * GLiClass-Edge v3.0 (S128) through the card's vendored host: the options become labels (the
+ * GLiClass-Edge v3.0 (S128) through the model card's vendored host: the options become labels (the
  * description, or the key when there is none), the question plus one space is the prompt so the
  * text starts a word, and the labels get a single-label softmax.
  */

@@ -24,9 +24,9 @@ import com.google.ai.edge.examples.litert_model_zoo.models.typed_decisions.TextD
 import java.io.File
 
 /**
- * Laya multilingual (S256, host token lookup) through the card's vendored host: the prompt builder
- * renders each option as `key: description`, the main graph scores one marker per option, the act
- * head reads the raw probabilities, and the decoder applies the checkpoint's option-count
+ * Laya multilingual (S256, host token lookup) through the model card's vendored host: the prompt
+ * builder renders each option as `key: description`, the main graph scores one marker per option,
+ * the act head reads the raw probabilities, and the decoder applies the checkpoint's option-count
  * temperature and rounds to four decimals.
  */
 class LayaDecider(modelDir: File, backend: String = "gpu") : TextDecisionEngine {
@@ -107,7 +107,7 @@ class LayaDecider(modelDir: File, backend: String = "gpu") : TextDecisionEngine 
       loaded.fallbackReason,
       "${sequence.ids.size} of $WINDOW tokens. The model reads each option as " +
         sequence.options.joinToString("; ") { "\"$it\"" } +
-        ". Probabilities use the card's calibrated temperature, rounded to four decimals.",
+        ". Probabilities use the model card's calibrated temperature, rounded to four decimals.",
     )
   }
 

@@ -24,7 +24,7 @@ import com.google.ai.edge.examples.litert_model_zoo.models.typed_decisions.TextD
 import java.io.File
 
 /**
- * Open-Decision DeBERTa-v3-large (S256) through the card's vendored host: one choice question
+ * Open-Decision DeBERTa-v3-large (S256) through the model card's vendored host: one choice question
  * whose options are the descriptions (a key stands for itself when it has none), the text as the
  * state (cut at 256 tokens by the author's collator), and a softmax at the author's temperature
  * 1.05.

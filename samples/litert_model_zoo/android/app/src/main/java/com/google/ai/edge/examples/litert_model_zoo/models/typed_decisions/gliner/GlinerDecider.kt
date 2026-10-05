@@ -24,7 +24,7 @@ import com.google.ai.edge.examples.litert_model_zoo.models.typed_decisions.TextD
 import java.io.File
 
 /**
- * GLiNER2.5-Decide (S128) through the card's vendored host: the question is one gliner2 task
+ * GLiNER2.5-Decide (S128) through the model card's vendored host: the question is one gliner2 task
  * named `answer` with the question as its prompt, the options are its labels (the description, or
  * the key when there is none), and the labels get a single-label softmax at temperature 1.
  */
