@@ -2,13 +2,13 @@
 
 [litert-community/functiongemma-270m-ft-mobile-actions](https://huggingface.co/litert-community/functiongemma-270m-ft-mobile-actions)'s `mobile_actions_q8_ekv1024.litertlm` (289 MB), a `.litertlm` bundle for the [LiteRT-LM](https://github.com/google-ai-edge/LiteRT-LM) engine: Gemma 3 270M finetuned to route natural-language requests to phone actions. The bundle is published by the LiteRT team, not built by this recipe, so there is no `build_*.py` here — [`converted/`](converted/) holds the measurement harness that establishes what the bundle can and cannot route, which is the part that was not written down anywhere.
 
-**Read the four-tool result before shipping this model.** The bundle is a keyword matcher, not a semantic router. On a fixed prompt set it routes **100% of prompts that carry a tool's own vocabulary and 17% of paraphrases that do not**, and its accuracy is highest at four tools and *falls* at eight. Both numbers were measured; neither is in the model's card.
+**Read the four-tool result before shipping this model.** The bundle is a keyword matcher, not a semantic router. On a fixed prompt set it routes **100% of prompts that carry a tool's own vocabulary and 17% of paraphrases that do not**, and its accuracy is highest at four tools and *falls* at eight. Both numbers were measured; neither is in the model's card. The same split holds on a budget Android phone — 75% literal, 8% paraphrase — at 3.1 s per prompt and 983 MB peak RSS.
 
-| Prompt phrasing | n | Routing accuracy |
-|---|---|---|
-| Literal — uses the tool's own words ("what is on my calendar today") | 3 | 100% |
-| Paraphrase — same intent, different words ("do i have meetings today") | 12 | 17% |
-| Terse — keywords only ("calendar today") | 1 | 0% |
+| Prompt phrasing | n | Routing accuracy (desktop) | Routing accuracy (SM-A145F) |
+|---|---|---|---|
+| Literal — uses the tool's own words ("what is on my calendar today") | 3 | 100% | 75% |
+| Paraphrase — same intent, different words ("do i have meetings today") | 12 | 17% | 8% |
+| Terse — keywords only ("calendar today") | 1 | 0% | 0% |
 
 ## Run
 
@@ -148,11 +148,33 @@ Decode and prefill in tokens per second, 256-token prompt and reply, three runs,
 
 **The GPU row does not produce a usable tool call.** With `Backend.GPU()` the same prompt that returns `open_flashlight` on the CPU returns a refusal, and a no-tools prompt returns 2,032 repetitions of the literal string `<pad>`. The bundle's own metadata declares a `function_gemma` model type whose GPU path is not exercised here; the speed numbers above are real, and the routing is not. Gate a backend on generated text, not on benchmark output — this backend prints healthy prefill and decode numbers for a model it cannot actually run.
 
-Not measured on a phone. The two Tensor-targeted files in the same repository were not run, and the NPU dispatch library is absent from this host, so no NPU number is claimed.
+### On device: SM-A145F
+
+The desktop harness cannot run on a phone, so the routing gate was re-implemented in Kotlin against `com.google.ai.edge.litertlm:litertlm-android:0.16.0` — same four tool schemas, same 26 prompts, same paired literal/paraphrase split, `automaticToolCalling=false`, greedy, one fresh conversation per prompt. Source in [`android/`](android/).
+
+Samsung Galaxy A14 (SM-A145F), Exynos 3830, Mali-G52, 3.5 GB RAM, Android 15 / SDK 35, arm64-v8a. CPU backend.
+
+| Quantity | Value |
+|---|---|
+| Routing accuracy, 4-tool cell | **4 / 18**, identical in 3 of 3 rounds |
+| Verdict changes across 54 runs | 0 — greedy on this bundle is deterministic on device |
+| Literal prompts | 9 / 12 (75%) |
+| Paraphrase prompts | 3 / 39 (8%) |
+| Terse prompts | 0 / 3 |
+| Median prompt latency | 3.12 s (min 2.50 s, max 3.54 s) |
+| Engine init | 9.7–10.2 s over 3 rounds |
+| Peak RSS after init | 953 MB |
+| Peak RSS after 3 rounds | 983 MB |
+
+The finding holds on the device, and is slightly worse than on the host: literal prompts route, paraphrases do not. One prompt flipped relative to desktop — `"shut the light"` reaches `close_flashlight` on the CPU and is refused on the phone — so the two backends disagree on one of eighteen, which is the argument for gating on the device you ship rather than on a host.
+
+**Two numbers that matter more than the accuracy.** Median 3.12 s per prompt on a 3.5 GB phone means a four-action turn costs the user over 12 s of waiting. And peak RSS settles at 983 MB — about 28% of this device's entire RAM, for a 289 MB model — which is the real constraint on how many tools an agent can hold live at once. It also explains why the eight-tool cell could not be tested on device at all: the schema is larger and there is no headroom to find out.
+
+Not measured: the two Tensor-targeted files in the same repository (this Exynos device has no Tensor NPU, so they cannot run here at all), and the NPU backend, whose dispatch library is absent. No NPU number is claimed.
 
 ## Conversion
 
-Not in this recipe: the bundle is published by the LiteRT team, and the source checkpoint ([google/functiongemma-270m-it](https://huggingface.co/google/functiongemma-270m-it), `gemma` license, manually gated) is not something this repository rebuilds. The harness in [`converted/`](converted/) and the bundle's own layout are documented here so the published file can be evaluated rather than assumed.
+Not in this recipe: the bundle is published by the LiteRT team, and the source checkpoint ([google/functiongemma-270m-it](https://huggingface.co/google/functiongemma-270m-it), `gemma` license, manually gated) is not something this repository rebuilds. The harnesses — [`converted/`](converted/) for the host, [`android/`](android/) for the device — and the bundle's own layout are documented here so the published file can be evaluated rather than assumed.
 
 Measured on the published file: LiteRT-LM container version 1.5.0, authors "Google AI Edge", three sections — `LlmMetadata` (15 KB), `TF_LITE_PREFILL_DECODE` model (284,216,288 B), SentencePiece tokenizer (4,689,144 B), 1.05 bytes per parameter at 270M. Metadata declares `llm_model_type: function_gemma`, `start_token` id 2, and stop tokens `<end_of_turn>` and `<start_function_response>`. The embedded Jinja template renders tool declarations as `<start_function_declaration>` blocks and tool calls as `<start_function_call>call:{name}{k:v}` — the format the harness in `converted/` emits through `SchemaTool`, which is why the tool descriptions and argument names are part of the prompt contract.
 
