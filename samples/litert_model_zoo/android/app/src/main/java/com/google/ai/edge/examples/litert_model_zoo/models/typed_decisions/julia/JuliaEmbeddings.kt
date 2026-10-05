@@ -15,6 +15,7 @@
  */
 
 // Vendored from https://huggingface.co/litert-community/Julia-1-LiteRT/blob/8f36857c56e891c023060586759c6cdc8baf6b3e/android/app/src/main/java/com/julia1/JuliaEmbeddings.kt (Apache-2.0)
+// One change from the source: gather reads each row with one bulk read.
 // SPDX-License-Identifier: Apache-2.0
 package com.google.ai.edge.examples.litert_model_zoo.models.typed_decisions.julia
 
@@ -52,13 +53,15 @@ class JuliaEmbeddings(tableFile: File) : Closeable {
       "Embedding destination must contain window * 384 float32 values"
     }
     ids.forEach { require(it in 0 until VOCABULARY_SIZE) { "Token id out of range: $it" } }
+    val shorts = mapped.asShortBuffer()
+    val row = ShortArray(WIDTH)
     var output = 0
     for (position in 0 until window) {
       val token = if (position < ids.size) ids[position] else PAD_ID
-      var offset = token * WIDTH * 2
-      repeat(WIDTH) {
-        destination[output++] = halfToFloat(mapped.getShort(offset).toInt())
-        offset += 2
+      shorts.position(token * WIDTH)
+      shorts.get(row, 0, WIDTH)
+      for (value in row) {
+        destination[output++] = halfToFloat(value.toInt())
       }
     }
     return destination

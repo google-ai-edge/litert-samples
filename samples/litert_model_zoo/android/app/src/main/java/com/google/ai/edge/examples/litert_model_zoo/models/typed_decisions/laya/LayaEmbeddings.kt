@@ -15,7 +15,8 @@
  */
 
 // Vendored from https://huggingface.co/litert-community/Laya-Multilingual-LiteRT/blob/32f1b84d55f42a323464fad22594cfc2059e7467/android/app/src/main/java/com/laya/LayaEmbeddings.kt (Apache-2.0)
-// formatted for this repository's 100-column and brace rules; no logic change
+// Formatted for this repository. One change from the source: gather reads each row with one
+// bulk read.
 // SPDX-License-Identifier: Apache-2.0
 package com.google.ai.edge.examples.litert_model_zoo.models.typed_decisions.laya
 
@@ -68,13 +69,15 @@ class LayaEmbeddings(tableFile: File, metadataFile: File) : Closeable {
       "Embedding destination must contain window * 768 float32 values"
     }
     ids.forEach { require(it in 0 until VOCABULARY_SIZE) { "Token id out of range: $it" } }
+    val shorts = mapped.asShortBuffer()
+    val row = ShortArray(WIDTH)
     var output = 0
     for (position in 0 until window) {
       val token = if (position < ids.size) ids[position] else PAD_ID
-      var offset = token * WIDTH * 2
-      repeat(WIDTH) {
-        destination[output++] = halfToFloat(mapped.getShort(offset).toInt())
-        offset += 2
+      shorts.position(token * WIDTH)
+      shorts.get(row, 0, WIDTH)
+      for (value in row) {
+        destination[output++] = halfToFloat(value.toInt())
       }
     }
     return destination
