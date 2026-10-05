@@ -38,13 +38,15 @@ class ToolArgsTest {
       val e = assertThrows(IllegalArgumentException::class.java) { ToolArgs.int(args, key) }
       assertEquals("$key '$v' must be a whole number", e.message)
     }
-    val tooBig = assertThrows(IllegalArgumentException::class.java) {
-      ToolArgs.int(mapOf("a" to 1e10), "a")
-    }
+    val tooBig =
+      assertThrows(IllegalArgumentException::class.java) {
+        ToolArgs.int(mapOf("a" to 1e10), "a")
+      }
     assertEquals("a '1.0E10' is out of range", tooBig.message)
-    val missing = assertThrows(IllegalArgumentException::class.java) {
-      ToolArgs.int(emptyMap(), "a")
-    }
+    val missing =
+      assertThrows(IllegalArgumentException::class.java) {
+        ToolArgs.int(emptyMap(), "a")
+      }
     assertEquals("missing a", missing.message)
   }
 

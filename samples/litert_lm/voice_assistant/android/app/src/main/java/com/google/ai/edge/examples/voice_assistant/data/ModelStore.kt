@@ -26,6 +26,7 @@ import java.io.FileOutputStream
 import java.net.HttpURLConnection
 import java.net.URL
 import java.security.MessageDigest
+import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.awaitCancellation
@@ -56,12 +57,15 @@ data class DownloadState(
 data class SideLoad(val imported: List<String>, val skipped: List<String>)
 
 /**
- * All model bytes stay outside the APK, under filesDir/models/<id>. [openConnection] opens a
- * file's URL (a test passes a connection of its own).
+ * All model bytes stay outside the APK, under filesDir/models/<id>. [ioDispatcher] runs the file
+ * and network calls, and [openConnection] opens a file's URL. A test passes its own of both.
+ * [ioDispatcher] must be able to run other work while a download blocks one of its threads, since
+ * the disconnect() on a cancel runs on it: Dispatchers.IO can, a single-thread dispatcher cannot.
  */
 class ModelStore(
   private val root: File,
   private val eventLogger: (String) -> Unit = { Log.i("VoiceAssistantDownload", it) },
+  private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO,
   private val openConnection: (URL) -> HttpURLConnection = {
     it.openConnection() as HttpURLConnection
   },
@@ -71,7 +75,7 @@ class ModelStore(
   fun file(entry: ModelEntry, name: String): File = File(directory(entry), entry.file(name).name)
 
   suspend fun inspect(entry: ModelEntry): DownloadState =
-    withContext(Dispatchers.IO) {
+    withContext(ioDispatcher) {
       val dir = directory(entry)
       val present =
         entry.files.sumOf { file ->
@@ -101,7 +105,7 @@ class ModelStore(
    * be read or does not match is skipped, with the reason.
    */
   suspend fun sideLoad(entry: ModelEntry, source: File?): SideLoad =
-    withContext(Dispatchers.IO) {
+    withContext(ioDispatcher) {
       val imported = ArrayList<String>()
       val skipped = ArrayList<String>()
       if (source == null || !source.isDirectory) {
@@ -140,13 +144,21 @@ class ModelStore(
 
   /**
    * Downloads the entry's missing files (a partial file resumes), checks each file's size and
-   * SHA-256 before it is committed, and reports [progress]. A cancel stops it before the request
-   * goes out or within a read. One window is left: HttpURLConnection follows a redirect inside
-   * responseCode, and a cancel while it connects to the redirect's target is seen only when that
-   * server answers, or after the 30 s timeout.
+   * SHA-256 before it is committed, and reports [progress]. A cancel is checked before the
+   * connection is made and again before the request goes out. When the download is cancelled, a
+   * child coroutine calls disconnect() on the connection, and what that ends depends on the
+   * HttpURLConnection in use. On the JDK's HttpURLConnection, disconnect() ends a read that waits
+   * for the response but not a connect in progress, so a cancel while connecting is seen only when
+   * the connect ends. The 30 s connect timeout does not bound that wait, since the JDK resolves the
+   * host name before the timed connect starts. On the JDK, that wait comes in connect(), in the
+   * connect responseCode makes to a redirect's target, and in the connect responseCode makes again
+   * when a cancel closes the connection after the last check but before responseCode uses it. In
+   * the last two, once that connect succeeds, responseCode also sends the request and waits for the
+   * response or the 30 s read timeout before the cancel is seen. On Android 16, disconnect() also
+   * closes a socket that is still connecting.
    */
   suspend fun download(entry: ModelEntry, progress: (DownloadState) -> Unit) =
-    withContext(Dispatchers.IO) {
+    withContext(ioDispatcher) {
       require(entry.canDownload) { "This model is awaiting verified download metadata" }
       val dir = directory(entry)
       check(dir.isDirectory || dir.mkdirs()) { "Cannot create model directory" }
@@ -174,22 +186,25 @@ class ModelStore(
             if (offset > 0) {
               connection.setRequestProperty("Range", "bytes=$offset-")
             }
-            // Closing the app's screen cancels this coroutine, but the socket calls below block for
-            // up to the 30 s timeout. The child coroutine is cancelled with the download and tears
-            // the connection down from the cancelling side, so the blocked call fails at once. It
-            // starts undispatched: a child cancelled before it ever ran would skip its finally.
+            // Closing the app's screen cancels this coroutine, but the socket calls below block
+            // without seeing the cancel. The child coroutine is cancelled with the download and
+            // calls the connection's disconnect(), whose effect the KDoc of download() describes.
+            // It starts undispatched: a child cancelled before it ever ran would skip its finally.
             coroutineScope {
-              val abortOnCancel = launch(start = CoroutineStart.UNDISPATCHED) {
-                try {
-                  awaitCancellation()
-                } finally {
-                  runCatching { connection.disconnect() }
+              val abortOnCancel =
+                launch(start = CoroutineStart.UNDISPATCHED) {
+                  try {
+                    awaitCancellation()
+                  } finally {
+                    runCatching { connection.disconnect() }
+                  }
                 }
-              }
               try {
-                // disconnect() closes nothing until the connection exists: a cancel that came
-                // while it was being made is seen here, before the request goes out.
+                currentCoroutineContext().ensureActive()
                 connection.connect()
+                // On the JDK's HttpURLConnection, disconnect() closes nothing until the connection
+                // exists: a cancel that came while it was being made is seen here, before the
+                // request goes out.
                 currentCoroutineContext().ensureActive()
                 val code = connection.responseCode
                 downloadEvent("response", entry, modelFile, offset, fileStartedNanos, code)
@@ -242,14 +257,16 @@ class ModelStore(
                 currentCoroutineContext().ensureActive()
               } catch (failure: Exception) {
                 // A call torn down by cancellation reports as cancelled, not as a download error.
-                // HttpURLConnection does not always throw an IOException then: when disconnect()
-                // races the blocked call, it can throw a RuntimeException around a
-                // NullPointerException.
+                // The JDK's HttpURLConnection does not always throw an IOException then: it can
+                // throw a RuntimeException around a NullPointerException when disconnect() races
+                // the blocked call.
                 currentCoroutineContext().ensureActive()
                 throw failure
               } finally {
                 abortOnCancel.cancel()
-                connection.disconnect()
+                // Also closes a connection made after the child's disconnect(). The child can be
+                // in disconnect() still, and two at once can throw on the JDK's HttpURLConnection.
+                runCatching { connection.disconnect() }
               }
             }
           }

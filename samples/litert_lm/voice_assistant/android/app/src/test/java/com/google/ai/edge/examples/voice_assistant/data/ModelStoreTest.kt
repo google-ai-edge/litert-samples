@@ -26,9 +26,14 @@ import java.io.InputStream
 import java.net.HttpURLConnection
 import java.net.InetAddress
 import java.net.ServerSocket
+import java.net.SocketException
+import java.net.SocketTimeoutException
 import java.net.URL
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
+import kotlin.coroutines.CoroutineContext
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -78,10 +83,11 @@ class ModelStoreTest {
   @Test
   fun cancellingADownloadAbortsABlockedSocketCall() = runBlocking {
     // A server that reads the request and never answers: the client blocks in responseCode. The
-    // latch waits for the request, not the accept: until HttpURLConnection has its connection,
-    // disconnect() has nothing to close.
+    // latch waits for the request, not the accept, so the cancel comes while the response is
+    // awaited. On the JDK's HttpURLConnection, one just before the request goes out can wait for
+    // the read timeout (see download()).
     val server = ServerSocket(0, 1, InetAddress.getLoopbackAddress())
-    val accepted = CountDownLatch(1)
+    val requestRead = CountDownLatch(1)
     val hold =
       Thread {
           runCatching {
@@ -91,7 +97,9 @@ class ModelStoreTest {
               while (!line.isNullOrEmpty()) {
                 line = request.readLine()
               }
-              accepted.countDown()
+              if (line != null) {
+                requestRead.countDown()
+              }
               Thread.sleep(60_000)
             }
           }
@@ -107,7 +115,7 @@ class ModelStoreTest {
       val entry = original.copy(files = local)
       val store = ModelStore(temporary.newFolder(), eventLogger = {})
       val job = launch(Dispatchers.IO) { store.download(entry) {} }
-      assertTrue("the download reached the server", accepted.await(10, TimeUnit.SECONDS))
+      assertTrue("the request reached the server", requestRead.await(10, TimeUnit.SECONDS))
       val started = System.nanoTime()
       job.cancelAndJoin()
       val waitedMs = (System.nanoTime() - started) / 1_000_000
@@ -196,16 +204,152 @@ class ModelStoreTest {
     assertEquals(SideLoad(emptyList(), emptyList()), store.sideLoad(entry, source))
   }
 
-  @Test
-  fun aCancelWhileConnectingStopsBeforeTheRequestGoesOut() = runBlocking {
-    // The cancel comes while the connection is being made (the screen closed during the connect),
-    // when disconnect() has nothing to close yet: the download stops once connected, before it
-    // asks for the response, instead of sending the request and waiting for the read timeout.
-    val connections = ArrayList<CancelledWhileConnecting>()
+  @Test(timeout = 10_000)
+  fun aCancelRightAfterTheCallBlocksStillTearsTheConnectionDown() = runBlocking {
+    // The cancel (the screen closed) comes as soon as the request waits for the response, before
+    // the scheduler has run anything queued since the connection was opened. The store's coroutine
+    // that disconnects on a cancel must be waiting by then: one that had not started yet would skip
+    // its finally, and the call would wait for its read timeout.
     lateinit var job: Job
+    val scheduler = HeldDispatcher()
+    val connections = ArrayList<NoAnswer>()
+    val store =
+      ModelStore(temporary.newFolder(), eventLogger = {}, ioDispatcher = scheduler) { url ->
+        scheduler.hold()
+        NoAnswer(url) { connection ->
+            job.cancel()
+            scheduler.runHeld()
+            // A socket read fails once disconnect() closes the socket, and otherwise only at its
+            // read timeout.
+            if (connection.closed) {
+              throw SocketException("Socket closed")
+            }
+            connection.timedOut = true
+            throw SocketTimeoutException("Read timed out")
+          }
+          .also { connections += it }
+      }
+    val entry = entry()
+    job = launch(Dispatchers.IO, start = CoroutineStart.LAZY) { store.download(entry) {} }
+    job.start()
+    job.join()
+    assertTrue(job.isCancelled)
+    assertFalse("the blocked call waited for its read timeout", connections.single().timedOut)
+    assertEquals(DownloadStatus.MISSING, store.inspect(entry).status)
+  }
+
+  @Test
+  fun aCancelReportsAsCancelledWhateverTheTornDownCallThrows() = runBlocking {
+    // When disconnect() races the blocked call, the JDK's HttpURLConnection can throw a
+    // RuntimeException around a NullPointerException instead of an IOException. A cancel must
+    // still end the download with a CancellationException, which VoiceViewModel lets through, not
+    // with an error it reports as DOWNLOAD_FAILED.
+    lateinit var job: Job
+    var thrown: Throwable? = null
     val store =
       ModelStore(temporary.newFolder(), eventLogger = {}) { url ->
-        CancelledWhileConnecting(url) { job.cancel() }.also { connections += it }
+        NoAnswer(url) {
+          job.cancel()
+          throw RuntimeException(NullPointerException("the connection was torn down"))
+        }
+      }
+    val entry = entry()
+    job =
+      launch(Dispatchers.IO, start = CoroutineStart.LAZY) {
+        try {
+          store.download(entry) {}
+        } catch (failure: Throwable) {
+          thrown = failure
+        }
+      }
+    job.start()
+    job.join()
+    assertTrue("the download ended with $thrown", thrown is CancellationException)
+    assertEquals(DownloadStatus.MISSING, store.inspect(entry).status)
+  }
+
+  @Test
+  fun aFailureWithoutACancelEndsTheDownloadAsItCame() = runBlocking {
+    // Only a cancel turns a failed call into the cancellation; any other failure is the error.
+    val failure = RuntimeException(NullPointerException("not a cancel"))
+    val store =
+      ModelStore(temporary.newFolder(), eventLogger = {}) { url -> NoAnswer(url) { throw failure } }
+    val entry = entry()
+    val thrown = runCatching { store.download(entry) {} }.exceptionOrNull()
+    // withContext can hand back a copy of the exception, with the same type and message.
+    assertEquals(failure.javaClass, thrown?.javaClass)
+    assertEquals(failure.message, thrown?.message)
+    assertEquals(DownloadStatus.MISSING, store.inspect(entry).status)
+  }
+
+  @Test
+  fun aDisconnectThatThrowsDoesNotReplaceTheCancellation() = runBlocking {
+    // The store disconnects from two coroutines, and two disconnect() calls at once can throw a
+    // NullPointerException on the JDK's HttpURLConnection. A cancel must still end the download
+    // with a CancellationException.
+    lateinit var job: Job
+    var thrown: Throwable? = null
+    val store =
+      ModelStore(temporary.newFolder(), eventLogger = {}) { url ->
+        NoAnswer(url, onDisconnect = { throw NullPointerException("another disconnect()") }) {
+          job.cancel()
+          throw SocketException("Socket closed")
+        }
+      }
+    val entry = entry()
+    job =
+      launch(Dispatchers.IO, start = CoroutineStart.LAZY) {
+        try {
+          store.download(entry) {}
+        } catch (failure: Throwable) {
+          thrown = failure
+        }
+      }
+    job.start()
+    job.join()
+    assertTrue("the download ended with $thrown", thrown is CancellationException)
+    assertEquals(DownloadStatus.MISSING, store.inspect(entry).status)
+  }
+
+  @Test
+  fun aCancelBeforeTheConnectionIsMadeStopsWithoutConnecting() = runBlocking {
+    // The cancel comes after the store has opened the connection but before it connects: the
+    // download stops before connect(), which a cancel does not end on the JDK's HttpURLConnection
+    // (see download()).
+    lateinit var job: Job
+    val connections = ArrayList<NoAnswer>()
+    val store =
+      ModelStore(temporary.newFolder(), eventLogger = {}) { url ->
+        job.cancel()
+        NoAnswer(url) { throw IOException("no answer") }.also { connections += it }
+      }
+    val entry = entry()
+    job = launch(Dispatchers.IO, start = CoroutineStart.LAZY) { store.download(entry) {} }
+    job.start()
+    job.join()
+    assertTrue(job.isCancelled)
+    assertEquals("connect() calls", 0, connections.single().connectCalls)
+    assertEquals(DownloadStatus.MISSING, store.inspect(entry).status)
+  }
+
+  @Test(timeout = 10_000)
+  fun aCancelWhileConnectingStopsBeforeTheRequestGoesOut() = runBlocking {
+    // The cancel comes while the connection is being made (the screen closed during the connect),
+    // when the JDK's HttpURLConnection has nothing for disconnect() to close yet: the download
+    // stops once connected, before it asks for the response, and closes the connection it made,
+    // instead of sending the request and waiting for the read timeout.
+    lateinit var job: Job
+    val scheduler = HeldDispatcher()
+    val connections = ArrayList<NoAnswer>()
+    val store =
+      ModelStore(temporary.newFolder(), eventLogger = {}, ioDispatcher = scheduler) { url ->
+        scheduler.hold()
+        val cancelWhileConnecting = {
+          job.cancel()
+          scheduler.runHeld()
+        }
+        NoAnswer(url, onConnect = cancelWhileConnecting) { throw IOException("no answer") }
+          .also { connections += it }
       }
     val entry = entry()
     job = launch(Dispatchers.IO, start = CoroutineStart.LAZY) { store.download(entry) {} }
@@ -215,24 +359,83 @@ class ModelStoreTest {
     val connection = connections.single()
     assertEquals(1, connection.connectCalls)
     assertFalse("the request went out", connection.requestSent)
-    assertTrue("disconnected", connection.disconnected)
+    assertTrue("the connection was closed", connection.closed)
     assertEquals(DownloadStatus.MISSING, store.inspect(entry).status)
   }
 
+  @Test
+  fun aCancelWhileTheBodyIsReadKeepsThePartialFileForResume() = runBlocking {
+    // A cancel while the body is read (the screen closed): the download ends with a
+    // CancellationException, and the bytes read so far stay in the partial file, where the next
+    // download resumes.
+    lateinit var job: Job
+    var thrown: Throwable? = null
+    val store =
+      ModelStore(temporary.newFolder(), eventLogger = {}) { url ->
+        StopsInTheBody(url, "ab".toByteArray()) {
+          job.cancel()
+          throw SocketException("Socket closed")
+        }
+      }
+    val entry = entry()
+    job =
+      launch(Dispatchers.IO, start = CoroutineStart.LAZY) {
+        try {
+          store.download(entry) {}
+        } catch (failure: Throwable) {
+          thrown = failure
+        }
+      }
+    job.start()
+    job.join()
+    assertTrue("the download ended with $thrown", thrown is CancellationException)
+    val part = File(store.directory(entry), entry.files.single().name + ".part")
+    assertArrayEquals("ab".toByteArray(), part.readBytes())
+    val state = store.inspect(entry)
+    assertEquals(DownloadStatus.PAUSED, state.status)
+    assertEquals(2L, state.receivedBytes)
+  }
+
+  @Test(timeout = 10_000)
+  fun aDownloadThatGetsTheWholeFileCommitsItWhenDisconnectThrows() = runBlocking {
+    // A file that arrives whole ends with two disconnect() calls, the finally block's and the
+    // child's, and two at once can throw a NullPointerException on the JDK's HttpURLConnection.
+    // The download must still return with the file committed. It also waits for the child, which
+    // ends only when the store cancels it; if the store did not, the timeout fails this case.
+    val store =
+      ModelStore(temporary.newFolder(), eventLogger = {}) { url ->
+        AnswersInFull(url, "abc".toByteArray()) {
+          throw NullPointerException("another disconnect()")
+        }
+      }
+    val entry = entry()
+    store.download(entry) {}
+    val target = File(store.directory(entry), entry.files.single().name)
+    assertArrayEquals("abc".toByteArray(), target.readBytes())
+    assertEquals(DownloadStatus.READY, store.inspect(entry).status)
+  }
+
   /**
-   * A connection that the download's cancel reaches while it connects, and that records whether
-   * the request went out. As HttpURLConnection does, asking for the response connects first.
+   * A connection to a server that never answers. Asking for the response connects first, as
+   * HttpURLConnection does, then runs [awaitResponse], which throws what the waiting call would.
+   * [closed] counts only a disconnect() after the connection exists, the kind that closes a socket
+   * on the JDK's HttpURLConnection.
    */
-  private class CancelledWhileConnecting(url: URL, private val cancel: () -> Unit) :
-    HttpURLConnection(url) {
+  private class NoAnswer(
+    url: URL,
+    private val onConnect: () -> Unit = {},
+    private val onDisconnect: () -> Unit = {},
+    private val awaitResponse: (NoAnswer) -> Nothing,
+  ) : HttpURLConnection(url) {
     var connectCalls = 0
     var requestSent = false
-    var disconnected = false
+    @Volatile var closed = false
+    @Volatile var timedOut = false
 
     override fun connect() {
       if (!connected) {
         connectCalls++
-        cancel()
+        onConnect()
         connected = true
       }
     }
@@ -240,20 +443,118 @@ class ModelStoreTest {
     override fun getResponseCode(): Int {
       connect()
       requestSent = true
-      throw IOException("the test server does not answer")
-    }
-
-    override fun getInputStream(): InputStream {
-      connect()
-      requestSent = true
-      throw IOException("the test server does not answer")
+      awaitResponse(this)
     }
 
     override fun disconnect() {
-      disconnected = true
+      if (connected) {
+        closed = true
+      }
+      onDisconnect()
     }
 
     override fun usingProxy() = false
+  }
+
+  /**
+   * A connection whose server answers 200, sends [head] of the body and then nothing more: the next
+   * read runs [awaitMore], which throws what the waiting read would.
+   */
+  private class StopsInTheBody(
+    url: URL,
+    private val head: ByteArray,
+    private val awaitMore: () -> Nothing,
+  ) : HttpURLConnection(url) {
+    override fun connect() {
+      connected = true
+    }
+
+    override fun getResponseCode(): Int {
+      connect()
+      return HTTP_OK
+    }
+
+    override fun getInputStream(): InputStream =
+      object : InputStream() {
+        private var sent = false
+
+        override fun read(): Int = error("the store reads in blocks")
+
+        override fun read(b: ByteArray, off: Int, len: Int): Int {
+          if (sent) {
+            awaitMore()
+          }
+          sent = true
+          head.copyInto(b, off)
+          return head.size
+        }
+      }
+
+    override fun disconnect() {}
+
+    override fun usingProxy() = false
+  }
+
+  /**
+   * A connection whose server answers 200 with the whole [body]. Its disconnect() runs
+   * [onDisconnect].
+   */
+  private class AnswersInFull(
+    url: URL,
+    private val body: ByteArray,
+    private val onDisconnect: () -> Unit,
+  ) : HttpURLConnection(url) {
+    override fun connect() {
+      connected = true
+    }
+
+    override fun getResponseCode(): Int {
+      connect()
+      return HTTP_OK
+    }
+
+    override fun getInputStream(): InputStream = body.inputStream()
+
+    override fun disconnect() {
+      onDisconnect()
+    }
+
+    override fun usingProxy() = false
+  }
+
+  /**
+   * Runs dispatched work on Dispatchers.IO, except after [hold]: then the work waits for [runHeld],
+   * as work the scheduler has not got to yet would. Only the test's connection calls [runHeld]: a
+   * store that suspended between opening the connection and its blocking call would hang, so the
+   * cases that hold work have a timeout.
+   */
+  private class HeldDispatcher : CoroutineDispatcher() {
+    private val held = ArrayList<Runnable>()
+    private var holding = false
+
+    fun hold() {
+      synchronized(held) { holding = true }
+    }
+
+    /** Stops holding and runs the held work on the calling thread, in the order it came. */
+    fun runHeld() {
+      val work =
+        synchronized(held) {
+          holding = false
+          held.toList().also { held.clear() }
+        }
+      work.forEach { it.run() }
+    }
+
+    override fun dispatch(context: CoroutineContext, block: Runnable) {
+      synchronized(held) {
+        if (holding) {
+          held += block
+          return
+        }
+      }
+      Dispatchers.IO.dispatch(context, block)
+    }
   }
 
   private fun entry(): ModelEntry =
