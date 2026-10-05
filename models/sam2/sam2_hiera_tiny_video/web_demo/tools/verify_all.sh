@@ -49,7 +49,7 @@ CACHE="$ART/ref_cache"
 CLIP="$ART/football_640x360_24.rgba"
 PROMPTS='0@0:0.44,0.28,1;0.46,0.40,1|1@0:0.484,0.79,1|2@6:0.14,0.32,2;0.215,0.645,3;0.15,0.34,0|3@0:0.194,0.342,2;0.253,0.632,3|4@3:0.594,0.352,2;0.658,0.632,3|5@2:0.45,0.71,2;0.53,0.865,3'
 CONSTS="$PROJ/app/public/models/sam2_host_consts.safetensors"
-BIN="$SAMPLES/bazel-bin/samples/web_demos/src/sam2/cc/sam2_chain_main"
+BIN="$SAMPLES/bazel-bin/models/sam2/sam2_hiera_tiny_video/web_demo/cc/sam2_chain_main"
 BZ=(--noenable_platform_specific_config --copt=-w)
 mkdir -p "$ART" "$CACHE"
 [ -f "$CLIP" ] || ffmpeg -loglevel error -y -i "$PROJ/app/public/assets/football_ai_studio.mp4" \
@@ -69,7 +69,7 @@ filter() { grep -E '^ +(ok|FAIL|info|GPU|\()|^VERIFY|median|loaded|CHECK|PASSED|
 native_run() {  # tag, min_iou, min_mean_iou, flags...
   local tag=$1 min=$2 mean=$3; shift 3
   (cd "$ART" && rm -rf "$tag" && mkdir -p "$tag" && cp -f \
-    "$SAMPLES/bazel-bin/samples/web_demos/src/sam2/cc/sam2_chain_main.runfiles/litert_prebuilts/macos_arm64/libLiteRtMetalAccelerator.dylib" . &&
+    "$SAMPLES/bazel-bin/models/sam2/sam2_hiera_tiny_video/web_demo/cc/sam2_chain_main.runfiles/litert_prebuilts/macos_arm64/libLiteRtMetalAccelerator.dylib" . &&
    "$BIN" --image_size=$S --host_consts="$CONSTS" --sam2_tflite="sam2_chain_$S.tflite" --reuse_tflite \
      --frames_rgba="$CLIP" --width=640 --height=360 --frames=$T --prompts="$PROMPTS" --dump_dir="$tag" \
      --dump_rgb=0,6,9 "$@" 2>&1 | grep -E '^median|^error') || return 1
@@ -86,8 +86,8 @@ browser_run() {  # extra args
 
 # ---- A. Tensor API pipeline, native C++
 a1() {
-  (cd "$SAMPLES" && bazel test "${BZ[@]}" //samples/web_demos/src/sam2/cc:host_plan_test --test_output=errors 2>&1 | filter &&
-   bazel build "${BZ[@]}" //samples/web_demos/src/sam2/cc:sam2_chain_main 2>&1 | grep -E 'ERROR' ; exit ${PIPESTATUS[0]}) || return 1
+  (cd "$SAMPLES" && bazel test "${BZ[@]}" //models/sam2/sam2_hiera_tiny_video/web_demo/cc:host_plan_test --test_output=errors 2>&1 | filter &&
+   bazel build "${BZ[@]}" //models/sam2/sam2_hiera_tiny_video/web_demo/cc:sam2_chain_main 2>&1 | grep -E 'ERROR' ; exit ${PIPESTATUS[0]}) || return 1
   # Always re-author (a few seconds): a model left from older graph code would
   # otherwise be verified instead of the current one.
   "$BIN" --weights="$ARTROOT/sam2_tiny_${S}_video.safetensors" \
