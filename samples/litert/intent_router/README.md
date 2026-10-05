@@ -52,6 +52,29 @@ bazel build -c opt //samples/litert/intent_router
 producing one pooled vector. The build and push path for a phone is the same shape
 as [`semantic_similarity`'s deploy script](../semantic_similarity/build_from_source/deploy_and_run_android.sh).
 
+### Syntax-checking without the hermetic toolchain
+
+The full build pulls a several-GB hermetic LLVM toolchain. To check the source
+compiles against the real headers without that, generate `build_config.h` from its
+`.in` template and pass the include paths directly:
+
+```bash
+LITERT=<path-to-litert-checkout>
+mkdir -p /tmp/inc/litert/build_common
+sed -e 's/#cmakedefine01 LITERT_BUILD_CONFIG_DISABLE_GPU/#define LITERT_BUILD_CONFIG_DISABLE_GPU 0/' \
+    -e 's/#cmakedefine01 LITERT_BUILD_CONFIG_DISABLE_NPU/#define LITERT_BUILD_CONFIG_DISABLE_NPU 0/' \
+    "$LITERT/litert/build_common/build_config.h.in" \
+    > /tmp/inc/litert/build_common/build_config.h
+
+g++ -fsyntax-only -std=gnu++17 -Wall -Wno-changes-meaning \
+    -I/tmp/inc -I"$LITERT" -I<absl> -I<sentencepiece> -I<flatbuffers>/include \
+    main.cc
+```
+
+`-Wno-changes-meaning` is needed because LiteRT's own headers trip that GCC
+diagnostic, which clang (the toolchain this project uses) does not have. This
+checks the code compiles; it does not link or run.
+
 Route your own text instead of the built-in evaluation set:
 
 ```bash

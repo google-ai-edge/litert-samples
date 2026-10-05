@@ -65,6 +65,7 @@
 #include "absl/status/status.h"  // from @com_google_absl
 #include "absl/status/statusor.h"  // from @com_google_absl
 #include "absl/strings/ascii.h"
+#include "absl/strings/str_format.h"
 #include "absl/strings/str_cat.h"  // from @com_google_absl
 #include "absl/strings/str_join.h"
 #include "absl/strings/str_split.h"  // from @com_google_absl
@@ -73,6 +74,7 @@
 #include "litert/cc/litert_common.h"
 #include "litert/cc/litert_compiled_model.h"
 #include "litert/cc/litert_environment.h"
+#include "litert/cc/litert_environment_options.h"
 #include "litert/cc/litert_expected.h"
 #include "litert/cc/litert_macros.h"
 #include "litert/cc/litert_options.h"
@@ -301,9 +303,11 @@ absl::Status RealMain() {
   const double abstain_margin = absl::GetFlag(FLAGS_abstain_margin);
 
   sentencepiece::SentencePieceProcessor sp;
-  ABSL_RETURN_IF_ERROR(sp.Load(absl::GetFlag(FLAGS_tokenizer)));
+  if (auto load_status = sp.Load(absl::GetFlag(FLAGS_tokenizer)); !load_status.ok()) {
+    return absl::InternalError(
+        absl::StrCat("Failed to load tokenizer model: ", load_status.ToString()));
+  }
 
-  std::vector<Environment::Option> environment_options = {};
   LITERT_ASSIGN_OR_RETURN(auto options, Options::Create());
   if (absl::StrContains(absl::AsciiStrToLower(absl::GetFlag(FLAGS_accelerator)),
                         "gpu")) {
@@ -316,8 +320,12 @@ absl::Status RealMain() {
     options.SetHardwareAccelerators(HwAccelerators::kCpu);
   }
 
-  LITERT_ASSIGN_OR_RETURN(
-      auto env, Environment::Create(absl::MakeConstSpan(environment_options)));
+  // EnvironmentOptions rather than the deprecated Environment::Option. An empty
+  // option list: the dispatch directory is only needed for NPU, which this
+  // sample does not select.
+  const std::vector<EnvironmentOptions::Option> no_env_options;
+  LITERT_ASSIGN_OR_RETURN(auto env, Environment::Create(EnvironmentOptions(
+                                                  no_env_options)));
   LITERT_ASSIGN_OR_RETURN(auto model,
                           CompiledModel::Create(env, absl::GetFlag(FLAGS_embedder),
                                                 options));
@@ -339,10 +347,9 @@ absl::Status RealMain() {
       auto vec = Embed(&model, &in, &out, ids, mask);
       LITERT_RETURN_IF_ERROR(vec.status());
       const Decision d = Route(*vec, protos, abstain_margin);
-      std::cout << absl::StrCat(text, "  ->  ", d.action, "  margin=",
-                                absl::FormatFloat(d.margin, 3),
-                                d.declined ? "  (declined)" : "")
-                << "\n";
+      std::cout << absl::StrFormat("%s  ->  %s  margin=%.3f%s\n", text,
+                                   d.action, d.margin,
+                                   d.declined ? "  (declined)" : "");
     }
     return absl::OkStatus();
   }
@@ -365,13 +372,10 @@ absl::Status RealMain() {
     if (ok) ++correct;
     if (d.declined) ++declined;
 
-    std::cout << absl::StrCat(ok ? "ok   " : "MISS ", absl::StrAlign(
-                                                absl::StrCat(probe.utterance), 40),
-                              " want=", absl::StrAlign(expected, 16),
-                              " got=", absl::StrAlign(d.action, 16),
-                              " margin=", absl::FormatFloat(d.margin, 3),
-                              d.declined ? " declined" : "")
-              << "\n";
+    std::cout << absl::StrFormat(
+        "%s %-40s want=%-16s got=%-16s margin=%.3f%s\n",
+        ok ? "ok  " : "MISS", probe.utterance, expected, d.action, d.margin,
+        d.declined ? " declined" : "");
   }
   const int total = static_cast<int>(Probes().size());
   std::cout << absl::StrCat("\naccuracy ", correct, "/", total, "  declined ",
