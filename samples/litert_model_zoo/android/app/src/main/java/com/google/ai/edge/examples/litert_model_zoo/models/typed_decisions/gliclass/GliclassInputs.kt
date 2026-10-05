@@ -55,7 +55,7 @@ class GliclassInputs(private val tokenizer: GliclassTokenizer, private val table
 
   /**
    * Graph-ready inputs for one window: [inputIds] and [attentionMask] have N entries. [embeds] is
-   * the table's reused array: the next [prepare] overwrites it.
+   * the table's reused array: the next [pad] or [prepare] on the same table overwrites it.
    */
   data class Prepared(
     val encoded: Encoded,
@@ -126,6 +126,7 @@ class GliclassInputs(private val tokenizer: GliclassTokenizer, private val table
    * The float16 `[50370,384]` token-embedding table (little-endian, headerless), upcast to float32
    * on lookup exactly as numpy's `float16.astype(float32)`. The 38,684,160-byte file is
    * memory-mapped instead of copied to the Java heap.
+   * Not thread-safe: [lookup] moves the buffer position and returns a shared array.
    */
   class EmbeddingTable(file: File) : Closeable {
     private val channel = RandomAccessFile(file, "r").channel
@@ -155,7 +156,7 @@ class GliclassInputs(private val tokenizer: GliclassTokenizer, private val table
 
     /**
      * Row-major `[1,N,384]` float32 embeddings of N IDs, each row copied with one bulk read. The
-     * returned array is reused by the next call.
+     * returned array is reused by the next call: write it to the graph before looking up again.
      */
     fun lookup(ids: IntArray): FloatArray {
       if (embeds.size != ids.size * HIDDEN_SIZE) {

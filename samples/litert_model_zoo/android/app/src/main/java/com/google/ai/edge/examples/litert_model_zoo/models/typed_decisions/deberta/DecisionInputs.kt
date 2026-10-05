@@ -16,7 +16,7 @@
 
 // Vendored from https://huggingface.co/litert-community/Open-Decision-DeBERTa-v3-Large-LiteRT/blob/7a276235b795e8ad3ae7ac6a9f237daa2098863a/android/sample/app/src/main/java/com/opendecision/DecisionInputs.kt (Apache-2.0)
 // Formatted for this repository. One change from the source: EmbeddingTable.lookup reads each
-// row with one bulk read into reused arrays.
+// row with one bulk read into reused arrays and widens through the added HALF_TO_FLOAT table.
 package com.google.ai.edge.examples.litert_model_zoo.models.typed_decisions.deberta
 
 import java.io.Closeable
@@ -144,6 +144,7 @@ class DecisionInputs(private val tokenizer: DecisionTokenizer) {
    * The float16 word table `[128100,1024]` (little-endian, no header), memory-mapped; rows are
    * widened to float32 exactly (every float16 value is representable), as NumPy's
    * `astype(np.float32)` does on the desktop.
+   * Not thread-safe: [lookup] moves the buffer position and returns a shared array.
    */
   class EmbeddingTable(file: File) : Closeable {
     private val channel = RandomAccessFile(file, "r").channel
@@ -167,7 +168,7 @@ class DecisionInputs(private val tokenizer: DecisionTokenizer) {
     /**
      * `inputs_embeds` for the padded [inputIds]: `[N,1024]` row-major, pad rows included. Each row
      * is copied with one bulk read and widened through [HALF_TO_FLOAT]. The returned array is
-     * reused by the next call.
+     * reused by the next call: write it to the graph before looking up again.
      */
     fun lookup(inputIds: IntArray): FloatArray {
       if (embeds.size != inputIds.size * HIDDEN_SIZE) {

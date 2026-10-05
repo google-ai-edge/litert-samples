@@ -181,6 +181,7 @@ class DecideInputs(private val tokenizer: GlinerTokenizer) {
    * to float32 on lookup exactly as numpy's `float16.astype(float32)`: every float16 value is
    * representable in float32, so the upcast is exact. The 262,166,528-byte file is memory-mapped
    * instead of copied to the Java heap. Padding IDs are looked up too.
+   * Not thread-safe: [lookup] moves the buffer position and returns a shared array.
    */
   class EmbeddingTable(file: File) : Closeable {
     private val channel = RandomAccessFile(file, "r").channel

@@ -30,18 +30,30 @@ import java.nio.channels.FileChannel
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertSame
 import org.junit.Assert.fail
+import org.junit.Assume.assumeFalse
+import org.junit.Before
+import org.junit.Rule
 import org.junit.Test
+import org.junit.rules.TemporaryFolder
 
 /**
  * The five text hosts read each embedding row with one bulk read, where their sources read value by
  * value. Same IDs and same table give the same bits: `lookup` into reused arrays (GLiNER2.5-Decide,
  * GLiClass-Edge, Open-Decision) and `gather` into the caller's array, PAD rows included (Laya,
- * Julia-1).
+ * Julia-1). Each table is a sparse file of the published size with only the pattern rows written;
+ * the test is skipped on Windows, whose file system does not keep such files sparse by default.
  */
 class EmbeddingLookupTest {
+  @get:Rule val temporary = TemporaryFolder()
+
+  @Before
+  fun skipOnWindows() {
+    assumeFalse(System.getProperty("os.name").orEmpty().startsWith("Windows"))
+  }
+
   @Test
   fun bulkLookupGivesTheSourceBits() {
-    check(
+    checkLookup(
       "GLiNER2.5-Decide",
       DecideInputs.VOCABULARY_SIZE,
       DecideInputs.HIDDEN_SIZE,
@@ -50,7 +62,7 @@ class EmbeddingLookupTest {
       lookup = DecideInputs.EmbeddingTable::lookup,
       widen = { DecideInputs.halfToFloat(it) },
     )
-    check(
+    checkLookup(
       "GLiClass-Edge",
       GliclassInputs.VOCABULARY_SIZE,
       GliclassInputs.HIDDEN_SIZE,
@@ -59,7 +71,7 @@ class EmbeddingLookupTest {
       lookup = GliclassInputs.EmbeddingTable::lookup,
       widen = { GliclassInputs.halfToFloat(it) },
     )
-    check(
+    checkLookup(
       "Open-Decision",
       DecisionInputs.VOCABULARY_SIZE,
       DecisionInputs.HIDDEN_SIZE,
@@ -72,27 +84,23 @@ class EmbeddingLookupTest {
 
   @Test
   fun bulkGatherGivesTheSourceBits() {
-    val metadata = File.createTempFile("token_embeddings", ".json")
-    try {
-      metadata.writeText(
-        "{\"shape\": [${LayaEmbeddings.VOCABULARY_SIZE}, ${LayaEmbeddings.WIDTH}], " +
-          "\"dtype\": \"float16\", \"byte_order\": \"little\", " +
-          "\"size_bytes\": ${LayaEmbeddings.SIZE_BYTES}, \"sha256\": \"${"0".repeat(64)}\"}"
-      )
-      checkGather(
-        "Laya",
-        LayaEmbeddings.VOCABULARY_SIZE,
-        LayaEmbeddings.WIDTH,
-        LayaEmbeddings.PAD_ID,
-        window = 256,
-        open = { LayaEmbeddings(it, metadata) },
-        gatherNew = { table, ids, window -> table.gather(ids, window) },
-        gatherInto = LayaEmbeddings::gather,
-        widen = { LayaEmbeddings.halfToFloat(it) },
-      )
-    } finally {
-      metadata.delete()
-    }
+    val metadata = temporary.newFile("token_embeddings.json")
+    metadata.writeText(
+      "{\"shape\": [${LayaEmbeddings.VOCABULARY_SIZE}, ${LayaEmbeddings.WIDTH}], " +
+        "\"dtype\": \"float16\", \"byte_order\": \"little\", " +
+        "\"size_bytes\": ${LayaEmbeddings.SIZE_BYTES}, \"sha256\": \"${"0".repeat(64)}\"}"
+    )
+    checkGather(
+      "Laya",
+      LayaEmbeddings.VOCABULARY_SIZE,
+      LayaEmbeddings.WIDTH,
+      LayaEmbeddings.PAD_ID,
+      window = 256,
+      open = { LayaEmbeddings(it, metadata) },
+      gatherNew = { table, ids, window -> table.gather(ids, window) },
+      gatherInto = LayaEmbeddings::gather,
+      widen = { LayaEmbeddings.halfToFloat(it) },
+    )
     checkGather(
       "Julia-1",
       JuliaEmbeddings.VOCABULARY_SIZE,
@@ -108,9 +116,10 @@ class EmbeddingLookupTest {
 
   /**
    * A table file of the published size whose last rows hold all 65,536 float16 bit patterns (zeros
-   * elsewhere), looked up twice at the first window and once at the second.
+   * elsewhere), looked up at the first window, again into the same array after filling it with NaN
+   * (every position must be written), at the second window and back at the first.
    */
-  private fun <T : AutoCloseable> check(
+  private fun <T : AutoCloseable> checkLookup(
     family: String,
     vocabulary: Int,
     hidden: Int,
@@ -120,24 +129,24 @@ class EmbeddingLookupTest {
     widen: (Int) -> Float,
   ) {
     val patternRows = (PATTERNS + hidden - 1) / hidden
-    val file = File.createTempFile("embeddings", ".bin")
-    try {
-      writeTable(file, vocabulary, hidden, patternRows, alsoFirstRows = false)
-      val values = map(file)
-      val first = ids(vocabulary, patternRows, windows[0], salt = 1)
-      val second = ids(vocabulary, patternRows, windows[0], salt = 2)
-      val resized = ids(vocabulary, patternRows, windows[1], salt = 3)
-      open(file).use { table ->
-        val a = lookup(table, first)
-        assertSameBits("$family first", sourceLookup(values, hidden, first, widen), a)
-        val b = lookup(table, second)
-        assertSame("$family reuses its array", a, b)
-        assertSameBits("$family second", sourceLookup(values, hidden, second, widen), b)
-        val c = lookup(table, resized)
-        assertSameBits("$family resized", sourceLookup(values, hidden, resized, widen), c)
-      }
-    } finally {
-      file.delete()
+    val file = temporary.newFile()
+    writeTable(file, vocabulary, hidden, patternRows, alsoFirstRows = false)
+    val values = map(file)
+    val first = ids(vocabulary, patternRows, windows[0], salt = 1)
+    val second = ids(vocabulary, patternRows, windows[0], salt = 2)
+    val resized = ids(vocabulary, patternRows, windows[1], salt = 3)
+    open(file).use { table ->
+      val a = lookup(table, first)
+      val expectedFirst = sourceLookup(values, hidden, first, widen)
+      assertSameBits("$family first", expectedFirst, a)
+      a.fill(Float.NaN)
+      val b = lookup(table, second)
+      assertSame("$family reuses its array", a, b)
+      assertSameBits("$family second", sourceLookup(values, hidden, second, widen), b)
+      val c = lookup(table, resized)
+      assertSameBits("$family resized", sourceLookup(values, hidden, resized, widen), c)
+      val d = lookup(table, first)
+      assertSameBits("$family back to the first window", expectedFirst, d)
     }
   }
 
@@ -158,26 +167,22 @@ class EmbeddingLookupTest {
     widen: (Int) -> Float,
   ) {
     val patternRows = (PATTERNS + hidden - 1) / hidden
-    val file = File.createTempFile("embeddings", ".bin")
-    try {
-      writeTable(file, vocabulary, hidden, patternRows, alsoFirstRows = true)
-      val values = map(file)
-      val first = ids(vocabulary, patternRows, window - PAD_POSITIONS, salt = 4)
-      val second = ids(vocabulary, patternRows, window - PAD_POSITIONS, salt = 5)
-      open(file).use { table ->
-        val a = gatherNew(table, first, window)
-        val expectedFirst = sourceGather(values, hidden, pad, first, window, widen)
-        assertSameBits("$family new array", expectedFirst, a)
-        val destination = FloatArray(window * hidden) { Float.NaN }
-        val b = gatherInto(table, second, window, destination)
-        assertSame("$family fills the caller's array", destination, b)
-        val expectedSecond = sourceGather(values, hidden, pad, second, window, widen)
-        assertSameBits("$family caller's array", expectedSecond, b)
-        val c = gatherInto(table, first, window, destination)
-        assertSameBits("$family caller's array again", expectedFirst, c)
-      }
-    } finally {
-      file.delete()
+    val file = temporary.newFile()
+    writeTable(file, vocabulary, hidden, patternRows, alsoFirstRows = true)
+    val values = map(file)
+    val first = ids(vocabulary, patternRows, window - PAD_POSITIONS, salt = 4)
+    val second = ids(vocabulary, patternRows, window - PAD_POSITIONS, salt = 5)
+    open(file).use { table ->
+      val a = gatherNew(table, first, window)
+      val expectedFirst = sourceGather(values, hidden, pad, first, window, widen)
+      assertSameBits("$family new array", expectedFirst, a)
+      val destination = FloatArray(window * hidden) { Float.NaN }
+      val b = gatherInto(table, second, window, destination)
+      assertSame("$family fills the caller's array", destination, b)
+      val expectedSecond = sourceGather(values, hidden, pad, second, window, widen)
+      assertSameBits("$family caller's array", expectedSecond, b)
+      val c = gatherInto(table, first, window, destination)
+      assertSameBits("$family caller's array again", expectedFirst, c)
     }
   }
 
@@ -207,7 +212,11 @@ class EmbeddingLookupTest {
     }
   }
 
-  /** Every pattern row, then the first, a middle and the last row, then spread-out rows. */
+  /**
+   * The pattern rows, then the first, a middle and the last row, then spread-out rows, cut to
+   * [window] IDs and shuffled: a window smaller than the pattern rows keeps only some of them
+   * (GLiClass-Edge's 128-ID lookup takes 128 of its 171).
+   */
   private fun ids(vocabulary: Int, patternRows: Int, window: Int, salt: Int): IntArray {
     val chosen = ArrayList<Int>()
     for (row in vocabulary - patternRows until vocabulary) {
