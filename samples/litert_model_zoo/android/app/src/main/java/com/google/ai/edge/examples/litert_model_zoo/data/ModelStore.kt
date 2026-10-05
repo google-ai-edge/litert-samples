@@ -19,10 +19,11 @@ package com.google.ai.edge.examples.litert_model_zoo.data
 import android.util.Log
 import java.io.File
 import java.io.FileOutputStream
-import java.io.IOException
 import java.net.HttpURLConnection
 import java.net.URL
 import java.security.MessageDigest
+import kotlinx.coroutines.CoroutineDispatcher
+import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.coroutineScope
@@ -49,15 +50,24 @@ data class DownloadState(
   val error: String? = null,
 )
 
-/** All model bytes stay outside the APK, under filesDir/models/<taskId>. */
+/**
+ * All model bytes stay outside the APK, under filesDir/models/<taskId>. [ioDispatcher] runs the
+ * file and network calls, and [openConnection] opens a file's URL. A test passes its own of both.
+ * [ioDispatcher] must be able to run other work while a download blocks one of its threads, since
+ * the disconnect() on a cancel runs on it: Dispatchers.IO can, a single-thread dispatcher cannot.
+ */
 class ModelStore(
   private val root: File,
   private val eventLogger: (String) -> Unit = { Log.i("ModelZooDownload", it) },
+  private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO,
+  private val openConnection: (URL) -> HttpURLConnection = {
+    it.openConnection() as HttpURLConnection
+  },
 ) {
   fun directory(entry: ModelEntry): File = File(root, entry.taskId)
 
   suspend fun inspect(entry: ModelEntry): DownloadState =
-    withContext(Dispatchers.IO) {
+    withContext(ioDispatcher) {
       val dir = directory(entry)
       val present =
         entry.files.sumOf { file ->
@@ -80,8 +90,23 @@ class ModelStore(
       )
     }
 
+  /**
+   * Downloads the entry's missing files (a partial file resumes), checks each file's size and
+   * SHA-256 before it is committed, and reports [progress]. A cancel is checked before the
+   * connection is made and again before the request goes out. When the download is cancelled, a
+   * child coroutine calls disconnect() on the connection, and what that ends depends on the
+   * HttpURLConnection in use. On the JDK's HttpURLConnection, disconnect() ends a read that waits
+   * for the response but not a connect in progress, so a cancel while connecting is seen only when
+   * the connect ends. The 30 s connect timeout does not bound that wait, since the JDK resolves the
+   * host name before the timed connect starts. On the JDK, that wait comes in connect(), in the
+   * connect responseCode makes to a redirect's target, and in the connect responseCode makes again
+   * when a cancel closes the connection after the last check but before responseCode uses it. In
+   * the last two, once that connect succeeds, responseCode also sends the request and waits for the
+   * response or the 30 s read timeout before the cancel is seen. On Android 16, disconnect() also
+   * closes a socket that is still connecting.
+   */
   suspend fun download(entry: ModelEntry, progress: (DownloadState) -> Unit) =
-    withContext(Dispatchers.IO) {
+    withContext(ioDispatcher) {
       require(entry.canDownload) { "This model is awaiting verified download metadata" }
       val dir = directory(entry)
       check(dir.isDirectory || dir.mkdirs()) { "Cannot create model directory" }
@@ -101,7 +126,7 @@ class ModelStore(
           val initialBytes = offset
           downloadEvent("start", entry, modelFile, offset, fileStartedNanos)
           if (offset < modelFile.bytes) {
-            val connection = URL(modelFile.url).openConnection() as HttpURLConnection
+            val connection = openConnection(URL(modelFile.url))
             connection.connectTimeout = 30_000
             connection.readTimeout = 30_000
             connection.instanceFollowRedirects = true
@@ -109,18 +134,25 @@ class ModelStore(
             if (offset > 0) {
               connection.setRequestProperty("Range", "bytes=$offset-")
             }
-            // Pause and Delete cancel this coroutine, but the socket calls below block for up to
-            // the 30 s timeout. The child coroutine is cancelled with the download and tears the
-            // connection down from the cancelling side, so the blocked call fails at once.
+            // Pause and Delete cancel this coroutine, but the socket calls below block without
+            // seeing the cancel. The child coroutine is cancelled with the download and calls the
+            // connection's disconnect(), whose effect the KDoc of download() describes. It starts
+            // undispatched: a child cancelled before it ever ran would skip its finally.
             coroutineScope {
-              val abortOnCancel = launch {
-                try {
-                  awaitCancellation()
-                } finally {
-                  runCatching { connection.disconnect() }
+              val abortOnCancel =
+                launch(start = CoroutineStart.UNDISPATCHED) {
+                  try {
+                    awaitCancellation()
+                  } finally {
+                    runCatching { connection.disconnect() }
+                  }
                 }
-              }
               try {
+                currentCoroutineContext().ensureActive()
+                connection.connect()
+                // On the JDK's HttpURLConnection, disconnect() closes nothing until the connection
+                // exists: a cancel that came while it was being made is seen here, before the
+                // request goes out.
                 currentCoroutineContext().ensureActive()
                 val code = connection.responseCode
                 downloadEvent("response", entry, modelFile, offset, fileStartedNanos, code)
@@ -169,13 +201,18 @@ class ModelStore(
                 // A connection torn down by cancellation can also end the stream early instead of
                 // throwing; that is a pause, not a short download.
                 currentCoroutineContext().ensureActive()
-              } catch (failure: IOException) {
+              } catch (failure: Exception) {
                 // A call torn down by cancellation reports as cancelled, not as a download error.
+                // The JDK's HttpURLConnection does not always throw an IOException then: it can
+                // throw a RuntimeException around a NullPointerException when disconnect() races
+                // the blocked call.
                 currentCoroutineContext().ensureActive()
                 throw failure
               } finally {
                 abortOnCancel.cancel()
-                connection.disconnect()
+                // Also closes a connection made after the child's disconnect(). The child can be
+                // in disconnect() still, and two at once can throw on the JDK's HttpURLConnection.
+                runCatching { connection.disconnect() }
               }
             }
           }
@@ -209,13 +246,13 @@ class ModelStore(
     }
 
   suspend fun delete(entry: ModelEntry) =
-    withContext(Dispatchers.IO) {
+    withContext(ioDispatcher) {
       val dir = directory(entry)
       check(!dir.exists() || dir.deleteRecursively()) { "Could not delete all model files" }
     }
 
   suspend fun storageBytes(): Long =
-    withContext(Dispatchers.IO) {
+    withContext(ioDispatcher) {
       if (root.exists()) root.walkTopDown().filter { it.isFile }.sumOf { it.length() } else 0L
     }
 
