@@ -45,8 +45,8 @@ if [ ! -f "$BASE" ]; then
 fi
 
 # 2. The native builder.
-(cd "$SAMPLES" && bazel build --noenable_platform_specific_config --copt=-w //samples/web_demos/src/sam2/cc:sam2_chain_main)
-BIN="$SAMPLES/bazel-bin/samples/web_demos/src/sam2/cc/sam2_chain_main"
+(cd "$SAMPLES" && bazel build --noenable_platform_specific_config --copt=-w //models/sam2/sam2_hiera_tiny_video/web_demo/cc:sam2_chain_main)
+BIN="$SAMPLES/bazel-bin/models/sam2/sam2_hiera_tiny_video/web_demo/cc/sam2_chain_main"
 
 for S in "${SIZES[@]}"; do
   W="$ARTROOT/sam2_tiny_${S}_video.safetensors"

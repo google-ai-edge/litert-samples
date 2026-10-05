@@ -215,10 +215,11 @@ Requirements: macOS or Linux, Bazel 7 (bazelisk), Node 20+, Python 3.11+ with
 (WebGPU and JSPI). Metal runs need macOS.
 
 The native code builds in this repository's Bazel workspace, which provides the
-LiteRT sources and the SAM 2 Tensor API network builders
-(`models/sam2/sam2_hiera_tiny_video/tensor_api`); `cc/` is the Bazel package
-`//samples/web_demos/src/sam2/cc`. Run the commands below from this directory
-(`samples/web_demos/src/sam2`). Defaults, overridable with environment variables:
+LiteRT sources and the SAM 2 Tensor API network builders (the sibling
+[`tensor_api/`](../tensor_api/) directory); `cc/` is the Bazel package
+`//models/sam2/sam2_hiera_tiny_video/web_demo/cc`. Run the commands below from
+this directory (`models/sam2/sam2_hiera_tiny_video/web_demo`). Defaults,
+overridable with environment variables:
 
 | Variable | Default | What |
 |---|---|---|
@@ -227,8 +228,7 @@ LiteRT sources and the SAM 2 Tensor API network builders
 | `PYTHON` | `./.venv/bin/python` | Python with the packages above |
 
 This sample is self-contained: it has its own `app/package.json` and Vite
-config and is not part of the `web_demos` site build (`dist/`), because its
-models are built locally (below).
+config, and its models are built locally (below).
 
 ```bash
 # 1. Weights (from facebook/sam2.1-hiera-tiny) and the SAM 2 models, authored

@@ -17,7 +17,7 @@
 #
 # Built in the litert-samples workspace, which provides @litert_archive and
 # the SAM 2 Tensor API graph libraries (//models/sam2/...):
-#   bazel build //samples/web_demos/src/sam2/cc:sam2_chain_main
+#   bazel build //models/sam2/sam2_hiera_tiny_video/web_demo/cc:sam2_chain_main
 
 load("@rules_cc//cc:cc_binary.bzl", "cc_binary")
 load("@rules_cc//cc:cc_library.bzl", "cc_library")
@@ -126,10 +126,10 @@ cc_binary(
 cc_test(
     name = "host_plan_test",
     srcs = ["host_plan_test.cc"],
-    args = ["--goldens=$(location //samples/web_demos/src/sam2/cc/testdata:goldens.safetensors)"],
+    args = ["--goldens=$(location //models/sam2/sam2_hiera_tiny_video/web_demo/cc/testdata:goldens.safetensors)"],
     data = [
-        "//samples/web_demos/src/sam2/cc/testdata:goldens.safetensors",
-        "//samples/web_demos/src/sam2/cc/testdata:sam2_host_consts.safetensors",
+        "//models/sam2/sam2_hiera_tiny_video/web_demo/cc/testdata:goldens.safetensors",
+        "//models/sam2/sam2_hiera_tiny_video/web_demo/cc/testdata:sam2_host_consts.safetensors",
     ],
     deps = [
         ":host_plan",

@@ -33,9 +33,9 @@ ART="$ARTROOT/chain"
 PY="${PYTHON:-$PROJ/.venv/bin/python}"
 BAZEL=(bazel --quiet)
 FLAGS=(--noenable_platform_specific_config --copt=-w)
-(cd "$SAMPLES" && bazel test "${FLAGS[@]}" //samples/web_demos/src/sam2/cc:host_plan_test --test_output=errors)
-(cd "$SAMPLES" && bazel build "${FLAGS[@]}" //samples/web_demos/src/sam2/cc:sam2_chain_main)
-BIN="$SAMPLES/bazel-bin/samples/web_demos/src/sam2/cc/sam2_chain_main"
+(cd "$SAMPLES" && bazel test "${FLAGS[@]}" //models/sam2/sam2_hiera_tiny_video/web_demo/cc:host_plan_test --test_output=errors)
+(cd "$SAMPLES" && bazel build "${FLAGS[@]}" //models/sam2/sam2_hiera_tiny_video/web_demo/cc:sam2_chain_main)
+BIN="$SAMPLES/bazel-bin/models/sam2/sam2_hiera_tiny_video/web_demo/cc/sam2_chain_main"
 
 mkdir -p "$ART"
 cd "$ART"
@@ -43,7 +43,7 @@ CLIP=football_640x360_24.rgba
 [ -f "$CLIP" ] || ffmpeg -loglevel error -y -i "$PROJ/app/public/assets/football_ai_studio.mp4" \
   -frames:v 24 -vf scale=640:360 -f rawvideo -pix_fmt rgba "$CLIP"
 # The Metal accelerator is loaded from the working directory.
-cp -f "$SAMPLES/bazel-bin/samples/web_demos/src/sam2/cc/sam2_chain_main.runfiles/litert_prebuilts/macos_arm64/libLiteRtMetalAccelerator.dylib" .
+cp -f "$SAMPLES/bazel-bin/models/sam2/sam2_hiera_tiny_video/web_demo/cc/sam2_chain_main.runfiles/litert_prebuilts/macos_arm64/libLiteRtMetalAccelerator.dylib" .
 
 PROMPTS='0@0:0.44,0.28,1;0.46,0.40,1|1@0:0.484,0.79,1|2@6:0.14,0.32,2;0.215,0.645,3;0.15,0.34,0|3@0:0.194,0.342,2;0.253,0.632,3|4@3:0.594,0.352,2;0.658,0.632,3|5@2:0.45,0.71,2;0.53,0.865,3'
 TFLITE="sam2_chain_$S.tflite"
