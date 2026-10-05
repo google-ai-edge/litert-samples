@@ -249,11 +249,12 @@ internal class LiteRtSpeaker(
     }
 
     /**
-     * Opens KittenTTS nano on the CPU: the style tables, the symbol table ([symbolsJson] reads
-     * the app's `symbols.json` asset), the G2P dictionary and meta, then on the LiteRT thread the
-     * G2P graph (CompiledModel, CPU, 4 threads) and the three synthesis graphs (Interpreter, 4
-     * threads, XNNPACK except on [KittenSynthesizer.XNNPACK_OFF]). [file] gives each file of the
-     * catalog entry by its name. A file that does not load is INITIALIZATION_FAILED.
+     * Opens KittenTTS nano on the CPU: the style tables, the symbol table ([symbolsJson] reads the
+     * app's `symbols.json` asset), the G2P dictionary and meta, then on the LiteRT thread the G2P
+     * graph (CompiledModel, CPU, 4 threads) and the three synthesis graphs (4 threads: the vocoder
+     * on CompiledModel, the predictor and prosody graphs on the Interpreter with XNNPACK except on
+     * [KittenSynthesizer.XNNPACK_OFF]). [file] gives each file of the catalog entry by its name. A
+     * file that does not load is INITIALIZATION_FAILED.
      */
     suspend fun open(file: (String) -> File, symbolsJson: () -> String): LiteRtSpeaker {
       fun <T> stage(stage: String, block: () -> T): T =
@@ -334,7 +335,7 @@ internal class LiteRtSpeaker(
                   }
                 val synth =
                   try {
-                    stage("interpreter") {
+                    stage("synthesis_graphs") {
                       KittenSynthesizer.open(
                         file("kitten_predictor.tflite"),
                         file("kitten_prosody.tflite"),

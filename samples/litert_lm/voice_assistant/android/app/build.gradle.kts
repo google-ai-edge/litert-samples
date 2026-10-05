@@ -51,6 +51,8 @@ android {
     resources.excludes += setOf("META-INF/AL2.0", "META-INF/LGPL2.1")
     jniLibs.pickFirsts += "**/libc++_shared.so"
   }
+  // Sample-local JNI workaround for CompiledModel dynamic shapes (cpp/dynamic_shape_jni.cc).
+  externalNativeBuild { cmake { path = file("src/main/cpp/CMakeLists.txt") } }
 }
 
 kotlin { compilerOptions { jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_17) } }

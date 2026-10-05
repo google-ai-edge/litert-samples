@@ -3,10 +3,17 @@
 -keep class com.google.ai.edge.litert.** { *; }
 -keepclasseswithmembernames class com.google.ai.edge.litert.** { native <methods>; }
 
-# The classic Interpreter API (org.tensorflow.lite), which the Kitten speaker's three graphs run on:
-# its native methods bind to the JNI library by class and method name.
+# The classic Interpreter API (org.tensorflow.lite), which the Kitten predictor and prosody graphs
+# run on: its native methods bind to the JNI library by class and method name.
 -keep class org.tensorflow.lite.** { *; }
 -keepclasseswithmembernames class org.tensorflow.lite.** { native <methods>; }
+
+# The vocoder's JNI library (cpp/dynamic_shape_jni.cc) registers all three native methods of
+# LiteRtDynamicShape when it loads and fails to load if one is missing: R8 would remove the two
+# this sample does not call.
+-keepclasseswithmembers class com.google.ai.edge.examples.voice_assistant.tts.LiteRtDynamicShape {
+    native <methods>;
+}
 
 # litertlm-android ships no proguard.txt, and its JNI reaches Kotlin by name (FindClass / NewObject
 # on its input and exception classes, GetMethodID on the streaming callback's onMessage / onDone /

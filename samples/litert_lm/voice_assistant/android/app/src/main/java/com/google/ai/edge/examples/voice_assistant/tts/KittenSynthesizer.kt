@@ -21,12 +21,12 @@
 
 package com.google.ai.edge.examples.voice_assistant.tts
 
+import com.google.ai.edge.litert.Accelerator
+import com.google.ai.edge.litert.CompiledModel
 import java.io.Closeable
 import java.io.File
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
-import java.nio.channels.FileChannel
-import java.nio.file.StandardOpenOption
 import org.tensorflow.lite.Interpreter
 
 /**
@@ -39,26 +39,47 @@ import org.tensorflow.lite.Interpreter
  *   asr, f0, n, har, style -> vocoder -> wav [1,600T]
  * ```
  *
- * All three run on the classic Interpreter API: the predictor and prosody graphs keep their fused
- * LSTM state in variable tensors, which CompiledModel does not load (b/365299994), and the vocoder
- * runs there too (this repository's text_to_speech_streaming sample drives it through
- * CompiledModel with its own JNI resize). Before every run each graph is resized to the call's
- * shapes and its variable tensors are reset: a same-length second call would otherwise start from
- * the previous call's LSTM state. The end of the waveform is trimmed as the pip package does.
- * Created, run and closed on the LiteRT thread.
+ * The vocoder runs on CompiledModel (CPU), resized to each call's shapes through
+ * [LiteRtDynamicShape], the JNI workaround of this repository's text_to_speech_streaming sample
+ * while the Kotlin API has no resize. The predictor and prosody graphs keep their fused LSTM state
+ * in variable tensors, which CompiledModel does not load (b/365299994), so they run on the classic
+ * Interpreter API: before every run each is resized to the call's shapes and its variable tensors
+ * are reset, as a same-length second call would otherwise start from the previous call's LSTM
+ * state. The end of the waveform is trimmed as the pip package does. Created, run and closed on the
+ * LiteRT thread.
  */
 internal class KittenSynthesizer
 private constructor(
   private val predictor: Interpreter,
   private val prosody: Interpreter,
-  private val vocoder: Interpreter,
+  private val vocoder: CompiledModel,
   private val tailTrim: Int,
   private val minSamples: Int,
 ) : Closeable {
   class Result(val samples: FloatArray, val frames: Int, val durations: IntArray)
 
+  /**
+   * The vocoder's inputs for one call, row-major: asr [1,T,128], f0 and noise (the graph's `n`)
+   * [1,2T], har [1,120T+1,22] and style [1,256]. [frames] is T.
+   */
+  class VocoderInputs(
+    val asr: FloatArray,
+    val f0: FloatArray,
+    val noise: FloatArray,
+    val har: FloatArray,
+    val style: FloatArray,
+    val frames: Int,
+    val durations: IntArray,
+  )
+
   /** [ids]: symbol ids with the 0 at each end; [style]: one row of the voice's table. */
   fun synthesize(ids: IntArray, style: FloatArray, speed: Float): Result {
+    val x = vocoderInputs(ids, style, speed)
+    return Result(trim(vocode(x), tailTrim, minSamples), x.frames, x.durations)
+  }
+
+  /** The predictor, the row repeat and the prosody graph: what the vocoder takes for [ids]. */
+  fun vocoderInputs(ids: IntArray, style: FloatArray, speed: Float): VocoderInputs {
     val n = ids.size
     val p =
       run(
@@ -95,20 +116,11 @@ private constructor(
     }
 
     val asr = repeatRows(tEn, durations, ASR_DIM)
-    val v =
-      run(
-        vocoder,
-        mapOf(
-          "asr" to Feed(intArrayOf(1, frames, ASR_DIM), floats(asr)),
-          "f0" to Feed(intArrayOf(1, f0.size), floats(f0)),
-          "n" to Feed(intArrayOf(1, noise.size), floats(noise)),
-          "har" to Feed(intArrayOf(1, har.size / HAR_DIM, HAR_DIM), floats(har)),
-          "style" to Feed(intArrayOf(1, STYLE_DIM), floats(style)),
-        ),
-      )
-    val wav = v.floats(null, SAMPLES_PER_FRAME * frames)
-    return Result(trim(wav, tailTrim, minSamples), frames, durations)
+    return VocoderInputs(asr, f0, noise, har, style, frames, durations)
   }
+
+  /** This synthesizer's vocoder on [x]: the waveform [1, 600T] before the trim. */
+  fun vocode(x: VocoderInputs): FloatArray = vocode(vocoder, x)
 
   /**
    * Closes all three graphs even when one throws; the first failure is rethrown after the others
@@ -116,7 +128,7 @@ private constructor(
    */
   override fun close() {
     var failure: Throwable? = null
-    for (graph in listOf(predictor, prosody, vocoder)) {
+    for (graph in listOf<AutoCloseable>(predictor, prosody, vocoder)) {
       runCatching { graph.close() }
         .onFailure { t ->
           val first = failure
@@ -137,22 +149,18 @@ private constructor(
    * allocation).
    */
   private class Outputs(private val it: Interpreter) {
-    private fun buffer(name: String?): ByteBuffer {
+    private fun buffer(name: String): ByteBuffer {
       val i =
-        if (name == null) {
-          0
-        } else {
-          (0 until it.outputTensorCount).firstOrNull { i -> it.getOutputTensor(i).name() == name }
-            ?: throw IllegalStateException("no output '$name'")
-        }
+        (0 until it.outputTensorCount).firstOrNull { i -> it.getOutputTensor(i).name() == name }
+          ?: throw IllegalStateException("no output '$name'")
       return it.getOutputTensor(i).asReadOnlyBuffer().order(ByteOrder.nativeOrder())
     }
 
-    /** [name] null = the only output. [expected] null = any size. */
-    fun floats(name: String?, expected: Int?): FloatArray {
+    /** [expected] null = any size. */
+    fun floats(name: String, expected: Int?): FloatArray {
       val b = buffer(name).asFloatBuffer()
       check(expected == null || b.remaining() == expected) {
-        "output ${name ?: "0"} has ${b.remaining()} floats, expected $expected"
+        "output $name has ${b.remaining()} floats, expected $expected"
       }
       return FloatArray(b.remaining()).also { b.get(it) }
     }
@@ -175,7 +183,6 @@ private constructor(
 
     private val PREDICTOR_INPUTS = setOf("input_ids", "style", "speed")
     private val PROSODY_INPUTS = setOf("en", "style")
-    private val VOCODER_INPUTS = setOf("asr", "f0", "n", "har", "style")
     private val SPC_OUTPUTS =
       setOf("StatefulPartitionedCall:0", "StatefulPartitionedCall:1", "StatefulPartitionedCall:2")
 
@@ -190,10 +197,13 @@ private constructor(
     val XNNPACK_OFF: Set<String> = setOf("predictor")
 
     /**
-     * Opens the three graphs (Interpreter, [threads] threads, XNNPACK except on the graphs in
-     * [xnnpackOff]) and checks their input and output names; [loadMs] gets each graph's
-     * construction time, [afterEach] is called with its key. On the LiteRT thread. Throws the
-     * runtime's exception unchanged; the caller maps it.
+     * Opens the three graphs with [threads] threads each: the predictor and the prosody graph on
+     * the Interpreter (XNNPACK except on the graphs in [xnnpackOff]) with their input and output
+     * names checked, the vocoder on CompiledModel (CPU). The text_to_speech_streaming sample leaves
+     * the vocoder's CPU options unset, which is one thread in LiteRT 2.2.0. This one gives it the
+     * threads of the other graphs and of the G2P graph. [loadMs] gets each graph's construction
+     * time, [afterEach] is called with its key. On the LiteRT thread. Throws the runtime's
+     * exception unchanged; the caller maps it.
      */
     fun open(
       predictorFile: File,
@@ -206,41 +216,41 @@ private constructor(
       xnnpackOff: Set<String> = emptySet(),
       afterEach: (String) -> Unit = {},
     ): KittenSynthesizer {
-      val opened = ArrayList<Interpreter>(3)
-      fun graph(
-        key: String,
-        file: File,
-        inputs: Set<String>,
-        outputs: Set<String>?,
-        placeholders: Map<String, IntArray> = emptyMap(),
-      ): Interpreter {
+      val opened = ArrayList<AutoCloseable>(3)
+      fun graph(key: String, file: File, inputs: Set<String>, outputs: Set<String>): Interpreter {
         val t0 = System.nanoTime()
         val options =
           Interpreter.Options().setNumThreads(threads).setUseXNNPACK(key !in xnnpackOff)
-        val it =
-          if (placeholders.isEmpty()) {
-            Interpreter(file, options)
-          } else {
-            Interpreter(withInputShapes(file, placeholders), options)
-          }
+        val it = Interpreter(file, options)
         opened += it
         loadMs[key] = (System.nanoTime() - t0) / 1_000_000
         afterEach(key)
         val ins =
           (0 until it.inputTensorCount).map { i -> canonical(it.getInputTensor(i).name()) }.toSet()
         val outs = (0 until it.outputTensorCount).map { i -> it.getOutputTensor(i).name() }.toSet()
-        val outputsMatch = if (outputs == null) outs.size == 1 else outs == outputs
-        check(ins == inputs && outputsMatch) {
+        check(ins == inputs && outs == outputs) {
           "$key graph ${file.name}: inputs $ins, outputs $outs; expected inputs $inputs, " +
-            "outputs ${outputs ?: "one"}"
+            "outputs $outputs"
         }
+        return it
+      }
+      fun vocoder(file: File): CompiledModel {
+        val t0 = System.nanoTime()
+        val options =
+          CompiledModel.Options(Accelerator.CPU).apply {
+            cpuOptions = CompiledModel.CpuOptions(numThreads = threads)
+          }
+        val it = CompiledModel.create(file.absolutePath, options, null)
+        opened += it
+        loadMs["vocoder"] = (System.nanoTime() - t0) / 1_000_000
+        afterEach("vocoder")
         return it
       }
       try {
         return KittenSynthesizer(
           graph("predictor", predictorFile, PREDICTOR_INPUTS, SPC_OUTPUTS),
           graph("prosody", prosodyFile, PROSODY_INPUTS, SPC_OUTPUTS),
-          graph("vocoder", vocoderFile, VOCODER_INPUTS, null, VOCODER_PLACEHOLDERS),
+          vocoder(vocoderFile),
           tailTrim,
           minSamples,
         )
@@ -251,66 +261,26 @@ private constructor(
     }
 
     /**
-     * The vocoder's inputs carry placeholder shapes that disagree with each other (asr [1,1,128]
-     * but f0 and n [1,1] and har [1,1,22], where f0 and n are 2T long and har 120T+1). The Java
-     * Interpreter allocates at the placeholders when it is created, and XNNPACK refuses them
-     * ("XNNPack delegate failed to reshape runtime"; Python's interpreter resizes first and never
-     * meets them). So the vocoder is opened with the placeholders of T = 1; every call resizes to
-     * its own T anyway.
+     * Runs the vocoder [model] on [x] through [LiteRtDynamicShape.runDynamic]: every input resized
+     * to this call's shape, in the graph's order (asr, f0, n, har, style), and an output buffer of
+     * the known size [1, 600T], since the waveform is a dynamic tensor whose shape exists only
+     * during the run.
      */
-    private val VOCODER_PLACEHOLDERS =
-      mapOf("f0" to intArrayOf(1, 2), "n" to intArrayOf(1, 2), "har" to intArrayOf(1, 121, HAR_DIM))
-
-    /**
-     * [file] mapped copy-on-write with the default shapes of the named inputs of subgraph 0
-     * rewritten to [shapes]: the `shape` vectors of the TFLite flatbuffer (Model.subgraphs 2 ->
-     * SubGraph.tensors 0 / inputs 1 -> Tensor.shape 0 / name 3), same rank only. A private mapping
-     * needs a channel open for writing, but its changes never reach the file: the verified file on
-     * disk stays as it is.
-     */
-    fun withInputShapes(file: File, shapes: Map<String, IntArray>): ByteBuffer {
-      val mapped =
-        FileChannel.open(file.toPath(), StandardOpenOption.READ, StandardOpenOption.WRITE).use {
-          it.map(FileChannel.MapMode.PRIVATE, 0, it.size())
-        }
-      val b = mapped.duplicate().order(ByteOrder.LITTLE_ENDIAN)
-      fun field(table: Int, index: Int): Int {
-        val vt = table - b.getInt(table)
-        val slot = 4 + 2 * index
-        if (slot + 2 > (b.getShort(vt).toInt() and 0xffff)) {
-          return -1
-        }
-        val off = b.getShort(vt + slot).toInt() and 0xffff
-        return if (off == 0) -1 else table + off
-      }
-      fun deref(p: Int): Int {
-        check(p >= 0) { "${file.name}: a flatbuffer field is missing" }
-        return p + b.getInt(p)
-      }
-      val subgraph = deref(deref(field(b.getInt(0), 2)) + 4)
-      val tensors = deref(field(subgraph, 0))
-      val inputs = deref(field(subgraph, 1))
-      val done = HashSet<String>()
-      for (i in 0 until b.getInt(inputs)) {
-        val tensor = deref(tensors + 4 + 4 * b.getInt(inputs + 4 + 4 * i))
-        val s = deref(field(tensor, 3))
-        val bytes = ByteArray(b.getInt(s))
-        b.position(s + 4)
-        b.get(bytes)
-        val name = canonical(String(bytes, Charsets.UTF_8))
-        val dims = shapes[name] ?: continue
-        val v = deref(field(tensor, 0))
-        check(b.getInt(v) == dims.size) {
-          "${file.name}: input '$name' has rank ${b.getInt(v)}, expected ${dims.size}"
-        }
-        for (k in dims.indices) {
-          b.putInt(v + 4 + 4 * k, dims[k])
-        }
-        done += name
-      }
-      check(done == shapes.keys) { "${file.name}: inputs ${shapes.keys - done} not found" }
-      return mapped
-    }
+    fun vocode(model: CompiledModel, x: VocoderInputs): FloatArray =
+      LiteRtDynamicShape.runDynamic(
+          model,
+          signatureIndex = 0,
+          inputs = arrayOf(x.asr, x.f0, x.noise, x.har, x.style),
+          inputShapes =
+            arrayOf(
+              intArrayOf(1, x.frames, ASR_DIM),
+              intArrayOf(1, x.f0.size),
+              intArrayOf(1, x.noise.size),
+              intArrayOf(1, x.har.size / HAR_DIM, HAR_DIM),
+              intArrayOf(1, STYLE_DIM),
+            ),
+          outputShapes = arrayOf(intArrayOf(1, SAMPLES_PER_FRAME * x.frames)),
+        )[0]
 
     /**
      * "serving_default_x:0" and "x" -> "x", so signature and signature-less graphs feed the same

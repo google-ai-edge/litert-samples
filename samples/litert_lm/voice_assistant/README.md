@@ -31,7 +31,8 @@ microphone (16 kHz mono, 20 ms chunks)
      automaticToolCalling = false; the app runs each call in Message.toolCalls and sends the
      result back with Message.tool(...)
   -> KittenTTS: dictionary G2P plus a G2P graph (CompiledModel, CPU), three synthesis graphs
-     (Interpreter API, CPU), sentence by sentence while the reply streams
+     (CPU: the vocoder on CompiledModel, the predictor and prosody on the Interpreter API),
+     sentence by sentence while the reply streams
   -> AudioTrack: each sentence plays while the next one is synthesized
 ```
 
@@ -69,7 +70,7 @@ The log has one line per event and a `TURN` line per request (what was heard, th
 
 ## Measured on Galaxy S26
 
-Galaxy S26 SM-S942Q, Android 16 (BP4A.251205.006), LiteRT 2.2.0, LiteRT-LM 0.16.1. The first table is from this sample, a debug build in airplane mode: the first two rows on 2026-10-04 with thermal status 1 before each run, the third on 2026-10-05 with thermal status 0.
+Galaxy S26 SM-S942Q, Android 16 (BP4A.251205.006), LiteRT 2.2.0, LiteRT-LM 0.16.1. The first table is from this sample, a debug build in airplane mode: the first two rows on 2026-10-04 with thermal status 1 before each run, the third on 2026-10-05 with thermal status 0. Its three rows were measured with the vocoder on the Interpreter API (the KittenTTS code of commit 376f54ba); the last row of the parts table is this sample with the vocoder on `CompiledModel`.
 
 | Input | Succeeded | Transcript ready (ms) | Model's first token (ms) | First sentence ready (ms) | First sound (ms) |
 |---|---|---|---|---|---|
@@ -79,13 +80,14 @@ Galaxy S26 SM-S942Q, Android 16 (BP4A.251205.006), LiteRT 2.2.0, LiteRT-LM 0.16.
 
 Times are in ms from the end of the utterance; for the typed command, from the moment the loaded app took the text. First sound is the start of the player's first write; the output latency after it was not measured. For the WAV and the microphone the utterance ends with the endpointer's 800 ms of silence, so counted from the last spoken word the first sound comes 800 ms later than the column says. The WAV and the loudspeaker request are a synthetic voice (macOS `say`, voice Samantha), not a person.
 
-The parts were measured on 2026-10-03 with the library this sample was adapted from (the `// Adapted from` lines name it), not with this sample. In the chat model's run the vision encoder was also on the GPU; this sample does not load it.
+The parts were measured on 2026-10-03 with the library this sample was adapted from (the `// Adapted from` lines name it), not with this sample, except the last row. In the chat model's run the vision encoder was also on the GPU; this sample does not load it.
 
 | Part | Measured |
 |---|---|
 | Zipformer `medium_fp16`, GPU, the ten commands as synthetic WAVs | graph run 37.1 ms (median of 10 warm calls, 36.3 to 40.8), whole call (fbank, graph, CTC) 60.6 ms, load 2.50 s; transcript equal to the command after lower case and without punctuation 4/10 (a strict comparison: "TO MORROW" for "tomorrow" and "B IS" for "What is" count as misses) |
 | Kitten `fp32`, CPU, 4 threads, the predictor without XNNPACK, ten replies of 34 to 77 characters | median synthesis 301.2 ms (253.6 to 559.6), real-time factor 0.086; peak RSS (VmHWM) 334,360 kB after the load and 614,304 kB after the ten replies (with XNNPACK on the predictor too: 624,404 kB and 869,020 kB) |
 | Gemma 4 E2B, GPU, the ten commands as text, with tools that record the call and do nothing | 10/10 (a command succeeds when the expected calls are made with the expected arguments); median first token / reply 650 / 1,728 ms; the first command again on a new conversation gave the same calls and reply |
+| This sample on 2026-10-05 ([`VocoderParityCheck`](android/app/src/androidTest/java/com/google/ai/edge/examples/voice_assistant/check/VocoderParityCheck.kt), a debug build, the screen off, airplane mode off, thermal status 0): Kitten `fp32`, the vocoder on `CompiledModel` (CPU, 4 threads), the predictor and prosody on the Interpreter API (4 threads, the predictor without XNNPACK), the Kitten row's ten replies | median synthesis 236.5 ms (191.8 to 440.7), real-time factor 0.067; the vocoder alone 141.8 ms (median of the ten warm calls; 217.7 ms on one thread, LiteRT's default that the `text_to_speech_streaming` sample keeps); against the same vocoder file on the Interpreter API with the same inputs, the same length for 10/10 replies, largest absolute difference 0, correlation 1.000000 |
 
 One phone, one run each: not a promise for other devices, other voices or a real room.
 
@@ -98,7 +100,7 @@ One phone, one run each: not a promise for other devices, other voices or a real
 - One utterance is at most 16 s, the window of the Zipformer graph; the endpointer cuts a longer one there.
 - Each request runs in its own conversation, so the assistant does not remember the previous request.
 - If a generation does not confirm its stop within 10 s, the chat engine is left unusable: later requests fail until the app is restarted.
-- The three KittenTTS graphs run on the Interpreter API, not `CompiledModel`: the predictor and prosody graphs keep their LSTM state in variable tensors, which the `CompiledModel` loader does not accept yet (b/365299994), as [`samples/litert/text_to_speech_streaming`](../../litert/text_to_speech_streaming/) explains; that sample runs the vocoder on `CompiledModel` with its own JNI resize, this one keeps it on the Interpreter too.
+- The KittenTTS predictor and prosody graphs run on the Interpreter API, not `CompiledModel`: they keep their LSTM state in variable tensors, which the `CompiledModel` loader does not accept yet (b/365299994), as [`samples/litert/text_to_speech_streaming`](../../litert/text_to_speech_streaming/) explains. The vocoder runs on `CompiledModel`, resized per sentence through that sample's JNI workaround ([`app/src/main/cpp/`](android/app/src/main/cpp/)) until the Kotlin API can resize an input.
 - English only: the Zipformer and Kitten variants are English.
 
 ## Development
