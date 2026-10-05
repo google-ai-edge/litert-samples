@@ -68,11 +68,11 @@ time includes compilation.
 
 | Task | Model | Backend | Galaxy S26 | Download | License | Model files |
 | :-- | :-- | :-- | --: | --: | :-- | :-- |
-| Multilingual text decision (Laya) | Laya multilingual | GPU | 82 ms | 679 MB | [Apache-2.0](https://huggingface.co/litert-community/Laya-Multilingual-LiteRT/blob/32f1b84d55f42a323464fad22594cfc2059e7467/licenses/Laya-APACHE-2.0.txt) | [litert-community/Laya-Multilingual-LiteRT](https://huggingface.co/litert-community/Laya-Multilingual-LiteRT) |
-| Multilingual text decision (Julia-1) | Julia-1 | GPU | 72 ms | 416 MB | [Apache-2.0](https://huggingface.co/litert-community/Julia-1-LiteRT/blob/8f36857c56e891c023060586759c6cdc8baf6b3e/LICENSE) | [litert-community/Julia-1-LiteRT](https://huggingface.co/litert-community/Julia-1-LiteRT) |
-| English text decision (GLiClass-Edge) | GLiClass-Edge v3.0 | GPU | 16 ms | 96 MB | [Apache-2.0](https://huggingface.co/litert-community/GLiClass-Edge-v3.0-LiteRT/blob/88c90950587eb951974c094eef91afa0fe3552c0/LICENSE) | [litert-community/GLiClass-Edge-v3.0-LiteRT](https://huggingface.co/litert-community/GLiClass-Edge-v3.0-LiteRT) |
-| English text decision (Open-Decision) | Open-Decision DeBERTa-v3-large | GPU | 194 ms | 984 MB | [Apache-2.0](https://huggingface.co/litert-community/Open-Decision-DeBERTa-v3-Large-LiteRT/blob/7a276235b795e8ad3ae7ac6a9f237daa2098863a/LICENSE) | [litert-community/Open-Decision-DeBERTa-v3-Large-LiteRT](https://huggingface.co/litert-community/Open-Decision-DeBERTa-v3-Large-LiteRT) |
-| English text decision (GLiNER2.5-Decide) | GLiNER2.5-Decide | GPU | 77 ms | 931 MB | [Apache-2.0](https://huggingface.co/litert-community/GLiNER2.5-Decide-LiteRT/blob/db80197282d11373df084c0ceed67a54544cfa84/LICENSE) | [litert-community/GLiNER2.5-Decide-LiteRT](https://huggingface.co/litert-community/GLiNER2.5-Decide-LiteRT) |
+| Multilingual text decision (Laya) | Laya multilingual | GPU | 60 ms | 679 MB | [Apache-2.0](https://huggingface.co/litert-community/Laya-Multilingual-LiteRT/blob/32f1b84d55f42a323464fad22594cfc2059e7467/licenses/Laya-APACHE-2.0.txt) | [litert-community/Laya-Multilingual-LiteRT](https://huggingface.co/litert-community/Laya-Multilingual-LiteRT) |
+| Multilingual text decision (Julia-1) | Julia-1 | GPU | 66 ms | 416 MB | [Apache-2.0](https://huggingface.co/litert-community/Julia-1-LiteRT/blob/8f36857c56e891c023060586759c6cdc8baf6b3e/LICENSE) | [litert-community/Julia-1-LiteRT](https://huggingface.co/litert-community/Julia-1-LiteRT) |
+| English text decision (GLiClass-Edge) | GLiClass-Edge v3.0 | GPU | 11 ms | 96 MB | [Apache-2.0](https://huggingface.co/litert-community/GLiClass-Edge-v3.0-LiteRT/blob/88c90950587eb951974c094eef91afa0fe3552c0/LICENSE) | [litert-community/GLiClass-Edge-v3.0-LiteRT](https://huggingface.co/litert-community/GLiClass-Edge-v3.0-LiteRT) |
+| English text decision (Open-Decision) | Open-Decision DeBERTa-v3-large | GPU | 193 ms | 984 MB | [Apache-2.0](https://huggingface.co/litert-community/Open-Decision-DeBERTa-v3-Large-LiteRT/blob/7a276235b795e8ad3ae7ac6a9f237daa2098863a/LICENSE) | [litert-community/Open-Decision-DeBERTa-v3-Large-LiteRT](https://huggingface.co/litert-community/Open-Decision-DeBERTa-v3-Large-LiteRT) |
+| English text decision (GLiNER2.5-Decide) | GLiNER2.5-Decide | GPU | 72 ms | 931 MB | [Apache-2.0](https://huggingface.co/litert-community/GLiNER2.5-Decide-LiteRT/blob/db80197282d11373df084c0ceed67a54544cfa84/LICENSE) | [litert-community/GLiNER2.5-Decide-LiteRT](https://huggingface.co/litert-community/GLiNER2.5-Decide-LiteRT) |
 
 Each text task answers one multiple-choice question about a typed text, with two to four options
 written as `key: description`. Laya reads each option as `key: description`; the other four read the
@@ -117,7 +117,7 @@ back compiles them again.
 | `data/ModelStore.kt` | Resumable HTTPS download into private storage; byte-size and SHA-256 verification. |
 | `common/CompiledModelRunner.kt` | Lifecycle wrapper over `CompiledModel` with pre-allocated tensor buffers (from `utilities/common`); the vision and audio model wrappers compile their graphs through it, so `close()` and a failed GPU compile release the buffers with the model; the text engines compile through `models/typed_decisions/DecisionGraph.kt`. |
 | `image/`, `audio/`, `vision/` | Per-task engines: input conversion, GPU-to-CPU fallback, result rendering. |
-| `models/<name>/` | One package per model: preprocessing, the inference call and the decoding math, unit-tested on the JVM; the text engines have one JVM test, for the embedding-table lookup of three of them. |
+| `models/<name>/` | One package per model: preprocessing, the inference call and the decoding math, unit-tested on the JVM; the text engines have two JVM tests, for the embedding-table lookup of all five. |
 | `models/typed_decisions/` + `view/TextDecisionPanel.kt` | The Text tasks: each engine tokenizes the text, question and options for its model, runs its graphs and turns the scores into option probabilities; the panel is the shared input and result screen. |
 | `view/ModelZooScreen.kt` | Compose screens: Explore, task, Models, About. |
 
@@ -127,7 +127,7 @@ back compiles them again.
 ./gradlew :app:testDebugUnitTest
 ```
 
-121 JVM tests: catalog validation, download bookkeeping (partial files, resume, SHA-256
+122 JVM tests: catalog validation, download bookkeeping (partial files, resume, SHA-256
 verification, cancellation), per-model math against fixtures, the text engines' embedding-table
 lookup, GPU-to-CPU fallback and the permission flow.
 
