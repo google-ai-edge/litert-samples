@@ -19,12 +19,7 @@ This skill provides step-by-step guidance for building an Android app that runs 
 
 ### 1. Set up the project and place the model
 
-```kotlin
-android { defaultConfig { minSdk = 24 }; androidResources { noCompress += "tflite" } }
-dependencies { implementation("com.google.ai.edge.litert:litert:2.2.0") }
-```
-
-Put the model at `app/src/main/assets/model.tflite` (`noCompress` keeps it memory-mappable); a model too large to bundle is downloaded into `context.filesDir` and loaded with `CompiledModel.create(filePath, options)`.
+In the app-level `build.gradle.kts`, set `minSdk = 24` in `defaultConfig` and add `androidResources { noCompress += "tflite" }` inside `android { }`. Put the model at `app/src/main/assets/model.tflite` (`noCompress` keeps it memory-mappable); a model too large to bundle is downloaded into `context.filesDir` and loaded with `CompiledModel.create(filePath, options)`.
 
 With AGP 9.x the build stops at `processDebugMainManifest`: `litert` 2.2.0 and its dependency `litert-api` 2.2.0 both declare the namespace `com.google.ai.edge.litert` (https://github.com/google-ai-edge/LiteRT/issues/8474); AGP 8.x reports it as a warning and builds. For 2.2.0, add `android.uniquePackageNames=false` to `gradle.properties` before the first build. Excluding `litert-api` does not work: `CompiledModel` and `Accelerator` are in it, and the build then fails at `compileDebugKotlin`. The setting also hides the same clash between any other two libraries, so remove it when you move to a LiteRT version that builds without it.
 
@@ -112,21 +107,7 @@ On `error`, call `load(Accelerator.CPU)`; `bitmap` comes from the photo picker o
 
 ### 4. Preprocess by the model's input requirements
 
-```kotlin
-fun preprocess(bitmap: Bitmap, size: Int = 224, mean: Float = 127.5f, std: Float = 127.5f): FloatArray {
-    val scaled = Bitmap.createScaledBitmap(bitmap, size, size, true)
-    val pixels = IntArray(size * size).also { scaled.getPixels(it, 0, size, 0, 0, size, size) }
-    val out = FloatArray(size * size * 3)
-    pixels.forEachIndexed { i, p ->
-        out[i * 3] = ((p shr 16 and 0xFF) - mean) / std
-        out[i * 3 + 1] = ((p shr 8 and 0xFF) - mean) / std
-        out[i * 3 + 2] = ((p and 0xFF) - mean) / std
-    }
-    return out
-}
-```
-
-Use the model's own size, mean/std, channel order and layout (this example is NHWC, RGB, scaled to -1..1); a wrong mean/std looks exactly like a broken model.
+Turn the bitmap into the model's input with [`preprocess()`](references/preprocess.md). Use the model's own size, mean/std, channel order and layout (that example is NHWC, RGB, scaled to -1..1); a wrong mean/std looks exactly like a broken model.
 
 ### 5. Run on a device and check the output
 
