@@ -9,6 +9,7 @@ device lab, from a Colab runtime. Nothing is installed on your machine, and no d
 | :--- | :--- |
 | [`litert_cli_benchmark.ipynb`](litert_cli_benchmark.ipynb) [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/google-ai-edge/litert-samples/blob/main/benchmark/developer_device_platform/litert_cli_benchmark.ipynb) | The easiest way to benchmark LiteRT runtimes. The [LiteRT CLI](https://github.com/google-ai-edge/LiteRT-CLI) drives DDP for you, with native support for LiteRT and LiteRT-LM models. |
 | [`ddp_cli_benchmark.ipynb`](ddp_cli_benchmark.ipynb) [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/google-ai-edge/litert-samples/blob/main/benchmark/developer_device_platform/ddp_cli_benchmark.ipynb) | Uses the DDP CLI directly, with the LiteRT-LM runtime as the example. Extends easily across several devices, and to other benchmark binaries for other runtimes. |
+| [`embedding_gemma_ddp_benchmark.ipynb`](embedding_gemma_ddp_benchmark.ipynb) [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/google-ai-edge/litert-samples/blob/main/benchmark/developer_device_platform/embedding_gemma_ddp_benchmark.ipynb) | The DDP CLI flow for an embedding model: EmbeddingGemma with LiteRT-LM's `embedding_litert_lm_main`, on text and tri-modal (text + image + audio) inputs, CPU and GPU. |
 
 ## What you need
 
@@ -55,6 +56,21 @@ taking the binary and its shared libraries from the public release bucket at
 
 Both pull the metrics files back with `--paths-to-pull`, then tabulate prefill and decode tokens/s, time to first token and
 peak memory, confirm the OpenCL delegate actually loaded, and chart the comparison.
+
+## `embedding_gemma_ddp_benchmark.ipynb`: embedding models
+
+The same DDP CLI flow as `ddp_cli_benchmark.ipynb`, for an embedding model. It benchmarks
+[EmbeddingGemma 2 740M](https://huggingface.co/litert-community/embeddinggemma-2-740m-litert-lm), downloaded from Hugging
+Face, with
+[`embedding_litert_lm_main`](https://github.com/google-ai-edge/LiteRT-LM/blob/main/runtime/engine/embedding_litert_lm_main.cc),
+taking the binary and the OpenCL delegate from the public release bucket at
+`gs://litert/binaries/latest/android_arm64/litert_lm/`.
+
+A wrapper script runs four configurations per device: text only, and tri-modal (the text plus a test image and a 5 s
+audio clip from the [LiteRT-LM repo](https://github.com/google-ai-edge/LiteRT-LM/tree/main/runtime/testdata)), each on
+CPU and GPU, with a discarded warm-up pass and a cooldown between them. It pulls each configuration's console output back
+with `--paths-to-pull`, then tabulates average latency, peak memory and per-encoder (vision, audio) time, and confirms the
+OpenCL delegate actually loaded.
 
 ## Related
 
