@@ -24,13 +24,12 @@ OPENVINO_SHA256='757eb8140039c9060a9e2668dc3885ab0daf24fabe7adf71a8e9e81da148049
 
 # libLiteRtCompilerPlugin_IntelOpenvino.so and libLiteRtDispatch_IntelOpenvino.so
 # come from the litert-npu-runtime-intel-openvino Maven package, not from here.
-# Level Zero (libze_loader.so, libze_intel_npu.so) is intentionally not bundled:
-# it is part of the device NPU driver stack in /vendor/lib64 and must be exposed
-# to apps through /vendor/etc/public.libraries.txt.
+# Level Zero is part of the device NPU driver stack and is intentionally not
+# bundled. The published Maven package owns its Android manifest declarations.
 
 SCRIPT_DIR=$(dirname "$(realpath "${BASH_SOURCE[0]}")")
 JNI_X86_64_DIR='src/main/jni/x86_64'
-DEST_DIR="${SCRIPT_DIR}/intel_runtime/${JNI_X86_64_DIR}"
+DEST_DIR="${SCRIPT_DIR}/../app_intel/${JNI_X86_64_DIR}"
 
 verify_sha256() {
   local file=$1
