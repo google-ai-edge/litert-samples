@@ -20,3 +20,5 @@ Two basic skills written in the form of [android/skills](https://github.com/andr
 
 * [`litert-runtime/`](litert-runtime/) — Create an Android app that runs a `.tflite` model on the CPU or the GPU with the CompiledModel API: the dependency, where the model file goes, the inference class, the ViewModel and screen, and checking the output on a device.
 * [`litert-lm/`](litert-lm/) — Create an Android app that runs an open text LLM on the CPU or the GPU with the LiteRT-LM Kotlin API: the dependency and manifest entries, getting a `.litertlm` model from litert-community onto the device, engine initialization, a streamed multi-turn conversation, the ViewModel and screen.
+
+[`tests/`](tests/) builds the Kotlin of these two skills into apps and runs it on a device, including the paths where a step fails.
