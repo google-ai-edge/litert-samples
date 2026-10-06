@@ -12,14 +12,14 @@ WARNING: The version of NPU runtime libraries has to match the runtime maven pac
 Please make sure your NPU runtime are being placed under the project root folder
 (current folder for this gradle project).
 
-From the app's root directory, run:
+To build the ARM64 multi-vendor app from the project root, run:
 
 ```sh
-$ ./gradlew bundle
+$ ./gradlew :app:bundleRelease
 ```
 
-And it will produce the app bundle at under the `./app` folder
-`./build/outputs/bundle/release/app-release.aab`.
+The app bundle is written to
+`./app/build/outputs/bundle/release/app-release.aab`.
 
 ## Install the app bundle to a device for local testing
 
@@ -65,20 +65,36 @@ Currently, the following devices are supported:
 
 ### Intel NPU runtime libraries
 
-The LiteRT Intel plugins come from the
-`litert-npu-runtime-intel-openvino` Maven package. Fetch the OpenVINO and Intel
-NPU compiler libraries they depend on before building:
+The Intel app is a separate `x86_64` application module. The LiteRT Intel
+plugins and their manifest declarations come from the published
+`litert-npu-runtime-intel-openvino` Maven package, which Gradle resolves from
+the standard repositories. Fetch the OpenVINO and Intel NPU compiler libraries
+they depend on before building:
 
 ```sh
 $ ./litert_npu_runtime_libraries/fetch_intel_library.sh
 ```
 
-The Intel runtime is packaged for `x86_64` and does not use SoC-specific device
-groups. Build its app bundle with:
+Build the Intel app bundle with:
 
 ```sh
-$ ./gradlew :app:bundleRelease -PintelRuntimeBuild=true
+$ ./gradlew :app_intel:bundleRelease
 ```
 
-This produces an `x86_64`-only bundle containing the Intel runtime. Without the
-property, the normal ARM multi-vendor bundle is built.
+The `x86_64`-only bundle is written to
+`./app_intel/build/outputs/bundle/release/app_intel-release.aab`. The Intel app
+uses the application ID `com.google.ai.edge.examples.image_segmentation.intel`.
+
+To install the release bundle on a connected Intel device, run:
+
+```sh
+$ bundletool="java -jar /path/to/the/download/bundletool-all.jar"
+
+$ $bundletool build-apks \
+  --bundle=./app_intel/build/outputs/bundle/release/app_intel-release.aab \
+  --output=/tmp/image_segmentation_intel.apks \
+  --connected-device \
+  --overwrite
+
+$ $bundletool install-apks --apks=/tmp/image_segmentation_intel.apks
+```

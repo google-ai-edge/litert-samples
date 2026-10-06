@@ -26,7 +26,7 @@ android {
   compileSdk = 36
 
   defaultConfig {
-    applicationId = "com.google.ai.edge.examples.image_segmentation"
+    applicationId = "com.google.ai.edge.examples.image_segmentation.intel"
     minSdk = 31
     targetSdk = 33
     versionCode = 1
@@ -34,16 +34,17 @@ android {
 
     testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     vectorDrawables { useSupportLibrary = true }
-
-    ndk { abiFilters.add("arm64-v8a") }
-    // Needed for Qualcomm NPU runtimes
+    ndk { abiFilters.add("x86_64") }
     packaging { jniLibs { useLegacyPackaging = true } }
   }
 
   buildTypes {
     release {
       isMinifyEnabled = false
-      proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
+      proguardFiles(
+        getDefaultProguardFile("proguard-android-optimize.txt"),
+        file("../app/proguard-rules.pro"),
+      )
     }
   }
   compileOptions {
@@ -53,32 +54,16 @@ android {
   buildFeatures { compose = true }
   packaging { resources { excludes += "/META-INF/{AL2.0,LGPL2.1}" } }
 
-  // NPU runtime libraries
-  dynamicFeatures.add(":litert_npu_runtime_libraries:mediatek_runtime_common")
-  dynamicFeatures.add(":litert_npu_runtime_libraries:mediatek_runtime_v8")
-  dynamicFeatures.add(":litert_npu_runtime_libraries:mediatek_runtime_v9")
-  dynamicFeatures.add(":litert_npu_runtime_libraries:google_tensor_runtime")
-  // dynamicFeatures.add(":litert_npu_runtime_libraries:samsung_runtime")
-  dynamicFeatures.add(":litert_npu_runtime_libraries:qualcomm_runtime_common")
-  dynamicFeatures.add(":litert_npu_runtime_libraries:qualcomm_runtime_dsp")
-  dynamicFeatures.add(":litert_npu_runtime_libraries:qualcomm_runtime_htp")
-  dynamicFeatures.add(":litert_npu_runtime_libraries:qualcomm_runtime_v65")
-  dynamicFeatures.add(":litert_npu_runtime_libraries:qualcomm_runtime_v66")
-  dynamicFeatures.add(":litert_npu_runtime_libraries:qualcomm_runtime_v68")
-  dynamicFeatures.add(":litert_npu_runtime_libraries:qualcomm_runtime_v73")
-  dynamicFeatures.add(":litert_npu_runtime_libraries:qualcomm_runtime_v75")
-  dynamicFeatures.add(":litert_npu_runtime_libraries:qualcomm_runtime_v79")
-  dynamicFeatures.add(":litert_npu_runtime_libraries:qualcomm_runtime_v81")
-
-  bundle {
-    deviceTargetingConfig = file("device_targeting_configuration.xml")
-    deviceGroup {
-      enableSplit = true // split bundle by #group
-      defaultGroup = "other" // group used for standalone APKs
+  sourceSets {
+    getByName("main") {
+      java.srcDirs("../app/src/main/java")
+      res.srcDirs("../app/src/main/res")
+      assets.srcDirs("../app/src/main/assets")
+      // let gradle pack the shared library into apk
+      jniLibs.srcDirs("src/main/jni")
     }
   }
 
-  // Disable lint analysis to avoid build failures due to lint errors.
   lint {
     disable.add("CoroutineCreationDuringComposition")
     disable.add("FlowOperatorInvokedInComposition")
@@ -86,14 +71,10 @@ android {
   }
 }
 
-// Import DownloadModels task
-project.extensions.extraProperties["ASSET_DIR"] = "$projectDir/src/main/assets"
-apply(from = "download_model.gradle")
+project.extensions.extraProperties["ASSET_DIR"] = "$rootDir/app/src/main/assets"
+apply(from = "../app/download_model.gradle")
 
 dependencies {
-  // Strings for NPU runtime libraries
-  implementation(project(":litert_npu_runtime_libraries:runtime_strings"))
-
   implementation(libs.litert) {
     exclude(group = "com.google.ai.edge.litert", module = "litert-support")
     exclude(group = "com.google.ai.edge.litert", module = "litert-support-api")
@@ -101,8 +82,10 @@ dependencies {
   implementation(libs.litert.support) {
     exclude(group = "com.google.ai.edge.litert", module = "litert-api")
   }
-
   implementation(libs.litert.gpu)
+  implementation(
+    "com.google.ai.edge.litert:litert-npu-runtime-intel-openvino:${libs.versions.litert.get()}"
+  )
 
   implementation(libs.androidx.core.ktx)
   implementation(libs.androidx.lifecycle.runtime.ktx)
@@ -140,4 +123,3 @@ tasks.withType<org.jetbrains.kotlin.gradle.tasks.KotlinCompile>().configureEach 
     jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_1_8)
   }
 }
-
