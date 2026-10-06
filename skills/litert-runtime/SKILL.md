@@ -3,7 +3,7 @@ name: litert-runtime
 description: Creates an Android app that runs a .tflite model on the CPU or the GPU with the LiteRT CompiledModel API in Kotlin. Use this skill to build a new app around a vision, audio or embedding model, or to add on-device inference to an existing app - the dependency, where the model file goes, the inference class, the ViewModel and screen, and checking the output on a device.
 license: Apache-2.0
 metadata:
-  last-updated: '2026-09-30'
+  last-updated: '2026-10-07'
   keywords: [LiteRT, CompiledModel, tflite, Android app, GPU]
 ---
 
@@ -29,13 +29,25 @@ With AGP 9.x the build stops at `processDebugMainManifest`: `litert` 2.2.0 and i
 import android.content.Context
 import com.google.ai.edge.litert.Accelerator
 import com.google.ai.edge.litert.CompiledModel
+import com.google.ai.edge.litert.TensorBuffer
 
 const val INPUT_SIZE = 224 * 224 * 3
 
 class Classifier(context: Context, accelerator: Accelerator) : AutoCloseable {
     private val model = CompiledModel.create(context.assets, "model.tflite", CompiledModel.Options(accelerator))
-    private val inputs = model.createInputBuffers()
-    private val outputs = model.createOutputBuffers()
+    private val inputs = mutableListOf<TensorBuffer>()
+    private val outputs = mutableListOf<TensorBuffer>()
+
+    init {
+        try {
+            inputs += model.createInputBuffers()
+            outputs += model.createOutputBuffers()
+            infer(FloatArray(INPUT_SIZE))
+        } catch (e: Exception) {
+            close()
+            throw e
+        }
+    }
 
     fun infer(input: FloatArray): FloatArray {
         inputs[0].writeFloat(input)
@@ -51,7 +63,7 @@ class Classifier(context: Context, accelerator: Accelerator) : AutoCloseable {
 }
 ```
 
-`Accelerator.CPU` runs everywhere. `Accelerator.GPU` compiles the graph for the GPU; if `create` throws `LiteRtException` (an op the GPU does not support), create with `Accelerator.CPU`. The buffers are created once with the model, reused for every inference and closed before the model.
+`Accelerator.CPU` runs everywhere. `Accelerator.GPU` compiles the graph for the GPU; when the GPU cannot take the model, the constructor throws `LiteRtException` (from `create` for an op the GPU does not support, from the buffers on the Android emulator), and the app creates the classifier with `Accelerator.CPU`. The buffers are created once with the model, reused for every inference and closed before the model. The constructor ends with one inference as the warm-up (the first GPU run includes shader compilation) and closes the model and its buffers if any step throws.
 
 ### 3. Wire a ViewModel and the screen
 
@@ -63,13 +75,13 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     private val scope = CoroutineScope(SupervisorJob() + executor.asCoroutineDispatcher())
     private var classifier: Classifier? = null
     private val _uiState = MutableStateFlow(UiState())
-    val uiState: StateFlow<UiState> = _uiState
+    val uiState: StateFlow<UiState> = _uiState.asStateFlow()
 
     fun load(accelerator: Accelerator = Accelerator.CPU) {
         scope.launch {
+            if (classifier != null) return@launch
             try {
-                classifier?.close()
-                classifier = Classifier(getApplication<Application>(), accelerator).also { it.infer(FloatArray(INPUT_SIZE)) }
+                classifier = Classifier(getApplication<Application>(), accelerator)
                 _uiState.value = UiState(ready = true)
             } catch (e: LiteRtException) {
                 _uiState.value = UiState(error = e.message)
@@ -78,7 +90,13 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     fun classify(input: FloatArray) {
-        scope.launch { classifier?.let { _uiState.value = _uiState.value.copy(result = it.infer(input)) } }
+        scope.launch {
+            try {
+                classifier?.infer(input)?.let { result -> _uiState.update { it.copy(result = result, error = null) } }
+            } catch (e: LiteRtException) {
+                _uiState.update { it.copy(error = e.message) }
+            }
+        }
     }
 
     override fun onCleared() {
@@ -88,22 +106,22 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
 }
 ```
 
-One single-thread executor owns the model: create, run and close happen only on it, never on the main thread. The inference in `load()` is the warm-up (the first GPU run includes shader compilation). The screen:
+One single-thread executor owns the model: create, run and close happen only on it, never on the main thread. `load()` does nothing when a model is already loaded, so the screen can call it again after a rotation; a `load()` that fails leaves `classifier` `null`. `classify()` reports a `LiteRtException` in `error` and keeps the model. The screen (`viewModel()` and `collectAsStateWithLifecycle()` come from `androidx.lifecycle:lifecycle-viewmodel-compose` and `androidx.lifecycle:lifecycle-runtime-compose`):
 
 ```kotlin
 @Composable
 fun MainScreen(viewModel: MainViewModel = viewModel()) {
-    val state by viewModel.uiState.collectAsState()
+    val state by viewModel.uiState.collectAsStateWithLifecycle()
     LaunchedEffect(Unit) { viewModel.load(Accelerator.GPU) }
     Column {
-        state.error?.let { Text("GPU unavailable: $it") }
+        state.error?.let { Text(it) }
         Button(onClick = { viewModel.classify(preprocess(bitmap)) }, enabled = state.ready) { Text("Run") }
         state.result?.let { Text("Top class: ${it.indices.maxBy { i -> it[i] }}") }
     }
 }
 ```
 
-On `error`, call `load(Accelerator.CPU)`; `bitmap` comes from the photo picker or CameraX.
+If `load(Accelerator.GPU)` ends in `error`, call `load(Accelerator.CPU)`; `bitmap` comes from the photo picker or CameraX.
 
 ### 4. Preprocess by the model's input requirements
 
