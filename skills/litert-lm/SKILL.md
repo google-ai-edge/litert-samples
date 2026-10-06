@@ -34,7 +34,7 @@ For the first run, copy the file into the app's private storage with adb: `adb p
 
 ### 3. Initialize the engine off the main thread
 
-`Engine(EngineConfig(modelPath, backend, cacheDir)).initialize()` loads the weights and blocks for seconds, so it runs on a background thread. `Backend.CPU()` is the default and runs everywhere; `Backend.GPU()` needs the two manifest lines. `cacheDir` speeds up the second load. `Engine` and `Conversation` are `AutoCloseable`, and a second `close()` on either throws `IllegalStateException`.
+`Engine(EngineConfig(modelPath, backend, cacheDir)).initialize()` loads the weights and blocks for seconds, so it runs on a background thread. `Backend.CPU()` is the default and runs everywhere; `Backend.GPU()` needs the two manifest lines. `cacheDir` speeds up the second load. `Engine` and `Conversation` are `AutoCloseable`. A second `close()` on either throws `IllegalStateException`, and so does `close()` on an engine whose `initialize()` threw: that engine holds nothing, so the code below stores it only after `initialize()` returns.
 
 ### 4. Conversation, streaming and the screen
 
@@ -105,7 +105,7 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
 }
 ```
 
-`sendMessageAsync(text)` returns a `Flow<Message>` of chunks; `sendMessage(text)` blocks and returns the whole reply. The conversation keeps its history, so the next `send()` continues the chat, and `busy` keeps the button disabled until the flow completes. `SamplerConfig(topK, topP, temperature)` in `ConversationConfig` sets the sampling. `load()` with the same model and backend already loaded does nothing, so the screen can call it again after a rotation. The screen (`viewModel()` and `collectAsStateWithLifecycle()` come from `androidx.lifecycle:lifecycle-viewmodel-compose` and `androidx.lifecycle:lifecycle-runtime-compose`):
+`sendMessageAsync(text)` returns a `Flow<Message>` of chunks (`toString()` gives a chunk's text); `sendMessage(text)` blocks and returns the whole reply. The conversation keeps its history, so the next `send()` continues the chat, and `busy` keeps the button disabled until the flow completes. `SamplerConfig(topK, topP, temperature)` in `ConversationConfig` sets the sampling. `load()` with the same model and backend already loaded does nothing, so the screen can call it again after a rotation. The screen (`viewModel()` and `collectAsStateWithLifecycle()` come from `androidx.lifecycle:lifecycle-viewmodel-compose` and `androidx.lifecycle:lifecycle-runtime-compose`):
 
 ```kotlin
 @Composable

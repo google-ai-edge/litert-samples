@@ -107,7 +107,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
 }
 ```
 
-One single-thread executor owns the model: create, run and close happen only on it, never on the main thread. `load()` does nothing when a model is already loaded, so the screen can call it again after a rotation; a `load()` that fails leaves `classifier` `null`. `classify()` reports a `LiteRtException` in `error` and keeps the model. The screen (`viewModel()` and `collectAsStateWithLifecycle()` come from `androidx.lifecycle:lifecycle-viewmodel-compose` and `androidx.lifecycle:lifecycle-runtime-compose`):
+One single-thread executor owns the model: create, run and close happen only on it, never on the main thread. `load()` does nothing when a model is already loaded, so the screen can call it again after a rotation; a `load()` that fails leaves `classifier` `null`. `classify()` reports a `LiteRtException` (package `com.google.ai.edge.litert`) in `error` and keeps the model. The screen (`viewModel()` and `collectAsStateWithLifecycle()` come from `androidx.lifecycle:lifecycle-viewmodel-compose` and `androidx.lifecycle:lifecycle-runtime-compose`):
 
 ```kotlin
 @Composable
