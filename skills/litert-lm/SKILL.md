@@ -11,8 +11,8 @@ This skill provides step-by-step guidance for building an Android app that runs 
 
 ## Prerequisites
 
-- A Kotlin Android project (Android Studio's Empty Activity template is enough). The litertlm-android 0.17.1 AAR declares `minSdk` 24.
-- The dependency in the app-level `build.gradle.kts`: `implementation("com.google.ai.edge.litertlm:litertlm-android:0.17.1")` from Google Maven (0.17.1 or the latest release).
+- A Kotlin Android project (Android Studio's Empty Activity template is enough). The litertlm-android 0.18.0 AAR declares `minSdk` 24.
+- The dependency in the app-level `build.gradle.kts`: `implementation("com.google.ai.edge.litertlm:litertlm-android:0.18.0")` from Google Maven (0.18.0 or the latest release).
 - For the GPU backend, both lines inside `<application>` in `AndroidManifest.xml`, and `<uses-permission android:name="android.permission.INTERNET"/>` if the app downloads the model:
 
 ```xml

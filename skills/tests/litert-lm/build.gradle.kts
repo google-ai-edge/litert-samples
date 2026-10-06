@@ -23,7 +23,7 @@ plugins {
 val skillsDir = providers.gradleProperty("skillsDir").orElse("..")
 
 // -PlitertlmVersion=<version> tests another release of the library.
-val litertlmVersion = providers.gradleProperty("litertlmVersion").orElse("0.17.1")
+val litertlmVersion = providers.gradleProperty("litertlmVersion").orElse("0.18.0")
 
 val extractSkillCode =
     tasks.register<ExtractSkillCode>("extractSkillCode") {
