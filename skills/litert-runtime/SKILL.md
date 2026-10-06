@@ -64,7 +64,7 @@ class Classifier(context: Context, accelerator: Accelerator) : AutoCloseable {
 }
 ```
 
-`Accelerator.CPU` runs everywhere. `Accelerator.GPU` compiles the graph for the GPU; when the GPU cannot take the model, the constructor throws `LiteRtException` (from `create` for an op the GPU does not support, from the buffers on the Android emulator), and the app can then call `load(Accelerator.CPU)`. The buffers are created once with the model, reused for every inference and closed before the model. One `Environment` serves every model in the process and stays open, so LiteRT loads the GPU accelerator library once and not on every `create`. The constructor ends with one inference as the warm-up (the first GPU run includes shader compilation) and closes the model and its buffers if any step throws.
+`Accelerator.CPU` runs everywhere. `Accelerator.GPU` compiles the graph for the GPU; when the GPU cannot take the model, the constructor throws `LiteRtException` (from `create` for an op the GPU does not support, from the buffers on the Android emulator, API 36 arm64), and the app can then call `load(Accelerator.CPU)`. The buffers are created once with the model, reused for every inference and closed before the model. One `Environment` serves every model in the process and stays open, so LiteRT loads the GPU accelerator library once and not on every `create`. The constructor ends with one inference as the warm-up (the first GPU run includes shader compilation) and closes the model and its buffers if any step throws.
 
 ### 3. Wire a ViewModel and the screen
 
