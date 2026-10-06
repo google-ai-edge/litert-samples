@@ -44,7 +44,7 @@ Every test fails if anything is thrown on the ViewModel's thread, because an exc
 
 A model that was never closed cannot be reached from a test, which is why the failing loads are repeated: one unclosed model keeps 60 KB or more of native heap. The models are at most 2.2 KB each, made by `tools/make_fixtures.py`, and kept as `litert-runtime/fixtures/*.bin` because the repository ignores `*.tflite`. A `ResourcesLoader` serves the one under test as `assets/model.tflite`.
 
-`ChatViewModelTest` ([LiteRT-LM](https://github.com/google-ai-edge/LiteRT-LM), 18 tests):
+`ChatViewModelTest` ([LiteRT-LM](https://github.com/google-ai-edge/LiteRT-LM), 19 tests):
 
 | Path | What is checked |
 |---|---|
@@ -52,7 +52,7 @@ A model that was never closed cannot be reached from a test, which is why the fa
 | `load()` with another model path, with the same path again, with the same path on the other backend, and alternately between two paths | the engine and the conversation that were replaced are closed; the same path keeps the engine; the process does not grow by another engine |
 | `load()` fails on a missing file and on a file that is not a model, also after a good load | the state is `error`, nothing stays open, 20 such loads keep under 1 MB of native heap, and the next `load()` works |
 | `onCleared()` while a reply streams, before its first chunk, and right after `send()` | the reply is stopped, and the conversation and the engine are closed |
-| `load()` with another model right after `send()` and while a reply streams | the reply is stopped, the first engine is closed, and the old reply does not reach the new chat |
+| `load()` with another model right after `send()` and while a reply streams; `send()` right after `load()` with another model | the reply is stopped, the first engine is closed, and the old reply does not reach the new chat; the message goes to the new model |
 | `onCleared()` while a `load()` waits for a reply to stop, right after `load()`, with no load; `load()` after `onCleared()` | no engine stays open; nothing is created afterwards |
 
 A reply that was stopped ends its coroutine as cancelled; one that ran to its end does not. The tests use that, and a limit of 20 seconds until the coroutine ends, to tell the two apart.

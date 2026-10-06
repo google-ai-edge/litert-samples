@@ -293,6 +293,23 @@ class ChatViewModelTest {
     }
 
     @Test
+    fun sendQueuedBehindALoad_goesToTheNewModel() {
+        val viewModel = newViewModel()
+        viewModel.loadAndAwait(modelPath)
+        val second = secondModelPath
+        var reply = emptyList<Job>()
+        viewModel.queued {
+            viewModel.launched { viewModel.load(second, backend()) }
+            reply = viewModel.launched { viewModel.send(SHORT_PROMPT) }
+        }
+        await(reply)
+        assertFalse("the reply was stopped", reply.single().isCancelled)
+        assertEquals(second, viewModel.engine()?.engineConfig?.modelPath)
+        assertTrue(viewModel.state.value.reply.isNotEmpty())
+        assertNull(viewModel.state.value.error)
+    }
+
+    @Test
     fun loadAnotherModel_whileAReplyStreams_stopsIt_andClosesTheFirstEngine() {
         val viewModel = newViewModel()
         viewModel.loadAndAwait(modelPath)

@@ -34,7 +34,7 @@ For the first run, copy the file into the app's private storage with adb: `adb p
 
 ### 3. Initialize the engine off the main thread
 
-`Engine(config).initialize()`, with `EngineConfig(modelPath = …, backend = …, cacheDir = …)` as below, loads the weights and blocks for seconds, so it runs on a background thread. `Backend.CPU()` is the default and runs everywhere; `Backend.GPU()` needs the two manifest lines. `cacheDir` speeds up the second load. `Engine` and `Conversation` are `AutoCloseable`. A second `close()` on either throws `IllegalStateException`, and so does `close()` on an engine whose `initialize()` threw: that engine holds nothing, so the code below stores it only after `initialize()` returns.
+`Engine(config).initialize()`, with `EngineConfig(modelPath = …, backend = …, cacheDir = …)` as below, loads the weights and blocks for seconds, so it runs on a background thread. `Backend.CPU()` is the default and runs everywhere; `Backend.GPU()` needs the two manifest lines: without them the engine initializes, and the first reply ends in the error `Can not find OpenCL library on this device`. `cacheDir` speeds up the second load. `Engine` and `Conversation` are `AutoCloseable`. A second `close()` on either throws `IllegalStateException`, and so does `close()` on an engine whose `initialize()` threw: that engine holds nothing, so the code below stores it only after `initialize()` returns.
 
 ### 4. Conversation, streaming and the screen
 
@@ -70,11 +70,10 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
 
     fun send(text: String) {
         scope.launch {
-            val conversation = conversation ?: return@launch
-            if (_state.value.busy) return@launch
+            if (!_state.value.ready || _state.value.busy) return@launch
             _state.update { it.copy(busy = true, reply = "", error = null) }
             try {
-                conversation.sendMessageAsync(text).collect { message -> _state.update { it.copy(reply = it.reply + message) } }
+                checkNotNull(conversation).sendMessageAsync(text).collect { message -> _state.update { it.copy(reply = it.reply + message) } }
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
@@ -86,9 +85,11 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     private suspend fun release() {
-        yield() // let a send() queued before this start its reply, so cancelProcess() stops it
-        conversation?.cancelProcess()
-        _state.first { !it.busy }
+        _state.update { it.copy(ready = false) }
+        while (_state.value.busy) {
+            conversation?.cancelProcess()
+            delay(100)
+        }
         conversation?.close()
         conversation = null
         engine?.close()
@@ -105,7 +106,7 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
 }
 ```
 
-`sendMessageAsync(text)` returns a `Flow<Message>` of chunks (`toString()` gives a chunk's text); `sendMessage(text)` blocks and returns the whole reply. The conversation keeps its history, so the next `send()` continues the chat, and `busy` keeps the button disabled until the flow completes. `SamplerConfig(topK, topP, temperature)` in `ConversationConfig` sets the sampling. `load()` with the model path that is already loaded does nothing, so the screen can call it again after a rotation, also once the app has fallen back to another backend; `send()` while a reply streams does nothing. The screen (`viewModel()` and `collectAsStateWithLifecycle()` come from `androidx.lifecycle:lifecycle-viewmodel-compose` and `androidx.lifecycle:lifecycle-runtime-compose`):
+`sendMessageAsync(text)` returns a `Flow<Message>` of chunks (`toString()` gives a chunk's text); `sendMessage(text)` blocks and returns the whole reply. The conversation keeps its history, so the next `send()` continues the chat, and `busy` keeps the button disabled until the flow completes. `SamplerConfig(topK, topP, temperature)` in `ConversationConfig` sets the sampling. `load()` with the model path that is already loaded does nothing, so the screen can call it again after a rotation, also once the app has fallen back to another backend; `send()` runs only when the state is `ready` and not `busy` (the button's own test), so a tap queued behind a `load()` or `onCleared()` does nothing. The screen (`viewModel()` and `collectAsStateWithLifecycle()` come from `androidx.lifecycle:lifecycle-viewmodel-compose` and `androidx.lifecycle:lifecycle-runtime-compose`):
 
 ```kotlin
 @Composable
@@ -124,10 +125,9 @@ fun ChatScreen(modelPath: String, viewModel: ChatViewModel = viewModel()) {
 
 ### 5. Lifecycle
 
-- Keep the engine for the app's lifetime in the `ViewModel` (or an application-scoped holder). `release()` stops a streaming reply with `cancelProcess()`, waits for its flow to end, then closes the conversation and the engine, each once; `onCleared()` and a `load()` that replaces the model both go through it, one at a time.
+- Keep the engine for the app's lifetime in the `ViewModel` (or an application-scoped holder). `release()` turns `ready` off, calls `cancelProcess()` until the streaming reply's flow has ended, then closes the conversation and the engine, each once; `onCleared()` and a `load()` that replaces the model both go through it, one at a time.
 - Create a new conversation to start a fresh chat. The reference app for this API is Google AI Edge Gallery: https://github.com/google-ai-edge/gallery
 
 ## Troubleshooting
 
-- Engine creation fails with `Backend.GPU()`: the two manifest lines are missing. Confirm the file with `Backend.CPU()` first.
 - First reply is slow: `initialize()` ran on first use; load at app start and set `cacheDir`.
