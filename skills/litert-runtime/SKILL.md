@@ -29,12 +29,14 @@ With AGP 9.x the build stops at `processDebugMainManifest`: `litert` 2.2.0 and i
 import android.content.Context
 import com.google.ai.edge.litert.Accelerator
 import com.google.ai.edge.litert.CompiledModel
+import com.google.ai.edge.litert.Environment
 import com.google.ai.edge.litert.TensorBuffer
 
 const val INPUT_SIZE = 224 * 224 * 3
+private val environment by lazy { Environment.create() }
 
 class Classifier(context: Context, accelerator: Accelerator) : AutoCloseable {
-    private val model = CompiledModel.create(context.assets, "model.tflite", CompiledModel.Options(accelerator))
+    private val model = CompiledModel.create(context.assets, "model.tflite", CompiledModel.Options(accelerator), environment)
     private val inputs = mutableListOf<TensorBuffer>()
     private val outputs = mutableListOf<TensorBuffer>()
 
@@ -56,14 +58,13 @@ class Classifier(context: Context, accelerator: Accelerator) : AutoCloseable {
     }
 
     override fun close() {
-        inputs.forEach { it.close() }
-        outputs.forEach { it.close() }
+        (inputs + outputs).forEach { it.close() }
         model.close()
     }
 }
 ```
 
-`Accelerator.CPU` runs everywhere. `Accelerator.GPU` compiles the graph for the GPU; when the GPU cannot take the model, the constructor throws `LiteRtException` (from `create` for an op the GPU does not support, from the buffers on the Android emulator), and the app creates the classifier with `Accelerator.CPU`. The buffers are created once with the model, reused for every inference and closed before the model. The constructor ends with one inference as the warm-up (the first GPU run includes shader compilation) and closes the model and its buffers if any step throws.
+`Accelerator.CPU` runs everywhere. `Accelerator.GPU` compiles the graph for the GPU; when the GPU cannot take the model, the constructor throws `LiteRtException` (from `create` for an op the GPU does not support, from the buffers on the Android emulator), and the app creates the classifier with `Accelerator.CPU`. The buffers are created once with the model, reused for every inference and closed before the model. One `Environment` serves every model in the process and stays open, so LiteRT loads the GPU accelerator library once and not on every `create`. The constructor ends with one inference as the warm-up (the first GPU run includes shader compilation) and closes the model and its buffers if any step throws.
 
 ### 3. Wire a ViewModel and the screen
 

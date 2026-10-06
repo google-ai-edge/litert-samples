@@ -135,6 +135,11 @@ class MainViewModelTest {
     }
 
     @Test
+    fun gpuCreateThrows_theFailedLoadsKeepNothing() {
+        assertFailedLoadsKeepNothing("gpu_unsupported", Accelerator.GPU)
+    }
+
+    @Test
     fun gpuCreateThrows_stateIsError_thenTheCpuLoads() {
         assets.use("gpu_unsupported")
         val viewModel = newViewModel()
@@ -220,6 +225,20 @@ class MainViewModelTest {
     @Test
     fun onCleared_withoutLoad_endsTheThread() {
         clearAndAwait(newViewModel())
+    }
+
+    @Test
+    fun manyViewModelLifetimes_eachLoadsAndCloses() {
+        repeat(LIFETIMES) { index ->
+            val viewModel = newViewModel()
+            viewModel.load(Accelerator.CPU)
+            viewModel.awaitIdle()
+            assertTrue("lifetime $index: ${viewModel.uiState.value.error}", viewModel.isReady())
+            clearAndAwait(viewModel)
+            if (index % 25 == 24) {
+                Log.i(TAG, "${index + 1} ViewModel lifetimes done")
+            }
+        }
     }
 
     @Test
@@ -320,6 +339,7 @@ class MainViewModelTest {
         const val OUTPUT_SIZE = 10
         const val TIMEOUT_SECONDS = 120L
         const val REPEATS = 50
+        const val LIFETIMES = 200
 
         /** 50 unclosed models keep 3 MB or more. 50 closed ones keep under 100 KB together. */
         const val HEAP_LIMIT_KB = 1024L
