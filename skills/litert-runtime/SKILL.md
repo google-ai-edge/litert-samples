@@ -19,7 +19,7 @@ This skill provides step-by-step guidance for building an Android app that runs 
 
 ### 1. Set up the project and place the model
 
-In the app-level `build.gradle.kts`, set `minSdk = 24` in `defaultConfig` and add `androidResources { noCompress += "tflite" }` inside `android { }`. Put the model at `app/src/main/assets/model.tflite` (`noCompress` keeps it memory-mappable); a model too large to bundle is downloaded into `context.filesDir` and loaded with `CompiledModel.create(filePath, options)`.
+In the app-level `build.gradle.kts`, set `minSdk = 24` in `defaultConfig` and add `androidResources { noCompress += "tflite" }` inside `android { }`. Put the model at `app/src/main/assets/model.tflite` (`noCompress` stores it in the APK as it is); a model too large to bundle is downloaded into `context.filesDir` and loaded with `CompiledModel.create(filePath, options)`.
 
 With AGP 9.x the build stops at `processDebugMainManifest`: `litert` 2.2.0 and its dependency `litert-api` 2.2.0 both declare the namespace `com.google.ai.edge.litert` (https://github.com/google-ai-edge/LiteRT/issues/8474); AGP 8.x reports it as a warning and builds. For 2.2.0, add `android.uniquePackageNames=false` to `gradle.properties` before the first build. Excluding `litert-api` does not work: `CompiledModel` and `Accelerator` are in it, and the build then fails at `compileDebugKotlin`. The setting also hides the same clash between any other two libraries, so remove it when you move to a LiteRT version that builds without it.
 
@@ -64,7 +64,7 @@ class Classifier(context: Context, accelerator: Accelerator) : AutoCloseable {
 }
 ```
 
-`Accelerator.CPU` runs everywhere. `Accelerator.GPU` compiles the graph for the GPU; when the GPU cannot take the model, the constructor throws `LiteRtException` (from `create` for an op the GPU does not support, from the buffers on the Android emulator), and the app creates the classifier with `Accelerator.CPU`. The buffers are created once with the model, reused for every inference and closed before the model. One `Environment` serves every model in the process and stays open, so LiteRT loads the GPU accelerator library once and not on every `create`. The constructor ends with one inference as the warm-up (the first GPU run includes shader compilation) and closes the model and its buffers if any step throws.
+`Accelerator.CPU` runs everywhere. `Accelerator.GPU` compiles the graph for the GPU; when the GPU cannot take the model, the constructor throws `LiteRtException` (from `create` for an op the GPU does not support, from the buffers on the Android emulator), and the app can then call `load(Accelerator.CPU)`. The buffers are created once with the model, reused for every inference and closed before the model. One `Environment` serves every model in the process and stays open, so LiteRT loads the GPU accelerator library once and not on every `create`. The constructor ends with one inference as the warm-up (the first GPU run includes shader compilation) and closes the model and its buffers if any step throws.
 
 ### 3. Wire a ViewModel and the screen
 
