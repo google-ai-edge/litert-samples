@@ -36,7 +36,7 @@ model, point `litert benchmark` at a local `.tflite` or `.litertlm` file instead
 
 ## `ddp_cli_benchmark.ipynb`: the DDP CLI directly
 
-Calls `gcloud alpha device-run sessions submit android-executable` itself. Reach for it when you need one of these:
+Calls `gcloud beta device-run sessions submit android-executable` itself. Reach for it when you need one of these:
 
 1. **Other runtimes.** LiteRT-LM is the example, but DDP runs any Android binary you hand it. The same notebook structure
    benchmarks another runtime by swapping the executable, its flags and the files pushed next to it.
