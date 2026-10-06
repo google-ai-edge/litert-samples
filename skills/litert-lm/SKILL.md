@@ -3,7 +3,7 @@ name: litert-lm
 description: Creates an Android app that runs an open text LLM on the device, on the CPU or the GPU, with the LiteRT-LM Kotlin API. Use this skill to build a new chat, summarization or extraction app with a .litertlm model from Hugging Face litert-community (Gemma, Qwen, Llama, Phi) - the dependency and manifest entries, getting the model file onto the device, engine initialization, a streamed multi-turn conversation, the ViewModel and screen.
 license: Apache-2.0
 metadata:
-  last-updated: '2026-09-30'
+  last-updated: '2026-10-07'
   keywords: [LiteRT-LM, litertlm, Gemma, on-device LLM, Android app, GPU]
 ---
 
@@ -34,7 +34,7 @@ For the first run, copy the file into the app's private storage with adb: `adb p
 
 ### 3. Initialize the engine off the main thread
 
-`Engine(EngineConfig(modelPath, backend, cacheDir)).initialize()` loads the weights and blocks for seconds, so it runs on a background thread. `Backend.CPU()` is the default and runs everywhere; `Backend.GPU()` needs the two manifest lines. `cacheDir` speeds up the second load. `Engine` and `Conversation` are `AutoCloseable`.
+`Engine(EngineConfig(modelPath, backend, cacheDir)).initialize()` loads the weights and blocks for seconds, so it runs on a background thread. `Backend.CPU()` is the default and runs everywhere; `Backend.GPU()` needs the two manifest lines. `cacheDir` speeds up the second load. `Engine` and `Conversation` are `AutoCloseable`, and a second `close()` on either throws `IllegalStateException`.
 
 ### 4. Conversation, streaming and the screen
 
@@ -44,50 +44,73 @@ data class ChatState(val ready: Boolean = false, val busy: Boolean = false, val 
 class ChatViewModel(app: Application) : AndroidViewModel(app) {
     private val executor = Executors.newSingleThreadExecutor()
     private val scope = CoroutineScope(SupervisorJob() + executor.asCoroutineDispatcher())
+    private val mutex = Mutex()
     private var engine: Engine? = null
     private var conversation: Conversation? = null
     private val _state = MutableStateFlow(ChatState())
-    val state: StateFlow<ChatState> = _state
+    val state: StateFlow<ChatState> = _state.asStateFlow()
 
     fun load(modelPath: String, backend: Backend = Backend.CPU()) {
         scope.launch {
-            try {
-                val config = EngineConfig(modelPath = modelPath, backend = backend, cacheDir = getApplication<Application>().cacheDir.path)
-                engine = Engine(config).also { it.initialize() }
-                conversation = engine?.createConversation(ConversationConfig(systemInstruction = Contents.of("You are a helpful assistant.")))
-                _state.value = ChatState(ready = true)
-            } catch (e: Exception) {
-                _state.value = ChatState(error = e.message)
+            mutex.withLock {
+                val loaded = engine?.engineConfig
+                if (loaded?.modelPath == modelPath && loaded.backend.name == backend.name) return@launch
+                release()
+                try {
+                    val config = EngineConfig(modelPath = modelPath, backend = backend, cacheDir = getApplication<Application>().cacheDir.path)
+                    engine = Engine(config).also { it.initialize() }
+                    conversation = engine?.createConversation(ConversationConfig(systemInstruction = Contents.of("You are a helpful assistant.")))
+                    _state.value = ChatState(ready = true)
+                } catch (e: Exception) {
+                    release()
+                    _state.value = ChatState(error = e.message)
+                }
             }
         }
     }
 
     fun send(text: String) {
-        val conversation = conversation ?: return
         scope.launch {
-            _state.value = _state.value.copy(busy = true, reply = "")
+            val conversation = conversation ?: return@launch
+            _state.update { it.copy(busy = true, reply = "", error = null) }
             try {
-                conversation.sendMessageAsync(text).collect { message -> _state.value = _state.value.copy(reply = _state.value.reply + message) }
+                conversation.sendMessageAsync(text).collect { message -> _state.update { it.copy(reply = it.reply + message) } }
+            } catch (e: CancellationException) {
+                throw e
             } catch (e: Exception) {
-                _state.value = _state.value.copy(error = e.message)
+                _state.update { it.copy(error = e.message) }
+            } finally {
+                _state.update { it.copy(busy = false) }
             }
-            _state.value = _state.value.copy(busy = false)
         }
     }
 
+    private suspend fun release() {
+        yield() // let a send() queued before this start its reply, so cancelProcess() stops it
+        conversation?.cancelProcess()
+        _state.first { !it.busy }
+        conversation?.close()
+        conversation = null
+        engine?.close()
+        engine = null
+        _state.value = ChatState()
+    }
+
     override fun onCleared() {
-        scope.launch { conversation?.close(); engine?.close() }
-        executor.shutdown()
+        scope.launch {
+            mutex.withLock { release() }
+            executor.shutdown()
+        }
     }
 }
 ```
 
-`sendMessageAsync(text)` returns a `Flow<Message>` of chunks; `sendMessage(text)` blocks and returns the whole reply. The conversation keeps its history, so the next `send()` continues the chat, and `busy` keeps the button disabled until the flow completes. `SamplerConfig(topK, topP, temperature)` in `ConversationConfig` sets the sampling. The screen:
+`sendMessageAsync(text)` returns a `Flow<Message>` of chunks; `sendMessage(text)` blocks and returns the whole reply. The conversation keeps its history, so the next `send()` continues the chat, and `busy` keeps the button disabled until the flow completes. `SamplerConfig(topK, topP, temperature)` in `ConversationConfig` sets the sampling. `load()` with the same model and backend already loaded does nothing, so the screen can call it again after a rotation. The screen (`viewModel()` and `collectAsStateWithLifecycle()` come from `androidx.lifecycle:lifecycle-viewmodel-compose` and `androidx.lifecycle:lifecycle-runtime-compose`):
 
 ```kotlin
 @Composable
 fun ChatScreen(modelPath: String, viewModel: ChatViewModel = viewModel()) {
-    val state by viewModel.state.collectAsState()
+    val state by viewModel.state.collectAsStateWithLifecycle()
     var input by remember { mutableStateOf("") }
     LaunchedEffect(modelPath) { viewModel.load(modelPath, Backend.GPU()) }
     Column {
@@ -101,7 +124,7 @@ fun ChatScreen(modelPath: String, viewModel: ChatViewModel = viewModel()) {
 
 ### 5. Lifecycle
 
-- Keep the engine for the app's lifetime in the `ViewModel` (or an application-scoped holder); close the conversation, then the engine, after the last reply has finished.
+- Keep the engine for the app's lifetime in the `ViewModel` (or an application-scoped holder). `release()` stops a streaming reply with `cancelProcess()`, waits for its flow to end, then closes the conversation and the engine, each once; `onCleared()` and a `load()` that replaces the model both go through it, one at a time.
 - Create a new conversation to start a fresh chat. The reference app for this API is Google AI Edge Gallery: https://github.com/google-ai-edge/gallery
 
 ## Troubleshooting
