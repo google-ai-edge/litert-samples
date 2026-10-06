@@ -2,7 +2,7 @@
 
 ## litert-community first
 
-https://huggingface.co/litert-community holds one repo per model, such as `litert-community/gemma-4-E2B-it-litert-lm` and `litert-community/Qwen3-0.6B`; the files to download from these two are `gemma-4-E2B-it.litertlm` and `Qwen3-0.6B.litertlm`, which run on the CPU and the GPU. The other files carry their variant in the name: `wi4b32` (int4 weights, block 32), `q8` or `q4` for the quantization, `ekv1280` or `ekv4096` for the context length (prompt plus reply, in tokens), and a SoC suffix such as `_Google_Tensor_G5` or `.mediatek.mt6993` for an NPU build (not covered here). The model card says which backend each file was tested on and its size.
+https://huggingface.co/litert-community holds one repo per model, such as `litert-community/gemma-4-E2B-it-litert-lm` and `litert-community/Qwen3-0.6B`; the files to download from these two are `gemma-4-E2B-it.litertlm` and `Qwen3-0.6B.litertlm`, which run on the CPU and the GPU. The other files in a repo are other builds of the same model, such as other quantizations and context lengths (the Qwen3 card lists each file with its quantization, its context length in tokens and its size), web builds (`-web`), and builds for one chip, named after it, such as `_Google_Tensor_G5` or `.mediatek.mt6993` (NPU builds, not covered here).
 
 The download URL is `https://huggingface.co/<repo>/resolve/main/<file>`. The file stays out of `assets/` and the APK.
 
