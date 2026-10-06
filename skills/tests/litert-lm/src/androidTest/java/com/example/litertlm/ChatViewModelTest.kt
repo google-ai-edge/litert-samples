@@ -44,6 +44,7 @@ import org.junit.Assert.assertNotSame
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertSame
 import org.junit.Assert.assertTrue
+import org.junit.Assume.assumeTrue
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -120,18 +121,28 @@ class ChatViewModelTest {
     }
 
     @Test
-    fun loadOnTheOtherBackend_closesTheEngineItReplaces() {
+    fun loadSameModelOnTheOtherBackend_keepsTheEngine() {
         val viewModel = newViewModel()
         viewModel.loadAndAwait(modelPath)
         val firstEngine = checkNotNull(viewModel.engine())
-        val firstConversation = checkNotNull(viewModel.conversation())
+        // The screen asks for the GPU after every rotation, also when the app fell back to the CPU.
         viewModel.loadAndAwait(modelPath, otherBackend())
-        val state = viewModel.state.value
-        // Where the other backend cannot load the model, the load ends in error with nothing open.
-        assertTrue(state.ready || state.error != null)
-        assertNotSame(firstEngine, viewModel.engine())
-        assertFalse("the first conversation is still open", firstConversation.isAlive)
-        assertFalse("the first engine is still open", firstEngine.isInitialized())
+        assertSame(firstEngine, viewModel.engine())
+        assertTrue(firstEngine.isInitialized())
+        assertTrue(viewModel.state.value.ready)
+    }
+
+    @Test
+    fun sendWhileAReplyStreams_doesNothing() {
+        val viewModel = newViewModel()
+        viewModel.loadAndAwait(modelPath)
+        val first = viewModel.launched { viewModel.send(LONG_PROMPT) }
+        viewModel.await("the reply to start") { it.reply.isNotEmpty() }
+        val soFar = viewModel.state.value.reply
+        await(viewModel.launched { viewModel.send(SHORT_PROMPT) })
+        assertFalse("the first reply ended", first.single().isCompleted)
+        assertTrue("the second send reset the reply", viewModel.state.value.reply.startsWith(soFar))
+        assertTrue(viewModel.state.value.busy)
     }
 
     @Test
@@ -226,9 +237,10 @@ class ChatViewModelTest {
         val reply = viewModel.launched { viewModel.send(LONG_PROMPT) }
         viewModel.await("the reply to be sent") { it.busy }
         Thread.sleep(BEFORE_FIRST_CHUNK_MS)
-        val soFar = viewModel.state.value.reply.length
+        val stillEmpty = viewModel.state.value.reply.isEmpty()
+        assumeTrue("the first chunk came within $BEFORE_FIRST_CHUNK_MS ms", stillEmpty)
         val seconds = clearAndAwait(viewModel)
-        Log.i(TAG, "onCleared before the first chunk ($soFar chars): closed after $seconds s")
+        Log.i(TAG, "onCleared before the first chunk: closed after $seconds s")
         assertStopped(reply, seconds)
         assertFalse("the conversation is still open", conversation.isAlive)
         assertFalse("the engine is still open", engine.isInitialized())
@@ -260,16 +272,19 @@ class ChatViewModelTest {
         viewModel.loadAndAwait(modelPath)
         val firstEngine = checkNotNull(viewModel.engine())
         val firstConversation = checkNotNull(viewModel.conversation())
+        val second = secondModelPath
         var reply = emptyList<Job>()
         var load = emptyList<Job>()
         val start = System.currentTimeMillis()
         viewModel.queued {
             reply = viewModel.launched { viewModel.send(LONG_PROMPT) }
-            load = viewModel.launched { viewModel.load(secondModelPath, backend()) }
+            load = viewModel.launched { viewModel.load(second, backend()) }
         }
-        await(load)
+        await(reply)
         val seconds = (System.currentTimeMillis() - start) / 1000.0
-        Log.i(TAG, "load right after send: ready after $seconds s")
+        await(load)
+        Log.i(TAG, "load right after send: reply stopped after $seconds s, ready after " +
+            "${(System.currentTimeMillis() - start) / 1000.0} s")
         assertStopped(reply, seconds)
         assertTrue(viewModel.state.value.ready)
         assertEquals("the old reply reached the new chat", "", viewModel.state.value.reply)
@@ -283,12 +298,16 @@ class ChatViewModelTest {
         viewModel.loadAndAwait(modelPath)
         val firstEngine = checkNotNull(viewModel.engine())
         val firstConversation = checkNotNull(viewModel.conversation())
+        val second = secondModelPath
         val reply = viewModel.launched { viewModel.send(LONG_PROMPT) }
         viewModel.await("the reply to start") { it.reply.isNotEmpty() }
         val start = System.currentTimeMillis()
-        viewModel.loadAndAwait(secondModelPath)
+        val load = viewModel.launched { viewModel.load(second, backend()) }
+        await(reply)
         val seconds = (System.currentTimeMillis() - start) / 1000.0
-        Log.i(TAG, "load while a reply streams: ready after $seconds s")
+        await(load)
+        Log.i(TAG, "load while a reply streams: reply stopped after $seconds s, ready after " +
+            "${(System.currentTimeMillis() - start) / 1000.0} s")
         assertStopped(reply, seconds)
         assertTrue(viewModel.state.value.ready)
         assertEquals("the old reply reached the new chat", "", viewModel.state.value.reply)
@@ -344,7 +363,7 @@ class ChatViewModelTest {
         val store = ViewModelStore()
         stores += store
         val application = context.applicationContext as Application
-        val factory = ViewModelProvider.AndroidViewModelFactory.getInstance(application)
+        val factory = ViewModelProvider.AndroidViewModelFactory(application)
         val viewModel = ViewModelProvider(store, factory)[ChatViewModel::class.java]
         executors += viewModel.executor()
         return viewModel

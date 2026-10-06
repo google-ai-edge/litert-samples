@@ -48,7 +48,8 @@ abstract class ExtractSkillCode : DefaultTask() {
         val fence = Regex("```kotlin\\n(.*?)\\n```", RegexOption.DOT_MATCHES_ALL)
         val code =
             sources.files.flatMap { file ->
-                fence.findAll(file.readText()).map { it.groupValues[1] }
+                val text = file.readText().replace("\r\n", "\n")
+                fence.findAll(text).map { it.groupValues[1] }
             }
         check(code.isNotEmpty()) { "no kotlin block in ${sources.files}" }
         val head = header.get().asFile.readText().trimEnd()

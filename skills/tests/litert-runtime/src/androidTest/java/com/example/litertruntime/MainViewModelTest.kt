@@ -59,7 +59,7 @@ import org.junit.runner.RunWith
 @SdkSuppress(minSdkVersion = 30)
 class MainViewModelTest {
     private val uncaught = CopyOnWriteArrayList<Throwable>()
-    private val stores = ArrayList<ViewModelStore>()
+    private val stores = LinkedHashMap<MainViewModel, ViewModelStore>()
     private val executors = ArrayList<ExecutorService>()
     private var defaultHandler: Thread.UncaughtExceptionHandler? = null
     private lateinit var assets: ModelAssets
@@ -73,7 +73,7 @@ class MainViewModelTest {
 
     @After
     fun tearDown() {
-        stores.forEach { it.clear() }
+        stores.values.forEach { it.clear() }
         // The close runs on the ViewModel's thread. Wait for it before reading what was thrown.
         val ended = executors.all { it.awaitTermination(TIMEOUT_SECONDS, TimeUnit.SECONDS) }
         Thread.setDefaultUncaughtExceptionHandler(defaultHandler)
@@ -218,8 +218,25 @@ class MainViewModelTest {
         val viewModel = newViewModel()
         viewModel.load(Accelerator.CPU)
         clearAndAwait(viewModel)
-        val classifier = viewModel.classifier()
-        assertTrue(classifier == null || classifier.isClosed())
+        assertTrue(checkNotNull(viewModel.classifier()).isClosed())
+    }
+
+    @Test
+    fun newViewModelLoads_whileTheOldOneCloses() {
+        var old = newViewModel()
+        old.load(Accelerator.CPU)
+        old.awaitIdle()
+        repeat(HANDOVERS) { index ->
+            val next = newViewModel()
+            // The old model closes on its own thread while the next one is created on another.
+            checkNotNull(stores[old]).clear()
+            next.load(Accelerator.CPU)
+            next.awaitIdle()
+            assertTrue("handover $index: ${next.uiState.value.error}", next.isReady())
+            assertTrue(old.executor().awaitTermination(TIMEOUT_SECONDS, TimeUnit.SECONDS))
+            assertTrue(checkNotNull(old.classifier()).isClosed())
+            old = next
+        }
     }
 
     @Test
@@ -235,6 +252,7 @@ class MainViewModelTest {
             viewModel.awaitIdle()
             assertTrue("lifetime $index: ${viewModel.uiState.value.error}", viewModel.isReady())
             clearAndAwait(viewModel)
+            assertTrue(checkNotNull(viewModel.classifier()).isClosed())
             if (index % 25 == 24) {
                 Log.i(TAG, "${index + 1} ViewModel lifetimes done")
             }
@@ -289,16 +307,16 @@ class MainViewModelTest {
 
     private fun newViewModel(): MainViewModel {
         val store = ViewModelStore()
-        stores += store
-        val factory = ViewModelProvider.AndroidViewModelFactory.getInstance(assets.application)
+        val factory = ViewModelProvider.AndroidViewModelFactory(assets.application)
         val viewModel = ViewModelProvider(store, factory)[MainViewModel::class.java]
+        stores[viewModel] = store
         executors += viewModel.executor()
         return viewModel
     }
 
     /** Calls `onCleared()` the way the framework does and waits for the ViewModel's thread. */
     private fun clearAndAwait(viewModel: MainViewModel) {
-        stores.forEach { it.clear() }
+        checkNotNull(stores[viewModel]).clear()
         val ended = viewModel.executor().awaitTermination(TIMEOUT_SECONDS, TimeUnit.SECONDS)
         assertTrue("the ViewModel's thread did not end", ended)
     }
@@ -340,6 +358,7 @@ class MainViewModelTest {
         const val TIMEOUT_SECONDS = 120L
         const val REPEATS = 50
         const val LIFETIMES = 200
+        const val HANDOVERS = 50
 
         /** 50 unclosed models keep 3 MB or more. 50 closed ones keep under 100 KB together. */
         const val HEAP_LIMIT_KB = 1024L
