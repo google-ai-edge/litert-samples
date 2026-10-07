@@ -6,7 +6,7 @@ It is designed to be loaded by coding agents (like Gemini, Windsurf, Cursor, or 
 
 ## Structure
 *   `SKILL.md`: The core specification containing the step-by-step instructions, package mappings, code refactoring examples (Kotlin, plus the CMake link line for native modules), and the verification feedback loop.
-*   `templates/LiteRtModel.kt`: A reference implementation of the CompiledModel API (accelerator fallback cascade, buffer reuse, one serial dispatcher, Bitmap preprocessing) that compiles against the LiteRT 2.2.0 artifacts; agents copy it into the target project and adapt the model name and shapes.
+*   `templates/LiteRtModel.kt`: A reference implementation of the CompiledModel API (accelerator fallback cascade, buffer reuse, one serial dispatcher, Bitmap preprocessing) that compiles against the LiteRT 2.3.0 and 2.2.0 artifacts and closes what it created when a step after `create` throws; agents copy it into the target project and adapt the model name and shapes.
 *   `templates/GoldenCaptureTest.kt`: A throwaway instrumented test for Step 0 that captures the legacy app's output for one fixed input on the device, with the commands to run it in its header.
 *   `templates/MigrationValidationTest.kt`: A boilerplate Kotlin instrumented test (runs on a device or emulator) that agents can inject into target projects to verify that the compiled model reproduces the golden output captured from the legacy app in Step 0.
 
