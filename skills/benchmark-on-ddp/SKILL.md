@@ -17,36 +17,36 @@ bundle is one `litert benchmark <bundle>.litertlm --ddp` session per backend, co
 ## Before you start
 
 - `python3` with PyYAML, and `protoc` on PATH (`brew install protobuf`, or `apt install protobuf-compiler`).
-- For new DDP sessions: `gcloud auth application-default login`, a project with the Device Run API enabled (`--gcp-project` or `LITERT_GCP_PROJECT`),
-  and the `litert` CLI of [LiteRT-CLI](https://github.com/google-ai-edge/LiteRT-CLI) with the `--ddp` target (the 0.2.0 release predates it):
+- For new DDP sessions: `gcloud auth application-default login`, a project with the Device Run API enabled (`run_matrix.py --gcp-project` or `LITERT_GCP_PROJECT`),
+  and the `litert` CLI of [LiteRT-CLI](https://github.com/google-ai-edge/LiteRT-CLI) with the `--ddp` target (release 0.2.1 or newer; `litert-cli-nightly` has it too). Its DDP runs default to the LiteRT 2.2.0 `benchmark_model` (0.2.1); a row carries the version the job ran:
 
 ```bash
-pip install litert-cli-nightly
+pip install litert-cli
 ```
 
-- For rows from this Mac: nothing more; `run_local.py` fetches the macOS binary of the pinned release.
+- For rows from a macOS host (Apple silicon; `run_local.py` exits on any other machine): nothing more; it fetches the macOS binary of the pinned release.
 
 ## Loop
 
-Work from the board folder, `cd benchmark/leaderboard` (or wherever the board lives); every command below is relative to it, and the driver sits in `../driver/`.
+Work from the board folder, `cd benchmark/leaderboard`; every command below is relative to it, and the driver sits in `../driver/`.
 
-**1. One model, one matrix entry.** In `../driver/matrix.yaml` add `repo`, `file` (one `.tflite`; a repo with several variants gets one entry per
+**1. One model, one matrix entry.** In `../driver/matrix.yaml` add `repo` (the Hugging Face repo), `file` (one `.tflite`; a repo with several variants gets one entry per
 variant you want on the board), `task` (the repo's pipeline tag) and `accelerators`. Platforms and DDP devices are listed once under `platforms`.
 
 **2. Print the plan, then run it.** On DDP:
 
 ```bash
 python3 ../driver/run_matrix.py --dry-run --only litert-community/MobileNet-v2
-LITERT_GCP_PROJECT=your-project-id python3 ../driver/run_matrix.py
+LITERT_GCP_PROJECT=your-project-id python3 ../driver/run_matrix.py --only litert-community/MobileNet-v2
 ```
 
 The dry run prints one `litert benchmark … --ddp` line per accelerator, each followed by the `collect.py` call that turns its session into rows. The second
 line submits each session, waits for it, pulls the job outputs to `~/.cache/litert-cli/ddp/<session>/<job>/`, collects them and rebuilds the board; `--only <repo>`
-limits it to one model. On this Mac, the same two steps with `run_local.py` (same `--only`): the dry run names the machine and the session; the run writes `~/.cache/litert-samples-benchmark/local/<session>/<job>/`, collects it and rebuilds the board:
+limits it to one model. On a macOS host, the same two steps with `run_local.py` (same `--only`): the dry run names the machine and the session; the run writes `~/.cache/litert-samples-benchmark/local/<session>/<job>/`, collects it and rebuilds the board:
 
 ```bash
-python3 ../driver/run_local.py --dry-run
-python3 ../driver/run_local.py
+python3 ../driver/run_local.py --dry-run --only litert-community/MobileNet-v2
+python3 ../driver/run_local.py --only litert-community/MobileNet-v2
 ```
 
 **3. Or collect a session you already have** (step 2's drivers collect their own).
@@ -57,7 +57,7 @@ python3 ../driver/collect.py ~/.cache/litert-cli/ddp/session-fff9643f --model li
 
 One row per job; a row with the same id replaces the earlier one, so a re-run is safe. A job with no results is printed on stderr and skipped: read the
 tail of its log before submitting it again. A DDP session is Android, named from the matrix; a session from `run_local.py` or from `../ios/run_ios.sh` (an
-iPhone) carries its platform, device and OS in `session.json`. The row's runtime version is `--runtime-version` (the CLI's pin) if given, else the session's, else `runtime.version` from the matrix.
+iPhone) carries its platform, device and OS in `session.json`. The row's runtime version is `collect.py --runtime-version` (the CLI's pin) if given, else the session's, else `runtime.version` from the matrix.
 
 **4. Rebuild the board (after step 3; step 2 did it) and look at the row.**
 
@@ -66,8 +66,8 @@ python3 ../driver/build_board.py
 python3 -m http.server 8000
 ```
 
-Open http://localhost:8000/ (any free port) and click the new row. Check: nodes delegated reads `N/M` with `N = M` for a graph that ran fully on the
-accelerator (a low `N` on a GPU row means most of the graph ran on the CPU; a session without `runtime_info.pb` reads n/a); a GPU row with Init far above Median is the delegate initializing the graph, not a defect; `Numbers from: log`
+Open http://localhost:8000/ (any free port) and click the new row. Nodes delegated reads `N/M` with `N = M` for a graph that ran fully on the
+accelerator; a low `N` on a GPU row means most of the graph ran on the CPU, and a session without `runtime_info.pb` reads n/a. A GPU row with Init far above Median is the delegate initializing the graph, not a defect. `Numbers from: log`
 means `results.pb` could not be decoded, usually a missing `protoc`: install it and collect again.
 
 **5. Commit the data.** `../driver/matrix.yaml`, `data/measurements.jsonl` and `data/board.json` in one commit; the page is static.
@@ -81,5 +81,5 @@ means `results.pb` could not be decoded, usually a missing `protoc`: install it 
 
 ## Tested on
 
-macOS host (Mac Studio, M4 Max, macOS 27.0), Python 3.14, protoc 34.1: the Android rows in the repo (21 model files, 2026-09-18) came from `run_matrix.py` end to end, 42
-sessions on caiman-35 (Pixel 9 Pro) and pa3q-35 (Galaxy S25 Ultra), CPU and GPU, binary 2.2.0; the macOS rows (the same files, 2026-09-18) from `run_local.py` end to end on that Mac; every row was then re-collected from the cached outputs and the board rebuilt (2026-09-18). The install line above was run in a fresh venv on 2026-09-23 (litert-cli-nightly 0.3.0.dev20260922; `litert benchmark --help` lists `--ddp` and the `.litertlm` bundle options).
+macOS host (Mac Studio, M4 Max, macOS 27.0), Python 3.14, protoc 34.1. 2026-09-18: the Android rows in the repo (21 model files) came from `run_matrix.py` end to end, 42
+sessions on caiman-35 (Pixel 9 Pro) and pa3q-35 (Galaxy S25 Ultra), CPU and GPU, binary 2.2.0; the macOS rows (the same files) from `run_local.py` end to end on that Mac; every row was then re-collected from the cached outputs and the board rebuilt. 2026-10-07: the install line above was run in a fresh venv (litert-cli 0.2.1; `litert benchmark --help` lists `--ddp` and the `.litertlm` bundle options, as does litert-cli-nightly 0.3.0.dev20261006), and the dry runs, `collect.py` and `build_board.py` were re-run on the same host.
