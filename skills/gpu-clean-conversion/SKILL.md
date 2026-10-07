@@ -47,7 +47,7 @@ the directory:
 | `TRANSPOSE_CONV` rejected | Version skew, not a missing op. `ZeroStuffConvT1d` / `ZeroStuffConvT2d` — zero-stuff plus a plain conv, exact to ~1e-7 |
 | `SELECT` / `SELECT_V2` | `PReLU`, `ELU`, in-place index assignment, and `torch.where` masking. Replace with arithmetic: `x*(1-m) + v*m` |
 | `BROADCAST_TO` | Two cases. On a compile-time constant: an outer product or `.expand` that did not fold — bake the result as a constant at its target shape. On a **runtime** tensor the GPU delegate rejects it outright, even at rank 4 — the canonical case is GQA's `repeat_kv` (`x[:,:,None].expand(...)`, which is also rank-5, so two walls in one line). Exact rewrite: `torch.cat([x[:, i:i+1].expand(b, n_rep, s, d) for i in range(n_kv)], dim=1)` — same head order, bit-exact. Tracked upstream: google-ai-edge/LiteRT#9191 |
-| Masked attention wrong only on device: token 0 bit-exact, every later token wrong | Broadcast `ADD` whose LHS is a `BATCH_MATMUL` result (the `scores + mask[1,1,S,S]` idiom) silently miscomputed on older runtimes (fixed in newer; head-axis size-1 broadcast only). The signature mimics broken RoPE — tap the rope output before blaming it. Rewrites: pre-expand the mask to `[1,H,S,S]`, or materialize the BMM as a second output |
+| Masked attention wrong only on device: token 0 bit-exact, every later token wrong | Broadcast `ADD` whose LHS is a `BATCH_MATMUL` result (the `scores + mask[1,1,S,S]` idiom) silently miscomputed on ai-edge-litert 2.1.3 and 2.1.5 and is fixed in 2.1.6 (head-axis size-1 broadcast only; google-ai-edge/LiteRT#8593, closed as fixed; the 2.1.6 release notes list GPU broadcast fixes). The signature mimics broken RoPE — tap the rope output before blaming it. Rewrites on the older runtimes: pre-expand the mask to `[1,H,S,S]`, or materialize the BMM as a second output |
 | An `ADD` result that is both a graph output **and** consumed downstream comes back wrong | Output aliasing: the returned tensor holds an *operand*, not the sum — `ADD` with two runtime operands (`SUB`/`MUL` exact, `x + 1.0` exact). This is the shape of every explicit state update in a streaming/recurrent graph. Workaround: emit `acc * one` where `one` is a **runtime** input holding 1.0 — a constant folds straight back into the pattern. Tracked upstream: google-ai-edge/LiteRT#8599 |
 | `RELU_0_TO_1` rejected by the GPU delegate | Emitted by hard-sigmoid / `nn.Hardtanh(0,1)`. Accepted in litert 2.1.3, rejected from 2.1.5 on — a model at full residency on an older runtime hard-fails `CompiledModel` creation after an upgrade. Rewrite: `relu(x) - relu(x-1)`, exact. Tracked upstream: google-ai-edge/LiteRT#8598 |
 | `DIV: No support of few identical inputs` / `Expected 1 const input tensor(s)`, device only | The delegate declines an op whose two inputs are the same tensor, and ops whose inputs are all constants — together these split a perceiver-style block (softmax over a length-1 axis of a constant latent bank) into several partitions. Fixes: special-case the degenerate axis (a softmax over a length-1 axis is identically 1), or make one input non-constant. Note the sibling LayerNorm-over-a-constant pattern no longer reaches the delegate at all — the converter folds it to a single `MUL`. Tracked upstream: google-ai-edge/LiteRT#9192 |
@@ -71,8 +71,10 @@ usually a reduction, not the op you suspect.
 ## Watch for
 
 - **fp16 is used even for an fp32 graph.** The delegate reduces in fp16
-  regardless of tensor dtype. Anything that sums many large values — variance,
-  `Σx²`, multi-axis mean — is a candidate.
+  regardless of tensor dtype by default (the GPU options carry a precision
+  setting — `CompiledModel.GpuOptions(precision = …)` in Kotlin — that can
+  request fp32 at a speed cost). Anything that sums many large values —
+  variance, `Σx²`, multi-axis mean — is a candidate.
 - **Approximation choices are not free.** Substituting a GELU or Swish
   approximation changes numerics. A head with a wide output range can lose
   real accuracy to the coarser form.
@@ -81,7 +83,12 @@ usually a reduction, not the op you suspect.
   the math.
 - **A silent CPU fallback looks like success.** If the GPU output is
   bit-identical to CPU fp32, it probably did not run on the GPU. Genuine fp16
-  execution drifts in the last digits.
+  execution drifts in the last digits. The runtime's own count is the line
+  `N operations will run on the GPU, and the remaining M operations will run
+  on the CPU.`; a node the delegate declines while building (`TopK requires
+  src tensor C dimension to be divisible by 4`) leaves only that log behind
+  — the checker's report can read fully-on-GPU while the op ran on the CPU
+  (`ai-edge-litert` 2.2.0 and 2.3.0).
 - **Reflect padding routes through `F.pad` even at `padding=0`** — every
   conv with `padding_mode='reflect'` is affected, not just padded ones.
   Slice+concat reflect pads are cheap for small pad widths.
