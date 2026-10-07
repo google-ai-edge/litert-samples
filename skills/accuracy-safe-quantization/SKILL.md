@@ -18,7 +18,8 @@ re-run the same CompiledModel verification you used to accept the float
 conversion (see the `gpu-clean-conversion` skill), then the on-device
 numerical check.
 
-All recipes below are `ai-edge-quantizer` (`pip install ai-edge-quantizer`),
+All recipes below are `ai-edge-quantizer` (`pip install ai-edge-quantizer`;
+0.9.0 as of 2026-10, which pins `ai-edge-litert` 2.2.0 on the host),
 plain Python, no build step. Worked examples live in this repo under
 `models/bonsai/bonsai_image_4b/converted/` and
 `models/qwen/qwen3_tts/converted/`.
@@ -33,7 +34,7 @@ only on evidence:
 | ~2× smaller, zero risk | **fp16 float-casting.** Weights cast to fp16, compute stays float. On a GPU that already computes in fp16 this is close to free numerically — verify anyway |
 | ~4× smaller — encoders, conv nets, diffusion blocks | **Dynamic-range int8 channelwise.** int8 weights, float activations; this shape rides the GPU delegate |
 | Dynamic int8 lost quality (conditioning, embeddings) | **Weight-only, same bits.** Inserts an explicit DEQUANTIZE so the matmul runs in float and activations are never quantized — more quality, some latency |
-| ~7× smaller — LLM / autoregressive decoders | **int4 blockwise-32 + OCTAV, embeddings int8.** Never channelwise for a decoder: it looks fine on short outputs and degenerates over long generations |
+| ~7× smaller — LLM / autoregressive decoders | **int4 blockwise-32 + OCTAV, embeddings int8.** Never channelwise for a decoder: it looks fine on short outputs and degenerates over long generations. A blockwise recipe needs the quantized dimension divisible by the block (a 3-input linear fails block-32 with `Quantized dimension 3 … is not divisible`) |
 | Data-free int4 still fails the task gate | **Calibrated ingest.** Take a GPTQ checkpoint and preserve its grid with `DEQUANTIZED_WEIGHT_RECOVERY` — see the routing table |
 
 Full-integer static quantization (`static_wi8_ai8` — quantized activations,
@@ -142,10 +143,11 @@ quality row rather than forcing it; int4 becomes a speed reference.
   than budgeting for loss that isn't there. For exact-container cases use
   **min-max, not OCTAV** — OCTAV's clipping optimization can move a grid
   that min-max reproduces exactly.
-- **int2 is a container without a consumer** (as of 2026-08): the schema
-  type and the blockwise packer exist (2.125 bits/weight at block-128),
-  but the CPU runtime refuses the tensor type at prepare — a hard load
-  failure, not degradation. Don't spend time there until a kernel ships.
+- **int2 has recipes before it has a consumer**: ai-edge-quantizer 0.9.0
+  ships `dynamic_wi2b32_afp32` and its siblings (2.5 bits/weight at
+  block-32 with an fp16 scale per block), and as of 2026-08 the CPU runtime refused the tensor type at
+  prepare — a hard load failure, not degradation. Re-test the load on the
+  runtime you ship before spending time there.
 - **Auxiliary tables cast to fp16 need the same discipline.** Casting
   host-side embedding/projection tables halves them; verify generated
   outputs are unchanged before shipping (qwen3_tts did, and it held).
