@@ -12,7 +12,7 @@ This skill provides step-by-step guidance for building an Android app that runs 
 ## Prerequisites
 
 - A Kotlin Android project (Android Studio's Empty Activity template is enough). The LiteRT 2.2.0 AAR declares `minSdk` 24.
-- The dependency in the app-level `build.gradle.kts`: `implementation("com.google.ai.edge.litert:litert:2.2.0")` from Google Maven. The 2.2.0 AAR includes the GPU accelerator and declares the GPU driver libraries in its own manifest; no second artifact and no manifest entry are needed. From 2.3.0 (on Google Maven since 2026-10-06) the GPU accelerator is its own artifact, `com.google.ai.edge.litert:litert-gpu`, added next to `litert` with the same version.
+- The dependency in the app-level `build.gradle.kts`: `implementation("com.google.ai.edge.litert:litert:2.2.0")` from Google Maven. The 2.2.0 AAR includes the GPU accelerator and declares the GPU driver libraries in its own manifest; no second artifact and no manifest entry are needed. From 2.3.0 the GPU accelerator is its own artifact, `com.google.ai.edge.litert:litert-gpu`, added next to `litert` with the same version.
 - A `.tflite` model and its input requirements (input size, mean/std, channel order). Models with a LiteRT recipe: https://github.com/google-ai-edge/litert-samples/tree/main/models
 
 ## Detailed steps
@@ -107,7 +107,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
 }
 ```
 
-One single-thread executor owns the model: create, run and close happen only on it, never on the main thread. The ViewModel keeps its own scope because `viewModelScope` is cancelled before `onCleared()` runs, so a close launched there would not run; `onCleared()` cancels the scope once the close is done. `load()` does nothing when a model is already loaded, so the screen can call it again after a rotation; a `load()` that fails leaves `classifier` `null`. `classify()` reports a `LiteRtException` (package `com.google.ai.edge.litert`) in `error` and keeps the model. The screen below takes the picture (`bitmap`) from the photo picker or CameraX; if `load(Accelerator.GPU)` ends in `error`, the app calls `load(Accelerator.CPU)`. `viewModel()` and `collectAsStateWithLifecycle()` come from `androidx.lifecycle:lifecycle-viewmodel-compose` and `androidx.lifecycle:lifecycle-runtime-compose` (2.10.0); every import the code blocks need is listed in [imports](references/imports.md):
+One single-thread executor owns the model: create, run and close happen only on it, never on the main thread. The ViewModel keeps its own scope because `viewModelScope` is cancelled before `onCleared()` runs, so a close launched there would not run; `onCleared()` cancels the scope once the close is done. `load()` does nothing when a model is already loaded, so the screen can call it again after a rotation; a `load()` that fails leaves `classifier` `null`. `classify()` reports a `LiteRtException` (package `com.google.ai.edge.litert`) in `error` and keeps the model. The screen below takes the picture (`bitmap`) from the photo picker or CameraX and runs `preprocess()` in the click handler (a few milliseconds for 224 by 224; move it onto the executor for bigger pictures); it does not fall back on its own: if `load(Accelerator.GPU)` ends in `error`, call `load(Accelerator.CPU)`. `viewModel()` and `collectAsStateWithLifecycle()` come from `androidx.lifecycle:lifecycle-viewmodel-compose` and `androidx.lifecycle:lifecycle-runtime-compose` (2.10.0); every import the code blocks need is listed in [imports](references/imports.md):
 
 ```kotlin
 @Composable

@@ -32,7 +32,10 @@ import org.gradle.api.tasks.TaskAction
  * skill's imports reference can list them all.
  */
 abstract class ExtractSkillCode : DefaultTask() {
-    /** The Markdown files to read, in the order their code blocks are written out. */
+    /**
+     * The Markdown files to read, in the order their code blocks are written out. The first one is
+     * the imports reference: a block of a later file may import only what it lists.
+     */
     @get:InputFiles
     @get:PathSensitive(PathSensitivity.NONE)
     abstract val sources: ConfigurableFileCollection
@@ -54,11 +57,15 @@ abstract class ExtractSkillCode : DefaultTask() {
                 fence.findAll(text).map { it.groupValues[1] }
             }
         check(blocks.isNotEmpty()) { "no kotlin block in ${sources.files}" }
-        val lines = blocks.flatMap { it.lines() }
-        val imports = lines.filter { it.startsWith("import ") }.distinct().sorted()
+        val importLine = Regex("^import\\s+[\\w.]+(\\s+as\\s+\\w+)?$")
+        val listed = blocks.first().lines().filter(importLine::matches).toSet()
+        for (line in blocks.drop(1).flatMap { it.lines() }.filter(importLine::matches)) {
+            check(line in listed) { "'$line' is used by a block but missing from the imports file" }
+        }
+        val imports = listed.sorted()
         val code =
             blocks.map { block ->
-                block.lines().filterNot { it.startsWith("import ") }.joinToString("\n").trim()
+                block.lines().filterNot(importLine::matches).joinToString("\n").trim()
             }
         val head = header.get().asFile.readText().trimEnd()
         val out = outputDir.get().file("SkillCode.kt").asFile

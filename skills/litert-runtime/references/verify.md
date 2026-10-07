@@ -2,7 +2,7 @@
 
 ## Reference first
 
-Run the same `.tflite` on the workstation on one fixed input and keep the output: the Python package `ai-edge-litert` has the same CompiledModel API (`CompiledModel.from_file(path)`, then write, run, read). The `qwen3_tts` recipe in litert-samples ships such dumps as `dump_*_ref.py`. This output is the truth for every device run.
+Keep the output of one fixed input from the source model in its own framework, or from the same `.tflite` on the workstation with the Python package `ai-edge-litert` (the same CompiledModel API: `CompiledModel.from_file(path)`, then write, run, read). The `qwen3_tts` recipe in litert-samples ships such source-model dumps as `dump_*_ref.py`. This output is the truth for every device run.
 
 ## Device CPU, then the GPU
 

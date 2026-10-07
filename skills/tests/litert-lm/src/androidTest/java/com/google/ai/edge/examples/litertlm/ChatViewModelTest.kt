@@ -33,6 +33,7 @@ import java.util.concurrent.ExecutorService
 import java.util.concurrent.TimeUnit
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeout
@@ -379,7 +380,11 @@ class ChatViewModelTest {
     fun loadAfterOnCleared_createsNothing() {
         val viewModel = newViewModel()
         clearAndAwait(viewModel)
-        await(viewModel.launched { viewModel.load(modelPath, backend()) })
+        assertFalse("the scope is still active", viewModel.scope().isActive)
+        assertTrue("the executor is still accepting work", viewModel.executor().isShutdown)
+        viewModel.load(modelPath, backend())
+        // A load that got through would start initializing the engine within this time.
+        Thread.sleep(AFTER_CLEAR_MS)
         assertNull(viewModel.engine())
     }
 
@@ -512,6 +517,7 @@ class ChatViewModelTest {
         const val STOP_LIMIT_SECONDS = 20.0
         const val BEFORE_FIRST_CHUNK_MS = 300L
         const val ALTERNATIONS = 4
+        const val AFTER_CLEAR_MS = 1000L
         const val FAILED_LOADS = 20
         const val HEAP_LIMIT_KB = 1024L
 

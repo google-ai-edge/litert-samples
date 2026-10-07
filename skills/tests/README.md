@@ -43,7 +43,7 @@ Every test fails if anything is thrown on the ViewModel's thread, because an exc
 | 200 ViewModels in one process, each loading a model and closing it in `onCleared()`; a new ViewModel loading while the old one closes, 50 times | every one of them loads, and every model is closed |
 | `preprocess()` on a `HARDWARE` bitmap, the kind `ImageDecoder` and the photo picker return | the input array comes out; `getPixels` on such a bitmap would throw |
 
-A model that was never closed cannot be reached from a test, which is why the failing loads are repeated: one unclosed model keeps 60 KB or more of native heap. The models are at most 2.2 KB each, made by `tools/make_fixtures.py`, in `litert-runtime/fixtures/` (its `.gitignore` re-includes `*.tflite`). A `ResourcesLoader` serves the one under test as `assets/model.tflite`.
+A model that was never closed cannot be reached from a test, which is why the failing loads are repeated: on the Galaxy S26, 20 unclosed CPU models kept 13.8 MB of native heap and 20 unclosed GPU models 62.9 MB and 40 threads. Whether a model was closed is read from LiteRT's `JniHandle.destroyed` field by reflection (present in 2.2.0 and 2.3.0). The models are at most 2.2 KB each, made by `tools/make_fixtures.py`, in `litert-runtime/fixtures/` (its `.gitignore` re-includes `*.tflite`). A `ResourcesLoader` serves the one under test as `assets/model.tflite`.
 
 `ChatViewModelTest` ([LiteRT-LM](https://github.com/google-ai-edge/LiteRT-LM), 20 tests):
 
@@ -60,5 +60,5 @@ A reply that was stopped ends its coroutine as cancelled; one that ran to its en
 
 ## Tested on
 
-- Galaxy S26 (Android 16): `litert` 2.2.0 on the CPU and the GPU; `litertlm-android` 0.18.0 and 0.17.1 on the CPU and the GPU with `Qwen3-0.6B.litertlm`, and 0.18.0 with `gemma-4-E2B-it.litertlm`.
+- Galaxy S26 (Android 16): `litert` 2.2.0, and 2.3.0 with `litert-gpu` 2.3.0, on the CPU and the GPU; `litertlm-android` 0.18.0 and 0.17.1 on the CPU and the GPU with `Qwen3-0.6B.litertlm`, and 0.18.0 with `gemma-4-E2B-it.litertlm`.
 - Android emulator (API 36, arm64): the `litert-runtime` tests. It has no GPU accelerator, so the four tests that need one are skipped.

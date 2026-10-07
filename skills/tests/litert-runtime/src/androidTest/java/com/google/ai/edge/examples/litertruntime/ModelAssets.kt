@@ -67,11 +67,10 @@ class ModelAssets {
             } else {
                 instrumentation.context.assets.open("$fixture.tflite")
             }
-        source.use { input ->
-            File(dir, "assets/model.tflite").outputStream().use { output ->
-                input.copyTo(output)
-            }
-        }
+        // Written beside the asset and renamed over it: an open model keeps the old file.
+        val staged = File(dir, "assets/model.tflite.next")
+        source.use { input -> staged.outputStream().use { output -> input.copyTo(output) } }
+        check(staged.renameTo(File(dir, "assets/model.tflite"))) { "could not replace the asset" }
     }
 
     companion object {

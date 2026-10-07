@@ -32,9 +32,7 @@ import java.util.concurrent.ExecutorService
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicBoolean
 import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Job
-import kotlinx.coroutines.runBlocking
-import kotlinx.coroutines.withTimeout
+import kotlinx.coroutines.isActive
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -252,7 +250,8 @@ class MainViewModelTest {
     fun preprocess_readsAHardwareBitmap() {
         // ImageDecoder usually returns HARDWARE bitmaps; getPixels() cannot read them.
         val software = Bitmap.createBitmap(640, 480, Bitmap.Config.ARGB_8888)
-        val hardware = checkNotNull(software.copy(Bitmap.Config.HARDWARE, false))
+        val hardware = software.copy(Bitmap.Config.HARDWARE, false)
+        assumeTrue("no HARDWARE bitmaps on this device", hardware != null)
         assertEquals(Bitmap.Config.HARDWARE, hardware.config)
         val input = preprocess(hardware)
         assertEquals(INPUT_SIZE, input.size)
@@ -279,15 +278,11 @@ class MainViewModelTest {
     fun loadAfterOnCleared_createsNothing() {
         val viewModel = newViewModel()
         clearAndAwait(viewModel)
-        val jobs = checkNotNull(viewModel.scope().coroutineContext[Job])
-        val before = jobs.children.toSet()
+        assertFalse("the scope is still active", viewModel.scope().isActive)
+        assertTrue("the executor is still accepting work", viewModel.executor().isShutdown)
         viewModel.load(Accelerator.CPU)
-        val launched = jobs.children.filter { it !in before }.toList()
-        runBlocking {
-            withTimeout(TIMEOUT_SECONDS * 1000) {
-                launched.forEach { it.join() }
-            }
-        }
+        // A load that got through would create its model within this time; the scope is cancelled.
+        Thread.sleep(AFTER_CLEAR_MS)
         assertNull(viewModel.classifier())
     }
 
@@ -375,6 +370,7 @@ class MainViewModelTest {
         const val REPEATS = 50
         const val LIFETIMES = 200
         const val HANDOVERS = 50
+        const val AFTER_CLEAR_MS = 1000L
 
         /** 20 unclosed models kept 13.8 MB; 50 closed ones keep under 100 KB together. */
         const val HEAP_LIMIT_KB = 1024L

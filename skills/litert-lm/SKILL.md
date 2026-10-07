@@ -106,7 +106,7 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
 }
 ```
 
-`sendMessageAsync(text)` returns a `Flow<Message>` of chunks (`toString()` gives a chunk's text); `sendMessage(text)` blocks and returns the whole reply. The conversation keeps its history, so the next `send()` continues the chat, and `busy` keeps the button disabled until the flow completes. `SamplerConfig(topK, topP, temperature)` in `ConversationConfig` sets the sampling. `load()` with the model path that is already loaded does nothing, so the screen can call it again after a rotation, also once the app has fallen back to another backend; `send()` runs only when the state is `ready` and not `busy` (the button's own test): a tap that lands while `release()` is stopping a reply does nothing, and one queued behind a `load()` reaches the model that `load()` loaded. The screen (`viewModel()` and `collectAsStateWithLifecycle()` come from `androidx.lifecycle:lifecycle-viewmodel-compose` and `androidx.lifecycle:lifecycle-runtime-compose`, 2.10.0; every import the code blocks need is listed in [imports](references/imports.md)):
+`sendMessageAsync(text)` returns a `Flow<Message>` of chunks (`toString()` gives a chunk's text); `sendMessage(text)` blocks and returns the whole reply. The conversation keeps its history, so the next `send()` continues the chat, and `busy` keeps the button disabled until the flow completes. `SamplerConfig(topK, topP, temperature)` in `ConversationConfig` sets the sampling. `load()` with the model path that is already loaded does nothing, whatever backend it asks for, so the screen can call it again after a rotation, also once the app has fallen back to another backend; `send()` runs only when the state is `ready` and not `busy` (the button's own test): a tap that lands while `release()` is stopping a reply does nothing, and one queued behind a `load()` reaches the model that `load()` loaded when no reply was streaming. The screen (`viewModel()` and `collectAsStateWithLifecycle()` come from `androidx.lifecycle:lifecycle-viewmodel-compose` and `androidx.lifecycle:lifecycle-runtime-compose`, 2.10.0; every import the code blocks need is listed in [imports](references/imports.md)):
 
 ```kotlin
 @Composable
@@ -115,7 +115,7 @@ fun ChatScreen(modelPath: String, viewModel: ChatViewModel = viewModel()) {
     var input by remember { mutableStateOf("") }
     LaunchedEffect(modelPath) { viewModel.load(modelPath, Backend.GPU()) }
     Column {
-        Text(state.reply)
+        Text(state.reply, Modifier.weight(1f).verticalScroll(rememberScrollState()))
         state.error?.let { Text(it) }
         TextField(value = input, onValueChange = { input = it })
         Button(onClick = { viewModel.send(input); input = "" }, enabled = state.ready && !state.busy) { Text("Send") }
