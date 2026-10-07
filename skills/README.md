@@ -12,7 +12,7 @@ Each skill is a self-contained `SKILL.md` playbook covering one stage of taking 
 * [`on-device-verification/`](on-device-verification/) — Prove a converted or quantized model on the actual device via the CompiledModel API: confirm GPU residency, compare device output against the source model, and diagnose device-only failures.
 * [`benchmark-on-ddp/`](benchmark-on-ddp/) — Measure a LiteRT `.tflite` model with `benchmark_model` on Developer Device Platform (DDP) lab phones through `litert benchmark --ddp`, or on the Mac you run it from, and turn the session into rows of the performance leaderboard under `benchmark/leaderboard`: one matrix entry per model, one session per accelerator, collect, rebuild the board, commit the data.
 * [`compiled-model-app-scaffolding/`](compiled-model-app-scaffolding/) — Build an Android app (Kotlin, Compose) around a verified LiteRT model using the CompiledModel API: app architecture, inference-layer lifecycle rules, model delivery, and UI traps.
-* [`litert-compiled-model-migration/`](litert-compiled-model-migration/) — Rapidly migrate an existing Android application from legacy TensorFlow Lite (TFLite) to the LiteRT CompiledModel API (2.2.0): dependency swap, `CompiledModel` rewrite with buffer reuse, optional NPU JIT acceleration, and an instrumented-test gate.
+* [`litert-compiled-model-migration/`](litert-compiled-model-migration/) — Rapidly migrate an existing Android application from legacy TensorFlow Lite (TFLite) to the LiteRT CompiledModel API (2.3.0): dependency swap (the TensorFlow Lite Support Library moves to LiteRT Support), `CompiledModel` rewrite with buffer reuse, optional NPU JIT acceleration, and an instrumented-test gate.
 
 ## Skills in the android/skills form (for app developers' agents)
 
