@@ -1,4 +1,4 @@
-package com.example.litertlm
+package com.google.ai.edge.examples.litertlm
 
 import android.app.Application
 import androidx.compose.foundation.layout.Column

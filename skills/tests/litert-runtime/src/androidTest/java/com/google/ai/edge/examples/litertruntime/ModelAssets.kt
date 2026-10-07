@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-package com.example.litertruntime
+package com.google.ai.edge.examples.litertruntime
 
 import android.app.Application
 import android.content.Context
@@ -58,14 +58,14 @@ class ModelAssets {
 
     /**
      * Makes [fixture] the model the next load reads: [APP_MODEL], or the name of a file in
-     * `fixtures` without `.bin`.
+     * `fixtures` without `.tflite`.
      */
     fun use(fixture: String) {
         val source =
             if (fixture == APP_MODEL) {
                 instrumentation.targetContext.assets.open("model.tflite")
             } else {
-                instrumentation.context.assets.open("$fixture.bin")
+                instrumentation.context.assets.open("$fixture.tflite")
             }
         source.use { input ->
             File(dir, "assets/model.tflite").outputStream().use { output ->

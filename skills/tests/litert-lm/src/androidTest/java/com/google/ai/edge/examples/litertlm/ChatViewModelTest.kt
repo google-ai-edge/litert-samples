@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-package com.example.litertlm
+package com.google.ai.edge.examples.litertlm
 
 import android.app.Application
 import android.os.Debug

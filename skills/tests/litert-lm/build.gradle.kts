@@ -35,11 +35,11 @@ val extractSkillCode =
     }
 
 android {
-    namespace = "com.example.litertlm"
+    namespace = "com.google.ai.edge.examples.litertlm"
     compileSdk = 36
 
     defaultConfig {
-        applicationId = "com.example.litertlm"
+        applicationId = "com.google.ai.edge.examples.litertlm"
         minSdk = 24
         targetSdk = 36
         versionCode = 1

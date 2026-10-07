@@ -1,0 +1,2 @@
+# The repository ignores *.tflite; the test models here are checked in.
+!*.tflite

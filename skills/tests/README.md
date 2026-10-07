@@ -42,7 +42,7 @@ Every test fails if anything is thrown on the ViewModel's thread, because an exc
 | `onCleared()` after a load, right after `load()`, with no load; `load()` after `onCleared()` | the model is closed and the thread ends; nothing is created afterwards |
 | 200 ViewModels in one process, each loading a model and closing it in `onCleared()`; a new ViewModel loading while the old one closes, 50 times | every one of them loads, and every model is closed |
 
-A model that was never closed cannot be reached from a test, which is why the failing loads are repeated: one unclosed model keeps 60 KB or more of native heap. The models are at most 2.2 KB each, made by `tools/make_fixtures.py`, and kept as `litert-runtime/fixtures/*.bin` because the repository ignores `*.tflite`. A `ResourcesLoader` serves the one under test as `assets/model.tflite`.
+A model that was never closed cannot be reached from a test, which is why the failing loads are repeated: one unclosed model keeps 60 KB or more of native heap. The models are at most 2.2 KB each, made by `tools/make_fixtures.py`, in `litert-runtime/fixtures/` (its `.gitignore` re-includes `*.tflite`). A `ResourcesLoader` serves the one under test as `assets/model.tflite`.
 
 `ChatViewModelTest` ([LiteRT-LM](https://github.com/google-ai-edge/LiteRT-LM), 19 tests):
 

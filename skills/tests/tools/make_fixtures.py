@@ -14,9 +14,10 @@
 """Writes the small models the litert-runtime tests load.
 
 Each one makes a different step of the skill's code throw. The outputs are
-checked in as litert-runtime/fixtures/*.bin, so run this only to change one.
+checked in as litert-runtime/fixtures/*.tflite (that directory's .gitignore
+re-includes them), so run this only to change one.
 
-  pip install litert-torch
+  pip install litert-torch   # brings torch, ai-edge-litert and flatbuffers
   python make_fixtures.py ../litert-runtime/fixtures
 """
 
@@ -73,24 +74,24 @@ def redeclare(source, path, tensor, element_type):
 def main():
   out = sys.argv[1]
   os.makedirs(out, exist_ok=True)
-  ok = os.path.join(out, "model.bin")
+  ok = os.path.join(out, "model.tflite")
   # The model the app ships: the input that the skill's INPUT_SIZE describes.
   convert(Head(), 224, ok)
   # A smaller input: the warm-up write of INPUT_SIZE floats throws.
-  convert(Head(), 32, os.path.join(out, "small_input.bin"))
+  convert(Head(), 32, os.path.join(out, "small_input.tflite"))
   # Compiles on the CPU, not on the GPU.
-  convert(SixDims(), 224, os.path.join(out, "gpu_unsupported.bin"))
+  convert(SixDims(), 224, os.path.join(out, "gpu_unsupported.tflite"))
   # A string input or output: the model is created, then creating the input
   # or the output buffers throws.
-  redeclare(ok, os.path.join(out, "string_input.bin"), "input",
+  redeclare(ok, os.path.join(out, "string_input.tflite"), "input",
             schema.TensorType.STRING)
-  redeclare(ok, os.path.join(out, "string_output.bin"), "output",
+  redeclare(ok, os.path.join(out, "string_output.tflite"), "output",
             schema.TensorType.STRING)
   # A float16 output: the model and its buffers are created, then run throws.
-  redeclare(ok, os.path.join(out, "float16_output.bin"), "output",
+  redeclare(ok, os.path.join(out, "float16_output.tflite"), "output",
             schema.TensorType.FLOAT16)
   # Not a model: create throws.
-  with open(os.path.join(out, "not_a_model.bin"), "wb") as f:
+  with open(os.path.join(out, "not_a_model.tflite"), "wb") as f:
     f.write(b"TFL3" + bytes(60))
 
 

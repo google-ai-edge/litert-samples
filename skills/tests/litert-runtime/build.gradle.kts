@@ -32,21 +32,20 @@ val extractSkillCode =
         outputDir.set(layout.buildDirectory.dir("generated/skill"))
     }
 
-// The repository ignores *.tflite, so the test models are kept as fixtures/*.bin. The app's own
-// model is copied to the asset name the skill's Classifier opens.
+// The app's own model, under the asset name the skill's Classifier opens. The other fixtures are
+// test assets.
 val copyAppModel =
     tasks.register<Copy>("copyAppModel") {
-        from(layout.projectDirectory.file("fixtures/model.bin"))
+        from(layout.projectDirectory.file("fixtures/model.tflite"))
         into(layout.buildDirectory.dir("generated/assets"))
-        rename { "model.tflite" }
     }
 
 android {
-    namespace = "com.example.litertruntime"
+    namespace = "com.google.ai.edge.examples.litertruntime"
     compileSdk = 36
 
     defaultConfig {
-        applicationId = "com.example.litertruntime"
+        applicationId = "com.google.ai.edge.examples.litertruntime"
         minSdk = 24
         targetSdk = 36
         versionCode = 1

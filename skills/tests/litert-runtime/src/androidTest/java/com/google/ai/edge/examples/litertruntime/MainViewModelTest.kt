@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-package com.example.litertruntime
+package com.google.ai.edge.examples.litertruntime
 
 import android.os.Debug
 import android.util.Log
