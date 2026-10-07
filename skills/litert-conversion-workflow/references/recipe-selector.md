@@ -2,8 +2,11 @@
 
 Classify from `config.json` first (`architecture-walls.md` gates what is
 worth attempting at all). Everything here assumes `pip install
-litert-torch litert-lm litert-lm-builder ai-edge-quantizer` and records
-the exact versions next to the result.
+litert-torch litert-lm litert-lm-builder ai-edge-quantizer` (on 2026-10-07
+that resolves to litert-torch 0.9.4, litert-lm 0.18.0, litert-lm-builder
+0.18.0, ai-edge-quantizer 0.9.0, litert-converter 0.4.0 and ai-edge-litert
+2.2.0 — litert-torch pins `ai-edge-litert<2.3.0`) and records the exact
+versions next to the result.
 
 ## Dense decoders (the standard lane)
 
@@ -30,18 +33,19 @@ AutoTokenizer.from_pretrained = classmethod(
     lambda cls, *a, **k: (lambda t: (setattr(t, "chat_template", MINIMAL_CHATML), t)[1])(_orig(cls, *a, **k)))
 
 from litert_torch.cli import main
-sys.argv = ["litert-torch", "export_hf",
-    "--model", sys.argv[1], "--output_dir", sys.argv[2],
-    "--prefill_lengths", "1024,512,256,128,64,32,16,8,4,2,1",
-    "--cache_length", "4096",
-    "--use_jinja_template", "False",
-    "--bundle_litert_lm", "True",
-    "--quantization_recipe", "dynamic_wi8_afp32"]
+sys.argv = ["litert-torch", "export_hf", sys.argv[1], sys.argv[2],
+    "--prefill_lengths=1024,512,256,128,64,32,16,8,4,2,1",
+    "--cache_length=4096",
+    "--use_jinja_template=False",
+    "--bundle_litert_lm=True",
+    "--quantization_recipe=dynamic_wi8_afp32"]
 sys.exit(main())
 ```
 
-(`--model`/`--output_dir` are positional in some CLI versions; the flag
-syntax above works on both.)
+(litert-torch 0.9.4: `export_hf MODEL OUTPUT_DIR <flags>` — the model and the
+output directory are positional, the flags take the `--flag=value` form its
+`--help` prints, and `--quantization_recipe` takes recipe names, comma
+separated.)
 
 - **Prefill ladder** `1..1024`: the engine picks tight chunks per prompt;
   a sparse ladder (only large signatures) forces padded chunks — a
@@ -85,19 +89,25 @@ Runtime ≥ 0.15 executes these on CPU via the executor-metadata section
 
 **1. The bundle must carry the executor-metadata section.** Released
 litert-torch ≤ 0.9.3 does not write it — a fresh hybrid export loads on
-0.15 and dies at first generation (`executor.cc:708`). Retrofit it
-(weights untouched): read the `decode` signature's `kv_cache_*` input
-names + shapes with `ai_edge_litert.Interpreter`, classify by exporter
-naming convention, emit the pbtext, and repack with `litert-lm unpack` /
-`litert-lm pack`:
+0.15 and dies at first generation (`executor.cc:708`); 0.9.4 adds the
+ExecutorMetadata writer (its release note), so check the peek output of
+every export rather than assuming either way. Retrofit it (weights
+untouched): read the `decode` signature's `kv_cache_*` input names +
+shapes with `CompiledModel.from_file(path).get_input_tensor_details("decode")`
+(`ai_edge_litert`, a dict of name → dtype and shape), classify by exporter
+naming convention, emit the pbtext, and repack with `litert-lm unpack
+<bundle> --output-dir <dir>` / `litert-lm pack <dir> --output <bundle>`:
 
 | input name | state type |
 |---|---|
 | `kv_cache_k_N` / `kv_cache_v_N` | `TYPE_GLOBAL_KEY_CACHE` / `TYPE_GLOBAL_VALUE_CACHE`, `sequence_axis` = the max-size dim, `maximum_sequence_length` = that dim |
 | `kv_cache_c_N` (conv), `kv_cache_s_N` (ssm), `mc_`/`mr_` (mamba), `lc_`/`lr_` (gated-delta) | `TYPE_LINEAR_ATTENTION` (opaque pass-through) |
 
-⚠ `litert-lm pack` **silently exits 0 without writing when the output
-file already exists** — delete the target first, always.
+⚠ `litert-lm pack` **exits 0 without writing when the output file already
+exists** — 0.18.0 prints `Output file … already exists … pass
+--allow-overwrite` but still returns 0, so a script that checks the exit
+code ships the old file. Delete the target first or pass
+`--allow-overwrite`, and check the output's mtime.
 
 **2. If litert-torch does not support the architecture**, this becomes
 exporter work, and three properties must hold before any quality gate is
@@ -233,8 +243,13 @@ are the LLM-specific facts that override intuition:
   *and* quality; on GPU, int4 prefills ~4× faster at equal decode. If
   both backends matter, ship both variants and say which is which.
 
-Example recipe JSON for the exporter's `--quantization_recipe` (blockwise
-int4 + OCTAV, embedding int8 — the LLM quality recipe):
+The LLM quality recipe as JSON (blockwise int4 + OCTAV, embedding int8), for
+`quantizer.Quantizer(model, "recipe.json")` when you quantize a graph
+outside the exporter. The exporter's `--quantization_recipe` takes preset
+names; the nearest preset, `dynamic_wi4b32_afp32`, is min-max int4
+block-32 on every op (0.9.0), so the OCTAV + int8-embedding form goes
+through a registered recipe as the `accuracy-safe-quantization` skill
+describes:
 
 ```json
 [
@@ -251,8 +266,8 @@ int4 + OCTAV, embedding int8 — the LLM quality recipe):
 ]
 ```
 
-(Field names drift across ai-edge-quantizer versions — validate against
-the installed version's `recipe.py` presets before relying on it.)
+(Validated on ai-edge-quantizer 0.9.0 on 2026-10-07; field names have
+moved between versions, so re-run it through `Quantizer` on a new release.)
 
 ## Adjacent lanes (same discipline, different bundles)
 
