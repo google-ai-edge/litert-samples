@@ -18,15 +18,25 @@ import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withContext
 
 /**
- * Reference wrapper for the LiteRT CompiledModel API (litert 2.2.0, kotlinx-coroutines 1.8.1;
- * also needs androidx.core:core-ktx). [create] builds the model on its own serial dispatcher,
- * on the first option set that works (NPU, then GPU + CPU, then CPU), and keeps the model's
- * input/output buffers for reuse; [run] uses the same dispatcher. Replace the model name and
- * the input/output shapes; keep the shape of the class. Call [close] after the last [run] has
- * returned. [accelerator] is the step that did not throw: NPU-only options compile as NPU +
- * CPU, so a failed NPU compile can still fall back to the CPU inside create (pass wantNpu =
- * true only with the vendor libraries in place); GPU + CPU leaves ops the GPU cannot run on
- * the CPU, as the legacy delegate did.
+ * Reference wrapper for the LiteRT CompiledModel API (litert 2.3.0 with litert-gpu, or litert
+ * 2.2.0; kotlinx-coroutines 1.8.1 or newer; also needs androidx.core:core-ktx). [create] builds
+ * the model on its own serial dispatcher, on the first option set that works (NPU, then GPU +
+ * CPU, then CPU), and keeps the model's input/output buffers for reuse; [run] uses the same
+ * dispatcher. Replace the model name and the input/output shapes; keep the shape of the class.
+ * Call [close] after the last [run] has returned; a second [close] does nothing.
+ *
+ * One [Environment] serves every model in the process and stays open: creating it loads the
+ * accelerator libraries, and an Environment created and closed per model reloads them on every
+ * load (on a Galaxy S26 with litert 2.2.0 one such reload aborted the process inside the GPU
+ * accelerator library). The first [create] decides whether the Environment carries the NPU
+ * provider.
+ *
+ * [accelerator] is the step that did not throw, not proof that every op runs there: NPU-only
+ * options compile as NPU + CPU, so a device without the vendor libraries still reports NPU and
+ * runs on the CPU (pass wantNpu = true only with those libraries in place); GPU + CPU leaves ops
+ * the GPU cannot run on the CPU, as the legacy delegate did; and with litert 2.3.0 the GPU step
+ * also "works" when the app forgot the litert-gpu dependency, because the runtime logs "GPU
+ * accelerator could not be loaded and registered" and runs the graph on the CPU.
  */
 @OptIn(ExperimentalCoroutinesApi::class)
 class LiteRtModel private constructor(
@@ -35,19 +45,18 @@ class LiteRtModel private constructor(
     wantNpu: Boolean,
     private val dispatcher: CoroutineDispatcher,
 ) : AutoCloseable {
-    private val env: Environment
     val model: CompiledModel
     val accelerator: Accelerator
     private val inputs: List<TensorBuffer>
     private val outputs: List<TensorBuffer>
 
     init {
-        val npu = BuiltinNpuAcceleratorProvider(context)
-        val useNpu = wantNpu && npu.isDeviceSupported()
-        // With the provider, Environment.create sets the dispatch and compiler-plugin dirs itself.
-        env = if (useNpu) Environment.create(context, npu) else Environment.create(context)
+        val useNpu = wantNpu && BuiltinNpuAcceleratorProvider(context).isDeviceSupported()
+        val env = environment(context, useNpu)
         val attempts = buildList {
-            if (useNpu) add(Accelerator.NPU to CompiledModel.Options(Accelerator.NPU))
+            if (useNpu) {
+                add(Accelerator.NPU to CompiledModel.Options(Accelerator.NPU))
+            }
             add(Accelerator.GPU to CompiledModel.Options(Accelerator.GPU, Accelerator.CPU))
             add(Accelerator.CPU to CompiledModel.Options(Accelerator.CPU))
         }
@@ -64,13 +73,21 @@ class LiteRtModel private constructor(
                 lastError = e
             }
         }
-        model = created ?: run {
-            env.close()
-            throw IllegalStateException("CompiledModel.create failed on every accelerator", lastError)
-        }
+        model = created
+            ?: throw IllegalStateException("CompiledModel.create failed on every accelerator", lastError)
         accelerator = used
-        inputs = model.createInputBuffers()
-        outputs = model.createOutputBuffers()
+        // The buffers can throw after the model exists (an input or output type the buffers do not
+        // take); nothing may stay open then, or every failed load keeps a model and its threads.
+        var inputBuffers: List<TensorBuffer> = emptyList()
+        try {
+            inputBuffers = model.createInputBuffers()
+            inputs = inputBuffers
+            outputs = model.createOutputBuffers()
+        } catch (e: Exception) {
+            inputBuffers.forEach { it.close() }
+            model.close()
+            throw e
+        }
     }
 
     /** Runs one inference; on the GPU, readFloat() is where the wait for the result happens. */
@@ -87,11 +104,29 @@ class LiteRtModel private constructor(
         inputs.forEach { it.close() }
         outputs.forEach { it.close() }
         model.close()
-        env.close()
     }
 
     companion object {
         private const val TAG = "LiteRtModel"
+        private var sharedEnvironment: Environment? = null
+
+        /**
+         * The process-wide Environment; with the NPU provider, Environment.create sets the dispatch
+         * and compiler-plugin dirs itself.
+         */
+        @Synchronized
+        private fun environment(context: Context, useNpu: Boolean): Environment =
+            sharedEnvironment ?: run {
+                val app = context.applicationContext
+                val env =
+                    if (useNpu) {
+                        Environment.create(app, BuiltinNpuAcceleratorProvider(app))
+                    } else {
+                        Environment.create(app)
+                    }
+                sharedEnvironment = env
+                env
+            }
 
         /** Creates the model on a serial dispatcher of its own; create compiles the model, so call this from a coroutine. */
         suspend fun create(context: Context, assetName: String, wantNpu: Boolean): LiteRtModel {
