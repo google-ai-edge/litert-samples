@@ -16,6 +16,7 @@
 
 package com.google.ai.edge.examples.litertruntime
 
+import android.graphics.Bitmap
 import android.os.Debug
 import android.util.Log
 import androidx.lifecycle.ViewModelProvider
@@ -52,8 +53,9 @@ import org.junit.runner.RunWith
  * thread (an exception there ends the app), and that every model that was created is closed.
  *
  * A model that is never closed is unreachable from here, so those tests repeat the failing load and
- * bound what the process keeps instead: one unclosed model keeps 60 KB or more of native heap, and
- * on the GPU two threads.
+ * bound what the process keeps instead. The bounds come from a Galaxy S26 (Android 16, LiteRT
+ * 2.2.0): 20 unclosed CPU models kept 13.8 MB of native heap, 20 unclosed GPU models 62.9 MB and
+ * 40 threads, and 50 closed ones under 100 KB together.
  */
 @RunWith(AndroidJUnit4::class)
 @SdkSuppress(minSdkVersion = 30)
@@ -136,11 +138,13 @@ class MainViewModelTest {
 
     @Test
     fun gpuCreateThrows_theFailedLoadsKeepNothing() {
+        assumeGpu()
         assertFailedLoadsKeepNothing("gpu_unsupported", Accelerator.GPU)
     }
 
     @Test
     fun gpuCreateThrows_stateIsError_thenTheCpuLoads() {
+        assumeGpu()
         assets.use("gpu_unsupported")
         val viewModel = newViewModel()
         viewModel.load(Accelerator.GPU)
@@ -245,12 +249,24 @@ class MainViewModelTest {
     }
 
     @Test
+    fun preprocess_readsAHardwareBitmap() {
+        // ImageDecoder returns HARDWARE bitmaps by default; getPixels() cannot read them.
+        val software = Bitmap.createBitmap(640, 480, Bitmap.Config.ARGB_8888)
+        val hardware = checkNotNull(software.copy(Bitmap.Config.HARDWARE, false))
+        assertEquals(Bitmap.Config.HARDWARE, hardware.config)
+        val input = preprocess(hardware)
+        assertEquals(INPUT_SIZE, input.size)
+        assertEquals(-1f, input[0])
+    }
+
+    @Test
     fun manyViewModelLifetimes_eachLoadsAndCloses() {
         repeat(LIFETIMES) { index ->
             val viewModel = newViewModel()
             viewModel.load(Accelerator.CPU)
             viewModel.awaitIdle()
-            assertTrue("lifetime $index: ${viewModel.uiState.value.error}", viewModel.isReady())
+            val error = viewModel.uiState.value.error
+            assertTrue("lifetime $index: $error", viewModel.isReady())
             clearAndAwait(viewModel)
             assertTrue(checkNotNull(viewModel.classifier()).isClosed())
             if (index % 25 == 24) {
@@ -360,10 +376,10 @@ class MainViewModelTest {
         const val LIFETIMES = 200
         const val HANDOVERS = 50
 
-        /** 50 unclosed models keep 3 MB or more. 50 closed ones keep under 100 KB together. */
+        /** 20 unclosed models kept 13.8 MB; 50 closed ones keep under 100 KB together. */
         const val HEAP_LIMIT_KB = 1024L
 
-        /** 50 unclosed GPU models keep 100 threads. */
+        /** 20 unclosed GPU models kept 40 threads. */
         const val THREAD_LIMIT = 10
     }
 }

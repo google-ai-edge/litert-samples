@@ -23,10 +23,8 @@ import androidx.activity.compose.setContent
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
-
-/** Stands in for the frame the skill leaves to the photo picker or CameraX. */
-val bitmap: Bitmap = Bitmap.createBitmap(224, 224, Bitmap.Config.ARGB_8888)
 
 /** Shows the skill's screen. The rest of the app comes from SKILL.md at build time. */
 class MainActivity : ComponentActivity() {
@@ -35,7 +33,9 @@ class MainActivity : ComponentActivity() {
         setContent {
             MaterialTheme {
                 Box(Modifier.safeDrawingPadding()) {
-                    MainScreen()
+                    // Stands in for the picture the skill takes from the photo picker or CameraX.
+                    val bitmap = remember { Bitmap.createBitmap(224, 224, Bitmap.Config.ARGB_8888) }
+                    MainScreen(bitmap)
                 }
             }
         }

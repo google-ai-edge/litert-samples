@@ -27,7 +27,9 @@ import org.gradle.api.tasks.TaskAction
 
 /**
  * Writes the Kotlin code blocks of a skill's Markdown files into one source file, so that the app
- * under test is the skill's own code and cannot drift from it.
+ * under test is the skill's own code and cannot drift from it. The `import` lines of every block
+ * are hoisted to the top of the file, each once, so a block can show its own imports and the
+ * skill's imports reference can list them all.
  */
 abstract class ExtractSkillCode : DefaultTask() {
     /** The Markdown files to read, in the order their code blocks are written out. */
@@ -35,7 +37,7 @@ abstract class ExtractSkillCode : DefaultTask() {
     @get:PathSensitive(PathSensitivity.NONE)
     abstract val sources: ConfigurableFileCollection
 
-    /** The package line and the imports, which the skill leaves to the IDE. */
+    /** The package line of the generated file. */
     @get:InputFile
     @get:PathSensitive(PathSensitivity.NONE)
     abstract val header: RegularFileProperty
@@ -46,15 +48,22 @@ abstract class ExtractSkillCode : DefaultTask() {
     @TaskAction
     fun extract() {
         val fence = Regex("```kotlin\\n(.*?)\\n```", RegexOption.DOT_MATCHES_ALL)
-        val code =
+        val blocks =
             sources.files.flatMap { file ->
                 val text = file.readText().replace("\r\n", "\n")
                 fence.findAll(text).map { it.groupValues[1] }
             }
-        check(code.isNotEmpty()) { "no kotlin block in ${sources.files}" }
+        check(blocks.isNotEmpty()) { "no kotlin block in ${sources.files}" }
+        val lines = blocks.flatMap { it.lines() }
+        val imports = lines.filter { it.startsWith("import ") }.distinct().sorted()
+        val code =
+            blocks.map { block ->
+                block.lines().filterNot { it.startsWith("import ") }.joinToString("\n").trim()
+            }
         val head = header.get().asFile.readText().trimEnd()
         val out = outputDir.get().file("SkillCode.kt").asFile
         out.parentFile.mkdirs()
-        out.writeText(head + "\n\n" + code.joinToString("\n\n") + "\n")
+        val body = code.filter { it.isNotEmpty() }.joinToString("\n\n")
+        out.writeText(head + "\n\n" + imports.joinToString("\n") + "\n\n" + body + "\n")
     }
 }

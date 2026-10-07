@@ -347,6 +347,21 @@ class ChatViewModelTest {
     }
 
     @Test
+    fun loadWhileOnClearedStopsAReply_createsNothing() {
+        val viewModel = newViewModel()
+        viewModel.loadAndAwait(modelPath)
+        val second = secondModelPath
+        viewModel.launched { viewModel.send(LONG_PROMPT) }
+        viewModel.await("the reply to start") { it.reply.isNotEmpty() }
+        // onCleared() is stopping the reply when the load is queued behind it.
+        stores.forEach { it.clear() }
+        viewModel.load(second, backend())
+        assertTrue(viewModel.executor().awaitTermination(TIMEOUT_SECONDS, TimeUnit.SECONDS))
+        val engine = viewModel.engine()
+        assertTrue("an engine is still open", engine == null || !engine.isInitialized())
+    }
+
+    @Test
     fun onCleared_rightAfterLoad_closesBoth() {
         val viewModel = newViewModel()
         viewModel.load(modelPath, backend())
@@ -490,6 +505,7 @@ class ChatViewModelTest {
         const val TAG = "ChatViewModelTest"
         const val DEFAULT_MODEL = "/data/local/tmp/Qwen3-0.6B.litertlm"
         const val MISSING_MODEL = "/data/local/tmp/no-such-model.litertlm"
+        /** `/no_think` is a Qwen3 switch; other models read it as text, which is fine here. */
         const val SHORT_PROMPT = "Reply with the single word: ready. /no_think"
         const val LONG_PROMPT = "Write a story of at least 500 words about a lighthouse keeper."
         const val TIMEOUT_SECONDS = 900L
