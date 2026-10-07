@@ -250,7 +250,7 @@ class MainViewModelTest {
 
     @Test
     fun preprocess_readsAHardwareBitmap() {
-        // ImageDecoder returns HARDWARE bitmaps by default; getPixels() cannot read them.
+        // ImageDecoder usually returns HARDWARE bitmaps; getPixels() cannot read them.
         val software = Bitmap.createBitmap(640, 480, Bitmap.Config.ARGB_8888)
         val hardware = checkNotNull(software.copy(Bitmap.Config.HARDWARE, false))
         assertEquals(Bitmap.Config.HARDWARE, hardware.config)
