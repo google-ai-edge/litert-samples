@@ -23,7 +23,7 @@ Options, each added to the `./gradlew` line:
 
 - `-Pandroid.testInstrumentationRunnerArguments.backend=GPU` runs the LiteRT-LM tests on the GPU backend.
 - `-Pandroid.testInstrumentationRunnerArguments.modelPath=<path on the device>` uses another `.litertlm` file.
-- `-PlitertlmVersion=<version>` builds against another release of `litertlm-android`.
+- `-PlitertVersion=<version>` builds the `litert-runtime` app against another release of `litert` (from 2.3.0 with `litert-gpu`); `-PlitertlmVersion=<version>` builds the `litert-lm` app against another release of `litertlm-android`.
 - `-PskillsDir=<dir>` builds the apps from another copy of the two skills (a relative path counts from this directory).
 
 ## What the tests check

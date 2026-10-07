@@ -12,7 +12,7 @@ This skill provides step-by-step guidance for building an Android app that runs 
 ## Prerequisites
 
 - A Kotlin Android project (Android Studio's Empty Activity template is enough). The LiteRT 2.2.0 AAR declares `minSdk` 24.
-- The dependency in the app-level `build.gradle.kts`: `implementation("com.google.ai.edge.litert:litert:2.2.0")` from Google Maven. The AAR includes the GPU accelerator and declares the GPU driver libraries in its own manifest; no second artifact and no manifest entry are needed.
+- The dependency in the app-level `build.gradle.kts`: `implementation("com.google.ai.edge.litert:litert:2.2.0")` from Google Maven. The 2.2.0 AAR includes the GPU accelerator and declares the GPU driver libraries in its own manifest; no second artifact and no manifest entry are needed. From 2.3.0 (on Google Maven since 2026-10-06) the GPU accelerator is its own artifact, `com.google.ai.edge.litert:litert-gpu`, added next to `litert` with the same version.
 - A `.tflite` model and its input requirements (input size, mean/std, channel order). Models with a LiteRT recipe: https://github.com/google-ai-edge/litert-samples/tree/main/models
 
 ## Detailed steps
@@ -21,7 +21,7 @@ This skill provides step-by-step guidance for building an Android app that runs 
 
 In the app-level `build.gradle.kts`, set `minSdk = 24` in `defaultConfig`. Put the model at `app/src/main/assets/model.tflite` (AGP stores `.tflite` files uncompressed by default); a model too large to bundle is downloaded into `context.filesDir` and loaded with `CompiledModel.create(filePath, CompiledModel.Options(accelerator), environment)`.
 
-With AGP 9.x the build stops at `processDebugMainManifest`: `litert` 2.2.0 and its dependency `litert-api` 2.2.0 both declare the namespace `com.google.ai.edge.litert` (https://github.com/google-ai-edge/LiteRT/issues/8474); AGP 8.x reports it as a warning and builds. For 2.2.0, add `android.uniquePackageNames=false` to `gradle.properties` before the first build. Excluding `litert-api` does not work: `CompiledModel` and `Accelerator` are in it, and the build then fails at `compileDebugKotlin`. The setting also hides the same clash between any other two libraries, so remove it when you move to a LiteRT version that builds without it.
+With AGP 9.x the build stops at `processDebugMainManifest`: `litert` 2.2.0 and its dependency `litert-api` 2.2.0 both declare the namespace `com.google.ai.edge.litert` (https://github.com/google-ai-edge/LiteRT/issues/8474); AGP 8.x reports it as a warning and builds. For 2.2.0, add `android.uniquePackageNames=false` to `gradle.properties` before the first build. Excluding `litert-api` does not work: `CompiledModel` and `Accelerator` are in it, and the build then fails at `compileDebugKotlin`. The setting also hides the same clash between any other two libraries, so remove it with 2.3.0, whose two libraries have different namespaces.
 
 ### 2. Write the inference class
 

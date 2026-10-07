@@ -22,6 +22,10 @@ plugins {
 // The directory that holds the litert-runtime skill. -PskillsDir=<dir> tests another copy.
 val skillsDir = providers.gradleProperty("skillsDir").orElse("..")
 
+// -PlitertVersion=<version> tests another release of the library. From 2.3.0 the GPU accelerator
+// is its own artifact, litert-gpu.
+val litertVersion = providers.gradleProperty("litertVersion").orElse("2.2.0")
+
 val extractSkillCode =
     tasks.register<ExtractSkillCode>("extractSkillCode") {
         val skills = rootProject.layout.projectDirectory.dir(skillsDir)
@@ -79,7 +83,10 @@ dependencies {
     implementation("androidx.compose.ui:ui")
     implementation("androidx.compose.material3:material3")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.10.2")
-    implementation("com.google.ai.edge.litert:litert:2.2.0")
+    implementation("com.google.ai.edge.litert:litert:${litertVersion.get()}")
+    if (litertVersion.get() != "2.2.0") {
+        implementation("com.google.ai.edge.litert:litert-gpu:${litertVersion.get()}")
+    }
     androidTestImplementation("androidx.test.ext:junit:1.3.0")
     androidTestImplementation("androidx.test:runner:1.7.0")
 }
