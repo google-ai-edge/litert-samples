@@ -2,7 +2,9 @@
 
 Run them in this order; each catches what the previous one cannot. The
 recurring lesson: **every gate here has been passed by a broken model** —
-except the combination.
+except the combination. The commands and API calls of §0, §1 and §5 were
+re-run on litert-lm 0.18.0 on 2026-10-07; engine behaviours quoted without a
+version were observed on litert-lm 0.15–0.17.
 
 ## 0. The gate harness: the engine's Python API
 
@@ -44,8 +46,9 @@ perfectly while every scored number is wrong.
   fresh session read −12.93 when scored right after another). Give every
   candidate **its own session and its own prefill**. It also refuses more
   than one target per call (`INVALID_ARGUMENT: Target text size should
-  be 1`), so sharing the *prefill* is the tempting shortcut — and it is
-  the broken one.
+  be 1` in the log; the Python call raises `RuntimeError:
+  litert_lm_session_run_text_scoring failed`), so sharing the *prefill*
+  is the tempting shortcut — and it is the broken one.
 - **`create_session(apply_prompt_template=True)` prefills the user
   *prefix* only** — no user suffix, no start token — so scoring happens
   mid-prompt. Isolated by reproducing the value from hand-built strings:
@@ -94,7 +97,7 @@ for label, q, pat in QUESTIONS:
     p = subprocess.run(["litert-lm", "run", sys.argv[1],
         "--prompt", q + " Answer briefly.", "--backend", sys.argv[2],
         "--cache", "no", "--temperature", "0", "--seed", "0"],
-        capture_output=True, text=True, timeout=600)
+        capture_output=True, text=True, timeout=600, stdin=subprocess.DEVNULL)
     t = p.stdout.strip()
     good = bool(re.search(pat, t, re.I)) and not degenerate(t)
     ok += good
@@ -103,7 +106,9 @@ print(f"{ok}/8")
 json.dump({"correct": ok, "of": 8, "passed": ok >= 6}, open(f"gate8q_{sys.argv[2]}.json", "w"))
 ```
 
-(Adjust the `litert-lm` path to your venv's `bin/` if it is not on PATH.)
+(Adjust the `litert-lm` path to your venv's `bin/` if it is not on PATH.
+`stdin=subprocess.DEVNULL` matters: with its stdin left as a pipe, `litert-lm
+run` waited instead of returning after the prompt — 0.18.0, measured.)
 Pass bar: ≥ 6/8 correct **and** zero degenerate answers, on CPU **and**
 on the backend you ship. Run each question separately — a reasoning model
 burns a shared budget thinking and false-fails later questions. Keep the
@@ -257,7 +262,8 @@ mitigation; note the context-growth caveat on the card.
 ## 5. Backend and device gates
 
 - **Desktop GPU sieve** (fast): `litert-lm benchmark <model> --backend
-  gpu -p 256 -d 256` — engine creation + real speed numbers, plus the 8Q
+  gpu -p 256 -d 256` (`-p`/`--prefill-tokens`, `-d`/`--decode-tokens`,
+  0.18.0) — engine creation + real speed numbers, plus the 8Q
   gate on the GPU backend (CPU pass ≠ GPU pass; fp16 accumulation flips
   marginal answers). On failure, grep the log for the named op and route
   through `architecture-walls.md`.
@@ -309,7 +315,8 @@ mitigation; note the context-growth caveat on the card.
   (XNNPACK) caches accumulate beside models too — a gating campaign has
   quietly consumed ~8 GB of disk; they are regenerable, delete freely.
   **The Python API has no `--cache no`**: `litert_lm.Engine(...)` writes
-  beside the bundle by default, so pass `cache_dir` and sweep it. Measured
+  beside the bundle by default, so pass `cache_dir`
+  (`litert_lm.Engine(path, cache_dir="...")`, 0.18.0) and sweep it. Measured
   from gating one 3B in two variants: `*.xnnpack_cache` 3.44 GiB on CPU,
   and on **Mac** GPU `*_mldrift_weight_cache.bin` + `*_mldrift_program_cache.bin`
   at 3.43 GiB + 26 MiB (int8) and 1.71 GiB + 53 MiB (int4) — 5.2 GiB from

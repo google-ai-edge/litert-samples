@@ -8,7 +8,7 @@ description: Convert a Hugging Face LLM or vision-language model checkpoint into
 A conversion is done when three things hold, in this order:
 
 1. the bundle loads and generates through the LiteRT-LM engine (not just
-   the raw interpreter),
+   the raw `.tflite` graphs),
 2. **output quality is gated against the source model** — a floor gate plus
    a task-level parity check, not a smoke test,
 3. it holds up on the deployment path it claims: the target backend, the

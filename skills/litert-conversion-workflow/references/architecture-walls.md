@@ -1,10 +1,13 @@
 # Architecture walls — where a structure dies, and the signature it dies with
 
 Status is stated against **litert-lm 0.15.0 / litert-torch 0.9.3 /
-litert-converter 0.3.0 released** (2026-08). Every entry is a dated fact,
-not a law: re-test on each release. Walls fall (hybrids became executable
-in 0.15) and regressions appear (pre-0.15 hybrid bundles stopped running
-on 0.15) — sometimes in the same release.
+litert-converter 0.3.0 released** (2026-08), re-read on 2026-10-07 against
+litert-lm 0.18.0 / litert-torch 0.9.4 / litert-converter 0.4.0: the rows
+that name a fix version say so; every other row is still the 2026-08
+observation. Every entry is a dated fact, not a law: re-test on each
+release. Walls fall (hybrids became executable in 0.15) and regressions
+appear (pre-0.15 hybrid bundles stopped running on 0.15) — sometimes in
+the same release.
 
 ## Runtime / engine walls
 
@@ -23,7 +26,7 @@ on 0.15) — sometimes in the same release.
 | Multi-conversation reuse of one engine by **state-carrying models** (running conv/SSM/linear-attention state) | Engine-level hazard: conversations sharing an engine can interact through prefix caching; per-conversation state assumptions break. A **sparse prefill ladder makes it worse** — a dev bundle with only {32,128} signatures derailed deterministically where the full-ladder ship bundle survived | quality derails after several conversations on one engine while a fresh engine per conversation is clean | gate hermetically (fresh engine per measurement) **and** probe one shared-engine sequence — `verification-gates.md` §Sweep; export the full ladder |
 | Multi-codebook audio-output models (LM-based TTS: talker + AR sub-decoder + codec) | **No engine support for audio-token output** — the engine's loop is single-lm_head text; composite codebook embeddings, per-step inner AR loops, and codec decode have no channel (vision/audio are input-only) | no error — the capability simply doesn't exist | graphs convert fine; drive them with a host loop (Python/Kotlin) and gate on a task-level round-trip (ASR) |
 | Large-KV bundles on iOS, second conversation on the same engine | Starting another conversation clones the KV buffers; at ~1.2 GB (cache 4096 on a mid-size model) the clone has failed engine-side on iPhone while the same bundle is fine on macOS. Size-dependent: the cache-2048 re-export (~600 MB clone) passes — and also decoded faster at lower peak RAM. Two engines alive at once also fails | conversation-2 creation fails; `failedToCreateEngine` for a second engine | size `cache_length` for the target platform; or release + recreate the engine between conversations (warm re-init is fast with the delegate weight cache) |
-| Host app leaving `maxTokens` unset | defaults to ~`cache_length` → an oversized decode buffer allocation that fails at first generation **even though the model loaded fine** | generation fails at the executor's tensor-buffer allocation | always pass an explicit bounded max-tokens (e.g. 512) |
+| Host app leaving the token budget unset (`maxNumTokens` in the Kotlin and Swift engine configs, `--max-num-tokens` on the CLI, `max_num_tokens` in Python) | defaults to ~`cache_length` → an oversized decode buffer allocation that fails at first generation **even though the model loaded fine** | generation fails at the executor's tensor-buffer allocation | always pass an explicit bounded budget (e.g. 512) |
 
 ## Load-time / size walls
 
@@ -36,7 +39,7 @@ on 0.15) — sometimes in the same release.
 
 | Trigger | Failure signature | Fix |
 |---|---|---|
-| `torch.eye(n)` inside a traced compute path (e.g. chunked delta-rule) | lowers to `STABLEHLO_IOTA`, unregistered in every released kernel set → interpreter and engine both die **at load** | build the eye from a Python list so it lifts as a plain graph constant; `triu`/`arange` masks constant-fold fine |
+| `torch.eye(n)` inside a traced compute path (e.g. chunked delta-rule) | lowers to `STABLEHLO_IOTA`, unregistered in the kernel sets of the 2026-08 baseline (ai-edge-litert 2.2.0, litert-lm 0.15–0.17) → the CompiledModel runtime and the engine both die **at load** | build the eye from a Python list so it lifts as a plain graph constant; `triu`/`arange` masks constant-fold fine |
 | `arange(..., dtype=torch.uint8)` in modeling code | `RuntimeError: torch.uint8` in exported_program_to_mlir | patch the dtype to int32 (numerically identical) |
 | float64 in a constant path (rope tables computed in f64) | `failed to legalize operation 'tfl.pow' ... tensor<f64>` | force f32 for the table computation |
 | int64 tensors surviving into the graph (masks, `.sum()` of bool) | export abort, or GPU delegate rejection of INT64 ops | cast to int32/f32 at the source; this family is *dtype in a constant path*, never the model math |
@@ -52,7 +55,7 @@ on 0.15) — sometimes in the same release.
 
 | Backend | Wall | Signature | Route |
 |---|---|---|---|
-| Every released GPU delegate | `odml.softmax` StableHLO composite (emitted unconditionally by litert-torch ≥0.9.2 attention) not lowered by litert-converter 0.3.0 | `not fully delegated` → engine creation fails; CPU unaffected | **fixed in litert-converter ≥ 0.4.0 dev builds** — the converter lowers the composite to the fused SOFTMAX builtin. On 0.3.0, strip the composite marker at export (math unchanged; verified op-identical to the fixed converter's output) |
+| Every released GPU delegate | `odml.softmax` StableHLO composite (emitted unconditionally by litert-torch ≥0.9.2 attention) not lowered by litert-converter 0.3.0 | `not fully delegated` → engine creation fails; CPU unaffected | **fixed in litert-converter 0.4.0** (released 2026-08-21; litert-torch 0.9.4 pins `litert-converter==0.4.*`) — the converter lowers the composite to the fused SOFTMAX builtin. On 0.3.0, strip the composite marker at export (math unchanged; verified op-identical to the fixed converter's output) |
 | Mobile GPU (ML Drift) | `GATHER_ND` — hard blocker, often invisible on desktop | executor create fails on device naming the op | rewrite the source: raster-order processing, strided-slice merges, one-hot-matmul instead of dynamic gather |
 | GPU delegate (0.15) | high-rank ops from SSM scans (`SLICE` rank > 4) | rejection naming the op | ship CPU-only; re-test per release |
 | iOS Metal specifically (0.14–0.15) | shader codegen bugs distinct from Mac/Android: `half4`×`float4` implicit-conversion error in generated Metal source; `cond_tensor` BATCH-axis parse failure | `newLibraryWithSource: ... implicit conversions between vector types`; `Unable to parse bc coord for BATCH axis` | **Mac GPU pass ≠ iPhone GPU pass** — same file can fully delegate on Mac WebGPU and fail on Metal. Gate on the actual device; ship CPU for iOS when Metal rejects |
@@ -66,5 +69,5 @@ on 0.15) — sometimes in the same release.
 
 | Trigger | Signature | Fix |
 |---|---|---|
-| All-zero weight blocks under blockwise int4 — **not a sparse/ternary special case**: one dense-trained 2.6B hybrid carried ~746k all-zero 32-blocks across 26 tensors, so run the zero-scale check as a standard post-quantize step for every blockwise int4 | `unsupported scale value (0.000000) ... for INT4 tensor` → `Failed to allocate tensors` at load; at the engine level all you see is `INTERNAL: Failed to invoke the compiled model` — invoke the tflite directly with the Interpreter to surface the real error | patch each zero block scale to the tensor's smallest nonzero scale — dequantization unchanged (the blocks are all zero). ⚠ Blockwise scales live in **separate fp16 scale tensors**, not `QuantizationParameters.scale` — patching the latter through the object API succeeds silently and changes nothing; edit the scale tensor's buffer through the raw flatbuffer view |
+| All-zero weight blocks under blockwise int4 — **not a sparse/ternary special case**: one dense-trained 2.6B hybrid carried ~746k all-zero 32-blocks across 26 tensors, so run the zero-scale check as a standard post-quantize step for every blockwise int4 | `unsupported scale value (0.000000) ... for INT4 tensor` → `Failed to allocate tensors` at load; at the engine level all you see is `INTERNAL: Failed to invoke the compiled model` — load the `.tflite` section itself through the CompiledModel API (`CompiledModel.from_file`, CPU) to surface the real error | patch each zero block scale to the tensor's smallest nonzero scale — dequantization unchanged (the blocks are all zero). ⚠ Blockwise scales live in **separate fp16 scale tensors**, not `QuantizationParameters.scale` — patching the latter through the object API succeeds silently and changes nothing; edit the scale tensor's buffer through the raw flatbuffer view |
 | Channelwise int4 on any decoder | no load error — coherent short outputs, then degeneration; benchmark collapse | never channelwise for decoders; blockwise-32/128 only (`recipe-selector.md` §Quantization) |

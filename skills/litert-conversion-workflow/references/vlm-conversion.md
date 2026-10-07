@@ -27,7 +27,7 @@ Consequences:
   hand-assembling this bundle. The stock exporter's VLM path covers only
   its own first-party family — for everything else, export the graphs
   separately and assemble with the bundle builder
-  (`litert_lm_builder.LitertLmFileBuilder`): vision encoder + adapter +
+  (`litert_lm_builder.LitertLmFileBuilder`, litert-lm-builder 0.18.0): vision encoder + adapter +
   single-token embedder + embeddings-input prefill/decode + tokenizer +
   metadata.
 - Two metadata gotchas that produce "runs nowhere" bundles:
@@ -38,7 +38,8 @@ Consequences:
     session eagerly tries to load an audio executor) — load as
     text+image / vision only.
   - the **vision backend must be requested explicitly**
-    (`Engine(..., vision_backend=...)`). Without it `Engine(...)` succeeds
+    (`litert_lm.Engine(..., vision_backend=...)`, a constructor argument in
+    0.18.0). Without it `Engine(...)` succeeds
     and `create_conversation()` succeeds; the *first image message* fails
     with `INVALID_ARGUMENT: Vision executor should not be null, please
     TryLoadingVisionExecutor() first`. A load-time smoke test will not

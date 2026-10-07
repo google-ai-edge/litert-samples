@@ -1,7 +1,9 @@
 # Template & tokenizer traps — the non-math ship-killers
 
 More conversions have died here than on any numerical issue. Everything
-below was hit on a real model; each entry gives the observable signature.
+below was hit on a real model on litert-lm 0.15–0.17; each entry gives the
+observable signature — re-check the renderer's behaviour on each release.
+The peek command below was re-run on 0.18.0.
 
 ## The renderer is minijinja, not Jinja2 — and not Python
 
@@ -37,8 +39,9 @@ Three sharper facts about the render environment:
   `unknown method` on a source build. "It renders in my venv" is not
   evidence it renders in a shipped app; only the minimal-template route
   is build-independent.
-- Recent exporters ship an **experimental jinja→minijinja transpiler**
-  flag. It rewrites some string methods to filters but not `.get()` /
+- litert-torch 0.9.4 ships an **experimental jinja→minijinja transpiler**
+  flag (`--experimental_transpile_chat_template_for_minijinja`). It
+  rewrites some string methods to filters but not `.get()` /
   `.startswith()` — and **on any exception it returns the template
   unchanged**, so enabling it can look like a fix and silently not be
   one. Don't substitute it for the minimal template.
@@ -47,7 +50,7 @@ Also real jinja semantics, not a runtime bug: `{% set x = x ~ ... %}`
 inside a `for` loop does not escape the loop — templates that accumulate
 tool-call arguments that way silently emit empty arguments on re-render.
 
-Exporter packaging behaviors worth knowing (recent litert-torch): a
+Exporter packaging behaviors worth knowing (litert-torch 0.9.x): a
 `thought` channel is auto-declared when the packed template contains
 `<think>`; stop tokens get punctuation-prefix expansion (a SentencePiece
 greedy-merge guard); `sampler_top_k/top_p/temperature` export args bake a
