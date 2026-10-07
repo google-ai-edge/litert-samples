@@ -16,9 +16,10 @@ An app around a verified model is done when three things hold, in this order:
 
 Scope: this scaffolds a **new** app from a model recipe. Migrating an
 existing TFLite Interpreter app to CompiledModel is a different task with
-its own skill. LM models are consumed through the LiteRT-LM Engine rather
-than raw CompiledModel — `samples/litert/text_to_speech_lm` is the
-reference for that lane; everything below is the non-LM CompiledModel app.
+its own skill, `litert-compiled-model-migration`. LLMs are served through
+the LiteRT-LM Engine rather than raw CompiledModel —
+`samples/litert/text_to_speech_lm` is the reference for that case;
+everything below is the non-LLM CompiledModel app.
 
 ## Step 0: prove parity before building UI
 
@@ -46,7 +47,12 @@ app/src/main/res/values/ strings.xml etc. — no UI strings in Kotlin
 ```
 
 The worked example of the full shape is
-`samples/litert/image_segmentation/kotlin_cpu_gpu/android`. The layer
+`samples/litert/image_segmentation/kotlin_cpu_gpu/android` (litert 2.3.0: the
+GPU accelerator ships in `litert-gpu`, so declare `litert:2.3.0` and
+`litert-gpu:2.3.0`; without the second the runtime logs `GPU accelerator could
+not be loaded and registered` and a GPU + CPU set runs on the CPU — Galaxy
+S26. The sample keeps Kotlin 2.2.21 with `-Xskip-metadata-version-check`;
+the 2.3.0 classes carry Kotlin 2.4 metadata). The layer
 boundary that matters most is the helper's: pre/post-processing is part of
 the model contract (it must match what the recipe exported against), so it
 lives with the model, not in the screen. Reusable inference code is worth
@@ -55,15 +61,18 @@ rest.
 
 ## Inference-layer rules
 
-1. **One confined dispatcher owns the model.**
-   `Dispatchers.IO.limitedParallelism(1, "ModelDispatcher")` in the
-   helper; create, run, and close the model only inside
-   `withContext(singleThreadDispatcher)`. Not a bare executor in the
-   Activity, and never the main thread.
+1. **One serial dispatcher owns the model.**
+   `Dispatchers.IO.limitedParallelism(1, "ModelDispatcher")` in the helper
+   (the named form needs kotlinx-coroutines 1.9+; `litert-api` 2.3.0 pulls in
+   1.8.0); create, run, and close the model only inside
+   `withContext(modelDispatcher)` — it serializes calls without pinning a
+   thread. Not a bare executor in the Activity, and never the main thread.
 2. **Buffers are created once, reused every frame, and closed.**
    `TensorBuffer` is `AutoCloseable`; forgetting the buffers leaks native
-   memory even when the model itself is closed. The vendored
-   `CompiledModelRunner` (below) gets the whole lifecycle right.
+   memory even when the model itself is closed. Close in `onCleared()` on
+   the dispatcher of rule 1 (`viewModelScope` is already cancelled there, so
+   a `launch` never runs). The vendored `CompiledModelRunner` (below) gets
+   the buffer lifecycle right.
 3. **`run()` enqueues; the readback waits.** `run()` may return before
    the GPU finishes — the output read is the synchronization point.
    Benchmark run + readback together, never `run()` alone.
@@ -72,22 +81,25 @@ rest.
    the first user action is not the compile, and no first-run number
    ever gets quoted as latency.
 5. **Ask for the strict accelerator the recipe verified.**
-   `Accelerator.GPU` fails compilation on an unsupported op instead of
-   silently falling back — that is a feature. Surface the failure as a
-   visible error and route it back to the model recipe; do not paper over
-   it with a CPU fallback that makes a 10× slowdown look like a working
-   app.
+   `Accelerator.GPU` alone makes `create` throw when the GPU cannot take
+   the graph (Kotlin `LiteRtException` `Failed to compile model`, Galaxy S26,
+   litert 2.2.0 and 2.3.0). Surface it as a visible error and route it back
+   to the model recipe; do not paper over it with a CPU fallback that makes a
+   slow app look like a working one. The exception: a node the delegate
+   declines while building (`TopK requires src tensor C dimension to be
+   divisible by 4`, 2.2.0 and 2.3.0 wheels on a Mac) runs on the CPU with only
+   a log line — also read the runtime's `operations will run on the GPU` line.
 6. **Stateful and multi-graph models: move references, not data.** Feed
    step N's output buffers as step N+1's inputs (buffer ping-pong)
    instead of copying state through the host. When one app creates many
    `CompiledModel`s (pipelines, chunked models), create one `Environment`
    and pass it to every `CompiledModel.create` call, and close per-run
-   buffers — per-create GPU contexts leak, and a create-per-step loop
-   will eventually take the process down (observed at ~20 creates).
-   Treat the GPU serialization/program-cache options as untested per
-   device — enabling program-cache serialization has aborted a process
-   on first compile, and the compiler-cache environment option targets
-   NPU JIT, not GPU shader caching.
+   buffers. An `Environment` created and closed per model reloads the GPU
+   accelerator library each time (one reload aborted the process, once in 50
+   loads, Galaxy S26, litert 2.2.0). Treat the GPU program-cache option
+   (`GpuOptions` key `SERIALIZE_PROGRAM_CACHE`) as untested per device, and
+   note that the compiler-cache environment option targets NPU JIT, not GPU
+   shader caching.
 
 ## Vendor the helpers, don't rewrite them
 
@@ -96,15 +108,16 @@ app needs and every app gets subtly wrong when written from scratch:
 
 | File | What it provides |
 |---|---|
-| `CompiledModelRunner.kt` | the lifecycle in rules 1–3, with the sharp edges documented |
+| `CompiledModelRunner.kt` | the buffer lifecycle of rules 2–3 (its factories take no `Environment`; create the model yourself when rule 6 applies) |
 | `ImageTensor.kt` | Bitmap → float tensor; mean/std, NCHW/NHWC, RGB/BGR, letterbox with coordinate mapping back |
 | `AudioCapture.kt` | 16 kHz mono `AudioRecord` loop delivering float chunks |
 | `RealtimeCameraPipeline.kt` | CameraX capture → pooled Bitmap incl. rotation |
 | `MathOps.kt` | softmax, argmax, IoU, NMS |
 
-Vendor a copy with its provenance line, keep model-specific values in
-constructor arguments, and fix bugs in the canonical first —
-`utilities/tools/sync_common.py --check` is the drift gate. The
+Vendor a copy with `utilities/tools/sync_common.py --apply` (it writes the
+provenance line), keep model-specific values in constructor arguments, and
+fix bugs in the canonical first — `--check` is the drift gate (exit 1 on a
+diverged copy). The
 preprocessing arguments **are** the model contract: a wrong mean/std or
 RGB/BGR looks exactly like a broken model, and it is the first thing to
 diff against the recipe's export script when app output is subtly wrong.
@@ -114,13 +127,12 @@ diff against the recipe's export script when app output is subtly wrong.
 Weights are never committed.
 
 - **Bundleable models**: fetch at build with a `download_model.gradle`
-  (Hugging Face URL → `assets/`), and set
-  `androidResources { noCompress += "tflite" }` so the asset stays
-  mmappable. Worked example:
-  `samples/litert/image_segmentation/kotlin_cpu_gpu`.
+  (Hugging Face URL → `assets/`), and set `androidResources { noCompress +=
+  "tflite" }` (Kotlin DSL) so the asset stays mmappable. Worked example:
+  `samples/litert/image_segmentation/kotlin_cpu_gpu/android`.
 - **Models too big to bundle**: stage into the app's private `filesDir`
   with an `install_to_device.sh` (`adb push` to `/data/local/tmp`, then
-  `run-as <pkg> cp`), and load with the from-file path. Worked example:
+  `run-as <pkg> cp`, debug builds only), and load with the from-file path. Worked example:
   `samples/litert/text_to_speech/kotlin_cpu_gpu/android`.
 
 Link the model recipe (`models/<family>/<model>/`) from the app README;
@@ -135,7 +147,8 @@ conversion and verification scripts belong to the recipe, not the app.
   a 1080-px screen. Drop the scroll and give each image `weight(1f)` in
   the Column.
 - **Audio I/O belongs to the ViewModel.** Mic capture and `AudioTrack`
-  playback run on the confined dispatcher in the ViewModel; the screen
+  playback run on their own serial dispatcher in the ViewModel, not the
+  model's (a blocking `AudioRecord.read` loop would hold inference); the screen
   only requests permission (`rememberLauncherForActivityResult`) and
   renders state. For file input use `OpenDocument` with audio MIME types
   — the photo picker cannot see audio.
