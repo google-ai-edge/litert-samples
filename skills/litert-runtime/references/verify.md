@@ -23,4 +23,4 @@ Run the same input with `Accelerator.CPU` first and compare with the reference; 
 
 ## Record
 
-Device, LiteRT version, accelerator, max abs diff and the task result, one line per device in the app's README. The procedure for the conversion side is `skills/on-device-verification` in litert-samples.
+Device, LiteRT version, accelerator, max abs diff and the task result, one line per device in the app's README. When the CPU run differs from the reference, the model is what to check; that side (the converted or quantized model, GPU residency, device-only failures such as fp16 range breaks) is the `on-device-verification` skill: https://github.com/google-ai-edge/litert-samples/blob/main/skills/on-device-verification/SKILL.md
