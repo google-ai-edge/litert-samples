@@ -128,4 +128,4 @@ Turn the bitmap into the model's input with [`preprocess()`](references/preproce
 
 ### 5. Run on a device and check the output
 
-Run the app on a physical device from Android Studio. Compare the app's output with the model's reference output for one fixed input, on the CPU first and then on the GPU; follow [verification](references/verify.md). A complete app in this shape: https://github.com/google-ai-edge/litert-samples/tree/main/samples/litert/image_segmentation/kotlin_cpu_gpu/android. Moving an existing Interpreter-API app to the CompiledModel API is a separate skill: https://github.com/google-ai-edge/litert-samples/tree/main/skills/litert-compiled-model-migration
+Run the app on a physical device from Android Studio. Compare the app's output with the model's reference output for one fixed input, on the CPU first and then on the GPU; follow [verification](references/verify.md). Moving an existing Interpreter-API app to the CompiledModel API is a separate skill: https://github.com/google-ai-edge/litert-samples/tree/main/skills/litert-compiled-model-migration
