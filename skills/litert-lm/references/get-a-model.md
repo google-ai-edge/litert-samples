@@ -8,4 +8,4 @@ The download URL is `https://huggingface.co/<repo>/resolve/main/<file>`. The fil
 
 ## Converting a model yourself
 
-Only when the model is missing, and on a workstation, not in the app: export with `litert-torch`, quantize with `ai-edge-quantizer` (int8 dynamic as the default; int4 blockwise), and bundle tokenizer and metadata into `.litertlm` with `litert_lm_builder` from the `litert-lm` package. The full procedure with its traps is the `litert-conversion-workflow` skill in litert-samples: https://github.com/google-ai-edge/litert-samples/tree/main/skills/litert-conversion-workflow
+Only when the model is missing, and on a workstation, not in the app: export with `litert-torch`, quantize with `ai-edge-quantizer` (int8 dynamic as the default; int4 blockwise), and bundle tokenizer and metadata into `.litertlm` with `litert_lm_builder` from the `litert-lm` package. The full procedure with its traps is the `litert-conversion-workflow` skill in litert-samples: https://github.com/google-ai-edge/litert-samples/blob/main/skills/litert-conversion-workflow/SKILL.md

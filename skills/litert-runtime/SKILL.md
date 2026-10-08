@@ -7,13 +7,13 @@ metadata:
   keywords: [LiteRT, CompiledModel, tflite, Android app, GPU]
 ---
 
-This skill provides step-by-step guidance for building an Android app that runs a `.tflite` model with the LiteRT CompiledModel API (`com.google.ai.edge.litert:litert` 2.x; overview: https://ai.google.dev/edge/litert/android, sources: https://github.com/google-ai-edge/litert) on the CPU or the GPU. The Interpreter API is not covered. For language models, use the `litert-lm` skill from https://github.com/google-ai-edge/litert-samples/tree/main/skills (LiteRT-LM: https://github.com/google-ai-edge/LiteRT-LM).
+This skill provides step-by-step guidance for building an Android app that runs a `.tflite` model with the LiteRT CompiledModel API (`com.google.ai.edge.litert:litert` 2.x; overview: https://ai.google.dev/edge/litert/android, sources: https://github.com/google-ai-edge/litert/blob/main/README.md) on the CPU or the GPU. The Interpreter API is not covered. For language models, use the `litert-lm` skill: https://github.com/google-ai-edge/litert-samples/blob/main/skills/litert-lm/SKILL.md (LiteRT-LM: https://github.com/google-ai-edge/LiteRT-LM/blob/main/README.md).
 
 ## Prerequisites
 
 - A Kotlin Android project (Android Studio's Empty Activity template is enough). The LiteRT 2.2.0 AAR declares `minSdk` 24.
 - The dependency in the app-level `build.gradle.kts`: `implementation("com.google.ai.edge.litert:litert:2.2.0")` from Google Maven. The 2.2.0 AAR includes the GPU accelerator and declares the GPU driver libraries in its own manifest; no second artifact and no manifest entry are needed. From 2.3.0 the GPU accelerator is its own artifact, `com.google.ai.edge.litert:litert-gpu`, added next to `litert` with the same version.
-- A `.tflite` model and its input requirements (input size, mean/std, channel order). Models with a LiteRT recipe: https://github.com/google-ai-edge/litert-samples/tree/main/models
+- A `.tflite` model and its input requirements (input size, mean/std, channel order). Models with a LiteRT recipe: https://github.com/google-ai-edge/litert-samples/blob/main/models/README.md
 
 ## Detailed steps
 
@@ -128,4 +128,4 @@ Turn the bitmap into the model's input with [`preprocess()`](references/preproce
 
 ### 5. Run on a device and check the output
 
-Run the app on a physical device from Android Studio. Compare the app's output with the model's reference output for one fixed input, on the CPU first and then on the GPU; follow [verification](references/verify.md). Moving an existing Interpreter-API app to the CompiledModel API is a separate skill: https://github.com/google-ai-edge/litert-samples/tree/main/skills/litert-compiled-model-migration
+Run the app on a physical device from Android Studio. Compare the app's output with the model's reference output for one fixed input, on the CPU first and then on the GPU; follow [verification](references/verify.md). Moving an existing Interpreter-API app to the CompiledModel API is a separate skill: https://github.com/google-ai-edge/litert-samples/blob/main/skills/litert-compiled-model-migration/SKILL.md
