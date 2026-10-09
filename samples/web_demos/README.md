@@ -14,10 +14,11 @@ types leaves the page.
 
 ## Chrome extension
 
-[`page-voice/`](page-voice/) runs the same kind of models inside a Chrome
-extension, on the pages you browse: it reads selected text aloud
-(Matcha-TTS), shows photos in 3D on hover (MoGe-2), and finds text inside
-images (PP-OCRv5). It is a separate npm project with its own build and tests.
+[`chrome_extension/`](chrome_extension/) runs two of the same models
+(MoGe-2, Matcha-TTS) plus PP-OCRv5 inside a Chrome extension, on the pages
+you browse. It reads selected text aloud, shows photos in 3D on hover, and
+finds text inside images. It is a separate npm project with its own build and
+tests, not part of the Vite build or the GitHub Pages site.
 
 ## Layout
 
