@@ -95,6 +95,7 @@ export default defineConfig({
         ppocr: resolve(HERE, 'src/ppocr/index.html'),
         clipseg: resolve(HERE, 'src/clipseg/index.html'),
         sam2: resolve(HERE, 'src/sam2/index.html'),
+        rfdetr: resolve(HERE, 'src/rfdetr/index.html'),
       },
     },
   },

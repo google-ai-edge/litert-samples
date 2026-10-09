@@ -23,7 +23,8 @@
 // OCR read (PP-OCRv5) / two
 // segmentations of the bundled example photo, "a dog" and then "the grass"
 // typed into the page (CLIPSeg) / one
-// photo + one click (SAM 2.1, on the bundled example: the reference mask)
+// photo + one click (SAM 2.1, on the bundled example: the reference mask) / one
+// detection on the bundled example photo (RF-DETR)
 // must finish. The OCR read is of the page's own "Try a
 // sample" image (src/ppocr/sample.png, through ?img=sample) and must return
 // its six lines exactly, with the recognizer on threaded WASM. Headless
@@ -34,13 +35,14 @@
 //   npm run build
 //   npx playwright install chromium        # once
 //   npm run check                          # every demo
-//   npm run check -- sam2                  # one demo: moge | matcha | ppocr | clipseg | sam2
+//   npm run check -- sam2                  # one demo: moge | matcha | ppocr | clipseg | sam2 | rfdetr
 //   npm run check -- matcha --block-hf     # what a user sees when HF is unreachable
 //   npm run check -- moge --webkit         # WebKit engine (npx playwright install webkit)
 //   npm run check -- ppocr --webgpu        # the WebGPU path
 //   npm run check -- clipseg --webgpu      # the WebGPU path
+//   npm run check -- rfdetr --webgpu       # the WebGPU path
 //
-// Options: [moge|matcha|ppocr|clipseg|sam2|all] [--block-hf] [--webkit] [--webgpu]
+// Options: [moge|matcha|ppocr|clipseg|sam2|rfdetr|all] [--block-hf] [--webkit] [--webgpu]
 //          [--prefix /some/path] [--img <url>] [--timeout <ms>]
 import { createServer } from 'node:http';
 import { readFile, stat } from 'node:fs/promises';
@@ -53,7 +55,7 @@ const opt = (name, def) => {
   const i = args.indexOf(name);
   return i === -1 ? def : args[i + 1];
 };
-const which = args.find((a) => ['moge', 'matcha', 'ppocr', 'clipseg', 'sam2', 'all'].includes(a)) ?? 'all';
+const which = args.find((a) => ['moge', 'matcha', 'ppocr', 'clipseg', 'sam2', 'rfdetr', 'all'].includes(a)) ?? 'all';
 const BLOCK_HF = args.includes('--block-hf');
 const engine = args.includes('--webkit') ? webkit : chromium;
 const WEBGPU = args.includes('--webgpu') && engine === chromium;
@@ -89,6 +91,10 @@ const CLIPSEG_RUNS = [
 const SAM2_IMG = args.includes('--img') ? IMG : 'example';
 const SAM2_POINT = '0.6,0.5';
 const SAM2_EXAMPLE = { best: 0, iou: 0.95, pixels: 17_657 };
+// RF-DETR runs on its bundled example unless --img names another photo; on
+// the example these classes must each be found at score >= 0.5.
+const RFDETR_IMG = args.includes('--img') ? IMG : 'example';
+const EXAMPLE_LABELS = ['person', 'car', 'bicycle'];
 
 const MIME = {
   '.html': 'text/html; charset=utf-8',
@@ -142,6 +148,7 @@ async function run(demo) {
     if (t.startsWith('OCR_STATS ')) stats = JSON.parse(t.slice(10));
     if (t.startsWith('CLIPSEG_STATS ')) clipsegRuns.push(stats = JSON.parse(t.slice(14)));
     if (t.startsWith('SAM2_STATS ')) stats = JSON.parse(t.slice(11));
+    if (t.startsWith('RFDETR_STATS ')) stats = JSON.parse(t.slice(13));
   });
   page.on('pageerror', (e) => consoleTail.push('PAGEERROR ' + e.message));
   let navs = 0;
@@ -153,6 +160,7 @@ async function run(demo) {
     ppocr: `http://localhost:${PORT}${PREFIX}/ppocr/?img=${encodeURIComponent(OCR_IMG)}`,
     clipseg: `http://localhost:${PORT}${PREFIX}/clipseg/?img=${encodeURIComponent(CLIPSEG_IMG)}&prompt=${encodeURIComponent(CLIPSEG_RUNS[0].prompt)}`,
     sam2: `http://localhost:${PORT}${PREFIX}/sam2/?img=${encodeURIComponent(SAM2_IMG)}&point=${SAM2_POINT}`,
+    rfdetr: `http://localhost:${PORT}${PREFIX}/rfdetr/?img=${encodeURIComponent(RFDETR_IMG)}`,
   }[demo];
   console.log(`\n== ${demo}: ${url}`);
   const t0 = Date.now();
@@ -255,6 +263,19 @@ async function run(demo) {
       if (!asExpected || !stats.hit) console.log(`  not the expected mask${SAM2_IMG === 'example' ? ` (best ${ref.best}, iou > ${ref.iou}, ${ref.pixels} px ± 2 %, around the click)` : ' (non-empty, around the click)'}`);
       ok = ok && asExpected && stats.hit;
     }
+  } else if (demo === 'rfdetr') {
+    if (stats) {
+      const found = await page.evaluate(() => window.__lastResult?.detections ?? []);
+      const missing = (RFDETR_IMG === 'example' ? EXAMPLE_LABELS : [])
+        .filter((label) => !found.some((d) => d.label === label && d.score >= 0.5));
+      console.log(`  env: ${await page.locator('#env').textContent()}`);
+      console.log(`  graph A ${stats.aMs} ms · graph B ${stats.bMs} ms · host ${stats.hostMs} ms`);
+      console.log(`  ${stats.detections} detections: ${stats.top5.map((d) => `${d.label} ${d.score.toFixed(2)}`).join(', ')}`);
+      if (missing.length) console.log(`  not found at score >= 0.5: ${missing.join(', ')}`);
+      if (WEBGPU && stats.backends.A !== 'webgpu') console.log(`  graph A ran on ${stats.backends.A}, not WebGPU`);
+      ok = ok && stats.source === 'image' && stats.detections > 0 && !missing.length &&
+        (!WEBGPU || stats.backends.A === 'webgpu');
+    }
   } else if (ok) {
     console.log(`  env: ${await page.locator('#env').textContent()}`);
     console.log(`  latency: ${(await page.locator('#latency').innerText()).replace(/\n/g, ' | ')}`);
@@ -267,7 +288,7 @@ async function run(demo) {
   return ok && state.crossOriginIsolated;
 }
 
-const demos = which === 'all' ? ['moge', 'matcha', 'ppocr', 'clipseg', 'sam2'] : [which];
+const demos = which === 'all' ? ['moge', 'matcha', 'ppocr', 'clipseg', 'sam2', 'rfdetr'] : [which];
 const results = {};
 for (const demo of demos) results[demo] = await run(demo);
 await browser.close();
