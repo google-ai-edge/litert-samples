@@ -23,7 +23,7 @@ Options, each added to the `./gradlew` line:
 
 - `-Pandroid.testInstrumentationRunnerArguments.backend=GPU` runs the LiteRT-LM tests on the GPU backend.
 - `-Pandroid.testInstrumentationRunnerArguments.modelPath=<path on the device>` uses another `.litertlm` file.
-- `-PlitertVersion=<version>` builds the `litert-runtime` app against another release of `litert` (from 2.3.0 with `litert-gpu`); `-PlitertlmVersion=<version>` builds the `litert-lm` app against another release of `litertlm-android`.
+- `-PlitertVersion=<version>` builds the `litert-runtime` app against another release of `litert` (`litert-gpu` is added from 2.3.0 on; for 2.2.0 or 2.1.6 add `-Pandroid.uniquePackageNames=false`, step 1 of the skill); `-PlitertlmVersion=<version>` builds the `litert-lm` app against another release of `litertlm-android`.
 - `-PskillsDir=<dir>` builds the apps from another copy of the two skills (a relative path counts from this directory).
 
 ## What the tests check
@@ -61,4 +61,4 @@ A reply that was stopped ends its coroutine as cancelled; one that ran to its en
 ## Tested on
 
 - Galaxy S26 (Android 16): `litert` 2.2.0, and 2.3.0 with `litert-gpu` 2.3.0, on the CPU and the GPU; `litertlm-android` 0.18.0 and 0.17.1 on the CPU and the GPU with `Qwen3-0.6B.litertlm`, and 0.18.0 with `gemma-4-E2B-it.litertlm`.
-- Android emulator (API 36, arm64): the `litert-runtime` tests. It has no GPU accelerator, so the four tests that need one are skipped.
+- Android emulator (API 36, arm64): the `litert-runtime` tests, 17 of 20. The GPU accelerator loads there through OpenGL; the first GPU test runs, and the other three are skipped because their GPU load does not compile.
