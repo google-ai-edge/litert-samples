@@ -13,8 +13,8 @@ each:
 | `dist-ocr/` Page Text | Right-click an image to select its text; Alt+Shift+F searches the text inside images | [PP-OCRv5-LiteRT](https://huggingface.co/litert-community/PP-OCRv5-LiteRT) |
 
 Inference runs in the extension's offscreen document. No text or image is
-uploaded anywhere. This is a desktop Chrome sample (tested with Chrome for
-Testing 155 on macOS); it does not run in Chrome on Android.
+uploaded anywhere. This is a desktop Chrome sample, tested with Chrome for
+Testing 155 on macOS.
 
 ## Build and load
 

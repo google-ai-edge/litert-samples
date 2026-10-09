@@ -51,11 +51,21 @@ try {
 
   if (doSpeak && status?.state === 'ready') {
     console.log('speaking test sentence…');
-    await evalIn(cdp, session,
-      `__pv.speak('This voice is generated locally, on this machine.')`);
+    try {
+      await evalIn(cdp, session,
+        `__pv.speak('This voice is generated locally, on this machine.')`);
+    } catch {
+      // A WASM-only synthesis holds the offscreen thread; the call returns when the sentence is done.
+    }
     const deadline = Date.now() + 60 * 1000;
     while (Date.now() < deadline) {
-      status = JSON.parse(await evalIn(cdp, session, 'JSON.stringify(__pv.status)'));
+      try {
+        status = JSON.parse(await evalIn(cdp, session, 'JSON.stringify(__pv.status)'));
+      } catch {
+        // With WASM-only synthesis the offscreen thread answers nothing until the sentence is done.
+        await sleep(500);
+        continue;
+      }
       if (status.stats && !status.speaking) break;
       await sleep(500);
     }
