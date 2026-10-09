@@ -33,7 +33,6 @@ import androidx.core.graphics.drawable.toBitmap
 import coil3.asDrawable
 import coil3.compose.AsyncImage
 import coil3.imageLoader
-import coil3.request.SuccessResult
 import com.google.ai.edge.examples.image_segmentation.UiState
 import kotlin.time.Duration.Companion.seconds
 import kotlinx.coroutines.Dispatchers
@@ -102,7 +101,7 @@ fun GalleryScreen(
           contentDescription = null,
           imageLoader = LocalContext.current.imageLoader,
           onSuccess = { result ->
-            val coilImage = (result as SuccessResult).image
+            val coilImage = result.result.image
             val drawable = coilImage.asDrawable(context.resources)
             val bitmap = (drawable as? android.graphics.drawable.BitmapDrawable)?.bitmap
 
