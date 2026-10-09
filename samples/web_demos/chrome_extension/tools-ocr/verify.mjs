@@ -28,7 +28,7 @@
  */
 import { build } from 'esbuild';
 import { createServer } from 'node:http';
-import { mkdirSync, existsSync, writeFileSync, readFileSync, cpSync } from 'node:fs';
+import { mkdirSync, existsSync, writeFileSync, readFileSync, cpSync, rmSync } from 'node:fs';
 import { join, resolve, extname } from 'node:path';
 import { spawn } from 'node:child_process';
 import { mkdtempSync } from 'node:fs';
@@ -40,8 +40,7 @@ if (!chromeBin) {
   console.error('usage: node tools-ocr/verify.mjs <chrome-binary> [--profile=<dir>]');
   process.exit(2);
 }
-const profile = process.argv.find((a) => a.startsWith('--profile='))?.slice(10)
-  ?? mkdtempSync(join(tmpdir(), 'ocr-verify-'));
+const profileArg = process.argv.find((a) => a.startsWith('--profile='))?.slice(10);
 
 const HF = 'https://huggingface.co/litert-community/PP-OCRv5-LiteRT/resolve/main';
 const MODELS = ['ppocr_det_fp16.tflite', 'ppocr_rec_fp16.tflite', 'ppocrv5_dict.txt',
@@ -105,6 +104,10 @@ const server = createServer((req, res) => {
 });
 await new Promise((r) => server.listen(0, '127.0.0.1', r));
 const pageUrl = `http://127.0.0.1:${server.address().port}/`;
+// Without --profile, a throwaway profile: it collects ~90 MB of caches per
+// run, so it is deleted on the way out.
+const tempProfile = profileArg ? null : mkdtempSync(join(tmpdir(), 'ocr-verify-'));
+const profile = profileArg || tempProfile;
 console.log(`serving ${pageUrl} profile=${profile}`);
 
 // --- launch + drive --------------------------------------------------------------
@@ -118,6 +121,10 @@ const child = spawn(chromeBin, [
   '--disable-background-timer-throttling', '--hide-crash-restore-bubble',
   pageUrl,
 ], { stdio: 'ignore' });
+const chromeGone = new Promise((resolve) => {
+  child.once('exit', resolve);
+  child.once('error', (err) => { console.error(`cannot start ${chromeBin}: ${err.message}`); resolve(); });
+});
 process.on('exit', () => { try { child.kill(); } catch { /* gone */ } });
 
 function saveDataUrl(dataUrl, file) {
@@ -131,8 +138,10 @@ function printTable(rows) {
   }
 }
 
+let cdp = null;
+let exitCode = 1;
 try {
-  const cdp = await Cdp.connect(await waitForEndpoint(port));
+  cdp = await Cdp.connect(await waitForEndpoint(port));
   const target = await findTarget(cdp, (t) => t.type === 'page' && t.url.startsWith(pageUrl));
   const session = await attachTo(cdp, target);
 
@@ -159,50 +168,56 @@ try {
   const r = JSON.parse(raw);
   if (!r?.ok) {
     console.error('HARNESS ERROR:\n' + (r?.error ?? 'no result'));
-    process.exit(1);
-  }
+  } else {
+    // save crops for eyeballing + full report
+    for (const row of r.stageA) {
+      saveDataUrl(row.cropUrl, join(outDir, `verify-A-${String(row.idx).padStart(2, '0')}-${row.label}.png`));
+      delete row.cropUrl;
+    }
+    for (const post of r.stageB) {
+      post.lines.forEach((l, i) => {
+        saveDataUrl(l.cropUrl, join(outDir, `verify-B-${post.name}-line${String(i).padStart(2, '0')}.png`));
+        delete l.cropUrl;
+      });
+    }
+    writeFileSync(join(outDir, 'verify-report.json'), JSON.stringify(r, null, 2));
 
-  // save crops for eyeballing + full report
-  for (const row of r.stageA) {
-    saveDataUrl(row.cropUrl, join(outDir, `verify-A-${String(row.idx).padStart(2, '0')}-${row.label}.png`));
-    delete row.cropUrl;
+    const a = r.summary.stageA;
+    const b = r.summary.stageB;
+    console.log(`\nStage A: ${a.total} rendered lines, the same crop on both backends`);
+    printTable([
+      ['weights', 'WebGPU = WASM', 'WebGPU = truth', 'WASM = truth', 'WebGPU ms/line', 'WASM ms/line'],
+      ['fp16', `${a.equal}/${a.total}`, `${a.gpuExactTruth}/${a.total}`, `${a.cpuExactTruth}/${a.total}`,
+        a.gpuMsP50, a.cpuMsP50],
+      ['fp32', `${a.equal32}/${a.total}`, `${a.gpu32ExactTruth}/${a.total}`, `${a.cpu32ExactTruth}/${a.total}`,
+        a.gpu32MsP50, a.cpu32MsP50],
+    ]);
+    console.log(`\nStage B: det → rec on ${r.stageB.map((p) => p.name).join(', ')}; ` +
+      `WebGPU = WASM on ${b.equal}/${b.lines} lines (fp16), ${b.equal32}/${b.lines} (fp32)`);
+    const diffs = [
+      ...r.stageA.filter((x) => !x.equal || !x.equal32)
+        .map((x) => [`A ${x.label}`, x.gpuText, x.cpuText, x.gpu32Text, x.cpu32Text]),
+      ...r.stageB.flatMap((p) => p.lines.filter((l) => !l.equal || !l.equal32)
+        .map((l) => [`B ${p.name}`, l.gpuText, l.cpuText, l.gpu32Text, l.cpu32Text])),
+    ];
+    if (diffs.length) {
+      console.log('\nCrops that decode differently (per-timestep detail in out-ocr/verify-report.json)');
+      printTable([['crop', 'fp16 WebGPU', 'fp16 WASM', 'fp32 WebGPU', 'fp32 WASM'],
+        ...diffs.map(([label, ...texts]) => [label, ...texts.map((t) => JSON.stringify(t))])]);
+    }
+    console.log(`\nSUMMARY agreement fp16 ${a.equal}/${a.total}, fp32 ${a.equal32}/${a.total}`);
+    exitCode = 0;
   }
-  for (const post of r.stageB) {
-    post.lines.forEach((l, i) => {
-      saveDataUrl(l.cropUrl, join(outDir, `verify-B-${post.name}-line${String(i).padStart(2, '0')}.png`));
-      delete l.cropUrl;
-    });
-  }
-  writeFileSync(join(outDir, 'verify-report.json'), JSON.stringify(r, null, 2));
-
-  const a = r.summary.stageA;
-  const b = r.summary.stageB;
-  console.log(`\nStage A: ${a.total} rendered lines, the same crop on both backends`);
-  printTable([
-    ['weights', 'WebGPU = WASM', 'WebGPU = truth', 'WASM = truth', 'WebGPU ms/line', 'WASM ms/line'],
-    ['fp16', `${a.equal}/${a.total}`, `${a.gpuExactTruth}/${a.total}`, `${a.cpuExactTruth}/${a.total}`,
-      a.gpuMsP50, a.cpuMsP50],
-    ['fp32', `${a.equal32}/${a.total}`, `${a.gpu32ExactTruth}/${a.total}`, `${a.cpu32ExactTruth}/${a.total}`,
-      a.gpu32MsP50, a.cpu32MsP50],
-  ]);
-  console.log(`\nStage B: det → rec on ${r.stageB.map((p) => p.name).join(', ')}; ` +
-    `WebGPU = WASM on ${b.equal}/${b.lines} lines (fp16), ${b.equal32}/${b.lines} (fp32)`);
-  const diffs = [
-    ...r.stageA.filter((x) => !x.equal || !x.equal32)
-      .map((x) => [`A ${x.label}`, x.gpuText, x.cpuText, x.gpu32Text, x.cpu32Text]),
-    ...r.stageB.flatMap((p) => p.lines.filter((l) => !l.equal || !l.equal32)
-      .map((l) => [`B ${p.name}`, l.gpuText, l.cpuText, l.gpu32Text, l.cpu32Text])),
-  ];
-  if (diffs.length) {
-    console.log('\nCrops that decode differently (per-timestep detail in out-ocr/verify-report.json)');
-    printTable([['crop', 'fp16 WebGPU', 'fp16 WASM', 'fp32 WebGPU', 'fp32 WASM'],
-      ...diffs.map(([label, ...texts]) => [label, ...texts.map((t) => JSON.stringify(t))])]);
-  }
-  console.log(`\nSUMMARY agreement fp16 ${a.equal}/${a.total}, fp32 ${a.equal32}/${a.total}`);
-  server.close();
-  await cdp.send('Browser.close').catch(() => {});
-  process.exit(0);
 } catch (err) {
   console.error('verify failed:', err);
-  process.exit(1);
+} finally {
+  server.close();
+  if (cdp) await cdp.send('Browser.close').catch(() => child.kill());
+  else child.kill();
+  if (tempProfile) {
+    // Chrome writes to its profile until it exits.
+    await Promise.race([chromeGone, sleep(10000)]);
+    rmSync(tempProfile, { recursive: true, force: true });
+  }
 }
+process.exit(exitCode);

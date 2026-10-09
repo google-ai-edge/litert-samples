@@ -25,7 +25,7 @@
  * was found, then fade to invisible; a small toolbar offers Copy all / close.
  */
 
-import { groupLines } from './ocr-pipeline.js';
+import { groupLines, windowSeparator } from './ocr-pipeline.js';
 import { closeFind, initFind, scan, toggleFind, __findDebug } from './find.js';
 
 const FLASH_MS = 900;
@@ -219,7 +219,11 @@ function buildOverlay(img, payload, { flash = true } = {}) {
     'transform-origin: 0 50%; pointer-events: auto; caret-color: transparent; }' +
     '[data-pagetext] .pt-box { position: absolute; border-radius: 3px; pointer-events: none; ' +
     'background: rgba(77,163,255,.18); outline: 1px solid rgba(77,163,255,.55); ' +
-    `transition: opacity .5s ease ${FLASH_MS}ms; }`;
+    `transition: opacity .5s ease ${FLASH_MS}ms; }` +
+    // One in-flow block per logical line, zero height so it moves nothing:
+    // a copied selection gets a line break at each block boundary.
+    '[data-pagetext] .pt-line { display: block; position: static; font-size: 0; ' +
+    'line-height: 0; white-space: pre; }';
   host.appendChild(style);
   // Insert BEFORE building the spans: an element outside the document has no
   // layout, so measuring text in a detached host returns width 0 and every
@@ -240,29 +244,46 @@ function buildOverlay(img, payload, { flash = true } = {}) {
     'position:absolute;visibility:hidden;white-space:pre;left:-9999px;top:0;';
   host.appendChild(measurer);
 
-  for (const line of payload.lines) {
-    const r = px(line);
-    if (r.left + r.w < 0 || r.top + r.h < 0 || r.left > width || r.top > height) continue;
+  // Each logical line (a groupLines group) gets a .pt-line block that holds
+  // its rec windows, with windowSeparator() text between them. A copied
+  // selection then reads like Copy all. Boxes and spans stay absolutely
+  // positioned against the host.
+  for (const group of groupLines(payload.lines)) {
+    let row = null;
+    let prev = null;
+    for (const line of group.pieces) {
+      const r = px(line);
+      if (r.left + r.w < 0 || r.top + r.h < 0 || r.left > width || r.top > height) continue;
+      if (!row) {
+        row = document.createElement('div');
+        row.className = 'pt-line';
+        host.appendChild(row);
+      } else {
+        const sep = windowSeparator(prev.text, line.text);
+        if (sep) row.append(sep);
+      }
+      prev = line;
 
-    const box = document.createElement('div');
-    box.className = 'pt-box';
-    box.style.cssText += `left:${r.left}px;top:${r.top}px;width:${r.w}px;height:${r.h}px;`;
-    host.appendChild(box);
+      const box = document.createElement('div');
+      box.className = 'pt-box';
+      box.style.cssText += `left:${r.left}px;top:${r.top}px;width:${r.w}px;height:${r.h}px;`;
+      row.appendChild(box);
 
-    const span = document.createElement('span');
-    const fontPx = Math.max(6, r.h * 0.82);
-    const family = JA_RE.test(line.text)
-      ? '"Hiragino Sans","Hiragino Kaku Gothic ProN",sans-serif'
-      : '-apple-system,"Helvetica Neue",Arial,sans-serif';
-    span.textContent = line.text;
-    span.style.font = `${fontPx}px/1 ${family}`;
-    span.style.left = `${r.left}px`;
-    span.style.top = `${r.top + r.h / 2 - fontPx / 2}px`;
-    measurer.style.font = span.style.font;
-    measurer.textContent = line.text;
-    const natW = measurer.getBoundingClientRect().width || 1;
-    span.style.transform = `scaleX(${r.w / natW})`;
-    host.appendChild(span);
+      const span = document.createElement('span');
+      const fontPx = Math.max(6, r.h * 0.82);
+      const family = JA_RE.test(line.text)
+        ? '"Hiragino Sans","Hiragino Kaku Gothic ProN",sans-serif'
+        : '-apple-system,"Helvetica Neue",Arial,sans-serif';
+      span.textContent = line.text;
+      span.style.font = `${fontPx}px/1 ${family}`;
+      span.style.left = `${r.left}px`;
+      span.style.top = `${r.top + r.h / 2 - fontPx / 2}px`;
+      measurer.style.font = span.style.font;
+      measurer.textContent = line.text;
+      const natW = measurer.getBoundingClientRect().width || 1;
+      span.style.transform = `scaleX(${r.w / natW})`;
+      row.appendChild(span);
+    }
   }
   measurer.remove();
 

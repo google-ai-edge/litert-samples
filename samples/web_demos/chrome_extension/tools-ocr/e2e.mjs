@@ -145,10 +145,12 @@ try {
   })()`);
   console.log('selection sample:', JSON.stringify(selected.slice(0, 120)));
 
-  const okText = overlay.text.replace(/\s+/g, '');
-  const mustHave = ['search it or copy it later', 'selectable text', 'Nothing is sent to a server'];
-  const missing = mustHave.filter((s) => !okText.includes(s.replace(/\s+/g, '')));
-  console.log(missing.length ? `MISSING: ${missing}` : 'E2E_OK');
+  // Match the selected text as is: a phrase across two rec windows or two
+  // lines only matches if the layer puts Copy all's separators between them.
+  const mustHave = ['screenshot,\nnobody can search it', 'search it or copy it later',
+    'selectable text', 'Nothing is sent to a server'];
+  const missing = mustHave.filter((s) => !selected.includes(s));
+  console.log(missing.length ? `MISSING: ${missing.map((s) => JSON.stringify(s)).join(', ')}` : 'E2E_OK');
   await cdp.send('Browser.close').catch(() => {});
   server.close();
   process.exit(missing.length ? 1 : 0);

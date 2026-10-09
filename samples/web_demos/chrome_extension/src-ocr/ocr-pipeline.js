@@ -397,6 +397,13 @@ export function buildCharTable(dictText) {
 
 const CJK_EDGE = /[぀-ヿ㐀-䶿一-鿿。、!?」』)]$|^[぀-ヿ㐀-䶿一-鿿「『(]/;
 
+/** Text between two rec windows of one line: none at a CJK edge, else one
+ * space. Shared by groupLines and the overlay's selectable text, so a copied
+ * selection reads the same as Copy all. */
+export function windowSeparator(before, after) {
+  return CJK_EDGE.test(before.slice(-1)) || CJK_EDGE.test(after[0]) ? '' : ' ';
+}
+
 /**
  * Rec windows that split one detected line share a group id. Merge them back
  * into logical lines: search and copy both need the whole line, because a
@@ -411,8 +418,7 @@ export function groupLines(lines) {
     const same = line.group != null && line.group === prev && out.length;
     if (same) {
       const g = out[out.length - 1];
-      const sep = CJK_EDGE.test(g.text.slice(-1)) || CJK_EDGE.test(line.text[0]) ? '' : ' ';
-      g.text += sep + line.text;
+      g.text += windowSeparator(g.text, line.text) + line.text;
       g.pieces.push(line);
     } else {
       out.push({ text: line.text, pieces: [line] });
