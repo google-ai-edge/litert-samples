@@ -14,12 +14,19 @@
   See the License for the specific language governing permissions and
   limitations under the License.
 -->
+<!--
+  Example photo (example.jpg): "Lily the Golden Retriever in the grass" by
+  Ltshears (Wikipedia user), Wikimedia Commons, released into the public
+  domain by its author ({{PD-self|date=October 2006}}) —
+  https://commons.wikimedia.org/wiki/File:Lily_the_Golden_Retriever_in_the_grass.jpg
+  (the 800 x 560 original, re-encoded as JPEG quality 95 without metadata).
+-->
 <html lang="en" translate="no">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="google" content="notranslate">
-<title>Photo → 3D — in your browser</title>
+<title>Photo + words → mask — in your browser</title>
 <style>
   :root {
     --bg: #0b0d10;
@@ -37,20 +44,33 @@
     font: 15px/1.5 -apple-system, "SF Pro Text", "Segoe UI", Roboto, "Hiragino Sans", sans-serif;
     overflow: hidden;
   }
-  #stage { position: fixed; inset: 0; }
-  #stage canvas { display: block; }
+
+  /* The photo / camera area sits beside the panel so nothing hides behind it. */
+  #stage {
+    position: fixed; left: 372px; right: 16px; top: 16px; bottom: 44px;
+    border: 1px solid var(--border); border-radius: 14px; overflow: hidden;
+    background: #07080a;
+  }
+  #stage video, #stage canvas {
+    position: absolute; inset: 0; width: 100%; height: 100%;
+  }
+  #stage video { display: none; object-fit: contain; }
+  #placeholder {
+    position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
+    padding: 24px; text-align: center; color: var(--muted); font-size: 14px;
+  }
 
   .panel {
     position: fixed;
     left: 16px;
     top: 16px;
-    width: min(340px, calc(100vw - 32px));
+    width: 340px;
+    max-height: calc(100vh - 60px);
+    overflow-y: auto;
     background: var(--panel);
     border: 1px solid var(--border);
     border-radius: 14px;
     padding: 14px 16px 14px;
-    backdrop-filter: blur(14px);
-    -webkit-backdrop-filter: blur(14px);
   }
   .back {
     display: inline-block; margin-bottom: 8px;
@@ -78,6 +98,21 @@
   button.primary:hover, .filebtn.primary:hover { filter: brightness(1.06); }
   .filebtn input { display: none; }
 
+  .prompt { display: flex; gap: 8px; margin-top: 12px; }
+  .prompt input {
+    flex: 1; min-width: 0;
+    appearance: none;
+    border: 1px solid var(--border);
+    background: rgba(255, 255, 255, 0.04);
+    color: var(--text);
+    border-radius: 9px;
+    padding: 8px 11px;
+    font: inherit;
+    font-size: 14px;
+  }
+  .prompt input:focus { outline: none; border-color: var(--accent); }
+
+  .switches { display: flex; gap: 8px; flex-wrap: wrap; }
   .seg {
     display: inline-flex; margin-top: 10px;
     border: 1px solid var(--border); border-radius: 9px; overflow: hidden;
@@ -101,14 +136,8 @@
   }
   #latency b { color: var(--accent); font-variant-numeric: tabular-nums; }
 
-  #hint { margin-top: 8px; font-size: 12px; color: var(--muted); display: none; }
-
-  #video {
-    display: none;
-    position: fixed; right: 16px; top: 16px;
-    width: 240px; border-radius: 12px; border: 1px solid var(--border);
-    transform: scaleX(-1);
-  }
+  #summary { margin-top: 8px; font-size: 12.5px; color: var(--text); display: none; }
+  #hint { margin-top: 8px; font-size: 12px; color: var(--muted); }
 
   footer {
     position: fixed; left: 16px; right: 16px; bottom: 12px;
@@ -127,43 +156,66 @@
     font-size: 20px; color: var(--accent);
     z-index: 10; pointer-events: none;
   }
+
+  /* Phones: panel on top, the picture below it, page scrolls. */
+  @media (max-width: 760px) {
+    body { overflow: auto; }
+    .panel { position: static; width: auto; max-height: none; margin: 16px 16px 0; }
+    #stage { position: relative; left: auto; right: auto; top: auto; bottom: auto; height: 62vh; margin: 12px 16px 0; }
+    footer { position: static; margin: 12px 16px 16px; }
+  }
 </style>
-  <script type="module" crossorigin src="../assets/moge-CnWzv51d.js"></script>
-  <link rel="modulepreload" crossorigin href="../assets/index-CDJMZGzy.js">
 </head>
 <body>
-  <div id="stage"></div>
-
   <div class="panel">
     <a class="back" href="../">← All demos</a>
-    <h1>Photo → 3D point cloud</h1>
-    <div class="sub">MoGe-2 monocular geometry, running entirely in your browser on LiteRT.js. Nothing is uploaded.</div>
+    <h1>Photo + words → mask</h1>
+    <div class="sub">Type what to find in a photo — “a dog”, “the sky”, “the red car” — and CLIPSeg masks it. No fixed list of classes. It runs entirely in your browser on LiteRT.js; nothing is uploaded.</div>
     <div class="buttons">
       <label class="filebtn primary">Choose a photo<input id="file" type="file" accept="image/*"></label>
+      <button id="example">Try the example</button>
       <button id="cam">Use camera</button>
-      <button id="shutter" style="display:none">Capture</button>
+      <button id="shutter" class="primary" style="display:none">Capture</button>
     </div>
-    <div class="seg" id="backend-switch" role="group" aria-label="Inference backend">
-      <button data-backend="webgpu">WebGPU</button>
-      <button data-backend="wasm">WASM</button>
+    <form id="prompt-form" class="prompt" autocomplete="off">
+      <input id="prompt" type="text" value="a dog" maxlength="200" spellcheck="false"
+             aria-label="What to segment" placeholder="What to segment, e.g. a dog">
+      <button type="submit" class="primary">Segment</button>
+    </form>
+    <div class="switches">
+      <div class="seg" id="view-switch" role="group" aria-label="Overlay">
+        <button data-view="mask" class="active">Mask</button>
+        <button data-view="heat">Heatmap</button>
+      </div>
+      <div class="seg" id="backend-switch" role="group" aria-label="Inference backend">
+        <button data-backend="webgpu">WebGPU</button>
+        <button data-backend="wasm">WASM</button>
+      </div>
     </div>
     <div id="env"></div>
     <div id="status">Loading runtime…</div>
-    <div id="latency">inference <b></b> · <span id="backend"></span></div>
-    <div id="hint">drag to orbit · scroll to zoom · drop or paste a new photo anytime</div>
+    <div id="latency"></div>
+    <div id="summary"></div>
+    <div id="hint">New words on the same photo rerun only the text side · drop or paste a photo anytime</div>
   </div>
 
-  <video id="video" autoplay playsinline muted></video>
+  <div id="stage">
+    <video id="video" autoplay playsinline muted></video>
+    <canvas id="view"></canvas>
+    <div id="placeholder">Choose a photo or try the example, then type what to segment.</div>
+  </div>
   <div id="drop-overlay">Drop the photo</div>
 
   <footer>
-    <span>Your photo never leaves this page.</span>
-    <span>Model: <a href="https://huggingface.co/litert-community/MoGe-2-LiteRT" target="_blank" rel="noopener">MoGe-2</a> (MIT) · Runtime: <a href="https://www.npmjs.com/package/@litertjs/core" target="_blank" rel="noopener">LiteRT.js</a> · <a href="https://github.com/google-ai-edge/litert-samples/tree/main/samples/web_demos" target="_blank" rel="noopener">Source</a></span>
+    <span>Your photo and your words never leave this page.</span>
+    <span>Model: <a href="https://huggingface.co/litert-community/CLIPSeg-rd64-LiteRT" target="_blank" rel="noopener">CLIPSeg</a> (Apache-2.0) · Runtime: <a href="https://www.npmjs.com/package/@litertjs/core" target="_blank" rel="noopener">LiteRT.js</a> · <a href="https://github.com/google-ai-edge/litert-samples/tree/main/samples/web_demos" target="_blank" rel="noopener">Source</a></span>
+    <span>Example photo: Ltshears (public domain, <a href="https://commons.wikimedia.org/wiki/File:Lily_the_Golden_Retriever_in_the_grass.jpg" target="_blank" rel="noopener">Wikimedia Commons</a>)</span>
   </footer>
 
   <!-- Cross-origin isolation via the site-root service worker (see the
-       comment in ../index.html) — the WASM fallback runs threaded. -->
+       comment in ../index.html) — the WASM graphs run threaded. -->
   <script>window.coi = { coepCredentialless: () => false };</script>
   <script src="../coi-serviceworker.min.js"></script>
+  <script type="module" src="./main.js"></script>
 </body>
 </html>
