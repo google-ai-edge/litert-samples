@@ -34,6 +34,7 @@ import '../hardware/android_props.dart';
 NpuAvailability npuAvailabilityFor(
   String operatingSystem, {
   required ({bool opened, String? error}) Function() openFastRpc,
+  String? Function()? probeLinuxNpu,
   String? soc,
 }) {
   switch (operatingSystem) {
@@ -48,12 +49,50 @@ NpuAvailability npuAvailabilityFor(
         'NPU stack cannot run here',
         soc: soc,
       );
+    case 'linux':
+      // flutter_edge_ai_litertlm 1.11.0 ships the Qualcomm stack for
+      // linux_arm64 (`qualcomm_npu: true`); the board must expose it.
+      final probe = probeLinuxNpu?.call() ?? _probeLinuxQualcommNpu();
+      if (probe == null) return NpuAvailable(soc: soc);
+      return NpuUnavailable(probe, soc: soc);
     default:
       return NpuUnavailable(
         'no NPU dispatch stack ships for $operatingSystem',
         soc: soc,
       );
   }
+}
+
+/// The Linux arm64 Qualcomm NPU probe of flutter_edge_ai_litertlm 1.11.0
+/// (`_linuxHasQualcommNpu`): null when the stack can run, else why not.
+String? _probeLinuxQualcommNpu() {
+  if (Abi.current() != Abi.linuxArm64) {
+    return 'the Qualcomm NPU stack is built for linux_arm64 only, and this is '
+        '${Abi.current()}';
+  }
+  for (final node in const ['/dev/fastrpc-cdsp', '/dev/dma_heap/system']) {
+    try {
+      File(node).openSync().closeSync();
+    } on FileSystemException catch (e) {
+      final errno = e.osError?.errorCode;
+      if (errno == 2 && node == '/dev/fastrpc-cdsp') {
+        return 'this machine has no Qualcomm compute DSP ($node does not '
+            'exist)';
+      }
+      if (errno == 2) continue;
+      return errno == 13
+          ? '$node is not accessible to this user. Add the user to group '
+                'fastrpc (sudo usermod -aG fastrpc \$USER) and log in again'
+          : '$node could not be opened: $e';
+    }
+  }
+  try {
+    DynamicLibrary.open('libcdsprpc.so.1');
+  } on Object catch (e) {
+    return "Qualcomm's FastRPC library libcdsprpc.so.1 did not open ($e); on "
+        'Ubuntu it comes with the qcom-fastrpc1 package';
+  }
+  return null;
 }
 
 NpuAvailability? _probed;
