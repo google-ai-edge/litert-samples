@@ -7,7 +7,7 @@ metadata:
   keywords: [LiteRT-LM, litertlm, Gemma, on-device LLM, Android app, GPU]
 ---
 
-This skill provides step-by-step guidance for building an Android app that runs an open text LLM through the LiteRT-LM Kotlin API (`com.google.ai.edge.litertlm`; guide: https://ai.google.dev/edge/litert-lm/android, sources: https://github.com/google-ai-edge/LiteRT-LM) on the CPU or the GPU. The model is one `.litertlm` file. Images, audio, tool calling and NPU backends are not covered. For vision and audio models, use the `litert-runtime` skill from https://github.com/google-ai-edge/litert-samples/tree/main/skills (LiteRT: https://github.com/google-ai-edge/litert).
+This skill provides step-by-step guidance for building an Android app that runs an open text LLM through the LiteRT-LM Kotlin API (`com.google.ai.edge.litertlm`; guide: https://ai.google.dev/edge/litert-lm/android, sources: https://github.com/google-ai-edge/LiteRT-LM/blob/main/README.md) on the CPU or the GPU. The model is one `.litertlm` file. Images, audio, tool calling and NPU backends are not covered. For vision and audio models, use the `litert-runtime` skill: https://github.com/google-ai-edge/litert-samples/blob/main/skills/litert-runtime/SKILL.md (LiteRT: https://github.com/google-ai-edge/litert/blob/main/README.md).
 
 ## Prerequisites
 
@@ -126,7 +126,7 @@ fun ChatScreen(modelPath: String, viewModel: ChatViewModel = viewModel()) {
 ### 5. Lifecycle
 
 - Keep the engine in the `ViewModel` for as long as its screen lives, or in an application-scoped holder when several screens share it. The ViewModel keeps its own thread and scope: `viewModelScope` is cancelled before `onCleared()` runs, so a close launched there would not run, and `onCleared()` cancels the scope once the close is done. `release()` turns `ready` off, calls `cancelProcess()` until the streaming reply's flow has ended (at the latest when the reply ends on its own), then closes the conversation and the engine, each once; `onCleared()` and a `load()` that replaces the model both go through it under the `Mutex`, one at a time, because `release()` suspends while a reply stops.
-- Create a new conversation to start a fresh chat. The reference app for this API is Google AI Edge Gallery: https://github.com/google-ai-edge/gallery
+- Create a new conversation to start a fresh chat. The reference app for this API is Google AI Edge Gallery: https://github.com/google-ai-edge/gallery/blob/main/README.md
 
 ## Troubleshooting
 
