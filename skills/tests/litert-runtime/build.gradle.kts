@@ -23,8 +23,9 @@ plugins {
 val skillsDir = providers.gradleProperty("skillsDir").orElse("..")
 
 // -PlitertVersion=<version> tests another release of the library. From 2.3.0 the GPU accelerator
-// is its own artifact, litert-gpu.
-val litertVersion = providers.gradleProperty("litertVersion").orElse("2.2.0")
+// is its own artifact, litert-gpu; for 2.2.0 or 2.1.6 add -Pandroid.uniquePackageNames=false
+// (step 1 of the skill).
+val litertVersion = providers.gradleProperty("litertVersion").orElse("2.3.0")
 val litertHasGpuArtifact =
     litertVersion.map { version ->
         val (major, minor) = version.split(".").take(2).map { it.toInt() }
