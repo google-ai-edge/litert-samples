@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<!--
+  Copyright 2026 The Google AI Edge Authors. All Rights Reserved.
+
+  Licensed under the Apache License, Version 2.0 (the "License");
+  you may not use this file except in compliance with the License.
+  You may obtain a copy of the License at
+
+      http://www.apache.org/licenses/LICENSE-2.0
+
+  Unless required by applicable law or agreed to in writing, software
+  distributed under the License is distributed on an "AS IS" BASIS,
+  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+  See the License for the specific language governing permissions and
+  limitations under the License.
+-->
+<html>
+<head><meta charset="utf-8"><title>Synthetic chat stream</title></head>
+<body>
+<h1>Synthetic chat stream</h1>
+<p>Mimics a streaming assistant reply (ChatGPT DOM shape) for the auto-read
+watcher. Call <code>startStream()</code> to begin.</p>
+<div data-message-author-role="assistant" id="msg" style="max-width:600px"></div>
+<script>
+  const SENTENCES = [
+    'Hello there, this is the first streamed sentence.',
+    'The second sentence arrives word by word, just like a chat model reply.',
+    'A third one follows with a question, does the watcher catch it?',
+    // no terminal punctuation — exercises the quiet-flush path
+    'Finally the stream ends without punctuation',
+  ];
+  window.streamDone = false;
+  window.startStream = (wordMs = 70) => {
+    const el = document.getElementById('msg');
+    const words = SENTENCES.join(' ').split(' ');
+    let i = 0;
+    const t = setInterval(() => {
+      el.textContent = words.slice(0, ++i).join(' ');
+      if (i >= words.length) {
+        clearInterval(t);
+        window.streamDone = true;
+      }
+    }, wordMs);
+  };
+</script>
+</body>
+</html>

@@ -12,6 +12,13 @@ types leaves the page.
 
 [`dist/index.html`](dist/) is the index page linking every demo.
 
+## Chrome extension
+
+[`page-voice/`](page-voice/) runs the same kind of models inside a Chrome
+extension, on the pages you browse: it reads selected text aloud
+(Matcha-TTS), shows photos in 3D on hover (MoGe-2), and finds text inside
+images (PP-OCRv5). It is a separate npm project with its own build and tests.
+
 ## Layout
 
 ```
