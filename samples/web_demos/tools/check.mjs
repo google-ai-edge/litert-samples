@@ -20,7 +20,10 @@
 // full run: coi-serviceworker must turn on cross-origin isolation, the
 // threaded WASM runtime must load, the model files must come through
 // Hugging Face, and one inference (MoGe) / one synthesis (Matcha) / one
-// OCR read (PP-OCRv5) must finish. The OCR read is of the page's own "Try a
+// OCR read (PP-OCRv5) / two
+// segmentations of the bundled example photo, "a dog" and then "the grass"
+// typed into the page (CLIPSeg),
+// must finish. The OCR read is of the page's own "Try a
 // sample" image (src/ppocr/sample.png, through ?img=sample) and must return
 // its six lines exactly, with the recognizer on threaded WASM. Headless
 // Chromium launched without flags has no usable WebGPU, so the WASM fallback
@@ -33,8 +36,9 @@
 //   npm run check -- matcha --block-hf     # what a user sees when HF is unreachable
 //   npm run check -- moge --webkit         # WebKit engine (npx playwright install webkit)
 //   npm run check -- ppocr --webgpu        # the WebGPU path
+//   npm run check -- clipseg --webgpu      # the WebGPU path
 //
-// Options: [moge|matcha|ppocr|all] [--block-hf] [--webkit] [--webgpu]
+// Options: [moge|matcha|ppocr|clipseg|all] [--block-hf] [--webkit] [--webgpu]
 //          [--prefix /some/path] [--img <url>] [--timeout <ms>]
 import { createServer } from 'node:http';
 import { readFile, stat } from 'node:fs/promises';
@@ -47,7 +51,7 @@ const opt = (name, def) => {
   const i = args.indexOf(name);
   return i === -1 ? def : args[i + 1];
 };
-const which = args.find((a) => ['moge', 'matcha', 'ppocr', 'all'].includes(a)) ?? 'all';
+const which = args.find((a) => ['moge', 'matcha', 'ppocr', 'clipseg', 'all'].includes(a)) ?? 'all';
 const BLOCK_HF = args.includes('--block-hf');
 const engine = args.includes('--webkit') ? webkit : chromium;
 const WEBGPU = args.includes('--webgpu') && engine === chromium;
@@ -64,6 +68,16 @@ const OCR_IMG = args.includes('--img') ? IMG : 'sample';
 const OCR_LINES = [
   'Corner Cafe', 'Espresso 3.20', 'Cappuccino 4.10', 'Green tea 3.50',
   'Open 8:00-18:00', 'Free Wi-Fi inside',
+];
+// CLIPSeg runs on its bundled example unless --img names another photo, with
+// "a dog" and then "the grass", which must reuse the photo's image features.
+// These are the prompts' CLIP token ids and, on the example, the share of the
+// 352x352 output their masks cover (Python LiteRT reference: 21444 and 62001
+// of 123904 pixels). On another photo, "a dog" must mask something.
+const CLIPSEG_IMG = args.includes('--img') ? IMG : 'example';
+const CLIPSEG_RUNS = [
+  { prompt: 'a dog', ids: [49406, 320, 1929, 49407], mask: [0.15, 0.25] },
+  { prompt: 'the grass', ids: [49406, 518, 5922, 49407], mask: [0.45, 0.55] },
 ];
 
 const MIME = {
@@ -110,11 +124,13 @@ async function run(demo) {
   const page = await context.newPage();
   const consoleTail = [];
   let stats = null;
+  const clipsegRuns = [];
   page.on('console', (m) => {
     const t = m.text();
     consoleTail.push(t);
     if (t.startsWith('MATCHA_STATS ')) stats = JSON.parse(t.slice(13));
     if (t.startsWith('OCR_STATS ')) stats = JSON.parse(t.slice(10));
+    if (t.startsWith('CLIPSEG_STATS ')) clipsegRuns.push(stats = JSON.parse(t.slice(14)));
   });
   page.on('pageerror', (e) => consoleTail.push('PAGEERROR ' + e.message));
   let navs = 0;
@@ -124,6 +140,7 @@ async function run(demo) {
     matcha: `http://localhost:${PORT}${PREFIX}/matcha-tts/?nosound=1&text=${encodeURIComponent('The quick brown fox jumps over the lazy dog.')}`,
     moge: `http://localhost:${PORT}${PREFIX}/moge/?img=${encodeURIComponent(IMG)}`,
     ppocr: `http://localhost:${PORT}${PREFIX}/ppocr/?img=${encodeURIComponent(OCR_IMG)}`,
+    clipseg: `http://localhost:${PORT}${PREFIX}/clipseg/?img=${encodeURIComponent(CLIPSEG_IMG)}&prompt=${encodeURIComponent(CLIPSEG_RUNS[0].prompt)}`,
   }[demo];
   console.log(`\n== ${demo}: ${url}`);
   const t0 = Date.now();
@@ -142,6 +159,23 @@ async function run(demo) {
     if (s.startsWith('Failed')) { failed = true; break; }
     ok = demo === 'moge' ? await page.locator('#latency').isVisible().catch(() => false) : !!stats;
     if (ok) break;
+  }
+  if (ok && demo === 'clipseg') {
+    // The second prompt, typed and entered as a viewer would.
+    await page.locator('#prompt').fill(CLIPSEG_RUNS[1].prompt);
+    await page.locator('#prompt').press('Enter');
+    ok = false;
+    while (Date.now() - t0 < TIMEOUT) {
+      await new Promise((r) => setTimeout(r, 500));
+      const s = await page.locator('#status').textContent().catch(() => '(no #status)');
+      if (s !== last) {
+        last = s;
+        console.log(`  [${((Date.now() - t0) / 1000).toFixed(0).padStart(3)}s] ${s}`);
+      }
+      if (s.startsWith('Failed')) { failed = true; break; }
+      ok = clipsegRuns.length >= 2;
+      if (ok) break;
+    }
   }
   const finished = ok; // the run completed; the checks below can still fail it
 
@@ -174,6 +208,29 @@ async function run(demo) {
       ok = ok && stats.lines.length > 0 && same && stats.wasmThreads &&
         (!WEBGPU || stats.backends.det === 'webgpu');
     }
+  } else if (demo === 'clipseg') {
+    if (clipsegRuns.length) {
+      console.log(`  env: ${await page.locator('#env').textContent()}`);
+      CLIPSEG_RUNS.forEach((want, i) => {
+        const r = clipsegRuns[i];
+        if (!r) return;
+        console.log(`  "${r.prompt}": ids ${JSON.stringify(r.ids)}, mask ${r.maskPixels} of ${352 * 352} pixels · ` +
+          `image encoder ${r.visionCached ? 'cached' : `${r.visionMs} ms`} · text encoder ${r.textMs} ms · decoder ${r.decoderMs} ms`);
+        const idsOk = JSON.stringify(r.ids) === JSON.stringify(want.ids);
+        const [lo, hi] = want.mask;
+        const maskOk = CLIPSEG_IMG === 'example'
+          ? r.maskFraction >= lo && r.maskFraction <= hi
+          : i > 0 || r.maskFraction > 0;
+        const featuresOk = i === 0 || r.visionCached === true;
+        const gpuOk = !WEBGPU || ['vision', 'text', 'decoder'].every((key) => r.backends[key] === 'webgpu');
+        if (!idsOk) console.log(`  token ids differ from ${JSON.stringify(want.ids)}`);
+        if (!maskOk) console.log(`  mask covers ${r.maskFraction} of the output, not ${CLIPSEG_IMG === 'example' ? `${lo}-${hi}` : '> 0'}`);
+        if (!featuresOk) console.log('  the image encoder ran again for the same photo');
+        if (!r.wasmThreads) console.log('  the WASM runtime runs single-threaded');
+        if (!gpuOk) console.log(`  graphs ran on ${JSON.stringify(r.backends)}, not all on WebGPU`);
+        ok = ok && r.source === 'image' && r.wasmThreads === true && idsOk && maskOk && featuresOk && gpuOk;
+      });
+    }
   } else if (ok) {
     console.log(`  env: ${await page.locator('#env').textContent()}`);
     console.log(`  latency: ${(await page.locator('#latency').innerText()).replace(/\n/g, ' | ')}`);
@@ -186,7 +243,7 @@ async function run(demo) {
   return ok && state.crossOriginIsolated;
 }
 
-const demos = which === 'all' ? ['moge', 'matcha', 'ppocr'] : [which];
+const demos = which === 'all' ? ['moge', 'matcha', 'ppocr', 'clipseg'] : [which];
 const results = {};
 for (const demo of demos) results[demo] = await run(demo);
 await browser.close();

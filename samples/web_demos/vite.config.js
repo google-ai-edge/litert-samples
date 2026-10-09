@@ -93,6 +93,7 @@ export default defineConfig({
         moge: resolve(HERE, 'src/moge/index.html'),
         'matcha-tts': resolve(HERE, 'src/matcha-tts/index.html'),
         ppocr: resolve(HERE, 'src/ppocr/index.html'),
+        clipseg: resolve(HERE, 'src/clipseg/index.html'),
       },
     },
   },
