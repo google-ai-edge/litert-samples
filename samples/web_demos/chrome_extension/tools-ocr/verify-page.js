@@ -19,7 +19,7 @@
  * do WASM and WebGPU decode the same crop to the same text, with the fp16
  * and with the fp32 recognizer?
  *
- * Stage A: render single text lines (EN/JA/mixed, several font sizes)
+ * Stage A: render single text lines (EN/mixed, several font sizes)
  * straight into rec crops — no det involved — run both backends on
  * identical tensors, compare decoded text + per-timestep argmax ids.
  * Stage B: the two half-size posts from make-fixtures.mjs through
@@ -50,20 +50,19 @@ const LINES = [
   ['mix', 'det 12ms / rec 15ms'],
   ['mix', 'GPU: 66-72ms (M4)'],
   ['mix', '#OnDeviceAI 100%'],
-  ['ja', '画像の文字がコピーできる'],
-  ['ja', '日本語対応です'],
-  ['ja', '深度推定はブラウザ内'],
-  ['ja', 'スクショの長文もOK'],
+  ['en', 'copy text in images'],
+  ['en', 'search a screenshot'],
+  ['en', 'depth from one photo'],
+  ['en', 'long posts work too'],
 ];
 const SIZES = [18, 28, 44]; // native render px → all upscaled/downscaled to h=48
-const POSTS = ['fixture-half-en-light', 'fixture-half-ja-dark']; // make-fixtures.mjs
+const POSTS = ['fixture-half-en-light', 'fixture-half-en-dark']; // make-fixtures.mjs
 
 // ---- rendering helpers -------------------------------------------------------
 
 const FONT = {
   en: '-apple-system, "Helvetica Neue", Arial, sans-serif',
   mix: '-apple-system, "Helvetica Neue", Arial, sans-serif',
-  ja: '"Hiragino Sans", "Hiragino Kaku Gothic ProN", sans-serif',
 };
 
 /** Render one line at `px` height, then rescale to a 48-high rec crop.
@@ -231,7 +230,7 @@ async function main() {
     }
   }
   // plus dark-mode variants at one size
-  for (const [kind, text] of [['en', 'no server, no upload'], ['ja', '日本語対応です']]) {
+  for (const [kind, text] of [['en', 'no server, no upload'], ['en', 'search a screenshot']]) {
     for (const pad of PADS) {
       crops.push({ label: `${kind}-28px-dark-p${pad}`, truth: text, kind, px: 28, pad,
         crop: renderLineCrop(text, kind, 28, { fg: '#f7f9f9', bg: '#15202b' }, pad) });

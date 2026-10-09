@@ -14,7 +14,7 @@
 // ==============================================================================
 
 /**
- * Overlay E2E over CDP: serves a page embedding the JA fixture, triggers the
+ * Overlay E2E over CDP: serves a page embedding the intro fixture, triggers the
  * real activation path (service worker → content script → engine → overlay),
  * then checks the selectable-text layer in the DOM and saves screenshots
  * (overlay boxes flashing, then faded) for visual inspection.
@@ -37,7 +37,7 @@ const outDir = resolve(import.meta.dirname, '..', 'out-ocr');
 const PAGE = `<!doctype html><meta charset="utf-8"><title>pagetext e2e</title>
 <body style="margin:40px;background:#f0f2f5;font-family:sans-serif">
 <h3>Page Text e2e</h3>
-<img id="post" src="fixture-ja-dark.png" style="width:560px;display:block;box-shadow:0 4px 24px rgba(0,0,0,.2);border-radius:12px">
+<img id="post" src="fixture-en-intro.png" style="width:560px;display:block;box-shadow:0 4px 24px rgba(0,0,0,.2);border-radius:12px">
 </body>`;
 
 const MIME = { '.png': 'image/png', '.html': 'text/html' };
@@ -95,7 +95,7 @@ try {
         try {
           await chrome.tabs.sendMessage(tabs[0].id, {
             type: 'activate-ocr',
-            srcUrl: ${JSON.stringify(`${base}/fixture-ja-dark.png`)},
+            srcUrl: ${JSON.stringify(`${base}/fixture-en-intro.png`)},
           });
           return 'sent to ' + tabs[0].id + (i ? ' after ' + i + ' retries' : '');
         } catch (err) {
@@ -146,8 +146,8 @@ try {
   console.log('selection sample:', JSON.stringify(selected.slice(0, 120)));
 
   const okText = overlay.text.replace(/\s+/g, '');
-  const mustHave = ['長文を画像', 'コピーも翻訳もできない', 'サーバーには何も送りません'];
-  const missing = mustHave.filter((s) => !okText.includes(s));
+  const mustHave = ['search it or copy it later', 'selectable text', 'Nothing is sent to a server'];
+  const missing = mustHave.filter((s) => !okText.includes(s.replace(/\s+/g, '')));
   console.log(missing.length ? `MISSING: ${missing}` : 'E2E_OK');
   await cdp.send('Browser.close').catch(() => {});
   server.close();

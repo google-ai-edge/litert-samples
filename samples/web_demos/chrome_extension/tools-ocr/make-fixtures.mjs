@@ -39,21 +39,18 @@ mkdirSync(outDir, { recursive: true });
 const RENDER = String(function render() {
   const FIXTURES = [
     {
-      name: 'fixture-ja-dark',
+      name: 'fixture-en-intro',
       dark: true,
-      font: '"Hiragino Sans","Hiragino Kaku Gothic ProN",sans-serif',
+      font: '-apple-system,"Helvetica Neue",Arial,sans-serif',
       author: 'Page Text',
-      handle: '@demo_pagetext · 2時間',
+      handle: '@demo_pagetext · 2h',
       lines: [
-        '長文を画像で貼る文化、けっこう好きなんですが、',
-        'あとから「あの話どこだっけ」と検索しても絶対に',
-        '出てこないのが困りものです。文字が画像の中に',
-        '閉じ込められているので、コピーも翻訳もできない。',
+        'When long text is posted as a screenshot,',
+        'nobody can search it or copy it later.',
         '',
-        'そこで、ブラウザの中で PP-OCRv5 を動かして、',
-        '画像の上に選択できる透明な文字を重ねる拡張を',
-        '作りました。右クリックひとつで、スクショの長文が',
-        'そのままコピペできます。サーバーには何も送りません。',
+        'This extension runs PP-OCRv5 in the',
+        'browser and puts selectable text over',
+        'the image. Nothing is sent to a server.',
       ],
     },
     {
@@ -148,15 +145,15 @@ const RENDER = String(function render() {
       ],
     },
     {
-      name: 'fixture-half-ja-dark',
+      name: 'fixture-half-en-dark',
       dark: true,
-      font: '"Hiragino Sans","Hiragino Kaku Gothic ProN",sans-serif',
+      font: '-apple-system,"Helvetica Neue",Arial,sans-serif',
       lines: [
-        'スクショで貼られた長文、そのままでは',
-        'コピーも検索もできません。',
-        'この拡張はブラウザの中で PP-OCRv5 を',
-        '動かして、画像の上に選択できる文字を',
-        '重ねます。サーバーには何も送りません。',
+        'Long text shared as a screenshot cannot',
+        'be copied or searched as it is.',
+        'This extension runs PP-OCRv5 in your',
+        'browser and puts selectable text on',
+        'the image. Nothing goes to a server.',
       ],
     },
   ];

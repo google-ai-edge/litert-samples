@@ -46,7 +46,7 @@ const profile = process.argv.find((a) => a.startsWith('--profile='))?.slice(10)
 const HF = 'https://huggingface.co/litert-community/PP-OCRv5-LiteRT/resolve/main';
 const MODELS = ['ppocr_det_fp16.tflite', 'ppocr_rec_fp16.tflite', 'ppocrv5_dict.txt',
   'ppocr_rec_fp32.tflite'];
-const FIXTURES = ['fixture-half-en-light.png', 'fixture-half-ja-dark.png'];
+const FIXTURES = ['fixture-half-en-light.png', 'fixture-half-en-dark.png'];
 const root = resolve(import.meta.dirname, '..');
 const outDir = join(root, 'out-ocr');
 for (const f of FIXTURES) {

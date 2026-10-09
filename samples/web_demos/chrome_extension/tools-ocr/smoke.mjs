@@ -47,12 +47,13 @@ const CASES = [
   // half-size stress cases
   ['half-en-light', 'fixture-half-en-light.png',
     ['Screenshots', 'no search, no translate', 'Right-click any', 'selectable']],
-  ['half-ja-dark', 'fixture-half-ja-dark.png',
-    ['スクショ', 'コピー', 'PP-OCRv5']],
+  ['half-en-dark', 'fixture-half-en-dark.png',
+    ['shared as a screenshot', 'copied or searched', 'selectable text',
+      'Nothing goes to a server']],
   // phone-Retina geometry — the quality bar
-  ['fixture-ja-dark', 'fixture-ja-dark.png',
-    ['長文を画像で貼る文化', '検索しても', 'コピーも翻訳もできない', 'PP-OCRv5',
-      '右クリックひとつで', 'サーバーには何も送りません']],
+  ['fixture-en-intro', 'fixture-en-intro.png',
+    ['posted as a screenshot', 'search it or copy it later', 'This extension runs',
+      'puts selectable text over', 'Nothing is sent to a server']],
   ['fixture-en-dark', 'fixture-en-dark.png',
     ['Notes for Saturday', 'at least 16 GB of RAM', 'We start at 10:00',
       '8 power outlets for 20 people', 'Handouts go out on Friday']],
