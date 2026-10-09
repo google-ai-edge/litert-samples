@@ -61,6 +61,8 @@ const CASES = [
   ['power outlets', 'fixture-en-dark'],
   ['PP-OCRv5', 'fixture-en-light'],
   ['lunch', 'fixture-en-dark'],
+  // sits where a rec window ends: must not come back as "flashi ng"
+  ['flashing', 'fixture-en-ship'],
 ];
 
 try {

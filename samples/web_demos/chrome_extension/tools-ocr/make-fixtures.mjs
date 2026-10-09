@@ -51,6 +51,9 @@ const RENDER = String(function render() {
         'This extension runs PP-OCRv5 in the',
         'browser and puts selectable text over',
         'the image. Nothing is sent to a server.',
+        // A word longer than one rec window: it is cut between two letters
+        // and must come back as one word (e2e.mjs).
+        'Long words like internationalization stay whole.',
       ],
     },
     {

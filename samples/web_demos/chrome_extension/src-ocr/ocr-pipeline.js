@@ -249,43 +249,70 @@ export function columnInkProfile(rgba, w, h) {
  * columns); when a stretch has no gap, the window is allowed to grow to
  * squashLimit and squashed into REC_W at rec time (mild squash is in the
  * model's training distribution; cutting through a glyph never is).
- * Returns [{from, to}] in strip px; (to − from) may exceed maxW.
+ * A gap narrower than wordGap is the space between two letters, not two
+ * words (on the fixtures: letters 1–8 px apart, words 9–19 px, at 48 px ≈
+ * 1 em). Rather than split a word, a window reaches up to 10% past maxW
+ * for a word gap; when there is none, the window after the cut gets
+ * midWord, and windowSeparator joins it to the one before without a space.
+ * Returns [{from, to, midWord}] in strip px; (to − from) may exceed maxW.
  */
-export function splitByInk(profile, lw, { maxW = REC_W, squashLimit = REC_W * 2.2, gapFrac = 0.06 } = {}) {
-  if (lw <= maxW) return [{ from: 0, to: lw }];
+export function splitByInk(profile, lw, {
+  maxW = REC_W, squashLimit = REC_W * 2.2, gapFrac = 0.06, wordGap = REC_H * 0.15,
+} = {}) {
+  if (lw <= maxW) return [{ from: 0, to: lw, midWord: false }];
   let peak = 0;
   for (let x = 0; x < lw; x++) if (profile[x] > peak) peak = profile[x];
   const low = Math.max(12, peak * gapFrac);
-
-  const pieces = [];
-  let start = 0;
-  for (;;) {
-    const remaining = lw - start;
-    if (remaining <= squashLimit) {
-      // One (possibly squashed) window beats cutting: every boundary is a
-      // chance for a duplicated or phantom edge character.
-      pieces.push({ from: start, to: lw });
-      break;
-    }
-    const from = start + Math.round(maxW * 0.55);
-    const until = start + maxW;
+  // Whole width of the background run around column x, also the part
+  // outside the search window; 0 inside ink.
+  const runWidth = (x) => {
+    let a = Math.round(x);
+    if (!(profile[a] <= low)) return 0;
+    let b = a;
+    while (a > 0 && profile[a - 1] <= low) a--;
+    while (b < lw - 1 && profile[b + 1] <= low) b++;
+    return b - a + 1;
+  };
+  // Center of the widest background run (≥ 2 px) inside [a, b], or null.
+  const widestRun = (a, b) => {
     let bestRunStart = -1;
     let bestRunLen = 0;
     let runStart = -1;
-    for (let x = from; x <= until + 1; x++) {
-      const isLow = x <= until && x < lw && profile[x] <= low;
+    for (let x = a; x <= b + 1; x++) {
+      const isLow = x <= b && x < lw && profile[x] <= low;
       if (isLow && runStart < 0) runStart = x;
       if (!isLow && runStart >= 0) {
         if (x - runStart > bestRunLen) { bestRunLen = x - runStart; bestRunStart = runStart; }
         runStart = -1;
       }
     }
-    if (bestRunLen >= 2) {
-      const cut = bestRunStart + (bestRunLen >> 1);
-      pieces.push({ from: start, to: cut });
+    return bestRunLen >= 2 ? bestRunStart + (bestRunLen >> 1) : null;
+  };
+
+  const pieces = [];
+  let start = 0;
+  let midWord = false;
+  for (;;) {
+    const remaining = lw - start;
+    if (remaining <= squashLimit) {
+      // One (possibly squashed) window beats cutting: every boundary is a
+      // chance for a duplicated or phantom edge character.
+      pieces.push({ from: start, to: lw, midWord });
+      break;
+    }
+    let cut = widestRun(start + Math.round(maxW * 0.55), start + maxW);
+    if (cut == null || runWidth(cut) < wordGap) {
+      // Only letter gaps here: a word gap a little past maxW (mildly
+      // squashed at rec time) beats cutting the word.
+      const past = widestRun(start + maxW + 1, Math.min(lw - 1, start + Math.round(maxW * 1.1)));
+      if (past != null && runWidth(past) >= wordGap) cut = past;
+    }
+    if (cut != null) {
+      pieces.push({ from: start, to: cut, midWord });
+      midWord = runWidth(cut) < wordGap;
       start = cut;
     } else if (remaining <= squashLimit) {
-      pieces.push({ from: start, to: lw });
+      pieces.push({ from: start, to: lw, midWord });
       break;
     } else {
       // No gap in the window — take a squashed oversized window and search
@@ -294,7 +321,9 @@ export function splitByInk(profile, lw, { maxW = REC_W, squashLimit = REC_W * 2.
       for (let x = end; x >= start + maxW; x--) {
         if (profile[x] <= low) { end = x; break; }
       }
-      pieces.push({ from: start, to: end });
+      pieces.push({ from: start, to: end, midWord });
+      // no gap at all → end cuts through a glyph (runWidth 0)
+      midWord = runWidth(end) < wordGap;
       start = end;
     }
     if (start >= lw - 2) break;
@@ -397,11 +426,13 @@ export function buildCharTable(dictText) {
 
 const CJK_EDGE = /[぀-ヿ㐀-䶿一-鿿。、!?」』)]$|^[぀-ヿ㐀-䶿一-鿿「『(]/;
 
-/** Text between two rec windows of one line: none at a CJK edge, else one
- * space. Shared by groupLines and the overlay's selectable text, so a copied
- * selection reads the same as Copy all. */
+/** Text between two adjacent rec windows of one line (line objects): none
+ * where the cut went through a word (after.midWord, see splitByInk) or at a
+ * CJK edge, else one space. Shared by groupLines and the overlay's
+ * selectable text, so a copied selection reads the same as Copy all. */
 export function windowSeparator(before, after) {
-  return CJK_EDGE.test(before.slice(-1)) || CJK_EDGE.test(after[0]) ? '' : ' ';
+  if (after.midWord) return '';
+  return CJK_EDGE.test(before.text.slice(-1)) || CJK_EDGE.test(after.text[0]) ? '' : ' ';
 }
 
 /**
@@ -418,7 +449,7 @@ export function groupLines(lines) {
     const same = line.group != null && line.group === prev && out.length;
     if (same) {
       const g = out[out.length - 1];
-      g.text += windowSeparator(g.text, line.text) + line.text;
+      g.text += windowSeparator(g.pieces[g.pieces.length - 1], line) + line.text;
       g.pieces.push(line);
     } else {
       out.push({ text: line.text, pieces: [line] });

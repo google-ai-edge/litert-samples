@@ -143,17 +143,24 @@ try {
     sel.addRange(range);
     return sel.toString();
   })()`);
-  console.log('selection sample:', JSON.stringify(selected.slice(0, 120)));
+  console.log('selection:', JSON.stringify(selected));
 
   // Match the selected text as is: a phrase across two rec windows or two
-  // lines only matches if the layer puts Copy all's separators between them.
+  // lines only matches if the layer puts Copy all's separators between them,
+  // and a word cut between two windows only if they join without a space.
   const mustHave = ['screenshot,\nnobody can search it', 'search it or copy it later',
-    'selectable text', 'Nothing is sent to a server'];
+    'This extension runs', 'selectable text', 'Nothing is sent to a server',
+    'Long words like internationalization stay whole.'];
+  const mustNot = ['exte nsion'];
   const missing = mustHave.filter((s) => !selected.includes(s));
-  console.log(missing.length ? `MISSING: ${missing.map((s) => JSON.stringify(s)).join(', ')}` : 'E2E_OK');
+  const found = mustNot.filter((s) => selected.includes(s));
+  if (missing.length) console.log(`MISSING: ${missing.map((s) => JSON.stringify(s)).join(', ')}`);
+  if (found.length) console.log(`UNEXPECTED: ${found.map((s) => JSON.stringify(s)).join(', ')}`);
+  const ok = !missing.length && !found.length;
+  if (ok) console.log('E2E_OK');
   await cdp.send('Browser.close').catch(() => {});
   server.close();
-  process.exit(missing.length ? 1 : 0);
+  process.exit(ok ? 0 : 1);
 } catch (err) {
   console.error('e2e failed:', err);
   process.exit(1);

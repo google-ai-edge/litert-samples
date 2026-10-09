@@ -259,7 +259,7 @@ function buildOverlay(img, payload, { flash = true } = {}) {
         row.className = 'pt-line';
         host.appendChild(row);
       } else {
-        const sep = windowSeparator(prev.text, line.text);
+        const sep = windowSeparator(prev, line);
         if (sep) row.append(sep);
       }
       prev = line;

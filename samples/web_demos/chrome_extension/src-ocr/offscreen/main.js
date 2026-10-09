@@ -398,7 +398,8 @@ async function runOcr(url, { forceRelay = false } = {}) {
       squashLimit: (REC_W - 2 * EDGE_PAD) * 2.2,
     });
 
-    for (const piece of pieces) {
+    let lastKept = -1; // index of the last piece that became a line
+    for (const [i, piece] of pieces.entries()) {
       // Tighten to ink: unclip margins leave large variable bg runs at the
       // window edges, and rec quality is sensitive to them.
       const tight = inkBounds(profile, piece.from, piece.to);
@@ -420,7 +421,11 @@ async function runOcr(url, { forceRelay = false } = {}) {
         text,
         score: +score.toFixed(3),
         group, // pieces of one detected line share a group → joined on copy
+        // The cut before this window went through a word: joined without a
+        // space, unless the window before it was dropped.
+        midWord: piece.midWord && lastKept === i - 1,
       });
+      lastKept = i;
     }
   }
   bitmap.close();

@@ -53,7 +53,8 @@ const CASES = [
   // phone-Retina geometry — the quality bar
   ['fixture-en-intro', 'fixture-en-intro.png',
     ['posted as a screenshot', 'search it or copy it later', 'This extension runs',
-      'puts selectable text over', 'Nothing is sent to a server']],
+      'puts selectable text over', 'Nothing is sent to a server',
+      'Long words like internationalization stay whole.']],
   ['fixture-en-dark', 'fixture-en-dark.png',
     ['Notes for Saturday', 'at least 16 GB of RAM', 'We start at 10:00',
       '8 power outlets for 20 people', 'Handouts go out on Friday']],
