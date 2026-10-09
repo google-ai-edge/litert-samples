@@ -317,7 +317,9 @@ export function splitByInk(profile, lw, {
     } else {
       // No gap in the window — take a squashed oversized window and search
       // for the next gap beyond it.
-      let end = Math.min(lw, start + squashLimit);
+      // Integer column: a fractional end would index the profile at x.8
+      // and leave every later window without ink bounds.
+      let end = Math.min(lw, start + Math.floor(squashLimit));
       for (let x = end; x >= start + maxW; x--) {
         if (profile[x] <= low) { end = x; break; }
       }
