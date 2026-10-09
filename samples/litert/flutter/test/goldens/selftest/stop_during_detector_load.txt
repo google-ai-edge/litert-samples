@@ -1,0 +1,19 @@
+result     FAIL · 2 pass · 6 skip · exit 1
+--- steps ---
+PASS  1   hardware probe                                   <time>
+           macOS 26.5.1 (25F80) · Apple M4 Pro · 1 GPU(s) · 0 note(s)
+PASS  2   detector load (gpu)                              <time>
+           DetectorInfo(GPU fp32 full, verify=1.77e-3 (2.0e-6 of range) vs TFLite interpreter, create=116ms verify=124ms firstRun=5ms)
+           gpu → gpu (confirmed: API) · api Metal (inferred) · adapter Apple M4 Pro (inferred)
+SKIP  3   cats golden                                      0.00 s
+           the run was stopped after its time limit
+SKIP  4a  chat model load + warm-up (gpu)                  0.00 s
+           the run was stopped after its time limit
+SKIP  4b  chat model generate                              0.00 s
+           the run was stopped after its time limit
+SKIP  5   detector again                                   0.00 s
+           the run was stopped after its time limit
+SKIP  6a  audio output (tone → sink monitor)               0.00 s
+           the run was stopped after its time limit
+SKIP  6b  microphone (1 s, default input)                  0.00 s
+           the run was stopped after its time limit

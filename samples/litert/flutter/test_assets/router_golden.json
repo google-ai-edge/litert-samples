@@ -1,0 +1,630 @@
+{
+ "description": "Demo 3 question router golden set. Whisper-styled transcripts; route fast|detailed; fast items name the intent and the Darknet class; must=true marks questions a fast answer would get wrong. Kinds of a class (kids, women, kittens), numbers in the noun phrase, past tense and follow-ups are detailed; words for any person (someone, anybody) stay fast.",
+ "items": [
+  {
+   "q": " How many cats do you see?",
+   "route": "fast",
+   "intent": "count",
+   "class": "cat"
+  },
+  {
+   "q": " How many cats are there?",
+   "route": "fast",
+   "intent": "count",
+   "class": "cat"
+  },
+  {
+   "q": " How many people are in the room?",
+   "route": "fast",
+   "intent": "count",
+   "class": "person"
+  },
+  {
+   "q": " How many people do you see right now?",
+   "route": "fast",
+   "intent": "count",
+   "class": "person"
+  },
+  {
+   "q": " How many chairs can you count?",
+   "route": "fast",
+   "intent": "count",
+   "class": "chair"
+  },
+  {
+   "q": " How many bottles are there?",
+   "route": "fast",
+   "intent": "count",
+   "class": "bottle"
+  },
+  {
+   "q": " How many TVs do you see?",
+   "route": "fast",
+   "intent": "count",
+   "class": "tvmonitor"
+  },
+  {
+   "q": " How many cell phones are in front of me?",
+   "route": "fast",
+   "intent": "count",
+   "class": "cell phone"
+  },
+  {
+   "q": " How many dogs?",
+   "route": "fast",
+   "intent": "count",
+   "class": "dog"
+  },
+  {
+   "q": " How many cars are there right now?",
+   "route": "fast",
+   "intent": "count",
+   "class": "car"
+  },
+  {
+   "q": " Can you tell me how many cups you see?",
+   "route": "fast",
+   "intent": "count",
+   "class": "cup"
+  },
+  {
+   "q": " How many laptops are in the picture?",
+   "route": "fast",
+   "intent": "count",
+   "class": "laptop"
+  },
+  {
+   "q": " How many kids are there?",
+   "route": "detailed",
+   "must": true
+  },
+  {
+   "q": " How many remotes do you see?",
+   "route": "fast",
+   "intent": "count",
+   "class": "remote"
+  },
+  {
+   "q": " how many books are there",
+   "route": "fast",
+   "intent": "count",
+   "class": "book"
+  },
+  {
+   "q": " How many couches are there?",
+   "route": "fast",
+   "intent": "count",
+   "class": "sofa"
+  },
+  {
+   "q": " How many plants do you see?",
+   "route": "fast",
+   "intent": "count",
+   "class": "pottedplant"
+  },
+  {
+   "q": " How many people are visible?",
+   "route": "fast",
+   "intent": "count",
+   "class": "person"
+  },
+  {
+   "q": " How many birds can you see?",
+   "route": "fast",
+   "intent": "count",
+   "class": "bird"
+  },
+  {
+   "q": " How many bananas are there in total?",
+   "route": "fast",
+   "intent": "count",
+   "class": "banana"
+  },
+  {
+   "q": " So how many people are here?",
+   "route": "fast",
+   "intent": "count",
+   "class": "person"
+  },
+  {
+   "q": " How many keyboards do you see in this image?",
+   "route": "fast",
+   "intent": "count",
+   "class": "keyboard"
+  },
+  {
+   "q": " Is there a cat?",
+   "route": "fast",
+   "intent": "presence",
+   "class": "cat"
+  },
+  {
+   "q": " Is there a dog in the picture?",
+   "route": "fast",
+   "intent": "presence",
+   "class": "dog"
+  },
+  {
+   "q": " Are there any people here?",
+   "route": "fast",
+   "intent": "presence",
+   "class": "person"
+  },
+  {
+   "q": " Do you see a cup?",
+   "route": "fast",
+   "intent": "presence",
+   "class": "cup"
+  },
+  {
+   "q": " Can you see a laptop?",
+   "route": "fast",
+   "intent": "presence",
+   "class": "laptop"
+  },
+  {
+   "q": " Is there anyone here?",
+   "route": "fast",
+   "intent": "presence",
+   "class": "person"
+  },
+  {
+   "q": " Do you see any bottles?",
+   "route": "fast",
+   "intent": "presence",
+   "class": "bottle"
+  },
+  {
+   "q": " Is there a TV?",
+   "route": "fast",
+   "intent": "presence",
+   "class": "tvmonitor"
+  },
+  {
+   "q": " Do you see a phone?",
+   "route": "fast",
+   "intent": "presence",
+   "class": "cell phone"
+  },
+  {
+   "q": " Is there a giraffe?",
+   "route": "fast",
+   "intent": "presence",
+   "class": "giraffe"
+  },
+  {
+   "q": " Can you see a remote?",
+   "route": "fast",
+   "intent": "presence",
+   "class": "remote"
+  },
+  {
+   "q": " Are there any cups in the picture?",
+   "route": "fast",
+   "intent": "presence",
+   "class": "cup"
+  },
+  {
+   "q": " Do you see a couch?",
+   "route": "fast",
+   "intent": "presence",
+   "class": "sofa"
+  },
+  {
+   "q": " Is there a person in front of me?",
+   "route": "fast",
+   "intent": "presence",
+   "class": "person"
+  },
+  {
+   "q": " Do you see any cats right now?",
+   "route": "fast",
+   "intent": "presence",
+   "class": "cat"
+  },
+  {
+   "q": " Is there a keyboard?",
+   "route": "fast",
+   "intent": "presence",
+   "class": "keyboard"
+  },
+  {
+   "q": " Are there any chairs?",
+   "route": "fast",
+   "intent": "presence",
+   "class": "chair"
+  },
+  {
+   "q": " What do you see?",
+   "route": "fast",
+   "intent": "inventory"
+  },
+  {
+   "q": " What can you see?",
+   "route": "fast",
+   "intent": "inventory"
+  },
+  {
+   "q": " What do you see right now?",
+   "route": "fast",
+   "intent": "inventory"
+  },
+  {
+   "q": " What's in front of me?",
+   "route": "fast",
+   "intent": "inventory"
+  },
+  {
+   "q": " What objects do you see?",
+   "route": "fast",
+   "intent": "inventory"
+  },
+  {
+   "q": " Tell me what you see.",
+   "route": "fast",
+   "intent": "inventory"
+  },
+  {
+   "q": " What objects are in front of me?",
+   "route": "fast",
+   "intent": "inventory"
+  },
+  {
+   "q": " What can you see in the picture?",
+   "route": "fast",
+   "intent": "inventory"
+  },
+  {
+   "q": " Is there anything in front of me?",
+   "route": "fast",
+   "intent": "inventory"
+  },
+  {
+   "q": " Describe the scene.",
+   "route": "detailed",
+   "must": true
+  },
+  {
+   "q": " What does the sign say?",
+   "route": "detailed",
+   "must": true
+  },
+  {
+   "q": " What color is the cat?",
+   "route": "detailed",
+   "must": true
+  },
+  {
+   "q": " What is the person wearing?",
+   "route": "detailed",
+   "must": true
+  },
+  {
+   "q": " What is the cat doing?",
+   "route": "detailed",
+   "must": true
+  },
+  {
+   "q": " Where is the remote?",
+   "route": "detailed",
+   "must": true
+  },
+  {
+   "q": " Is the cup to the left of the laptop?",
+   "route": "detailed",
+   "must": true
+  },
+  {
+   "q": " What's behind the sofa?",
+   "route": "detailed",
+   "must": true
+  },
+  {
+   "q": " What's next to the laptop?",
+   "route": "detailed",
+   "must": true
+  },
+  {
+   "q": " What's on top of the table?",
+   "route": "detailed",
+   "must": true
+  },
+  {
+   "q": " What's under the chair?",
+   "route": "detailed",
+   "must": true
+  },
+  {
+   "q": " What's between the two cats?",
+   "route": "detailed",
+   "must": true
+  },
+  {
+   "q": " Which object is closest to me?",
+   "route": "detailed",
+   "must": true
+  },
+  {
+   "q": " What kind of dog is that?",
+   "route": "detailed",
+   "must": true
+  },
+  {
+   "q": " What brand is the laptop?",
+   "route": "detailed",
+   "must": true
+  },
+  {
+   "q": " What breed is the cat?",
+   "route": "detailed",
+   "must": true
+  },
+  {
+   "q": " Why is the cat sleeping?",
+   "route": "detailed",
+   "must": true
+  },
+  {
+   "q": " Explain what's going on.",
+   "route": "detailed",
+   "must": true
+  },
+  {
+   "q": " Tell me about this picture.",
+   "route": "detailed",
+   "must": true
+  },
+  {
+   "q": " Look closer at the table.",
+   "route": "detailed",
+   "must": true
+  },
+  {
+   "q": " Are you sure?",
+   "route": "detailed",
+   "must": true
+  },
+  {
+   "q": " Who is in the picture?",
+   "route": "detailed",
+   "must": true
+  },
+  {
+   "q": " What is this?",
+   "route": "detailed",
+   "must": true
+  },
+  {
+   "q": " What's that?",
+   "route": "detailed",
+   "must": true
+  },
+  {
+   "q": " What is it?",
+   "route": "detailed",
+   "must": true
+  },
+  {
+   "q": " Can you read the text on the box?",
+   "route": "detailed",
+   "must": true
+  },
+  {
+   "q": " How many red cars are there?",
+   "route": "detailed",
+   "must": true
+  },
+  {
+   "q": " How many people are sitting?",
+   "route": "detailed",
+   "must": true
+  },
+  {
+   "q": " How many cats are sleeping on the sofa?",
+   "route": "detailed",
+   "must": true
+  },
+  {
+   "q": " Is there a cat on the sofa?",
+   "route": "detailed",
+   "must": true
+  },
+  {
+   "q": " Do you see my phone?",
+   "route": "detailed",
+   "must": true
+  },
+  {
+   "q": " Is there a dog or a cat?",
+   "route": "detailed",
+   "must": true
+  },
+  {
+   "q": " How many legs does the cat have?",
+   "route": "detailed",
+   "must": true
+  },
+  {
+   "q": " How many fingers am I holding up?",
+   "route": "detailed",
+   "must": true
+  },
+  {
+   "q": " What's happening here?",
+   "route": "detailed",
+   "must": true
+  },
+  {
+   "q": " What do you see on the table?",
+   "route": "detailed",
+   "must": true
+  },
+  {
+   "q": " How many cups are on the table?",
+   "route": "detailed",
+   "must": true
+  },
+  {
+   "q": " How many people do you see on the left?",
+   "route": "detailed",
+   "must": true
+  },
+  {
+   "q": " Is anyone wearing glasses?",
+   "route": "detailed",
+   "must": true
+  },
+  {
+   "q": " Do you see a cat? Is it black?",
+   "route": "detailed",
+   "must": true
+  },
+  {
+   "q": " Besides the cats, how many dogs do you see?",
+   "route": "detailed",
+   "must": true
+  },
+  {
+   "q": " How many cats with collars are there?",
+   "route": "detailed",
+   "must": true
+  },
+  {
+   "q": " Is the laptop open?",
+   "route": "detailed",
+   "must": true
+  },
+  {
+   "q": " Is there a stop sign?",
+   "route": "detailed",
+   "must": false
+  },
+  {
+   "q": " Count the people in the room.",
+   "route": "detailed",
+   "must": false
+  },
+  {
+   "q": " Hello there.",
+   "route": "detailed",
+   "must": false
+  },
+  {
+   "q": " Thank you.",
+   "route": "detailed",
+   "must": false
+  },
+  {
+   "q": " What time is it?",
+   "route": "detailed",
+   "must": false
+  },
+  {
+   "q": " Is it raining outside?",
+   "route": "detailed",
+   "must": false
+  },
+  {
+   "q": " What's the weather like?",
+   "route": "detailed",
+   "must": false
+  },
+  {
+   "q": " Are there 2 cats?",
+   "route": "detailed",
+   "must": true
+  },
+  {
+   "q": " Are there two dogs?",
+   "route": "detailed",
+   "must": true
+  },
+  {
+   "q": " Is there 1 person here?",
+   "route": "detailed",
+   "must": true
+  },
+  {
+   "q": " Do you see 3 cups?",
+   "route": "detailed",
+   "must": true
+  },
+  {
+   "q": " How many women are in the room?",
+   "route": "detailed",
+   "must": true
+  },
+  {
+   "q": " Is there a man in the picture?",
+   "route": "detailed",
+   "must": true
+  },
+  {
+   "q": " Do you see a little girl?",
+   "route": "detailed",
+   "must": true
+  },
+  {
+   "q": " Is there a kitten?",
+   "route": "detailed",
+   "must": true
+  },
+  {
+   "q": " How many puppies do you see?",
+   "route": "detailed",
+   "must": true
+  },
+  {
+   "q": " Was there a cat?",
+   "route": "detailed",
+   "must": true
+  },
+  {
+   "q": " How many people were there?",
+   "route": "detailed",
+   "must": true
+  },
+  {
+   "q": " Did you see a dog?",
+   "route": "detailed",
+   "must": true
+  },
+  {
+   "q": " And the dog?",
+   "route": "detailed",
+   "must": true
+  },
+  {
+   "q": " What about the cups?",
+   "route": "detailed",
+   "must": true
+  },
+  {
+   "q": " Is it still there?",
+   "route": "detailed",
+   "must": true
+  },
+  {
+   "q": " How about now?",
+   "route": "detailed"
+  },
+  {
+   "q": " Is there someone in front of me?",
+   "route": "fast",
+   "intent": "presence",
+   "class": "person"
+  },
+  {
+   "q": " Do you see anybody?",
+   "route": "fast",
+   "intent": "presence",
+   "class": "person"
+  },
+  {
+   "q": " And how many dogs?",
+   "route": "fast",
+   "intent": "count",
+   "class": "dog"
+  }
+ ]
+}

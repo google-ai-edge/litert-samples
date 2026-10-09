@@ -1,0 +1,126 @@
+{
+ "measured": "EmbeddingGemma-300M seq512 mixed-precision over the 297 knowledge-base chunks: top cosine similarity per trigger phrase",
+ "gate": 0.4,
+ "phrases": [
+  {
+   "skill": "device-info",
+   "q": "What device am I on?",
+   "top": 0.402,
+   "doc": "litert-compiled-model-api.md#13"
+  },
+  {
+   "skill": "device-info",
+   "q": "Which accelerator is running?",
+   "top": 0.407,
+   "doc": "litert-gpu-npu-acceleration.md#1"
+  },
+  {
+   "skill": "device-info",
+   "q": "Which backends are you running on?",
+   "top": 0.492,
+   "doc": "flutter-edge-ai-inference.md#17"
+  },
+  {
+   "skill": "device-info",
+   "q": "Are you running on the GPU right now?",
+   "top": 0.504,
+   "doc": "litert-compiled-model-api.md#14"
+  },
+  {
+   "skill": "device-info",
+   "q": "What models are loaded and how much memory do you use?",
+   "top": 0.562,
+   "doc": "on-device-platform-setup.md#19"
+  },
+  {
+   "skill": "device-info",
+   "q": "Tell me about the hardware you're running on.",
+   "top": 0.501,
+   "doc": "flutter-edge-ai-inference.md#17"
+  },
+  {
+   "skill": "timer",
+   "q": "Set a timer for 10 seconds",
+   "top": 0.197,
+   "doc": "yolo26n-object-detector.md#7"
+  },
+  {
+   "skill": "timer",
+   "q": "Set a timer for 17 seconds",
+   "top": 0.236,
+   "doc": "speech-models.md#10"
+  },
+  {
+   "skill": "timer",
+   "q": "Set a timer for 90 seconds",
+   "top": 0.223,
+   "doc": "speech-models.md#4"
+  },
+  {
+   "skill": "timer",
+   "q": "Set a timer for 25 minutes",
+   "top": 0.215,
+   "doc": "speech-models.md#4"
+  },
+  {
+   "skill": "timer",
+   "q": "Pasta timer, an hour and 5 minutes",
+   "top": 0.222,
+   "doc": "speech-models.md#4"
+  },
+  {
+   "skill": "timer",
+   "q": "Start the tea timer",
+   "top": 0.244,
+   "doc": "flutter-edge-ai-speech.md#8"
+  },
+  {
+   "skill": "timer",
+   "q": "Cancel the tea timer",
+   "top": 0.309,
+   "doc": "flutter-edge-ai-inference.md#9"
+  },
+  {
+   "skill": "timer",
+   "q": "How long is left on my timers?",
+   "top": 0.249,
+   "doc": "speech-models.md#4"
+  },
+  {
+   "skill": "current-time",
+   "q": "What time is it?",
+   "top": 0.174,
+   "doc": "speech-models.md#4"
+  },
+  {
+   "skill": "current-time",
+   "q": "What's the date today?",
+   "top": 0.185,
+   "doc": "flutter-edge-ai-agent-skills.md#6"
+  },
+  {
+   "skill": "current-time",
+   "q": "What day of the week is it?",
+   "top": 0.184,
+   "doc": "flutter-edge-ai-agent-skills.md#6"
+  },
+  {
+   "skill": "camera-watch",
+   "q": "Tell me when you see a cup",
+   "top": 0.303,
+   "doc": "litert-compiled-model-api.md#14"
+  },
+  {
+   "skill": "camera-watch",
+   "q": "Watch the camera for a dog",
+   "top": 0.302,
+   "doc": "yolo26n-object-detector.md#0"
+  },
+  {
+   "skill": "camera-watch",
+   "q": "Stop watching",
+   "top": 0.383,
+   "doc": "flutter-edge-ai-inference.md#9"
+  }
+ ]
+}

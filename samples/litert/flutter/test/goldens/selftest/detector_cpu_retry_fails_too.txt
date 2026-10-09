@@ -1,0 +1,20 @@
+result     FAIL · 3 pass · 1 fail · 2 skip · 1 info · exit 1
+--- steps ---
+PASS  1   hardware probe                                   <time>
+           macOS 26.5.1 (25F80) · Apple M4 Pro · 1 GPU(s) · 0 note(s)
+FAIL  2   detector load (gpu)                              <time>
+           load failed (no fallback): Exception: gpu rejected YOLO26n
+INFO  2b  detector load (cpu, explicit attempt, information only) <time>
+           the CPU failed too
+           load failed (no fallback): Exception: cpu rejected YOLO26n
+SKIP  3   cats golden                                      0.00 s
+           no detector loaded
+PASS  4a  chat model load + warm-up (gpu)                  <time>
+           Gemma 4 E2B (gemma-4-E2B-it) · maxTokens 8192 · image on · tools on · type gemma4 · load 3.60 s · warm-up 2.20 s
+           gpu → gpu (confirmed: API) · api Metal (inferred) · adapter Apple M4 Pro (inferred)
+           vision encoder on the CPU (flutter_edge_ai default, requested)
+PASS  4b  chat model generate 64 tokens                    <time>
+           64 chunks · 64 tokens (engine) · first chunk 0.18 s · 74.1 tok/s decode (measured) · 73.3 tok/s (engine)
+           "Elias lived on the edge of the world."
+SKIP  5   detector again                                   0.00 s
+           step 3 did not produce a reference
