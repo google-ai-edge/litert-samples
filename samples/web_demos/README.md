@@ -12,6 +12,14 @@ types leaves the page.
 
 [`dist/index.html`](dist/) is the index page linking every demo.
 
+## Chrome extension
+
+[`chrome_extension/`](chrome_extension/) runs two of the same models
+(MoGe-2, Matcha-TTS) plus PP-OCRv5 inside a Chrome extension, on the pages
+you browse. It reads selected text aloud, shows photos in 3D on hover, and
+finds text inside images. It is a separate npm project with its own build and
+tests, not part of the Vite build or the GitHub Pages site.
+
 ## Layout
 
 ```

@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<!--
+  Copyright 2026 The Google AI Edge Authors. All Rights Reserved.
+
+  Licensed under the Apache License, Version 2.0 (the "License");
+  you may not use this file except in compliance with the License.
+  You may obtain a copy of the License at
+
+      http://www.apache.org/licenses/LICENSE-2.0
+
+  Unless required by applicable law or agreed to in writing, software
+  distributed under the License is distributed on an "AS IS" BASIS,
+  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+  See the License for the specific language governing permissions and
+  limitations under the License.
+-->
+<html>
+<head>
+<meta charset="utf-8">
+<style>
+  body { width: 280px; margin: 0; padding: 14px 16px; font: 13px/1.5 -apple-system, system-ui, sans-serif;
+    background: #101014; color: #e8e8ec; }
+  h1 { font-size: 14px; margin: 0 0 10px; display: flex; align-items: center; gap: 8px; }
+  .dot { width: 9px; height: 9px; border-radius: 50%; background: #7a7a85; flex: none; }
+  .dot.ready { background: #3ecf6e; }
+  .dot.busy { background: #f0b62f; }
+  .dot.error { background: #ff5d5d; }
+  #detail { color: #9a9aa5; font-size: 12px; min-height: 32px; white-space: pre-line; }
+  .row { display: flex; gap: 8px; margin: 10px 0 6px; }
+  button { flex: 1; font: inherit; border: 0; border-radius: 8px; padding: 7px 10px; cursor: pointer;
+    background: #26262e; color: #e8e8ec; }
+  button.on { background: #4da3ff; color: #0b0b10; }
+  .note { color: #6f6f7a; font-size: 11px; margin-top: 10px; }
+</style>
+</head>
+<body>
+  <h1><span class="dot" id="dot"></span> Page 3D <span id="env" style="color:#9a9aa5;font-weight:normal;font-size:11px"></span></h1>
+  <div id="detail">…</div>
+  <div class="row">
+    <button id="toggle">Enabled</button>
+    <button id="load">Load model</button>
+  </div>
+  <div class="note">Depth is computed on this device (LiteRT.js). Images never leave your machine.</div>
+  <script src="popup.js"></script>
+</body>
+</html>

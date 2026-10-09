@@ -1,0 +1,7 @@
+node_modules/
+dist/
+dist3d/
+dist-ocr/
+out3d/
+out-ocr/
+chrome/
