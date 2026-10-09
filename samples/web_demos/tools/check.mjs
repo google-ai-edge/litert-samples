@@ -22,7 +22,8 @@
 // Hugging Face, and one inference (MoGe) / one synthesis (Matcha) / one
 // OCR read (PP-OCRv5) / two
 // segmentations of the bundled example photo, "a dog" and then "the grass"
-// typed into the page (CLIPSeg),
+// typed into the page (CLIPSeg) / one
+// photo + one click (SAM 2.1, on the bundled example: the reference mask)
 // must finish. The OCR read is of the page's own "Try a
 // sample" image (src/ppocr/sample.png, through ?img=sample) and must return
 // its six lines exactly, with the recognizer on threaded WASM. Headless
@@ -33,12 +34,13 @@
 //   npm run build
 //   npx playwright install chromium        # once
 //   npm run check                          # every demo
+//   npm run check -- sam2                  # one demo: moge | matcha | ppocr | clipseg | sam2
 //   npm run check -- matcha --block-hf     # what a user sees when HF is unreachable
 //   npm run check -- moge --webkit         # WebKit engine (npx playwright install webkit)
 //   npm run check -- ppocr --webgpu        # the WebGPU path
 //   npm run check -- clipseg --webgpu      # the WebGPU path
 //
-// Options: [moge|matcha|ppocr|clipseg|all] [--block-hf] [--webkit] [--webgpu]
+// Options: [moge|matcha|ppocr|clipseg|sam2|all] [--block-hf] [--webkit] [--webgpu]
 //          [--prefix /some/path] [--img <url>] [--timeout <ms>]
 import { createServer } from 'node:http';
 import { readFile, stat } from 'node:fs/promises';
@@ -51,7 +53,7 @@ const opt = (name, def) => {
   const i = args.indexOf(name);
   return i === -1 ? def : args[i + 1];
 };
-const which = args.find((a) => ['moge', 'matcha', 'ppocr', 'clipseg', 'all'].includes(a)) ?? 'all';
+const which = args.find((a) => ['moge', 'matcha', 'ppocr', 'clipseg', 'sam2', 'all'].includes(a)) ?? 'all';
 const BLOCK_HF = args.includes('--block-hf');
 const engine = args.includes('--webkit') ? webkit : chromium;
 const WEBGPU = args.includes('--webgpu') && engine === chromium;
@@ -79,6 +81,14 @@ const CLIPSEG_RUNS = [
   { prompt: 'a dog', ids: [49406, 320, 1929, 49407], mask: [0.15, 0.25] },
   { prompt: 'the grass', ids: [49406, 518, 5922, 49407], mask: [0.45, 0.55] },
 ];
+// SAM 2.1 runs on its bundled example unless --img names another photo, and
+// clicks this point (fractions). On the example the mask must be the one a
+// WASM run of the same files gives (WebGPU fp16 is within 0.1 % of it): the
+// same candidate, its predicted IoU above 0.95, its pixel count within 2 %.
+// Any photo: a mask that is neither empty nor everything, around the click.
+const SAM2_IMG = args.includes('--img') ? IMG : 'example';
+const SAM2_POINT = '0.6,0.5';
+const SAM2_EXAMPLE = { best: 0, iou: 0.95, pixels: 17_657 };
 
 const MIME = {
   '.html': 'text/html; charset=utf-8',
@@ -131,6 +141,7 @@ async function run(demo) {
     if (t.startsWith('MATCHA_STATS ')) stats = JSON.parse(t.slice(13));
     if (t.startsWith('OCR_STATS ')) stats = JSON.parse(t.slice(10));
     if (t.startsWith('CLIPSEG_STATS ')) clipsegRuns.push(stats = JSON.parse(t.slice(14)));
+    if (t.startsWith('SAM2_STATS ')) stats = JSON.parse(t.slice(11));
   });
   page.on('pageerror', (e) => consoleTail.push('PAGEERROR ' + e.message));
   let navs = 0;
@@ -141,6 +152,7 @@ async function run(demo) {
     moge: `http://localhost:${PORT}${PREFIX}/moge/?img=${encodeURIComponent(IMG)}`,
     ppocr: `http://localhost:${PORT}${PREFIX}/ppocr/?img=${encodeURIComponent(OCR_IMG)}`,
     clipseg: `http://localhost:${PORT}${PREFIX}/clipseg/?img=${encodeURIComponent(CLIPSEG_IMG)}&prompt=${encodeURIComponent(CLIPSEG_RUNS[0].prompt)}`,
+    sam2: `http://localhost:${PORT}${PREFIX}/sam2/?img=${encodeURIComponent(SAM2_IMG)}&point=${SAM2_POINT}`,
   }[demo];
   console.log(`\n== ${demo}: ${url}`);
   const t0 = Date.now();
@@ -156,7 +168,7 @@ async function run(demo) {
       last = s;
       console.log(`  [${((Date.now() - t0) / 1000).toFixed(0).padStart(3)}s] ${s}`);
     }
-    if (s.startsWith('Failed')) { failed = true; break; }
+    if (['Failed', 'Could not read', 'Example:'].some((p) => s.startsWith(p))) { failed = true; break; }
     ok = demo === 'moge' ? await page.locator('#latency').isVisible().catch(() => false) : !!stats;
     if (ok) break;
   }
@@ -231,6 +243,18 @@ async function run(demo) {
         ok = ok && r.source === 'image' && r.wasmThreads === true && idsOk && maskOk && featuresOk && gpuOk;
       });
     }
+  } else if (demo === 'sam2') {
+    if (stats) {
+      console.log(`  env: ${await page.locator('#env').textContent()}`);
+      console.log(`  backends: ${JSON.stringify(stats.backends)} threads: ${stats.wasmThreads} (${stats.numThreads})`);
+      console.log(`  point ${stats.point.fx},${stats.point.fy} · encoder ${stats.encoderMs} ms · decoder ${stats.decoderMs} ms · iou ${JSON.stringify(stats.iouScores)} · best ${stats.best} · mask ${stats.maskPixels} px of 65536 · hit ${stats.hit}`);
+      const ref = SAM2_EXAMPLE;
+      const asExpected = SAM2_IMG === 'example'
+        ? stats.best === ref.best && stats.iouScores[ref.best] > ref.iou && Math.abs(stats.maskPixels - ref.pixels) <= ref.pixels * 0.02
+        : stats.maskPixels > 0 && stats.maskPixels < 65536;
+      if (!asExpected || !stats.hit) console.log(`  not the expected mask${SAM2_IMG === 'example' ? ` (best ${ref.best}, iou > ${ref.iou}, ${ref.pixels} px ± 2 %, around the click)` : ' (non-empty, around the click)'}`);
+      ok = ok && asExpected && stats.hit;
+    }
   } else if (ok) {
     console.log(`  env: ${await page.locator('#env').textContent()}`);
     console.log(`  latency: ${(await page.locator('#latency').innerText()).replace(/\n/g, ' | ')}`);
@@ -243,7 +267,7 @@ async function run(demo) {
   return ok && state.crossOriginIsolated;
 }
 
-const demos = which === 'all' ? ['moge', 'matcha', 'ppocr', 'clipseg'] : [which];
+const demos = which === 'all' ? ['moge', 'matcha', 'ppocr', 'clipseg', 'sam2'] : [which];
 const results = {};
 for (const demo of demos) results[demo] = await run(demo);
 await browser.close();

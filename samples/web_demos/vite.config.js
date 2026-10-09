@@ -94,6 +94,7 @@ export default defineConfig({
         'matcha-tts': resolve(HERE, 'src/matcha-tts/index.html'),
         ppocr: resolve(HERE, 'src/ppocr/index.html'),
         clipseg: resolve(HERE, 'src/clipseg/index.html'),
+        sam2: resolve(HERE, 'src/sam2/index.html'),
       },
     },
   },

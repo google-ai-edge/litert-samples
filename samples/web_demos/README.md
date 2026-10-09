@@ -11,6 +11,7 @@ types leaves the page.
 | [`matcha-tts/`](dist/matcha-tts/) | [Matcha-TTS](https://huggingface.co/litert-community/Matcha-TTS) | Text → speech (flow-matching acoustic model + HiFi-GAN vocoder, 22 kHz) |
 | [`ppocr/`](dist/ppocr/) | [PP-OCRv5-LiteRT](https://huggingface.co/litert-community/PP-OCRv5-LiteRT) | Photo or screenshot → selectable lines of text (text detection + recognition) |
 | [`clipseg/`](dist/clipseg/) | [CLIPSeg-rd64-LiteRT](https://huggingface.co/litert-community/CLIPSeg-rd64-LiteRT) | Photo + typed words → a mask of what the words describe (open-vocabulary segmentation, CLIP tokenizer in JavaScript) |
+| [`sam2/`](dist/sam2/) | SAM 2.1 Hiera-Tiny [image encoder](https://huggingface.co/litert-community/SAM2.1-Hiera-Tiny-Image-Encoder) + [mask decoder](https://huggingface.co/litert-community/SAM2.1-Hiera-Tiny-Mask-Decoder) | Photo + click → mask of the clicked object (encoder once per photo, decoder once per click) |
 
 [`dist/index.html`](dist/) is the index page linking every demo.
 
@@ -18,6 +19,10 @@ The CLIPSeg example photo (`src/clipseg/example.jpg`) is
 [“Lily the Golden Retriever in the grass”](https://commons.wikimedia.org/wiki/File:Lily_the_Golden_Retriever_in_the_grass.jpg)
 by Ltshears (a Wikipedia user), released into the public domain by its author
 (`{{PD-self}}` on its Wikimedia Commons file page).
+
+The SAM 2.1 example photo (`src/sam2/example.jpg`) is
+[“Young tabby cat keeping watch”](https://commons.wikimedia.org/wiki/File:Young_tabby_cat_keeping_watch.jpg)
+by W.carter, CC0 1.0 (`{{self|cc-zero}}` on its Wikimedia Commons file page).
 
 ## Chrome extension
 
@@ -40,12 +45,13 @@ src/                 source — this is what you edit
   matcha-tts/        index.html + main.js, g2p.js, synth.js, viz.js
   ppocr/             index.html + main.js, sample.png (pipeline: chrome_extension/src-ocr/ocr-pipeline.js)
   clipseg/           index.html + main.js, host.js (pre/post-processing), tokenizer.js (CLIP BPE), example.jpg
+  sam2/              index.html + main.js, sam2.js, example.jpg
 dist/                build output — this is what GitHub Pages serves (committed)
-  index.html, moge/, matcha-tts/, ppocr/, clipseg/, assets/   built by `npm run build`
+  index.html, moge/, matcha-tts/, ppocr/, clipseg/, sam2/, assets/   built by `npm run build`
   litert-wasm/       LiteRT.js WASM runtime, copied from node_modules/@litertjs/core
   coi-serviceworker.min.js                  copied from node_modules/coi-serviceworker
 tools/check.mjs      deploy-shaped end-to-end check (headless browser)
-vite.config.js       one Vite project, five pages
+vite.config.js       one Vite project, six pages
 ```
 
 ## Build
@@ -53,7 +59,7 @@ vite.config.js       one Vite project, five pages
 ```sh
 cd samples/web_demos
 npm ci
-npm run dev      # http://localhost:5173/  (moge/, matcha-tts/, ppocr/, clipseg/)
+npm run dev      # http://localhost:5173/  (moge/, matcha-tts/, ppocr/, clipseg/, sam2/)
 npm run build    # rebuilds dist/ from src/ — commit dist/ together with src/
 ```
 
@@ -67,7 +73,7 @@ the WASM runtime and the service worker are copied from their npm packages
 
 ```sh
 npx playwright install chromium   # once
-npm run check                     # every demo; add `moge` / `matcha` / `ppocr` / `clipseg` for one
+npm run check                     # every demo; add `moge` / `matcha` / `ppocr` / `clipseg` / `sam2` for one
 npm run check -- matcha --block-hf   # what a user sees when huggingface.co is unreachable
 ```
 
@@ -77,7 +83,7 @@ worker to turn on cross-origin isolation, the threaded WASM runtime to load,
 the models to download, and one inference / one synthesis / one OCR read
 (of the PP-OCRv5 page's sample, `src/ppocr/sample.png`, which must come back
 as its six lines, with the recognizer on threaded WASM) / two
-segmentations to complete. The
+segmentations / one click on the bundled SAM 2.1 example to complete. The
 sample is a menu card drawn on a canvas (Chromium on macOS, the system
 sans-serif) and saved as a PNG; to replace it, set `OCR_LINES` in
 `tools/check.mjs` to the lines the new image must read.
@@ -104,7 +110,11 @@ WebGPU).
   [LiteRT #9661](https://github.com/google-ai-edge/LiteRT/issues/9661) —
   and XNNPACK declines the fp16 recognizer graph);
   CLIPSeg ~278 MB (fp16 image and text encoders, the fp32 decoder, a
-  float16 token-embedding table and the tokenizer files).
+  float16 token-embedding table and the tokenizer files);
+  SAM 2.1 **97 MB** (fp16 image encoder 80 MB + mask decoder 17 MB). On an
+  M4 Max, WebGPU (fp16 compute) takes ~60 ms per photo and ~4 ms per click;
+  the WASM fallback runs the same files at ~13 s per photo and 0.4 s per
+  click with 16 threads.
   `?models=<base url>` on any page loads the same file names from
   another location (a local copy, a mirror).
 - **`litert-wasm/`** is the stock `@litertjs/core` WASM runtime (plain,
@@ -156,3 +166,11 @@ WebGPU).
 - Matcha: `?text=…` speaks at boot; `&steps=4&seed=0&voc=wasm&enc=wasm`;
   `&threads=0` forces the single-thread runtime; `&nosound=1` synthesizes
   without playback and logs a `MATCHA_STATS` JSON line to the console.
+- SAM 2.1: `?img=<url>` (or `?img=example` for the bundled photo) encodes
+  that photo at boot and `&point=x,y` clicks it, with x, y as fractions of
+  the photo's width and height (0..1); every click logs a `SAM2_STATS` JSON
+  line. `?backend=wasm` runs both graphs on WASM; `?precision=fp32` makes
+  WebGPU compute in fp32. With `?img=` or `?debug=1` the last click's
+  logits and IoU scores stay in `window.__lastResult`. `?debug=1` also takes
+  `&bench=N`, `&enc=` / `&dec=` and `&threads=0`, kept to reproduce the
+  speed numbers above.
