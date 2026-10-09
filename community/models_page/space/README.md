@@ -1,10 +1,10 @@
 ---
-title: LiteRT Models
+title: Find your models
 emoji: 🔎
 colorFrom: blue
 colorTo: green
 sdk: static
-pinned: false
+pinned: true
 short_description: LiteRT models by task, with on-device benchmarks
 ---
 
