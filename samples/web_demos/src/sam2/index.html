@@ -19,7 +19,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="google" content="notranslate">
-<title>Photo → 3D — in your browser</title>
+<title>Click to segment — in your browser</title>
 <style>
   :root {
     --bg: #0b0d10;
@@ -35,22 +35,20 @@
     background: var(--bg);
     color: var(--text);
     font: 15px/1.5 -apple-system, "SF Pro Text", "Segoe UI", Roboto, "Hiragino Sans", sans-serif;
-    overflow: hidden;
+    display: grid;
+    grid-template-columns: min(340px, 100%) minmax(0, 1fr);
+    grid-template-rows: minmax(0, 1fr) auto;
+    gap: 16px;
+    padding: 16px 16px 12px;
   }
-  #stage { position: fixed; inset: 0; }
-  #stage canvas { display: block; }
 
   .panel {
-    position: fixed;
-    left: 16px;
-    top: 16px;
-    width: min(340px, calc(100vw - 32px));
+    grid-column: 1; grid-row: 1;
+    align-self: start;
     background: var(--panel);
     border: 1px solid var(--border);
     border-radius: 14px;
     padding: 14px 16px 14px;
-    backdrop-filter: blur(14px);
-    -webkit-backdrop-filter: blur(14px);
   }
   .back {
     display: inline-block; margin-bottom: 8px;
@@ -103,21 +101,26 @@
 
   #hint { margin-top: 8px; font-size: 12px; color: var(--muted); display: none; }
 
-  #video {
-    display: none;
-    position: fixed; right: 16px; top: 16px;
-    width: 240px; border-radius: 12px; border: 1px solid var(--border);
-    transform: scaleX(-1);
+  #stage {
+    grid-column: 2; grid-row: 1;
+    position: relative;
+    min-height: 0;
+    display: flex; align-items: center; justify-content: center;
+    border: 1px dashed var(--border);
+    border-radius: 14px;
+    overflow: hidden;
   }
+  #stage.has-photo { border-color: transparent; }
+  #placeholder { color: var(--muted); font-size: 14px; text-align: center; padding: 24px; }
+  #view { display: none; cursor: crosshair; touch-action: manipulation; border-radius: 6px; }
+  #video { display: none; max-width: 100%; max-height: 100%; border-radius: 12px; }
 
   footer {
-    position: fixed; left: 16px; right: 16px; bottom: 12px;
+    grid-column: 1 / -1; grid-row: 2;
     display: flex; justify-content: space-between; gap: 12px; flex-wrap: wrap;
     font-size: 12px; color: var(--muted);
-    pointer-events: none;
   }
-  footer span { background: rgba(11, 13, 16, 0.7); padding: 3px 8px; border-radius: 7px; }
-  footer a { pointer-events: auto; color: var(--accent); }
+  footer a { color: var(--accent); }
 
   #drop-overlay {
     position: fixed; inset: 0; display: none;
@@ -127,20 +130,35 @@
     font-size: 20px; color: var(--accent);
     z-index: 10; pointer-events: none;
   }
+
+  @media (max-width: 760px) {
+    html, body { height: auto; }
+    body {
+      grid-template-columns: minmax(0, 1fr);
+      grid-template-rows: auto 62vh auto;
+      min-height: 100vh;
+    }
+    .panel { grid-column: 1; grid-row: 1; }
+    #stage { grid-column: 1; grid-row: 2; }
+    footer { grid-column: 1; grid-row: 3; }
+  }
 </style>
-  <script type="module" crossorigin src="../assets/moge-CnWzv51d.js"></script>
-  <link rel="modulepreload" crossorigin href="../assets/index-CDJMZGzy.js">
 </head>
 <body>
-  <div id="stage"></div>
-
   <div class="panel">
     <a class="back" href="../">← All demos</a>
-    <h1>Photo → 3D point cloud</h1>
-    <div class="sub">MoGe-2 monocular geometry, running entirely in your browser on LiteRT.js. Nothing is uploaded.</div>
+    <h1>Click to segment</h1>
+    <div class="sub">SAM 2.1 (Hiera-Tiny), running entirely in your browser on LiteRT.js. Pick a photo, click anything in it, get its mask. Nothing is uploaded.</div>
     <div class="buttons">
       <label class="filebtn primary">Choose a photo<input id="file" type="file" accept="image/*"></label>
       <button id="cam">Use camera</button>
+      <!-- Example photo (example.jpg): "Young tabby cat keeping watch" by
+           W.carter, CC0 1.0 ({{self|cc-zero}} on its Wikimedia Commons file
+           page) — https://commons.wikimedia.org/wiki/File:Young_tabby_cat_keeping_watch.jpg
+           (the original resized to 1024×683, re-encoded without metadata). -->
+      <button id="example">Try the example</button>
+      <!-- Last in the row: hiding it after a capture moves no other button
+           under the pointer (a double click would land on the next one). -->
       <button id="shutter" style="display:none">Capture</button>
     </div>
     <div class="seg" id="backend-switch" role="group" aria-label="Inference backend">
@@ -149,21 +167,26 @@
     </div>
     <div id="env"></div>
     <div id="status">Loading runtime…</div>
-    <div id="latency">inference <b></b> · <span id="backend"></span></div>
-    <div id="hint">drag to orbit · scroll to zoom · drop or paste a new photo anytime</div>
+    <div id="latency">encoder <b id="enc-ms"></b> per photo · decoder <b id="dec-ms"></b> per click</div>
+    <div id="hint">click anywhere on the photo — each click makes a new mask · drop or paste a new photo anytime</div>
   </div>
 
-  <video id="video" autoplay playsinline muted></video>
+  <div id="stage">
+    <div id="placeholder">Choose a photo, use the camera, drop or paste an image — or try the example.</div>
+    <canvas id="view"></canvas>
+    <video id="video" autoplay playsinline muted></video>
+  </div>
   <div id="drop-overlay">Drop the photo</div>
 
   <footer>
     <span>Your photo never leaves this page.</span>
-    <span>Model: <a href="https://huggingface.co/litert-community/MoGe-2-LiteRT" target="_blank" rel="noopener">MoGe-2</a> (MIT) · Runtime: <a href="https://www.npmjs.com/package/@litertjs/core" target="_blank" rel="noopener">LiteRT.js</a> · <a href="https://github.com/google-ai-edge/litert-samples/tree/main/samples/web_demos" target="_blank" rel="noopener">Source</a></span>
+    <span>Model: SAM 2.1 Hiera-Tiny (Apache-2.0) — <a href="https://huggingface.co/litert-community/SAM2.1-Hiera-Tiny-Image-Encoder" target="_blank" rel="noopener">image encoder</a> + <a href="https://huggingface.co/litert-community/SAM2.1-Hiera-Tiny-Mask-Decoder" target="_blank" rel="noopener">mask decoder</a> · Runtime: <a href="https://www.npmjs.com/package/@litertjs/core" target="_blank" rel="noopener">LiteRT.js</a> · <a href="https://github.com/google-ai-edge/litert-samples/tree/main/samples/web_demos" target="_blank" rel="noopener">Source</a></span>
   </footer>
 
   <!-- Cross-origin isolation via the site-root service worker (see the
-       comment in ../index.html) — the WASM fallback runs threaded. -->
+       comment in ../index.html) — the WASM backend runs threaded. -->
   <script>window.coi = { coepCredentialless: () => false };</script>
   <script src="../coi-serviceworker.min.js"></script>
+  <script type="module" src="./main.js"></script>
 </body>
 </html>

@@ -2,7 +2,7 @@
   "name": "litert-web-demos",
   "private": true,
   "type": "module",
-  "description": "Model web demos on LiteRT.js: MoGe-2 photo-to-3D and Matcha-TTS text-to-speech",
+  "description": "Model web demos on LiteRT.js: MoGe-2 photo-to-3D, Matcha-TTS text-to-speech and SAM 2.1 click-to-segment",
   "scripts": {
     "dev": "vite",
     "build": "vite build",
