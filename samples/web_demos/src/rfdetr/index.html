@@ -1,0 +1,196 @@
+<!doctype html>
+<!--
+  Copyright 2026 The Google AI Edge Authors. All Rights Reserved.
+
+  Licensed under the Apache License, Version 2.0 (the "License");
+  you may not use this file except in compliance with the License.
+  You may obtain a copy of the License at
+
+      http://www.apache.org/licenses/LICENSE-2.0
+
+  Unless required by applicable law or agreed to in writing, software
+  distributed under the License is distributed on an "AS IS" BASIS,
+  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+  See the License for the specific language governing permissions and
+  limitations under the License.
+-->
+<!--
+  Example photo (example.jpg): "The tram is coming, at the streetcorner of the
+  Overtoom & 1e Constantijn Huygensstraat in Amsterdam city" by Fons
+  Heijnsbroek, CC0 1.0 ({{self|cc-zero}} on its Wikimedia Commons file page) —
+  https://commons.wikimedia.org/wiki/File:The_tram_is_coming,_at_the_streetcorner_of_the_Overtoom_%26_1e_Constantijn_Huygensstraat_in_Amsterdam_city._Free_photo_by_Fons_Heijnsbroek,_Summer_2022.tif
+  (the Commons 1280 px rendering, re-encoded without metadata).
+-->
+<html lang="en" translate="no">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="google" content="notranslate">
+<title>Object detection — in your browser</title>
+<style>
+  :root {
+    --bg: #0b0d10;
+    --panel: rgba(18, 21, 26, 0.88);
+    --text: #e8eaed;
+    --muted: #9aa0a6;
+    --accent: #7cc4ff;
+    --border: rgba(255, 255, 255, 0.09);
+  }
+  * { box-sizing: border-box; margin: 0; }
+  html, body { height: 100%; }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font: 15px/1.5 -apple-system, "SF Pro Text", "Segoe UI", Roboto, "Hiragino Sans", sans-serif;
+    overflow: hidden;
+  }
+
+  /* The photo / camera area sits beside the panel so no box hides behind it. */
+  #stage {
+    position: fixed; left: 372px; right: 16px; top: 16px; bottom: 44px;
+    border: 1px solid var(--border); border-radius: 14px; overflow: hidden;
+    background: #07080a;
+  }
+  #stage video, #stage canvas {
+    position: absolute; inset: 0; width: 100%; height: 100%;
+  }
+  #stage video { display: none; object-fit: contain; }
+  #placeholder {
+    position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
+    padding: 24px; text-align: center; color: var(--muted); font-size: 14px;
+  }
+
+  .panel {
+    position: fixed;
+    left: 16px;
+    top: 16px;
+    width: 340px;
+    max-height: calc(100vh - 60px);
+    overflow-y: auto;
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 14px 16px 14px;
+  }
+  .back {
+    display: inline-block; margin-bottom: 8px;
+    font-size: 12.5px; color: var(--muted); text-decoration: none;
+  }
+  .back:hover { color: var(--accent); }
+  h1 { font-size: 17px; font-weight: 650; letter-spacing: 0.1px; }
+  .sub { color: var(--muted); font-size: 12.5px; margin-top: 2px; }
+
+  .buttons { display: flex; gap: 8px; margin-top: 12px; flex-wrap: wrap; }
+  button, .filebtn {
+    appearance: none;
+    border: 1px solid var(--border);
+    background: rgba(255, 255, 255, 0.06);
+    color: var(--text);
+    border-radius: 9px;
+    padding: 8px 13px;
+    font: inherit;
+    font-size: 13.5px;
+    cursor: pointer;
+  }
+  button:hover, .filebtn:hover { background: rgba(255, 255, 255, 0.12); }
+  button:disabled { opacity: 0.4; cursor: default; }
+  button.primary, .filebtn.primary { background: var(--accent); border-color: transparent; color: #06263f; font-weight: 600; }
+  button.primary:hover, .filebtn.primary:hover { filter: brightness(1.06); }
+  .filebtn input { display: none; }
+
+  .seg {
+    display: inline-flex; margin-top: 10px;
+    border: 1px solid var(--border); border-radius: 9px; overflow: hidden;
+  }
+  .seg button { border: none; border-radius: 0; padding: 6px 12px; font-size: 12.5px; }
+  .seg button + button { border-left: 1px solid var(--border); }
+  .seg button.active { background: rgba(124, 196, 255, 0.18); color: var(--accent); }
+  .seg-label { font-size: 12px; color: var(--muted); margin-left: 8px; }
+  #env { margin-top: 8px; font-size: 12px; color: var(--muted); display: none; }
+
+  #status { margin-top: 11px; font-size: 12.5px; color: var(--muted); min-height: 18px; }
+  #status .bar {
+    display: inline-block; vertical-align: middle;
+    width: 120px; height: 4px; margin-left: 8px;
+    background: rgba(255, 255, 255, 0.1); border-radius: 2px; overflow: hidden;
+  }
+  #status .bar i { display: block; height: 100%; background: var(--accent); width: 0%; }
+
+  #latency {
+    margin-top: 8px; font-size: 12.5px; color: var(--text);
+    display: none;
+  }
+  #latency b { color: var(--accent); font-variant-numeric: tabular-nums; }
+
+  #summary { margin-top: 8px; font-size: 12.5px; color: var(--text); display: none; }
+  #hint { margin-top: 8px; font-size: 12px; color: var(--muted); }
+
+  footer {
+    position: fixed; left: 16px; right: 16px; bottom: 12px;
+    display: flex; justify-content: space-between; gap: 12px; flex-wrap: wrap;
+    font-size: 12px; color: var(--muted);
+    pointer-events: none;
+  }
+  footer span { background: rgba(11, 13, 16, 0.7); padding: 3px 8px; border-radius: 7px; }
+  footer a { pointer-events: auto; color: var(--accent); }
+
+  #drop-overlay {
+    position: fixed; inset: 0; display: none;
+    align-items: center; justify-content: center;
+    background: rgba(11, 13, 16, 0.75);
+    border: 2px dashed var(--accent);
+    font-size: 20px; color: var(--accent);
+    z-index: 10; pointer-events: none;
+  }
+
+  /* Phones: panel on top, the picture below it, page scrolls. */
+  @media (max-width: 760px) {
+    body { overflow: auto; }
+    .panel { position: static; width: auto; max-height: none; margin: 16px 16px 0; }
+    #stage { position: relative; left: auto; right: auto; top: auto; bottom: auto; height: 62vh; margin: 12px 16px 0; }
+    footer { position: static; margin: 12px 16px 16px; }
+  }
+</style>
+</head>
+<body>
+  <div class="panel">
+    <a class="back" href="../">← All demos</a>
+    <h1>Photo → objects</h1>
+    <div class="sub">RF-DETR-Nano finds 80 kinds of everyday objects (COCO) and draws a box and a label on each, running entirely in your browser on LiteRT.js. Nothing is uploaded.</div>
+    <div class="buttons">
+      <label class="filebtn primary">Choose a photo<input id="file" type="file" accept="image/*"></label>
+      <button id="example">Try the example</button>
+      <button id="cam">Use camera</button>
+    </div>
+    <div>
+      <div class="seg" id="backend-switch" role="group" aria-label="Inference backend for the backbone graph">
+        <button data-backend="webgpu">WebGPU</button>
+        <button data-backend="wasm">WASM</button>
+      </div><span class="seg-label">backbone (graph A)</span>
+    </div>
+    <div id="env"></div>
+    <div id="status">Loading runtime…</div>
+    <div id="latency"></div>
+    <div id="summary"></div>
+    <div id="hint">drop or paste a photo anytime</div>
+  </div>
+
+  <div id="stage">
+    <video id="video" autoplay playsinline muted></video>
+    <canvas id="view"></canvas>
+    <div id="placeholder">Choose a photo, try the example, or use the camera.</div>
+  </div>
+  <div id="drop-overlay">Drop the photo</div>
+
+  <footer>
+    <span>Your photo never leaves this page.</span>
+    <span>Model: <a href="https://huggingface.co/litert-community/RF-DETR-Nano-LiteRT" target="_blank" rel="noopener">RF-DETR-Nano</a> (Apache-2.0) · Runtime: <a href="https://www.npmjs.com/package/@litertjs/core" target="_blank" rel="noopener">LiteRT.js</a> · <a href="https://github.com/google-ai-edge/litert-samples/tree/main/samples/web_demos" target="_blank" rel="noopener">Source</a></span>
+  </footer>
+
+  <!-- Cross-origin isolation via the site-root service worker (see the
+       comment in ../index.html) — the WASM graphs run threaded. -->
+  <script>window.coi = { coepCredentialless: () => false };</script>
+  <script src="../coi-serviceworker.min.js"></script>
+  <script type="module" src="./main.js"></script>
+</body>
+</html>
