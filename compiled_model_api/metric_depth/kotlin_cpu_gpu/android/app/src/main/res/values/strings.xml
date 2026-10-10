@@ -1,0 +1,12 @@
+<resources>
+    <string name="app_name" translatable="false">Metric3D v2</string>
+    <string name="action_pick_image">Pick image</string>
+    <string name="status_loading">Loading Metric3D v2 on GPU…</string>
+    <string name="status_processing">Estimating depth…</string>
+    <string name="status_ready" translatable="false">Metric3D v2 · DINOv2 ViT-S + RAFT · CompiledModel GPU · %1$d ms\nnear %2$.1f m · far %3$.1f m</string>
+    <string name="label_input">Input</string>
+    <string name="label_depth">Metric depth (GPU)</string>
+    <string name="error_model_missing">Model not found. Push it first with install_to_device.sh:\n%1$s</string>
+    <string name="error_model_load">Failed to load model</string>
+    <string name="error_depth_failed">Depth estimation failed</string>
+</resources>
