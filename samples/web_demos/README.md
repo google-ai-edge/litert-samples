@@ -9,8 +9,14 @@ types leaves the page.
 | --- | --- | --- |
 | [`moge/`](dist/moge/) | [MoGe-2-LiteRT](https://huggingface.co/litert-community/MoGe-2-LiteRT) | Photo → orbitable 3D point cloud (monocular geometry, three.js) |
 | [`matcha-tts/`](dist/matcha-tts/) | [Matcha-TTS](https://huggingface.co/litert-community/Matcha-TTS) | Text → speech (flow-matching acoustic model + HiFi-GAN vocoder, 22 kHz) |
+| [`rfdetr/`](dist/rfdetr/) | [RF-DETR-Nano-LiteRT](https://huggingface.co/litert-community/RF-DETR-Nano-LiteRT) | Photo or live camera → boxes and labels for the 80 COCO object classes (two-graph transformer detector) |
 
 [`dist/index.html`](dist/) is the index page linking every demo.
+
+The RF-DETR example photo (`src/rfdetr/example.jpg`) is
+[“The tram is coming, at the streetcorner of the Overtoom & 1e Constantijn Huygensstraat in Amsterdam city”](https://commons.wikimedia.org/wiki/File:The_tram_is_coming,_at_the_streetcorner_of_the_Overtoom_%26_1e_Constantijn_Huygensstraat_in_Amsterdam_city._Free_photo_by_Fons_Heijnsbroek,_Summer_2022.tif)
+by Fons Heijnsbroek, CC0 1.0 (`{{self|cc-zero}}` on its Wikimedia Commons
+file page).
 
 ## Chrome extension
 
@@ -27,12 +33,13 @@ src/                 source — this is what you edit
   index.html         demos index
   moge/              index.html + main.js
   matcha-tts/        index.html + main.js, g2p.js, synth.js, viz.js
+  rfdetr/            index.html + main.js, host.js (pre/post-processing), coco.js, example.jpg
 dist/                build output — this is what GitHub Pages serves (committed)
-  index.html, moge/, matcha-tts/, assets/   built by `npm run build`
+  index.html, moge/, matcha-tts/, rfdetr/, assets/   built by `npm run build`
   litert-wasm/       LiteRT.js WASM runtime, copied from node_modules/@litertjs/core
   coi-serviceworker.min.js                  copied from node_modules/coi-serviceworker
 tools/check.mjs      deploy-shaped end-to-end check (headless browser)
-vite.config.js       one Vite project, three pages
+vite.config.js       one Vite project, four pages
 ```
 
 ## Build
@@ -40,7 +47,7 @@ vite.config.js       one Vite project, three pages
 ```sh
 cd samples/web_demos
 npm ci
-npm run dev      # http://localhost:5173/  (moge/, matcha-tts/)
+npm run dev      # http://localhost:5173/  (moge/, matcha-tts/, rfdetr/)
 npm run build    # rebuilds dist/ from src/ — commit dist/ together with src/
 ```
 
@@ -54,15 +61,18 @@ the WASM runtime and the service worker are copied from their npm packages
 
 ```sh
 npx playwright install chromium   # once
-npm run check                     # both demos; add `moge` / `matcha` for one
+npm run check                     # every demo; add `moge` / `matcha` / `rfdetr` for one
 npm run check -- matcha --block-hf   # what a user sees when huggingface.co is unreachable
 ```
 
 The check serves `dist/` under `/litert-samples/samples/web_demos/dist/`
 with no COOP/COEP headers (as GitHub Pages does), then requires the service
 worker to turn on cross-origin isolation, the threaded WASM runtime to load,
-the models to download, and one inference / one synthesis to complete.
-Headless browsers have no usable WebGPU, so this exercises the WASM path.
+the models to download, and one inference / one synthesis / one detection
+(on the bundled example photo) to complete.
+Headless Chromium launched without flags has no usable WebGPU, so this
+exercises the WASM path; `--webgpu` runs the full Chromium build in its new
+headless mode instead, where WebGPU works (`npm run check -- rfdetr --webgpu`).
 
 ## How it works
 
@@ -70,8 +80,9 @@ Headless browsers have no usable WebGPU, so this exercises the WASM path.
   [litert-community](https://huggingface.co/litert-community) on Hugging Face
   and caches it with the Cache API (one-time download):
   MoGe-2 **71 MB** (fp16, used on WebGPU) or 136 MB (fp32, used on WASM —
-  XNNPACK declines the fp16 graph); Matcha-TTS ~92 MB (all fp16).
-  `?models=<base url>` on either page loads the same file names from
+  XNNPACK declines the fp16 graph); Matcha-TTS ~92 MB (all fp16);
+  RF-DETR-Nano 56 MB (two fp16 graphs).
+  `?models=<base url>` on any page loads the same file names from
   another location (a local copy, a mirror).
 - **`litert-wasm/`** is the stock `@litertjs/core` WASM runtime (plain,
   threaded, and compat variants), shared by all demos. `loadLiteRt()` picks
@@ -85,6 +96,15 @@ Headless browsers have no usable WebGPU, so this exercises the WASM path.
   first visit. It is registered from `dist/` so its scope covers the shared
   `litert-wasm/` directory (thread workers are matched to a service worker
   by the worker script URL); no other page on the site is affected.
+- **RF-DETR runs as two graphs with a host step between them**: graph A
+  (backbone + encoder) on WebGPU, then the top-300 proposals picked in
+  JavaScript, then graph B (decoder) on WASM. On five photos, with the same
+  input pixels, graph A on WebGPU matches the Python LiteRT reference (same
+  boxes); graph B on WebGPU does not (logits max |Δ| 6.4–8.5; extra boxes,
+  moved boxes or scores off by more than 0.05 on every photo), so the
+  decoder stays on WASM. The resize is Pillow's bilinear ported to
+  JavaScript, so the page feeds the model exactly the pixels
+  `Image.resize((384, 384), Image.BILINEAR)` gives in Python.
 - **Boot errors name their stage** (`runtime` / `download` / `compile` /
   `warm-up`) and the URL that failed, so "Failed to start (download): could
   not fetch https://huggingface.co/…" means the browser could not reach
@@ -93,6 +113,12 @@ Headless browsers have no usable WebGPU, so this exercises the WASM path.
 ### Debug URL parameters
 
 - MoGe: `?img=<url>` runs on that image at boot; `?backend=wasm`.
+- RF-DETR: `?img=<url>` (or `?img=example`) detects at boot and `&repeat=N`
+  runs it N times; every photo run logs an `RFDETR_STATS` JSON line to the
+  console, and the camera logs one line per second. `?backend=wasm` puts
+  graph A on WASM. `?a=webgpu|wasm&b=webgpu|wasm` sets each graph's backend,
+  to reproduce the comparison above. `&raw=1` keeps the raw model outputs in
+  `window.__lastRaw`.
 - Matcha: `?text=…` speaks at boot; `&steps=4&seed=0&voc=wasm&enc=wasm`;
   `&threads=0` forces the single-thread runtime; `&nosound=1` synthesizes
   without playback and logs a `MATCHA_STATS` JSON line to the console.
