@@ -1,0 +1,25 @@
+result     FAIL · 6 pass · 2 fail · exit 1
+--- steps ---
+PASS  1   hardware probe                                   <time>
+           Ubuntu 24.04.3 LTS · Intel Xeon CPU @ 2.20GHz · 0 GPU(s) · 0 note(s)
+PASS  2   detector load (gpu)                              <time>
+           DetectorInfo(GPU fp32 full, verify=1.77e-3 (2.0e-6 of range) vs TFLite interpreter, create=116ms verify=124ms firstRun=5ms)
+           gpu → gpu (confirmed: API) · api WebGPU/Vulkan (inferred) · adapter Tesla T4 (inferred)
+PASS  3   cats golden                                      <time>
+           cat 0.912, cat 0.899, remote 0.857, sofa 0.297
+           run 5.0 ms median (first 5.0 ms) · 10 runs identical
+           golden classes ✓ · max box 0.00 px (≤ 3.0) · max Δscore 0.0000 (≤ 0.03)
+PASS  4a  chat model load + warm-up (gpu)                  <time>
+           Gemma 4 E2B (gemma-4-E2B-it) · maxTokens 8192 · image on · tools on · type gemma4 · load 3.60 s · warm-up 2.20 s
+           gpu → gpu (confirmed: API) · api WebGPU/Vulkan (inferred) · adapter Tesla T4 (inferred)
+           vision encoder on the CPU (flutter_edge_ai default, requested)
+PASS  4b  chat model generate 64 tokens                    <time>
+           64 chunks · 64 tokens (engine) · first chunk 0.18 s · 74.1 tok/s decode (measured) · 73.3 tok/s (engine)
+           "Elias lived on the edge of the world."
+PASS  5   detector again (bit-identical)                   <time>
+           bit-identical to step 3
+           run 5.0 ms
+FAIL  6a  audio output (tone → sink monitor)               <time>
+           Playback failed: No audio output (no PulseAudio/PipeWire/ALSA device): …
+FAIL  6b  microphone (1 s, default input)                  <time>
+           no microphone: Microphone unavailable: install pulseaudio-utils (parecord)

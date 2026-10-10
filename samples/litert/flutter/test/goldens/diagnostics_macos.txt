@@ -1,0 +1,52 @@
+LiteRT Demos diagnostics
+generated  2026-10-06T12:34:56Z
+app        0.1.0+1 · release build
+flutter    3.47.3 · Dart 3.13.3
+packages   flutter_edge_ai 2.1.0 · flutter_edge_ai_litertlm 1.9.0 · flutter_litert 3.9.3
+native log native stderr → /tmp/app/logs/native.log
+
+DEVICE
+os         macOS 26.5.1 (25F80)
+machine    Mac16,8
+cpu        Apple M4 Pro · 14 cores (10P+4E) · arm64
+ram        24.00 GB total · 9.00 GB available
+gpu        Apple M4 Pro · Metal · inferred from chip name (sysctl); Metal device not queried
+npu        Apple Neural Engine (not used) · information only
+
+MODELS
+Chat model
+  state    ready · load 3.61 s · warm-up 2.25 s
+  backend  gpu → gpu (confirmed: API)
+  api      Metal (confirmed: native log)
+  adapter  Apple M4 Pro (inferred)
+  note     GPU sampler unavailable: sampling on the CPU
+  detail   vision encoder on the CPU (flutter_edge_ai default, requested)
+  model    Gemma 4 E2B (GEMMA_MODEL_PATH, type gemma4)
+  source   GEMMA_MODEL_PATH=/models/gemma-4-E2B-it.litertlm
+  sha256   unknown (GEMMA_MODEL_PATH)
+  context  8192 tokens
+  images   on
+  tools    on
+  log      INFO: [accelerator_registry.cc:54] RegisterAccelerator: ptr=0xb4dc50300, name=GPU Metal
+  log      I0000 00:00:1791240441.593498 19514714 delegate_metal.mm:89] Created a Metal device.
+  log      W0000 00:00:1791240447.020853 19514920 sampler_factory.cc:771] GPU sampler unavailable. Falling back to CPU sampling.
+Whisper base (STT)
+  state    ready · load 0.41 s · warm-up 1.80 s
+  backend  cpu (requested · not reportable)
+  api      CPU (requested)
+  detail   CPU (requested)
+Inflect-nano-v2 (TTS)
+  state    failed: TTS download failed: offline
+YOLO26n detector
+  state    ready · load 0.24 s · warm-up 0.01 s
+  backend  gpu → gpu (confirmed: API)
+  api      Metal (inferred)
+  adapter  Apple M4 Pro (inferred)
+  detail   GPU fp32 full
+moonshine-tiny (STT, Live camera)
+  state    loading
+EmbeddingGemma 300M (knowledge base)
+  state    unavailable: EmbeddingGemma is not in the model store yet
+
+MEMORY
+now        available 8.00 GB · rss 1.56 GB · peak rss 1.66 GB

@@ -1,0 +1,53 @@
+LiteRT Demos diagnostics
+generated  2026-10-06T12:34:56Z
+app        0.1.0+1 · release build
+flutter    3.47.3 · Dart 3.13.3
+packages   flutter_edge_ai 2.1.0 · flutter_edge_ai_litertlm 1.9.0 · flutter_litert 3.9.3
+native log native stderr → /tmp/app/logs/native.log
+
+DEVICE
+os         Ubuntu 22.04.5 LTS · kernel 6.8.0-1069-gcp · glibc 2.35
+machine    Google Compute Engine
+cpu        Intel(R) Xeon(R) CPU @ 2.00GHz · 4 cores · x86_64
+ram        14.65 GB total · 13.65 GB available
+gpu        Tesla T4 · driver 580.82.07 · /proc/driver/nvidia
+vulkan     Tesla T4 · DISCRETE_GPU · Vulkan 1.4.312 · 580.82.07
+vulkan     llvmpipe (LLVM 15.0.7, 256 bits) · CPU · Vulkan 1.3.255 · Mesa 23.2.1-1ubuntu3.1~22.04.3 (LLVM 15.0.7) · SOFTWARE (runs on the CPU)
+audio      no sound server (see the note) · ALSA cards 0
+note       The TFLite interpreter needs x86_64 and glibc 2.38: the detector is verified against LiteRT CPU instead.
+note       No sound server: PulseAudio/PipeWire is not running (pactl info: Connection failure: Connection refused). Start it: systemctl --user start pipewire pipewire-pulse (or pulseaudio --start). Voice input and spoken replies need PulseAudio or PipeWire (pipewire-pulse).
+
+MODELS
+Chat model
+  state    ready · load 3.61 s · warm-up 2.25 s
+  backend  gpu → gpu (confirmed: API)
+  api      WebGPU/Vulkan (confirmed: native log)
+  adapter  Tesla T4 (Discrete GPU) (confirmed: native log)
+  detail   vision encoder on the CPU (flutter_edge_ai default, requested)
+  model    Gemma 4 E2B (GEMMA_MODEL_PATH, type gemma4)
+  source   GEMMA_MODEL_PATH=/models/gemma-4-E2B-it.litertlm
+  sha256   unknown (GEMMA_MODEL_PATH)
+  context  8192 tokens
+  images   on
+  tools    on
+  log      I0000 00:00:1759700000.000000 12345 environment.cc:526] Selected adapter: Tesla T4, arch=turing, vendor=nvidia, backend=Vulkan, adapterType=Discrete GPU
+Whisper base (STT)
+  state    ready · load 0.41 s · warm-up 1.80 s
+  backend  cpu (requested · not reportable)
+  api      CPU (requested)
+  detail   CPU (requested)
+Inflect-nano-v2 (TTS)
+  state    failed: TTS download failed: offline
+YOLO26n detector
+  state    ready · load 0.24 s · warm-up 0.01 s
+  backend  gpu → gpu (confirmed: API)
+  api      WebGPU/Vulkan (inferred)
+  adapter  Tesla T4 (inferred)
+  detail   GPU fp32 full
+moonshine-tiny (STT, Live camera)
+  state    loading
+EmbeddingGemma 300M (knowledge base)
+  state    unavailable: EmbeddingGemma is not in the model store yet
+
+MEMORY
+now        available 8.00 GB · rss 1.56 GB · peak rss 1.66 GB

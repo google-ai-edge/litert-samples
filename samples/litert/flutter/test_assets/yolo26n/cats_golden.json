@@ -1,0 +1,56 @@
+{
+ "fixture": "cats_640x480_rgba.u8 (raw RGBA8888, 640x480, from COCO val2017 000000039769.jpg decoded by PIL)",
+ "model": "yolo26n_fp16_rawhead.tflite",
+ "score_threshold": 0.25,
+ "coords": "x1,y1,x2,y2 in 640x480 frame pixels",
+ "detections": [
+  {
+   "class": "cat",
+   "id": 15,
+   "score": 0.912,
+   "box": [
+    344.0,
+    24.5,
+    640.0,
+    374.8
+   ]
+  },
+  {
+   "class": "cat",
+   "id": 15,
+   "score": 0.899,
+   "box": [
+    6.9,
+    55.1,
+    317.3,
+    466.1
+   ]
+  },
+  {
+   "class": "remote",
+   "id": 65,
+   "score": 0.857,
+   "box": [
+    40.4,
+    74.0,
+    175.9,
+    118.6
+   ]
+  },
+  {
+   "class": "sofa",
+   "id": 57,
+   "score": 0.297,
+   "box": [
+    0.8,
+    0.6,
+    640.0,
+    480.0
+   ]
+  }
+ ],
+ "tolerance": {
+  "gpu_fp32_box_px": 0.5,
+  "gpu_fp32_score": 0.005
+ }
+}

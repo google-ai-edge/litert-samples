@@ -1,0 +1,18 @@
+result     FAIL · 4 pass · 1 fail · 1 skip · exit 1
+--- steps ---
+PASS  1   hardware probe                                   <time>
+           macOS 26.5.1 (25F80) · Apple M4 Pro · 1 GPU(s) · 0 note(s)
+PASS  2   detector load (gpu)                              <time>
+           DetectorInfo(GPU fp32 full, verify=1.77e-3 (2.0e-6 of range) vs TFLite interpreter, create=116ms verify=124ms firstRun=5ms)
+           gpu → gpu (confirmed: API) · api Metal (inferred) · adapter Apple M4 Pro (inferred)
+PASS  3   cats golden                                      <time>
+           cat 0.912, cat 0.899, remote 0.857, sofa 0.297
+           run 5.0 ms median (first 5.0 ms) · 10 runs identical
+           golden classes ✓ · max box 0.00 px (≤ 3.0) · max Δscore 0.0000 (≤ 0.03)
+FAIL  4a  chat model load + warm-up (gpu)                  <time>
+           load failed (no fallback): Gemma: requested gpu but the engine loaded on cpu. Fallback is disabled, so it was closed.
+SKIP  4b  chat model generate                              0.00 s
+           the chat model did not load as requested
+PASS  5   detector again (bit-identical)                   <time>
+           bit-identical to step 3
+           run 5.0 ms
