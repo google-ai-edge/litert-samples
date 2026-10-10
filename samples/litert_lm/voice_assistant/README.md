@@ -6,6 +6,12 @@
 - Three models in one app: Zipformer CTC speech recognition on [LiteRT](https://github.com/google-ai-edge/litert) `CompiledModel` (GPU), Gemma 4 E2B with tool calling on [LiteRT-LM](https://github.com/google-ai-edge/LiteRT-LM) (GPU), and KittenTTS speech synthesis on LiteRT (CPU).
 - "Set an alarm for six forty five tomorrow morning." sets a real alarm in the Clock app, checks it against Android's next alarm, and says the result.
 
+| One request, start to finish | The screen after it |
+|---|---|
+| <img src="img/alarm_request.gif" alt="The app on a Galaxy S26 in airplane mode, with the models loaded: the request 'Set an alarm for six fifteen tomorrow morning.', the calls get_current_datetime and set_alarm with their results, the reply 'Alarm set for 06:15 (Morning Alarm)' under Said, the Clock app's own toast, and Android's next alarm changing from 06:45 to 06:15" width="300"> | <img src="img/alarm_request_done.png" alt="Ready after the request: the request under Heard, the two tool calls with their results, and the reply time, 1.8 s" width="300"> |
+
+On screen: one request typed through the app's `--es say` debug extra (the launch extras, below), with the models already loaded and the phone in airplane mode; the recording plays at real speed. The app says the reply aloud; the GIF carries no sound. Spoken into the microphone, the same request goes through speech recognition first, then through the same steps.
+
 ## The models
 
 | Role | Hugging Face repo | Files | Size | License | Revision |
