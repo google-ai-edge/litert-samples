@@ -1,0 +1,1431 @@
+[
+ {
+  "id": "litert-community/gemma-4-E2B-it-litert-lm",
+  "gated": false,
+  "likes": 459,
+  "trendingScore": 11,
+  "private": false,
+  "downloads": 1398895,
+  "createdAt": "2026-03-25T23:59:22.000Z",
+  "siblings": [
+   {
+    "rfilename": ".gitattributes"
+   },
+   {
+    "rfilename": "README.md"
+   },
+   {
+    "rfilename": "gemma-4-E2B-it-gpu.litertlm"
+   },
+   {
+    "rfilename": "gemma-4-E2B-it-web.litertlm"
+   },
+   {
+    "rfilename": "gemma-4-E2B-it-web.task"
+   }
+  ],
+  "cardData": {
+   "base_model": [
+    "google/gemma-4-E2B-it"
+   ],
+   "license": "apache-2.0"
+  }
+ },
+ {
+  "id": "litert-community/Gemma3-1B-IT",
+  "gated": "auto",
+  "likes": 946,
+  "trendingScore": 6,
+  "private": false,
+  "downloads": 11509,
+  "createdAt": "2025-03-11T20:49:11.000Z",
+  "pipeline_tag": "text-generation",
+  "siblings": [
+   {
+    "rfilename": ".gitattributes"
+   },
+   {
+    "rfilename": "README.md"
+   },
+   {
+    "rfilename": "Gemma3-1B-IT_multi-prefill-seq_q4_ekv4096.litertlm"
+   },
+   {
+    "rfilename": "Gemma3-1B-IT_q4_ekv1280_mt6989.litertlm"
+   },
+   {
+    "rfilename": "Gemma3-1B-IT_multi-prefill-seq_f32_ekv1280.task"
+   },
+   {
+    "rfilename": "Gemma3-1B-IT_multi-prefill-seq_f32_ekv4096.task"
+   }
+  ],
+  "cardData": {
+   "base_model": "google/Gemma-3-1B-IT",
+   "license": "gemma",
+   "pipeline_tag": "text-generation"
+  }
+ },
+ {
+  "id": "litert-community/Fun-ASR-Nano-2512",
+  "gated": false,
+  "likes": 5,
+  "trendingScore": 5,
+  "private": false,
+  "downloads": 46,
+  "createdAt": "2026-09-27T06:24:23.000Z",
+  "pipeline_tag": "automatic-speech-recognition",
+  "siblings": [
+   {
+    "rfilename": ".gitattributes"
+   },
+   {
+    "rfilename": "README.md"
+   },
+   {
+    "rfilename": "Fun-ASR-Nano-2512.litertlm"
+   }
+  ],
+  "cardData": {
+   "base_model": "FunAudioLLM/Fun-ASR-Nano-2512",
+   "license": "apache-2.0",
+   "pipeline_tag": "automatic-speech-recognition"
+  }
+ },
+ {
+  "id": "litert-community/functiongemma-270m-ft-mobile-actions",
+  "gated": "auto",
+  "likes": 252,
+  "trendingScore": 4,
+  "private": false,
+  "downloads": 1113,
+  "createdAt": "2026-02-25T23:13:08.000Z",
+  "pipeline_tag": "text-generation",
+  "siblings": [
+   {
+    "rfilename": ".gitattributes"
+   },
+   {
+    "rfilename": "README.md"
+   },
+   {
+    "rfilename": "functiongemma-270m-ft-mobile-actions_Google_Tensor_G5.litertlm"
+   },
+   {
+    "rfilename": "functiongemma-270m-ft-mobile-actions_Google_Tensor_G6.litertlm"
+   }
+  ],
+  "cardData": {
+   "base_model": "google/functiongemma-270m-it",
+   "license": "gemma",
+   "pipeline_tag": "text-generation"
+  }
+ },
+ {
+  "id": "litert-community/gemma-4-12B-it-litert-lm",
+  "gated": false,
+  "likes": 64,
+  "trendingScore": 4,
+  "private": false,
+  "downloads": 11420,
+  "createdAt": "2026-06-02T21:16:53.000Z",
+  "siblings": [
+   {
+    "rfilename": ".gitattributes"
+   },
+   {
+    "rfilename": "README.md"
+   },
+   {
+    "rfilename": "gemma-4-12B-it-gpu.litertlm"
+   },
+   {
+    "rfilename": "gemma-4-12B-it-web.litertlm"
+   }
+  ],
+  "cardData": {
+   "base_model": [
+    "google/gemma-4-12B-it"
+   ],
+   "license": "apache-2.0"
+  }
+ },
+ {
+  "id": "litert-community/embeddinggemma-300m",
+  "gated": "auto",
+  "likes": 86,
+  "trendingScore": 3,
+  "private": false,
+  "downloads": 1396,
+  "createdAt": "2025-09-03T19:22:37.000Z",
+  "pipeline_tag": "sentence-similarity",
+  "siblings": [
+   {
+    "rfilename": ".gitattributes"
+   },
+   {
+    "rfilename": "README.md"
+   },
+   {
+    "rfilename": "embeddinggemma-300M_seq1024_mixed-precision.google.tensor_g5.tflite"
+   },
+   {
+    "rfilename": "embeddinggemma-300M_seq1024_mixed-precision.google.tensor_g6.tflite"
+   }
+  ],
+  "cardData": {
+   "license": "gemma",
+   "pipeline_tag": "sentence-similarity"
+  }
+ },
+ {
+  "id": "litert-community/Bonsai-Image-ternary-4B",
+  "gated": false,
+  "likes": 10,
+  "trendingScore": 3,
+  "private": false,
+  "downloads": 3720,
+  "createdAt": "2026-07-29T03:29:36.000Z",
+  "pipeline_tag": "text-to-image",
+  "siblings": [
+   {
+    "rfilename": ".gitattributes"
+   },
+   {
+    "rfilename": "README.md"
+   },
+   {
+    "rfilename": "dit_256_int4b32.tflite"
+   },
+   {
+    "rfilename": "dit_gpu_int4b32.tflite"
+   }
+  ],
+  "cardData": {
+   "base_model": "prism-ml/bonsai-image-ternary-4B-unpacked",
+   "license": "apache-2.0",
+   "pipeline_tag": "text-to-image"
+  }
+ },
+ {
+  "id": "litert-community/gemma-4-E4B-it-litert-lm",
+  "gated": false,
+  "likes": 216,
+  "trendingScore": 2,
+  "private": false,
+  "downloads": 426140,
+  "createdAt": "2026-03-26T00:20:57.000Z",
+  "siblings": [
+   {
+    "rfilename": ".gitattributes"
+   },
+   {
+    "rfilename": "README.md"
+   },
+   {
+    "rfilename": "gemma-4-E4B-it-gpu.litertlm"
+   },
+   {
+    "rfilename": "gemma-4-E4B-it-web.litertlm"
+   },
+   {
+    "rfilename": "gemma-4-E4B-it-web.task"
+   }
+  ],
+  "cardData": {
+   "base_model": [
+    "google/gemma-4-E4B-it"
+   ],
+   "license": "apache-2.0"
+  }
+ },
+ {
+  "id": "litert-community/GLiNER2.5-Small-LiteRT",
+  "gated": false,
+  "likes": 2,
+  "trendingScore": 2,
+  "private": false,
+  "downloads": 305,
+  "createdAt": "2026-09-19T10:09:50.000Z",
+  "pipeline_tag": "token-classification",
+  "siblings": [
+   {
+    "rfilename": ".gitattributes"
+   },
+   {
+    "rfilename": "README.md"
+   },
+   {
+    "rfilename": "gliner25_small_s128_fp32.tflite"
+   },
+   {
+    "rfilename": "gliner25_small_s128_wfp16.tflite"
+   }
+  ],
+  "cardData": {
+   "base_model": [
+    "fastino/gliner2.5-small-v1"
+   ],
+   "license": "apache-2.0",
+   "pipeline_tag": "token-classification"
+  }
+ },
+ {
+  "id": "litert-community/laya-LiteRT",
+  "gated": false,
+  "likes": 3,
+  "trendingScore": 2,
+  "private": false,
+  "downloads": 426,
+  "createdAt": "2026-09-21T07:25:46.000Z",
+  "pipeline_tag": "text-classification",
+  "siblings": [
+   {
+    "rfilename": ".gitattributes"
+   },
+   {
+    "rfilename": "README.md"
+   },
+   {
+    "rfilename": "laya_act_head_fp32.tflite"
+   },
+   {
+    "rfilename": "laya_en_s256_fp32.tflite"
+   }
+  ],
+  "cardData": {
+   "base_model": [
+    "convaiinnovations/laya"
+   ],
+   "license": "apache-2.0",
+   "pipeline_tag": "text-classification"
+  }
+ },
+ {
+  "id": "litert-community/Laya-Multilingual-LiteRT",
+  "gated": false,
+  "likes": 6,
+  "trendingScore": 2,
+  "private": false,
+  "downloads": 659,
+  "createdAt": "2026-09-21T16:11:38.000Z",
+  "pipeline_tag": "text-classification",
+  "siblings": [
+   {
+    "rfilename": ".gitattributes"
+   },
+   {
+    "rfilename": "README.md"
+   },
+   {
+    "rfilename": "laya_ml_act_head_fp32.tflite"
+   },
+   {
+    "rfilename": "laya_ml_s256_embeds_fp32.tflite"
+   }
+  ],
+  "cardData": {
+   "base_model": [
+    "convaiinnovations/laya"
+   ],
+   "license": "apache-2.0",
+   "pipeline_tag": "text-classification"
+  }
+ },
+ {
+  "id": "litert-community/GLiNER2.5-Decide-LiteRT",
+  "gated": false,
+  "likes": 11,
+  "trendingScore": 2,
+  "private": false,
+  "downloads": 169,
+  "createdAt": "2026-09-26T07:00:26.000Z",
+  "pipeline_tag": "text-classification",
+  "siblings": [
+   {
+    "rfilename": ".gitattributes"
+   },
+   {
+    "rfilename": "README.md"
+   },
+   {
+    "rfilename": "fp32/gliner25_decide_s128_fp32.tflite"
+   },
+   {
+    "rfilename": "fp32/gliner25_decide_s256_fp32.tflite"
+   }
+  ],
+  "cardData": {
+   "base_model": [
+    "fastino/GLiNER2.5-Decide"
+   ],
+   "license": "apache-2.0",
+   "pipeline_tag": "text-classification"
+  }
+ },
+ {
+  "id": "litert-community/MobileNet-v2",
+  "gated": false,
+  "likes": 6,
+  "trendingScore": 1,
+  "private": false,
+  "downloads": 558,
+  "createdAt": "2026-02-06T04:12:09.000Z",
+  "pipeline_tag": "image-classification",
+  "siblings": [
+   {
+    "rfilename": ".gitattributes"
+   },
+   {
+    "rfilename": "README.md"
+   },
+   {
+    "rfilename": "mobilenet_v2.tflite"
+   },
+   {
+    "rfilename": "mobilenet_v2_Google_Tensor_G5_apply_plugin.tflite"
+   }
+  ],
+  "cardData": {}
+ },
+ {
+  "id": "litert-community/PaddleOCR-VL-1.6",
+  "gated": false,
+  "likes": 9,
+  "trendingScore": 1,
+  "private": false,
+  "downloads": 497,
+  "createdAt": "2026-07-07T13:21:36.000Z",
+  "pipeline_tag": "image-text-to-text",
+  "siblings": [
+   {
+    "rfilename": ".gitattributes"
+   },
+   {
+    "rfilename": "README.md"
+   },
+   {
+    "rfilename": "PaddleOCR-VL-1.6.litertlm"
+   }
+  ],
+  "cardData": {
+   "base_model": "PaddlePaddle/PaddleOCR-VL-1.6",
+   "license": "apache-2.0",
+   "pipeline_tag": "image-text-to-text"
+  }
+ },
+ {
+  "id": "litert-community/Nemotron-3-Diarization-LiteRT",
+  "gated": false,
+  "likes": 4,
+  "trendingScore": 1,
+  "private": false,
+  "downloads": 159,
+  "createdAt": "2026-09-24T09:27:30.000Z",
+  "pipeline_tag": "voice-activity-detection",
+  "siblings": [
+   {
+    "rfilename": ".gitattributes"
+   },
+   {
+    "rfilename": "README.md"
+   },
+   {
+    "rfilename": "nemotron3_diar_encoder_low_latency_fp16.tflite"
+   },
+   {
+    "rfilename": "nemotron3_diar_encoder_offline_fp16.tflite"
+   }
+  ],
+  "cardData": {
+   "base_model": "nvidia/Nemotron-3-Diarization",
+   "license": "openmdw-1.1",
+   "pipeline_tag": "voice-activity-detection"
+  }
+ },
+ {
+  "id": "litert-community/Audio8-TTS-Preview-0.6b",
+  "gated": false,
+  "likes": 1,
+  "trendingScore": 1,
+  "private": false,
+  "downloads": 107,
+  "createdAt": "2026-09-28T00:12:17.000Z",
+  "pipeline_tag": "text-to-speech",
+  "siblings": [
+   {
+    "rfilename": ".gitattributes"
+   },
+   {
+    "rfilename": "README.md"
+   },
+   {
+    "rfilename": "codec_decoder_fp16_T128.tflite"
+   },
+   {
+    "rfilename": "codec_decoder_fp16_T192.tflite"
+   }
+  ],
+  "cardData": {
+   "base_model": "Edge0/Audio8-TTS-Preview-0.6b",
+   "license": "apache-2.0",
+   "pipeline_tag": "text-to-speech"
+  }
+ },
+ {
+  "id": "litert-community/decider-2b-vision-LiteRT",
+  "gated": false,
+  "likes": 1,
+  "trendingScore": 1,
+  "private": false,
+  "downloads": 53,
+  "createdAt": "2026-09-28T22:36:46.000Z",
+  "pipeline_tag": "image-text-to-text",
+  "siblings": [
+   {
+    "rfilename": ".gitattributes"
+   },
+   {
+    "rfilename": "README.md"
+   },
+   {
+    "rfilename": "decider-2b-vision_fp16-int8vocab.litertlm"
+   },
+   {
+    "rfilename": "decider-2b-vision_fp16.litertlm"
+   }
+  ],
+  "cardData": {
+   "base_model": "Mapika/decider-2b-vision",
+   "license": "apache-2.0",
+   "pipeline_tag": "image-text-to-text"
+  }
+ },
+ {
+  "id": "litert-community/Julia-1-LiteRT",
+  "gated": false,
+  "likes": 1,
+  "trendingScore": 1,
+  "private": false,
+  "downloads": 27,
+  "createdAt": "2026-09-30T01:21:56.000Z",
+  "pipeline_tag": "text-classification",
+  "siblings": [
+   {
+    "rfilename": ".gitattributes"
+   },
+   {
+    "rfilename": "README.md"
+   },
+   {
+    "rfilename": "julia1_s1024_fp32.tflite"
+   },
+   {
+    "rfilename": "julia1_s512_fp32.tflite"
+   }
+  ],
+  "cardData": {
+   "base_model": [
+    "SupersonicLabs/Julia-1"
+   ],
+   "license": "apache-2.0",
+   "pipeline_tag": "text-classification"
+  }
+ },
+ {
+  "id": "litert-community/MiniCPM5-2B",
+  "gated": false,
+  "likes": 13,
+  "trendingScore": 0.5,
+  "private": false,
+  "downloads": 0,
+  "createdAt": "2026-09-07T11:19:21.000Z",
+  "pipeline_tag": "text-generation",
+  "siblings": [
+   {
+    "rfilename": ".gitattributes"
+   },
+   {
+    "rfilename": "README.md"
+   },
+   {
+    "rfilename": "MiniCPM5-2B_int4.litertlm"
+   },
+   {
+    "rfilename": "MiniCPM5-2B_int8.litertlm"
+   }
+  ],
+  "cardData": {
+   "base_model": [
+    "openbmb/MiniCPM5-2B"
+   ],
+   "license": "apache-2.0",
+   "pipeline_tag": "text-generation"
+  }
+ },
+ {
+  "id": "litert-community/DeepSeek-R1-Distill-Qwen-1.5B",
+  "gated": false,
+  "likes": 54,
+  "trendingScore": 0,
+  "private": false,
+  "downloads": 70054,
+  "createdAt": "2025-02-14T22:51:45.000Z",
+  "pipeline_tag": "text-generation",
+  "siblings": [
+   {
+    "rfilename": ".gitattributes"
+   },
+   {
+    "rfilename": "README.md"
+   },
+   {
+    "rfilename": "DeepSeek-R1-Distill-Qwen-1.5B_multi-prefill-seq_f32_ekv1280.tflite"
+   },
+   {
+    "rfilename": "DeepSeek-R1-Distill-Qwen-1.5B_multi-prefill-seq_q8_ekv1280.tflite"
+   },
+   {
+    "rfilename": "DeepSeek-R1-Distill-Qwen-1.5B_multi-prefill-seq_q8_ekv4096.litertlm"
+   },
+   {
+    "rfilename": "DeepSeek-R1-Distill-Qwen-1.5B_multi-prefill-seq_f32_ekv1280.task"
+   },
+   {
+    "rfilename": "DeepSeek-R1-Distill-Qwen-1.5B_multi-prefill-seq_q8_ekv1280.task"
+   }
+  ],
+  "cardData": {
+   "base_model": "deepseek-ai/DeepSeek-R1-Distill-Qwen-1.5B",
+   "license": "mit",
+   "pipeline_tag": "text-generation"
+  }
+ },
+ {
+  "id": "litert-community/Gemma2-2B-IT",
+  "gated": "auto",
+  "likes": 22,
+  "trendingScore": 0,
+  "private": false,
+  "downloads": 11,
+  "createdAt": "2025-02-27T01:59:39.000Z",
+  "pipeline_tag": "text-generation",
+  "siblings": [
+   {
+    "rfilename": ".gitattributes"
+   },
+   {
+    "rfilename": "README.md"
+   },
+   {
+    "rfilename": "Gemma2-2B-IT_multi-prefill-seq_q8_ekv1280.tflite"
+   },
+   {
+    "rfilename": "Gemma2-2B-IT_seq128_q8_ekv1280.tflite"
+   },
+   {
+    "rfilename": "Gemma2-2B-IT_multi-prefill-seq_q8_ekv1280.task"
+   },
+   {
+    "rfilename": "gemma2_q8_multi-prefill-seq_ekv1280.task"
+   }
+  ],
+  "cardData": {
+   "base_model": "google/Gemma-2-2B-IT",
+   "license": "gemma",
+   "pipeline_tag": "text-generation"
+  }
+ },
+ {
+  "id": "litert-community/Phi-4-mini-instruct",
+  "gated": false,
+  "likes": 19,
+  "trendingScore": 0,
+  "private": false,
+  "downloads": 14767,
+  "createdAt": "2025-03-05T21:37:25.000Z",
+  "pipeline_tag": "text-generation",
+  "siblings": [
+   {
+    "rfilename": ".gitattributes"
+   },
+   {
+    "rfilename": "README.md"
+   },
+   {
+    "rfilename": "Phi-4-mini-instruct_multi-prefill-seq_q8_ekv1280.tflite"
+   },
+   {
+    "rfilename": "Phi-4-mini-instruct_seq128_q8_ekv1280.tflite"
+   },
+   {
+    "rfilename": "Phi-4-mini-instruct_multi-prefill-seq_q8_ekv4096.litertlm"
+   },
+   {
+    "rfilename": "Phi-4-mini-instruct_multi-prefill-seq_q8_ekv1280.task"
+   },
+   {
+    "rfilename": "Phi-4-mini-instruct_multi-prefill-seq_q8_ekv4096.task"
+   }
+  ],
+  "cardData": {
+   "base_model": "microsoft/Phi-4-mini-instruct",
+   "license": "mit",
+   "pipeline_tag": "text-generation"
+  }
+ },
+ {
+  "id": "litert-community/Gecko-110m-en",
+  "gated": false,
+  "likes": 16,
+  "trendingScore": 0,
+  "private": false,
+  "downloads": 2657,
+  "createdAt": "2025-03-11T20:12:35.000Z",
+  "pipeline_tag": "question-answering",
+  "siblings": [
+   {
+    "rfilename": ".gitattributes"
+   },
+   {
+    "rfilename": "README.md"
+   },
+   {
+    "rfilename": "Gecko_1024_f32.tflite"
+   },
+   {
+    "rfilename": "Gecko_1024_quant.tflite"
+   }
+  ],
+  "cardData": {
+   "license": "apache-2.0",
+   "pipeline_tag": "question-answering"
+  }
+ },
+ {
+  "id": "litert-community/MediaPipe-Selfie-Segmentation",
+  "gated": false,
+  "likes": 10,
+  "trendingScore": 0,
+  "private": false,
+  "downloads": 240,
+  "createdAt": "2025-04-29T18:14:25.000Z",
+  "siblings": [
+   {
+    "rfilename": ".gitattributes"
+   },
+   {
+    "rfilename": "README.md"
+   },
+   {
+    "rfilename": "selfie_multiclass.tflite"
+   }
+  ],
+  "cardData": {
+   "license": "apache-2.0"
+  }
+ },
+ {
+  "id": "litert-community/SmolLM-135M-Instruct",
+  "gated": false,
+  "likes": 11,
+  "trendingScore": 0,
+  "private": false,
+  "downloads": 2792,
+  "createdAt": "2025-04-30T15:20:07.000Z",
+  "pipeline_tag": "text-generation",
+  "siblings": [
+   {
+    "rfilename": ".gitattributes"
+   },
+   {
+    "rfilename": "README.md"
+   },
+   {
+    "rfilename": "SmolLM-135M-Instruct_multi-prefill-seq_f32_ekv1280.tflite"
+   },
+   {
+    "rfilename": "SmolLM-135M-Instruct_multi-prefill-seq_q8_ekv1280.tflite"
+   },
+   {
+    "rfilename": "SmolLM-135M-Instruct_multi-prefill-seq_f32_ekv1280.task"
+   },
+   {
+    "rfilename": "SmolLM-135M-Instruct_multi-prefill-seq_q8_ekv1280.task"
+   }
+  ],
+  "cardData": {
+   "base_model": "HuggingFaceTB/SmolLM-135M-Instruct",
+   "license": "apache-2.0",
+   "pipeline_tag": "text-generation"
+  }
+ },
+ {
+  "id": "litert-community/Qwen2.5-0.5B-Instruct",
+  "gated": false,
+  "likes": 8,
+  "trendingScore": 0,
+  "private": false,
+  "downloads": 10262,
+  "createdAt": "2025-04-30T16:16:19.000Z",
+  "pipeline_tag": "text-generation",
+  "siblings": [
+   {
+    "rfilename": ".gitattributes"
+   },
+   {
+    "rfilename": "README.md"
+   },
+   {
+    "rfilename": "Qwen2.5-0.5B-Instruct_multi-prefill-seq_f32_ekv1280.tflite"
+   },
+   {
+    "rfilename": "Qwen2.5-0.5B-Instruct_multi-prefill-seq_q8_ekv1280.tflite"
+   },
+   {
+    "rfilename": "Qwen2.5-0.5B-Instruct_multi-prefill-seq_f32_ekv1280.task"
+   },
+   {
+    "rfilename": "Qwen2.5-0.5B-Instruct_multi-prefill-seq_q8_ekv1280.task"
+   }
+  ],
+  "cardData": {
+   "base_model": "Qwen/Qwen2.5-0.5B-Instruct",
+   "license": "apache-2.0",
+   "pipeline_tag": "text-generation"
+  }
+ },
+ {
+  "id": "litert-community/TinyLlama-1.1B-Chat-v1.0",
+  "gated": false,
+  "likes": 3,
+  "trendingScore": 0,
+  "private": false,
+  "downloads": 1299,
+  "createdAt": "2025-04-30T21:19:49.000Z",
+  "pipeline_tag": "text-generation",
+  "siblings": [
+   {
+    "rfilename": ".gitattributes"
+   },
+   {
+    "rfilename": "README.md"
+   },
+   {
+    "rfilename": "TinyLlama-1.1B-Chat-v1.0_multi-prefill-seq_f32_ekv1280.tflite"
+   },
+   {
+    "rfilename": "TinyLlama-1.1B-Chat-v1.0_multi-prefill-seq_q8_ekv1280.tflite"
+   },
+   {
+    "rfilename": "TinyLlama-1.1B-Chat-v1.0_multi-prefill-seq_f32_ekv1280.task"
+   },
+   {
+    "rfilename": "TinyLlama-1.1B-Chat-v1.0_multi-prefill-seq_q8_ekv1280.task"
+   }
+  ],
+  "cardData": {
+   "base_model": "TinyLlama/TinyLlama-1.1B-Chat-v1.0",
+   "license": "apache-2.0",
+   "pipeline_tag": "text-generation"
+  }
+ },
+ {
+  "id": "litert-community/Gemma3-4B-IT",
+  "gated": "auto",
+  "likes": 18,
+  "trendingScore": 0,
+  "private": false,
+  "downloads": 0,
+  "createdAt": "2025-05-20T20:47:19.000Z",
+  "pipeline_tag": "text-generation",
+  "siblings": [
+   {
+    "rfilename": ".gitattributes"
+   },
+   {
+    "rfilename": "README.md"
+   },
+   {
+    "rfilename": "gemma3-4b-it-int4-web.task"
+   },
+   {
+    "rfilename": "gemma3-4b-it-int8-web.task"
+   }
+  ],
+  "cardData": {
+   "base_model": [
+    "google/gemma-3-4b-it",
+    "google/gemma-3-4b-it-qat-q4_0-unquantized"
+   ],
+   "license": "gemma",
+   "pipeline_tag": "text-generation"
+  }
+ },
+ {
+  "id": "litert-community/Gemma3-12B-IT",
+  "gated": "auto",
+  "likes": 9,
+  "trendingScore": 0,
+  "private": false,
+  "downloads": 0,
+  "createdAt": "2025-05-20T21:04:55.000Z",
+  "pipeline_tag": "text-generation",
+  "siblings": [
+   {
+    "rfilename": ".gitattributes"
+   },
+   {
+    "rfilename": "README.md"
+   },
+   {
+    "rfilename": "gemma3-12b-it-int4-web.task"
+   },
+   {
+    "rfilename": "gemma3-12b-it-int8-web.task"
+   }
+  ],
+  "cardData": {
+   "base_model": [
+    "google/Gemma-3-12B-IT",
+    "google/gemma-3-12b-it-qat-q4_0-unquantized"
+   ],
+   "license": "gemma",
+   "pipeline_tag": "text-generation"
+  }
+ },
+ {
+  "id": "litert-community/Gemma3-27B-IT",
+  "gated": "auto",
+  "likes": 11,
+  "trendingScore": 0,
+  "private": false,
+  "downloads": 0,
+  "createdAt": "2025-05-20T21:16:38.000Z",
+  "pipeline_tag": "text-generation",
+  "siblings": [
+   {
+    "rfilename": ".gitattributes"
+   },
+   {
+    "rfilename": "README.md"
+   },
+   {
+    "rfilename": "gemma3-27b-it-int8-web.task"
+   },
+   {
+    "rfilename": "gemma3-27b-it-q4_0-web.task"
+   }
+  ],
+  "cardData": {
+   "base_model": [
+    "google/Gemma-3-27B-IT",
+    "google/gemma-3-27b-it-qat-q4_0-unquantized"
+   ],
+   "license": "gemma",
+   "pipeline_tag": "text-generation"
+  }
+ },
+ {
+  "id": "litert-community/MedGemma-27B-IT",
+  "gated": "auto",
+  "likes": 25,
+  "trendingScore": 0,
+  "private": false,
+  "downloads": 0,
+  "createdAt": "2025-05-29T19:32:15.000Z",
+  "pipeline_tag": "text-generation",
+  "siblings": [
+   {
+    "rfilename": ".gitattributes"
+   },
+   {
+    "rfilename": "README.md"
+   },
+   {
+    "rfilename": "medgemma-27b-it-int8-web.task"
+   }
+  ],
+  "cardData": {
+   "base_model": "google/medgemma-27b-text-it",
+   "license": "other",
+   "pipeline_tag": "text-generation"
+  }
+ },
+ {
+  "id": "litert-community/FastVLM-0.5B",
+  "gated": false,
+  "likes": 17,
+  "trendingScore": 0,
+  "private": false,
+  "downloads": 1941,
+  "createdAt": "2025-12-02T18:19:12.000Z",
+  "pipeline_tag": "text-generation",
+  "siblings": [
+   {
+    "rfilename": ".gitattributes"
+   },
+   {
+    "rfilename": "README.md"
+   },
+   {
+    "rfilename": "FastVLM-0.5B.litertlm"
+   },
+   {
+    "rfilename": "FastVLM-0.5B.qualcomm.sm8750.litertlm"
+   }
+  ],
+  "cardData": {
+   "base_model": [
+    "apple/FastVLM-0.5B"
+   ],
+   "license": "apple-amlr",
+   "pipeline_tag": "text-generation"
+  }
+ },
+ {
+  "id": "litert-community/parakeet-ctc-0.6b",
+  "gated": false,
+  "likes": 5,
+  "trendingScore": 0,
+  "private": false,
+  "downloads": 2472,
+  "createdAt": "2026-04-09T23:31:28.000Z",
+  "pipeline_tag": "automatic-speech-recognition",
+  "siblings": [
+   {
+    "rfilename": ".gitattributes"
+   },
+   {
+    "rfilename": "README.md"
+   },
+   {
+    "rfilename": "parakeet_ctc_0.6b_5s_f32.tflite"
+   },
+   {
+    "rfilename": "parakeet_ctc_0.6b_5s_f32_Google_Tensor_G3.tflite"
+   }
+  ],
+  "cardData": {
+   "base_model": [
+    "nvidia/parakeet-ctc-0.6b"
+   ],
+   "license": "cc-by-4.0",
+   "pipeline_tag": "automatic-speech-recognition"
+  }
+ },
+ {
+  "id": "litert-community/moonshine-tiny",
+  "gated": false,
+  "likes": 4,
+  "trendingScore": 0,
+  "private": false,
+  "downloads": 4839,
+  "createdAt": "2026-04-10T18:27:07.000Z",
+  "pipeline_tag": "automatic-speech-recognition",
+  "siblings": [
+   {
+    "rfilename": ".gitattributes"
+   },
+   {
+    "rfilename": "README.md"
+   },
+   {
+    "rfilename": "moonshine_tiny_5s_f32.tflite"
+   },
+   {
+    "rfilename": "moonshine_tiny_5s_f32_MediaTek_MT6877.tflite"
+   }
+  ],
+  "cardData": {
+   "base_model": [
+    "UsefulSensors/moonshine-tiny"
+   ],
+   "license": "mit",
+   "pipeline_tag": "automatic-speech-recognition"
+  }
+ },
+ {
+  "id": "litert-community/whisper-tiny",
+  "gated": false,
+  "likes": 7,
+  "trendingScore": 0,
+  "private": false,
+  "downloads": 10166,
+  "createdAt": "2026-04-10T18:29:32.000Z",
+  "pipeline_tag": "automatic-speech-recognition",
+  "siblings": [
+   {
+    "rfilename": ".gitattributes"
+   },
+   {
+    "rfilename": "README.md"
+   },
+   {
+    "rfilename": "whisper_tiny_30s_f32.tflite"
+   },
+   {
+    "rfilename": "whisper_tiny_30s_f32_MediaTek_MT6877.tflite"
+   }
+  ],
+  "cardData": {
+   "base_model": [
+    "openai/whisper-tiny"
+   ],
+   "license": "apache-2.0",
+   "pipeline_tag": "automatic-speech-recognition"
+  }
+ },
+ {
+  "id": "litert-community/Qwen3-ASR-0.6B",
+  "gated": false,
+  "likes": 9,
+  "trendingScore": 0,
+  "private": false,
+  "downloads": 1721,
+  "createdAt": "2026-04-17T13:46:33.000Z",
+  "pipeline_tag": "automatic-speech-recognition",
+  "siblings": [
+   {
+    "rfilename": ".gitattributes"
+   },
+   {
+    "rfilename": "README.md"
+   },
+   {
+    "rfilename": "qwen3_asr_0.6b_5s_f32.tflite"
+   },
+   {
+    "rfilename": "qwen3_asr_0.6b_5s_f32_MediaTek_MT6877.tflite"
+   },
+   {
+    "rfilename": "qwen3_asr_0.6b_5s_i8.litertlm"
+   }
+  ],
+  "cardData": {
+   "base_model": [
+    "Qwen/Qwen3-ASR-0.6B"
+   ],
+   "license": "apache-2.0",
+   "pipeline_tag": "automatic-speech-recognition"
+  }
+ },
+ {
+  "id": "litert-community/parakeet-tdt-0.6b-v3",
+  "gated": false,
+  "likes": 15,
+  "trendingScore": 0,
+  "private": false,
+  "downloads": 9388,
+  "createdAt": "2026-05-06T20:00:36.000Z",
+  "siblings": [
+   {
+    "rfilename": ".gitattributes"
+   },
+   {
+    "rfilename": "README.md"
+   },
+   {
+    "rfilename": "parakeet_tdt_0.6b_v3_5s_f32.tflite"
+   },
+   {
+    "rfilename": "parakeet_tdt_0.6b_v3_5s_f32_Google_Tensor_G5.tflite"
+   }
+  ],
+  "cardData": {
+   "license": "apache-2.0"
+  }
+ },
+ {
+  "id": "litert-community/Test",
+  "gated": false,
+  "likes": 0,
+  "trendingScore": 0,
+  "private": false,
+  "downloads": 0,
+  "createdAt": "2026-05-13T18:28:00.000Z",
+  "siblings": [
+   {
+    "rfilename": ".gitattributes"
+   },
+   {
+    "rfilename": "README.md"
+   }
+  ],
+  "cardData": {
+   "license": "apache-2.0"
+  }
+ },
+ {
+  "id": "litert-community/Matcha-TTS",
+  "gated": false,
+  "likes": 5,
+  "trendingScore": 0,
+  "private": false,
+  "downloads": 1895,
+  "createdAt": "2026-06-26T10:19:56.000Z",
+  "pipeline_tag": "text-to-speech",
+  "siblings": [
+   {
+    "rfilename": ".gitattributes"
+   },
+   {
+    "rfilename": "README.md"
+   },
+   {
+    "rfilename": "dp_g2p_matcha_fp16.tflite"
+   },
+   {
+    "rfilename": "matcha_decoder_fp16.tflite"
+   }
+  ],
+  "cardData": {
+   "license": "mit",
+   "pipeline_tag": "text-to-speech"
+  }
+ },
+ {
+  "id": "litert-community/whisper-acft",
+  "gated": false,
+  "likes": 3,
+  "trendingScore": 0,
+  "private": false,
+  "downloads": 2088,
+  "createdAt": "2026-07-25T02:39:17.000Z",
+  "pipeline_tag": "automatic-speech-recognition",
+  "siblings": [
+   {
+    "rfilename": ".gitattributes"
+   },
+   {
+    "rfilename": "README.md"
+   },
+   {
+    "rfilename": "base.en/acft_whisper_base.en_10s_drq.tflite"
+   },
+   {
+    "rfilename": "base.en/acft_whisper_base.en_30s_drq.tflite"
+   }
+  ],
+  "cardData": {
+   "base_model": [
+    "openai/whisper-tiny",
+    "openai/whisper-base",
+    "openai/whisper-small",
+    "openai/whisper-tiny.en",
+    "openai/whisper-base.en",
+    "openai/whisper-small.en"
+   ],
+   "license": "apache-2.0",
+   "pipeline_tag": "automatic-speech-recognition"
+  }
+ },
+ {
+  "id": "litert-community/Inflect-Nano-v2",
+  "gated": false,
+  "likes": 0,
+  "trendingScore": 0,
+  "private": false,
+  "downloads": 277,
+  "createdAt": "2026-08-07T07:31:30.000Z",
+  "pipeline_tag": "text-to-speech",
+  "siblings": [
+   {
+    "rfilename": ".gitattributes"
+   },
+   {
+    "rfilename": "README.md"
+   },
+   {
+    "rfilename": "inflect_decoder.tflite"
+   },
+   {
+    "rfilename": "inflect_decoder_fp16.tflite"
+   }
+  ],
+  "cardData": {
+   "base_model": "owensong/Inflect-Nano-v2",
+   "license": "apache-2.0",
+   "pipeline_tag": "text-to-speech"
+  }
+ },
+ {
+  "id": "litert-community/Spark-X2.5-4B",
+  "gated": false,
+  "likes": 4,
+  "trendingScore": 0,
+  "private": false,
+  "downloads": 1044,
+  "createdAt": "2026-09-06T23:13:36.000Z",
+  "pipeline_tag": "text-generation",
+  "siblings": [
+   {
+    "rfilename": ".gitattributes"
+   },
+   {
+    "rfilename": "README.md"
+   },
+   {
+    "rfilename": "Spark-X2.5-4B_int4.litertlm"
+   },
+   {
+    "rfilename": "Spark-X2.5-4B_int8.litertlm"
+   }
+  ],
+  "cardData": {
+   "base_model": "XHToken/Spark-X2.5-4B",
+   "license": "apache-2.0",
+   "pipeline_tag": "text-generation"
+  }
+ },
+ {
+  "id": "litert-community/Laya-English-LiteRT",
+  "gated": false,
+  "likes": 1,
+  "trendingScore": 0,
+  "private": false,
+  "downloads": 266,
+  "createdAt": "2026-09-22T03:48:08.000Z",
+  "pipeline_tag": "text-classification",
+  "siblings": [
+   {
+    "rfilename": ".gitattributes"
+   },
+   {
+    "rfilename": "README.md"
+   },
+   {
+    "rfilename": "laya_en_act_head_fp32.tflite"
+   },
+   {
+    "rfilename": "laya_en_s256_embeds_fp32.tflite"
+   }
+  ],
+  "cardData": {
+   "base_model": [
+    "convaiinnovations/laya"
+   ],
+   "license": "apache-2.0",
+   "pipeline_tag": "text-classification"
+  }
+ },
+ {
+  "id": "litert-community/GLiNER2.5-Multi-LiteRT",
+  "gated": false,
+  "likes": 0,
+  "trendingScore": 0,
+  "private": false,
+  "downloads": 37,
+  "createdAt": "2026-10-02T08:50:21.000Z",
+  "pipeline_tag": "token-classification",
+  "siblings": [
+   {
+    "rfilename": ".gitattributes"
+   },
+   {
+    "rfilename": "README.md"
+   },
+   {
+    "rfilename": "fp32/gliner25_multi_s128_fp32.tflite"
+   },
+   {
+    "rfilename": "fp32/gliner25_multi_s256_fp32.tflite"
+   }
+  ],
+  "cardData": {
+   "base_model": [
+    "fastino/gliner2.5-multi-v1"
+   ],
+   "license": "apache-2.0",
+   "pipeline_tag": "token-classification"
+  }
+ },
+ {
+  "id": "litert-community/Qwen3-ASR-1.7B",
+  "gated": false,
+  "likes": 0,
+  "trendingScore": 0,
+  "private": false,
+  "downloads": 7,
+  "createdAt": "2026-10-03T02:25:40.000Z",
+  "pipeline_tag": "automatic-speech-recognition",
+  "siblings": [
+   {
+    "rfilename": ".gitattributes"
+   },
+   {
+    "rfilename": "README.md"
+   },
+   {
+    "rfilename": "Qwen3-ASR-1.7B.litertlm"
+   }
+  ],
+  "cardData": {
+   "base_model": "Qwen/Qwen3-ASR-1.7B-hf",
+   "license": "apache-2.0",
+   "pipeline_tag": "automatic-speech-recognition"
+  }
+ },
+ {
+  "id": "litert-community/Kev-0.8B-LiteRT",
+  "gated": false,
+  "likes": 0,
+  "trendingScore": 0,
+  "private": false,
+  "downloads": 0,
+  "createdAt": "2026-10-03T16:45:18.000Z",
+  "pipeline_tag": "text-classification",
+  "siblings": [
+   {
+    "rfilename": ".gitattributes"
+   },
+   {
+    "rfilename": "README.md"
+   },
+   {
+    "rfilename": "kev-0.8b_rowprefill_L1024_fp16fc_i8emb.tflite"
+   },
+   {
+    "rfilename": "kev-0.8b_rowprefill_L2048_fp16fc_i8emb.tflite"
+   }
+  ],
+  "cardData": {
+   "base_model": [
+    "jaredpalmer/kev-0.8b"
+   ],
+   "license": "apache-2.0",
+   "pipeline_tag": "text-classification"
+  }
+ },
+ {
+  "id": "litert-community/Kev-4B-LiteRT",
+  "gated": false,
+  "likes": 0,
+  "trendingScore": 0,
+  "private": false,
+  "downloads": 0,
+  "createdAt": "2026-10-03T16:52:31.000Z",
+  "pipeline_tag": "text-classification",
+  "siblings": [
+   {
+    "rfilename": ".gitattributes"
+   },
+   {
+    "rfilename": "README.md"
+   },
+   {
+    "rfilename": "kev-4b_rowprefill_L1024_fp16fc_i8emb.tflite"
+   },
+   {
+    "rfilename": "kev-4b_rowprefill_L2048_fp16fc_i8emb.tflite"
+   }
+  ],
+  "cardData": {
+   "base_model": [
+    "jaredpalmer/kev-4b"
+   ],
+   "license": "apache-2.0",
+   "pipeline_tag": "text-classification"
+  }
+ }
+]
