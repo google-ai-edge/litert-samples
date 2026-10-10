@@ -1,0 +1,8 @@
+<resources>
+    <string name="app_name" translatable="false">Mimi Codec</string>
+    <string name="action_play_original">▶ Play original</string>
+    <string name="action_play_reconstructed">▶ Play reconstructed (codec)</string>
+    <string name="status_loading">Loading Mimi codec (GPU convs + CPU transformers)…</string>
+    <string name="status_success" translatable="false">On-device hybrid codec ✓\n\nencode %1$d ms · decode %2$d ms · RTF %3$.2f\n%4$d codebooks × %5$d frames = %6$d ints · 24 kHz\n\nPlaying reconstructed… tap to A/B.</string>
+    <string name="error_model">%1$s\n\nModel not found? Push the graphs first with install_to_device.sh</string>
+</resources>
