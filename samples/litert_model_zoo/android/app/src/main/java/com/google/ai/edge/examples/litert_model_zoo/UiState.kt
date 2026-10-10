@@ -22,6 +22,7 @@ import com.google.ai.edge.examples.litert_model_zoo.data.DownloadConfirmation
 import com.google.ai.edge.examples.litert_model_zoo.data.DownloadState
 import com.google.ai.edge.examples.litert_model_zoo.data.ModelEntry
 import com.google.ai.edge.examples.litert_model_zoo.models.rfdetr.RfDetr
+import com.google.ai.edge.examples.litert_model_zoo.models.typed_decisions.TextDecisionResult
 
 /** UI snapshots; model objects and buffers stay inside the ViewModel worker. */
 data class UiState(
@@ -67,4 +68,5 @@ data class UiState(
   val pitchHz: List<Float> = emptyList(),
   val pitchConfidence: List<Float> = emptyList(),
   val pitchHopSeconds: Float = 0.1f,
+  val textDecision: TextDecisionResult? = null,
 )

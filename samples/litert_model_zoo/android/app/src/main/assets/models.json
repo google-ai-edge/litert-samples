@@ -859,6 +859,249 @@
       "backend": "gpu",
       "inputKind": "image",
       "outputKind": "visualization"
+    },
+    {
+      "task": "Multilingual text decision (Laya)",
+      "taskId": "text-decision-laya-multilingual",
+      "group": "Text",
+      "model": "Laya multilingual",
+      "files": [
+        {
+          "name": "laya_ml_s256_embeds_wfp16.tflite",
+          "url": "https://huggingface.co/litert-community/Laya-Multilingual-LiteRT/resolve/32f1b84d55f42a323464fad22594cfc2059e7467/laya_ml_s256_embeds_wfp16.tflite",
+          "bytes": 250889040,
+          "sha256": "712f2fea6b2c39759b4c46274cd83b7653f2539fedc4d7569e4c7bf903894ac8"
+        },
+        {
+          "name": "laya_ml_act_head_fp32.tflite",
+          "url": "https://huggingface.co/litert-community/Laya-Multilingual-LiteRT/resolve/32f1b84d55f42a323464fad22594cfc2059e7467/laya_ml_act_head_fp32.tflite",
+          "bytes": 795816,
+          "sha256": "30da532a8b752fdc82351740b0194d440a13d342ed77b9f8848978f1a96cf16d"
+        },
+        {
+          "name": "laya_ml_calibration.json",
+          "url": "https://huggingface.co/litert-community/Laya-Multilingual-LiteRT/resolve/32f1b84d55f42a323464fad22594cfc2059e7467/laya_ml_calibration.json",
+          "bytes": 9156,
+          "sha256": "80e148c68154b607e7bb66446f064b1fe5da649e1074c917b25e02551a566f2c"
+        },
+        {
+          "name": "tokenizer.json",
+          "url": "https://huggingface.co/litert-community/Laya-Multilingual-LiteRT/resolve/32f1b84d55f42a323464fad22594cfc2059e7467/tokenizer.json",
+          "bytes": 34363188,
+          "sha256": "609d8f4c067cd3950f88594c5a802616cea245823836ef5848ee4fc40aab5b6f"
+        },
+        {
+          "name": "token_embeddings_fp16.bin",
+          "url": "https://huggingface.co/litert-community/Laya-Multilingual-LiteRT/resolve/32f1b84d55f42a323464fad22594cfc2059e7467/token_embeddings_fp16.bin",
+          "bytes": 393216000,
+          "sha256": "58608f7bbd72e03adb3e2db8c4942407058eaeaac38e3abec1d6cb01c1512265"
+        },
+        {
+          "name": "token_embeddings.json",
+          "url": "https://huggingface.co/litert-community/Laya-Multilingual-LiteRT/resolve/32f1b84d55f42a323464fad22594cfc2059e7467/token_embeddings.json",
+          "bytes": 801,
+          "sha256": "8b25844d858ace3833b69354a60536111e9bbcecb2e305bee7971e8dfcbd83ef"
+        }
+      ],
+      "license": {
+        "name": "Apache-2.0",
+        "url": "https://huggingface.co/litert-community/Laya-Multilingual-LiteRT/blob/32f1b84d55f42a323464fad22594cfc2059e7467/licenses/Laya-APACHE-2.0.txt"
+      },
+      "upstream": "https://huggingface.co/convaiinnovations/laya",
+      "modelCard": "https://huggingface.co/litert-community/Laya-Multilingual-LiteRT",
+      "backend": "gpu",
+      "inputKind": "text",
+      "outputKind": "text",
+      "componentLicenses": [
+        {
+          "component": "mmBERT-base encoder",
+          "name": "MIT",
+          "url": "https://huggingface.co/litert-community/Laya-Multilingual-LiteRT/blob/32f1b84d55f42a323464fad22594cfc2059e7467/licenses/mmBERT-MIT.txt"
+        },
+        {
+          "component": "ModernBERT",
+          "name": "Apache-2.0",
+          "url": "https://huggingface.co/litert-community/Laya-Multilingual-LiteRT/blob/32f1b84d55f42a323464fad22594cfc2059e7467/licenses/ModernBERT-APACHE-2.0.txt"
+        }
+      ]
+    },
+    {
+      "task": "Multilingual text decision (Julia-1)",
+      "taskId": "text-decision-julia-1",
+      "group": "Text",
+      "model": "Julia-1",
+      "files": [
+        {
+          "name": "julia1_s512_fp32.tflite",
+          "url": "https://huggingface.co/litert-community/Julia-1-LiteRT/resolve/8f36857c56e891c023060586759c6cdc8baf6b3e/julia1_s512_fp32.tflite",
+          "bytes": 185095348,
+          "sha256": "be2d0b7d5f80f9cc1d468198d9cab2944cef55c2089f6db418e758b34359cd6e"
+        },
+        {
+          "name": "julia1_token_table_fp16.bin",
+          "url": "https://huggingface.co/litert-community/Julia-1-LiteRT/resolve/8f36857c56e891c023060586759c6cdc8baf6b3e/julia1_token_table_fp16.bin",
+          "bytes": 196608000,
+          "sha256": "5c7ad7bd7325d4d230a822d1ecee5e33b6c36376df1c028e8e7ddafb7d43be9c"
+        },
+        {
+          "name": "tokenizer.json",
+          "url": "https://huggingface.co/litert-community/Julia-1-LiteRT/resolve/8f36857c56e891c023060586759c6cdc8baf6b3e/tokenizer.json",
+          "bytes": 34363188,
+          "sha256": "609d8f4c067cd3950f88594c5a802616cea245823836ef5848ee4fc40aab5b6f"
+        }
+      ],
+      "license": {
+        "name": "Apache-2.0",
+        "url": "https://huggingface.co/litert-community/Julia-1-LiteRT/blob/8f36857c56e891c023060586759c6cdc8baf6b3e/LICENSE"
+      },
+      "upstream": "https://huggingface.co/SupersonicLabs/Julia-1",
+      "modelCard": "https://huggingface.co/litert-community/Julia-1-LiteRT",
+      "backend": "gpu",
+      "inputKind": "text",
+      "outputKind": "text",
+      "componentLicenses": [
+        {
+          "component": "mmBERT-small encoder",
+          "name": "MIT",
+          "url": "https://huggingface.co/litert-community/Julia-1-LiteRT/blob/8f36857c56e891c023060586759c6cdc8baf6b3e/android/licenses/mmBERT-MIT.txt"
+        }
+      ]
+    },
+    {
+      "task": "English text decision (GLiClass-Edge)",
+      "taskId": "text-decision-gliclass-edge",
+      "group": "Text",
+      "model": "GLiClass-Edge v3.0",
+      "files": [
+        {
+          "name": "gliclass_edge_v3_s128_fp32.tflite",
+          "url": "https://huggingface.co/litert-community/GLiClass-Edge-v3.0-LiteRT/resolve/88c90950587eb951974c094eef91afa0fe3552c0/gliclass_edge_v3_s128_fp32.tflite",
+          "bytes": 53703480,
+          "sha256": "79036f538289fd406e6f33b6a1dda51758c77d5383c7704369248c491dd6dd59"
+        },
+        {
+          "name": "tok_embeddings_fp16.bin",
+          "url": "https://huggingface.co/litert-community/GLiClass-Edge-v3.0-LiteRT/resolve/88c90950587eb951974c094eef91afa0fe3552c0/host_assets/tok_embeddings_fp16.bin",
+          "bytes": 38684160,
+          "sha256": "b22f9bd2aedb1768089da8126dc6cd69572b61f21e39d6254119773b5e147a27"
+        },
+        {
+          "name": "tokenizer.json",
+          "url": "https://huggingface.co/litert-community/GLiClass-Edge-v3.0-LiteRT/resolve/88c90950587eb951974c094eef91afa0fe3552c0/host_assets/tokenizer.json",
+          "bytes": 3583595,
+          "sha256": "7c1979be5ac04a6681dbfbb98a2b01b176883a298f2a7240c93048b244118a01"
+        }
+      ],
+      "license": {
+        "name": "Apache-2.0",
+        "url": "https://huggingface.co/litert-community/GLiClass-Edge-v3.0-LiteRT/blob/88c90950587eb951974c094eef91afa0fe3552c0/LICENSE"
+      },
+      "upstream": "https://huggingface.co/knowledgator/gliclass-edge-v3.0",
+      "modelCard": "https://huggingface.co/litert-community/GLiClass-Edge-v3.0-LiteRT",
+      "backend": "gpu",
+      "inputKind": "text",
+      "outputKind": "text",
+      "componentLicenses": [
+        {
+          "component": "Ettin encoder",
+          "name": "MIT",
+          "url": "https://huggingface.co/litert-community/GLiClass-Edge-v3.0-LiteRT/blob/88c90950587eb951974c094eef91afa0fe3552c0/licenses/Ettin-Encoder-MIT.txt"
+        },
+        {
+          "component": "GLiClass",
+          "name": "Apache-2.0",
+          "url": "https://huggingface.co/litert-community/GLiClass-Edge-v3.0-LiteRT/blob/88c90950587eb951974c094eef91afa0fe3552c0/licenses/GLiClass-APACHE-2.0.txt"
+        }
+      ]
+    },
+    {
+      "task": "English text decision (Open-Decision)",
+      "taskId": "text-decision-open-decision",
+      "group": "Text",
+      "model": "Open-Decision DeBERTa-v3-large",
+      "files": [
+        {
+          "name": "deberta_v3_large_decision_s256_wfp16.tflite",
+          "url": "https://huggingface.co/litert-community/Open-Decision-DeBERTa-v3-Large-LiteRT/resolve/7a276235b795e8ad3ae7ac6a9f237daa2098863a/deberta_v3_large_decision_s256_wfp16.tflite",
+          "bytes": 712780432,
+          "sha256": "4514cd45d4ee6bf1025818bbecd140d4f744fa78d8309e22a17b89448c176e45"
+        },
+        {
+          "name": "word_embeddings_fp16.bin",
+          "url": "https://huggingface.co/litert-community/Open-Decision-DeBERTa-v3-Large-LiteRT/resolve/7a276235b795e8ad3ae7ac6a9f237daa2098863a/word_embeddings_fp16.bin",
+          "bytes": 262348800,
+          "sha256": "d1b86bce8ffa0aae67e7d99db5824e67b5241337d0b5132bf25f22bf9dd72b45"
+        },
+        {
+          "name": "tokenizer.json",
+          "url": "https://huggingface.co/litert-community/Open-Decision-DeBERTa-v3-Large-LiteRT/resolve/7a276235b795e8ad3ae7ac6a9f237daa2098863a/tokenizer.json",
+          "bytes": 8657170,
+          "sha256": "cd119378b0160677b7a1e561ba29ada83918c1d420b326516a585382e83d9d39"
+        }
+      ],
+      "license": {
+        "name": "Apache-2.0",
+        "url": "https://huggingface.co/litert-community/Open-Decision-DeBERTa-v3-Large-LiteRT/blob/7a276235b795e8ad3ae7ac6a9f237daa2098863a/LICENSE"
+      },
+      "upstream": "https://huggingface.co/litert-community/Open-Decision-DeBERTa-v3-Large-LiteRT",
+      "modelCard": "https://huggingface.co/litert-community/Open-Decision-DeBERTa-v3-Large-LiteRT",
+      "backend": "gpu",
+      "inputKind": "text",
+      "outputKind": "text",
+      "componentLicenses": [
+        {
+          "component": "DeBERTa-v3-large encoder",
+          "name": "MIT",
+          "url": "https://huggingface.co/litert-community/Open-Decision-DeBERTa-v3-Large-LiteRT/blob/7a276235b795e8ad3ae7ac6a9f237daa2098863a/android/sample/licenses/DeBERTa-MIT.txt"
+        }
+      ]
+    },
+    {
+      "task": "English text decision (GLiNER2.5-Decide)",
+      "taskId": "text-decision-gliner-decide",
+      "group": "Text",
+      "model": "GLiNER2.5-Decide",
+      "files": [
+        {
+          "name": "gliner25_decide_s128_wfp16.tflite",
+          "url": "https://huggingface.co/litert-community/GLiNER2.5-Decide-LiteRT/resolve/db80197282d11373df084c0ceed67a54544cfa84/gliner25_decide_s128_wfp16.tflite",
+          "bytes": 660383872,
+          "sha256": "026a4b5eb62bb8f0110e9542fd4f788cf247bb5f6d3743a6056cad44b45fb39b"
+        },
+        {
+          "name": "word_embeddings_fp16.bin",
+          "url": "https://huggingface.co/litert-community/GLiNER2.5-Decide-LiteRT/resolve/db80197282d11373df084c0ceed67a54544cfa84/host_assets/word_embeddings_fp16.bin",
+          "bytes": 262166528,
+          "sha256": "f90f5d837721b3d4df7194a89ea18bbea5c449e6944fb6078664f1a8d20484fd"
+        },
+        {
+          "name": "tokenizer.json",
+          "url": "https://huggingface.co/litert-community/GLiNER2.5-Decide-LiteRT/resolve/db80197282d11373df084c0ceed67a54544cfa84/host_assets/tokenizer.json",
+          "bytes": 8333952,
+          "sha256": "3ad87d9ffe669147063e70850927dd2da90249e2acc5c8527f1eb65df467bcc8"
+        }
+      ],
+      "license": {
+        "name": "Apache-2.0",
+        "url": "https://huggingface.co/litert-community/GLiNER2.5-Decide-LiteRT/blob/db80197282d11373df084c0ceed67a54544cfa84/LICENSE"
+      },
+      "upstream": "https://huggingface.co/fastino/GLiNER2.5-Decide",
+      "modelCard": "https://huggingface.co/litert-community/GLiNER2.5-Decide-LiteRT",
+      "backend": "gpu",
+      "inputKind": "text",
+      "outputKind": "text",
+      "componentLicenses": [
+        {
+          "component": "DeBERTa-v3 encoder",
+          "name": "MIT",
+          "url": "https://huggingface.co/litert-community/GLiNER2.5-Decide-LiteRT/blob/db80197282d11373df084c0ceed67a54544cfa84/licenses/DeBERTa-MIT.txt"
+        },
+        {
+          "component": "GLiNER2",
+          "name": "Apache-2.0",
+          "url": "https://huggingface.co/litert-community/GLiNER2.5-Decide-LiteRT/blob/db80197282d11373df084c0ceed67a54544cfa84/licenses/GLiNER2-APACHE-2.0.txt"
+        }
+      ]
     }
   ]
 }
