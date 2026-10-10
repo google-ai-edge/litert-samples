@@ -1,0 +1,12 @@
+<resources>
+    <string name="app_name" translatable="false">DehazeFormer Dehazing</string>
+    <string name="action_pick_image">Pick image</string>
+    <string name="status_loading">Loading DehazeFormer on GPU…</string>
+    <string name="status_processing">Dehazing…</string>
+    <string name="status_ready" translatable="false">DehazeFormer-MCT · haze removal · CompiledModel GPU · %1$d ms</string>
+    <string name="label_hazy_input">Hazy input</string>
+    <string name="label_dehazed_output">Dehazed (GPU)</string>
+    <string name="error_model_missing">Model not found. Push it first with install_to_device.sh:\n%1$s</string>
+    <string name="error_model_load">Failed to load model</string>
+    <string name="error_dehaze_failed">Dehazing failed</string>
+</resources>
