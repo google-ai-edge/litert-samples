@@ -1,6 +1,6 @@
 # LiteRT Demos on an NVIDIA Jetson Orin
 
-How to build the Flutter sample in [`../flutter`](../flutter/) on an NVIDIA Jetson Orin and run its two demos there:
+How to build the Flutter sample in [`samples/litert/flutter`](../../../litert/flutter/) on an NVIDIA Jetson Orin and run its two demos there:
 a voice chat with Gemma and a live camera assistant. Everything runs on the board.
 
 > **Status:** the steps below ran on Ubuntu 22.04 arm64 (the base of JetPack 6) on a cloud arm64 machine, and the
@@ -23,7 +23,7 @@ a voice chat with Gemma and a live camera assistant. Everything runs on the boar
 | | |
 |---|---|
 | Storage | an NVMe SSD (much faster than microSD) with about 15 GB free for Flutter, the build and the models |
-| Camera | a USB webcam, or an Android phone as a Wi-Fi camera ([network camera](../flutter/README.md#using-the-demos)). The CSI camera ports are not supported by the app |
+| Camera | a USB webcam, or an Android phone as a Wi-Fi camera ([network camera](../../../litert/flutter/README.md#using-the-demos)). The CSI camera ports are not supported by the app |
 | Audio | a USB speakerphone; the Orin Nano developer kit has no audio jack |
 | Models | a Hugging Face read token for the built-in models (step 3), and a chat model: Gemma 4 E2B, `gemma-4-E2B-it.litertlm` (2.6 GB) from [litert-community/gemma-4-E2B-it-litert-lm](https://huggingface.co/litert-community/gemma-4-E2B-it-litert-lm), no login needed |
 
