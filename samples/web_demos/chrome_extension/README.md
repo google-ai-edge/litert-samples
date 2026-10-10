@@ -6,6 +6,10 @@ browse, with [LiteRT.js](https://www.npmjs.com/package/@litertjs/core)
 (`@litertjs/core` 2.5.3). The project builds three extensions, one effect
 each:
 
+| Page Voice | Page 3D | Page Text |
+| --- | --- | --- |
+| <img src="img/page-voice.png" alt="Page Voice popup after reading a sentence" width="240"> | <img src="img/page-3d.gif" alt="Page 3D: the image tilts with the cursor" width="300"> | <img src="img/page-text.png" alt="Page Text: selectable text over an image" width="300"> |
+
 | Build | Effect | Model |
 | --- | --- | --- |
 | `dist/` Page Voice | Reads selected text aloud (Alt+R, the context menu or the popup) | [Matcha-TTS](https://huggingface.co/litert-community/Matcha-TTS) |
