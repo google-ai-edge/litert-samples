@@ -1,6 +1,6 @@
 # LiteRT Demos on a Raspberry Pi 5
 
-How to build the Flutter sample in [`../flutter`](../flutter/) on a Raspberry Pi 5 and run its two demos there: a
+How to build the Flutter sample in [`samples/litert/flutter`](../../../litert/flutter/) on a Raspberry Pi 5 and run its two demos there: a
 voice chat with Gemma and a live camera assistant. Everything runs on the Pi.
 
 > **Status:** the steps below ran unchanged on Debian 12 arm64 (Bookworm, the base of Raspberry Pi OS) on a cloud
@@ -16,7 +16,7 @@ voice chat with Gemma and a live camera assistant. Everything runs on the Pi.
 | System | **Raspberry Pi OS (64-bit)** with desktop, Bookworm or newer. The 32-bit system does not work |
 | Storage | an NVMe SSD, or a fast (A2) microSD card; about 15 GB free for Flutter, the build and the models |
 | Cooling and power | the Active Cooler (the models keep all four cores busy) and the official 27 W supply |
-| Camera | a USB webcam, or an Android phone as a Wi-Fi camera ([network camera](../flutter/README.md#using-the-demos)). The Camera Module (CSI) is not supported by the app |
+| Camera | a USB webcam, or an Android phone as a Wi-Fi camera ([network camera](../../../litert/flutter/README.md#using-the-demos)). The Camera Module (CSI) is not supported by the app |
 | Audio | a USB speakerphone, or a USB microphone and a speaker. The Pi 5 has no audio jack |
 | Models | a Hugging Face read token for the built-in models (step 3), and a chat model: Gemma 4 E2B, `gemma-4-E2B-it.litertlm` (2.6 GB) from [litert-community/gemma-4-E2B-it-litert-lm](https://huggingface.co/litert-community/gemma-4-E2B-it-litert-lm), no login needed |
 
