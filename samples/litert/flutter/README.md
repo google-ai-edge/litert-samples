@@ -30,8 +30,8 @@ This README covers what every platform shares. Each guide has the device-specifi
 |---|---|
 | Android phones (Android 11+, arm64), including the Qualcomm NPU | [../android](../android/README.md) |
 | iPhone (iOS 26+) | [../ios](../ios/README.md) |
-| Raspberry Pi 5 | [../raspberry](../raspberry/README.md) |
-| NVIDIA Jetson Orin | [../nvidia](../nvidia/README.md) |
+| Raspberry Pi 5 | [../../linux/vendors/raspberry](../../linux/vendors/raspberry/README.md) |
+| NVIDIA Jetson Orin | [../../linux/vendors/nvidia](../../linux/vendors/nvidia/README.md) |
 | Arduino VENTUNO Q (Qualcomm QCS8275), including the NPU | [../qualcomm/ventuno](../qualcomm/ventuno/README.md) |
 
 macOS (Apple silicon) and Linux desktops run from this folder directly ([Run](#run)).
