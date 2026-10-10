@@ -15,7 +15,11 @@
 
 /**
  * PP-OCRv5 pipeline pieces shared by the offscreen engine and the
- * verification/e2e harnesses. Pure functions — no chrome.*, no model I/O.
+ * verification/e2e harnesses. No chrome.*, no model I/O, no imports: the
+ * recognition loop (recognizeLines) gets the recognizer and its canvases
+ * from the caller. Also bundled into the web demos' ppocr page
+ * (samples/web_demos/src/ppocr/): after a change, rebuild samples/web_demos/
+ * dist/ and run `npm run check -- ppocr` there.
  *
  * Spec source: litert-community/PP-OCRv5-LiteRT model card.
  *   det: image [1,3,640,640] NCHW, /255 then ImageNet mean/std
@@ -459,4 +463,174 @@ export function groupLines(lines) {
     prev = line.group ?? null;
   }
   return out;
+}
+
+// --- recognition loop ----------------------------------------------------------
+
+// Background frame around every rec window, px at rec scale.
+export const EDGE_PAD = 8;
+// Mean CTC top1−top2 margin below which a "line" is treated as a
+// hallucination on a decorative blob (avatar, UI bar) and dropped. Real
+// text on the mock posts scores ≳0.5; the fake-header bars scored ≈0.05.
+const SCORE_MIN = 0.2;
+const CJK_RE = /[぀-ヿ㐀-䶿一-鿿]/;
+
+/**
+ * Recognize one window of a line strip, robustly.
+ *
+ * The recognizer has deterministic failure pockets: a crop that renders
+ * clean text can decode to confident-looking garbage ("Every day" →
+ * "YveerydaYyw"), and a tiny geometry change (slight rescale/shift) moves
+ * it back out of the pocket. Failed pockets score low (≤0.62 mean CTC
+ * margin) while healthy decodes score ≥0.85, so: decode geometry variants
+ * until one is healthy and keep the highest-scoring one. Content is always
+ * framed with real background — flush edges hallucinate phantom edge
+ * characters.
+ */
+async function recognizeWindow(rec, strip, from, pw, bg, maxVariants = 5) {
+  const C = rec.chars.length;
+  const variants = [
+    { pad: EDGE_PAD, scale: 1, grow: 0 },
+    // Short crops left at native scale sit in a pocket: a clean "Notes for"
+    // (203 px of a 304 px window) decoded as "Yotesow" at margin 0.15, and
+    // stretching the same pixels to fill the window read it correctly at
+    // 0.95. Capped at 2.5× so a one-word crop is not smeared.
+    { pad: EDGE_PAD, scale: 1, grow: 0, fill: true },
+    { pad: EDGE_PAD + 10, scale: 0.92, grow: 0 },
+    { pad: EDGE_PAD, scale: 0.96, grow: 10 }, // widened bounds: new context
+    { pad: EDGE_PAD + 4, scale: 0.85, grow: 0 },
+    { pad: EDGE_PAD, scale: 1, grow: 22 },
+  ].slice(0, maxVariants);
+  let best = null;
+  let ms = 0;
+  for (const v of variants) {
+    const f = Math.max(0, from - v.grow);
+    const w = Math.min(strip.width - f, pw + v.grow + (from - f));
+    const availW = REC_W - 2 * v.pad;
+    const natW = Math.round(w * v.scale);
+    const drawnW = v.fill
+      ? Math.min(availW, Math.round(natW * 2.5))
+      : Math.min(availW, natW);
+    const drawnH = Math.round(REC_H * v.scale);
+    const contentW = Math.min(REC_W, drawnW + 2 * v.pad);
+    const win = rec.makeCanvas(contentW, REC_H);
+    const ctx = win.getContext('2d', { willReadFrequently: true });
+    ctx.fillStyle = `rgb(${bg[0]},${bg[1]},${bg[2]})`;
+    ctx.fillRect(0, 0, contentW, REC_H);
+    ctx.drawImage(strip, f, 0, w, REC_H,
+      v.pad, Math.floor((REC_H - drawnH) / 2), drawnW, drawnH);
+    const rgba = ctx.getImageData(0, 0, contentW, REC_H).data;
+    const out = await rec.recognize(recPreprocess(rgba, contentW));
+    ms += out.ms;
+    const d = ctcDecode(out.data, out.data.length / C, C, rec.chars);
+    if (!best || d.score > best.score) best = d;
+    // Healthy decode — no need to pay for more variants.
+    if (best.score >= 0.85) break;
+  }
+  return { text: best.text, score: best.score, ms };
+}
+
+/** Recognize [from, to) of a strip; when the decode scores poorly, re-split
+ * at the widest interior background gap and keep the halves if they read
+ * better. Squashed Latin windows lose thin glyphs — two unsquashed halves
+ * usually recover them. */
+async function recognizePiece(rec, strip, profile, from, to, bg, depth = 0) {
+  const pw = to - from;
+  // Depth-0 windows get the full variant sweep; re-split halves get a
+  // cheaper one so a stubborn window can't multiply into dozens of runs.
+  const r = await recognizeWindow(rec, strip, from, pw, bg, depth === 0 ? 6 : 2);
+  if (r.score >= 0.75 || depth >= 2 || pw < 60) return r;
+  const cut = widestInteriorGap(profile, from, to);
+  if (cut == null) return r;
+  const left = await recognizePiece(rec, strip, profile, from, cut, bg, depth + 1);
+  const right = await recognizePiece(rec, strip, profile, cut, to, bg, depth + 1);
+  const combinedScore = Math.min(left.score, right.score);
+  if (combinedScore <= r.score) return { ...r, ms: r.ms + left.ms + right.ms };
+  const sep = !left.text || !right.text
+    || (CJK_RE.test(left.text.slice(-1)) && CJK_RE.test(right.text[0])) ? '' : ' ';
+  return {
+    text: left.text + sep + right.text,
+    score: combinedScore,
+    ms: r.ms + left.ms + right.ms,
+  };
+}
+
+/**
+ * Detected line boxes → recognized text: per box, the whole line is drawn
+ * once at rec height from the FULL-RES source and split on the strip's own
+ * ink profile, and every window is read by recognizePiece. The caller
+ * brings the model and the canvases:
+ *   recognize(nchw) → Promise<{data, ms}>: the recognizer's CTC logits
+ *     [T, C] for one [1, 3, REC_H, REC_W] input, and the time it took
+ *   makeCanvas(w, h) → a canvas with a 2D context (an OffscreenCanvas)
+ *   onLine(i, n), optional: called before box i of n is read
+ * source = the image the boxes were found on (an ImageBitmap); boxes =
+ * probToBoxes output; chars = buildCharTable output.
+ * Returns {lines, windows, recMs}: lines = [{x, y, w, h, text, score, group,
+ * midWord}] with rects as fractions of the source size; windows = windows
+ * read (retries not counted); recMs = the time spent in recognize().
+ */
+export async function recognizeLines(source, boxes, { chars, recognize, makeCanvas, onLine = null }) {
+  const rec = { chars, recognize, makeCanvas };
+  const nw = source.width;
+  const nh = source.height;
+  const scaleX = nw / DET_SIZE;
+  const scaleY = nh / DET_SIZE;
+  const lines = [];
+  let recMs = 0;
+  let windows = 0;
+  for (const [group, box] of boxes.entries()) {
+    onLine?.(group, boxes.length);
+    // Render the whole detected line once at rec height; split on the strip's
+    // own ink profile (source pixels — the det map is too blurry to find true
+    // gaps and its minima fall inside glyphs).
+    const sx = box.x0 * scaleX;
+    const sy = box.y0 * scaleY;
+    const sw = (box.x1 - box.x0 + 1) * scaleX;
+    const sh = (box.y1 - box.y0 + 1) * scaleY;
+    const lw = Math.min(4096, Math.max(1, Math.round(REC_H * (sw / sh))));
+    const strip = makeCanvas(lw, REC_H);
+    const stripCtx = strip.getContext('2d', { willReadFrequently: true });
+    stripCtx.drawImage(source, sx, sy, sw, sh, 0, 0, lw, REC_H);
+    const stripRgba = stripCtx.getImageData(0, 0, lw, REC_H).data;
+    const { profile, bg } = columnInkProfile(stripRgba, lw, REC_H);
+    // Prefer one mildly squashed window over many cuts: every extra window
+    // boundary is a chance for a duplicated/phantom edge character.
+    const pieces = splitByInk(profile, lw, {
+      maxW: REC_W - 2 * EDGE_PAD,
+      squashLimit: (REC_W - 2 * EDGE_PAD) * 2.2,
+    });
+
+    let lastKept = -1; // index of the last piece that became a line
+    for (const [i, piece] of pieces.entries()) {
+      // Tighten to ink: unclip margins leave large variable bg runs at the
+      // window edges, and rec quality is sensitive to them.
+      const tight = inkBounds(profile, piece.from, piece.to);
+      if (!tight) continue;
+      const { from, to } = tight;
+      const pw = to - from;
+      if (pw < 3) continue;
+      const best = await recognizePiece(rec, strip, profile, from, to, bg);
+      recMs += best.ms;
+      windows++;
+      const { text, score } = best;
+      if (!text.trim()) continue;
+      if (score < SCORE_MIN) continue;
+      const toSrc = sh / REC_H; // strip px → source px
+      lines.push({
+        x: (sx + from * toSrc) / nw,
+        y: sy / nh,
+        w: (pw * toSrc) / nw,
+        h: sh / nh,
+        text,
+        score: +score.toFixed(3),
+        group, // pieces of one detected line share a group → joined on copy
+        // The cut before this window went through a word: joined without a
+        // space, unless the window before it was dropped.
+        midWord: piece.midWord && lastKept === i - 1,
+      });
+      lastKept = i;
+    }
+  }
+  return { lines, windows, recMs };
 }

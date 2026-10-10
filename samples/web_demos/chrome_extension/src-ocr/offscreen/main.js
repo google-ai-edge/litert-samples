@@ -29,7 +29,8 @@
  *   url → bytes (fetch here; service-worker relay if COEP blocks it) →
  *   640×640 stretch + ImageNet norm → det prob map → threshold + connected
  *   components + line merge (ocr-pipeline.js) → per-line valley split →
- *   crops from the FULL-RES bitmap at h=48 → rec → CTC greedy decode →
+ *   crops from the FULL-RES bitmap at h=48 → rec → CTC greedy decode
+ *   (recognizeLines in ocr-pipeline.js) →
  *   [{x, y, w, h, text}] normalized to the natural image size.
  *
  * Messages in  (target 'offscreen'): {type:'ocr', url} | {type:'status'}.
@@ -37,9 +38,9 @@
  */
 import { Tensor, isWebGPUSupported, loadAndCompile, loadLiteRt } from '@litertjs/core';
 import {
-  DET_SIZE, REC_H, REC_W, buildCharTable, columnInkProfile, ctcDecode,
-  detPreprocess, inkBounds, probToBoxes, recPreprocess, splitByInk,
-  widestInteriorGap,
+  DET_SIZE, EDGE_PAD, REC_H, REC_W, buildCharTable, columnInkProfile,
+  ctcDecode, detPreprocess, probToBoxes, recPreprocess, recognizeLines,
+  splitByInk,
 } from '../ocr-pipeline.js';
 
 const HF = 'https://huggingface.co/litert-community/PP-OCRv5-LiteRT/resolve/main';
@@ -48,13 +49,6 @@ const REC_URL = `${HF}/ppocr_rec_fp32.tflite`;
 const DICT_URL = `${HF}/ppocrv5_dict.txt`;
 const CACHE_NAME = 'pagetext-models-v1';
 const CACHE_ENTRIES = 8;
-const MIN_LINE_CHARS = 1;
-// Mean CTC top1−top2 margin below which a "line" is treated as a
-// hallucination on a decorative blob (avatar, UI bar) and dropped. Real
-// text on the mock posts scores ≳0.5; the fake-header bars scored ≈0.05.
-const SCORE_MIN = 0.2;
-// Background frame around every rec window, px at rec scale.
-const EDGE_PAD = 8;
 
 let state = 'loading'; // loading → downloading → compiling → ready | error
 let error = null;
@@ -259,87 +253,6 @@ async function runModel(model, nchw, shape) {
 const detCanvas = new OffscreenCanvas(DET_SIZE, DET_SIZE);
 const detCtx = detCanvas.getContext('2d', { willReadFrequently: true });
 
-/**
- * Recognize one window of a line strip, robustly.
- *
- * The recognizer has deterministic failure pockets: a crop that renders
- * clean text can decode to confident-looking garbage ("Every day" →
- * "YveerydaYyw"), and a tiny geometry change (slight rescale/shift) moves
- * it back out of the pocket. Failed pockets score low (≤0.62 mean CTC
- * margin) while healthy decodes score ≥0.85, so: decode two geometry
- * variants and keep the higher-scoring one. Content is always framed with
- * real background — flush edges hallucinate phantom edge characters.
- */
-async function recognizeWindow(strip, from, pw, bg, maxVariants = 5) {
-  const C = chars.length;
-  const variants = [
-    { pad: EDGE_PAD, scale: 1, grow: 0 },
-    // Short crops left at native scale sit in a pocket: a clean "Notes for"
-    // (203 px of a 304 px window) decoded as "Yotesow" at margin 0.15, and
-    // stretching the same pixels to fill the window read it correctly at
-    // 0.95. Capped at 2.5× so a one-word crop is not smeared.
-    { pad: EDGE_PAD, scale: 1, grow: 0, fill: true },
-    { pad: EDGE_PAD + 10, scale: 0.92, grow: 0 },
-    { pad: EDGE_PAD, scale: 0.96, grow: 10 }, // widened bounds: new context
-    { pad: EDGE_PAD + 4, scale: 0.85, grow: 0 },
-    { pad: EDGE_PAD, scale: 1, grow: 22 },
-  ].slice(0, maxVariants);
-  let best = null;
-  let ms = 0;
-  for (const v of variants) {
-    const f = Math.max(0, from - v.grow);
-    const w = Math.min(strip.width - f, pw + v.grow + (from - f));
-    const availW = REC_W - 2 * v.pad;
-    const natW = Math.round(w * v.scale);
-    const drawnW = v.fill
-      ? Math.min(availW, Math.round(natW * 2.5))
-      : Math.min(availW, natW);
-    const drawnH = Math.round(REC_H * v.scale);
-    const contentW = Math.min(REC_W, drawnW + 2 * v.pad);
-    const win = new OffscreenCanvas(contentW, REC_H);
-    const ctx = win.getContext('2d', { willReadFrequently: true });
-    ctx.fillStyle = `rgb(${bg[0]},${bg[1]},${bg[2]})`;
-    ctx.fillRect(0, 0, contentW, REC_H);
-    ctx.drawImage(strip, f, 0, w, REC_H,
-      v.pad, Math.floor((REC_H - drawnH) / 2), drawnW, drawnH);
-    const rgba = ctx.getImageData(0, 0, contentW, REC_H).data;
-    const rec = await runModel(recModel, recPreprocess(rgba, contentW), [1, 3, REC_H, REC_W]);
-    ms += rec.ms;
-    const d = ctcDecode(rec.data, rec.data.length / C, C, chars);
-    if (!best || d.score > best.score) best = d;
-    // Healthy decode — no need to pay for more variants.
-    if (best.score >= 0.85) break;
-  }
-  return { text: best.text, score: best.score, ms };
-}
-
-const CJK_RE = /[぀-ヿ㐀-䶿一-鿿]/;
-
-/** Recognize [from, to) of a strip; when the decode scores poorly, re-split
- * at the widest interior background gap and keep the halves if they read
- * better. Squashed Latin windows lose thin glyphs — two unsquashed halves
- * usually recover them. */
-async function recognizePiece(strip, profile, from, to, bg, depth = 0) {
-  const pw = to - from;
-  // Depth-0 windows get the full variant sweep; re-split halves get a
-  // cheaper one so a stubborn window can't multiply into dozens of runs.
-  const r = await recognizeWindow(strip, from, pw, bg, depth === 0 ? 6 : 2);
-  if (r.score >= 0.75 || depth >= 2 || pw < 60) return r;
-  const cut = widestInteriorGap(profile, from, to);
-  if (cut == null) return r;
-  const left = await recognizePiece(strip, profile, from, cut, bg, depth + 1);
-  const right = await recognizePiece(strip, profile, cut, to, bg, depth + 1);
-  const combinedScore = Math.min(left.score, right.score);
-  if (combinedScore <= r.score) return { ...r, ms: r.ms + left.ms + right.ms };
-  const sep = !left.text || !right.text
-    || (CJK_RE.test(left.text.slice(-1)) && CJK_RE.test(right.text[0])) ? '' : ' ';
-  return {
-    text: left.text + sep + right.text,
-    score: combinedScore,
-    ms: r.ms + left.ms + right.ms,
-  };
-}
-
 async function runOcr(url, { forceRelay = false } = {}) {
   if (state !== 'ready') {
     // Boot may still be in flight (or previously failed) — wait for it here
@@ -371,63 +284,15 @@ async function runOcr(url, { forceRelay = false } = {}) {
 
   detCtx.drawImage(bitmap, 0, 0, nw, nh, 0, 0, DET_SIZE, DET_SIZE);
   const rgba = detCtx.getImageData(0, 0, DET_SIZE, DET_SIZE).data;
-  const { nchw, scaleX, scaleY } = detPreprocess(rgba, nw, nh);
+  const { nchw } = detPreprocess(rgba, nw, nh);
   const det = await runModel(detModel, nchw, [1, 3, DET_SIZE, DET_SIZE]);
   const boxes = probToBoxes(det.data);
 
-  const lines = [];
-  let recMs = 0;
-  for (const [group, box] of boxes.entries()) {
-    // Render the whole detected line once at rec height; split on the strip's
-    // own ink profile (source pixels — the det map is too blurry to find true
-    // gaps and its minima fall inside glyphs).
-    const sx = box.x0 * scaleX;
-    const sy = box.y0 * scaleY;
-    const sw = (box.x1 - box.x0 + 1) * scaleX;
-    const sh = (box.y1 - box.y0 + 1) * scaleY;
-    const lw = Math.min(4096, Math.max(1, Math.round(REC_H * (sw / sh))));
-    const strip = new OffscreenCanvas(lw, REC_H);
-    const stripCtx = strip.getContext('2d', { willReadFrequently: true });
-    stripCtx.drawImage(bitmap, sx, sy, sw, sh, 0, 0, lw, REC_H);
-    const stripRgba = stripCtx.getImageData(0, 0, lw, REC_H).data;
-    const { profile, bg } = columnInkProfile(stripRgba, lw, REC_H);
-    // Prefer one mildly squashed window over many cuts: every extra window
-    // boundary is a chance for a duplicated/phantom edge character.
-    const pieces = splitByInk(profile, lw, {
-      maxW: REC_W - 2 * EDGE_PAD,
-      squashLimit: (REC_W - 2 * EDGE_PAD) * 2.2,
-    });
-
-    let lastKept = -1; // index of the last piece that became a line
-    for (const [i, piece] of pieces.entries()) {
-      // Tighten to ink: unclip margins leave large variable bg runs at the
-      // window edges, and rec quality is sensitive to them.
-      const tight = inkBounds(profile, piece.from, piece.to);
-      if (!tight) continue;
-      const { from, to } = tight;
-      const pw = to - from;
-      if (pw < 3) continue;
-      const best = await recognizePiece(strip, profile, from, to, bg);
-      recMs += best.ms;
-      const { text, score } = best;
-      if (text.trim().length < MIN_LINE_CHARS) continue;
-      if (score < SCORE_MIN) continue;
-      const toSrc = sh / REC_H; // strip px → source px
-      lines.push({
-        x: (sx + from * toSrc) / nw,
-        y: sy / nh,
-        w: (pw * toSrc) / nw,
-        h: sh / nh,
-        text,
-        score: +score.toFixed(3),
-        group, // pieces of one detected line share a group → joined on copy
-        // The cut before this window went through a word: joined without a
-        // space, unless the window before it was dropped.
-        midWord: piece.midWord && lastKept === i - 1,
-      });
-      lastKept = i;
-    }
-  }
+  const { lines, recMs } = await recognizeLines(bitmap, boxes, {
+    chars,
+    recognize: (input) => runModel(recModel, input, [1, 3, REC_H, REC_W]),
+    makeCanvas: (w, h) => new OffscreenCanvas(w, h),
+  });
   bitmap.close();
 
   runCount++;
