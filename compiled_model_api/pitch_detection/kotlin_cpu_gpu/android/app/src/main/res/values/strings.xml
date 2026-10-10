@@ -1,0 +1,12 @@
+<resources>
+    <string name="app_name" translatable="false">Pitch Detection</string>
+    <string name="action_start" translatable="false">🎤  Start tuner</string>
+    <string name="action_stop" translatable="false">■  Stop</string>
+    <string name="status_loading">Loading CREPE on GPU…</string>
+    <string name="status_ready" translatable="false">On-device GPU pitch detection · self-test 440 Hz → %1$s %2$.1f Hz</string>
+    <string name="no_pitch" translatable="false">—</string>
+    <string name="hint_listening">listening…</string>
+    <string name="hz_reading" translatable="false">%1$.1f Hz   %2$+d cents</string>
+    <string name="error_model_missing">Model not found. Push it first with install_to_device.sh:\n%1$s</string>
+    <string name="error_model_load">Failed to load model</string>
+</resources>
