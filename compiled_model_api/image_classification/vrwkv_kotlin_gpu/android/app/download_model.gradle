@@ -1,0 +1,8 @@
+// Fetch the VRWKV-S fp16 model (48 MB) from Hugging Face into the app assets at
+// build time; it is not committed to the repo.
+tasks.register('downloadVrwkvModel', Download) {
+    src 'https://huggingface.co/litert-community/Vision-RWKV-S-LiteRT/resolve/main/vrwkv_s_fp16.tflite'
+    dest project.ext.ASSET_DIR + '/vrwkv_s_fp16.tflite'
+    overwrite false
+}
+preBuild.dependsOn downloadVrwkvModel
