@@ -1,0 +1,64 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+ Copyright 2026 The Google AI Edge Authors. All Rights Reserved.
+
+ Licensed under the Apache License, Version 2.0 (the "License");
+ you may not use this file except in compliance with the License.
+ You may obtain a copy of the License at
+
+       http://www.apache.org/licenses/LICENSE-2.0
+
+ Unless required by applicable law or agreed to in writing, software
+ distributed under the License is distributed on an "AS IS" BASIS,
+ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ See the License for the specific language governing permissions and
+ limitations under the License.
+-->
+<manifest xmlns:android="http://schemas.android.com/apk/res/android" xmlns:tools="http://schemas.android.com/tools">
+  <!-- Only for downloading the model files from Hugging Face; inference makes no network call. -->
+  <uses-permission android:name="android.permission.INTERNET" />
+  <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+  <!-- The microphone (granted at run time). -->
+  <uses-permission android:name="android.permission.RECORD_AUDIO" />
+  <!-- The phone tools: the alarm and the timer through the Clock app, events in the app's own
+       "Phone Agent" calendar (READ_CALENDAR / WRITE_CALENDAR granted at run time). -->
+  <uses-permission android:name="com.android.alarm.permission.SET_ALARM" />
+  <uses-permission android:name="android.permission.READ_CALENDAR" />
+  <uses-permission android:name="android.permission.WRITE_CALENDAR" />
+  <!-- The LiteRT dependency merges Play AI Delivery and WorkManager components; this app downloads its own model files over HTTPS, so they are removed. -->
+  <uses-permission android:name="android.permission.FOREGROUND_SERVICE" tools:node="remove" />
+  <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" tools:node="remove" />
+  <uses-permission android:name="android.permission.WAKE_LOCK" tools:node="remove" />
+  <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" tools:node="remove" />
+  <application android:allowBackup="false" android:label="@string/app_name" android:theme="@android:style/Theme.Material.NoActionBar" android:usesCleartextTraffic="false">
+    <!-- The LiteRT-LM GPU backend on Android 12+: without them Engine.initialize() succeeds and the
+         first message fails with "Can not find OpenCL library". -->
+    <uses-native-library android:name="libOpenCL.so" android:required="false" />
+    <uses-native-library android:name="libOpenCL-pixel.so" android:required="false" />
+    <uses-native-library android:name="libvndksupport.so" android:required="false" />
+    <!-- singleTop: `adb shell am start` with new extras reaches the running screen (onNewIntent). -->
+    <activity android:name=".MainActivity" android:exported="true" android:launchMode="singleTop" android:screenOrientation="portrait">
+      <intent-filter>
+        <action android:name="android.intent.action.MAIN" />
+        <category android:name="android.intent.category.LAUNCHER" />
+      </intent-filter>
+    </activity>
+    <provider android:name="androidx.startup.InitializationProvider" android:authorities="${applicationId}.androidx-startup" tools:node="merge">
+      <meta-data android:name="androidx.work.WorkManagerInitializer" tools:node="remove" />
+    </provider>
+    <service android:name="com.google.android.play.core.assetpacks.AssetPackExtractionService" tools:node="remove" />
+    <service android:name="com.google.android.play.core.assetpacks.ExtractionForegroundService" tools:node="remove" />
+    <receiver android:name="com.google.android.play.core.assetpacks.SessionStateBroadcastReceiver" tools:node="remove" />
+    <service android:name="androidx.work.impl.background.systemalarm.SystemAlarmService" tools:node="remove" />
+    <service android:name="androidx.work.impl.background.systemjob.SystemJobService" tools:node="remove" />
+    <service android:name="androidx.work.impl.foreground.SystemForegroundService" tools:node="remove" />
+    <receiver android:name="androidx.work.impl.utils.ForceStopRunnable$BroadcastReceiver" tools:node="remove" />
+    <receiver android:name="androidx.work.impl.background.systemalarm.ConstraintProxy$BatteryChargingProxy" tools:node="remove" />
+    <receiver android:name="androidx.work.impl.background.systemalarm.ConstraintProxy$BatteryNotLowProxy" tools:node="remove" />
+    <receiver android:name="androidx.work.impl.background.systemalarm.ConstraintProxy$StorageNotLowProxy" tools:node="remove" />
+    <receiver android:name="androidx.work.impl.background.systemalarm.ConstraintProxy$NetworkStateProxy" tools:node="remove" />
+    <receiver android:name="androidx.work.impl.background.systemalarm.RescheduleReceiver" tools:node="remove" />
+    <receiver android:name="androidx.work.impl.background.systemalarm.ConstraintProxyUpdateReceiver" tools:node="remove" />
+    <receiver android:name="androidx.work.impl.diagnostics.DiagnosticsReceiver" tools:node="remove" />
+  </application>
+</manifest>
