@@ -1,0 +1,7 @@
+<resources>
+    <string name="app_name" translatable="false">YOLACT Instance Segmentation</string>
+    <string name="action_pick_image">Pick image</string>
+    <string name="status_loading">Loading YOLACT on GPU…</string>
+    <string name="status_processing">Segmenting…</string>
+    <string name="status_ready" translatable="false">YOLACT · COCO instance segmentation · CompiledModel GPU · %1$d ms</string>
+</resources>
