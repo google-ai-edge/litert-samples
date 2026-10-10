@@ -1,0 +1,21 @@
+// Downloads the image-encoder models (converted with litert-torch) into the assets
+// directory at build time so the large .tflite files are never committed to the repo.
+// Both run at full LITERT_CL GPU residency and are numerically correct on device.
+//
+//   - Perception Encoder (PE-Core-B16-224): litert-community/PE-Core-base-patch16-224
+//   - SigLIP 2 (ViT-B/16, 224):             litert-community/SigLIP2-base-patch16-224
+
+tasks.register('downloadPeCoreImageEncoder', Download) {
+    src 'https://huggingface.co/litert-community/PE-Core-base-patch16-224/resolve/main/pe_core_base_224_fp16.tflite'
+    dest project.ext.ASSET_DIR + '/pe_core_base_224_fp16.tflite'
+    overwrite false
+}
+
+tasks.register('downloadSigLip2ImageEncoder', Download) {
+    src 'https://huggingface.co/litert-community/SigLIP2-base-patch16-224/resolve/main/siglip2_base_224_fp16.tflite'
+    dest project.ext.ASSET_DIR + '/siglip2_base_224_fp16.tflite'
+    overwrite false
+}
+
+preBuild.dependsOn downloadPeCoreImageEncoder
+preBuild.dependsOn downloadSigLip2ImageEncoder
