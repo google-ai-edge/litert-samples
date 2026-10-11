@@ -1,0 +1,119 @@
+{
+  "schemaVersion": 1,
+  "models": [
+    {
+      "id": "zipformer",
+      "role": "Speech recognition",
+      "model": "Zipformer medium CR-CTC (medium_fp16)",
+      "runtime": "litert",
+      "backend": "gpu",
+      "files": [
+        {
+          "name": "zipformer_ctc_fp16.tflite",
+          "url": "https://huggingface.co/litert-community/Zipformer-medium-CR-CTC-LiteRT/resolve/7732ad6c15ec43402968d5ae04acfa7a204027f5/zipformer_ctc_fp16.tflite",
+          "bytes": 131490944,
+          "sha256": "9515d94c04306798fecfe695eb8f79cc8ac98ed3d8eab81c28ac464b7dbddf48"
+        },
+        {
+          "name": "tokens.txt",
+          "url": "https://huggingface.co/litert-community/Zipformer-medium-CR-CTC-LiteRT/resolve/7732ad6c15ec43402968d5ae04acfa7a204027f5/tokens.txt",
+          "bytes": 5048,
+          "sha256": "49e3c2646595fd907228b3c6787069658f67b17377c60aeb8619c4551b2316fb"
+        }
+      ],
+      "license": {
+        "name": "Apache-2.0",
+        "url": "https://huggingface.co/litert-community/Zipformer-medium-CR-CTC-LiteRT/blob/7732ad6c15ec43402968d5ae04acfa7a204027f5/README.md"
+      },
+      "modelCard": "https://huggingface.co/litert-community/Zipformer-medium-CR-CTC-LiteRT"
+    },
+    {
+      "id": "kitten",
+      "role": "Speech synthesis",
+      "model": "KittenTTS nano 0.8 (fp32)",
+      "runtime": "litert",
+      "backend": "cpu",
+      "files": [
+        {
+          "name": "kitten_predictor.tflite",
+          "url": "https://huggingface.co/litert-community/kitten-tts-nano-0.8/resolve/d4662d891f9bf54b3d93432610d0d296d229e026/kitten_predictor.tflite",
+          "bytes": 33819808,
+          "sha256": "0ca50bbf3c2fa1ba2c779e3851a5d3c8e59dbb68790a6c392d03eff4fac49296"
+        },
+        {
+          "name": "kitten_prosody.tflite",
+          "url": "https://huggingface.co/litert-community/kitten-tts-nano-0.8/resolve/d4662d891f9bf54b3d93432610d0d296d229e026/kitten_prosody.tflite",
+          "bytes": 3284012,
+          "sha256": "99b90a4ac4f564068d57eab9eff04534dba31d430c2c831a825c81c328324532"
+        },
+        {
+          "name": "kitten_vocoder.tflite",
+          "url": "https://huggingface.co/litert-community/kitten-tts-nano-0.8/resolve/d4662d891f9bf54b3d93432610d0d296d229e026/kitten_vocoder.tflite",
+          "bytes": 26433136,
+          "sha256": "87afb43780fb78434418a143de100740e68d804aa8f45adfdeb0370c85ec4eaa"
+        },
+        {
+          "name": "voices.npz",
+          "url": "https://huggingface.co/litert-community/kitten-tts-nano-0.8/resolve/d4662d891f9bf54b3d93432610d0d296d229e026/voices.npz",
+          "bytes": 3278902,
+          "sha256": "8aa7cee235abb0739cb51e6559685f65a4dacd95568833d05699b1633f519b3f"
+        },
+        {
+          "name": "dp_g2p_matcha_fp16.tflite",
+          "url": "https://huggingface.co/litert-community/Matcha-TTS/resolve/8d650e794583c0b0869c87027c2f3a7c293902cb/dp_g2p_matcha_fp16.tflite",
+          "bytes": 25785872,
+          "sha256": "6e4b481f6874dfabc32ce73bf6f0ea1ba6ab5986ee6f76a27779364be8a53c73"
+        },
+        {
+          "name": "g2p_dict.txt.gz",
+          "url": "https://huggingface.co/litert-community/Matcha-TTS/resolve/8d650e794583c0b0869c87027c2f3a7c293902cb/g2p_dict.txt.gz",
+          "bytes": 1762038,
+          "sha256": "5b3493a8cd4d20b72c7b91415afaf3f32335ebd81f349698e1cedc898c59f979"
+        },
+        {
+          "name": "g2p_meta.json",
+          "url": "https://huggingface.co/litert-community/Matcha-TTS/resolve/8d650e794583c0b0869c87027c2f3a7c293902cb/g2p_meta.json",
+          "bytes": 1904,
+          "sha256": "7b87bfeaaa072be236e8491d771b0cb97cc92c3e5d83e3558fff8849868810f5"
+        }
+      ],
+      "license": {
+        "name": "Apache-2.0",
+        "url": "https://huggingface.co/litert-community/kitten-tts-nano-0.8/blob/d4662d891f9bf54b3d93432610d0d296d229e026/README.md"
+      },
+      "modelCard": "https://huggingface.co/litert-community/kitten-tts-nano-0.8",
+      "componentLicenses": [
+        {
+          "component": "DeepPhonemizer",
+          "name": "MIT",
+          "url": "https://github.com/as-ideas/DeepPhonemizer/blob/master/LICENSE"
+        },
+        {
+          "component": "OpenPhonemizer dictionary",
+          "name": "BSD-3-Clause-Clear",
+          "url": "https://github.com/NeuralVox/OpenPhonemizer/blob/main/LICENSE"
+        }
+      ]
+    },
+    {
+      "id": "gemma",
+      "role": "Chat model with tools",
+      "model": "Gemma 4 E2B it",
+      "runtime": "litert_lm",
+      "backend": "gpu",
+      "files": [
+        {
+          "name": "gemma-4-E2B-it.litertlm",
+          "url": "https://huggingface.co/litert-community/gemma-4-E2B-it-litert-lm/resolve/b3ca0d2f076785a8f4b2219ddbd2bdb99954eae1/gemma-4-E2B-it.litertlm",
+          "bytes": 2588147712,
+          "sha256": "181938105e0eefd105961417e8da75903eacda102c4fce9ce90f50b97139a63c"
+        }
+      ],
+      "license": {
+        "name": "Apache-2.0",
+        "url": "https://huggingface.co/litert-community/gemma-4-E2B-it-litert-lm/blob/b3ca0d2f076785a8f4b2219ddbd2bdb99954eae1/README.md"
+      },
+      "modelCard": "https://huggingface.co/litert-community/gemma-4-E2B-it-litert-lm"
+    }
+  ]
+}
