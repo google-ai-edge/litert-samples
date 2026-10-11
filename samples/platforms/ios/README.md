@@ -1,6 +1,6 @@
 # LiteRT Demos on an iPhone
 
-How to build the Flutter sample in [`../flutter`](../flutter/) for an iPhone, sign it with your own Apple account,
+How to build the Flutter sample in [`samples/litert/flutter`](../../litert/flutter/) for an iPhone, sign it with your own Apple account,
 and run its two demos: a voice chat with Gemma and a live camera assistant. Everything runs on the phone. iOS
 installs only apps signed for your own devices, so there is no ready-made build: you build it on a Mac (about 15
 minutes the first time).
@@ -13,7 +13,7 @@ minutes the first time).
 
 | | |
 |---|---|
-| Mac | Apple silicon, **Xcode 26** with the iOS platform, **CocoaPods** (`brew install cocoapods`: one plugin has no Swift Package Manager support), Flutter 3.47.3 (`flutter doctor` shows no errors for Xcode and CocoaPods), and the sample set up once: [Set up](../flutter/README.md#set-up-once-per-checkout) in the sample's README (Python 3.10+, a Hugging Face token in `.env`, `tool/flutter_litert/vendor.sh`, `tool/fetch_models.sh`, `flutter pub get`) |
+| Mac | Apple silicon, **Xcode 26** with the iOS platform, **CocoaPods** (`brew install cocoapods`: one plugin has no Swift Package Manager support), Flutter 3.47.3 (`flutter doctor` shows no errors for Xcode and CocoaPods), and the sample set up once: [Set up](../../litert/flutter/README.md#set-up-once-per-checkout) in the sample's README (Python 3.10+, a Hugging Face token in `.env`, `tool/flutter_litert/vendor.sh`, `tool/fetch_models.sh`, `flutter pub get`) |
 | iPhone | **iOS 26 or newer** (a dependency of the agent package links a system library that older iOS lacks), **8 GB of RAM or more** (iPhone 15 Pro or newer), about 4 GB free |
 | Apple account | signed in to Xcode (**Xcode › Settings › Accounts**). A paid Apple Developer Program team keeps the two memory capabilities of step 2. A free Personal Team works too, but it cannot use them, and its builds stop launching after 7 days (run step 3 again) |
 | Chat model | one `.litertlm` file for the GPU: Gemma 4 E2B, `gemma-4-E2B-it.litertlm` (2.6 GB) from [litert-community/gemma-4-E2B-it-litert-lm](https://huggingface.co/litert-community/gemma-4-E2B-it-litert-lm), no login needed. NPU builds (`…_qualcomm_…`, `…_Google_Tensor_…`, `…_intel_…`) and the text-only `-gpu` and `-web` files do not run in this app on an iPhone |
