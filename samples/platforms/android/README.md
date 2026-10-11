@@ -1,6 +1,6 @@
 # LiteRT Demos on Android
 
-How to build the Flutter sample in [`../flutter`](../flutter/) for an Android phone, install it, and run its two
+How to build the Flutter sample in [`samples/litert/flutter`](../../litert/flutter/) for an Android phone, install it, and run its two
 demos: a voice chat with Gemma and a live camera assistant. Everything runs on the phone; the chat model can run on
 the GPU, the CPU, or a Qualcomm NPU.
 
@@ -14,7 +14,7 @@ the GPU, the CPU, or a Qualcomm NPU.
 | | |
 |---|---|
 | Phone | Android 11 (API 30) or newer, 64-bit (arm64-v8a), **8 GB of RAM or more recommended**. About 4 GB free: the app (about 590 MB), its built-in models unpacked once, and the chat model |
-| Computer | macOS (Apple silicon) or Linux with Flutter 3.47.3, Android SDK 36, JDK 17 or newer (Android Studio's bundled JDK works) and Python 3.10–3.14. Run `flutter doctor --android-licenses` once: the first build installs NDK 28.2.13676358 and CMake. Set up the sample once: [Set up](../flutter/README.md#set-up-once-per-checkout) in the sample's README (`vendor.sh`, `.env` with `HF_TOKEN`, `fetch_models.sh`, `flutter pub get`) |
+| Computer | macOS (Apple silicon) or Linux with Flutter 3.47.3, Android SDK 36, JDK 17 or newer (Android Studio's bundled JDK works) and Python 3.10–3.14. Run `flutter doctor --android-licenses` once: the first build installs NDK 28.2.13676358 and CMake. Set up the sample once: [Set up](../../litert/flutter/README.md#set-up-once-per-checkout) in the sample's README (`vendor.sh`, `.env` with `HF_TOKEN`, `fetch_models.sh`, `flutter pub get`) |
 | Connection | USB debugging on the phone, and `adb` on the computer (it comes with the Android SDK platform tools) |
 | Chat model | **The chat model for Android will be provided.** Public alternatives from [litert-community/gemma-4-E2B-it-litert-lm](https://huggingface.co/litert-community/gemma-4-E2B-it-litert-lm) (no login needed): `gemma-4-E2B-it.litertlm` (2.6 GB) runs on the GPU or CPU of any recent phone; on a Snapdragon 8 Elite (SM8750) phone, `gemma-4-E2B-it_qualcomm_sm8750.litertlm` (3.0 GB) runs on the NPU. The Google Tensor, Intel, QCS8275 and web files in that repository do not run in this app on a phone |
 
