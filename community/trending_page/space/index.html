@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self'; img-src data:; connect-src 'self' https://huggingface.co/api/models https://huggingface.co/api/collections/litert-community/demos-68efdb213c93efee10c2116f https://huggingface.co/spaces/litert-community/README/raw/main/README.md https://google-ai-edge.github.io/litert-samples/samples/litert/README.md https://google-ai-edge.github.io/litert-samples/samples/litert_lm/README.md; base-uri 'none'; form-action 'none'">
+    <meta name="description" content="The trending and recently created models of litert-community on Hugging Face, the picks on its organization card, the samples that run them, and its demos.">
+    <title>Trending models (draft)</title>
+    <link rel="icon" href="data:,">
+    <link rel="stylesheet" href="style.css?v=1">
+</head>
+<body>
+    <p class="draft" role="note">Draft · for review</p>
+    <header>
+        <div class="bar">
+            <span class="brand">Trending models</span>
+            <nav aria-label="Parts of this page">
+                <a href="#trending">Trending</a>
+                <a href="#recent">Recently created</a>
+                <a href="#picks">Picks</a>
+                <a href="#samples">Samples</a>
+                <a href="https://huggingface.co/spaces/litert-community/find-your-models" target="_blank" rel="noopener">Find your models</a>
+            </nav>
+        </div>
+    </header>
+
+    <section class="hero">
+        <h1>Trending models in litert-community</h1>
+        <p>The trending and the recently created models of <a href="https://huggingface.co/litert-community" target="_blank" rel="noopener">litert-community</a> on Hugging Face, the picks on its organization card, the samples in <a href="https://github.com/google-ai-edge/litert-samples" target="_blank" rel="noopener">litert-samples</a> that run these models, and the Spaces of the org's Demos collection.</p>
+    </section>
+
+    <noscript><p class="notice">This page reads its lists with JavaScript. The models, the picks and the demos are at <a href="https://huggingface.co/litert-community" target="_blank" rel="noopener">huggingface.co/litert-community</a>, and the samples in <a href="https://github.com/google-ai-edge/litert-samples/tree/main/samples" target="_blank" rel="noopener">litert-samples</a>.</p></noscript>
+
+    <main>
+        <div class="cols">
+            <section class="part" id="trending" aria-labelledby="trendingTitle">
+                <h2 id="trendingTitle">Trending</h2>
+                <p class="lead">In the order of the <a href="https://huggingface.co/models?author=litert-community&amp;sort=trending" target="_blank" rel="noopener">Trending sort</a> on Hugging Face.</p>
+                <p class="notice" id="trendingLoading" role="status">Reading the <a href="https://huggingface.co/models?author=litert-community&amp;sort=trending" target="_blank" rel="noopener">model list</a> from Hugging Face…</p>
+                <p class="notice error" id="trendingError" role="alert" hidden>The model list could not be loaded from Hugging Face (<span id="trendingErrorWhy"></span>). Reload to try again, or see the <a href="https://huggingface.co/models?author=litert-community&amp;sort=trending" target="_blank" rel="noopener">list on Hugging Face</a>.</p>
+                <p class="notice aside" id="trendingEmpty" hidden>None of the org's models is trending on Hugging Face.</p>
+                <ul class="rows" id="trendingList"></ul>
+                <details class="more" id="trendingMore" hidden>
+                    <summary><span id="trendingMoreCount"></span> more</summary>
+                    <ul class="rows" id="trendingMoreList"></ul>
+                </details>
+            </section>
+
+            <section class="part" id="recent" aria-labelledby="recentTitle">
+                <h2 id="recentTitle">Recently created</h2>
+                <p class="lead">In the order of the <a href="https://huggingface.co/models?author=litert-community&amp;sort=created" target="_blank" rel="noopener">Recently created sort</a> on Hugging Face, newest first.</p>
+                <p class="notice" id="recentLoading" role="status">Reading the <a href="https://huggingface.co/models?author=litert-community&amp;sort=created" target="_blank" rel="noopener">model list</a> from Hugging Face…</p>
+                <p class="notice error" id="recentError" role="alert" hidden>The model list could not be loaded from Hugging Face (<span id="recentErrorWhy"></span>). Reload to try again, or see the <a href="https://huggingface.co/models?author=litert-community&amp;sort=created" target="_blank" rel="noopener">list on Hugging Face</a>.</p>
+                <ul class="rows" id="recentList"></ul>
+                <details class="more" id="recentMore" hidden>
+                    <summary><span id="recentMoreCount"></span> more</summary>
+                    <ul class="rows" id="recentMoreList"></ul>
+                </details>
+            </section>
+
+            <section class="part" id="picks" aria-labelledby="picksTitle">
+                <h2 id="picksTitle">Picks</h2>
+                <p class="lead">The list on the <a href="https://huggingface.co/litert-community" target="_blank" rel="noopener">organization card</a> of litert-community, shown as written there.</p>
+                <p class="notice" id="picksLoading" role="status">Reading the picks from the <a href="https://huggingface.co/litert-community" target="_blank" rel="noopener">organization card</a>…</p>
+                <p class="notice error" id="picksError" role="alert" hidden>The picks could not be loaded (<span id="picksErrorWhy"></span>). They are on the <a href="https://huggingface.co/litert-community" target="_blank" rel="noopener">litert-community</a> page.</p>
+                <ul class="rows picks" id="picksList"></ul>
+            </section>
+        </div>
+
+        <section class="part" id="samples" aria-labelledby="samplesTitle">
+            <h2 id="samplesTitle">Samples</h2>
+            <h3>In litert-samples</h3>
+            <p class="lead">The samples that run a model listed above, from the tables in <a href="https://github.com/google-ai-edge/litert-samples/tree/main/samples/litert" target="_blank" rel="noopener">samples/litert</a> and <a href="https://github.com/google-ai-edge/litert-samples/tree/main/samples/litert_lm" target="_blank" rel="noopener">samples/litert_lm</a>.</p>
+            <p class="notice" id="samplesLoading" role="status">Reading the sample tables from <a href="https://github.com/google-ai-edge/litert-samples/tree/main/samples" target="_blank" rel="noopener">litert-samples</a>…</p>
+            <p class="notice error" id="samplesError" role="alert" hidden>The sample tables could not be loaded (<span id="samplesErrorWhy"></span>). The samples are at <a href="https://github.com/google-ai-edge/litert-samples/tree/main/samples" target="_blank" rel="noopener">litert-samples/samples</a>.</p>
+            <p class="notice aside" id="samplesPartial" role="status" hidden>One sample table could not be loaded (<span id="samplesPartialWhich"></span>), so its samples are missing from this list.</p>
+            <p class="notice aside" id="samplesEmpty" hidden>No sample runs a model listed above.</p>
+            <ul class="rows two" id="samplesList"></ul>
+        </section>
+
+        <section class="part" id="demos" aria-labelledby="demosTitle">
+            <h3 id="demosTitle">Demos on Hugging Face</h3>
+            <p class="lead">The Spaces of the org's <a href="https://huggingface.co/collections/litert-community/demos-68efdb213c93efee10c2116f" target="_blank" rel="noopener">Demos collection</a>, in its order.</p>
+            <p class="notice" id="demosLoading" role="status">Reading the <a href="https://huggingface.co/collections/litert-community/demos-68efdb213c93efee10c2116f" target="_blank" rel="noopener">Demos collection</a> from Hugging Face…</p>
+            <p class="notice error" id="demosError" role="alert" hidden>The demos could not be loaded (<span id="demosErrorWhy"></span>). The org's collections are on the <a href="https://huggingface.co/litert-community" target="_blank" rel="noopener">litert-community</a> page.</p>
+            <ul class="rows three" id="demosList"></ul>
+        </section>
+    </main>
+
+    <section class="block" id="how">
+        <details>
+            <summary><h2>How this page works</h2></summary>
+            <p>Each part is read when the page loads. Trending: the org's models whose <code>trendingScore</code> is above zero, in the order the Hugging Face API returns for <code>sort=trendingScore</code>. Recently created: the org's models by the creation date Hugging Face reports (<code>createdAt</code>), newest first.</p>
+            <p>Each of the two lists shows its first 12 models and folds up to 24 more behind a line that says how many. Repos that hold only a README are left out. No one adds a model to these two lists by hand: they follow the sorts on Hugging Face.</p>
+            <p>Task is the repo's <code>pipeline_tag</code>, and the source model the <code>base_model</code> of its card. Likes and downloads last month are Hugging Face's counts. A model linked from the picks carries the mark Pick; a model that a sample runs carries the mark Sample.</p>
+            <p>Picks: the list on the organization card, shown as written there. It is the list under the card's first heading that has the word "picks", or "pick" when no heading has "picks", up to the next heading of the same level or above. The page shows up to 12 picks, each cut at 1,000 characters, and up to 12 demos.</p>
+            <p>Bold, code and links are kept, and HTML tags are removed. A link that leads outside huggingface.co, github.com/google-ai-edge, google-ai-edge.github.io and ai.google.dev is shown as its text.</p>
+            <p>Samples: the rows of the sample tables in <a href="https://github.com/google-ai-edge/litert-samples/blob/main/samples/litert/README.md" target="_blank" rel="noopener">samples/litert/README.md</a> and <a href="https://github.com/google-ai-edge/litert-samples/blob/main/samples/litert_lm/README.md" target="_blank" rel="noopener">samples/litert_lm/README.md</a> whose Model column links a model in either list, folded rows included, or in the picks. Demos: the Spaces of the org's Demos collection, in its order.</p>
+        </details>
+    </section>
+
+    <footer>
+        <a href="https://github.com/google-ai-edge/litert" target="_blank" rel="noopener">LiteRT</a>
+        <a href="https://github.com/google-ai-edge/LiteRT-LM" target="_blank" rel="noopener">LiteRT-LM</a>
+        <a href="https://ai.google.dev/edge/litert" target="_blank" rel="noopener">Documentation</a>
+        <a href="https://github.com/google-ai-edge/litert-samples" target="_blank" rel="noopener">litert-samples</a>
+        <a href="https://huggingface.co/litert-community" target="_blank" rel="noopener">litert-community</a>
+        <a href="https://huggingface.co/spaces/litert-community/find-your-models" target="_blank" rel="noopener">Find your models</a>
+    </footer>
+
+    <script type="module" src="app.js?v=1"></script>
+</body>
+</html>
