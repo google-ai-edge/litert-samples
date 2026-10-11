@@ -33,6 +33,7 @@ All runnable sample applications and interactive playgrounds are organized under
 * **`samples/litert_lm/`**: High-level Engine samples for Large Language Models (LLM/SLM).
 * **`samples/end_to_end/`**: Complete full-system pipelines (e.g. ImageNet model conversion, preprocessing, and classification).
 * **`samples/tensor_api_playground/`**: Interactive Web/WASM playground demonstrating LiteRT Tensor API capabilities directly in the browser (Gemma 3, Image Segmentation, Mandelbrot, Game of Life).
+* **`samples/platforms/`**: Build-and-run guides for specific devices and boards, one folder per platform (for example `qualcomm/ventuno`, the Arduino VENTUNO Q); any LiteRT or LiteRT-LM sample can add its steps there.
 
 ### **2. `models/` — Model Recipes & Export Pipelines**
 
