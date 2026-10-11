@@ -1,6 +1,6 @@
 # LiteRT Demos on the Arduino VENTUNO Q
 
-How to build the Flutter sample in [`../../flutter`](../../flutter/) on an Arduino VENTUNO Q (Qualcomm Dragonwing
+How to build the Flutter sample in [`samples/litert/flutter`](../../../litert/flutter/) on an Arduino VENTUNO Q (Qualcomm Dragonwing
 QCS8275) and run its two demos there, with Gemma 4 E2B on the board's Hexagon NPU: a voice chat and a live camera
 assistant. Everything runs on the board.
 
@@ -24,7 +24,7 @@ assistant. Everything runs on the board.
 |---|---|
 | Board | a VENTUNO Q with its Ubuntu 24.04 image, a screen, keyboard and mouse, and a network connection |
 | Storage | about 18 GB free: Flutter, the build and the models |
-| Camera | a USB camera the board sees as `/dev/video*`, or an Android phone as a Wi-Fi camera ([network camera](../../flutter/README.md#using-the-demos)) |
+| Camera | a USB camera the board sees as `/dev/video*`, or an Android phone as a Wi-Fi camera ([network camera](../../../litert/flutter/README.md#using-the-demos)) |
 | Audio | a USB speakerphone, or a microphone and a speaker |
 | Models | **The YOLO26n detector (`yolo26n_fp16_rawhead.tflite`) will be provided.** The chat model is Gemma 4 E2B compiled for this chip, `gemma-4-E2B-it_qualcomm_qcs8275.litertlm` (3.29 GB) from [litert-community/gemma-4-E2B-it-litert-lm](https://huggingface.co/litert-community/gemma-4-E2B-it-litert-lm), no login needed (step 5). The other built-in models are downloaded in step 3 and need a Hugging Face token |
 
@@ -76,7 +76,7 @@ tool/fetch_models.sh
 ```
 
 - The script checks the provided detector against `tool/models.lock` and keeps it, so no Python step runs. Without
-  the file it derives the detector itself (see the [sample's README](../../flutter/README.md#set-up-once-per-checkout)).
+  the file it derives the detector itself (see the [sample's README](../../../litert/flutter/README.md#set-up-once-per-checkout)).
 - `HF_TOKEN` is a Hugging Face read token from an account that accepted the Gemma terms on
   [litert-community/embeddinggemma-300m](https://huggingface.co/litert-community/embeddinggemma-300m); only that
   download uses it.
@@ -171,4 +171,4 @@ with `xvfb-run -a`. In the app: **This device › Copy diagnostics**.
 | `package.sh: … exists; move it away first` | `rm -r build/dist/litert_edge_demos-v*`, then run it again |
 | `pactl did not run: install pulseaudio-utils` | `sudo apt install pulseaudio-utils` |
 | A `…_qualcomm_sm8750` or other phone build fails to load | NPU builds are compiled per chip: on this board use `…_qualcomm_qcs8275.litertlm` |
-| No camera picture | Use a phone as a network camera ([sample README](../../flutter/README.md#using-the-demos)) |
+| No camera picture | Use a phone as a network camera ([sample README](../../../litert/flutter/README.md#using-the-demos)) |
