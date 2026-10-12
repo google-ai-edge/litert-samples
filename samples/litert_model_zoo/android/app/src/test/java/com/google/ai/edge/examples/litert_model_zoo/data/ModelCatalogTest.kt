@@ -18,6 +18,7 @@ package com.google.ai.edge.examples.litert_model_zoo.data
 
 import com.google.ai.edge.examples.litert_model_zoo.audio.BatchAudioTasks
 import com.google.ai.edge.examples.litert_model_zoo.image.SingleImageTasks
+import com.google.ai.edge.examples.litert_model_zoo.models.typed_decisions.TextDecisionTasks
 import org.json.JSONObject
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
@@ -132,7 +133,7 @@ class ModelCatalogTest {
     val catalog = packagedCatalog()
     assertTrue(catalog.tasks.isNotEmpty())
     assertTrue(catalog.tasks.all { it.canDownload })
-    assertTrue(catalog.tasks.all { it.group in setOf("Vision", "Audio") })
+    assertTrue(catalog.tasks.all { it.group in setOf("Vision", "Audio", "Text") })
     val pinned = Regex("https://huggingface.co/[^/]+/[^/]+/resolve/[0-9a-f]{40}/.+")
     assertTrue(catalog.tasks.all { task -> task.files.all { pinned.matches(it.url) } })
     catalog.tasks.forEach {
@@ -161,6 +162,7 @@ class ModelCatalogTest {
     val engines =
       SingleImageTasks.ids +
         BatchAudioTasks.ids +
+        TextDecisionTasks.ids +
         setOf("object-detection", "text-to-speech", "speech-recognition")
     assertEquals(emptySet<String>(), ids - engines)
     assertEquals(emptySet<String>(), engines - ids)

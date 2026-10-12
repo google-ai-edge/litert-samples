@@ -72,6 +72,37 @@ object OpenSourceCredits {
         "https://developer.android.com/studio/terms.html",
         "https://developers.google.com/android/guides/overview",
       ),
+      // The Text tasks vendor each model card's Android host code (models/typed_decisions/).
+      OpenSourceCredit(
+        "Laya multilingual LiteRT host: tokenizer, prompt builder, decoder",
+        "Apache-2.0",
+        apache,
+        "https://huggingface.co/litert-community/Laya-Multilingual-LiteRT",
+      ),
+      OpenSourceCredit(
+        "Julia-1 LiteRT host: tokenizer, request builder, decoder",
+        "Apache-2.0",
+        apache,
+        "https://huggingface.co/litert-community/Julia-1-LiteRT",
+      ),
+      OpenSourceCredit(
+        "GLiClass-Edge v3.0 LiteRT host: tokenizer, inputs, decoder",
+        "Apache-2.0",
+        apache,
+        "https://huggingface.co/litert-community/GLiClass-Edge-v3.0-LiteRT",
+      ),
+      OpenSourceCredit(
+        "Open-Decision DeBERTa-v3-large LiteRT host: tokenizer, inputs, decoder",
+        "Apache-2.0",
+        apache,
+        "https://huggingface.co/litert-community/Open-Decision-DeBERTa-v3-Large-LiteRT",
+      ),
+      OpenSourceCredit(
+        "GLiNER2.5-Decide LiteRT host: tokenizer, schema, inputs, decoder",
+        "Apache-2.0",
+        apache,
+        "https://huggingface.co/litert-community/GLiNER2.5-Decide-LiteRT",
+      ),
     )
 
   // Attribution source: https://zenodo.org/records/3987831; conversion and ontology credits:

@@ -52,6 +52,9 @@ import com.google.ai.edge.examples.litert_model_zoo.image.RealtimeImageTasks
 import com.google.ai.edge.examples.litert_model_zoo.image.SingleImageEngine
 import com.google.ai.edge.examples.litert_model_zoo.image.SingleImageTasks
 import com.google.ai.edge.examples.litert_model_zoo.vision.DetectionEngine
+import com.google.ai.edge.examples.litert_model_zoo.models.typed_decisions.TextDecisionEngine
+import com.google.ai.edge.examples.litert_model_zoo.models.typed_decisions.TextDecisionRequest
+import com.google.ai.edge.examples.litert_model_zoo.models.typed_decisions.TextDecisionTasks
 import com.google.ai.edge.examples.litert_model_zoo.models.zipformer.ZipformerAsr
 import java.io.ByteArrayOutputStream
 import java.io.File
@@ -90,6 +93,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
   private var recognizer: ZipformerEngine? = null
   private var singleImageEngine: Pair<String, SingleImageEngine>? = null
   private var batchAudioEngine: Pair<String, AudioTaskEngine>? = null
+  private var textDecisionEngine: Pair<String, TextDecisionEngine>? = null
   private var audioWaveforms: List<NamedWaveform> = emptyList()
   private val captureLock = Any()
   private var recordingSession: RecordingSession? = null
@@ -155,6 +159,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
       try {
         singleImageEngine?.second?.close()
         batchAudioEngine?.second?.close()
+        textDecisionEngine?.second?.close()
         detector?.close()
         synthesizer?.close()
         recognizer?.close()
@@ -165,6 +170,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
       } finally {
         singleImageEngine = null
         batchAudioEngine = null
+        textDecisionEngine = null
         detector = null
         synthesizer = null
         recognizer = null
@@ -203,6 +209,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         audioProgress = null,
         pitchHz = emptyList(),
         pitchConfidence = emptyList(),
+        textDecision = null,
         audioReady = taskId == "text-to-speech" && speech != null,
         speechExportReady = taskId == "text-to-speech" && speech != null && speechCached,
         speechSaved = false,
@@ -357,6 +364,10 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             batchAudioEngine?.second?.close()
             batchAudioEngine = null
             audioWaveforms = emptyList()
+          }
+          if (textDecisionEngine?.first == taskId) {
+            textDecisionEngine?.second?.close()
+            textDecisionEngine = null
           }
         }
         store.delete(entry(taskId))
@@ -734,6 +745,46 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
           fallbackReason = result.fallbackReason,
           backendDetails = result.backendDetails,
         )
+      }
+    }
+  }
+
+  /** One question about a text; the engine compiles on the first run and stays for the screen. */
+  fun decideText(text: String, question: String, optionRows: List<String>) {
+    val ui = state.value
+    val taskId = ui.selectedTaskId ?: return
+    if (ui.busy || taskId !in TextDecisionTasks.ids) return
+    val generation = navigationGeneration
+    mutable.update {
+      it.copy(textDecision = null, inferenceMs = null, fallbackReason = null, backendDetails = "")
+    }
+    runTask {
+      val request =
+        TextDecisionRequest(text, question, TextDecisionRequest.parseOptions(optionRows))
+      val entry = entry(taskId)
+      check(state.value.downloads[taskId]?.status == DownloadStatus.READY) {
+        "Download and verify the model first"
+      }
+      if (cleared || generation != navigationGeneration) return@runTask
+      if (textDecisionEngine?.first != taskId) {
+        textDecisionEngine?.second?.close()
+        textDecisionEngine = null
+        textDecisionEngine =
+          taskId to TextDecisionTasks.create(taskId, store.directory(entry), entry.backend)
+      }
+      val result = textDecisionEngine!!.second.decide(request)
+      mutable.update {
+        if (cleared || generation != navigationGeneration || it.selectedTaskId != taskId) {
+          it
+        } else {
+          it.copy(
+            textDecision = result,
+            inferenceMs = result.ms,
+            backend = result.backend,
+            fallbackReason = result.fallbackReason,
+            backendDetails = result.details,
+          )
+        }
       }
     }
   }
@@ -1159,6 +1210,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         recognizer?.close()
         singleImageEngine?.second?.close()
         batchAudioEngine?.second?.close()
+        textDecisionEngine?.second?.close()
       } catch (failure: Throwable) {
         if (failure is CancellationException) throw failure
         Log.e("ModelZooTask", "Model cleanup failed", failure)

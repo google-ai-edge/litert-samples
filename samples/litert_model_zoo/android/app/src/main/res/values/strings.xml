@@ -50,7 +50,7 @@
   <string name="recording_seconds">Recording… %1$.1f / 16 s</string>
   <string name="no_speech">No speech detected.</string>
   <string name="about_title">Models you can inspect. Tasks you can try.</string>
-  <string name="about_description">Explore on-device vision and audio models. Inputs are processed on your device; models download when you choose.</string>
+  <string name="about_description">Explore on-device vision, audio and text models. Inputs are processed on your device; models download when you choose.</string>
   <string name="powered_by">Powered by LiteRT.</string>
   <string name="runtime_version">CompiledModel API · version 2.2.0</string>
   <string name="tested_on">Model execution was tested on Galaxy S26. Output quality varies by task and input; results are demonstrations, not guarantees.</string>

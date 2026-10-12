@@ -24,9 +24,11 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.graphics.vector.PathBuilder
 import androidx.compose.ui.graphics.vector.path
 import androidx.compose.ui.unit.dp
+import com.google.ai.edge.examples.litert_model_zoo.models.typed_decisions.TextDecisionTasks
 
 /** Original geometric vector artwork drawn for this app; no third-party logo or icon source. */
-internal fun taskIcon(taskId: String): ImageVector = TaskIcons[taskId] ?: FallbackIcon
+internal fun taskIcon(taskId: String): ImageVector =
+  TaskIcons[taskId] ?: if (taskId in TextDecisionTasks.ids) TextDecisionIcon else FallbackIcon
 
 private fun glyph(name: String, draw: PathBuilder.() -> Unit): ImageVector =
   ImageVector.Builder(
@@ -84,6 +86,18 @@ private val FallbackIcon =
     box(4f, 14f, 6f, 6f)
     box(14f, 14f, 6f, 6f)
   }
+
+/** Lines of text and a check mark: one question answered about a text. */
+private val TextDecisionIcon by lazy {
+  glyph("text-decision") {
+    line(3f, 5f, 17f, 5f)
+    line(3f, 10f, 14f, 10f)
+    line(3f, 15f, 9f, 15f)
+    moveTo(12f, 17f)
+    lineTo(15f, 20f)
+    lineTo(21f, 12f)
+  }
+}
 
 private val TaskIcons by lazy {
   mapOf(
