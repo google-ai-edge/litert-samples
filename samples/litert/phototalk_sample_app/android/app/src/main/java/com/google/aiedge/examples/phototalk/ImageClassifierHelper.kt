@@ -23,7 +23,7 @@ import com.google.ai.edge.litert.Accelerator
 import com.google.ai.edge.litert.CompiledModel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
-import org.tensorflow.lite.support.metadata.MetadataExtractor
+import com.google.ai.edge.litert.support.metadata.MetadataExtractor
 import java.io.BufferedReader
 import java.io.InputStreamReader
 import java.nio.ByteBuffer
