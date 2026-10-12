@@ -8,7 +8,11 @@ each:
 
 | Page Voice | Page 3D | Page Text |
 | --- | --- | --- |
-| <img src="img/page-voice.png" alt="Page Voice popup after reading a sentence" width="240"> | <img src="img/page-3d.gif" alt="Page 3D: the image tilts with the cursor" width="300"> | <img src="img/page-text.png" alt="Page Text: selectable text over an image" width="300"> |
+| <img src="img/browser-voice.jpg" alt="Page Voice reading a selected paragraph of the LiteRT docs" width="300"> | <img src="img/browser-3d.jpg" alt="Page 3D: a NASA spacewalk photo lit by the cursor (Shift held)" width="300"> | <img src="img/browser-text.jpg" alt="Page Text: selectable text over a NASA/JPL poster" width="300"> |
+
+Screenshots: Chrome for Testing on the LiteRT overview page
+(developers.google.com), a NASA image article (photo credit: NASA) and the
+NASA/JPL "Visions of the Future" poster gallery.
 
 | Build | Effect | Model |
 | --- | --- | --- |
