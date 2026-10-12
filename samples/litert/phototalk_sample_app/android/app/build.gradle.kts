@@ -48,6 +48,7 @@ android {
     }
     kotlinOptions {
         jvmTarget = "17"
+        freeCompilerArgs += "-Xskip-metadata-version-check"
     }
     buildFeatures {
         compose = true
@@ -77,20 +78,12 @@ dependencies {
     implementation(libs.androidx.material.icons.extended)
 
     // LiteRT (Classic ML Image Classifier)
-    implementation(libs.litert) {
-        exclude(group = "com.google.ai.edge.litert", module = "litert-support")
-        exclude(group = "com.google.ai.edge.litert", module = "litert-support-api")
-    }
-    implementation(libs.litert.support) {
-        exclude(group = "com.google.ai.edge.litert", module = "litert-api")
-    }
+    implementation(libs.litert)
+    implementation(libs.litert.support)
     implementation(libs.litert.metadata)
 
     // LiteRT-LM (On-Device LLM Chat Session)
-    implementation(libs.litertlm.android) {
-        exclude(group = "com.google.ai.edge.litert", module = "litert-support-api")
-        exclude(group = "com.google.ai.edge.litert", module = "litert-support")
-    }
+    implementation(libs.litertlm.android)
 
     implementation(libs.kotlinx.coroutines.android)
     implementation(libs.kotlinx.coroutines.core)
