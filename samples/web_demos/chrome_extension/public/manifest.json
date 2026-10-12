@@ -4,7 +4,8 @@
   "description": "Gives any page a voice. Local TTS on your GPU — text never leaves your device.",
   "version": "0.1.0",
   "minimum_chrome_version": "128",
-  "permissions": ["offscreen", "contextMenus", "scripting", "activeTab"],
+  "permissions": ["offscreen", "contextMenus", "scripting", "activeTab", "storage"],
+  "host_permissions": ["https://chatgpt.com/*", "https://claude.ai/*", "https://gemini.google.com/*"],
   "background": { "service_worker": "background.js" },
   "action": { "default_popup": "popup.html", "default_title": "Page Voice" },
   "commands": {
@@ -17,6 +18,13 @@
       "description": "Stop speaking"
     }
   },
+  "content_scripts": [
+    {
+      "matches": ["https://chatgpt.com/*", "https://claude.ai/*", "https://gemini.google.com/*"],
+      "js": ["content.js"],
+      "run_at": "document_idle"
+    }
+  ],
   "content_security_policy": {
     "extension_pages": "script-src 'self' 'wasm-unsafe-eval'; object-src 'self'"
   },

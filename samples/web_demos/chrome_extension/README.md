@@ -12,7 +12,7 @@ each:
 
 | Build | Effect | Model |
 | --- | --- | --- |
-| `dist/` Page Voice | Reads selected text aloud (Alt+R, the context menu or the popup) | [Matcha-TTS](https://huggingface.co/litert-community/Matcha-TTS) |
+| `dist/` Page Voice | Reads selected text aloud (Alt+R, the context menu or the popup); on ChatGPT, Claude and Gemini, the Auto-read switch at the bottom right speaks each reply sentence by sentence as it streams | [Matcha-TTS](https://huggingface.co/litert-community/Matcha-TTS) |
 | `dist3d/` Page 3D | Hover a photo to see it in 3D; hold Shift for a cursor light | [MoGe-2-LiteRT](https://huggingface.co/litert-community/MoGe-2-LiteRT) |
 | `dist-ocr/` Page Text | Right-click an image to select its text; Alt+Shift+F searches the text inside images | [PP-OCRv5-LiteRT](https://huggingface.co/litert-community/PP-OCRv5-LiteRT) |
 
@@ -36,8 +36,9 @@ In `chrome://extensions`, turn on Developer mode, click *Load unpacked* and
 pick a `dist*/` folder. With Developer mode on, `chrome://extensions` → Errors
 also lists the runtime's INFO/WARNING log lines.
 
-Permissions: Page Voice reads the selection through `activeTab` and has no
-host permission or content script; Page 3D and Page Text run a content script
+Permissions: Page Voice reads the selection through `activeTab`. Its Auto-read
+content script and host permissions cover chatgpt.com, claude.ai and
+gemini.google.com only. Page 3D and Page Text run a content script
 on every http(s) page and use `<all_urls>` to fetch the images they read.
 
 ## Backends
@@ -88,6 +89,7 @@ Tests, in this order:
 
 ```sh
 node tools/smoke.mjs <chrome> --speak --profile=<dir>
+node build.mjs --test-host=127.0.0.1 && node tools/autoread-e2e.mjs <chrome> --profile=<dir>
 node tools3d/smoke.mjs <chrome> --profile=<dir>
 node tools3d/e2e.mjs <chrome> --profile=<dir>
 node tools-ocr/smoke.mjs <chrome> --profile=<dir>
@@ -96,6 +98,7 @@ node tools-ocr/find-e2e.mjs <chrome> --profile=<dir>
 ```
 
 - Each `smoke` boots one engine and runs it on test input.
+- `tools/autoread-e2e` streams a reply into local stand-ins for ChatGPT, Claude and Gemini pages and checks that each sentence is read once, in order. `--case=<name>` runs a failure path instead: `off`, `no-selector`, `not-ready`, `reload` or `redraw`. With `not-ready`, the reply streams in during the model download and is read once the model is ready.
 - `tools3d/e2e` hovers a generated photo in a local gallery and waits for the 3D overlay.
 - `tools-ocr/e2e` sends the context-menu message for an image and checks the selectable text.
 - `tools-ocr/find-e2e` indexes a page of screenshots and finds text that is only inside them.
