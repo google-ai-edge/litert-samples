@@ -18,12 +18,14 @@
  * lifecycle, and message routing.
  *
  * Routing map:
- *   popup → {target:'bg', ...}                → handled here
+ *   popup, HUD → {target:'bg', ...}           → handled here
  *   here → {target:'offscreen', ...}          → TTS engine (created on demand)
- *   offscreen → {target:'ui', type:'status'}  → popup directly.
+ *   offscreen → {target:'ui', type:'status'}  → popup directly; passed on to
+ *     the HUDs over their ports (content scripts get no runtime broadcasts).
  *
- * No content script: the selection is read with scripting.executeScript
- * under the activeTab grant that Alt+R, the menu and the popup give.
+ * The selection is read with scripting.executeScript under the activeTab
+ * grant that Alt+R, the menu and the popup give. The content script
+ * (Auto-read and its HUD) runs on ChatGPT, Claude and Gemini only.
  */
 
 chrome.runtime.onInstalled.addListener(() => {
@@ -115,9 +117,24 @@ chrome.commands.onCommand.addListener((command, tab) => {
   else if (command === 'stop-speaking') stopSpeaking();
 });
 
+// --- ports to the Auto-read HUDs ---------------------------------------------
+
+const hudPorts = new Set();
+chrome.runtime.onConnect.addListener((port) => {
+  if (port.name !== 'hud') return;
+  hudPorts.add(port);
+  port.onDisconnect.addListener(() => hudPorts.delete(port));
+});
+
 // --- message router ------------------------------------------------------------
 
-chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
+chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
+  if (msg?.target === 'ui' && sender.url?.endsWith('/offscreen.html')) {
+    for (const port of hudPorts) {
+      try { port.postMessage(msg); } catch { /* tab closed */ }
+    }
+    return;
+  }
   if (!msg || msg.target !== 'bg') return;
   switch (msg.type) {
     case 'speak':

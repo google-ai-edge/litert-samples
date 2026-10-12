@@ -20,6 +20,10 @@
  *   node build.mjs --ocr     → dist-ocr/    (Page Text, from src-ocr/ +
  *                                            public-ocr/)
  *
+ * --test-host=<host> (Page Voice only) also runs the Auto-read content script
+ * on http://<host>, for the local pages of tools/autoread-e2e.mjs; without it,
+ * the content script runs on ChatGPT, Claude and Gemini only.
+ *
  * All bundle each entry point with esbuild (classic scripts — content
  * scripts and the MV3 service worker don't take ESM here), copy static files
  * from the public dir, and copy the LiteRT.js wasm runtime next to
@@ -31,35 +35,41 @@
  * false, the engine (and its model download) starts on first use.
  */
 import { build } from 'esbuild';
-import { cpSync, mkdirSync, rmSync } from 'node:fs';
+import { cpSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 
 const three = process.argv.includes('--3d');
 const ocr = process.argv.includes('--ocr');
 const src = three ? 'src3d' : ocr ? 'src-ocr' : 'src';
 const pub = three ? 'public3d' : ocr ? 'public-ocr' : 'public';
 const outdir = three ? 'dist3d' : ocr ? 'dist-ocr' : 'dist';
+const testHost = process.argv.find((a) => a.startsWith('--test-host='))?.slice(12) ?? '';
+if (testHost && (three || ocr)) throw new Error('--test-host is for the Page Voice build');
 
 rmSync(outdir, { recursive: true, force: true });
 
-const entryPoints = {
-  background: `${src}/background.js`,
-  popup: `${src}/popup.js`,
-  offscreen: `${src}/offscreen/main.js`,
-};
-// Page Voice has no content script (it reads the selection through activeTab).
-if (three || ocr) entryPoints.content = `${src}/content.js`;
-
 await build({
-  entryPoints,
+  entryPoints: {
+    background: `${src}/background.js`,
+    content: `${src}/content.js`,
+    popup: `${src}/popup.js`,
+    offscreen: `${src}/offscreen/main.js`,
+  },
   bundle: true,
   format: 'iife',
   target: 'chrome128',
   outdir,
   logLevel: 'info',
-  define: { __DEV__: 'true' },
+  define: { __DEV__: 'true', __TEST_HOST__: JSON.stringify(testHost) },
 });
 
 cpSync(pub, outdir, { recursive: true });
+if (testHost) {
+  const file = `${outdir}/manifest.json`;
+  const manifest = JSON.parse(readFileSync(file, 'utf8'));
+  manifest.content_scripts[0].matches.push(`http://${testHost}/*`);
+  manifest.host_permissions.push(`http://${testHost}/*`);
+  writeFileSync(file, `${JSON.stringify(manifest, null, 2)}\n`);
+}
 // LiteRT.js picks a wasm variant as: !relaxedSimd → compat, threads →
 // threaded, jspi → jspi, else → plain. Chrome 128+ (our minimum) always has
 // relaxed SIMD, and `threads` and `jspi` are mutually exclusive — we always
