@@ -37,6 +37,7 @@ android {
     }
     kotlinOptions {
         jvmTarget = "1.8"
+        freeCompilerArgs += "-Xskip-metadata-version-check"
     }
     buildFeatures {
         compose = true
@@ -63,13 +64,8 @@ dependencies {
     implementation(libs.androidx.ui.graphics)
     implementation(libs.androidx.ui.tooling.preview)
     implementation(libs.androidx.material2)
-    implementation(libs.litert) {
-        exclude(group = "com.google.ai.edge.litert", module = "litert-support")
-        exclude(group = "com.google.ai.edge.litert", module = "litert-support-api")
-    }
-    implementation(libs.litert.support) {
-        exclude(group = "com.google.ai.edge.litert", module = "litert-api")
-    }
+    implementation(libs.litert)
+    implementation(libs.litert.support)
     implementation(libs.litert.metadata)
     implementation(platform("org.jetbrains.kotlinx:kotlinx-coroutines-bom:1.10.2"))
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android")
