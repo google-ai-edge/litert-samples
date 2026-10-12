@@ -4,10 +4,13 @@ How to build the Flutter sample in [`samples/litert/flutter`](../../litert/flutt
 demos: a voice chat with Gemma and a live camera assistant. Everything runs on the phone; the chat model can run on
 the GPU, the CPU, or a Qualcomm NPU.
 
-> **Status:** checked in scripted runs on Firebase Test Lab (no live microphone or speaker) on a Galaxy S24
-> (Snapdragon 8 Gen 3; Gemma and the detector on the GPU) and a Galaxy S26 (Snapdragon 8 Elite Gen 5; Gemma on the
-> NPU, with a build compiled for that chip that is not public), and by hand on a phone with a Snapdragon 8 Gen 2
-> (Gemma on the GPU and on the NPU, with `flutter_edge_ai_litertlm` 1.10.0).
+> **Status:** checked with `flutter_edge_ai_litertlm` 1.11.0 in scripted runs on
+> [Developer Device Platform](https://docs.cloud.google.com/developer-device-platform/overview), Google Cloud's lab of
+> real phones (no microphone or speaker there, and the cameras see black): on a Galaxy S24 (Snapdragon 8 Gen 3),
+> `gemma-4-E2B-it.litertlm` on the GPU decoded about 21 tokens/s; on a Galaxy S25 Ultra (Snapdragon 8 Elite),
+> `gemma-4-E2B-it_qualcomm_sm8750.litertlm` on the NPU about 46 tokens/s, with images on. The detector ran on the GPU
+> on both. Earlier, by hand, on a phone with a Snapdragon 8 Gen 2 (Gemma on the GPU and on the NPU, with
+> `flutter_edge_ai_litertlm` 1.10.0).
 
 ## What you need
 
