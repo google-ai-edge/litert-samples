@@ -1,0 +1,37 @@
+{
+  "on_topic": [
+    {"q": "What is LiteRT, and how is it related to TensorFlow Lite?", "expect_doc": "litert-overview.md", "expect_section": "What LiteRT is and where it came from"},
+    {"q": "With the compiled model API, how can I tell if my model really ran on the GPU and didn't just silently fall back to the CPU?", "expect_doc": "litert-compiled-model-api.md", "expect_section": "Telling a real GPU run from a silent CPU fallback"},
+    {"q": "What's the difference between ahead of time and on device compilation for the NPU?", "expect_doc": "litert-gpu-npu-acceleration.md", "expect_section": "Ahead-of-time versus on-device NPU compilation"},
+    {"q": "How do I convert a PyTorch model so it runs on LiteRT?", "expect_doc": "model-conversion-and-quantization.md", "expect_section": "Converting a PyTorch model to a .tflite file"},
+    {"q": "What can I do if my model file is bigger than two gigabytes?", "expect_doc": "model-conversion-and-quantization.md", "expect_section": "Models larger than the 2 GB FlatBuffer limit"},
+    {"q": "How can I look inside a litertlm file to see what's in it?", "expect_doc": "litert-lm.md", "expect_section": "Building and inspecting .litertlm files"},
+    {"q": "What does the E in Gemma 4 E2B stand for?", "expect_doc": "gemma-4-e2b.md", "expect_section": "What the E in E2B means: per-layer embeddings"},
+    {"q": "Can Gemma 4 listen to audio, and how long can the clip be?", "expect_doc": "gemma-4-e2b.md", "expect_section": "Audio prompts and length limits"},
+    {"q": "How many dimensions does EmbeddingGemma produce, and can I make the vectors smaller?", "expect_doc": "embeddinggemma.md", "expect_section": "Inputs, outputs and Matryoshka embedding sizes"},
+    {"q": "How fast is the Inflect Nano text to speech model on a Raspberry Pi 5?", "expect_doc": "speech-models.md", "expect_section": "Inflect-Nano-v2 text-to-speech for LiteRT"},
+    {"q": "What is the input size of the YOLO 26 nano detector?", "expect_doc": "yolo26n-object-detector.md", "expect_section": "Input size of the YOLO26 nano detector"},
+    {"q": "Does Flutter Edge AI write my prompts to the logs?", "expect_doc": "flutter-edge-ai-overview.md", "expect_section": "Logging and privacy of prompts"},
+    {"q": "What's the difference between max tokens and max output tokens?", "expect_doc": "flutter-edge-ai-inference.md", "expect_section": "Why maxTokens is the context window, not the reply length"},
+    {"q": "Why does the model give me the exact same answer every time?", "expect_doc": "flutter-edge-ai-inference.md", "expect_section": "Why the model gives the same reply every time"},
+    {"q": "What should my tool send back to the model when the function call fails?", "expect_doc": "flutter-edge-ai-function-calling.md", "expect_section": "Returning errors as tool results"},
+    {"q": "Which entitlements does an iPhone app need to load a big model?", "expect_doc": "on-device-platform-setup.md", "expect_section": "iOS memory entitlements for large models"},
+    {"q": "How does the agent figure out what type of skill a skill.md file is?", "expect_doc": "flutter-edge-ai-agent-skills.md", "expect_section": "How the skill type is inferred from SKILL.md"},
+    {"q": "Why does my metadata filter give me unfiltered results in the vector store?", "expect_doc": "flutter-edge-ai-rag.md", "expect_section": "Metadata filters and the filterSchema"},
+    {"q": "How can the voice session start talking before the whole reply is finished?", "expect_doc": "flutter-edge-ai-speech.md", "expect_section": "Streaming reply audio sentence by sentence"}
+  ],
+  "off_topic": [
+    "How long should I boil an egg for a soft yolk?",
+    "What's a good recipe for banana bread?",
+    "Who won the World Cup in 2018?",
+    "How many players are on a basketball team?",
+    "What's the weather going to be like in Berlin tomorrow?",
+    "Is it going to rain this weekend?",
+    "How old is Taylor Swift?",
+    "Who is Leonardo DiCaprio dating right now?",
+    "What is the capital of Australia?",
+    "How do I get red wine out of a carpet?",
+    "Can you recommend a good movie for tonight?",
+    "How many calories are in an avocado?"
+  ]
+}

@@ -1,0 +1,129 @@
+Patch to flutter_litert 3.9.3 (https://pub.dev/packages/flutter_litert), applied by
+tool/flutter_litert/vendor.sh into third_party/flutter_litert. flutter_litert, and this patch as
+a modification of it, stay under flutter_litert's own licence, the Apache License 2.0
+(third_party/flutter_litert/LICENSE after vendoring); this app's Apache-2.0 LICENSE at the
+repository root does not replace it. Changed files: lib/src/bindings/litert_ffi.dart,
+linux/CMakeLists.txt (why: see the comments the patch adds).
+
+--- a/lib/src/bindings/litert_ffi.dart
++++ b/lib/src/bindings/litert_ffi.dart
+@@ -96,6 +96,18 @@
+ 
+ typedef LiteRtOpaquePayloadDeleterNative = Void Function(Pointer<Void>);
+ 
++/// Whether [dylib] takes an environment as the first model-loading argument.
++/// `LiteRtCreateModelFromFd` is absent from the 2.1.5 dylib and present in the
++/// newer runtimes (LiteRT-LM's libLiteRt.so on Linux), so on desktop its
++/// presence identifies the newer ABI. Not on iOS: the runtime this plugin
++/// loads there (`litert-ios-v1.0.1`) exports it, yet its model loaders take
++/// no environment (`LiteRtCreateModelFromBuffer(buffer, size, model)`), and
++/// passing one first fails every model with
++/// kLiteRtStatusErrorInvalidFlatbuffer.
++bool _hasEnvironmentModelAbi(DynamicLibrary dylib) =>
++    Platform.isAndroid ||
++    (!Platform.isIOS && dylib.providesSymbol('LiteRtCreateModelFromFd'));
++
+ int Function(Pointer<Void>, Pointer<Utf8>, Pointer<Pointer<Void>>)
+ _bindCreateModelFromFile(DynamicLibrary dylib) {
+   // LiteRT 2.1.6 added an environment as the first model-loading argument but
+@@ -103,7 +115,12 @@
+   // pinned to 2.2.0; the currently bundled Apple/desktop runtimes retain the
+   // legacy ABI. Present one environment-aware Dart signature to the caller and
+   // adapt only at this binding boundary.
+-  if (Platform.isAndroid) {
++  //
++  // litert_edge_demos patch: on desktop, decide from the loaded library, not
++  // the platform. On Linux the app runs on LiteRT-LM's newer libLiteRt.so
++  // (same file name, it overwrites this plugin's copy in bundle/lib), and
++  // calling it with the legacy signature shifts every argument and crashes.
++  if (_hasEnvironmentModelAbi(dylib)) {
+     return dylib.lookupFunction<
+       Int32 Function(Pointer<Void>, Pointer<Utf8>, Pointer<Pointer<Void>>),
+       int Function(Pointer<Void>, Pointer<Utf8>, Pointer<Pointer<Void>>)
+@@ -119,7 +136,7 @@
+ 
+ int Function(Pointer<Void>, Pointer<Void>, int, Pointer<Pointer<Void>>)
+ _bindCreateModelFromBuffer(DynamicLibrary dylib) {
+-  if (Platform.isAndroid) {
++  if (_hasEnvironmentModelAbi(dylib)) {
+     return dylib.lookupFunction<
+       Int32 Function(
+         Pointer<Void>,
+--- a/linux/CMakeLists.txt
++++ b/linux/CMakeLists.txt
+@@ -29,59 +29,23 @@
+ # Build the TFLite custom ops library (e.g., Convolution2DTransposeBias for MediaPipe)
+ add_subdirectory("${CMAKE_CURRENT_SOURCE_DIR}/../src" "${CMAKE_CURRENT_BINARY_DIR}/custom_ops")
+ 
+-# The WebGPU GPU accelerator (~16 MB) is fetched at build time from a GitHub
+-# release rather than bundled in the published pub.dev package, which must stay
+-# under the 100 MiB limit. Downloaded (verified by SHA-256) only if not present.
+-function(flutter_litert_fetch_lib path url sha)
+-  if(EXISTS "${path}")
+-    return()
+-  endif()
+-  foreach(attempt RANGE 1 3)
+-    message(STATUS "flutter_litert: downloading ${url} (attempt ${attempt})")
+-    file(DOWNLOAD "${url}" "${path}"
+-      EXPECTED_HASH SHA256=${sha}
+-      TLS_VERIFY ON
+-      STATUS dl_status)
+-    list(GET dl_status 0 dl_code)
+-    if(dl_code EQUAL 0)
+-      return()
+-    endif()
+-    list(GET dl_status 1 dl_msg)
+-    message(WARNING "flutter_litert: download failed (${dl_msg}); retrying")
+-    file(REMOVE "${path}")
+-  endforeach()
+-  message(FATAL_ERROR "flutter_litert: could not download ${url}")
+-endfunction()
+-
+-flutter_litert_fetch_lib(
+-  "${CMAKE_CURRENT_SOURCE_DIR}/lib/libLiteRtWebGpuAccelerator.so"
+-  "https://github.com/hugocornellier/flutter_litert/releases/download/litert-desktop-gpu-v1.0.0/libLiteRtWebGpuAccelerator.so"
+-  "d732c738e5206dd3374d0496a3f00deb4e02aec37bf5678c5617bad422bb0249")
+-
+-set(flutter_tflite_bundled_libraries
+-  "$<TARGET_FILE:tflite_custom_ops>"
+-  "${CMAKE_CURRENT_SOURCE_DIR}/lib/libtensorflowlite_c-linux.so"
+-  # LiteRT Next runtime (CompiledModel API) + WebGPU/Vulkan GPU accelerator,
+-  # x86_64; from the official ai-edge-litert 2.1.5 PyPI wheel. The runtime
+-  # discovers the accelerator by scanning its own directory for the bare
+-  # soname, so both must land in the same bundled lib/ dir.
+-  "${CMAKE_CURRENT_SOURCE_DIR}/lib/libLiteRt.so"
+-  "${CMAKE_CURRENT_SOURCE_DIR}/lib/libLiteRtWebGpuAccelerator.so"
+-)
+-
++# litert_edge_demos patch: no LiteRT runtime from this plugin on Linux.
++# flutter_edge_ai_litertlm ships libLiteRt.so and libLiteRtWebGpuAccelerator.so
++# for x86_64 and arm64 (glibc 2.35) as native assets with the same file names;
++# they used to overwrite this plugin's x86_64-only copies in bundle/lib anyway.
++# CompiledModel binds to that runtime (lib/src/bindings/litert_ffi.dart picks
++# the model-loading ABI from the library). The TFLite C library (Interpreter,
++# the CPU reference in verifyCompiledModel) is x86_64-only and needs glibc 2.38;
++# it is bundled on x86_64, and where it cannot load the app verifies against
++# LiteRT's CPU path instead.
++set(flutter_litert_bundled_libraries "$<TARGET_FILE:tflite_custom_ops>")
++if(CMAKE_SYSTEM_PROCESSOR MATCHES "x86_64|AMD64")
++  list(APPEND flutter_litert_bundled_libraries
++    "${CMAKE_CURRENT_SOURCE_DIR}/lib/libtensorflowlite_c-linux.so")
++endif()
+ # Flutter's generated_plugins.cmake references plugins by their directory name
+-# (flutter_litert), not by PROJECT_NAME (flutter_tflite). Set both to ensure
+-# the custom ops library gets bundled.
+-set(flutter_litert_bundled_libraries
+-  "$<TARGET_FILE:tflite_custom_ops>"
+-  "${CMAKE_CURRENT_SOURCE_DIR}/lib/libtensorflowlite_c-linux.so"
+-  # LiteRT Next runtime (CompiledModel API) + WebGPU/Vulkan GPU accelerator,
+-  # x86_64; from the official ai-edge-litert 2.1.5 PyPI wheel. The runtime
+-  # discovers the accelerator by scanning its own directory for the bare
+-  # soname, so both must land in the same bundled lib/ dir.
+-  "${CMAKE_CURRENT_SOURCE_DIR}/lib/libLiteRt.so"
+-  "${CMAKE_CURRENT_SOURCE_DIR}/lib/libLiteRtWebGpuAccelerator.so"
+-)
++# (flutter_litert), not by PROJECT_NAME (flutter_tflite). Set both.
++set(flutter_tflite_bundled_libraries ${flutter_litert_bundled_libraries})
+ 
+ set(flutter_tflite_bundled_libraries ${flutter_tflite_bundled_libraries} PARENT_SCOPE)
+ set(flutter_litert_bundled_libraries ${flutter_litert_bundled_libraries} PARENT_SCOPE)

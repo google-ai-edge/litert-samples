@@ -1,0 +1,16 @@
+result     FAIL · 1 pass · 1 fail · 5 skip · exit 1
+--- steps ---
+PASS  1   hardware probe                                   <time>
+           macOS 26.5.1 (25F80) · Apple M4 Pro · 1 GPU(s) · 0 note(s)
+FAIL  2   detector load (gpu)                              <time>
+           load failed (no fallback): Exception: gpu rejected YOLO26n
+SKIP  2b  detector load (cpu, explicit attempt, information only) 0.00 s
+           the run was stopped after its time limit
+SKIP  3   cats golden                                      0.00 s
+           the run was stopped after its time limit
+SKIP  4a  chat model load + warm-up (gpu)                  0.00 s
+           the run was stopped after its time limit
+SKIP  4b  chat model generate                              0.00 s
+           the run was stopped after its time limit
+SKIP  5   detector again                                   0.00 s
+           the run was stopped after its time limit

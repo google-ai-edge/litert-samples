@@ -1,0 +1,19 @@
+result     FAIL · 1 pass · 2 fail · 3 skip · exit 1
+--- steps ---
+PASS  1   hardware probe                                   <time>
+           Ubuntu 22.04.5 LTS · 4× Neoverse-N1 · 0 GPU(s) · 0 note(s)
+FAIL  2   detector load (gpu)                              <time>
+           DetectorInfo(GPU fp32 full, verify=1.77e-3 (2.0e-6 of range) vs TFLite interpreter, create=116ms verify=124ms firstRun=5ms)
+           gpu → gpu (confirmed: API) · api WebGPU/Vulkan (inferred) · adapter unknown
+           cannot rule out a software GPU: no "Selected adapter" line in the native log and the probe found no hardware GPU (install vulkan-tools for vulkaninfo)
+SKIP  3   cats golden                                      0.00 s
+           no detector loaded
+FAIL  4a  chat model load + warm-up (gpu)                  <time>
+           Gemma 4 E2B (gemma-4-E2B-it) · maxTokens 8192 · image on · tools on · type gemma4 · load 3.60 s · warm-up 2.20 s
+           gpu → gpu (confirmed: API) · api WebGPU/Vulkan (inferred) · adapter unknown
+           vision encoder on the CPU (flutter_edge_ai default, requested)
+           cannot rule out a software GPU: no "Selected adapter" line in the native log and the probe found no hardware GPU (install vulkan-tools for vulkaninfo)
+SKIP  4b  chat model generate                              0.00 s
+           the chat model did not load as requested
+SKIP  5   detector again                                   0.00 s
+           step 3 did not produce a reference

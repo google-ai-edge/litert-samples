@@ -1,0 +1,48 @@
+# The models built into the app, fetched into assets/models/ by tool/fetch_models.sh.
+# They are not in git; their notice, assets/models/NOTICE.md, is.
+#
+# One file per line, fields separated by spaces:
+#   hf  <dest> <size> <sha256> <access> <repo> <revision> <path>
+#       https://huggingface.co/<repo>/resolve/<revision>/<path>, saved as assets/models/<dest>.
+#   yolo26n-rawhead  <dest> <size> <sha256> <access> <repo> <revision> <path> <source size> <source sha256>
+#       <path> is Arm's original; tool/prune_yolo26n_head.py derives <dest> from it in a venv with the
+#       packages of the `pip` line. The derived file must come out byte for byte (<sha256>).
+#   pip <requirement>...
+# <size> and <sha256> are the file in assets/models/. They match NOTICE.md and
+# lib/data/services/model_store/bundled_model_files.dart (test/tool/models_lock_test.dart checks both).
+# <access> is public or gated. A gated repo needs HF_TOKEN from an account that accepted its terms.
+# <revision> is a full commit. How each pin was checked:
+#   - LFS files: the HF API's lfs.oid (= SHA-256) and size at that revision.
+#   - Plain git files (both tokenizers, config.json, g2p_meta.json): the blob id equals `git hash-object`.
+#   - EmbeddingGemma: the repo is gated, so the API needs a token; huggingface_hub's download metadata
+#     for these files (.cache/huggingface/download/*.metadata) gives this commit and the SHA-256 etag.
+#   - YOLO26n: Arm's file is unchanged since its upload commit (lastCommit). ai-edge-litert 2.2.0 and
+#     2.1.5 (with flatbuffers 25.12.19) both reproduce 5ddd5eeb… byte for byte.
+#     Fallback if a machine cannot derive it (no wheel, e.g. an Intel Mac, or a future drift): host the
+#     derived file in a Hugging Face repo and replace that line with an `hf` line. No Python is needed
+#     then.
+
+pip ai-edge-litert==2.2.0 flatbuffers==25.12.19
+
+# YOLO26n raw head (AGPL-3.0). Derived from Arm's conversion of Ultralytics YOLO26n.
+yolo26n-rawhead yolo26n_fp16_rawhead.tflite 10361332 5ddd5eebad18587d56500a30b0995c07c9e1a241640750f568e4a974f66ed80a public Arm/yolo26n-fp16-litert f6904ac4435412eea96d75d7c1b36f83a395b3d4 yolo26n_conv2d_f16_weights.tflite 10363712 474db10fde475b40d5cd74901e36781d2a8df3597b1a8a9c6751e893a63d053b
+
+# EmbeddingGemma 300M and its tokenizer (Gemma Terms of Use). Gated.
+hf embeddinggemma-300M_seq512_mixed-precision.tflite 179132472 ad09e81557203cb0e177abf9bf8727dfe138a7d394aa0f70f0b2ed16432e121a gated litert-community/embeddinggemma-300m 29888fcee3216acadc7e844906e5fe0d79a61875 embeddinggemma-300M_seq512_mixed-precision.tflite
+hf sentencepiece.model 4683319 d6daa52d93d7aad10e8388bd526c4e501d914b47177398d1d9621f1fe48438c7 gated litert-community/embeddinggemma-300m 29888fcee3216acadc7e844906e5fe0d79a61875 sentencepiece.model
+
+# Whisper base int8 (Apache-2.0) and the openai/whisper-base tokenizer (Apache-2.0).
+hf whisper_base_30s_i8.tflite 77012960 f6943d9d293138850b729e074057956c664891c57837692b1bac4608c4506cd1 public litert-community/whisper-base ba2c613646edc2b72f5a51fa0b5b0b322e436101 whisper_base_30s_i8.tflite
+hf whisper_base_tokenizer.json 2480466 27fc476bfe7f17299480be2273fc0608e4d5a99aba2ab5dec5374b4482d1a566 public openai/whisper-base e37978b90ca9030d5170a5c07aadb050351a65bb tokenizer.json
+
+# moonshine-tiny f32 and its tokenizer (MIT).
+hf moonshine_tiny_5s_f32.tflite 109373140 16f281f1d3d23124e6adbdead8730d46f97cd105c299a9b94608d033c1151b12 public litert-community/moonshine-tiny 4d0fd016df005c889aaa738b4765ede92736424f moonshine_tiny_5s_f32.tflite
+hf moonshine_tiny_tokenizer.json 1985534 ed2324b3f699d8ba18a4030f33ba205d50b30ff46ff73f2b7d22661cc850efb4 public moonshine-ai/moonshine 48b4e427b587bcf67797a5be706d6ddc4a298149 ctranslate2/tiny/tokenizer.json
+
+# Inflect-nano-v2 (Apache-2.0) and the four Matcha G2P files it reuses (MIT).
+hf inflect/inflect_text_encoder_fp16.tflite 1782268 c778f516b8557c69734f4d4308084c411b8d3a4575566385d163209bf504f083 public litert-community/Inflect-Nano-v2 5c184d02d4d1a7aacfa1e54f791f1e495cf52124 inflect_text_encoder_fp16.tflite
+hf inflect/inflect_decoder_fp16.tflite 6375948 155d5072f104248983015e82d1b90968ab2e87bd7f96c4016928fc83231efbd0 public litert-community/Inflect-Nano-v2 5c184d02d4d1a7aacfa1e54f791f1e495cf52124 inflect_decoder_fp16.tflite
+hf inflect/config.json 2071 7363e9e4dda1613aebff7005f2e8c0c76d9b0a1cac31de0f3483bef3089c6906 public litert-community/Matcha-TTS ee32148115e2dd25913f70b1d71b587c73e0866e config.json
+hf inflect/g2p_dict.txt.gz 1762038 5b3493a8cd4d20b72c7b91415afaf3f32335ebd81f349698e1cedc898c59f979 public litert-community/Matcha-TTS ee32148115e2dd25913f70b1d71b587c73e0866e g2p_dict.txt.gz
+hf inflect/dp_g2p_matcha_fp16.tflite 25785872 6e4b481f6874dfabc32ce73bf6f0ea1ba6ab5986ee6f76a27779364be8a53c73 public litert-community/Matcha-TTS ee32148115e2dd25913f70b1d71b587c73e0866e dp_g2p_matcha_fp16.tflite
+hf inflect/g2p_meta.json 1904 7b87bfeaaa072be236e8491d771b0cb97cc92c3e5d83e3558fff8849868810f5 public litert-community/Matcha-TTS ee32148115e2dd25913f70b1d71b587c73e0866e g2p_meta.json

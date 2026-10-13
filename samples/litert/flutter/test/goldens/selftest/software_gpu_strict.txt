@@ -1,0 +1,19 @@
+result     FAIL · 1 pass · 2 fail · 3 skip · exit 1
+--- steps ---
+PASS  1   hardware probe                                   <time>
+           Ubuntu 24.04.3 LTS · AMD EPYC 7B12 · 0 GPU(s) · 0 note(s)
+FAIL  2   detector load (gpu)                              <time>
+           DetectorInfo(GPU fp32 full, verify=1.77e-3 (2.0e-6 of range) vs TFLite interpreter, create=116ms verify=124ms firstRun=5ms)
+           gpu → gpu (confirmed: API) · api WebGPU/Vulkan (inferred) · adapter llvmpipe (LLVM 19.1.1, 256 bits) (inferred) · SOFTWARE GPU (error)
+           the GPU is a software rasterizer (llvmpipe (LLVM 19.1.1, 256 bits), inferred): this is the CPU, not a GPU
+SKIP  3   cats golden                                      0.00 s
+           no detector loaded
+FAIL  4a  chat model load + warm-up (gpu)                  <time>
+           Gemma 4 E2B (gemma-4-E2B-it) · maxTokens 8192 · image on · tools on · type gemma4 · load 3.60 s · warm-up 2.20 s
+           gpu → gpu (confirmed: API) · api WebGPU/Vulkan (inferred) · adapter llvmpipe (LLVM 19.1.1, 256 bits) (inferred) · SOFTWARE GPU (error)
+           vision encoder on the CPU (flutter_edge_ai default, requested)
+           the GPU is a software rasterizer (llvmpipe (LLVM 19.1.1, 256 bits), inferred): this is the CPU, not a GPU
+SKIP  4b  chat model generate                              0.00 s
+           the chat model did not load as requested
+SKIP  5   detector again                                   0.00 s
+           step 3 did not produce a reference

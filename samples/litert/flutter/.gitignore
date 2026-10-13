@@ -1,0 +1,88 @@
+# Copyright 2026 The Google AI Edge Authors. All Rights Reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+# Miscellaneous
+*.class
+*.log
+*.pyc
+*.swp
+.DS_Store
+.atom/
+.build/
+.buildlog/
+.history
+.svn/
+.swiftpm/
+migrate_working_dir/
+
+# IntelliJ related
+*.iml
+*.ipr
+*.iws
+.idea/
+
+# The .vscode folder contains launch configuration and tasks you configure in
+# VS Code which you may wish to be included in version control, so this line
+# is commented out by default.
+#.vscode/
+
+# Flutter/Dart/Pub related
+**/doc/api/
+**/ios/Flutter/.last_build_id
+.dart_tool/
+.flutter-plugins-dependencies
+.pub-cache/
+.pub/
+/build/
+/coverage/
+
+# Symbolication related
+app.*.symbols
+
+# Obfuscation related
+app.*.map.json
+
+# Android Studio will place build artifacts here
+/android/app/debug
+/android/app/profile
+/android/app/release
+
+# Widget Preview related
+.widget_preview/
+
+# Secrets (the Hugging Face token): read only by tool/fetch_models.sh, never
+# passed to a build (a --dart-define ends up in the binary)
+.env
+*.env
+
+# Model weights are downloaded at runtime or pre-provisioned, never committed
+*.litertlm
+*.tflite
+*.task
+/models/
+# The models built into the app are not in git either:
+# tool/fetch_models.sh fetches them into assets/models/ from tool/models.lock.
+# Only their notice is tracked.
+/assets/models/*
+!/assets/models/NOTICE.md
+
+# FVM (SDK pinned in .fvmrc; .fvm/ holds the local SDK symlink)
+.fvm/
+
+
+# flutter_litert + patch, recreated by tool/flutter_litert/vendor.sh
+/third_party/flutter_litert/
+
+# LLVM coverage output of flutter_tester runs
+*.profraw
