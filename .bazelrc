@@ -152,6 +152,7 @@ build:android_x86_64 --platforms=@org_tensorflow//tensorflow/tools/toolchains/an
 build:android --dynamic_mode=off
 # TODO(belitskiy): Remove once on Clang 20.
 build:android --define=xnn_enable_avxvnniint8=false
+build:android --define=xnn_enable_arm_sve2=false
 
 # Sets the default Apple platform to macOS.
 build:macos --apple_platform_type=macos

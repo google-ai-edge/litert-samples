@@ -1,0 +1,33 @@
+name: SAM2MLX
+options:
+  bundleIdPrefix: com.sam2mlx
+  deploymentTarget:
+    iOS: "17.0"
+packages:
+  mlx-swift:
+    url: https://github.com/ml-explore/mlx-swift
+    exactVersion: 0.31.3
+targets:
+  SAM2MLX:
+    type: application
+    platform: iOS
+    sources:
+      - Sources
+      - path: Resources
+        buildPhase: resources
+    dependencies:
+      - package: mlx-swift
+        product: MLX
+      - package: mlx-swift
+        product: MLXNN
+      - package: mlx-swift
+        product: MLXFast
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.sam2mlx.app
+        TARGETED_DEVICE_FAMILY: "1,2"
+        GENERATE_INFOPLIST_FILE: YES
+        INFOPLIST_KEY_UILaunchScreen_Generation: YES
+        CODE_SIGN_STYLE: Automatic
+        SWIFT_VERSION: "5.9"
+        "EXCLUDED_ARCHS[sdk=iphonesimulator*]": x86_64
