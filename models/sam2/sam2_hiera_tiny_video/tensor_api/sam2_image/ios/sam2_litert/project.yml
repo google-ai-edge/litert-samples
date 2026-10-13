@@ -1,0 +1,33 @@
+name: SAM2
+options:
+  bundleIdPrefix: com.sam2
+  deploymentTarget:
+    iOS: "16.0"
+packages:
+  swift-litert-lm:
+    url: https://github.com/john-rocky/swift-litert-lm
+    from: 0.1.1
+targets:
+  SAM2:
+    type: application
+    platform: iOS
+    sources:
+      - Sources
+      - path: Resources
+        buildPhase: resources
+    dependencies:
+      - package: swift-litert-lm
+        product: LiteRTLM
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.sam2.app
+        SWIFT_OBJC_BRIDGING_HEADER: CLiteRT/SAM2-Bridging-Header.h
+        HEADER_SEARCH_PATHS:
+          - $(SRCROOT)/CLiteRT
+          - $(SRCROOT)/CLiteRT/include
+        SWIFT_VERSION: "5.0"
+        TARGETED_DEVICE_FAMILY: "1,2"
+        GENERATE_INFOPLIST_FILE: YES
+        INFOPLIST_KEY_UILaunchScreen_Generation: YES
+        CODE_SIGN_STYLE: Automatic
+        "EXCLUDED_ARCHS[sdk=iphonesimulator*]": x86_64
