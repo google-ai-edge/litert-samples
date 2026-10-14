@@ -60,6 +60,7 @@ configurations.all {
 tasks.withType<KotlinCompile>().configureEach {
     compilerOptions {
         jvmTarget.set(JvmTarget.JVM_11)
+        freeCompilerArgs.add("-Xskip-metadata-version-check")
     }
 }
 
