@@ -106,7 +106,7 @@ publish checklist: `references/verification-gates.md` §Publish.
 | Runtime crash: `Token id N is out of range` | Added special tokens dropped from the packaged tokenizer — same file, §Added tokens |
 | Stop token printed as literal text / model never stops | Stop-token metadata incomplete — §Stop tokens |
 | Answers fine at some prompt lengths, garbage/empty at others | Prefill-padding state corruption — run the length sweep, `verification-gates.md` |
-| Message two fails or quality drops mid-conversation | Template prefix contract violated — `template-tokenizer-traps.md` §Multi-turn |
+| Message two fails (or message three, after a reply that carried a thought) or quality drops mid-conversation | Template prefix contract violated — `template-tokenizer-traps.md` §Multi-turn |
 | int4 passes the 8-question gate but tanks the benchmark | The floor-gate trap — gate is a floor, parity is the verdict (`verification-gates.md`) |
 | Every build scores 8/8 and the gate never discriminates | Floor items are saturated — rebuild the gate from borderline cases (`verification-gates.md` §1) |
 | The converted model *beats* its source | Suspect the harness, not the recipe: a mis-prompted or mis-rendered reference (`verification-gates.md` §2, `vlm-conversion.md` §Gates) |

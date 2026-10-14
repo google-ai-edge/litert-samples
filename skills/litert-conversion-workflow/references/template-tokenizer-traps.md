@@ -128,6 +128,25 @@ token stream, the engine resolves the difference by rewinding — safe for
 slot-addressed KV, corrupting for running-state models. History renders
 must be append-only extensions of the real stream.
 
+The check runs a second time inside the refill: after a reply that
+carried a thinking channel, the next message rewinds the KV cache and
+re-prefills the history from the template, comparing that render with
+the render up to the rewind point, so a template can pass message two
+and die on message three. From LiteRT-LM 0.18.0 the template also
+receives each reply's `reasoning_content` (0.17.1 passed a plain string
+without it), which is what exposes every history turn rendered by its
+position: a think block kept only on the latest assistant turn
+(`truncate_history_thinking`, `preserve_thinking`) dies from 0.18.0 on,
+and the Qwen3 `last_query_index` pattern and a trailing token that only
+the non-generation render emits (an `{% else %}` branch on
+`add_generation_prompt`) die on 0.17.1 as well, thinking on or off.
+Before shipping a bundle that embeds Jinja, render its template on the
+desk the way the runtime does (minijinja with `trim_blocks`,
+`lstrip_blocks` and `keep_trailing_newline` on; replies as content
+parts plus `channels` and `reasoning_content`) for three turns with
+thinking unset, on and off, after matching one logged old / new pair
+byte for byte: the INTERNAL error prints both strings.
+
 ## Tokenizer packaging
 
 - **The HF-tokenizer bundle path can mis-tokenize.** Two observed forms:
