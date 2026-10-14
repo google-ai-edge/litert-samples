@@ -57,7 +57,10 @@ android {
     sourceCompatibility = JavaVersion.VERSION_1_8
     targetCompatibility = JavaVersion.VERSION_1_8
   }
-  kotlinOptions { jvmTarget = "1.8" }
+  kotlinOptions {
+    jvmTarget = "1.8"
+    freeCompilerArgs += "-Xskip-metadata-version-check"
+  }
   buildFeatures { compose = true }
   packaging { resources { excludes += "/META-INF/{AL2.0,LGPL2.1}" } }
 
