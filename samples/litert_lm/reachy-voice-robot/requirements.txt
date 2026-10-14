@@ -1,5 +1,5 @@
 litert-lm==0.15.0
-ai-edge-litert==2.1.6
+ai-edge-litert==2.3.0
 ml-dtypes>=0.5
 huggingface-hub>=0.28
 numpy>=2.0

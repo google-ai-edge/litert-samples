@@ -4,7 +4,7 @@ version = "0.1.0"
 requires-python = "==3.12.*"
 dependencies = [
     "litert-lm==0.15.0",
-    "ai-edge-litert==2.1.6",
+    "ai-edge-litert==2.3.0",
     # Required by the LiteRT CompiledModel API (the current API; Interpreter is
     # deprecated) — vision and speech-to-text run through it.
     "ml-dtypes>=0.5",
