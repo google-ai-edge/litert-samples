@@ -54,10 +54,16 @@ android {
   }
 }
 
-kotlin { compilerOptions { jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_17) } }
+kotlin {
+  compilerOptions {
+    jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_17)
+    freeCompilerArgs.add("-Xskip-metadata-version-check")
+  }
+}
 
 dependencies {
   implementation(libs.litert)
+  implementation(libs.litert.gpu)
   implementation(libs.core)
   implementation(libs.activity.compose)
   implementation(libs.lifecycle.viewmodel)
