@@ -38,7 +38,10 @@ android {
     sourceCompatibility = JavaVersion.VERSION_11
     targetCompatibility = JavaVersion.VERSION_11
   }
-  kotlinOptions { jvmTarget = "11" }
+  kotlinOptions {
+    jvmTarget = "11"
+    freeCompilerArgs += "-Xskip-metadata-version-check"
+  }
   buildFeatures { viewBinding = true }
 
   externalNativeBuild {
@@ -84,7 +87,8 @@ dependencies {
   implementation(libs.androidx.constraintlayout)
   implementation(libs.androidx.navigation.fragment.ktx)
   implementation(libs.androidx.navigation.ui.ktx)
-  implementation("com.google.ai.edge.litert:litert:2.1.5")
+  implementation("com.google.ai.edge.litert:litert:2.3.0")
+  implementation("com.google.ai.edge.litert:litert-gpu:2.3.0")
   implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.7.3")
   implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.7.3")
   implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.8.0")
