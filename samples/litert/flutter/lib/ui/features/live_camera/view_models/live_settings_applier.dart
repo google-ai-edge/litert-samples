@@ -65,8 +65,10 @@ final class LiveSettingsApplier {
 
   /// Starts live detection as the screen's start command, or joins the
   /// start in progress; completes when that start ended. The start reads
-  /// the saved source then.
-  final Future<void> Function() _start;
+  /// the saved source then. `resume`: the start continues the detection
+  /// session a detector switch interrupted (the visual memory keeps its
+  /// frames); a source change is a new session.
+  final Future<void> Function({bool resume}) _start;
 
   /// The start in progress, whoever ran it (the screen's first start, its
   /// Retry, a switch); null when none runs.
@@ -314,7 +316,7 @@ final class LiveSettingsApplier {
     if (_closed) return reloaded;
     // A failed load shows as the detector's failure, with the other backend
     // offered; starting would only add "the detector is not loaded".
-    if (reloaded is Ok<void>) await _untilClosed(_start());
+    if (reloaded is Ok<void>) await _untilClosed(_start(resume: true));
     return reloaded;
   }
 

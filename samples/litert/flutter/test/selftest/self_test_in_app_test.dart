@@ -30,6 +30,7 @@ import 'package:litert_edge_demos/utils/result.dart';
 
 import '../fakes/fake_audio_repository.dart';
 import '../fakes/fake_conversation_repository.dart';
+import '../fakes/fake_self_test_adapters.dart';
 
 final class _Planner implements ChatModelPlanner {
   @override
@@ -84,6 +85,7 @@ void main() {
     models: models,
     logTap: const NoNativeLogTap(),
     audio: FakeAudioRepository(),
+    embedder: FakeSelfTestEmbedder(borrowed: true),
     steps: (progress, stopped) async {
       log.add('steps');
       if (untilStopped) {

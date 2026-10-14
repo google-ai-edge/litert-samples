@@ -20,7 +20,8 @@ import 'package:litert_edge_demos/config/licenses.dart';
 
 void main() {
   test('the built-in models are on the licence page: YOLO26n under AGPL-3.0 '
-      'with its derivation script, EmbeddingGemma with the Gemma terms', () {
+      'with its derivation script, EmbeddingGemma 2 under Apache-2.0 with its '
+      'pinned repo', () {
     final yolo = modelLicenses.firstWhere(
       (e) => e.packages.single.startsWith('YOLO26n'),
     );
@@ -33,12 +34,19 @@ void main() {
       (e) => e.packages.single.startsWith('EmbeddingGemma'),
     );
     final gemmaText = gemma.paragraphs.map((p) => p.text).join('\n');
+    expect(gemmaText, contains('embeddinggemma-2-740m.litertlm'));
     expect(
       gemmaText,
       contains(
-        'Gemma is provided under and subject to the Gemma Terms of Use found '
-        'at https://ai.google.dev/gemma/terms',
+        'litert-community/embeddinggemma-2-740m-litert-lm at revision '
+        '24d962e906c7d332c6428e71c9676855024569e2',
       ),
+    );
+    expect(gemmaText, contains('Apache License, Version 2.0'));
+    expect(
+      modelLicenses.map((e) => e.paragraphs.map((p) => p.text).join('\n')),
+      everyElement(isNot(contains('Gemma Terms of Use'))),
+      reason: 'no built-in model is under the Gemma terms any more',
     );
   });
 
@@ -90,7 +98,7 @@ void main() {
       containsAll([
         'LiteRT Demos app',
         'YOLO26n detector (built in)',
-        'EmbeddingGemma 300M (built in)',
+        'EmbeddingGemma 2 740m (built in)',
       ]),
     );
   });

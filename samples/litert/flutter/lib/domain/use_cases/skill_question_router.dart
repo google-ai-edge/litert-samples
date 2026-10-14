@@ -43,7 +43,8 @@ final class const SkillRoute(final SkillTopic topic, final String rule) {
 /// the turn skips retrieval and Gemma sees nothing but its skills.
 ///
 /// Why: retrieval runs before every turn, and live device questions clear
-/// the knowledge-base gate against the GPU and backend docs (0.40–0.56,
+/// the knowledge-base gate against the GPU and backend docs (EmbeddingGemma
+/// 2: 5 of 6 at 0.68–0.77 against 0.70,
 /// `test_assets/skill_trigger_similarity.json`); at temperature 0.6 Gemma
 /// then sometimes answered "which accelerator is running" from the docs
 /// instead of calling `device_info`. Rules, not similarity, so the outcome

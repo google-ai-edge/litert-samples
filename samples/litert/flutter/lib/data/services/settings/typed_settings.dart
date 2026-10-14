@@ -55,6 +55,9 @@ abstract final class Settings {
   /// Where the detector runs: `gpu` or `cpu` (`DetectorBackend.name`). Unset
   /// is the GPU. `DETECTOR_BACKEND` wins over it.
   static const detectorBackend = StringSetting('detector.backend');
+
+  /// Demo 3's visual memory switch. Unset is on.
+  static const visualMemory = BoolSetting('camera.visualMemory');
 }
 
 /// Reads and writes [Setting]s: a typed store over [SettingsStore], shared by

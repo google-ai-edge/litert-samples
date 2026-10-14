@@ -26,6 +26,7 @@ void main() {
 
   const custom = CustomChatPlan(
     path: '/store/custom/g3.litertlm',
+    header: [],
     model: CustomChatModel(
       displayName: 'Gemma 3 1B NPU',
       source: ImportedModelSource('/picked/g3.litertlm'),
@@ -72,7 +73,6 @@ void main() {
       llm: LlmConfig(
         maxTokens: 4096,
         backend: PreferredBackend.cpu,
-        supportImage: false,
         maxNumImages: 1,
       ),
       tools: true,

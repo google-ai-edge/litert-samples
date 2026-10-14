@@ -38,6 +38,7 @@ import '../../../../fakes/fake_llm_service.dart';
 import '../../../../fakes/fake_model_file_picker.dart';
 import '../../../../fakes/fake_settings_store.dart';
 import '../../../../fakes/fake_speech.dart';
+import '../../../../support/litertlm_header.dart';
 import '../../../../support/test_bytes.dart';
 
 /// Alternates real time (file I/O) and frames (continuations in the test's
@@ -72,6 +73,7 @@ void main() {
     ),
     ImportSupport support = const ImportFromFolder(),
     bool withFile = false,
+    List<HeaderSection>? header,
   }) async {
     root = Directory.systemTemp.createTempSync('chat_section');
     llm = FakeLlmService()..followRequested = true;
@@ -101,9 +103,23 @@ void main() {
     await tester.runAsync(() async {
       await chatModels.load();
       if (withFile) {
+        // A text-only NPU build: an import whose header cannot be read is
+        // refused.
         final source = File('${root.path}/$fileName')
-          ..writeAsBytesSync(testBytes(4096));
+          ..writeAsBytesSync([
+            ...litertlmHeaderBytes(kTextOnlyNpuSections),
+            ...testBytes(4096),
+          ]);
         await chatModels.importFile(source.path);
+      }
+      if (header != null) {
+        // A file with this header, used in place.
+        final file = File('${root.path}/in_place.litertlm')
+          ..writeAsBytesSync([
+            ...litertlmHeaderBytes(header),
+            ...testBytes(4096, seed: 3),
+          ]);
+        await chatModels.useLocalFile(file.path);
       }
       await models.prepareAll();
     });
@@ -186,6 +202,250 @@ void main() {
     },
   );
 
+  /// Every text in the row [key], in order: `Vision | CPU · the file sets
+  /// it`, or `Vision | CPU | NPU` for a row with a control.
+  String row(WidgetTester tester, Key key) => tester
+      .widgetList<Text>(
+        find.descendant(of: find.byKey(key), matching: find.byType(Text)),
+      )
+      .map((t) => t.data)
+      .join(' | ');
+
+  SegmentedButton<PreferredBackend> control(WidgetTester tester, Key key) =>
+      tester.widget<SegmentedButton<PreferredBackend>>(find.byKey(key));
+
+  Future<void> selectBackend(
+    WidgetTester tester,
+    PreferredBackend backend,
+  ) async {
+    control(tester, ChatModelKeys.backend).onSelectionChanged!({backend});
+    await tester.pump();
+  }
+
+  const choiceCaption =
+      'This file does not say where its towers run: NPU only if they are '
+      'compiled for this chip, CPU otherwise (for example the official '
+      'qualcomm_sm8750 build)';
+  const sm8750 = NpuAvailable(soc: 'QTI SM8750');
+
+  testWidgets('no Images, Audio or Encoders controls: a read-only Towers '
+      'block under Context, before Tools; an imported text-only build: '
+      'neither tower in the file', (tester) async {
+    await pumpSection(tester, withFile: true);
+
+    expect(find.byKey(ChatModelKeys.towers), findsOneWidget);
+    expect(find.byType(SwitchListTile), findsOneWidget, reason: 'Tools only');
+    expect(find.byKey(ChatModelKeys.tools), findsOneWidget);
+    expect(find.text('Images'), findsNothing);
+    expect(find.text('Encoders'), findsNothing);
+    final contextY = tester.getTopLeft(find.byKey(ChatModelKeys.context)).dy;
+    final towersY = tester.getTopLeft(find.byKey(ChatModelKeys.towers)).dy;
+    final toolsY = tester.getTopLeft(find.byKey(ChatModelKeys.tools)).dy;
+    expect(contextY < towersY && towersY < toolsY, isTrue);
+
+    expect(row(tester, ChatModelKeys.towerText), 'Text | GPU');
+    expect(
+      row(tester, ChatModelKeys.towerVision),
+      'Vision | not in this file: photos in Voice chat and detailed answers '
+      'in Live camera are off',
+    );
+    expect(
+      row(tester, ChatModelKeys.towerAudio),
+      'Audio | not in this file: voice questions are transcribed first',
+    );
+    expect(find.text(choiceCaption), findsNothing);
+    await tearDownSection(tester);
+  });
+
+  testWidgets('towers declared by the file (the official qcs8275 build) on '
+      'the NPU: Text NPU, Vision CPU, Audio CPU, set by the file; no '
+      'control', (tester) async {
+    await pumpSection(tester, npu: sm8750, header: kQualcommQcs8275Sections);
+
+    expect(vm.draftBackend, PreferredBackend.npu);
+    expect(row(tester, ChatModelKeys.towerText), 'Text | NPU');
+    expect(
+      row(tester, ChatModelKeys.towerVision),
+      'Vision | CPU · the file sets it',
+    );
+    expect(
+      row(tester, ChatModelKeys.towerAudio),
+      'Audio | CPU · the file sets it',
+    );
+    expect(find.byKey(ChatModelKeys.visionBackend), findsNothing);
+    expect(find.byKey(ChatModelKeys.audioBackend), findsNothing);
+    expect(find.text(choiceCaption), findsNothing);
+    await tearDownSection(tester);
+  });
+
+  testWidgets('undeclared towers (the official sm8750 build): on the NPU a '
+      'CPU | NPU control in each tower row, the NPU by default, with the '
+      'caption once; a choice is a draft change; on the GPU both CPU, '
+      'read-only', (tester) async {
+    await pumpSection(tester, npu: sm8750, header: kQualcommSm8750Sections);
+    expect(vm.draftBackend, PreferredBackend.gpu, reason: 'not marked NPU');
+    expect(row(tester, ChatModelKeys.towerText), 'Text | GPU');
+    expect(row(tester, ChatModelKeys.towerVision), 'Vision | CPU');
+    expect(row(tester, ChatModelKeys.towerAudio), 'Audio | CPU');
+    expect(find.text(choiceCaption), findsNothing);
+
+    await selectBackend(tester, PreferredBackend.npu);
+
+    expect(row(tester, ChatModelKeys.towerText), 'Text | NPU');
+    for (final key in [
+      ChatModelKeys.visionBackend,
+      ChatModelKeys.audioBackend,
+    ]) {
+      final segmented = control(tester, key);
+      expect(segmented.selected, {PreferredBackend.npu}, reason: '$key');
+      expect(segmented.segments.map((s) => s.value), [
+        PreferredBackend.cpu,
+        PreferredBackend.npu,
+      ]);
+    }
+    expect(row(tester, ChatModelKeys.towerVision), 'Vision | CPU | NPU');
+    expect(find.text(choiceCaption), findsOneWidget);
+
+    control(tester, ChatModelKeys.visionBackend).onSelectionChanged!({
+      PreferredBackend.cpu,
+    });
+    await tester.pump();
+    expect(control(tester, ChatModelKeys.visionBackend).selected, {
+      PreferredBackend.cpu,
+    });
+    expect(control(tester, ChatModelKeys.audioBackend).selected, {
+      PreferredBackend.npu,
+    });
+    expect(vm.draftTowers?.visionBackend, PreferredBackend.cpu);
+    expect(
+      tester.widget<FilledButton>(find.byKey(ChatModelKeys.apply)).onPressed,
+      isNotNull,
+    );
+
+    await selectBackend(tester, PreferredBackend.gpu);
+    expect(find.byKey(ChatModelKeys.visionBackend), findsNothing);
+    expect(row(tester, ChatModelKeys.towerVision), 'Vision | CPU');
+    expect(find.text(choiceCaption), findsNothing);
+    await tearDownSection(tester);
+  });
+
+  testWidgets('the standard Gemma 4 E2B on the GPU: Text GPU, Vision CPU, '
+      'Audio CPU, set by the file', (tester) async {
+    await pumpSection(tester, header: kGemma4E2bSections);
+
+    expect(row(tester, ChatModelKeys.towerText), 'Text | GPU');
+    expect(
+      row(tester, ChatModelKeys.towerVision),
+      'Vision | CPU · the file sets it',
+    );
+    expect(
+      row(tester, ChatModelKeys.towerAudio),
+      'Audio | CPU · the file sets it',
+    );
+    expect(find.text(choiceCaption), findsNothing);
+    await tearDownSection(tester);
+  });
+
+  testWidgets('a text-only file (the older SM8850 build): no vision, no '
+      'audio, and what is off without them', (tester) async {
+    await pumpSection(tester, npu: sm8750, header: kTextOnlyNpuSections);
+
+    expect(row(tester, ChatModelKeys.towerText), 'Text | NPU');
+    expect(
+      row(tester, ChatModelKeys.towerVision),
+      'Vision | not in this file: photos in Voice chat and detailed answers '
+      'in Live camera are off',
+    );
+    expect(
+      row(tester, ChatModelKeys.towerAudio),
+      'Audio | not in this file: voice questions are transcribed first',
+    );
+    await tearDownSection(tester);
+  });
+
+  testWidgets('the official qcs8275 build on the NPU: no control; the '
+      'official sm8750 build on the NPU: two controls, the NPU by default', (
+    tester,
+  ) async {
+    await pumpSection(tester, npu: sm8750, header: kQualcommQcs8275Sections);
+    expect(vm.draftBackend, PreferredBackend.npu);
+    expect(
+      row(tester, ChatModelKeys.towerVision),
+      'Vision | CPU · the file sets it',
+    );
+    expect(
+      row(tester, ChatModelKeys.towerAudio),
+      'Audio | CPU · the file sets it',
+    );
+    expect(find.byKey(ChatModelKeys.visionBackend), findsNothing);
+    expect(find.byKey(ChatModelKeys.audioBackend), findsNothing);
+    await tearDownSection(tester);
+
+    await pumpSection(tester, npu: sm8750, header: kQualcommSm8750Sections);
+    await selectBackend(tester, PreferredBackend.npu);
+    expect(control(tester, ChatModelKeys.visionBackend).selected, {
+      PreferredBackend.npu,
+    });
+    expect(control(tester, ChatModelKeys.audioBackend).selected, {
+      PreferredBackend.npu,
+    });
+    expect(find.text(choiceCaption), findsOneWidget);
+    await tearDownSection(tester);
+  });
+
+  testWidgets('the official sm8750 build with its towers left on the NPU '
+      'fails in the warm-up: the engine\'s reason and a line on what to do; '
+      'no tower button (only Run on GPU / CPU); both towers set to CPU in '
+      'their rows, Apply, and it loads', (tester) async {
+    await pumpSection(tester, npu: sm8750, header: kQualcommSm8750Sections);
+    await selectBackend(tester, PreferredBackend.npu);
+    llm.warmUpError = Exception('Failed to create conversation');
+
+    await tester.runAsync(() => vm.apply.execute());
+    await tester.pump();
+
+    final message = tester
+        .widget<Text>(find.byKey(ChatModelKeys.loadError))
+        .data!;
+    expect(message, contains('Failed to create conversation'));
+    expect(
+      message,
+      endsWith(
+        "\nIf this build's towers are not compiled for the NPU, set "
+        'Vision/Audio to CPU on the card.',
+      ),
+    );
+    expect(llm.models, hasLength(1), reason: 'no retry, no fallback');
+    expect(
+      [
+        for (final action in ChatModelAction.values)
+          if (find.byKey(ChatModelKeys.action(action)).evaluate().isNotEmpty)
+            action,
+      ],
+      [ChatModelAction.runOnGpu, ChatModelAction.runOnCpu],
+    );
+
+    for (final key in [
+      ChatModelKeys.visionBackend,
+      ChatModelKeys.audioBackend,
+    ]) {
+      control(tester, key).onSelectionChanged!({PreferredBackend.cpu});
+      await tester.pump();
+    }
+    await tester.runAsync(() => vm.apply.execute());
+    await tester.pump();
+
+    expect(llm.models, hasLength(2));
+    expect(llm.models.last.llm.backend, PreferredBackend.npu);
+    expect(llm.models.last.llm.visionBackend, PreferredBackend.cpu);
+    expect(llm.models.last.llm.audioBackend, PreferredBackend.cpu);
+    expect(find.byKey(ChatModelKeys.loadError), findsNothing);
+    expect(control(tester, ChatModelKeys.visionBackend).selected, {
+      PreferredBackend.cpu,
+    });
+    await tearDownSection(tester);
+  });
+
   testWidgets('the URL dialog refuses a bad link and says why', (tester) async {
     await pumpSection(tester);
 
@@ -223,7 +483,7 @@ void main() {
       tester.widget<Text>(find.byKey(ChatModelKeys.loadError)).data,
       contains('did not load on npu'),
     );
-    for (final action in ChatModelAction.values) {
+    for (final action in [ChatModelAction.runOnGpu, ChatModelAction.runOnCpu]) {
       expect(find.byKey(ChatModelKeys.action(action)), findsOneWidget);
     }
     expect(find.textContaining('Gemma 4 E2B'), findsNothing);

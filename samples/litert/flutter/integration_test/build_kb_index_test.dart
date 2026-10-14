@@ -13,16 +13,21 @@
 // limitations under the License.
 
 // Builds the prebuilt knowledge-base index (assets/kb_index/): the built-in
-// EmbeddingGemma embeds assets/kb on the CPU exactly as the app does on a
-// device — the app's own KnowledgeRepository, chunker and sqlite-vec store —
-// and the store's kb.db is written out with its manifest (what it was built
-// from). Run it through the wrapper, which reads the store's version from
-// pubspec.lock and copies the result out of the macOS sandbox:
+// EmbeddingGemma 2 740m (assets/models/embeddinggemma-2-740m.litertlm, text
+// only) embeds assets/kb on the CPU exactly as the app does on a device — the
+// app's own KnowledgeRepository, chunker and sqlite-vec store, bound to
+// kKbEmbeddingProfileId — and the store's kb.db is written out with its
+// manifest (what it was built from, the RAG profile id included). A chunk
+// over the model's 1024-token limit fails the run
+// (EmbeddingInputTooLongException): nothing is truncated. Run it through the
+// wrapper, which reads the store's version from pubspec.lock and copies the
+// result out of the macOS sandbox:
 //
 //   tool/build_kb_index.sh
 //
 // Rebuild whenever assets/kb, the chunker (MarkdownChunker.version or its
-// budget), the embedder files or flutter_edge_ai_sqlite change:
+// budget), the embedder file, kKbEmbeddingProfileId or flutter_edge_ai_sqlite
+// change:
 // test/data/services/knowledge/kb_prebuilt_asset_test.dart fails until the
 // index matches again.
 // Prints `KB_INDEX_OUT=<dir>` and
@@ -36,6 +41,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:integration_test/integration_test.dart';
 import 'package:litert_edge_demos/config/bootstrap.dart';
+import 'package:litert_edge_demos/config/knowledge_config.dart';
 import 'package:litert_edge_demos/config/model_catalog.dart';
 import 'package:litert_edge_demos/data/repositories/knowledge_repository.dart';
 import 'package:litert_edge_demos/data/services/knowledge/embedder_digests.dart';
@@ -71,29 +77,21 @@ void main() {
     if (kStore.isEmpty) {
       fail('Pass --dart-define=KB_INDEX_STORE=... (tool/build_kb_index.sh)');
     }
-    // 1. The built-in embedder files, hashed for real: the app takes their
-    //    digests from the build's constants, so prove those here.
+    // 1. The built-in embedder file, hashed for real: the app takes its
+    //    digest from the build's constants, so prove it here.
     final bundled = BundledModelFiles();
     final modelPath = await _bundledPath(bundled, kBundledEmbedderModel);
-    final tokenizerPath = await _bundledPath(
-      bundled,
-      kBundledEmbedderTokenizer,
-    );
     const ops = ModelFileOps();
     expect(
       await ops.sha256OfFile(modelPath, onProgress: (_, _) {}),
       kBundledEmbedderModel.sha256,
-    );
-    expect(
-      await ops.sha256OfFile(tokenizerPath, onProgress: (_, _) {}),
-      kBundledEmbedderTokenizer.sha256,
     );
 
     // 2. The embedder, exactly as setup loads it.
     await initEdgeAi();
     final embedder = EmbedderService();
     final installed = await embedder.install(
-      EmbedderFromFiles(modelPath: modelPath, tokenizerPath: tokenizerPath),
+      EmbedderFromFiles(modelPath: modelPath),
       onProgress: (_) {},
     );
     expect(installed, isA<Ok<String>>(), reason: '$installed');
@@ -122,9 +120,10 @@ void main() {
     );
     if (root.existsSync()) root.deleteSync(recursive: true);
     final indexDir = Directory('${root.path}/index');
+    final store = VectorStoreService(embedQuery: embedder.embedQuery);
     final repository = KnowledgeRepository(
       embedder: embedder,
-      store: VectorStoreService(embedQuery: embedder.embedQuery),
+      store: store,
       models: models,
       indexDir: () async => indexDir,
       prebuilt: const NoPrebuiltKbIndex('building the prebuilt index'),
@@ -147,15 +146,18 @@ void main() {
       File('${indexDir.path}/index.json').readAsStringSync(),
     ) as Map<String, Object?>;
     final key = KbIndexKey.fromJson(marker['key']);
+    expect(key.keyFormat, KbIndexKey.format);
     expect(key.modelSha256, kBundledEmbedderModel.sha256);
-    expect(key.tokenizerSha256, kBundledEmbedderTokenizer.sha256);
     expect(key.dim, kEmbedderConfig.dimension);
     final db = File('${indexDir.path}/kb.db');
     final bytes = db.readAsBytesSync();
     final out = Directory('${root.path}/out')..createSync(recursive: true);
     File('${out.path}/kb.db').writeAsBytesSync(bytes, flush: true);
+    expect(store.profileId, kKbEmbeddingProfileId);
     final manifest = PrebuiltKbManifest(
       key: key,
+      // The profile kb.db is bound to (the store's: the app's default).
+      profileId: store.profileId,
       chunks: ready.chunks,
       dbBytes: bytes.length,
       dbSha256: sha256.convert(bytes).toString(),
@@ -172,7 +174,8 @@ void main() {
     debugPrint(
       'KB_INDEX_BUILT chunks=${ready.chunks} db=${bytes.length}B '
       'embed=${ready.elapsed.inMilliseconds}ms backend=${info.backend.name} '
-      'store="$kStore"',
+      'load=${info.loadTime.inMilliseconds}ms model=${info.modelId} '
+      'profile=$kKbEmbeddingProfileId store="$kStore"',
     );
 
     await repository.close();

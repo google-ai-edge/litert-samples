@@ -17,6 +17,7 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:litert_edge_demos/config/model_catalog.dart';
+import 'package:litert_edge_demos/data/repositories/conversation/history_mirror.dart';
 import 'package:litert_edge_demos/data/repositories/conversation_repository_edge_ai.dart';
 import 'package:litert_edge_demos/data/services/llm/llm_service.dart';
 import 'package:litert_edge_demos/domain/models/assistant_event.dart';
@@ -280,7 +281,18 @@ void main() {
       expect(model.chatsCreated, 2);
       expect(full.closed, isTrue, reason: 'the full conversation is gone');
       expect(session(), isNot(same(full)));
-      expect(session().queries.single.imageBytes, same(cats));
+      // The fresh chat is given the earlier exchange back as text first
+      // (the conversation's text mirror), then the turn with its image.
+      final queries = session().queries;
+      expect(queries, hasLength(2));
+      expect(queries.first.text, startsWith(HistoryMirror.replayHeader));
+      expect(queries.first.text, contains('User: What animal is this?'));
+      expect(queries.first.imageBytes, isNull);
+      expect(queries.last.imageBytes, same(cats));
+      expect(
+        turn.events.whereType<AssistantContextReset>().single.keptTurns,
+        1,
+      );
       expect(turn.metrics.contextReset, isTrue);
       expect(turn.metrics.imageResent, ImageLoss.budget);
       expect(repo.profile, same(kVoiceChatProfile));

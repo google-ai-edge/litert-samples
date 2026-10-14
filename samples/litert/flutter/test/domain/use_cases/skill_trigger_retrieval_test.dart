@@ -23,17 +23,20 @@ import 'package:litert_edge_demos/domain/use_cases/prompt_builder.dart';
 import '../../fakes/fake_knowledge.dart';
 
 /// Retrieval runs before every Demo 1 turn, so a skill question can arrive
-/// with knowledge-base excerpts. Measured offline with the app's own
-/// embedding pipeline (real EmbeddingGemma numbers in
-/// `test_assets/skill_trigger_similarity.json`):
+/// with knowledge-base excerpts. Measured with the app's own embedding
+/// pipeline (real EmbeddingGemma 2 numbers in
+/// `test_assets/skill_trigger_similarity.json`, printed by
+/// `integration_test/kb_retrieval_test.dart`):
 ///
-/// - time triggers score 0.17–0.19: below the 0.40 gate, so their prompts
+/// - time triggers score 0.62–0.64: below the 0.70 gate, so their prompts
 ///   carry no excerpts;
-/// - device questions score 0.40–0.56 against the GPU/backend docs: they DO
-///   get excerpts. Routing by "skill description beats the best excerpt"
-///   would not fix it either (4 of 6 device phrases score higher against the
-///   docs), so the policy is in the prompts: on an agent chat the excerpts
-///   are reference only and live device facts come from skills.
+/// - device questions score 0.68–0.77 against the GPU/backend docs: 5 of 6
+///   DO get excerpts (with EmbeddingGemma-300M it was all 6, at 0.40–0.56
+///   against a 0.40 gate). Routing by "skill description beats the best
+///   excerpt" did not fix it with 300M either (4 of 6 device phrases scored
+///   higher against the docs), so the policy is in the prompts: on an agent
+///   chat the excerpts are reference only and live device facts come from
+///   skills.
 ///
 /// The policy alone was not enough (at temperature 0.6 Gemma still answered
 /// some device questions from the docs), so on an agent chat
@@ -59,7 +62,7 @@ void main() {
   ];
 
   test('measured at the gate in force', () {
-    expect(golden['gate'], kKbMinSimilarity);
+    expect(golden['gate'], kKbMinSimilarityText);
   });
 
   test('every bundled skill has measured trigger phrases', () {
@@ -77,19 +80,19 @@ void main() {
       'prompts', () {
     expect(tops('current-time'), isNotEmpty);
     for (final top in tops('current-time')) {
-      expect(top, lessThan(kKbMinSimilarity));
+      expect(top, lessThan(kKbMinSimilarityText));
     }
   });
 
   test('device questions clear the gate, so the agent prompts must keep '
       'skills ahead of the excerpts', () {
     expect(
-      tops('device-info').where((t) => t >= kKbMinSimilarity),
+      tops('device-info').where((t) => t >= kKbMinSimilarityText),
       isNotEmpty,
       reason: 'if none did, the policy below could be relaxed',
     );
     final prompt = PromptBuilder.build('Which accelerator is running?', [
-      passage(1, similarity: 0.402),
+      passage(1, similarity: 0.747),
     ], skills: true);
     // An agent prompt that carries excerpts is a knowledge question (live
     // skill questions are routed before retrieval), so it says this turn

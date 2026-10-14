@@ -46,6 +46,11 @@ final class const TurnRequest({
   /// An image attached to this turn (Demo 1): JPEG/PNG bytes for the
   /// LLM. Demo 3 takes its own snapshot and ignores it.
   final Uint8List? image,
+
+  /// The turn's number, unique per assistant: the user's entry and a
+  /// transcript that arrives after the reply find each other by it (Demo 1's
+  /// audio mode). 0 when the caller numbers none.
+  final int turn = 0,
 });
 
 /// One turn's prepared LLM step. Exactly one of [responder] (the turn runs)
@@ -55,6 +60,10 @@ abstract interface class TurnPreparation<S> {
   /// starts. Its `stop` must end its `respond` stream and must only stop
   /// what this turn started. [onSide] delivers facts the reply text does not
   /// carry.
+  ///
+  /// A responder with `respondToAudio` set makes a spoken turn an audio turn
+  /// (`VoiceSession.runAudioTurn`: the model hears the recording, no STT);
+  /// one without it, a transcript turn. Typed turns are never audio turns.
   VoiceResponder responder(void Function(S event) onSide);
 
   /// The turn will not run (not heard, no mic audio, superseded, or it could

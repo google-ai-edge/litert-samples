@@ -19,6 +19,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:litert_edge_demos/data/repositories/diagnostics_repository.dart';
 import 'package:litert_edge_demos/data/repositories/skill_repository.dart';
 import 'package:litert_edge_demos/domain/models/chat_capabilities.dart';
+import 'package:litert_edge_demos/domain/models/chat_entry.dart';
 import 'package:litert_edge_demos/domain/models/llm_image.dart';
 import 'package:litert_edge_demos/domain/models/model_id.dart';
 import 'package:litert_edge_demos/domain/models/model_state.dart';
@@ -28,6 +29,7 @@ import 'package:litert_edge_demos/domain/use_cases/voice_assistant.dart';
 import 'package:litert_edge_demos/ui/core/level_meter.dart';
 import 'package:litert_edge_demos/ui/features/voice_chat/view_models/voice_chat_view_model.dart';
 import 'package:litert_edge_demos/ui/features/voice_chat/views/chat_keys.dart';
+import 'package:litert_edge_demos/ui/features/voice_chat/views/message_bubble.dart';
 import 'package:litert_edge_demos/ui/features/voice_chat/views/voice_chat_screen.dart';
 import 'package:litert_edge_demos/utils/result.dart';
 import 'package:provider/provider.dart';
@@ -103,6 +105,121 @@ void main() {
       minInterval: Duration.zero,
       sampleRss: false,
     );
+  });
+
+  group('the mode line', () {
+    test('how a spoken question reaches the chat model', () {
+      expect(
+        voiceModeLine(modelName: 'Gemma 4 E2B', audio: false),
+        'Voice → Whisper → Gemma 4 E2B',
+      );
+      expect(
+        voiceModeLine(
+          modelName: 'Gemma 4 E2B',
+          audio: false,
+          skills: AudioModeSkills.toolsOff,
+        ),
+        'Voice → Whisper → Gemma 4 E2B',
+        reason: 'the Whisper path keeps its direct intents',
+      );
+      expect(
+        voiceModeLine(
+          modelName: 'Gemma 4 E2B',
+          audio: true,
+          skills: AudioModeSkills.on,
+        ),
+        'Voice → Gemma 4 E2B',
+      );
+      expect(
+        voiceModeLine(
+          modelName: 'Gemma 4 E2B',
+          audio: true,
+          skills: AudioModeSkills.toolsOff,
+        ),
+        'Voice → Gemma 4 E2B · no skills (tools are off)',
+      );
+      expect(
+        voiceModeLine(
+          modelName: 'Gemma 4 E2B',
+          audio: true,
+          skills: AudioModeSkills.noneLoaded,
+        ),
+        'Voice → Gemma 4 E2B · no skills loaded',
+      );
+      expect(
+        voiceModeLine(modelName: 'Gemma 4 E2B', audio: true),
+        'Voice → Gemma 4 E2B',
+        reason: 'not known before the chat opens',
+      );
+    });
+
+    testWidgets('a chat model without audio: Voice → Whisper → Gemma', (
+      tester,
+    ) async {
+      final viewModel = await pumpScreen(tester);
+      await tester.pumpAndSettle();
+      expect(
+        tester.widget<Text>(find.byKey(ChatKeys.mode)).data,
+        'Voice → Whisper → Gemma 4 E2B',
+      );
+      await tearDownScreen(tester, viewModel);
+    });
+
+    testWidgets('a chat model that hears audio, with no skill installed: '
+        'Voice → Gemma, and it says there are no skills', (tester) async {
+      conversation.capabilities = const ChatCapabilities(
+        modelName: 'Gemma 4 E2B',
+        images: true,
+        tools: true,
+        audio: true,
+      );
+      final viewModel = await pumpScreen(tester);
+      await tester.pumpAndSettle();
+      expect(viewModel.isReady, isTrue);
+      expect(
+        tester.widget<Text>(find.byKey(ChatKeys.mode)).data,
+        'Voice → Gemma 4 E2B · no skills loaded',
+      );
+      await tearDownScreen(tester, viewModel);
+    });
+  });
+
+  testWidgets('a spoken question\'s bubble: its length above its words once '
+      'the transcript is in, the label alone before', (tester) async {
+    await tester.pumpWidget(
+      const MaterialApp(
+        home: Scaffold(
+          body: Column(
+            children: [
+              MessageBubble(
+                entry: ChatEntry(
+                  role: ChatRole.user,
+                  text: 'What is LiteRT?',
+                  spoken: SpokenQuestion(
+                    turn: 1,
+                    duration: Duration(seconds: 2),
+                    transcript: 'What is LiteRT?',
+                  ),
+                ),
+              ),
+              MessageBubble(
+                entry: ChatEntry(
+                  role: ChatRole.user,
+                  text: '🎤 1.5 s',
+                  spoken: SpokenQuestion(
+                    turn: 2,
+                    duration: Duration(milliseconds: 1500),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+    expect(find.text('🎤 2.0 s'), findsOneWidget);
+    expect(find.text('What is LiteRT?'), findsOneWidget);
+    expect(find.text('🎤 1.5 s'), findsOneWidget);
   });
 
   testWidgets('a failed open shows the error and New conversation recovers '

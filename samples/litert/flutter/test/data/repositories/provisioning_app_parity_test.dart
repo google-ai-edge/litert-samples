@@ -53,8 +53,9 @@ void main() {
     defineFile = file('define.litertlm');
     customFile = file('custom.litertlm');
     bundledEmbedder = {
-      for (final f in [kBundledEmbedderModel, kBundledEmbedderTokenizer])
-        f.asset: file('bundled_${f.name}'),
+      kBundledEmbedderModel.asset: file(
+        'bundled_${kBundledEmbedderModel.name}',
+      ),
     };
   });
   tearDown(() => tmp.deleteSync(recursive: true));
@@ -74,6 +75,7 @@ void main() {
 
   CustomChatPlan custom({bool inPlace = false}) => CustomChatPlan(
     path: customFile,
+    header: const [],
     model: CustomChatModel(
       displayName: 'My Gemma 3',
       source: inPlace

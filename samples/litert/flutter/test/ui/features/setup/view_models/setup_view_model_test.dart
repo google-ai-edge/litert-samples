@@ -42,6 +42,7 @@ import '../../../../fakes/fake_bundled_files.dart';
 import '../../../../fakes/fake_conversation_repository.dart';
 import '../../../../fakes/fake_detector_runtime.dart';
 import '../../../../fakes/fake_llm_service.dart';
+import '../../../../fakes/fake_self_test_adapters.dart';
 import '../../../../fakes/fake_settings_store.dart';
 import '../../../../fakes/fake_speech.dart';
 import '../../../../support/fake_model_server.dart';
@@ -404,6 +405,7 @@ void main() {
       models: models.states,
       logTap: const NoNativeLogTap(),
       audio: FakeAudioRepository(),
+      embedder: FakeSelfTestEmbedder(borrowed: true),
       steps: (_, _) async => const SelfTestOutcome(
         text: 'SELFTEST',
         passed: false,

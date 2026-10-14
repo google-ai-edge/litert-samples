@@ -18,13 +18,16 @@
 
 import '../../utils/result.dart';
 import '../models/knowledge.dart';
+import '../models/knowledge_query.dart';
 
 /// What Demo 1's turn responder needs from the knowledge base: one gated
-/// search per question. `KnowledgeRepository` implements it;
-/// responder tests pass a fake.
+/// search per question, typed or spoken. `KnowledgeRepository` implements
+/// it; responder tests pass a fake.
 abstract interface class KnowledgeRetriever {
   /// Ok with [RetrievalOutcome.used] (excerpts for the prompt),
   /// [RetrievalOutcome.belowGate] or [RetrievalOutcome.unavailable] (with
-  /// the reason); Error when the search itself failed. Never throws.
-  Future<Result<Retrieval>> retrieve(String question);
+  /// the reason), gated at the [query]'s kind's similarity; Error when the
+  /// search itself failed, a [KnowledgeQueryTooLongException] included (the
+  /// question was not searched, nothing was cut). Never throws.
+  Future<Result<Retrieval>> retrieve(KnowledgeQuery query);
 }

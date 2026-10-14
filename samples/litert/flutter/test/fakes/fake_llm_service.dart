@@ -35,9 +35,17 @@ class FakeLlmService implements LlmService {
   int warmUpCalls = 0;
   final List<bool> warmUpsWithImage = [];
 
+  /// When set, the next [install] fails with it (a file that vanished:
+  /// [ModelFileMissingException]).
+  Exception? installError;
+
   /// When set, the next [load] fails with it (a wrong SoC, a context the
   /// build does not have).
   Exception? loadError;
+
+  /// When set, the next [warmUp] fails with it (LiteRT-LM's "Failed to
+  /// create conversation": an encoder the backend cannot run).
+  Exception? warmUpError;
 
   /// When set, [load] waits for it, like a first GPU compile.
   Completer<void>? loadGate;
@@ -66,6 +74,10 @@ class FakeLlmService implements LlmService {
   }) async {
     installs.add(path);
     installTypes.add(modelType);
+    if (installError case final error?) {
+      installError = null;
+      return Result.error(error);
+    }
     onProgress(50);
     onProgress(100);
     return Result.ok(path.split('/').last.replaceAll('.litertlm', ''));
@@ -107,11 +119,20 @@ class FakeLlmService implements LlmService {
   Future<Result<Duration>> warmUp(
     SamplerConfig sampler, {
     required bool withImage,
+    bool withAudio = false,
   }) async {
     warmUpCalls++;
     warmUpsWithImage.add(withImage);
+    warmUpsWithAudio.add(withAudio);
+    if (warmUpError case final error?) {
+      warmUpError = null;
+      return Result.error(error);
+    }
     return const Result.ok(Duration(milliseconds: 150));
   }
+
+  /// [warmUp]'s `withAudio`, per call.
+  final List<bool> warmUpsWithAudio = [];
 
   @override
   Future<void> unload() async {

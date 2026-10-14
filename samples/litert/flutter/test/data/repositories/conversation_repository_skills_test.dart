@@ -180,7 +180,6 @@ void main() {
             llm: LlmConfig(
               maxTokens: 1280,
               backend: PreferredBackend.gpu,
-              supportImage: false,
               maxNumImages: 1,
             ),
             tools: false,
@@ -295,6 +294,27 @@ void main() {
       expect(repo.isGenerating.value, isFalse);
     });
 
+    test('a final generation that comes back empty: the intent\'s result is '
+        'the reply the text history keeps (what the user hears), so a '
+        'rebuilt chat replays it', () async {
+      model.script.addAll([
+        const ToolCallTurn('loadSkill', {'skillName': 'current-time'}),
+        const ToolCallTurn('runIntent', {
+          'intent': 'current_time',
+          'parameters': '{}',
+        }),
+        const TextTurn([]),
+      ]);
+
+      final turn = AgentTurn(repo, 'What time is it?');
+      await turn.done;
+
+      expect(turn.deltas, isEmpty);
+      final kept = repo.history.single;
+      expect(kept.assistant, 'It is 2:03 PM on Friday, October 2, 2026.');
+      expect(kept.replayable, isTrue);
+    });
+
     test('an ErrorResult is one failed step, not two (agent_loop.dart:379), '
         'and the model can still answer', () async {
       model.script.addAll([
@@ -383,6 +403,11 @@ void main() {
       );
       expect(turn.events.whereType<AssistantDone>(), isEmpty);
       expect(repo.isGenerating.value, isFalse);
+      expect(
+        repo.history.single.assistant,
+        isEmpty,
+        reason: 'a failed turn: its intents\' results were never the answer',
+      );
     });
   });
 
@@ -558,6 +583,52 @@ void main() {
           'reason',
           ContextResetReason.interruptedSkill,
         ),
+      );
+    });
+
+    test('a rebuild after an interrupted skill call, then a question too '
+        'long for any chat: the reset is announced as not replayed (no '
+        'counts claimed), and the next question replays the history', () async {
+      model.script.add(const TextTurn(['Hello there.']));
+      await AgentTurn(repo, 'Hello').done;
+      model.script.addAll([
+        const ToolCallTurn('loadSkill', {'skillName': 'current-time'}),
+        FailTurn(StateError('decode failed')),
+      ]);
+      await AgentTurn(repo, 'What time is it').done;
+      final chatsBefore = model.chats.length;
+
+      final tooLong = AgentTurn(repo, 'word ' * 5000);
+      await tooLong.done;
+
+      expect(model.chats.length, chatsBefore + 1, reason: 'rebuilt first');
+      final reset = tooLong.events.whereType<AssistantContextReset>().single;
+      expect(reset.reason, ContextResetReason.interruptedSkill);
+      expect(reset.replayed, isFalse);
+      expect(
+        (tooLong.last as AssistantFailed).error,
+        isA<ConversationTooLongException>(),
+      );
+
+      model.script.add(const TextTurn(['Hi again.']));
+      final next = AgentTurn(repo, 'Hi');
+      await next.done;
+
+      expect(next.deltas.join(), 'Hi again.');
+      expect(
+        next.events.whereType<AssistantContextReset>(),
+        isEmpty,
+        reason: 'every earlier turn fit the replay: nothing more to say',
+      );
+      expect(model.chats.length, chatsBefore + 1, reason: 'no second rebuild');
+      final users = [
+        for (final m in session().queries)
+          if (m.isUser) m.text,
+      ];
+      expect(
+        users.join('\n'),
+        contains('Hello there.'),
+        reason: 'the replay went out with this question',
       );
     });
 

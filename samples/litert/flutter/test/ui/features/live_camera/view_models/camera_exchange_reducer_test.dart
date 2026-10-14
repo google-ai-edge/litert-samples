@@ -22,6 +22,7 @@ import 'package:litert_edge_demos/domain/models/detection.dart';
 import 'package:litert_edge_demos/domain/models/detection_summary.dart';
 import 'package:litert_edge_demos/domain/models/route_decision.dart';
 import 'package:litert_edge_demos/domain/models/scene_snapshot.dart';
+import 'package:litert_edge_demos/domain/models/visual_memory.dart';
 import 'package:litert_edge_demos/domain/models/voice.dart';
 import 'package:litert_edge_demos/domain/use_cases/voice_assistant.dart';
 import 'package:litert_edge_demos/domain/vision/stt_corrections.dart';
@@ -556,6 +557,126 @@ void main() {
       expect(update.chatReset, same(reset));
       expect(update.state, same(asked));
       expect(update.notify, isTrue);
+    });
+  });
+
+  group('a memory question', () {
+    const route = RouteChosen(
+      MemoryRoute('yellow mug', 'memory:where-was'),
+      Duration(milliseconds: 1),
+    );
+    final hit = MemoryHit(
+      entry: MemoryEntry(
+        id: 1,
+        frameId: 9,
+        atMicros: 0,
+        png: Uint8List(4),
+        width: 320,
+        height: 180,
+        counts: const {},
+        vector: Float32List(3),
+        grey: Uint8List(1024),
+      ),
+      cosine: 0.71,
+      age: const Duration(seconds: 12),
+    );
+    MemoryRecalled recalled(MemoryRecall recall) => MemoryRecalled(
+      recall: recall,
+      query: 'yellow mug',
+      elapsed: const Duration(milliseconds: 40),
+    );
+
+    test('a hit: the result card, the chip names the age, the cosine and the '
+        'chat model; the overlay gets the search; never a freeze', () {
+      final updates = _run([
+        _side(route),
+        _side(recalled(hit)),
+      ], state: _asked('Where was the yellow mug?'));
+      expect(updates.first.state.exchange.route, isNull, reason: 'waits');
+      final update = updates.last;
+      expect(update.memoryCard, same(hit));
+      expect(update.freeze, isNull);
+      expect(
+        update.state.exchange.route,
+        'memory · seen 12 s ago · cos 0.71 — Gemma 4 E2B',
+      );
+      expect(update.state.exchange.detailed, isTrue);
+      expect(update.turn?.memory?.query, 'yellow mug');
+      expect(update.turn?.route, isA<MemoryRoute>());
+    });
+
+    test('a hit with images off: the chip says the detector list answers', () {
+      final update = _run(
+        [_side(route), _side(recalled(hit))],
+        state: _asked('Where was the yellow mug?'),
+        chat: _imagesOff,
+      ).last;
+      expect(
+        update.state.exchange.route,
+        'memory · seen 12 s ago · cos 0.71 — detector list (images off)',
+      );
+      expect(update.state.exchange.detailed, isFalse);
+    });
+
+    test('a miss, an empty memory and the memory off: no card; the off '
+        'state is a notice', () {
+      const miss = MemoryMiss(
+        cosine: 0.58,
+        span: Duration(minutes: 1),
+        frames: 12,
+        reason: 'below the floor 0.62',
+      );
+      final missed = _run([
+        _side(route),
+        _side(recalled(miss)),
+      ], state: _asked('Have you seen a giraffe?')).last;
+      expect(missed.memoryCard, isNull);
+      expect(
+        missed.state.exchange.route,
+        'memory · best 0.58 — not seen (below the floor 0.62)',
+      );
+      final empty = _run([
+        _side(route),
+        _side(recalled(const MemoryEmpty())),
+      ], state: _asked('Where was it?')).last;
+      expect(empty.state.exchange.route, 'memory · nothing remembered yet');
+      final off = _run([
+        _side(route),
+        _side(recalled(const MemoryOff('EmbeddingGemma is still loading'))),
+      ], state: _asked('Where was it?')).last;
+      expect(off.state.exchange.route, 'memory off');
+      expect(
+        off.state.exchange.notice,
+        'Visual memory is off: EmbeddingGemma is still loading',
+      );
+    });
+
+    test('the search stays in the overlay record after the answer', () {
+      final state = _after([
+        _side(route),
+        _side(recalled(hit)),
+      ], state: _asked('Where was the yellow mug?'));
+      final update = _reducer.reduce(
+        state,
+        _side(
+          DetailedAnswered(_metrics(ttft: const Duration(milliseconds: 90))),
+        ),
+        _gemma,
+      );
+      expect(update.turn?.memory?.recall, same(hit));
+      expect(update.turn?.timeToFirstToken, const Duration(milliseconds: 90));
+    });
+
+    test('a replaced turn\'s search never shows a card', () {
+      final asked = _asked('Where was the yellow mug?');
+      final update = _reducer.reduce(
+        asked,
+        _detachedSide(recalled(hit)),
+        _gemma,
+      );
+      expect(update.memoryCard, isNull);
+      expect(update.state, same(asked));
+      expect(update.notify, isFalse);
     });
   });
 

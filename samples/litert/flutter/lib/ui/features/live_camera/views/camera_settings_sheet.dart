@@ -27,6 +27,11 @@ abstract final class CameraSettingsKeys {
   static const gpu = ValueKey('camera-settings-gpu');
   static const cpu = ValueKey('camera-settings-cpu');
   static const apply = ValueKey('camera-settings-apply');
+  static const clearMemory = ValueKey('camera-settings-clear-memory');
+  static const memorySwitch = ValueKey('camera-settings-memory-switch');
+  static const memoryDefaultReason = ValueKey(
+    'camera-settings-memory-default-reason',
+  );
 }
 
 /// Opens Demo 3's settings: the camera source and the detector backend.
@@ -184,6 +189,12 @@ class _CameraSettingsSheetState extends State<CameraSettingsSheet> {
                         'you.',
               style: theme.textTheme.bodySmall,
             ),
+            if (vm.memoryStatus != null)
+              ListenableBuilder(
+                // The switch changes the view model, not this sheet's state.
+                listenable: vm,
+                builder: (context, _) => _MemorySettings(viewModel: vm),
+              ),
             if (vm.settingsError case final String error)
               Text(
                 error,
@@ -199,6 +210,77 @@ class _CameraSettingsSheetState extends State<CameraSettingsSheet> {
           ],
         ),
       ),
+    );
+  }
+}
+
+/// The sheet's visual memory part: the switch (applied and saved at once,
+/// unlike the camera and detector, which wait for Apply), what it costs,
+/// and "Clear memory".
+class _MemorySettings extends StatelessWidget {
+  const _MemorySettings({required this.viewModel});
+
+  final LiveCameraViewModel viewModel;
+
+  @override
+  Widget build(BuildContext context) {
+    final vm = viewModel;
+    final theme = Theme.of(context);
+    final enabled = vm.memoryEnabled;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      mainAxisSize: MainAxisSize.min,
+      spacing: 8,
+      children: [
+        const SizedBox(height: 4),
+        SwitchListTile(
+          key: CameraSettingsKeys.memorySwitch,
+          contentPadding: EdgeInsets.zero,
+          title: Text('Visual memory', style: theme.textTheme.titleMedium),
+          subtitle: switch (vm.memoryDefaultReason) {
+            final reason? => Text(
+              reason,
+              key: CameraSettingsKeys.memoryDefaultReason,
+            ),
+            null => null,
+          },
+          value: enabled ?? false,
+          onChanged: enabled == null || vm.setMemoryEnabled.running
+              ? null
+              : (on) => vm.setMemoryEnabled.execute(on),
+        ),
+        Text(
+          'Frames the embedder remembers while the camera runs, so a '
+          'question like "Where was the yellow mug?" can find them. Kept in '
+          'memory only, and forgotten when you leave this demo or change '
+          'the camera. Turning it on the first time loads the embedder\'s '
+          'image encoder (a few seconds, about 400 MB more memory) until the '
+          'app closes.',
+          style: theme.textTheme.bodySmall,
+        ),
+        if (vm.memorySettingError case final String error)
+          Text(
+            error,
+            style: theme.textTheme.bodySmall?.copyWith(
+              color: theme.colorScheme.error,
+            ),
+          ),
+        if (enabled ?? false)
+          Align(
+            alignment: Alignment.centerLeft,
+            child: OutlinedButton.icon(
+              key: CameraSettingsKeys.clearMemory,
+              onPressed: () {
+                vm.clearMemory();
+                ScaffoldMessenger.maybeOf(context)?.showSnackBar(
+                  const SnackBar(content: Text('Memory cleared')),
+                );
+              },
+              icon: const Icon(Icons.delete_sweep_outlined),
+              label: const Text('Clear memory'),
+            ),
+          ),
+      ],
     );
   }
 }

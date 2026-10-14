@@ -83,9 +83,13 @@ abstract class _SessionBase implements InferenceModelSession {}
 /// only while a reply streams and ends that stream cleanly; with
 /// [closeOnCancel] false the test ends it with [finish].
 class FakeToolSession extends _SessionBase with RawSdkResponseSession {
-  FakeToolSession(this._script);
+  FakeToolSession(this._script, {this.tools = const []});
 
   final List<ScriptedTurn> _script;
+
+  /// The tool declarations the session was created with (what the runtime
+  /// declares to the model).
+  final List<Tool> tools;
   final List<Message> queries = [];
   int responseRequests = 0;
   int stopCalls = 0;
@@ -225,9 +229,13 @@ final class const ChatArgs({
   required final ModelType? modelType,
   required final bool? supportImage,
   required final String? systemInstruction,
+
+  /// Null in fakes built before audio: the plain and agent chats always pass
+  /// it.
+  final bool? supportAudio,
   required final ToolChoice toolChoice,
-  required final double temperature,
-  required final int topK,
+  required final double? temperature,
+  required final int? topK,
 });
 
 /// An [InferenceModel] without an engine whose sessions play [script] (one
@@ -256,9 +264,9 @@ class FakeToolModel extends InferenceModel {
 
   @override
   Future<InferenceModelSession> createSession({
-    double temperature = .8,
-    int randomSeed = 1,
-    int topK = 1,
+    double? temperature,
+    int? randomSeed,
+    int? topK,
     double? topP,
     String? loraPath,
     bool? enableVisionModality,
@@ -269,16 +277,16 @@ class FakeToolModel extends InferenceModel {
     int? maxOutputTokens,
   }) async {
     await _session?.close();
-    final session = FakeToolSession(script);
+    final session = FakeToolSession(script, tools: tools);
     created.add(session);
     return _session = session;
   }
 
   @override
   Future<InferenceChat> createChat({
-    double temperature = .8,
-    int randomSeed = 1,
-    int topK = 1,
+    double? temperature,
+    int? randomSeed,
+    int? topK,
     double? topP,
     int tokenBuffer = 256,
     String? loraPath,
@@ -299,6 +307,7 @@ class FakeToolModel extends InferenceModel {
         supportsFunctionCalls: supportsFunctionCalls,
         modelType: modelType,
         supportImage: supportImage,
+        supportAudio: supportAudio,
         systemInstruction: systemInstruction,
         toolChoice: toolChoice,
         temperature: temperature,

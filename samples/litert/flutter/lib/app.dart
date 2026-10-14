@@ -30,6 +30,8 @@ import 'data/repositories/knowledge_repository.dart';
 import 'data/repositories/live_camera_settings_repository.dart';
 import 'data/repositories/live_detection_repository.dart';
 import 'data/repositories/skill_repository.dart';
+import 'data/repositories/visual_memory_repository.dart';
+import 'domain/audio/transcript_corrections.dart';
 import 'domain/models/camera_side_event.dart';
 import 'domain/models/chat_side_event.dart';
 import 'domain/ports/model_states.dart';
@@ -198,34 +200,42 @@ class _AppState extends State<App> {
           ),
           Routes.chat: (context) => ChangeNotifierProvider(
             // The view model owns this demo's assistant and disposes it.
-            create: (c) => VoiceChatViewModel(
-              conversation: c.read(),
-              diagnostics: c.read(),
-              images: c.read(),
-              activateStt: deps.activateStt,
-              skills: c.read<SkillRepository>(),
-              foreground: _foreground,
-              assistant: VoiceAssistant<ChatSideEvent>(
-                speech: c.read(),
-                audio: c.read(),
-                responders: ChatTurnResponder(
-                  conversation: c.read(),
-                  retriever: c.read<KnowledgeRepository>(),
-                  direct: deps.intents.run,
+            create: (c) {
+              final responders = ChatTurnResponder(
+                conversation: c.read(),
+                retriever: c.read<KnowledgeRepository>(),
+                direct: deps.intents.run,
+              );
+              return VoiceChatViewModel(
+                conversation: c.read(),
+                diagnostics: c.read(),
+                images: c.read(),
+                activateStt: deps.activateStt,
+                skills: c.read<SkillRepository>(),
+                foreground: _foreground,
+                assistant: VoiceAssistant<ChatSideEvent>(
+                  speech: c.read(),
+                  audio: c.read(),
+                  responders: responders,
+                  diagnostics: c.read<DiagnosticsRepository>(),
+                  config: kVoiceConfig.withMaxUtterance(
+                    kSttConfigs[Demo.voiceChat.stt]!.window,
+                  ),
+                  recognizer: Demo.voiceChat.stt,
+                  // Whisper's known misses of the product names.
+                  correctTranscript: correctVoiceTranscript,
+                  // An audio turn's words reach the text history.
+                  onTranscript: responders.transcribed,
                 ),
-                diagnostics: c.read<DiagnosticsRepository>(),
-                config: kVoiceConfig.withMaxUtterance(
-                  kSttConfigs[Demo.voiceChat.stt]!.window,
-                ),
-                recognizer: Demo.voiceChat.stt,
-              ),
-            ),
+              );
+            },
             child: const VoiceChatScreen(),
           ),
           Routes.camera: (context) => ChangeNotifierProvider(
             // The view model owns this demo's assistant and disposes it.
             create: (c) {
               final live = c.read<LiveDetectionRepository>();
+              final memory = c.read<VisualMemoryRepository>();
               return LiveCameraViewModel(
                 conversation: c.read(),
                 live: live,
@@ -237,6 +247,7 @@ class _AppState extends State<App> {
                 models: c.read<ModelStates>().states,
                 foreground: _foreground,
                 reloadDetector: deps.reloadDetector,
+                memory: memory,
                 assistant: VoiceAssistant<CameraSideEvent>(
                   speech: c.read(),
                   audio: c.read(),
@@ -244,6 +255,8 @@ class _AppState extends State<App> {
                     capture: live.capture,
                     conversation: c.read(),
                     encode: live.encodeForLlm,
+                    recall: memory.recall,
+                    latest: memory.latest,
                   ),
                   diagnostics: c.read<DiagnosticsRepository>(),
                   // moonshine reads 5 s: a longer press is ended there.

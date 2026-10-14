@@ -18,7 +18,7 @@ import 'package:litert_edge_demos/utils/result.dart';
 /// [BundledModelFiles] without an app bundle, answering at once (no file
 /// I/O, which a widget test's fake clock would never see complete). By
 /// default the built-in speech files resolve to `/bundled/<name>` (the fake
-/// speech services never open them) and the embedder's lookups fail ("no app
+/// speech services never open them) and the embedder's lookup fails ("no app
 /// bundle in tests"), so the embedder row fails and setup goes on. With
 /// [paths], every file resolves (those paths, else `/bundled/<name>`).
 final class FakeBundledFiles extends BundledModelFiles {
@@ -26,9 +26,7 @@ final class FakeBundledFiles extends BundledModelFiles {
     this.error = const BundledFileException('No app bundle in tests'),
     this.paths = const {},
     Set<String>? failing,
-  }) : failing =
-           failing ??
-           {kBundledEmbedderModel.asset, kBundledEmbedderTokenizer.asset};
+  }) : failing = failing ?? {kBundledEmbedderModel.asset};
 
   /// Paths for every built-in file (the embedder found).
   FakeBundledFiles.at(this.paths) : error = null, failing = const {};

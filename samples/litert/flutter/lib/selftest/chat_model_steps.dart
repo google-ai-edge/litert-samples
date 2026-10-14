@@ -15,6 +15,7 @@
 import '../data/services/hardware/native_log_tap.dart';
 import '../domain/hardware/diagnostics_report.dart' show evidenceText, seconds;
 import '../domain/models/hardware_profile.dart';
+import '../domain/models/model_towers.dart' show visionTowerDetail;
 import '../utils/result.dart';
 import 'evidence_judge.dart';
 import 'self_test_ports.dart';
@@ -124,8 +125,8 @@ final class ChatModelSteps {
                 '${seconds(value.loadTime)} · warm-up '
                 '${seconds(value.warmUpTime)}',
             evidenceText(evidence),
-            if (config.llm.supportImage)
-              'vision encoder on the CPU (flutter_edge_ai default, requested)',
+            if (config.llm.visionBackend case final v?)
+              visionTowerDetail(v.name),
             ...verdict.errors,
             ...load.logLines,
           ],

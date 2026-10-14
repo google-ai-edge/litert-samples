@@ -75,6 +75,9 @@ final class SceneCapture {
   /// settles (or on close).
   final List<Completer<void>> _startWaiters = [];
 
+  /// A question's capture is pending (the visual memory waits for it).
+  bool get pending => _capture != null;
+
   /// The last [kSummaryWindow] detections, oldest first.
   List<DetectionFrame> get recent =>
       List.unmodifiable([for (final r in _recent) r.frame]);

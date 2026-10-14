@@ -15,8 +15,6 @@
 import 'dart:convert';
 import 'dart:io';
 
-import 'package:dart_sentencepiece_tokenizer/dart_sentencepiece_tokenizer.dart';
-import 'package:flutter_edge_ai/flutter_edge_ai.dart' show TaskType;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:litert_edge_demos/utils/markdown_chunker.dart';
 
@@ -25,10 +23,6 @@ int cost(String body) => body
     .split('\n')
     .map((l) => l.trimLeft().startsWith('|') ? l.length * 2 : l.length)
     .fold(0, (sum, n) => sum + n + 1);
-
-/// EmbeddingGemma's tokenizer, built into the app (tool/fetch_models.sh
-/// fetches it into assets/models/).
-const _tokenizerPath = 'assets/models/sentencepiece.model';
 
 void main() {
   const chunker = MarkdownChunker();
@@ -50,9 +44,13 @@ void main() {
     };
     final all = [for (final chunks in byDoc.values) ...chunks];
 
+    // Tokens are not counted here: EmbeddingGemma 2's tokenizer lives inside
+    // its .litertlm. The engine refuses an input over its 1024-token limit
+    // (EmbeddingInputTooLongException) instead of truncating it, so an
+    // over-long chunk fails tool/build_kb_index.sh and on-device indexing.
     test('16 documents give about 300 chunks within the budget', () {
       expect(files, hasLength(16));
-      // 297 today; the range leaves room for edits to the documents.
+      // 304 today; the range leaves room for edits to the documents.
       expect(all.length, inInclusiveRange(270, 310));
       for (final chunk in all) {
         expect(
@@ -148,32 +146,6 @@ void main() {
         );
       }
     });
-
-    test(
-      'no chunk exceeds the 512-token window with the document prefix',
-      () {
-        final tokenizer = SentencePieceTokenizer.fromModelFileSync(
-          _tokenizerPath,
-          config: SentencePieceConfig.gemma,
-        );
-        var maxTokens = 0;
-        for (final chunk in all) {
-          final tokens = tokenizer
-              .encode('${TaskType.retrievalDocument.prefix}${chunk.content}')
-              .ids
-              .length;
-          if (tokens > maxTokens) maxTokens = tokens;
-          expect(tokens, lessThanOrEqualTo(512), reason: chunk.id);
-        }
-        // Reports the knowledge base's chunk count and token peak.
-        // ignore: avoid_print
-        print('KB chunks=${all.length} max_tokens=$maxTokens');
-      },
-      skip: File(_tokenizerPath).existsSync()
-          ? false
-          : 'EmbeddingGemma tokenizer not at $_tokenizerPath (run '
-                'tool/fetch_models.sh)',
-    );
   });
 
   group('front matter', () {

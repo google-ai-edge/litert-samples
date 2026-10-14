@@ -20,32 +20,24 @@ import 'package:flutter/foundation.dart';
 import '../model_store/bundled_model_files.dart';
 import '../model_store/model_file_ops.dart';
 
-/// SHA-256 of the files the active embedder was installed from: part of the
-/// knowledge-base index key.
-final class const EmbedderDigest({
-  required final String model,
-  required final String tokenizer,
-});
-
-/// Finds an [EmbedderDigest]. The app uses [FileEmbedderDigests]; tests pass
-/// fixed digests.
+/// Finds the SHA-256 of the file the active embedder was installed from:
+/// part of the knowledge-base index key. The app uses [FileEmbedderDigests];
+/// tests pass fixed digests.
 abstract interface class EmbedderDigests {
-  Future<EmbedderDigest> of({
-    required String modelPath,
-    required String tokenizerPath,
-  });
+  /// The SHA-256 of [path] as lowercase hex.
+  Future<String> digestOf(String path);
 }
 
-/// The digests without hashing 184 MB on every launch:
+/// The digest without hashing 485 MB on every launch:
 ///
-/// 1. **Built-in files** take their SHA-256 from the build
-///    ([kBundledEmbedderModel], [kBundledEmbedderTokenizer]) when the path is
-///    one the app verified: Android's extracted copy (`<file>.sha256` beside
-///    it names that hash and the size matches, which is how
-///    `BundledModelFiles` decides "extracted before, verified": the hash was
-///    computed once, at extraction), or the asset in place in the app bundle
-///    (desktop and iOS; the size matches; the bundle is signed). No I/O
-///    beyond a stat and a 100-byte read, and nothing is extracted.
+/// 1. **The built-in file** takes its SHA-256 from the build
+///    ([kBundledEmbedderModel]) when the path is one the app verified:
+///    Android's extracted copy (`<file>.sha256` beside it names that hash
+///    and the size matches, which is how `BundledModelFiles` decides
+///    "extracted before, verified": the hash was computed once, at
+///    extraction), or the asset in place in the app bundle (desktop and iOS;
+///    the size matches; the bundle is signed). No I/O beyond a stat and a
+///    100-byte read, and nothing is extracted.
 /// 2. **Any other file** (one the build cannot vouch for, e.g. an extracted
 ///    copy without its record) is hashed in a worker isolate once and
 ///    cached in `<cacheDir>/embedder_digests.json` by path, size and
@@ -56,7 +48,7 @@ class FileEmbedderDigests implements EmbedderDigests {
     String? operatingSystem,
     String? executable,
     this._ops = const ModelFileOps(),
-    this._known = const [kBundledEmbedderModel, kBundledEmbedderTokenizer],
+    this._known = const [kBundledEmbedderModel],
   }) : _os = operatingSystem ?? Platform.operatingSystem,
        _executable = executable ?? Platform.resolvedExecutable;
 
@@ -67,15 +59,6 @@ class FileEmbedderDigests implements EmbedderDigests {
   final List<BundledFile> _known;
 
   @override
-  Future<EmbedderDigest> of({
-    required String modelPath,
-    required String tokenizerPath,
-  }) async => EmbedderDigest(
-    model: await digestOf(modelPath),
-    tokenizer: await digestOf(tokenizerPath),
-  );
-
-  /// The SHA-256 of [path] as lowercase hex.
   Future<String> digestOf(String path) async {
     final file = File(path);
     final size = await file.length();

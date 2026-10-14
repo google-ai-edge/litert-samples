@@ -1,4 +1,4 @@
-result     PASS (software GPU allowed: GPU code path only) · 6 pass · exit 0
+result     PASS (software GPU allowed: GPU code path only) · 9 pass · exit 0
 --- steps ---
 PASS  1   hardware probe                                   <time>
            Ubuntu 24.04.3 LTS · AMD EPYC 7B12 · 0 GPU(s) · 0 note(s)
@@ -11,9 +11,9 @@ PASS  3   cats golden                                      <time>
            run 5.0 ms median (first 5.0 ms) · 10 runs identical
            golden classes ✓ · max box 0.00 px (≤ 3.0) · max Δscore 0.0000 (≤ 0.03)
 PASS  4a  chat model load + warm-up (gpu)                  <time>
-           Gemma 4 E2B (gemma-4-E2B-it) · maxTokens 8192 · image on · tools on · type gemma4 · load 3.60 s · warm-up 2.20 s
+           Gemma 4 E2B (gemma-4-E2B-it) · maxTokens 8192 · vision cpu · tools on · type gemma4 · load 3.60 s · warm-up 2.20 s
            gpu → gpu (confirmed: API) · api WebGPU/Vulkan (inferred) · adapter llvmpipe (LLVM 19.1.1, 256 bits) (inferred) · SOFTWARE GPU (error)
-           vision encoder on the CPU (flutter_edge_ai default, requested)
+           vision encoder on the CPU (requested)
            the GPU is a software rasterizer (llvmpipe (LLVM 19.1.1, 256 bits), inferred): this is the CPU, not a GPU (allowed by --allow-software-gpu: the GPU code path is tested, not GPU speed)
 PASS  4b  chat model generate 64 tokens                    <time>
            64 chunks · 64 tokens (engine) · first chunk 0.18 s · 74.1 tok/s decode (measured) · 73.3 tok/s (engine)
@@ -21,3 +21,12 @@ PASS  4b  chat model generate 64 tokens                    <time>
 PASS  5   detector again (bit-identical)                   <time>
            bit-identical to step 3
            run 5.0 ms
+PASS  7a  embedder load (audio + text)                     <time>
+           embeddinggemma-2-740m · cpu · audio+text · load 1.80 s · warm-up 0.49 s
+PASS  7b  embedder audio ↔ text                            <time>
+           cosine 0.800 (≥ 0.73) · "What time is it?" spoken (1.20 s) vs written
+           audio embed 0.00 s · text embed 0.00 s
+PASS  7c  embedder image ↔ text                            <time>
+           cosine 0.700 (≥ 0.63) · the bundled cats photo as a memory frame (40 KB PNG) vs "two cats"
+           image encoder loaded in 2.10 s (a reload, as on the first camera visit) · rss 650 MB → 1.04 GB
+           image embed 0.00 s (the first pays for the vision tower) · text embed 0.00 s

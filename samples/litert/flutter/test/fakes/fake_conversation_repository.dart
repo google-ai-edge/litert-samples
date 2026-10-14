@@ -20,6 +20,7 @@ import 'package:litert_edge_demos/config/model_catalog.dart';
 import 'package:litert_edge_demos/data/repositories/conversation_repository.dart';
 import 'package:litert_edge_demos/domain/models/assistant_event.dart';
 import 'package:litert_edge_demos/domain/models/chat_capabilities.dart';
+import 'package:litert_edge_demos/domain/models/conversation_history.dart';
 import 'package:litert_edge_demos/domain/models/skill_step.dart';
 import 'package:litert_edge_demos/utils/result.dart';
 
@@ -29,8 +30,8 @@ import 'package:litert_edge_demos/utils/result.dart';
 /// Holds to the real contract where a caller can get it wrong: [ask] is
 /// lazy (nothing happens until the stream is listened to, like `async*`)
 /// and answers [AssistantFailed] when the chat is not open, a reply is
-/// already running, or the chat cannot take the image; a listener that
-/// cancels ends the turn; [close] is idempotent.
+/// already running, or the chat cannot take the image or the recording; a
+/// listener that cancels ends the turn; [close] is idempotent.
 class FakeConversationRepository implements ConversationRepository {
   final ValueNotifier<bool> _isGenerating = ValueNotifier(false);
   StreamController<AssistantEvent>? _turn;
@@ -41,6 +42,10 @@ class FakeConversationRepository implements ConversationRepository {
   /// chat's `supportsImages`.
   bool _chatTakesImages = false;
 
+  /// Whether the open chat takes recordings, fixed when it opens like the
+  /// real chat's `supportAudio`.
+  bool _chatTakesAudio = false;
+
   Result<void> openResult = const Result.ok(null);
   final List<String> prompts = [];
 
@@ -48,6 +53,31 @@ class FakeConversationRepository implements ConversationRepository {
   /// has no re-send rule: that lives in the real repository and is tested
   /// there.
   final List<Uint8List?> images = [];
+
+  /// The recording passed with each [ask], in order (null for none).
+  final List<Uint8List?> audios = [];
+
+  /// The history text and voice turn number passed with each [ask].
+  final List<String?> historyTexts = [];
+  final List<int?> askedTurns = [];
+
+  /// Every [setHistoryText] call, in order.
+  final List<(int, String)> historyUpdates = [];
+
+  /// What [setHistoryText] answers (the real one: whether the turn is in the
+  /// mirror).
+  bool historyHasTurn = true;
+
+  @override
+  bool setHistoryText(int turn, String text) {
+    historyUpdates.add((turn, text));
+    return historyHasTurn;
+  }
+
+  /// The fake keeps no mirror: the real one is tested in
+  /// conversation_repository_history_test.dart.
+  @override
+  List<HistoryTurn> history = const [];
   final List<ConversationProfile> openedProfiles = [];
   int openCalls = 0;
   int stopCalls = 0;
@@ -65,6 +95,7 @@ class FakeConversationRepository implements ConversationRepository {
   void leaveOpen(ConversationProfile profile) {
     _profile = profile;
     _chatTakesImages = capabilities.images;
+    _chatTakesAudio = capabilities.audio;
   }
 
   StreamController<AssistantEvent> get _activeTurn =>
@@ -94,6 +125,7 @@ class FakeConversationRepository implements ConversationRepository {
     final ok = openResult is Ok<void>;
     _profile = ok ? profile : null;
     _chatTakesImages = ok && capabilities.images;
+    _chatTakesAudio = ok && capabilities.audio;
     final wantsSkills = profile.skillsTemplate != null && skills.isNotEmpty;
     _hasSkills = ok && wantsSkills && capabilities.tools;
     _skillsNeedTools = ok && wantsSkills && !capabilities.tools;
@@ -152,10 +184,16 @@ class FakeConversationRepository implements ConversationRepository {
   Stream<AssistantEvent> ask(
     String prompt, {
     Uint8List? image,
+    Uint8List? audioWav,
     void Function(SkillStep step)? onStep,
+    String? historyText,
+    int? turn,
   }) async* {
     prompts.add(prompt);
     images.add(image);
+    audios.add(audioWav);
+    historyTexts.add(historyText);
+    askedTurns.add(turn);
     if (_closed || _profile == null) {
       yield const AssistantFailed(
         ConversationNotReadyException('The chat is not open'),
@@ -177,18 +215,27 @@ class FakeConversationRepository implements ConversationRepository {
       );
       return;
     }
+    if (audioWav != null && !_chatTakesAudio) {
+      yield const AssistantFailed(
+        ConversationAudioUnsupportedException(
+          'This chat was built without audio support, so the spoken question '
+          'would be ignored',
+        ),
+      );
+      return;
+    }
     _onStep = onStep;
     _isGenerating.value = true;
-    final turn = _turn = StreamController<AssistantEvent>();
+    final running = _turn = StreamController<AssistantEvent>();
     try {
-      yield* turn.stream;
+      yield* running.stream;
     } finally {
       // The listener cancelled: the turn ends, like the real one settling
       // as stopped.
-      if (identical(_turn, turn)) {
+      if (identical(_turn, running)) {
         _turn = null;
         if (!_closed) _isGenerating.value = false;
-        unawaited(turn.close());
+        unawaited(running.close());
       }
     }
   }
@@ -201,7 +248,19 @@ class FakeConversationRepository implements ConversationRepository {
   /// Plays the budget guard recreating the chat before the turn.
   void emitContextReset({
     ContextResetReason reason = ContextResetReason.budget,
-  }) => _activeTurn.add(AssistantContextReset(reason: reason));
+    int keptTurns = 0,
+    int droppedTurns = 0,
+    int wordlessTurns = 0,
+    bool replayed = true,
+  }) => _activeTurn.add(
+    AssistantContextReset(
+      reason: reason,
+      keptTurns: keptTurns,
+      droppedTurns: droppedTurns,
+      wordlessTurns: wordlessTurns,
+      replayed: replayed,
+    ),
+  );
 
   /// Ends the turn; [metricsOverride] plays what the real repository
   /// reports (an image re-send, a context reset).

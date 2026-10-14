@@ -74,6 +74,7 @@ void main() {
     final planner = _Planner(
       const CustomChatPlan(
         path: '/store/custom/mine.litertlm',
+        header: [],
         model: CustomChatModel(
           displayName: 'Mine',
           source: ImportedModelSource('/picked/mine.litertlm'),
@@ -104,6 +105,7 @@ void main() {
     final local = planner.plan as CustomChatPlan;
     planner.plan = CustomChatPlan(
       path: '/data/local/tmp/mine.litertlm',
+      header: const [],
       model: local.model.copyWith(
         source: const LocalModelSource('/data/local/tmp/mine.litertlm'),
       ),
@@ -140,6 +142,7 @@ void main() {
         chatModels: _Planner(
           const CustomChatPlan(
             path: '/models/mine.litertlm',
+            header: [],
             model: CustomChatModel(
               displayName: 'Mine',
               source: LocalModelSource('/models/mine.litertlm'),
@@ -166,6 +169,7 @@ void main() {
 
     planner.plan = CustomChatPlan(
       path: retired.path,
+      header: const [],
       model: CustomChatModel(
         displayName: 'Gemma 4 E2B',
         source: LocalModelSource(retired.path),

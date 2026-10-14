@@ -46,21 +46,41 @@ final class const ChatModelFacts({
   /// The context asked for, and the one the engine was built with.
   required final int requestedContext,
   required final int contextTokens,
-  required final bool images,
   required final bool tools,
 
   /// flutter_edge_ai's `ModelType` name (`gemma4`).
   required final String modelType,
+
+  /// Where the vision tower was asked to run (`cpu`, `npu`); null when it
+  /// was not loaded (the file has none, or its header could not be read).
+  final String? visionBackend,
+
+  /// Where the audio tower was asked to run; null when it was not loaded.
+  final String? audioBackend,
+
+  /// The process's resident memory before and after the engine was built
+  /// (`ProcessInfo.currentRss`; GPU memory outside the process's pages is not
+  /// in it). Null when it could not be read.
+  final int? rssBeforeBytes,
+  final int? rssAfterBytes,
 }) {
   /// `1a2b3c4d…` for the card.
   String? get shortSha => sha256 == null ? null : '${sha256!.substring(0, 8)}…';
 
-  /// `ctx 1280 · images off · tools off · gemma4`.
+  /// Loaded with the vision tower: photos and camera frames can be sent.
+  bool get images => visionBackend != null;
+
+  /// Loaded with the audio tower.
+  bool get audio => audioBackend != null;
+
+  /// `ctx 1280 · vision cpu · audio npu · tools off · gemma4`: each loaded
+  /// tower with where it runs (none for a text-only load).
   String get capabilityLine => [
     contextTokens == requestedContext
         ? 'ctx $contextTokens'
         : 'ctx $contextTokens (asked $requestedContext)',
-    'images ${images ? 'on' : 'off'}',
+    if (visionBackend case final v?) 'vision $v',
+    if (audioBackend case final a?) 'audio $a',
     'tools ${tools ? 'on' : 'off'}',
     modelType,
   ].join(' · ');

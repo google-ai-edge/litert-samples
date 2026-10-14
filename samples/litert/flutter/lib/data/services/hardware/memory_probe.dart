@@ -29,6 +29,11 @@ abstract interface class MemoryProbe {
   /// System memory the OS can hand out now; null when unreadable.
   int? availableBytes();
 
+  /// The RAM the OS reports in all (somewhat less than the RAM fitted: the
+  /// kernel and the firmware keep some); null when unreadable or not probed
+  /// on this platform.
+  int? totalBytes();
+
   /// [availableBytes] plus this process's current and peak RSS.
   MemorySnapshot snapshot();
 }
@@ -63,6 +68,12 @@ final class LinuxMemoryProbe implements MemoryProbe {
   int? availableBytes() {
     final text = _files.read('/proc/meminfo');
     return text == null ? null : parseMeminfo(text).available;
+  }
+
+  @override
+  int? totalBytes() {
+    final text = _files.read('/proc/meminfo');
+    return text == null ? null : parseMeminfo(text).total;
   }
 
   @override
@@ -112,6 +123,9 @@ final class MacMemoryProbe implements MemoryProbe {
   bool _loggedFailure = false;
 
   @override
+  int? totalBytes() => _sysctl.integer('hw.memsize');
+
+  @override
   int? availableBytes() {
     final pageSize = _sysctl.integer('vm.pagesize');
     if (pageSize == null) return null;
@@ -146,6 +160,9 @@ final class ProcessMemoryProbe implements MemoryProbe {
 
   @override
   int? availableBytes() => null;
+
+  @override
+  int? totalBytes() => null;
 
   @override
   MemorySnapshot snapshot() => _processSnapshot(null);

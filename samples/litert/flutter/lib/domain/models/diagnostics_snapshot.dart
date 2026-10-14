@@ -21,6 +21,7 @@ import 'llm_image.dart';
 import 'model_id.dart';
 import 'model_state.dart';
 import 'skill_catalog.dart';
+import 'visual_memory.dart';
 import 'voice.dart';
 
 /// Everything the debug overlay shows, as one immutable value.
@@ -76,6 +77,9 @@ final class const DiagnosticsSnapshot({
 
   /// The voice demos' input and output as last checked.
   final AudioDeviceStatus audioDevices = const AudioDeviceStatus(),
+
+  /// Demo 3's visual memory (null when none is wired).
+  final VisualMemoryStatus? memory,
 }) {
   DiagnosticsSnapshot copyWith({
     Map<ModelId, LoadedModelInfo>? models,
@@ -106,6 +110,7 @@ final class const DiagnosticsSnapshot({
     Retrieval? lastRetrieval,
     SkillCatalog? skills,
     AudioDeviceStatus? audioDevices,
+    VisualMemoryStatus? memory,
   }) => DiagnosticsSnapshot(
     models: models ?? this.models,
     lastGeneration: lastGeneration ?? this.lastGeneration,
@@ -134,6 +139,7 @@ final class const DiagnosticsSnapshot({
     lastRetrieval: lastRetrieval ?? this.lastRetrieval,
     skills: skills ?? this.skills,
     audioDevices: audioDevices ?? this.audioDevices,
+    memory: memory ?? this.memory,
   );
 }
 

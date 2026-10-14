@@ -1,125 +1,125 @@
 {
- "measured": "EmbeddingGemma-300M seq512 mixed-precision over the 297 knowledge-base chunks: top cosine similarity per trigger phrase",
- "gate": 0.4,
+ "measured": "EmbeddingGemma 2 740m (embeddinggemma-2-740m.litertlm, text) over the 304 knowledge-base chunks: top cosine similarity per trigger phrase (integration_test/kb_retrieval_test.dart, macOS CPU, 2026-10-14)",
+ "gate": 0.7,
  "phrases": [
   {
    "skill": "device-info",
    "q": "What device am I on?",
-   "top": 0.402,
+   "top": 0.68,
    "doc": "litert-compiled-model-api.md#13"
   },
   {
    "skill": "device-info",
    "q": "Which accelerator is running?",
-   "top": 0.407,
+   "top": 0.747,
    "doc": "litert-gpu-npu-acceleration.md#1"
   },
   {
    "skill": "device-info",
    "q": "Which backends are you running on?",
-   "top": 0.492,
+   "top": 0.77,
    "doc": "flutter-edge-ai-inference.md#17"
   },
   {
    "skill": "device-info",
    "q": "Are you running on the GPU right now?",
-   "top": 0.504,
+   "top": 0.769,
    "doc": "litert-compiled-model-api.md#14"
   },
   {
    "skill": "device-info",
    "q": "What models are loaded and how much memory do you use?",
-   "top": 0.562,
-   "doc": "on-device-platform-setup.md#19"
+   "top": 0.766,
+   "doc": "gemma-4-e2b.md#13"
   },
   {
    "skill": "device-info",
    "q": "Tell me about the hardware you're running on.",
-   "top": 0.501,
-   "doc": "flutter-edge-ai-inference.md#17"
+   "top": 0.742,
+   "doc": "embeddinggemma.md#14"
   },
   {
    "skill": "timer",
    "q": "Set a timer for 10 seconds",
-   "top": 0.197,
-   "doc": "yolo26n-object-detector.md#7"
+   "top": 0.594,
+   "doc": "flutter-edge-ai-inference.md#8"
   },
   {
    "skill": "timer",
    "q": "Set a timer for 17 seconds",
-   "top": 0.236,
-   "doc": "speech-models.md#10"
+   "top": 0.601,
+   "doc": "flutter-edge-ai-inference.md#16"
   },
   {
    "skill": "timer",
    "q": "Set a timer for 90 seconds",
-   "top": 0.223,
-   "doc": "speech-models.md#4"
+   "top": 0.593,
+   "doc": "flutter-edge-ai-inference.md#1"
   },
   {
    "skill": "timer",
    "q": "Set a timer for 25 minutes",
-   "top": 0.215,
-   "doc": "speech-models.md#4"
+   "top": 0.596,
+   "doc": "flutter-edge-ai-inference.md#8"
   },
   {
    "skill": "timer",
    "q": "Pasta timer, an hour and 5 minutes",
-   "top": 0.222,
-   "doc": "speech-models.md#4"
+   "top": 0.596,
+   "doc": "embeddinggemma.md#14"
   },
   {
    "skill": "timer",
    "q": "Start the tea timer",
-   "top": 0.244,
-   "doc": "flutter-edge-ai-speech.md#8"
+   "top": 0.616,
+   "doc": "flutter-edge-ai-inference.md#8"
   },
   {
    "skill": "timer",
    "q": "Cancel the tea timer",
-   "top": 0.309,
-   "doc": "flutter-edge-ai-inference.md#9"
+   "top": 0.645,
+   "doc": "flutter-edge-ai-agent-skills.md#17"
   },
   {
    "skill": "timer",
    "q": "How long is left on my timers?",
-   "top": 0.249,
-   "doc": "speech-models.md#4"
+   "top": 0.613,
+   "doc": "flutter-edge-ai-agent-skills.md#17"
   },
   {
    "skill": "current-time",
    "q": "What time is it?",
-   "top": 0.174,
-   "doc": "speech-models.md#4"
+   "top": 0.643,
+   "doc": "flutter-edge-ai-agent-skills.md#19"
   },
   {
    "skill": "current-time",
    "q": "What's the date today?",
-   "top": 0.185,
-   "doc": "flutter-edge-ai-agent-skills.md#6"
+   "top": 0.635,
+   "doc": "flutter-edge-ai-agent-skills.md#19"
   },
   {
    "skill": "current-time",
    "q": "What day of the week is it?",
-   "top": 0.184,
-   "doc": "flutter-edge-ai-agent-skills.md#6"
+   "top": 0.624,
+   "doc": "flutter-edge-ai-agent-skills.md#19"
   },
   {
    "skill": "camera-watch",
    "q": "Tell me when you see a cup",
-   "top": 0.303,
-   "doc": "litert-compiled-model-api.md#14"
+   "top": 0.658,
+   "doc": "yolo26n-object-detector.md#1"
   },
   {
    "skill": "camera-watch",
    "q": "Watch the camera for a dog",
-   "top": 0.302,
+   "top": 0.645,
    "doc": "yolo26n-object-detector.md#0"
   },
   {
    "skill": "camera-watch",
    "q": "Stop watching",
-   "top": 0.383,
+   "top": 0.682,
    "doc": "flutter-edge-ai-inference.md#9"
   }
  ]

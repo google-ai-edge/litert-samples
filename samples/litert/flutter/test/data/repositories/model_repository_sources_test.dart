@@ -242,8 +242,7 @@ void main() {
         bundled:
             bundled ??
             FakeBundledFiles.at({
-              kBundledEmbedderModel.asset: '${dir.path}/m.tflite',
-              kBundledEmbedderTokenizer.asset: '${dir.path}/t.model',
+              kBundledEmbedderModel.asset: '${dir.path}/m.litertlm',
             }),
         detector: fakeDetectorService(),
         bundledDetector: fakeBundledDetector,
@@ -254,7 +253,7 @@ void main() {
         embedder: EmbedderService(
           install: (config, source, onProgress) async {
             sources.add(source);
-            return 'embeddinggemma-300M_seq512_mixed-precision';
+            return 'embeddinggemma-2-740m';
           },
           load: (config) async => FakeEmbeddingModel(),
         ),
@@ -264,20 +263,21 @@ void main() {
     }
 
     setUp(() {
-      File('${dir.path}/m.tflite').writeAsBytesSync([1]);
-      File('${dir.path}/t.model').writeAsBytesSync([1]);
+      File('${dir.path}/m.litertlm').writeAsBytesSync([1]);
     });
 
-    test('the built-in files are installed in place', () async {
+    test('the built-in file is installed in place', () async {
       final (:models, :sources) = build();
 
       await models.prepareAll();
 
       expect(
         sources.single,
-        isA<EmbedderFromFiles>()
-            .having((s) => s.modelPath, 'model', '${dir.path}/m.tflite')
-            .having((s) => s.tokenizerPath, 'tokenizer', '${dir.path}/t.model'),
+        isA<EmbedderFromFiles>().having(
+          (s) => s.modelPath,
+          'model',
+          '${dir.path}/m.litertlm',
+        ),
       );
       expect(models.states.value[ModelId.embeddingGemma], isA<ModelReady>());
     });
@@ -287,7 +287,9 @@ void main() {
       () async {
         final (:models, :sources) = build(
           bundled: FakeBundledFiles(
-            error: const BundledFileException('sentencepiece.model is missing'),
+            error: const BundledFileException(
+              'embeddinggemma-2-740m.litertlm is missing',
+            ),
           ),
         );
 
@@ -298,7 +300,7 @@ void main() {
         expect(state, isA<ModelFailed>());
         expect(
           (state! as ModelFailed).message,
-          contains('sentencepiece.model is missing'),
+          contains('embeddinggemma-2-740m.litertlm is missing'),
         );
       },
     );

@@ -15,6 +15,10 @@
 import 'package:flutter_edge_ai/flutter_edge_ai.dart'
     show ModelType, PreferredBackend;
 
+import 'model_towers.dart';
+
+export 'model_towers.dart' show ModelTowers, Tower, TowerPlacement, TowerReason;
+
 /// The model-level arguments of `FlutterEdgeAi.getActiveModel`.
 ///
 /// The model is a process-wide singleton: any argument that differs from the
@@ -27,9 +31,32 @@ import 'package:flutter_edge_ai/flutter_edge_ai.dart'
 final class const LlmConfig({
   required final int maxTokens,
   required final PreferredBackend backend,
-  required final bool supportImage,
   required final int maxNumImages,
-});
+
+  /// The towers loaded and where each runs: derived from the file's header,
+  /// [backend] and the user's choices for a user's own model
+  /// ([resolveTowers]); fixed for `GEMMA_MODEL_PATH` (`kLlmConfig`).
+  final ModelTowers towers = ModelTowers.none,
+}) {
+  /// `supportImage`: the vision tower is loaded.
+  bool get supportImage => towers.supportImage;
+
+  /// `supportAudio`: the audio tower is loaded, so chats can take a spoken
+  /// question as audio.
+  bool get supportAudio => towers.supportAudio;
+
+  /// `preferredVisionBackend`: null without a vision tower (flutter_edge_ai
+  /// then loads none).
+  PreferredBackend? get visionBackend => towers.visionBackend;
+
+  /// `preferredAudioBackend`: null without an audio tower.
+  PreferredBackend? get audioBackend => towers.audioBackend;
+
+  /// A loaded tower the header says nothing about runs on the NPU: a failed
+  /// load of this configuration (at any step, warm-up included) says how to
+  /// put it on the CPU ([ModelTowers.undeclaredOnNpu]).
+  bool get undeclaredTowersOnNpu => towers.undeclaredOnNpu;
+}
 
 /// The chat model as the loaders use it: the install type, the [LlmConfig] of
 /// `getActiveModel`, and whether chats may declare tools. A user's own

@@ -23,9 +23,9 @@
 #   tool/fetch_models.sh --dir <dir>   use <dir> instead of assets/models (with --check: e.g. a built
 #                                      bundle's data/flutter_assets/assets/models)
 #
-# HF_TOKEN: litert-community/embeddinggemma-300m is gated. Accept the Gemma terms on
-# https://huggingface.co/litert-community/embeddinggemma-300m, create a read token, and set HF_TOKEN in
-# the environment or as a line `HF_TOKEN=hf_…` in .env (gitignored). The token is sent only with the
+# HF_TOKEN: every model in the lock is public, so no token is needed. A future `gated` entry needs a
+# read token from a Hugging Face account that accepted that repo's terms: set HF_TOKEN in the
+# environment or as a line `HF_TOKEN=hf_…` in .env (gitignored). The token is sent only with the
 # gated files, and never printed.
 #
 # YOLO26n: Arm's original is downloaded, and tool/prune_yolo26n_head.py derives the raw-head file from
@@ -106,7 +106,7 @@ load_token() {
 }
 
 gated_hint() {
-  echo "  $1 is gated: accept the Gemma terms on https://huggingface.co/$1 with your Hugging Face"
+  echo "  $1 is gated: accept its terms on https://huggingface.co/$1 with your Hugging Face"
   echo "  account, create a read token (https://huggingface.co/settings/tokens) and set HF_TOKEN in the"
   echo "  environment or as a line HF_TOKEN=hf_... in $ROOT/.env (gitignored)."
 }
@@ -237,7 +237,7 @@ done 3<"$LOCK"
 if [ "$MODE" = check ]; then
   if [ "$FAILED" -gt 0 ]; then
     echo "error: $FAILED of $TOTAL model files missing or different in $DIR." >&2
-    echo "  The models are not in git: run tool/fetch_models.sh (needs HF_TOKEN), then rebuild." >&2
+    echo "  The models are not in git: run tool/fetch_models.sh, then rebuild." >&2
     exit 1
   fi
   echo "models verified: $TOTAL files in $DIR"

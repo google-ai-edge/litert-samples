@@ -89,6 +89,315 @@ void main() {
     });
   });
 
+  group('a spoken question sent as audio', () {
+    test('its entry is created at once as "🎤 <duration>", with the picture '
+        'and the turn\'s number; the turn starts like the user\'s words', () {
+      final image = Uint8List.fromList([4, 5]);
+      final update = _reducer.reduce(
+        _midTurn(),
+        UserSpoke(7, const Duration(milliseconds: 3240), image: image),
+      );
+      final entry = update.state.entries.last;
+      expect(entry.role, ChatRole.user);
+      expect(entry.text, '🎤 3.2 s');
+      expect(entry.image, same(image));
+      expect(entry.spoken?.turn, 7);
+      expect(entry.spoken?.transcript, isNull);
+      expect(update.state.error, isNull);
+      expect(update.state.turnSteps, isEmpty);
+      expect(update.notify, isTrue);
+    });
+
+    test('its transcript, arriving after the reply, fills that entry in '
+        'place (by its number), not the newest one', () {
+      var state = _reducer
+          .reduce(
+            VoiceChatState.empty,
+            const UserSpoke<ChatSideEvent>(1, Duration(seconds: 2)),
+          )
+          .state;
+      state = _reducer
+          .reduce(
+            state,
+            const AssistantSaid<ChatSideEvent>('Paris.', interrupted: false),
+          )
+          .state;
+      state = _reducer
+          .reduce(
+            state,
+            const UserSpoke<ChatSideEvent>(2, Duration(seconds: 3)),
+          )
+          .state;
+
+      final update = _reducer.reduce(
+        state,
+        const TranscriptArrived<ChatSideEvent>(1, 'What is the capital?'),
+      );
+
+      final entries = update.state.entries;
+      expect(entries, hasLength(3));
+      expect(entries[0].text, 'What is the capital?');
+      expect(entries[0].spoken?.transcript, 'What is the capital?');
+      expect(entries[0].spoken?.label, '🎤 2.0 s');
+      expect(entries[1].text, 'Paris.');
+      expect(entries[2].text, '🎤 3.0 s', reason: 'still pending');
+      expect(update.notify, isTrue);
+    });
+
+    test('no transcript: "🎤 3.2 s (no transcript: reason)"', () {
+      final state = _reducer
+          .reduce(
+            VoiceChatState.empty,
+            const UserSpoke<ChatSideEvent>(4, Duration(milliseconds: 3200)),
+          )
+          .state;
+      final update = _reducer.reduce(
+        state,
+        const TranscriptFailed<ChatSideEvent>(4, 'no words recognized'),
+      );
+      expect(
+        update.state.entries.single.text,
+        '🎤 3.2 s (no transcript: no words recognized)',
+      );
+      expect(
+        update.state.entries.single.spoken?.failure,
+        'no words recognized',
+      );
+    });
+
+    test('a barged-in question: "🎤 3.2 s (interrupted)", never pending', () {
+      final state = _reducer
+          .reduce(
+            VoiceChatState.empty,
+            const UserSpoke<ChatSideEvent>(5, Duration(milliseconds: 3200)),
+          )
+          .state;
+      expect(state.entries.single.text, '🎤 3.2 s', reason: 'pending');
+
+      final update = _reducer.reduce(
+        state,
+        const TranscriptFailed<ChatSideEvent>(
+          5,
+          kInterruptedTranscriptReason,
+          interrupted: true,
+        ),
+      );
+
+      expect(update.state.entries.single.text, '🎤 3.2 s (interrupted)');
+      expect(update.state.entries.single.spoken?.interrupted, isTrue);
+      expect(update.notify, isTrue);
+    });
+
+    test('a transcript for an entry no longer on screen (a new conversation) '
+        'changes nothing', () {
+      final update = _reducer.reduce(
+        VoiceChatState.empty,
+        const TranscriptArrived<ChatSideEvent>(9, 'late'),
+      );
+      expect(update.state.entries, isEmpty);
+      expect(update.notify, isFalse);
+    });
+  });
+
+  group('a reset notice says what the rebuilt chat kept and forgot', () {
+    test('nothing dropped: every exchange kept as text; excerpts and pictures '
+        'gone', () {
+      expect(
+        contextResetTextFor(ContextResetReason.budget, keptTurns: 3),
+        'The conversation got too long for the model, so it started over and '
+        'kept every exchange as text; knowledge-base excerpts and pictures '
+        'are gone.',
+      );
+      expect(
+        contextResetTextFor(ContextResetReason.interruptedSkill, keptTurns: 2),
+        'The last skill call did not finish, so the conversation started '
+        'over and kept every exchange as text; knowledge-base excerpts and '
+        'pictures are gone.',
+      );
+      expect(
+        contextResetTextFor(ContextResetReason.rebuildAfterStop, keptTurns: 4),
+        'After the stop the conversation was rebuilt from text and kept '
+        'every exchange; knowledge-base excerpts and pictures are gone.',
+      );
+      // An empty mirror (nothing to keep or drop) says the same.
+      for (final reason in ContextResetReason.values) {
+        expect(
+          contextResetTextFor(reason),
+          contextResetTextFor(reason, keptTurns: 5),
+        );
+      }
+    });
+
+    test('no replay ran (the turn failed first): neither kept nor dropped '
+        'exchanges are claimed, whatever the counts', () {
+      expect(
+        contextResetTextFor(
+          ContextResetReason.interruptedSkill,
+          replayed: false,
+        ),
+        interruptedSkillNoReplayText,
+      );
+      expect(
+        interruptedSkillNoReplayText,
+        'The last skill call did not finish, so the conversation started '
+        'over; knowledge-base excerpts and pictures are gone, and the earlier '
+        'exchanges go back to the model as text with your next question.',
+      );
+      for (final reason in ContextResetReason.values) {
+        final text = contextResetTextFor(
+          reason,
+          keptTurns: 3,
+          droppedTurns: 2,
+          replayed: false,
+        );
+        expect(text, isNot(contains('kept every exchange')), reason: '$reason');
+        expect(text, isNot(contains('forgotten')), reason: '$reason');
+        expect(text, contains('pictures'), reason: '$reason');
+      }
+    });
+
+    test('a failed turn\'s unreplayed reset adds the neutral notice', () {
+      final update = _reducer.reduce(
+        VoiceChatState.empty,
+        _side(
+          const ChatContextReset(
+            reason: ContextResetReason.interruptedSkill,
+            replayed: false,
+          ),
+        ),
+      );
+      expect(update.state.entries.single.text, interruptedSkillNoReplayText);
+    });
+
+    test('some dropped: how many were kept and how many forgotten', () {
+      expect(
+        contextResetTextFor(
+          ContextResetReason.budget,
+          keptTurns: 3,
+          droppedTurns: 2,
+        ),
+        'The conversation got too long for the model, so it started over '
+        'with the last 3 exchanges as text; 2 older exchanges are forgotten, '
+        'and so are knowledge-base excerpts and pictures.',
+      );
+      expect(
+        contextResetTextFor(
+          ContextResetReason.budget,
+          keptTurns: 1,
+          droppedTurns: 1,
+        ),
+        'The conversation got too long for the model, so it started over '
+        'with the last exchange as text; 1 older exchange is forgotten, and '
+        'so are knowledge-base excerpts and pictures.',
+      );
+      expect(
+        contextResetTextFor(
+          ContextResetReason.interruptedSkill,
+          keptTurns: 2,
+          droppedTurns: 4,
+        ),
+        'The last skill call did not finish, so the conversation started '
+        'over with the last 2 exchanges as text; 4 older exchanges are '
+        'forgotten, and so are knowledge-base excerpts and pictures.',
+      );
+      expect(
+        contextResetTextFor(
+          ContextResetReason.rebuildAfterStop,
+          keptTurns: 2,
+          droppedTurns: 1,
+        ),
+        'After the stop the conversation was rebuilt from text with the last '
+        '2 exchanges; 1 older exchange did not fit beside this question and '
+        'is forgotten, and so are knowledge-base excerpts and pictures.',
+      );
+    });
+
+    test('none kept: every earlier exchange forgotten', () {
+      expect(
+        contextResetTextFor(ContextResetReason.budget, droppedTurns: 4),
+        'The conversation got too long for the model, so it started over; '
+        'all 4 earlier exchanges are forgotten, and so are knowledge-base '
+        'excerpts and pictures.',
+      );
+      expect(
+        contextResetTextFor(
+          ContextResetReason.interruptedSkill,
+          droppedTurns: 1,
+        ),
+        'The last skill call did not finish, so the conversation started '
+        'over; the earlier exchange is forgotten, and so are knowledge-base '
+        'excerpts and pictures.',
+      );
+      expect(
+        contextResetTextFor(
+          ContextResetReason.rebuildAfterStop,
+          droppedTurns: 3,
+        ),
+        'After the stop the conversation was rebuilt from text, but no '
+        'earlier exchange fit beside this question: all 3 earlier exchanges '
+        'are forgotten, and so are knowledge-base excerpts and pictures.',
+      );
+    });
+
+    test('kept turns that went back only as the placeholder (their '
+        'transcripts were pending) are counted, not claimed kept as text', () {
+      expect(
+        contextResetTextFor(
+          ContextResetReason.budget,
+          keptTurns: 3,
+          wordlessTurns: 1,
+        ),
+        'The conversation got too long for the model, so it started over and '
+        'kept every exchange as text; knowledge-base excerpts and pictures '
+        'are gone. 1 spoken question went back without its words (no '
+        'transcript yet); the words go back with a later question if they '
+        'arrive.',
+      );
+      expect(
+        contextResetTextFor(
+          ContextResetReason.rebuildAfterStop,
+          keptTurns: 2,
+          droppedTurns: 1,
+          wordlessTurns: 2,
+        ),
+        endsWith(
+          ' 2 spoken questions went back without their words (no transcript '
+          'yet); the words go back with a later question if they arrive.',
+        ),
+      );
+      // Not replayed: nothing went back, nothing to qualify.
+      expect(
+        contextResetTextFor(
+          ContextResetReason.interruptedSkill,
+          wordlessTurns: 1,
+          replayed: false,
+        ),
+        interruptedSkillNoReplayText,
+      );
+      final update = _reducer.reduce(
+        VoiceChatState.empty,
+        _side(const ChatContextReset(keptTurns: 2, wordlessTurns: 1)),
+      );
+      expect(update.state.entries.single.text, contains('1 spoken question'));
+    });
+
+    test('the side event carries both counts into the notice', () {
+      final update = _reducer.reduce(
+        VoiceChatState.empty,
+        _side(const ChatContextReset(keptTurns: 2, droppedTurns: 3)),
+      );
+      expect(
+        update.state.entries.single.text,
+        contextResetTextFor(
+          ContextResetReason.budget,
+          keptTurns: 2,
+          droppedTurns: 3,
+        ),
+      );
+      expect(update.state.entries.single.text, contains('3 older exchanges'));
+    });
+  });
+
   group('a committed reply', () {
     test('takes the retrieval with the excerpts it cites, and the steps; '
         'the next reply starts without them', () {
@@ -395,12 +704,33 @@ void main() {
     });
   });
 
-  test('each context reset reason has its own notice', () {
+  test('each context reset reason has its own notice; only a budget reset '
+      'says the conversation got too long', () {
     expect(contextResetTextFor(ContextResetReason.budget), contextResetText);
     expect(
       contextResetTextFor(ContextResetReason.interruptedSkill),
       interruptedSkillResetText,
     );
-    expect(contextResetText, isNot(interruptedSkillResetText));
+    expect(
+      contextResetTextFor(ContextResetReason.rebuildAfterStop),
+      rebuildAfterStopResetText,
+    );
+    expect({
+      for (final reason in ContextResetReason.values)
+        contextResetTextFor(reason),
+    }, hasLength(ContextResetReason.values.length));
+    for (final reason in ContextResetReason.values) {
+      for (final (kept, dropped) in [(0, 0), (1, 0), (3, 2), (0, 4)]) {
+        expect(
+          contextResetTextFor(
+            reason,
+            keptTurns: kept,
+            droppedTurns: dropped,
+          ).contains('too long'),
+          reason == ContextResetReason.budget,
+          reason: '${reason.name}, $kept kept, $dropped dropped',
+        );
+      }
+    }
   });
 }

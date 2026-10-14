@@ -21,9 +21,12 @@ import 'package:flutter_edge_ai_agent/flutter_edge_ai_agent.dart' show Skill;
 import '../../../config/model_catalog.dart';
 import '../../../domain/models/assistant_event.dart';
 import '../../../domain/models/chat_capabilities.dart';
+import '../../../domain/models/conversation_history.dart';
 import '../../../utils/result.dart';
+import '../../../utils/wav.dart';
 import '../conversation_repository.dart';
 import 'context_budget.dart';
+import 'history_mirror.dart';
 import 'image_context_tracker.dart';
 import 'native_chat.dart';
 
@@ -40,6 +43,31 @@ typedef TurnSend = ({
   bool rebuildPending,
   SessionMetrics? before,
 });
+
+/// What a chat that must be rebuilt replays from the conversation's text
+/// mirror before the turn ([LiveChat.planReplay]): the newest [turns] that
+/// fit, their [tokens], how many older replayable turns were [dropped],
+/// whether the live chat is cleared first ([clear]: a stop left an audio turn
+/// in it) or the chat is a fresh one already (a budget reset, an interrupted
+/// skill call), and [why] it is rebuilt: what the turn announces when the
+/// plan dropped turns.
+typedef ReplayPlan = ({
+  List<HistoryTurn> turns,
+  int tokens,
+  int dropped,
+  bool clear,
+  ContextResetReason why,
+});
+
+/// How many of [plan]'s turns are spoken questions replayed only as the
+/// placeholder (no transcript yet); 0 without a plan.
+int wordlessIn(ReplayPlan? plan) =>
+    plan?.turns.where((t) => t.wordless).length ?? 0;
+
+/// The room a rebuilt chat has for the text history before a turn
+/// ([ContextBudget.replayRoom]): [full], what a fresh chat has left once it
+/// holds the turn; [afterReset], the budget reset's share of it.
+typedef ReplayRoom = ({int full, int afterReset});
 
 /// The model's single chat slot (the `createChat` lane), shared by the
 /// repository facade and the two turn paths: the live chat with its agent
@@ -65,6 +93,15 @@ final class LiveChat {
 
   /// The image the live chat can see, and why it lost the last one.
   final ImageContextTracker _images = ImageContextTracker();
+
+  /// The conversation as text: what a rebuilt chat replays. Cleared when the
+  /// chat is (re)opened or released; kept across the rebuilds it feeds.
+  final HistoryMirror mirror = HistoryMirror();
+
+  /// The chat was recreated inside a turn, and why (a budget reset, an
+  /// interrupted skill call): the next turn that sends replays the mirror
+  /// onto it first. Null when no replay is due.
+  ContextResetReason? _replayDue;
 
   /// The last sent turn was stopped: LiteRT-LM rebuilds the native
   /// conversation when the next turn starts, so that turn's prefill cannot be
@@ -125,6 +162,17 @@ final class LiveChat {
   /// The last agent turn left input staged.
   bool get staleToolTail => _staleToolTail;
 
+  /// The next turn rebuilds the live chat from the mirror
+  /// (`clearHistory(replayHistory:)`): a stop left LiteRT-LM to rebuild the
+  /// conversation from the turns' text and an audio turn in it has none (so
+  /// no question is replayed as an empty message and no recording outlives
+  /// the rebuild), or a transcript arrived for a spoken question the live
+  /// chat holds only as the placeholder ([HistoryMirror.replayOutdated]: the
+  /// model would never see its words).
+  bool get mirrorRebuildDue => _stopLeftAudio || mirror.replayOutdated;
+
+  bool get _stopLeftAudio => _nativeRebuildPending && mirror.audioInLive;
+
   // ---- The slot's lifecycle ----
 
   /// Replaces the chat with a fresh one for [profile] and [skills] (the open
@@ -155,6 +203,8 @@ final class LiveChat {
       _nativeRebuildPending = false;
       _staleToolTail = false;
       _skillsNeedTools = false;
+      mirror.clear();
+      _replayDue = null;
       await previous?.close();
       final (chat, agent) = await _create(() => _chats.build(profile, skills));
       _chat = chat;
@@ -229,6 +279,8 @@ final class LiveChat {
     _images.lose(ImageLoss.reset);
     _nativeRebuildPending = false;
     _staleToolTail = false;
+    mirror.clear();
+    _replayDue = null;
     try {
       await chat?.close();
     } catch (e, st) {
@@ -279,8 +331,10 @@ final class LiveChat {
   // ---- One turn at a time ----
 
   /// The checks before either kind of turn starts: the open chat and its
-  /// profile, or why no turn can start (then nothing reaches the engine).
-  Result<OpenChat> precheck(Uint8List? image) {
+  /// profile, or why no turn can start (then nothing reaches the engine or
+  /// its history): not open, busy, an image or a recording the chat cannot
+  /// take, or a recording that is not a 16 kHz mono PCM16 WAV with samples.
+  Result<OpenChat> precheck(Uint8List? image, {Uint8List? audioWav}) {
     final chat = _chat;
     final profile = _profile;
     const notOpen = Result<OpenChat>.error(
@@ -304,6 +358,28 @@ final class LiveChat {
         ),
       );
     }
+    if (audioWav != null) {
+      if (!chat.supportAudio) {
+        // The engine would drop the recording without a word, and the model
+        // would answer as if nothing was said: never a text-only turn.
+        return Result.error(
+          ConversationAudioUnsupportedException(
+            '${capabilities.modelName} was loaded without audio (its file '
+            'has no audio tower), so the spoken question would be ignored: '
+            'ask through the transcript',
+          ),
+        );
+      }
+      try {
+        if (wavDuration(audioWav) == Duration.zero) {
+          return const Result.error(
+            FormatException('The spoken question has no samples'),
+          );
+        }
+      } on FormatException catch (e) {
+        return Result.error(e);
+      }
+    }
     return Result.ok((chat: chat, profile: profile));
   }
 
@@ -322,19 +398,25 @@ final class LiveChat {
     done.complete();
   }
 
-  /// The budget guard for a turn with [prompt] and [image] on [chat] (an
-  /// agent chat when [agent] is given): measures what the chat holds and
-  /// what the turn needs ([ContextBudget]), logs it, and says whether the
-  /// chat must be recreated first. Throws [ConversationTooLongException] when
-  /// even a fresh chat could not hold the turn. [turnTime]: the turn's clock,
-  /// for the plain guard's log line.
-  Future<({int promptTokens, bool reset})> checkBudget(
+  /// The budget guard for a turn with [prompt], [image] and a recording of
+  /// [audio] on [chat] (an agent chat when [agent] is given): measures what
+  /// the chat holds and what the turn needs ([ContextBudget]), logs it, and
+  /// says whether the chat must be recreated first. Throws
+  /// [ConversationTooLongException] when even a fresh chat could not hold the
+  /// turn. [turnTime]: the turn's clock, for the plain guard's log line.
+  ///
+  /// When a rebuild from the mirror is due ([mirrorRebuildDue]) the live
+  /// chat's contents do not count (it is about to be cleared), so the verdict
+  /// is never a reset. [replayRoom]: what a rebuilt chat may replay
+  /// ([planReplay] picks by why it is rebuilt).
+  Future<({int promptTokens, bool reset, ReplayRoom replayRoom})> checkBudget(
     InferenceChat chat,
     String prompt,
     ConversationProfile profile,
     Uint8List? image,
     Duration Function() turnTime, {
     AgentChat? agent,
+    Duration? audio,
   }) async {
     final native = sessionMetricsOf(chat)?.totalTokens ?? 0;
     final promptTokens = await chat.session.sizeInTokens(prompt);
@@ -346,10 +428,13 @@ final class LiveChat {
       replyTokens: profile.maxOutputTokens,
       maxTokens: chat.maxTokens,
       agentReserve: agent == null ? null : await agent.reserve(chat),
+      audioTokens: audio == null ? 0 : audioTokensFor(audio),
+      rebuilding: mirrorRebuildDue,
     );
     final check = budget.check(
       image: image != null,
-      sendsImage: _images.toSend(image) != null,
+      // A rebuild from the mirror loses any image the live chat sees.
+      sendsImage: (mirrorRebuildDue ? image : _images.toSend(image)) != null,
     );
     switch (check) {
       case BudgetTooLong(:final needFresh):
@@ -366,7 +451,70 @@ final class LiveChat {
           );
         }
     }
-    return (promptTokens: promptTokens, reset: check is BudgetReset);
+    return (
+      promptTokens: promptTokens,
+      reset: check is BudgetReset,
+      replayRoom: (
+        full: budget.replayRoom(image: image != null, afterReset: false),
+        afterReset: budget.replayRoom(image: image != null, afterReset: true),
+      ),
+    );
+  }
+
+  /// What [chat] replays from the mirror before this turn: null when no
+  /// rebuild is due (the chat holds the conversation). A chat the budget
+  /// guard recreated gets the reset's share of the [room]; one rebuilt after a
+  /// stop or an interrupted skill call gets all of it, so it drops a turn
+  /// only when that truly does not fit. A plan with no turns still clears the
+  /// live chat when [mirrorRebuildDue].
+  Future<ReplayPlan?> planReplay(InferenceChat chat, ReplayRoom room) async {
+    final clear = mirrorRebuildDue;
+    final due = _replayDue;
+    if (!clear && due == null) return null;
+    final why =
+        due ??
+        (_stopLeftAudio
+            ? ContextResetReason.rebuildAfterStop
+            : ContextResetReason.transcriptArrived);
+    final fit = await mirror.newestThatFit(
+      why == ContextResetReason.budget ? room.afterReset : room.full,
+      chat.session.sizeInTokens,
+    );
+    return (
+      turns: fit.turns,
+      tokens: fit.tokens,
+      dropped: fit.dropped,
+      clear: clear,
+      why: why,
+    );
+  }
+
+  /// Rebuilds [chat] from [plan], right before the turn's message is staged:
+  /// the live chat is cleared and given the replay
+  /// (`clearHistory(replayHistory:)`, which also drops every recording its
+  /// history held), or a fresh chat gets the replay staged. Either way the
+  /// replay goes out as text at the start of the turn's own message.
+  Future<void> applyReplay(InferenceChat chat, ReplayPlan plan) async {
+    final replay = plan.turns.isEmpty
+        ? null
+        : Message(text: HistoryMirror.replayText(plan.turns), isUser: true);
+    if (plan.clear) {
+      await chat.clearHistory(replayHistory: replay == null ? null : [replay]);
+      // The rebuilt conversation is a new native one: nothing to rebuild on
+      // the next turn, no recording and no image in it.
+      _nativeRebuildPending = false;
+      _images.lose(ImageLoss.rebuild);
+    } else if (replay != null) {
+      await chat.addQueryChunk(replay);
+    }
+    mirror.replayed(plan.turns);
+    _replayDue = null;
+    if (!plan.clear && replay == null) return;
+    debugPrint(
+      '[Conversation] ${plan.clear ? 'rebuilt the chat from' : 'replayed'} '
+      'the text history: ${plan.turns.length} turns, ${plan.tokens} tokens'
+      '${plan.dropped == 0 ? '' : ', ${plan.dropped} older turns dropped'}',
+    );
   }
 
   /// Replaces the chat with a fresh plain one on the same profile, inside
@@ -377,6 +525,8 @@ final class LiveChat {
     _chat = null;
     _images.lose(ImageLoss.budget);
     _nativeRebuildPending = false;
+    mirror.forgetLive();
+    _replayDue = ContextResetReason.budget;
     await previous?.close();
     final (fresh, _) = await _create(
       () async => (await _chats.plain(profile), null),
@@ -386,17 +536,25 @@ final class LiveChat {
   }
 
   /// Replaces the agent chat with a fresh one on the same profile and
-  /// skills, inside the running turn (like [recreatePlain]).
+  /// skills, inside the running turn (like [recreatePlain]), for [why]: the
+  /// budget, or an interrupted skill call (its image goes as with a stop).
   Future<(InferenceChat, AgentChat)> recreateAgent(
     ConversationProfile profile,
     AgentChat current,
-    ImageLoss reason,
+    ContextResetReason why,
   ) async {
     final previous = _chat;
     _chat = null;
-    _images.lose(reason);
+    _images.lose(switch (why) {
+      ContextResetReason.budget => ImageLoss.budget,
+      ContextResetReason.interruptedSkill ||
+      ContextResetReason.rebuildAfterStop => ImageLoss.stop,
+      ContextResetReason.transcriptArrived => ImageLoss.rebuild,
+    });
     _nativeRebuildPending = false;
     _staleToolTail = false;
+    mirror.forgetLive();
+    _replayDue = why;
     await previous?.close();
     final (fresh, agent) = await _create(
       () => _chats.build(profile, current.skills),

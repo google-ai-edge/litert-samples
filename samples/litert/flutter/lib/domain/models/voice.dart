@@ -100,6 +100,15 @@ final class const VoiceTurnMetrics({
   /// Typed turns have no STT.
   required final bool typed,
 
+  /// A spoken question sent to the chat model as audio (audio mode): no STT
+  /// before the reply; [transcript] is the transcription after it.
+  final bool audio = false,
+
+  /// Audio mode: Whisper's transcription of the question after the reply
+  /// played (the transcript job), or why there is none ([transcriptError]).
+  final Duration? transcript,
+  final String? transcriptError,
+
   /// Release (or Send) to the end of capture close (mic `stop` + its stream's
   /// end); voice turns only.
   final Duration? captureClose,

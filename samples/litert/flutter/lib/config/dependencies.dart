@@ -37,6 +37,7 @@ import '../data/repositories/model_repository.dart';
 import '../data/repositories/provisioning_repository.dart';
 import '../data/repositories/skill_repository.dart';
 import '../data/repositories/speech_repository.dart';
+import '../data/repositories/visual_memory_repository.dart';
 import '../data/services/audio/audio_device_service.dart';
 import '../data/services/audio/audio_session_service.dart';
 import '../data/services/audio/mic_service.dart';
@@ -78,6 +79,7 @@ import '../domain/skills/app_intent_executor.dart';
 import '../domain/skills/app_intent_handlers.dart';
 import '../domain/use_cases/chat_model_switcher.dart';
 import '../domain/use_cases/gpu_arbiter.dart';
+import '../selftest/self_test_adapters.dart' show BorrowedSelfTestEmbedder;
 import '../selftest/self_test_in_app.dart';
 import '../selftest/self_test_options.dart';
 import '../utils/result.dart';
@@ -115,8 +117,10 @@ final class AppDependencies {
     required this.chatModelSwitcher,
     required this._nativeLog,
     required this._store,
+    required this._embedder,
     required this._selfTestOptions,
     required this._arbiter,
+    required this.memory,
   });
 
   /// Initializes flutter_edge_ai and builds services, then repositories.
@@ -206,11 +210,13 @@ final class AppDependencies {
       chatModelSwitcher: chatModelSwitcher,
       nativeLog: nativeLog,
       store: services.store,
+      embedder: services.embedder,
       // The in-app self-test loads the detector where the app does.
       selfTestOptions:
           selfTestOptions ??
           SelfTestOptions(detectorBackend: standardDetectorBackend()),
       arbiter: arbiter,
+      memory: repos.memory,
     );
   }
 
@@ -227,7 +233,8 @@ final class AppDependencies {
       stt: SttService(),
       tts: TtsService(),
       detector: DetectorService(),
-      embedder: EmbedderService(),
+      // Its audio encoder is warmed up with the self-test's spoken question.
+      embedder: appEmbedderService(),
     );
   }
 
@@ -261,9 +268,12 @@ final class AppDependencies {
     // Demo 3's camera source and detector backend: the build's defines (or
     // the test's source) win; the detector reads its backend at every load.
     final liveSource = frameSource ?? frameSourceFromEnvironment();
+    final memoryProbe = memoryProbeFor(platform);
     final liveSettings = LiveCameraSettingsRepository(
       settings: settings,
       environment: liveSource,
+      // The visual memory's default follows the RAM.
+      physicalMemoryBytes: memoryProbe.totalBytes(),
     );
     final models = ModelRepository(
       bundled: bundled,
@@ -293,7 +303,7 @@ final class AppDependencies {
     final hardware = HardwareRepository(
       service: hardwareInfoServiceForPlatform(),
       models: models.states,
-      memory: memoryProbeFor(platform),
+      memory: memoryProbe,
       logTap: nativeLog,
       audio: audio.devices,
       build: currentBuildInfo(),
@@ -312,6 +322,19 @@ final class AppDependencies {
     final live = LiveDetectionRepository(
       detector: detector,
       createSource: createFrameSource,
+    );
+    // Demo 3's visual memory: frames from the live pipeline, embedded by
+    // EmbeddingGemma 2 (the knowledge base's embedder, borrowed). Its image
+    // encoder loads the first time the camera demo starts the memory.
+    final memory = VisualMemoryRepository(
+      capture: live.captureMemory,
+      capturePending: () => live.capturePending,
+      sourceStarts: live.sourceStarts,
+      blackFrames: live.blackFrames,
+      liveState: live.state,
+      embedder: embedder,
+      enableImages: models.enableEmbedderImages,
+      models: models.states,
     );
     final speech = SpeechRepository(stt: stt, tts: tts);
     final images = ImageRepository(
@@ -355,6 +378,7 @@ final class AppDependencies {
       sttSwitchError: models.sttSwitchError,
       skills: skills.catalog,
       audioDevices: audio.devices,
+      memory: memory.status,
     );
     // The first scan runs in the background; Demo 1 rescans when it opens.
     unawaited(skills.refresh());
@@ -368,6 +392,7 @@ final class AppDependencies {
       hardware: hardware,
       knowledge: knowledge,
       live: live,
+      memory: memory,
       speech: speech,
       images: images,
       skills: skills,
@@ -395,8 +420,17 @@ final class AppDependencies {
     models: _models.states,
     logTap: _nativeLog,
     audio: _audio,
+    embedder: BorrowedSelfTestEmbedder(
+      _embedder,
+      _models.states,
+      enableImages: _models.enableEmbedderImages,
+    ),
     options: _selfTestOptions,
   );
+
+  /// EmbeddingGemma's service ([ModelRepository] owns its lifecycle): the
+  /// in-app self-test borrows it.
+  final EmbedderService _embedder;
   final SelfTestOptions _selfTestOptions;
 
   /// The runtime skills (app-scoped).
@@ -442,6 +476,9 @@ final class AppDependencies {
   final HardwareRepository hardware;
   final ConversationRepository conversation;
   final LiveDetectionRepository live;
+
+  /// Demo 3's visual memory (sampled while the camera screen is open).
+  final VisualMemoryRepository memory;
   final AudioRepository _audio;
   final SpeechRepository _speech;
   final ImageRepository _images;
@@ -464,6 +501,7 @@ final class AppDependencies {
     Provider<HardwareRepository>.value(value: hardware),
     Provider<ConversationRepository>.value(value: conversation),
     Provider<LiveDetectionRepository>.value(value: live),
+    Provider<VisualMemoryRepository>.value(value: memory),
     Provider<AudioRepository>.value(value: _audio),
     Provider<SpeechRepository>.value(value: _speech),
     Provider<ImageRepository>.value(value: _images),
@@ -477,7 +515,8 @@ final class AppDependencies {
   /// [kSelfTestStopGrace]; it holds its own engine and the app's audio),
   /// then the listeners — the arbiter (the chat), diagnostics (model, live
   /// and knowledge states), the hardware repository (model states), the
-  /// skills, the knowledge base (model states) — then live detection (its
+  /// skills, the knowledge base (model states), the visual memory (live
+  /// detection's listenables, model states) — then live detection (its
   /// frame in flight comes back first), the chat, the audio (mic, player),
   /// the models (embedder, detector worker, TTS, STT, the chat model), the
   /// chat model choice, and last the model store. Safe to call twice; the
@@ -493,6 +532,7 @@ final class AppDependencies {
     hardware.dispose();
     _skills.dispose();
     await knowledge.close();
+    memory.close();
     await live.close();
     await conversation.close();
     await _audio.close();
@@ -553,6 +593,7 @@ typedef _Repositories = ({
   HardwareRepository hardware,
   KnowledgeRepository knowledge,
   LiveDetectionRepository live,
+  VisualMemoryRepository memory,
   SpeechRepository speech,
   ImageRepository images,
   SkillRepository skills,

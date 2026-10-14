@@ -22,4 +22,8 @@ final class const ChatCapabilities({
 
   /// Chats may declare tools (skills).
   required final bool tools,
+
+  /// Loaded with the audio encoder: a spoken question can go to the model
+  /// as audio (a WAV) instead of a transcript.
+  final bool audio = false,
 });

@@ -24,11 +24,11 @@ import 'package:litert_edge_demos/ui/core/debug_overlay.dart';
 import '../../fakes/fake_knowledge.dart';
 
 const _embedder = LoadedModelInfo(
-  modelId: 'embeddinggemma-300M_seq512_mixed-precision',
+  modelId: 'embeddinggemma-2-740m',
   backend: 'cpu',
   loadTime: Duration(milliseconds: 1144),
   warmUpTime: Duration(milliseconds: 149),
-  detail: 'CPU · 768-d',
+  detail: 'cpu · 768-d · text+audio',
 );
 
 /// The overlay's knowledge-base block — the embedder, the index
@@ -54,7 +54,7 @@ void main() {
     );
 
     expect(lines, [
-      'embeddinggemma-300M_seq512_mixed-precision · CPU · 768-d · '
+      'EmbeddingGemma 2 740m · cpu · 768-d · text+audio · '
           'load 1144 ms · warm 149 ms',
       'KB indexing 41% (120/290 chunks)',
     ]);
@@ -125,7 +125,7 @@ void main() {
       ),
     );
     expect(used, [
-      'EmbeddingGemma 300M (knowledge base): not loaded',
+      'EmbeddingGemma 2 740m (knowledge base): not loaded',
       'KB ready · 290 chunks · indexed in 48900 ms',
       'RAG 131 ms · top 0.62 · 2 excerpts (gate 0.40)',
     ]);

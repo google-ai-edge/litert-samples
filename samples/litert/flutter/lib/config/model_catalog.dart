@@ -13,25 +13,40 @@
 // limitations under the License.
 
 import 'package:flutter_edge_ai/flutter_edge_ai.dart'
-    show ModelType, PreferredBackend, SttModelType, Tool, TtsModelType;
+    show
+        EmbeddingModality,
+        ModelType,
+        PreferredBackend,
+        SttModelType,
+        Tool,
+        TtsModelType;
 import 'package:flutter_edge_ai_agent/flutter_edge_ai_agent.dart'
     show AgentToolNames;
 
 import '../domain/models/chat_model_config.dart';
 import '../domain/models/model_id.dart';
+import 'knowledge_config.dart' show kEmbedderMaxInputTokens;
 
 /// The [LlmConfig] of every chat model load from the app's own settings
-/// (`GEMMA_MODEL_PATH`; a user's own model keeps its saved ones).
+/// (`GEMMA_MODEL_PATH`; a user's own model keeps its saved ones and its
+/// header's towers).
 //
 // 8192, not 4096: agent turns (skills system prompt + tool rounds) plus RAG
 // excerpts (~1k tokens kept in history) and images (~283) reset the chat every
 // 2–3 turns at 4096. Measured on macOS: +~200 MB GPU (IOAccelerator), similar
 // TTFT, one-time ~8 s GPU program cache rebuild on the first load per device.
+//
+// Its towers are fixed, not read from the file's header (a user's own model
+// derives them from its header on every load: `resolveTowers`): the vision
+// tower on the CPU, no audio tower. `GEMMA_MODEL_PATH` runs are the
+// integration tests' Gemma 4 E2B, which expect images on and voice questions
+// transcribed first (integration_test/voice_loop_test.dart), and the
+// self-test's "the app's Gemma 4 E2B settings".
 const kLlmConfig = LlmConfig(
   maxTokens: 8192,
   backend: PreferredBackend.gpu,
-  supportImage: true,
   maxNumImages: 1,
+  towers: ModelTowers(vision: TowerPlacement(PreferredBackend.cpu)),
 );
 
 /// The Gemma 4 E2B file earlier builds downloaded into the model store
@@ -136,29 +151,87 @@ const kTtsConfig = TtsConfig(
 /// Embedder install and load arguments. The only argument set
 /// ever passed to `installEmbedder` / `getActiveEmbedder`.
 final class const EmbedderConfig({
-  /// File names (the built-in files' asset keys are
-  /// `kBundledEmbedderModel`/`Tokenizer`).
+  /// The file name: one self-contained `.litertlm` that carries its own
+  /// tokenizer (the built-in file's asset key is `kBundledEmbedderModel`).
   required final String modelFile,
-  required final String tokenizerFile,
 
   /// What the loaded model must report; setup fails otherwise.
   required final int dimension,
 
-  /// LiteRT embeddings always run on the CPU (the GPU delegate returns zero
-  /// vectors); the loaded model must report it.
+  /// Requested and required: the embedder runs on the CPU (a native
+  /// EmbeddingGemma 2 bundle runs on the CPU or, when compiled for one SoC,
+  /// on its NPU); the loaded model must report it.
   required final PreferredBackend backend,
-});
 
-const kEmbedderModelFile = 'embeddinggemma-300M_seq512_mixed-precision.tflite';
+  /// The media declared at load (`getActiveEmbedder(supportImage:,
+  /// supportAudio:)`), text implied: the loaded model must report each of
+  /// them in its `modalities`, or setup fails. Each one loads its encoder.
+  final Set<EmbeddingModality> media = const {},
 
+  /// The input limit the loaded model must report (`maxInputTokens`): the
+  /// text question cap is derived from it.
+  required final int maxInputTokens,
+}) {
+  /// This config declaring [media] instead (the visual memory's widening).
+  EmbedderConfig withMedia(Set<EmbeddingModality> media) => EmbedderConfig(
+    modelFile: modelFile,
+    dimension: dimension,
+    backend: backend,
+    media: media,
+    maxInputTokens: maxInputTokens,
+  );
+}
+
+/// EmbeddingGemma 2 740m (text, image and audio towers). The app embeds text
+/// and spoken questions for the knowledge base, and camera frames for the
+/// visual memory. Setup declares audio only ([kEmbedderConfig]); the image
+/// encoder is declared the first time the camera demo starts its visual
+/// memory ([kEmbedderMemoryMedia], `EmbedderService.enableImages`): one
+/// reload of about 2 s, during which the knowledge base's embeddings wait.
+/// It then stays declared until the app exits: flutter_edge_ai's embedder
+/// media only widen (narrowing back would be another reload, and the next
+/// camera visit a third). Measured on an M4 Pro Mac (2026-10-13, a test app
+/// with the embedder alone): declaring images raises the RSS after load and
+/// warm-up from 648 MB to 1055 MB and the load from 1.4 s to 2.2 s; the
+/// first image adds 75–175 MB more (`EmbedderService.embedImage` logs the
+/// RSS around it). A user who never opens the camera demo, or turns its
+/// visual memory off, never pays that. Text vectors do not depend on it, so
+/// the knowledge base's index and profile are unchanged.
+const kEmbedderModelFile = 'embeddinggemma-2-740m.litertlm';
+
+/// Vision tokens per image for EmbeddingGemma 2
+/// (`LiteRtEmbeddingBackend(visionTokensPerImage:)`, 140 or 70): 70 is about
+/// half the time of 140 and kept caption → image top-1 at 6/6 in the spike.
+/// Only the visual memory embeds images, and its vectors live in memory for
+/// one session, so no stored index depends on it.
+const kEmbedderVisionTokensPerImage = 70;
+
+/// The embedder as the overlay and the logs name it.
+const kEmbedderName = 'EmbeddingGemma 2 740m';
+
+/// Setup's embedder: text and audio (the knowledge base's questions).
 const kEmbedderConfig = EmbedderConfig(
   modelFile: kEmbedderModelFile,
-  tokenizerFile: 'sentencepiece.model',
   dimension: 768,
   backend: PreferredBackend.cpu,
+  media: {EmbeddingModality.audio},
+  maxInputTokens: kEmbedderMaxInputTokens,
 );
 
+/// The media once the visual memory needs images: setup's plus the image
+/// encoder.
+const kEmbedderMemoryMedia = {EmbeddingModality.audio, EmbeddingModality.image};
+
 const kSampler = SamplerConfig(temperature: 0.6, topK: 40);
+
+/// Whether the chat model's warm-up also sends a 1 s WAV when it is loaded
+/// with its audio encoder, so the first spoken question does not pay for the
+/// encoder's first use. Measured by integration_test/gemma_audio_test.dart
+/// (M4 Pro, GPU, Gemma 4 E2B, 2026-10-13): without it the first audio turn's
+/// time to first token was 355 ms and the second's 185 ms; with it the first
+/// was 184 ms, and the warm-up took 1816 ms against 1945 ms without the WAV
+/// (no cost above the run-to-run spread). A failed warm-up fails the load.
+const kLlmAudioWarmUp = true;
 
 /// Long side of every image sent to Gemma, in pixels: picked photos and
 /// camera snapshots. Larger inputs cost the same ~270 tokens (the engine
@@ -170,6 +243,11 @@ const kLlmImageMaxSide = 1024;
 /// Gemma 4 measured ~270; flutter_edge_ai's `InferenceChat` counts 257.
 const kImageTokenAllowance = 288;
 
+/// Context budget guard. Tokens a recording sent to the chat model counts,
+/// per second of audio: Gemma 4's audio encoder makes about 25 a second
+/// (LiteRT-LM's audio frames; the same rate EmbeddingGemma 2 reports).
+const kAudioTokensPerSecond = 25;
+
 /// Chat-template tokens around one turn, reserved by the budget guard.
 const kTurnOverheadTokens = 32;
 
@@ -178,6 +256,15 @@ const kTurnOverheadTokens = 32;
 /// badly on FFI (all history glued onto one message), so the guard must act
 /// first.
 const kContextHeadroomTokens = 256;
+
+/// A chat the context budget guard recreated replays the newest turns of the
+/// conversation's text mirror that fit this share of the window: the
+/// questions and replies as text, no excerpts, images or recordings. A larger
+/// share would fill the fresh chat again and make the next turn reset it
+/// again. A chat rebuilt for another reason (after a stop with an audio turn
+/// in it, after an interrupted skill call) is not capped: it replays every
+/// turn that fits beside the next one.
+const kHistoryReplayMaxFraction = 0.25;
 
 /// Thinking is off in every chat.
 const kThinking = false;

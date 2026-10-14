@@ -23,6 +23,7 @@ import 'package:litert_edge_demos/domain/models/assistant_event.dart';
 import 'package:litert_edge_demos/domain/models/camera_side_event.dart';
 import 'package:litert_edge_demos/domain/models/diagnostics_snapshot.dart';
 import 'package:litert_edge_demos/domain/models/knowledge.dart';
+import 'package:litert_edge_demos/domain/models/knowledge_query.dart';
 import 'package:litert_edge_demos/domain/models/live_state.dart';
 import 'package:litert_edge_demos/domain/models/llm_image.dart';
 import 'package:litert_edge_demos/domain/models/model_id.dart';
@@ -61,7 +62,7 @@ ChatModelFacts _facts({String name = 'My Gemma', int context = 4096}) =>
       requestedBackend: 'gpu',
       requestedContext: context,
       contextTokens: context,
-      images: true,
+      visionBackend: 'cpu',
       tools: true,
       modelType: 'gemma4',
     );
@@ -95,7 +96,7 @@ void main() {
       DiagnosticsSnapshot(
         models: {
           ModelId.chat: _model('gemma-4-E2B-it', 'gpu'),
-          ModelId.embeddingGemma: _model('embeddinggemma-300M', 'cpu'),
+          ModelId.embeddingGemma: _model('embeddinggemma-2-740m', 'cpu'),
         },
         liveState: const LiveStarting(),
         lastGeneration: _generation(
@@ -137,7 +138,7 @@ void main() {
       at('img '),
       at('voice '),
       at('skills '),
-      at('embeddinggemma-300M'),
+      at('EmbeddingGemma 2 740m · '),
       at('KB '),
       at('camq '),
       at('RSS '),
@@ -147,9 +148,14 @@ void main() {
     expect(at('stop '), at('TTFT') + 1, reason: 'the stop follows its turn');
     expect(lines.last, startsWith('RSS '));
     expect(
-      lines.where((l) => l.startsWith('embeddinggemma-300M')),
+      lines.where((l) => l.contains('EmbeddingGemma 2 740m')),
       hasLength(1),
       reason: 'the embedder is not in the model block too',
+    );
+    expect(
+      lines.where((l) => l.contains('embeddinggemma-2-740m')),
+      isEmpty,
+      reason: 'named as the catalog names it, not by its file id',
     );
   });
 
@@ -344,5 +350,72 @@ void main() {
         'gate peak -18.2 dBFS · voiced 1820 ms over -45.0 dBFS',
       ]),
     );
+  });
+
+  test('voice: an audio turn says the chat model heard it (no STT), then '
+      'its transcript after the reply, or why there is none', () {
+    List<String> lines(VoiceTurnMetrics turn) =>
+        debugOverlayLines(DiagnosticsSnapshot(lastVoiceTurn: turn), now: _now);
+
+    expect(
+      lines(
+        VoiceTurnMetrics(
+          typed: false,
+          audio: true,
+          firstAudio: _ms(1150),
+          outcome: TurnOutcome.completed,
+          transcript: _ms(1840),
+        ),
+      ),
+      containsAllInOrder([
+        'voice idle · audio → chat model (no STT) · first audio 1150 ms · '
+            'completed',
+        'transcript 1840 ms (after the reply)',
+      ]),
+    );
+    expect(
+      lines(
+        VoiceTurnMetrics(
+          typed: false,
+          audio: true,
+          transcript: _ms(900),
+          transcriptError: 'no words recognized',
+        ),
+      ),
+      contains('transcript none after 900 ms: no words recognized'),
+    );
+    expect(
+      lines(const VoiceTurnMetrics(typed: false, audio: true))
+          .where((l) => l.startsWith('transcript')),
+      isEmpty,
+      reason: 'pending: nothing to show yet',
+    );
+  });
+
+  test('RAG: a spoken question searched as audio says so (its time is the '
+      'audio embedding), with the best cosine and the audio gate', () {
+    final lines = debugOverlayLines(
+      DiagnosticsSnapshot(
+        knowledge: const KnowledgeWaiting(),
+        lastRetrieval: Retrieval(
+          outcome: RetrievalOutcome.belowGate,
+          candidates: [
+            const Passage(
+              id: 'a#1',
+              doc: 'a.md',
+              title: 'A',
+              section: 'S',
+              content: 'c',
+              similarity: 0.612,
+            ),
+          ],
+          gate: 0.69,
+          latency: _ms(172),
+          queryKind: KnowledgeQueryKind.audio,
+        ),
+      ),
+      now: _now,
+    );
+    expect(lines, contains('RAG audio 172 ms · top 0.61 · below gate 0.69'));
   });
 }

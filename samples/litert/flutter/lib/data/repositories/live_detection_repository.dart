@@ -25,16 +25,19 @@ import '../../domain/models/frame_source_spec.dart';
 import '../../domain/models/live_state.dart';
 import '../../domain/models/preview_source.dart';
 import '../../domain/models/scene_snapshot.dart';
+import '../../domain/models/visual_memory.dart';
 import '../../utils/frame_rate_gate.dart';
 import '../../utils/result.dart';
 import '../../utils/serial_queue.dart';
 import '../../utils/stall_watchdog.dart';
 import '../services/detector/detector_service.dart';
 import '../services/detector/frame_message.dart';
+import '../services/detector/memory_shot.dart';
 import '../services/frames/frame_source.dart';
 import '../services/images/snapshot_encoder.dart';
 import 'live_detection/black_frame_detector.dart';
 import 'live_detection/live_stats_tracker.dart';
+import 'live_detection/memory_capture_slot.dart';
 import 'live_detection/scene_capture.dart';
 
 /// Builds a new source for a [FrameSourceSpec] (sources are single-use).
@@ -62,6 +65,9 @@ typedef FrameSourceFactory = Result<FrameSource> Function(FrameSourceSpec spec);
 ///   suspended (debugger, sleep, background) re-arms instead of failing.
 /// - **Scene capture** ([SceneCapture]): the summary window, the question's
 ///   frame ([capture]) and its encodings.
+/// - **Memory capture** ([MemoryCaptureSlot]): the visual memory's frame
+///   ([captureMemory]), made in the worker from a live frame that passed the
+///   gate; a question's capture always takes precedence.
 class LiveDetectionRepository {
   LiveDetectionRepository({
     required this._detector,
@@ -79,6 +85,14 @@ class LiveDetectionRepository {
     SnapshotEncoder encoder = const SnapshotEncoder(),
     int llmImageMaxSide = kLlmImageMaxSide,
     Duration summaryMaxAge = kSummaryMaxAge,
+    Duration memoryCaptureTimeout = kMemoryCaptureTimeout,
+    this._memoryMaxSide = kMemoryThumbMaxSide,
+    this._memoryGreySide = kMemoryGreySide,
+    this._memoryCellPixels = kMemoryCellPixels,
+    this._memoryMaxShift = kMemoryMaxShift,
+    this._memorySceneChange = kMemorySceneChange,
+    this._memoryCellChange = kMemoryCellChange,
+    this._memoryChangedCells = kMemoryChangedCells,
     int Function()? clockMicros,
   }) : _gate = FrameRateGate(fps: fps, slack: gateSlack),
        _statsTracker = LiveStatsTracker(
@@ -97,6 +111,11 @@ class LiveDetectionRepository {
       encoder: encoder,
       llmImageMaxSide: llmImageMaxSide,
     );
+    _memory = MemoryCaptureSlot(
+      runningSession: () =>
+          _closed || _source == null || _info == null ? null : _session,
+      timeout: memoryCaptureTimeout,
+    );
   }
 
   final Detector _detector;
@@ -109,6 +128,14 @@ class LiveDetectionRepository {
   final Duration _watchdogInterval;
   final int Function() _clock;
   late final SceneCapture _scene;
+  late final MemoryCaptureSlot _memory;
+  final int _memoryMaxSide;
+  final int _memoryGreySide;
+  final int _memoryCellPixels;
+  final int _memoryMaxShift;
+  final double _memorySceneChange;
+  final double _memoryCellChange;
+  final int _memoryChangedCells;
 
   static final Stopwatch _monotonic = Stopwatch()..start();
   static int _monotonicMicros() => _monotonic.elapsedMicroseconds;
@@ -118,6 +145,7 @@ class LiveDetectionRepository {
   final ValueNotifier<PreviewSource?> _preview = ValueNotifier(null);
   final ValueNotifier<LiveStats> _stats = ValueNotifier(const LiveStats());
   final ValueNotifier<bool> _blackFrames = ValueNotifier(false);
+  final ValueNotifier<int> _sourceStarts = ValueNotifier(0);
   final BlackFrameDetector _blackFrameDetector = BlackFrameDetector();
 
   /// Starts, stops and the close, one at a time. None runs inside the call
@@ -182,6 +210,14 @@ class LiveDetectionRepository {
   /// transitions only.
   ValueListenable<bool> get blackFrames => _blackFrames;
 
+  /// Bumped whenever a source starts a new detection session (entering the
+  /// demo, a source change, Retry): what was seen before belongs to another
+  /// session, and the visual memory forgets its frames on it. A start that
+  /// resumes the session (`start(newSession: false)`: coming back to the
+  /// foreground after the camera was released, a detector backend switch)
+  /// leaves it.
+  ValueListenable<int> get sourceStarts => _sourceStarts;
+
   /// The newest sampled mean luma (0–255) of the source's frames; null when
   /// stopped or before the first sample.
   @visibleForTesting
@@ -201,14 +237,18 @@ class LiveDetectionRepository {
   DetectorDuty get duty => _duty;
 
   /// Starts [spec]'s source for [owner], first stopping whatever runs (a
-  /// take-over). Serialized with [stop].
+  /// take-over). Serialized with [stop]. [newSession] false: the start
+  /// resumes the detection session an owner's own stop interrupted (the
+  /// camera released in the background, a detector switch), so
+  /// [sourceStarts] stays.
   Future<Result<FrameSourceInfo>> start(
     FrameSourceSpec spec, {
     required Object owner,
+    bool newSession = true,
   }) {
     // A take-over: a source still starting is stopped now.
     _abortStarting();
-    return _ops.run(() => _start(spec, owner));
+    return _ops.run(() => _start(spec, owner, newSession: newSession));
   }
 
   /// Stops the source if [owner] still holds it; otherwise does nothing.
@@ -281,6 +321,32 @@ class LiveDetectionRepository {
   /// that is still starting. See [SceneCapture.capture].
   Future<Result<SceneSnapshot>> capture() => _scene.capture();
 
+  /// The visual memory's frame of the next live frame the detector takes
+  /// (the rate gate and a pause apply; a question's capture goes first):
+  /// that frame's detections, its grey thumbnail compared with [reference]
+  /// (the last stored frame's), and its PNG of at most
+  /// `kMemoryThumbMaxSide` (mirrored back when the source mirrors) when the
+  /// scene changed. At most one at a time; see [MemoryCaptureSlot.request]
+  /// for the failures.
+  Future<Result<MemoryShot>> captureMemory({Uint8List? reference}) =>
+      _memory.request(
+        MemoryShotSpec(
+          maxSide: _memoryMaxSide,
+          greySide: _memoryGreySide,
+          cellPixels: _memoryCellPixels,
+          maxShift: _memoryMaxShift,
+          unmirror: _info?.mirrored ?? false,
+          reference: reference,
+          changeThreshold: _memorySceneChange,
+          cellChange: _memoryCellChange,
+          changedCells: _memoryChangedCells,
+        ),
+      );
+
+  /// A question's or the visual memory's capture is pending (the memory
+  /// samples only when neither is).
+  bool get capturePending => _scene.pending || _memory.pending;
+
   /// [snapshot] as the PNG Gemma gets; see [SceneCapture.encodeForLlm].
   Future<Result<EncodedSnapshot>> encodeForLlm(SceneSnapshot snapshot) =>
       _scene.encodeForLlm(snapshot);
@@ -310,12 +376,14 @@ class LiveDetectionRepository {
     _preview.dispose();
     _stats.dispose();
     _blackFrames.dispose();
+    _sourceStarts.dispose();
   }
 
   Future<Result<FrameSourceInfo>> _start(
     FrameSourceSpec spec,
-    Object owner,
-  ) async {
+    Object owner, {
+    required bool newSession,
+  }) async {
     if (_closed) {
       return const Result.error(
         FrameSourceUnavailableException('Live detection is closed'),
@@ -349,6 +417,7 @@ class LiveDetectionRepository {
     }
     _setState(const LiveStarting());
     final session = ++_session;
+    if (newSession) _sourceStarts.value++;
     _source = source;
     _resetStats();
     final Result<FrameSourceInfo> started;
@@ -437,6 +506,7 @@ class LiveDetectionRepository {
     _session++;
     _disarmWatchdogs();
     _scene.fail("The camera isn't running");
+    _memory.fail("The camera isn't running");
     final source = _source;
     _source = null;
     _info = null;
@@ -501,7 +571,14 @@ class LiveDetectionRepository {
     if (_blackFrameDetector.frameSent(view, now) case final change?) {
       _showBlackFrames(change);
     }
-    if (forCapture) _scene.claimFrame(message.frameId);
+    // A frame that passed the gate may carry the visual memory's capture,
+    // never one a question's capture took.
+    final memory = forCapture ? null : _memory.wantsFrame(session);
+    if (forCapture) {
+      _scene.claimFrame(message.frameId);
+    } else if (memory != null) {
+      _memory.claimFrame(message.frameId);
+    }
     _busy = true;
     final done = _inFlightDone = Completer<void>();
     // Paused, the frame may wait behind Gemma on the GPU: only the capture
@@ -516,6 +593,7 @@ class LiveDetectionRepository {
         sentAt: now,
         copyMicros: _clock() - copyStart,
         withSnapshot: forCapture,
+        memory: memory,
       ),
     );
   }
@@ -527,27 +605,52 @@ class LiveDetectionRepository {
     required int sentAt,
     required int copyMicros,
     required bool withSnapshot,
+    required MemoryShotSpec? memory,
   }) async {
     try {
-      // A capture's frame also comes back as upright RGBA (its snapshot).
-      final Result<(DetectionFrame, RgbaPixels?)> result = withSnapshot
-          ? switch (await _detector.detectWithSnapshot(message)) {
-              Ok(:final value) => Result.ok((value.frame, value.pixels)),
-              Error(:final error) => Result.error(error),
-            }
-          : switch (await _detector.detect(message)) {
-              Ok(:final value) => Result.ok((value, null)),
-              Error(:final error) => Result.error(error),
-            };
+      // A capture's frame also comes back as upright RGBA (its snapshot); a
+      // memory capture's with the memory frame (or why it failed).
+      final Result<(DetectionFrame, RgbaPixels?, MemoryShotReply?)> result;
+      if (withSnapshot) {
+        result = switch (await _detector.detectWithSnapshot(message)) {
+          Ok(:final value) => Result.ok((value.frame, value.pixels, null)),
+          Error(:final error) => Result.error(error),
+        };
+      } else if (memory != null) {
+        result = switch (await _detector.detectWithMemoryShot(
+          message,
+          memory,
+        )) {
+          Ok(:final value) => Result.ok((value.detections, null, value)),
+          Error(:final error) => Result.error(error),
+        };
+      } else {
+        result = switch (await _detector.detect(message)) {
+          Ok(:final value) => Result.ok((value, null, null)),
+          Error(:final error) => Result.error(error),
+        };
+      }
       if (_closed || session != _session) return;
       switch (result) {
-        case Ok(value: (final frame, final pixels)):
+        case Ok(value: (final frame, final pixels, final shot)):
           _publish(
             frame,
             latencyMicros: _clock() - sentAt,
             copyMicros: copyMicros,
           );
           if (pixels != null) _scene.complete(frame, pixels, source: _info);
+          switch (shot) {
+            case null:
+              break;
+            case MemoryShotReply(shot: final memoryShot?):
+              _memory.complete(memoryShot);
+            case MemoryShotReply(:final error):
+              // Only the memory capture fails; the frame was published.
+              _memory.failFrame(
+                frame.frameId,
+                error ?? 'The worker sent no memory frame',
+              );
+          }
         case Error(:final error):
           _failPipeline(session, 'Detector failed: $error');
       }
@@ -651,6 +754,7 @@ class LiveDetectionRepository {
     debugPrint('[LiveDetection] $message');
     _disarmWatchdogs();
     _scene.fail(message, kind: CaptureFailure.failed);
+    _memory.fail(message, kind: CaptureFailure.failed);
     _session++; // drop anything else from this session
     _setState(LiveFailed(message));
     unawaited(

@@ -28,7 +28,9 @@ void registerModelLicenses() {
 const modelLicenses = [
   LicenseEntryWithLineBreaks(['LiteRT Demos app'], _appNotice),
   LicenseEntryWithLineBreaks(['YOLO26n detector (built in)'], _yolo26nNotice),
-  LicenseEntryWithLineBreaks(['EmbeddingGemma 300M (built in)'], _gemmaNotice),
+  LicenseEntryWithLineBreaks([
+    'EmbeddingGemma 2 740m (built in)',
+  ], _embeddingGemmaNotice),
   LicenseEntryWithLineBreaks(['Whisper base (built in)'], _whisperNotice),
   LicenseEntryWithLineBreaks(['moonshine-tiny (built in)'], _moonshineNotice),
   LicenseEntryWithLineBreaks([
@@ -55,12 +57,10 @@ Unless required by applicable law or agreed to in writing, software distributed 
 
 The models built into the app and the packages it uses keep their own licences, listed on this page.''';
 
-const _gemmaNotice = '''
-The knowledge base's embedding model built into this app, EmbeddingGemma-300M (embeddinggemma-300M_seq512_mixed-precision.tflite, 179132472 bytes, SHA-256 ad09e81557203cb0e177abf9bf8727dfe138a7d394aa0f70f0b2ed16432e121a) with its tokenizer (sentencepiece.model, 4683319 bytes, SHA-256 d6daa52d93d7aad10e8388bd526c4e501d914b47177398d1d9621f1fe48438c7), from litert-community/embeddinggemma-300m, is redistributed unmodified.
+const _embeddingGemmaNotice = '''
+The knowledge base's embedding model built into this app, EmbeddingGemma 2 740m (embeddinggemma-2-740m.litertlm, 484622336 bytes, SHA-256 e7a8a2204b91e0f96e92960e84a09a89212e1633dcb7575a9bf3378b4df77f4c, Hugging Face: litert-community/embeddinggemma-2-740m-litert-lm at revision 24d962e906c7d332c6428e71c9676855024569e2; base model google/embeddinggemma-2), is redistributed unmodified.
 
-Gemma is provided under and subject to the Gemma Terms of Use found at https://ai.google.dev/gemma/terms
-
-Use of the model is also subject to the Gemma Prohibited Use Policy: https://ai.google.dev/gemma/prohibited_use_policy''';
+Licensed under the Apache License, Version 2.0: https://www.apache.org/licenses/LICENSE-2.0''';
 
 const _yolo26nNotice = '''
 The object detector built into this app, assets/models/yolo26n_fp16_rawhead.tflite (10361332 bytes, SHA-256 5ddd5eebad18587d56500a30b0995c07c9e1a241640750f568e4a974f66ed80a), is a derivative of YOLO26n by Ultralytics, converted to LiteRT by Arm (Hugging Face: Arm/yolo26n-fp16-litert).

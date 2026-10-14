@@ -17,7 +17,9 @@ import '../../../../domain/models/camera_side_event.dart';
 import '../../../../domain/models/chat_capabilities.dart';
 import '../../../../domain/models/route_decision.dart';
 import '../../../../domain/models/scene_snapshot.dart';
+import '../../../../domain/models/visual_memory.dart';
 import '../../../../domain/models/voice.dart';
+import '../../../../domain/use_cases/memory_answers.dart';
 import '../../../../domain/use_cases/voice_assistant.dart';
 import '../../../core/voice_notices.dart';
 
@@ -60,6 +62,9 @@ final class const CameraExchangeState({
 
   /// The last frame sent to Gemma (kept across turns).
   final EncodedSnapshot? sentImage,
+
+  /// The current turn's visual-memory search, for the overlay.
+  final MemoryRecalled? turnMemory,
 }) {
   /// This state with the given fields replaced; a null keeps the field.
   /// [turnTtft] is always kept: the reducer replaces it (also with null) by
@@ -71,6 +76,7 @@ final class const CameraExchangeState({
     Duration? snapshotLatency,
     EncodedSnapshot? turnImage,
     EncodedSnapshot? sentImage,
+    MemoryRecalled? turnMemory,
   }) => CameraExchangeState(
     exchange: exchange ?? this.exchange,
     questionPending: questionPending ?? this.questionPending,
@@ -79,6 +85,7 @@ final class const CameraExchangeState({
     turnImage: turnImage ?? this.turnImage,
     turnTtft: turnTtft,
     sentImage: sentImage ?? this.sentImage,
+    turnMemory: turnMemory ?? this.turnMemory,
   );
 }
 
@@ -104,6 +111,10 @@ final class const CameraExchangeUpdate({
   /// The post-turn chat reset finished (also from a replaced turn): the
   /// overlay records it, and its error is the chat's until the next open.
   final CameraChatReset? chatReset,
+
+  /// Show this remembered frame on the result card (a memory question
+  /// found it).
+  final MemoryHit? memoryCard,
 
   /// The screen changed, or the chat's state did: rebuild.
   final bool notify = true,
@@ -202,6 +213,10 @@ final class CameraExchangeReducer {
                   ),
           ),
         );
+      case UserSpoke() || TranscriptArrived() || TranscriptFailed():
+        // Audio turns are Demo 1's: the camera's responder always takes the
+        // transcript (moonshine routes the question first).
+        return CameraExchangeUpdate(state: state, notify: false);
       case SideEvent(:final event, :final detached) when detached:
         return _detached(state, event);
       case SideEvent(:final event):
@@ -228,7 +243,8 @@ final class CameraExchangeReducer {
     FastAnswered() ||
     DetailedUnavailable() ||
     CameraChatUnavailable() ||
-    FrameSentToGemma() => CameraExchangeUpdate(state: state, notify: false),
+    FrameSentToGemma() ||
+    MemoryRecalled() => CameraExchangeUpdate(state: state, notify: false),
   };
 
   CameraExchangeUpdate _side(
@@ -349,6 +365,7 @@ final class CameraExchangeReducer {
           turnImage: state.turnImage,
           turnTtft: metrics.timeToFirstToken,
           sentImage: state.sentImage,
+          turnMemory: state.turnMemory,
         );
         return CameraExchangeUpdate(
           state: next,
@@ -357,8 +374,53 @@ final class CameraExchangeReducer {
         );
       case CameraChatReset():
         return CameraExchangeUpdate(state: state, chatReset: event);
+      case MemoryRecalled(:final recall):
+        final (route, notice) = _memoryChip(recall, chat);
+        final next = state.copyWith(
+          turnMemory: event,
+          exchange: CameraExchange(
+            question: exchange.question,
+            route: route,
+            detailed: recall is MemoryHit && chat.images,
+            notice: notice,
+          ),
+        );
+        return CameraExchangeUpdate(
+          state: next,
+          turn: _turn(next),
+          memoryCard: recall is MemoryHit ? recall : null,
+        );
     }
   }
+
+  /// The route chip of a memory question and its notice (why the memory is
+  /// off).
+  static (String, String?) _memoryChip(
+    MemoryRecall recall,
+    ChatCapabilities chat,
+  ) => switch (recall) {
+    MemoryHit(:final age, cosine: null) => (
+      'memory · the latest frame, seen ${agoLabel(age)} — '
+          '${chat.images ? chat.modelName : 'detector list (images off)'}',
+      null,
+    ),
+    MemoryHit(:final age, :final double cosine, :final ambiguous) => (
+      'memory · ${ambiguous ? 'maybe more than one place, latest ' : ''}seen '
+          '${agoLabel(age)} · cos ${cosine.toStringAsFixed(2)} — '
+          '${chat.images ? chat.modelName : 'detector list (images off)'}',
+      null,
+    ),
+    MemoryMiss(:final cosine, :final reason) => (
+      'memory · best ${cosine.toStringAsFixed(2)} — not seen ($reason)',
+      null,
+    ),
+    MemoryEmpty() => ('memory · nothing remembered yet', null),
+    MemoryOff(:final reason) => ('memory off', 'Visual memory is off: $reason'),
+    MemoryDisabled() => (
+      'memory off',
+      'Visual memory is off (camera settings)',
+    ),
+  };
 
   /// The overlay's record of [state]'s turn; null before its route.
   CameraTurnMetrics? _turn(
@@ -378,6 +440,7 @@ final class CameraExchangeReducer {
       image: state.turnImage,
       timeToFirstToken: state.turnTtft,
       chatError: chatError,
+      memory: state.turnMemory,
     );
   }
 }

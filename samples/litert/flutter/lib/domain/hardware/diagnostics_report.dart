@@ -41,7 +41,7 @@ final class const ModelDiagnostics({
   final bool explicitCpu = false,
 
   /// The chat model's facts: which model, its source, checksum, context,
-  /// images and tools. Null for the others.
+  /// images, audio and tools. Null for the others.
   final ChatModelFacts? chat,
 });
 
@@ -138,7 +138,7 @@ List<String> _modelLines(ModelDiagnostics m) {
 }
 
 /// The chat model's report rows (also the self-test's): name, source, full
-/// SHA-256, context (asked vs built), images, tools. The backend row above
+/// SHA-256, context (asked vs built), the towers loaded, tools. The backend row above
 /// already shows requested → actual (`activeBackend`).
 List<(String, String)> chatModelRows(ChatModelFacts c) => [
   (
@@ -160,7 +160,9 @@ List<(String, String)> chatModelRows(ChatModelFacts c) => [
         : '${c.contextTokens} tokens (asked ${c.requestedContext}; the engine '
               'raised it)',
   ),
-  ('  images', c.images ? 'on' : 'off'),
+  // Each loaded tower with where it runs; none for a text-only load.
+  if (c.visionBackend case final v?) ('  vision', v),
+  if (c.audioBackend case final a?) ('  audio', a),
   ('  tools', c.tools ? 'on' : 'off'),
 ];
 

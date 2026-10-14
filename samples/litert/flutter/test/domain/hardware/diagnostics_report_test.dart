@@ -89,7 +89,7 @@ Map<ModelId, ModelState> _states({
         requestedBackend: 'gpu',
         requestedContext: 8192,
         contextTokens: 8192,
-        images: true,
+        visionBackend: 'cpu',
         tools: true,
         modelType: 'gemma4',
       ),
@@ -188,7 +188,7 @@ void main() {
   });
 
   test('the chat model rows: your own NPU model, its source, checksum, '
-      'context, images and tools; the card names it', () {
+      'context, towers and tools; the card names it', () {
     const facts = ChatModelFacts(
       name: 'Gemma 3 1B NPU',
       custom: true,
@@ -198,7 +198,6 @@ void main() {
       requestedBackend: 'npu',
       requestedContext: 1280,
       contextTokens: 1280,
-      images: false,
       tools: false,
       modelType: 'gemmaIt',
     );
@@ -233,7 +232,8 @@ void main() {
     expect(text, contains('  sha256   1a2b3c4d000'));
     expect(text, contains('computed at import'));
     expect(text, contains('  context  1280 tokens'));
-    expect(text, contains('  images   off'));
+    expect(text, isNot(contains('  vision')), reason: 'no vision tower');
+    expect(text, isNot(contains('  audio')), reason: 'no audio tower');
     expect(text, contains('  tools    off'));
     expect(text, isNot(contains('vision encoder')), reason: 'images off');
 
@@ -246,8 +246,8 @@ void main() {
     expect(card.models.first.value, startsWith('NPU → NPU'));
     expect(
       card.models.last.value,
-      'Gemma 3 1B NPU (your own) · ctx 1280 · images off · tools off · '
-      'gemmaIt · sha256 1a2b3c4d…',
+      'Gemma 3 1B NPU (your own) · ctx 1280 · tools off · gemmaIt · sha256 '
+      '1a2b3c4d…',
     );
 
     // Downloaded with the checksum the user entered, and it matched.
@@ -261,13 +261,53 @@ void main() {
       requestedBackend: 'npu',
       requestedContext: 1280,
       contextTokens: 1280,
-      images: false,
       tools: false,
       modelType: 'gemmaIt',
     );
     final sha = chatModelRows(matched).singleWhere((r) => r.$1 == '  sha256');
     expect(sha.$2, endsWith('(matches the published one)'));
     expect(sha.$2, isNot(contains('computed at import')));
+  });
+
+  test('the towers rows and line: each loaded tower with where it runs; '
+      'none for a text-only load', () {
+    const npu = ChatModelFacts(
+      name: 'Gemma 4 E2B NPU',
+      custom: true,
+      source: 'in place: /data/local/tmp/litert-models/g4.litertlm',
+      requestedBackend: 'npu',
+      requestedContext: 4096,
+      contextTokens: 4096,
+      visionBackend: 'cpu',
+      audioBackend: 'npu',
+      tools: false,
+      modelType: 'gemma4',
+    );
+    expect(npu.images && npu.audio, isTrue);
+    expect(
+      chatModelRows(npu),
+      containsAll([('  vision', 'cpu'), ('  audio', 'npu')]),
+    );
+    expect(
+      npu.capabilityLine,
+      'ctx 4096 · vision cpu · audio npu · tools off · gemma4',
+    );
+    const textOnly = ChatModelFacts(
+      name: 'Gemma 3 1B NPU',
+      custom: true,
+      source: 'in place: /g3.litertlm',
+      requestedBackend: 'npu',
+      requestedContext: 1280,
+      contextTokens: 1280,
+      tools: false,
+      modelType: 'gemmaIt',
+    );
+    expect(textOnly.images || textOnly.audio, isFalse);
+    expect(
+      chatModelRows(textOnly).map((r) => r.$1),
+      isNot(anyOf(contains('  vision'), contains('  audio'))),
+    );
+    expect(textOnly.capabilityLine, 'ctx 1280 · tools off · gemmaIt');
   });
 
   test('one-line logs', () {

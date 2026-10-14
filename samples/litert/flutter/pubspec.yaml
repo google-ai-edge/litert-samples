@@ -37,17 +37,16 @@ dependencies:
   file_selector: ^1.1.0
   flutter:
     sdk: flutter
-  flutter_edge_ai: ^2.1.1
-  flutter_edge_ai_agent: ^0.2.7
-  flutter_edge_ai_embeddings: ^2.2.2
-  flutter_edge_ai_litertlm: ^1.11.0
-  flutter_edge_ai_rag: ^1.0.0
-  flutter_edge_ai_speech: ^0.5.4
-  flutter_edge_ai_sqlite: ^2.0.0
+  flutter_edge_ai: ^2.3.2
+  flutter_edge_ai_agent: ^0.2.10
+  flutter_edge_ai_litertlm: ^1.13.2
+  flutter_edge_ai_rag: ^1.1.0
+  flutter_edge_ai_speech: ^0.5.7
+  flutter_edge_ai_sqlite: ^2.1.0
   flutter_litert: ^3.9.3
   flutter_soloud: ^4.1.7
   image_picker: ^1.2.3
-  # The built-in EmbeddingGemma on Android: a streaming copy out of the APK
+  # The built-in models on Android: a streaming copy out of the APK
   # (AssetManager on Dispatchers.IO), once. Already in the app through
   # flutter_edge_ai; a direct dependency because the app calls it.
   large_file_handler: ^0.5.2
@@ -62,9 +61,6 @@ dev_dependencies:
   # Tests build real CameraImage frames (CameraImageData is not re-exported by
   # camera); already resolved transitively.
   camera_platform_interface: ^2.14.0
-  # The chunker test: token counts with EmbeddingGemma's own tokenizer;
-  # already resolved transitively. Skipped without the model.
-  dart_sentencepiece_tokenizer: 1.4.1
   # Drives VoiceSession's drain timers in the voice assistant tests; already
   # resolved transitively.
   fake_async: ^1.3.3
@@ -117,11 +113,21 @@ flutter:
     # The prebuilt index of assets/kb (tool/build_kb_index.sh): the sqlite-vec
     # kb.db (3.6 MB, ~0.9 MB compressed) and its manifest. Installed on first
     # launch when its key matches, instead of embedding 297 chunks on the
-    # device (216 s on a Galaxy S24's CPU).
+    # device (29 s on an M4 Pro Mac's CPU, minutes on a phone).
     - assets/kb_index/
     # Retrieval golden set for integration_test/kb_retrieval_test.dart
-    # (19 on-topic, 12 off-topic questions). 4 KB.
+    # (19 on-topic, 12 off-topic questions; the test speaks them with the
+    # app's own TTS into memory for its audio and Whisper paths). 4 KB.
     - test_assets/kb_golden.json
+    # The self-test's step 7b: "What time is it?" spoken by the app's own TTS
+    # (tool/make_question_audio.sh, a 16 kHz mono PCM16 WAV), embedded
+    # against its words; also what the embedder's audio encoder is warmed up
+    # with at load. 43 KB.
+    - assets/selftest/
+    # The skill trigger phrases kb_retrieval_test.dart measures against the
+    # knowledge base (test/domain/use_cases/skill_trigger_retrieval_test.dart
+    # reads the numbers). 3 KB.
+    - test_assets/skill_trigger_similarity.json
     # The seed skills, copied into the user-writable skills folder when
     # absent. One line per folder (flutter assets do not recurse);
     # test/domain/skills/bundled_skills_test.dart checks every folder is here.
@@ -136,13 +142,11 @@ flutter:
     # Arm/yolo26n-fp16-litert; loaded from memory (CompiledModel.fromBuffer).
     # Licence: assets/models/NOTICE.md and the in-app licence page.
     - assets/models/yolo26n_fp16_rawhead.tflite
-    # The built-in embedder: EmbeddingGemma-300M (179 132 472 B, sha256
-    # ad09e815…e121a) and its tokenizer (4 683 319 B, sha256 d6daa52d…438c7),
-    # Gemma Terms of Use, redistributed with the notice (NOTICE.md, the
-    # in-app licence page). Used in place on desktop/iOS; extracted once
-    # (verified) on Android.
-    - assets/models/embeddinggemma-300M_seq512_mixed-precision.tflite
-    - assets/models/sentencepiece.model
+    # The built-in embedder: EmbeddingGemma 2 740m, one self-contained
+    # .litertlm with its tokenizer (484 622 336 B, sha256 e7a8a220…77f4c),
+    # Apache-2.0 (NOTICE.md, the in-app licence page). Used in place on
+    # desktop/iOS; extracted once (verified) on Android.
+    - assets/models/embeddinggemma-2-740m.litertlm
     # The built-in speech models (no download; NOTICE.md, the in-app licence
     # page), used and extracted like the embedder: Whisper base int8 and its
     # tokenizer (77 012 960 + 2 480 466 B, Apache-2.0), moonshine-tiny f32

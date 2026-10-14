@@ -24,6 +24,7 @@ import '../../../domain/models/scene_snapshot.dart';
 import 'detector_codec.dart';
 import 'detector_verification.dart';
 import 'frame_message.dart';
+import 'memory_shot.dart';
 
 /// Builds and verifies the `CompiledModel`. A const instance is sent to the
 /// detector worker and called there, so implementations hold no state.
@@ -251,6 +252,30 @@ final class DetectorEngine {
     final watch = Stopwatch()..start();
     final pixels = uprightRgba(frame, data);
     return (detection, pixels, watch.elapsed);
+  }
+
+  /// [detect] plus the visual memory's frame of the same bytes
+  /// ([memoryShot]: downscale, grey thumbnail, PNG on a scene change). A
+  /// failure of the memory frame alone comes back as the reply's error next
+  /// to the detections; a failed detection still throws.
+  MemoryShotReply detectWithMemoryShot(
+    FrameMessage frame,
+    MemoryShotSpec spec,
+  ) {
+    final data = frame.materialize();
+    final detection = _detect(frame, data);
+    try {
+      return MemoryShotReply(
+        detections: detection,
+        shot: memoryShot(frame, data, detection, spec),
+      );
+    } catch (e, st) {
+      debugPrint('[DetectorWorker] memory frame failed: $e\n$st');
+      return MemoryShotReply(
+        detections: detection,
+        error: 'The memory frame could not be made: $e',
+      );
+    }
   }
 
   DetectionFrame _detect(FrameMessage frame, Uint8List data) {

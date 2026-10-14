@@ -20,18 +20,22 @@
 #   tool/build_kb_index.sh
 #
 # Runs integration_test/build_kb_index_test.dart on macOS (the built-in
-# EmbeddingGemma on the CPU, the app's own repository and sqlite-vec store),
-# then copies kb.db and manifest.json out of the app's sandbox container.
-# Rebuild after changing assets/kb, the chunker, the embedder files or
-# flutter_edge_ai_sqlite;
-# test/data/services/knowledge/kb_prebuilt_asset_test.dart fails until you
-# do. Keep the test app's window visible while it runs (~1 min on an
-# M-series Mac).
+# EmbeddingGemma 2 740m .litertlm on the CPU, loaded as the app loads it;
+# documents embedded as text; the app's own repository and sqlite-vec store),
+# then copies kb.db and manifest.json out of the app's sandbox container. The
+# manifest records the index key and the RAG profile id kb.db is bound to.
+# Rebuild after changing assets/kb, the chunker, the embedder file, the RAG
+# profile id (kKbEmbeddingProfileId) or flutter_edge_ai_sqlite:
+# test/data/services/knowledge/kb_prebuilt_asset_test.dart compares the
+# manifest with each of them (the key, the profile id, the store's version)
+# and fails until you do. Keep the test app's window visible while it runs
+# (~1 min on an M-series Mac: 304 chunks embed in about 25 s).
 set -euo pipefail
 
 ROOT=$(cd "$(dirname "$0")/.." && pwd)
 cd "$ROOT"
-# The index must come from the verified built-in EmbeddingGemma (not in git).
+# The index must come from the verified built-in EmbeddingGemma 2 (not in git;
+# public, so tool/fetch_models.sh needs no token).
 tool/fetch_models.sh --check
 
 FLUTTER="flutter"
@@ -61,4 +65,4 @@ fi
 mkdir -p assets/kb_index
 cp "$OUT/kb.db" "$OUT/manifest.json" assets/kb_index/
 echo "assets/kb_index/kb.db: $(wc -c < assets/kb_index/kb.db | tr -d ' ') bytes"
-grep -E '"(chunks|store|builtOn)"' assets/kb_index/manifest.json
+grep -E '"(profileId|chunks|store|builtOn)"' assets/kb_index/manifest.json

@@ -59,10 +59,7 @@ void main() {
     dir = Directory.systemTemp.createTempSync('model_transitions');
     String file(String name) =>
         (File('${dir.path}/$name')..writeAsBytesSync([1])).path;
-    embedderFiles = {
-      kBundledEmbedderModel.asset: file('m.tflite'),
-      kBundledEmbedderTokenizer.asset: file('t.model'),
-    };
+    embedderFiles = {kBundledEmbedderModel.asset: file('m.litertlm')};
   });
 
   tearDownAll(() => dir.deleteSync(recursive: true));
@@ -208,11 +205,11 @@ void main() {
       expect(detector.chat, isNull);
 
       final embedder = info(ModelId.embeddingGemma);
-      expect(embedder.modelId, 'embeddinggemma-300M_seq512_mixed-precision');
+      expect(embedder.modelId, 'embeddinggemma-2-740m');
       expect(embedder.backend, 'cpu');
       expect(embedder.loadTime, _embedderLoad);
       expect(embedder.warmUpTime, _embedderWarmUp);
-      expect(embedder.detail, 'CPU · 768-d');
+      expect(embedder.detail, 'cpu · 768-d · text');
       expect(embedder.backendReported, isTrue);
       expect(embedder.explicitCpu, isFalse);
       expect(embedder.nativeLog, isEmpty);
@@ -899,7 +896,7 @@ const _embedder = [
   'embeddingGemma installing 100%',
   'embeddingGemma loading',
   'embeddingGemma warming up',
-  'embeddingGemma ready: embeddinggemma-300M_seq512_mixed-precision on cpu',
+  'embeddingGemma ready: embeddinggemma-2-740m on cpu',
 ];
 
 // Fixed, distinct timings: a row must record its own load's.
@@ -1024,13 +1021,13 @@ final class _Planner implements ChatModelPlanner {
 }
 
 /// [FakeLlmService] that writes each step into the log and can fail its
-/// install or warm-up, or hold its install.
+/// install ([FakeLlmService.installError], here for every install, not just
+/// the next; its warm-up: [FakeLlmService.warmUpError]), or hold its
+/// install.
 final class _Llm extends FakeLlmService {
   _Llm(this._log);
 
   final _Log _log;
-  Exception? installError;
-  Exception? warmUpError;
   Completer<void>? installGate;
   Completer<void>? warmUpGate;
 
@@ -1060,12 +1057,16 @@ final class _Llm extends FakeLlmService {
   Future<Result<Duration>> warmUp(
     SamplerConfig sampler, {
     required bool withImage,
+    bool withAudio = false,
   }) async {
     _log.lines.add('llm warm-up');
     await warmUpGate?.future;
-    final result = await super.warmUp(sampler, withImage: withImage);
+    final result = await super.warmUp(
+      sampler,
+      withImage: withImage,
+      withAudio: withAudio,
+    );
     if (warmUpGate != null) _log.lines.add('llm warm-up done');
-    if (warmUpError case final error?) return Result.error(error);
     return result;
   }
 
@@ -1187,7 +1188,7 @@ EmbedderService _embedderService(
     onProgress(40);
     onProgress(40); // a repeated percent is published once
     onProgress(100);
-    return 'embeddinggemma-300M_seq512_mixed-precision';
+    return 'embeddinggemma-2-740m';
   },
   load: (config) async {
     log.lines.add('embedder load');

@@ -16,6 +16,7 @@ import '../vision/stt_corrections.dart';
 import 'assistant_event.dart';
 import 'route_decision.dart';
 import 'scene_snapshot.dart';
+import 'visual_memory.dart';
 
 /// Demo 3's side channel of a voice turn.
 sealed class const CameraSideEvent();
@@ -79,6 +80,15 @@ final class const DetailedUnavailable({
   required final String basis,
 }) extends CameraSideEvent;
 
+/// A memory question searched the visual memory with [query]: what it
+/// found ([recall]) and how long the search took (the phrase's embedding and
+/// the scan). A [MemoryHit] puts its frame on the result card.
+final class const MemoryRecalled({
+  required final MemoryRecall recall,
+  required final String query,
+  required final Duration elapsed,
+}) extends CameraSideEvent;
+
 /// One camera question for the overlay: where it went and what it cost.
 final class const CameraTurnMetrics({
   required final RouteDecision route,
@@ -102,4 +112,7 @@ final class const CameraTurnMetrics({
 
   /// Detailed turns: why Gemma was not asked (the camera chat not ready).
   final String? chatError,
+
+  /// Memory turns: what the search found, with its phrase and time.
+  final MemoryRecalled? memory,
 });

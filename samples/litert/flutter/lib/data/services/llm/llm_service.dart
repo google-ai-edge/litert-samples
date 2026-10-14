@@ -14,6 +14,8 @@
 
 import 'dart:async';
 import 'dart:io';
+import 'dart:math' as math;
+import 'dart:typed_data';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter_edge_ai/flutter_edge_ai.dart' hide ModelSpec;
@@ -22,6 +24,7 @@ import '../../../config/model_catalog.dart';
 import '../../../domain/models/chat_model_config.dart';
 import '../../../domain/models/npu_availability.dart';
 import '../../../utils/result.dart';
+import '../../../utils/wav.dart';
 import '../images/image_normalizer.dart';
 import 'npu_availability.dart';
 
@@ -35,6 +38,13 @@ final class const LlmInfo({
   /// .maxTokens`): flutter_edge_ai_litertlm raises a GPU/CPU value below
   /// 1024.
   required final int contextTokens,
+
+  /// The process's resident memory before and after the load
+  /// (`ProcessInfo.currentRss`): the resource gate's figures, the audio
+  /// encoder's share included when it is loaded. GPU memory the driver keeps
+  /// outside the process's pages is not in them.
+  final int? rssBeforeBytes,
+  final int? rssAfterBytes,
 });
 
 /// The engine came up on a different backend than requested. Never a silent
@@ -84,7 +94,9 @@ final class NpuUnavailableException implements Exception {
 
 /// The load itself failed: wrong SoC, a context the build does not have, no
 /// vision encoder, a broken file. [cause] is the engine's error;
-/// [nativeReasons] what flutter_edge_ai printed about each attempt.
+/// [nativeReasons] what flutter_edge_ai printed about each attempt. (With
+/// a tower the header leaves open on the NPU, `ModelRepository` adds how to
+/// set it to the CPU, whichever step failed.)
 final class ChatModelLoadException implements Exception {
   const ChatModelLoadException({
     required this.modelName,
@@ -102,6 +114,17 @@ final class ChatModelLoadException implements Exception {
   String toString() =>
       '$modelName did not load on ${requested.name}: $cause'
       '${_reasons(requested, nativeReasons)}';
+}
+
+/// A 1 s 16 kHz mono PCM16 WAV of a quiet 440 Hz tone: what an audio warm-up
+/// sends, so the audio encoder runs once before the first spoken question.
+Uint8List warmUpWav() {
+  const rate = 16000;
+  final samples = Int16List(rate);
+  for (var i = 0; i < rate; i++) {
+    samples[i] = (1000 * math.sin(2 * math.pi * 440 * i / rate)).round();
+  }
+  return wavFromPcm16(samples.buffer.asUint8List(), sampleRate: rate);
 }
 
 String _reasons(PreferredBackend requested, List<String> reasons) =>
@@ -141,14 +164,33 @@ final class ModelFileMissingException implements Exception {
 /// tests pass a fake.
 typedef ModelLoader = Future<InferenceModel> Function(LlmConfig config);
 
-/// `FlutterEdgeAi.getActiveModel` with exactly the [LlmConfig] arguments.
-Future<InferenceModel> getActiveModelFor(LlmConfig config) =>
-    FlutterEdgeAi.getActiveModel(
-      maxTokens: config.maxTokens,
-      preferredBackend: config.backend,
-      supportImage: config.supportImage,
-      maxNumImages: config.maxNumImages,
-    );
+/// The arguments of `FlutterEdgeAi.getActiveModel` the app passes (a fake in
+/// tests).
+typedef ActiveModelGetter = Future<InferenceModel> Function({
+  int? maxTokens,
+  PreferredBackend? preferredBackend,
+  PreferredBackend? preferredVisionBackend,
+  PreferredBackend? preferredAudioBackend,
+  bool? supportImage,
+  int? maxNumImages,
+  bool? supportAudio,
+});
+
+/// `FlutterEdgeAi.getActiveModel` with exactly the [LlmConfig] arguments. A
+/// tower's backend goes only with the tower (null when it is not loaded);
+/// flutter_edge_ai runs a tower without one on the CPU.
+Future<InferenceModel> getActiveModelFor(
+  LlmConfig config, {
+  ActiveModelGetter getActiveModel = FlutterEdgeAi.getActiveModel,
+}) => getActiveModel(
+  maxTokens: config.maxTokens,
+  preferredBackend: config.backend,
+  preferredVisionBackend: config.visionBackend,
+  preferredAudioBackend: config.audioBackend,
+  supportImage: config.supportImage,
+  maxNumImages: config.maxNumImages,
+  supportAudio: config.supportAudio,
+);
 
 /// The service was closed while an operation was in flight.
 final class LlmServiceClosedException implements Exception {
@@ -166,6 +208,7 @@ class LlmService {
   LlmService({
     this._loadModel = getActiveModelFor,
     this._warmUpImage = warmUpPng,
+    this._warmUpAudio = warmUpWav,
     this._npu = probeNpu,
   });
 
@@ -173,6 +216,9 @@ class LlmService {
 
   /// The small PNG the warm-up sends ([warmUpPng] in the app).
   final Future<Uint8List> Function() _warmUpImage;
+
+  /// The short WAV an audio warm-up sends ([warmUpWav] in the app).
+  final Uint8List Function() _warmUpAudio;
 
   /// Whether flutter_edge_ai would accept the NPU here ([probeNpu]).
   final NpuAvailability Function() _npu;
@@ -247,6 +293,7 @@ class LlmService {
     // anyway when the arguments differ, and reuse it (the old file) when
     // they do not.
     await unload();
+    final rssBefore = _rss();
     final watch = Stopwatch()..start();
     final printed = <String>[];
     try {
@@ -294,18 +341,24 @@ class LlmService {
       }
       _model = loaded;
       _loaded = model;
+      final rssAfter = _rss();
       final info = LlmInfo(
         modelId: _modelId ?? model.name,
         backend: active!,
         loadTime: watch.elapsed,
         contextTokens: loaded.maxTokens,
+        rssBeforeBytes: rssBefore,
+        rssAfterBytes: rssAfter,
       );
       debugPrint(
         '[LlmService] loaded ${model.name} (${info.modelId}) '
         'backend=${active.name} load=${watch.elapsedMilliseconds}ms '
         'maxTokens=${loaded.maxTokens} (requested ${config.maxTokens}) '
-        'image=${config.supportImage} tools=${model.tools} '
-        'type=${model.modelType.name}',
+        'towers=${config.towers.parts.isEmpty ? 'none' : config.towers.parts.map((p) => p.replaceFirst(' ', ':')).join(',')} '
+        'tools=${model.tools} '
+        'type=${model.modelType.name} '
+        'rss ${_mb(rssBefore)} -> ${_mb(rssAfter)}'
+        '${rssBefore == null || rssAfter == null ? '' : ' (${rssAfter - rssBefore >= 0 ? '+' : ''}${_mb(rssAfter - rssBefore)})'}',
       );
       return Result.ok(info);
     } catch (e, st) {
@@ -322,10 +375,13 @@ class LlmService {
   /// [withImage] (the model was loaded with image support): the prompt also
   /// carries a 32×32 PNG, so the vision encoder's first use (~1.3 s extra)
   /// happens here and not on the user's first photo. It is per engine, so it
-  /// survives every later chat.
+  /// survives every later chat. [withAudio] (loaded with the audio encoder):
+  /// a 1 s WAV goes with it too, for the audio encoder's first use. A
+  /// failure of either fails the warm-up (and the load).
   Future<Result<Duration>> warmUp(
     SamplerConfig sampler, {
     required bool withImage,
+    bool withAudio = false,
   }) async {
     final model = _model;
     if (_closed) return const Result.error(LlmServiceClosedException());
@@ -336,18 +392,20 @@ class LlmService {
     InferenceModelSession? session;
     try {
       final image = withImage ? await _warmUpImage() : null;
+      final audio = withAudio ? _warmUpAudio() : null;
       session = await model.createSession(
         temperature: sampler.temperature,
         topK: sampler.topK,
         maxOutputTokens: 1,
       );
       await session.addQueryChunk(
-        Message(text: 'Hi', isUser: true, imageBytes: image),
+        Message(text: 'Hi', isUser: true, imageBytes: image, audioBytes: audio),
       );
       await session.getResponseAsync().drain<void>();
       debugPrint(
         '[LlmService] warm-up ${watch.elapsedMilliseconds}ms '
-        '(image: ${image == null ? 'no' : '${image.length} B PNG'})',
+        '(image: ${image == null ? 'no' : '${image.length} B PNG'}, '
+        'audio: ${audio == null ? 'no' : '${audio.length} B WAV'})',
       );
       return Result.ok(watch.elapsed);
     } catch (e, st) {
@@ -380,6 +438,17 @@ class LlmService {
     _model = null;
     if (model != null) await _closeQuietly(model);
   }
+
+  static int? _rss() {
+    try {
+      return ProcessInfo.currentRss;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  static String _mb(int? bytes) =>
+      bytes == null ? 'n/a' : '${(bytes / (1 << 20)).round()} MB';
 
   /// Closes a model without throwing: a close failure is logged, not allowed
   /// to hide why the model is being closed.

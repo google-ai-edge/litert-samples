@@ -14,7 +14,8 @@
 
 import 'dart:io';
 
-import 'package:flutter_edge_ai/flutter_edge_ai.dart' show PreferredBackend;
+import 'package:flutter_edge_ai/flutter_edge_ai.dart'
+    show EmbeddingModality, PreferredBackend;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:litert_edge_demos/data/repositories/model_repository.dart';
 import 'package:litert_edge_demos/data/services/knowledge/embedder_service.dart';
@@ -42,9 +43,6 @@ void main() {
       kBundledEmbedderModel.asset: (File(
         '${bundleDir.path}/${kBundledEmbedderModel.name}',
       )..writeAsBytesSync([1])).path,
-      kBundledEmbedderTokenizer.asset: (File(
-        '${bundleDir.path}/${kBundledEmbedderTokenizer.name}',
-      )..writeAsBytesSync([1])).path,
     };
   });
 
@@ -69,12 +67,13 @@ void main() {
     install: (config, source, onProgress) async {
       onProgress(40);
       onProgress(100);
-      return 'embeddinggemma-300M_seq512_mixed-precision';
+      return 'embeddinggemma-2-740m';
     },
-    load: (config) async => model,
+    load: (config) async => model.loadedWith(config),
   );
 
-  test('the built-in files are installed (no download, no token)', () async {
+  test('the built-in .litertlm is installed alone (no tokenizer, no '
+      'download, no token)', () async {
     final sources = <EmbedderSource>[];
     final models = build(
       embedder: EmbedderService(
@@ -90,18 +89,13 @@ void main() {
 
     expect(
       sources.single,
-      isA<EmbedderFromFiles>()
-          .having(
-            (s) => s.modelPath,
-            'model',
-            bundledPaths[kBundledEmbedderModel.asset],
-          )
-          .having(
-            (s) => s.tokenizerPath,
-            'tokenizer',
-            bundledPaths[kBundledEmbedderTokenizer.asset],
-          ),
+      isA<EmbedderFromFiles>().having(
+        (s) => s.modelPath,
+        'model',
+        bundledPaths[kBundledEmbedderModel.asset],
+      ),
     );
+    expect(kBundledEmbedderModel.name, endsWith('.litertlm'));
     expect(models.states.value[ModelId.embeddingGemma], isA<ModelReady>());
   });
 
@@ -160,9 +154,9 @@ void main() {
     ]);
     final info =
         (models.states.value[ModelId.embeddingGemma]! as ModelReady).info;
-    expect(info.modelId, 'embeddinggemma-300M_seq512_mixed-precision');
+    expect(info.modelId, 'embeddinggemma-2-740m');
     expect(info.backend, 'cpu');
-    expect(info.detail, 'CPU · 768-d');
+    expect(info.detail, 'cpu · 768-d · text+audio', reason: 'setup\'s media');
     expect(model.queries, hasLength(1), reason: 'one warm-up embedding');
   });
 
@@ -194,6 +188,79 @@ void main() {
     expect((state! as ModelFailed).message, contains('all-zero'));
     expect(model.closeCalls, 1);
     expect(embedder.isLoaded, isFalse);
+  });
+
+  group('the image encoder (enableEmbedderImages)', () {
+    const textAudio = {EmbeddingModality.text, EmbeddingModality.audio};
+
+    test('setup loads text and audio; the visual memory\'s first start adds '
+        'images and the row lists them', () async {
+      final requested = <Set<EmbeddingModality>>[];
+      final models = build(
+        embedder: EmbedderService(
+          install: (config, source, onProgress) async => 'eg',
+          load: (config) async {
+            requested.add(config.media);
+            return FakeEmbeddingModel().loadedWith(config);
+          },
+        ),
+      );
+      expect(await models.prepareAll(), isA<Ok<void>>());
+      expect(requested.single, {EmbeddingModality.audio});
+      LoadedModelInfo info() =>
+          (models.states.value[ModelId.embeddingGemma]! as ModelReady).info;
+      expect(info().detail, 'cpu · 768-d · text+audio');
+
+      final result = await models.enableEmbedderImages();
+      expect(result, isA<Ok<EmbedderImagesLoad>>());
+      expect(requested.last, {
+        EmbeddingModality.audio,
+        EmbeddingModality.image,
+      });
+      expect(info().detail, 'cpu · 768-d · text+image+audio');
+      expect(info().modelId, 'eg');
+    });
+
+    test('a failed load that kept text and audio leaves the row ready; one '
+        'that lost them fails it', () async {
+      var restoreFails = false;
+      FakeEmbeddingModel? loaded;
+      final models = build(
+        embedder: EmbedderService(
+          install: (config, source, onProgress) async => 'eg',
+          load: (config) async {
+            if (config.media.contains(EmbeddingModality.image)) {
+              await loaded?.close();
+              throw StateError('no vision tower');
+            }
+            if (loaded != null && restoreFails) throw StateError('no memory');
+            return loaded = FakeEmbeddingModel(modalities: textAudio);
+          },
+        ),
+      );
+      expect(await models.prepareAll(), isA<Ok<void>>());
+
+      expect(await models.enableEmbedderImages(), isA<Error<Object?>>());
+      expect(
+        models.states.value[ModelId.embeddingGemma],
+        isA<ModelReady>(),
+        reason: 'the knowledge base goes on',
+      );
+
+      restoreFails = true;
+      final lost = await models.enableEmbedderImages();
+      expect(lost.toString(), contains('could not be loaded again'));
+      final state = models.states.value[ModelId.embeddingGemma];
+      expect(state, isA<ModelFailed>());
+      expect((state! as ModelFailed).message, contains('no vision tower'));
+    });
+
+    test('not ready: refused, nothing loads', () async {
+      final models = build(bundled: false);
+      expect(await models.prepareAll(), isA<Ok<void>>());
+      final result = await models.enableEmbedderImages();
+      expect(result.toString(), contains('not ready'));
+    });
   });
 
   test('close() closes the embedder', () async {

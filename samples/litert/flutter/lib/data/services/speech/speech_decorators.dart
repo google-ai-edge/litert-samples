@@ -92,6 +92,35 @@ final class ActiveRecognizer implements SpeechRecognizer {
   Future<void> close() async {}
 }
 
+/// Applies the demo's transcript corrections (Demo 1: Whisper's known
+/// misses of product names, `correctVoiceTranscript`) to every transcript,
+/// so the user's entry and the reply both get the corrected words.
+/// Delegates [language].
+final class CorrectingRecognizer implements SpeechRecognizer {
+  CorrectingRecognizer(this._inner, {required this._correct});
+
+  final SpeechRecognizer _inner;
+  final String Function(String transcript) _correct;
+
+  @override
+  String? get language => _inner.language;
+
+  @override
+  set language(String? value) => _inner.language = value;
+
+  @override
+  Future<String> transcribe(Uint8List pcm16kMono, {String? language}) async =>
+      _correct(await _inner.transcribe(pcm16kMono, language: language));
+
+  @override
+  void addCloseListener(void Function() listener) =>
+      _inner.addCloseListener(listener);
+
+  /// Not the owner: the wrapped recognizer stays open.
+  @override
+  Future<void> close() async {}
+}
+
 /// A typed turn: "transcribes" to the typed text without touching the STT
 /// model, so typed and spoken turns share one VoiceSession path.
 final class TypedTextRecognizer implements SpeechRecognizer {

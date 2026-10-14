@@ -222,7 +222,7 @@ void main() {
         final (_, fresh) = await live.recreateAgent(
           kVoiceChatProfile,
           agent,
-          ImageLoss.stop,
+          ContextResetReason.interruptedSkill,
         );
 
         expect(live.staleToolTail, isFalse);
@@ -242,7 +242,6 @@ void main() {
         llm: LlmConfig(
           maxTokens: 4096,
           backend: PreferredBackend.gpu,
-          supportImage: false,
           maxNumImages: 1,
         ),
         tools: true,

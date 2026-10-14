@@ -32,9 +32,15 @@ typedef GuardedChat = ({
   /// The prompt's tokens.
   int promptTokens,
 
-  /// The chat was recreated: the caller announces it at once
+  /// Why the chat was recreated, or rebuilt without its oldest turns; null
+  /// when it forgot nothing. The caller announces it at once
   /// ([AssistantContextReset]), whatever happens to the turn next.
-  bool reset,
+  ContextResetReason? reset,
+
+  /// What the chat replays from the conversation's text mirror once the turn
+  /// is sure to send ([LiveChat.applyReplay]); null when it holds the
+  /// conversation already.
+  ReplayPlan? replay,
 });
 
 /// What a turn sends ([LiveChat.prepareSend]) and the text in its prefill
@@ -42,10 +48,17 @@ typedef GuardedChat = ({
 typedef SendStart = ({TurnSend send, int textTokens});
 
 /// The budget guard both turn paths run first: measures the turn on [chat]
-/// (with [agent]'s reserve on an agent chat) and, when it would not fit,
+/// (with [agent]'s reserve on an agent chat, and a recording of [audio]) and,
+/// when it would not fit,
 /// recreates the chat in place — not via the open queue — recording the reset
 /// in [metrics]. Throws [ConversationTooLongException] when even a fresh chat
 /// could not hold the turn.
+///
+/// Then it plans the replay of the conversation's text mirror for a chat that
+/// must be rebuilt (recreated now or for an interrupted skill call, or left by
+/// a stop with an audio turn in it): the newest turns within the replay room,
+/// which only a budget reset caps at its share of the window. Older turns that
+/// do not fit count as a reset too, with the rebuild's reason.
 Future<GuardedChat> guardBudget(
   LiveChat live,
   InferenceChat chat,
@@ -54,6 +67,7 @@ Future<GuardedChat> guardBudget(
   required ConversationProfile profile,
   required Uint8List? image,
   required GenerationMetricsBuilder metrics,
+  Duration? audio,
 }) async {
   final budget = await live.checkBudget(
     chat,
@@ -62,6 +76,7 @@ Future<GuardedChat> guardBudget(
     image,
     () => metrics.elapsed,
     agent: agent,
+    audio: audio,
   );
   final (InferenceChat, AgentChat?) current = switch ((budget.reset, agent)) {
     (false, _) => (chat, agent),
@@ -69,15 +84,22 @@ Future<GuardedChat> guardBudget(
     (true, final agent?) => await live.recreateAgent(
       profile,
       agent,
-      ImageLoss.budget,
+      ContextResetReason.budget,
     ),
   };
-  if (budget.reset) metrics.contextWasReset(ContextResetReason.budget);
+  final replay = await live.planReplay(current.$1, budget.replayRoom);
+  final reset = budget.reset
+      ? ContextResetReason.budget
+      : (replay != null && replay.dropped > 0)
+      ? replay.why
+      : null;
+  if (reset != null) metrics.contextWasReset(reset);
   return (
     chat: current.$1,
     agent: current.$2,
     promptTokens: budget.promptTokens,
-    reset: budget.reset,
+    reset: reset,
+    replay: replay,
   );
 }
 

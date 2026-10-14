@@ -83,6 +83,9 @@ void main() {
         '5': StepStatus.pass,
         '6a': StepStatus.pass,
         '6b': StepStatus.pass,
+        '7a': StepStatus.pass,
+        '7b': StepStatus.pass,
+        '7c': StepStatus.pass,
       });
       expect(audio.monitorStarted, isFalse);
       expect(audio.closed, isTrue);
@@ -399,14 +402,13 @@ void main() {
         _matchSteps('chat_few_chunks', t);
       });
 
-      test('your own model on the NPU, images and tools off', () async {
+      test('your own model on the NPU, no towers, tools off', () async {
         const own = ChatModelConfig(
           name: 'Gemma 3 1B NPU',
           modelType: ModelType.gemmaIt,
           llm: LlmConfig(
             maxTokens: 1280,
             backend: PreferredBackend.npu,
-            supportImage: false,
             maxNumImages: 1,
           ),
           tools: false,
@@ -431,8 +433,8 @@ void main() {
         expect(
           t.step('4a').details.first,
           startsWith(
-            'Gemma 3 1B NPU (gemma-4-E2B-it) · maxTokens 1280 · image off · '
-            'tools off · type gemmaIt ·',
+            'Gemma 3 1B NPU (gemma-4-E2B-it) · maxTokens 1280 · tools off · '
+            'type gemmaIt ·',
           ),
           reason: 'the load line says what was loaded, as the header does',
         );
@@ -440,7 +442,7 @@ void main() {
           t.header('chat model'),
           'chat model Gemma 3 1B NPU (your own .litertlm, saved settings) · '
           '/store/custom/g3_ekv1280.litertlm (model store, custom/) · npu · '
-          'ctx 1280 · images off · tools off · type gemmaIt',
+          'ctx 1280 · tools off · type gemmaIt',
         );
         expect(t.header('sha256'), 'sha256     feedface');
         _matchSteps('chat_own_npu', t);
@@ -639,11 +641,13 @@ void main() {
         final detector = FakeSelfTestDetector();
         final gemma = FakeSelfTestGemma();
         final audio = FakeSelfTestAudio();
+        final embedder = FakeSelfTestEmbedder();
         final t = await _transcript(
           (progress) => fakeSelfTestRunner(
             detector: detector,
             gemma: gemma,
             audio: audio,
+            embedder: embedder,
             progress: progress,
           ),
           stopAt: 'step 2 ',
@@ -657,11 +661,18 @@ void main() {
           '5': StepStatus.skip,
           '6a': StepStatus.skip,
           '6b': StepStatus.skip,
+          '7a': StepStatus.skip,
+          '7b': StepStatus.skip,
+          '7c': StepStatus.skip,
         });
         expect(gemma.loads, isEmpty);
         expect(detector.detects, 0);
         expect(audio.played, isEmpty);
-        expect(detector.closed && gemma.closed && audio.closed, isTrue);
+        expect(embedder.prepares, 0);
+        expect(
+          detector.closed && gemma.closed && audio.closed && embedder.closed,
+          isTrue,
+        );
         _matchSteps('stop_during_detector_load', t);
       });
 
@@ -880,7 +891,17 @@ void main() {
           progress: progress,
         ),
       );
-      expect(t.statuses.keys, ['1', '2', '3', '4a', '4b', '5']);
+      expect(t.statuses.keys, [
+        '1',
+        '2',
+        '3',
+        '4a',
+        '4b',
+        '5',
+        '7a',
+        '7b',
+        '7c',
+      ]);
       expect(t.header('options'), 'options    --skip-audio (no step 6)');
       _matchSteps('skip_audio', t);
     });

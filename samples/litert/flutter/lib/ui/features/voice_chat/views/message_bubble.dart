@@ -87,6 +87,13 @@ class MessageBubble extends StatelessWidget {
                     const Icon(Icons.broken_image_outlined),
               ),
             ),
+          // A spoken question's transcript: its recording's length above.
+          if (entry.spoken case SpokenQuestion(transcript: _?, :final label))
+            Text(
+              label,
+              style: Theme.of(context).textTheme.labelSmall
+                  ?.copyWith(color: foreground),
+            ),
           if (entry.text.isNotEmpty)
             Text(entry.text, style: TextStyle(color: foreground)),
           if (entry.interrupted)

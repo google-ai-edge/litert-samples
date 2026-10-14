@@ -112,6 +112,8 @@ typedef SelfTestSteps = Future<SelfTestOutcome> Function(
 /// touch the engine meanwhile. The audio steps use the app's own audio
 /// repository (soloud is one engine per process); Linux measures the output
 /// from the sink's monitor, elsewhere it is played and the device checked.
+/// The embedder steps use the app's own EmbeddingGemma as setup loaded it
+/// (one embedder per process), never closing it.
 final class InAppSelfTest implements SelfTestLauncher {
   InAppSelfTest({
     required this._switcher,
@@ -119,6 +121,7 @@ final class InAppSelfTest implements SelfTestLauncher {
     required this._models,
     required this._logTap,
     required this._audio,
+    required this._embedder,
     this._options = const SelfTestOptions(),
     @visibleForTesting this._steps,
   });
@@ -128,6 +131,9 @@ final class InAppSelfTest implements SelfTestLauncher {
   final ValueListenable<Map<ModelId, ModelState>> _models;
   final NativeLogTap _logTap;
   final AudioRepository _audio;
+
+  /// The app's own embedder, borrowed for steps 7a/7b (never closed).
+  final SelfTestEmbedder _embedder;
   final SelfTestOptions _options;
 
   /// Replaces the real steps (tests of the unload/reload around them). They
@@ -267,6 +273,9 @@ final class InAppSelfTest implements SelfTestLauncher {
       detectorFile: detectorFile,
       loadImage: () => loadSelfTestImage(null),
       imageLabel: kSelfTestCatsLabel,
+      embedder: _embedder,
+      loadAudioQuestion: loadSelfTestAudioQuestion,
+      loadPhoto: loadSelfTestPhoto,
       audio: _options.skipAudio
           ? null
           : AppSelfTestAudio(platform, shared: _audio),

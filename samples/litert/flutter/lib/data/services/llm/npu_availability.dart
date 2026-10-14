@@ -20,10 +20,11 @@ import 'package:flutter/foundation.dart';
 import '../../../domain/models/npu_availability.dart';
 import '../hardware/android_props.dart';
 
-/// The app's copy of flutter_edge_ai_litertlm 1.9.0's NPU gate
+/// The app's copy of flutter_edge_ai_litertlm 1.11.0's NPU gate
 /// (`lib/src/ffi/backend_preference.dart`): `npuDispatchShipsFor` — Windows
 /// yes, Android only when `libcdsprpc.so` opens (`_androidHasFastRpc`),
-/// every other OS no — with the reason text of `npuUnavailableReason`.
+/// Linux arm64 when the Qualcomm FastRPC probe passes, every other OS no —
+/// with the reason text of `npuUnavailableReason`.
 /// Mirrored, not imported: the package keeps it in `src/` and marks the
 /// reason `@visibleForTesting`.
 ///
@@ -52,7 +53,9 @@ NpuAvailability npuAvailabilityFor(
     case 'linux':
       // flutter_edge_ai_litertlm 1.11.0 ships the Qualcomm stack for
       // linux_arm64 (`qualcomm_npu: true`); the board must expose it.
-      final probe = probeLinuxNpu?.call() ?? _probeLinuxQualcommNpu();
+      final probe = probeLinuxNpu != null
+          ? probeLinuxNpu()
+          : _probeLinuxQualcommNpu();
       if (probe == null) return NpuAvailable(soc: soc);
       return NpuUnavailable(probe, soc: soc);
     default:

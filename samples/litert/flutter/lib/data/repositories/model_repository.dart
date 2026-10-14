@@ -15,6 +15,7 @@
 import 'dart:async';
 
 import 'package:flutter/foundation.dart';
+import 'package:flutter_edge_ai/flutter_edge_ai.dart' show EmbeddingModality;
 
 import '../../config/env.dart';
 import '../../config/model_catalog.dart';
@@ -74,6 +75,25 @@ final class ChatModelBlockedException implements Exception {
 
   @override
   String toString() => reason;
+}
+
+/// A chat model load that failed, at any step (the engine, its first
+/// conversation in the warm-up), with a tower the header says nothing about
+/// on the NPU: [cause]'s message, then a line with the way out. Never
+/// retried that way by itself: the user sets the tower to the CPU on the
+/// Chat model card.
+final class TowersOnNpuLoadException implements Exception {
+  const TowersOnNpuLoadException(this.cause);
+
+  final Exception cause;
+
+  /// The line the message adds to [cause]'s.
+  static const hint =
+      "If this build's towers are not compiled for the NPU, set Vision/Audio "
+      'to CPU on the card.';
+
+  @override
+  String toString() => '$cause\n$hint';
 }
 
 /// Installs, loads and warms up every model, the largest (the chat model) first
@@ -459,23 +479,21 @@ class ModelRepository implements ModelStates {
     };
   }
 
-  /// EmbeddingGemma for the knowledge base: the files built into the app (in
-  /// place on desktop and iOS, extracted once and verified on Android). Loaded
-  /// on the CPU and checked (backend, 768 dims), warmed up with one query
-  /// embedding. Any failure is this row's: Demo 1 then chats without the
-  /// knowledge base and says so.
+  /// EmbeddingGemma 2 for the knowledge base: the `.litertlm` built into the
+  /// app (in place on desktop and iOS, extracted once and verified on
+  /// Android). Loaded on the CPU for text and checked (backend, 768 dims),
+  /// warmed up with one query embedding. Any failure is this row's: Demo 1
+  /// then chats without the knowledge base and says so.
   Future<ModelState> _prepareEmbedder() async {
     const id = ModelId.embeddingGemma;
     final EmbedderSource source;
     _set(id, const ModelInstalling());
     // An Android first launch extracts here (no percent: the copy runs
     // natively without progress events).
-    final model = await _bundled.pathOf(kBundledEmbedderModel);
-    final tokenizer = await _bundled.pathOf(kBundledEmbedderTokenizer);
-    switch ((model, tokenizer)) {
-      case (Ok(value: final m), Ok(value: final t)):
-        source = EmbedderFromFiles(modelPath: m, tokenizerPath: t);
-      case (Error(:final error), _) || (_, Error(:final error)):
+    switch (await _bundled.pathOf(kBundledEmbedderModel)) {
+      case Ok(value: final path):
+        source = EmbedderFromFiles(modelPath: path);
+      case Error(:final error):
         return ModelFailed('The built-in EmbeddingGemma: $error');
     }
     if (_closed) return const ModelFailed('ModelRepository closed');
@@ -490,7 +508,7 @@ class ModelRepository implements ModelStates {
         backend: info.backend.name,
         loadTime: info.loadTime,
         warmUpTime: warmUpTime,
-        detail: '${info.backend.name.toUpperCase()} · ${info.dimension}-d',
+        detail: _embedderDetail(info.backend.name, info.modalities),
       ),
     );
     return _finalState(
@@ -505,6 +523,62 @@ class ModelRepository implements ModelStates {
       },
     );
   }
+
+  /// Adds EmbeddingGemma's image encoder for the visual memory
+  /// ([EmbedderService.enableImages]): one reload of about 2 s, the first
+  /// time the camera demo starts its memory; the knowledge base's embeddings
+  /// wait meanwhile. The embedder's row then lists image among its media. A
+  /// failed reload that also lost the text and audio embedder fails the row
+  /// (the knowledge base says so); one that kept it leaves the row ready.
+  /// Never narrowed back: the images stay until the app exits.
+  Future<Result<EmbedderImagesLoad>> enableEmbedderImages() async {
+    const id = ModelId.embeddingGemma;
+    if (_closed) {
+      return Result.error(asException(StateError('ModelRepository closed')));
+    }
+    final state = _states.value[id];
+    if (state is! ModelReady) {
+      return Result.error(
+        asException(StateError('EmbeddingGemma is not ready ($state)')),
+      );
+    }
+    final result = await _embedder.enableImages();
+    if (_closed) return result;
+    switch (result) {
+      case Ok(value: EmbedderImagesLoad(alreadyLoaded: false)):
+        // The row as loaded, with image now among its media.
+        if (_states.value[id] case ModelReady(:final info)) {
+          _set(
+            id,
+            ModelReady(
+              LoadedModelInfo(
+                modelId: info.modelId,
+                backend: info.backend,
+                loadTime: info.loadTime,
+                warmUpTime: info.warmUpTime,
+                detail: _embedderDetail(info.backend, _embedder.modalities),
+                explicitCpu: info.explicitCpu,
+                backendReported: info.backendReported,
+                nativeLog: info.nativeLog,
+              ),
+            ),
+          );
+        }
+      case Ok():
+        break;
+      case Error(error: EmbedderImagesException(restored: false) && final e):
+        _set(id, ModelFailed(e.toString()));
+      case Error():
+        break;
+    }
+    return result;
+  }
+
+  /// The embedder row's detail: `cpu · 768-d · text+audio`.
+  String _embedderDetail(String backend, Set<EmbeddingModality> media) =>
+      '$backend · ${_embedder.dimension}-d · '
+      '${[for (final m in EmbeddingModality.values)
+        if (media.contains(m)) m.name].join('+')}';
 
   /// Loads a chat model again: closes the loaded one, then prepares the
   /// slot from the current plan (another file, backend or setting) and every
@@ -576,9 +650,12 @@ class ModelRepository implements ModelStates {
           requestedBackend: model.backend.name,
           requestedContext: model.maxTokens,
           contextTokens: info.contextTokens,
-          images: model.supportImage,
+          visionBackend: config.llm.visionBackend?.name,
+          audioBackend: config.llm.audioBackend?.name,
           tools: model.tools,
           modelType: model.modelType.name,
+          rssBeforeBytes: info.rssBeforeBytes,
+          rssAfterBytes: info.rssAfterBytes,
         );
       case DefineChatSource(path: final given, :final label, config: final c):
         path = await resolveLocalPath(given);
@@ -590,9 +667,12 @@ class ModelRepository implements ModelStates {
           requestedBackend: config.llm.backend.name,
           requestedContext: config.llm.maxTokens,
           contextTokens: info.contextTokens,
-          images: config.llm.supportImage,
+          visionBackend: config.llm.visionBackend?.name,
+          audioBackend: config.llm.audioBackend?.name,
           tools: config.tools,
           modelType: config.modelType.name,
+          rssBeforeBytes: info.rssBeforeBytes,
+          rssAfterBytes: info.rssAfterBytes,
         );
     }
     final outcome = await _pipeline.run(
@@ -606,8 +686,11 @@ class ModelRepository implements ModelStates {
       // Its model has no owner after close() or a failed warm-up: unloaded
       // at once, not held (GBs) until the services close or a Retry.
       releaseOrphan: _llm.unload,
-      warmUp: () =>
-          _llm.warmUp(_warmUpSampler, withImage: config.llm.supportImage),
+      warmUp: () => _llm.warmUp(
+        _warmUpSampler,
+        withImage: config.llm.supportImage,
+        withAudio: config.llm.supportAudio && kLlmAudioWarmUp,
+      ),
       releaseFailed: _llm.unload,
       // Through the warm-up: the sampler and the vision encoder report there
       // (the self-test reads the same window).
@@ -621,8 +704,35 @@ class ModelRepository implements ModelStates {
         chat: facts(info),
       ),
     );
-    return _settle(id, outcome);
+    return _settle(id, _withTowersHint(outcome, config.llm));
   }
+
+  /// [outcome] with the towers hint when it failed while [llm] runs a
+  /// tower the header says nothing about on the NPU
+  /// ([LlmConfig.undeclaredTowersOnNpu]), whichever step failed: a tower the
+  /// NPU cannot run fails at the engine's creation or only at its first
+  /// conversation (the warm-up: the official SM8750 build declares no
+  /// constraint and its towers are not compiled for the NPU). A tower the
+  /// header places gets no hint: nothing on the card moves it. Only for
+  /// failures the towers' backend can cause ([_towersCanCause]).
+  static LoadOutcome _withTowersHint(LoadOutcome outcome, LlmConfig llm) =>
+      switch (outcome) {
+        LoadFailed(:final step, :final error)
+            when llm.undeclaredTowersOnNpu && _towersCanCause(step, error) =>
+          LoadFailed(step, TowersOnNpuLoadException(error)),
+        _ => outcome,
+      };
+
+  /// Whether [error] at [step] can come from where the towers run: not the
+  /// install (it only registers the file; a missing or vanished file is a
+  /// [ModelFileMissingException] there), not a missing file at any step,
+  /// not an unavailable NPU (refused before anything loads) and not a closed
+  /// service. Moving the towers to the CPU changes none of these.
+  static bool _towersCanCause(LoadStep step, Exception error) =>
+      step != LoadStep.install &&
+      error is! ModelFileMissingException &&
+      error is! NpuUnavailableException &&
+      error is! LlmServiceClosedException;
 
   /// Install (every launch: it restores the active spec), load, warm up one
   /// speech model; [unload] releases it after a failed warm-up, or when

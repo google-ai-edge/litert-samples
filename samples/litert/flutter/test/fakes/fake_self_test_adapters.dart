@@ -30,10 +30,12 @@ import 'package:litert_edge_demos/domain/models/chat_model_config.dart';
 import 'package:litert_edge_demos/domain/models/detection.dart';
 import 'package:litert_edge_demos/domain/models/frame_source_info.dart';
 import 'package:litert_edge_demos/domain/models/hardware_profile.dart';
+import 'package:litert_edge_demos/domain/models/knowledge_query.dart';
 import 'package:litert_edge_demos/selftest/cats_golden.dart';
 import 'package:litert_edge_demos/selftest/self_test_options.dart';
 import 'package:litert_edge_demos/selftest/self_test_runner.dart';
 import 'package:litert_edge_demos/utils/result.dart' show Result;
+import 'package:litert_edge_demos/utils/wav.dart';
 
 import 'fake_hardware.dart';
 
@@ -190,6 +192,127 @@ final class FakeSelfTestDetector implements SelfTestDetector {
     closeLog?.add('detector');
   }
 }
+
+/// The embedder as the self-test drives it: [vectors] answer each question
+/// by its kind (a cosine of 0.8 between the default audio and text ones).
+final class FakeSelfTestEmbedder implements SelfTestEmbedder {
+  FakeSelfTestEmbedder({
+    this.prepareError,
+    this.audioError,
+    this.imageError,
+    this.imagesLoadError,
+    this.imagesAlreadyLoaded = false,
+    this.borrowed = false,
+    List<double>? audio,
+    List<double>? text,
+    List<double>? image,
+    this.closeLog,
+  }) : audio = audio ?? const [0.8, 0.6, 0],
+       text = text ?? const [1, 0, 0],
+       image = image ?? const [0.7, 0, 0.714];
+
+  final Exception? prepareError;
+  final Exception? audioError;
+  final Exception? imageError;
+
+  /// [enableImages] fails with this.
+  final Exception? imagesLoadError;
+
+  /// The image encoder was loaded before the run (the camera demo had run).
+  final bool imagesAlreadyLoaded;
+  int imageLoads = 0;
+  final bool borrowed;
+  final List<double> audio;
+  final List<double> text;
+
+  /// The photo's vector (cosine 0.70 to [text], the caption's).
+  final List<double> image;
+  final List<Uint8List> images = [];
+  final List<String> memoryTexts = [];
+
+  /// Gets `embedder` when closed.
+  final List<String>? closeLog;
+
+  final List<KnowledgeQuery> queries = [];
+  int prepares = 0;
+  bool closed = false;
+
+  @override
+  Future<Result<SelfTestEmbedderLoad>> prepare() async {
+    prepares++;
+    if (prepareError case final e?) return Result.error(e);
+    return Result.ok(
+      SelfTestEmbedderLoad(
+        modelId: 'embeddinggemma-2-740m',
+        backend: 'cpu',
+        media: 'audio+text',
+        loadTime: borrowed ? null : const Duration(milliseconds: 1800),
+        warmUpTime: borrowed ? null : const Duration(milliseconds: 490),
+        borrowed: borrowed,
+      ),
+    );
+  }
+
+  @override
+  Future<Result<List<double>>> embed(KnowledgeQuery query) async {
+    queries.add(query);
+    return switch (query) {
+      KnowledgeAudioQuery() =>
+        audioError == null ? Result.ok(audio) : Result.error(audioError!),
+      KnowledgeTextQuery() => Result.ok(text),
+    };
+  }
+
+  @override
+  Future<Result<SelfTestImagesLoad>> enableImages() async {
+    imageLoads++;
+    if (imagesLoadError case final e?) return Result.error(e);
+    return Result.ok(
+      imagesAlreadyLoaded
+          ? const SelfTestImagesLoad(
+              loadTime: Duration.zero,
+              alreadyLoaded: true,
+            )
+          : const SelfTestImagesLoad(
+              loadTime: Duration(milliseconds: 2100),
+              rssBeforeBytes: 650 << 20,
+              rssAfterBytes: 1060 << 20,
+            ),
+    );
+  }
+
+  @override
+  Future<Result<List<double>>> embedImage(Uint8List encoded) async {
+    images.add(encoded);
+    return imageError == null ? Result.ok(image) : Result.error(imageError!);
+  }
+
+  @override
+  Future<Result<List<double>>> embedMemoryText(String text) async {
+    memoryTexts.add(text);
+    return Result.ok(this.text);
+  }
+
+  @override
+  Future<void> close() async {
+    closed = true;
+    closeLog?.add('embedder');
+  }
+}
+
+/// The bundled photo as step 7c gets it: a few JPEG-looking bytes (the fake
+/// embedder does not decode them).
+Future<Result<Uint8List>> fakePhoto() async =>
+    Result.ok(Uint8List.fromList(const [0xFF, 0xD8, 0xFF, 0xE0, 0, 0]));
+
+/// The photo as a memory frame: a fixed 40 KB stand-in for the PNG
+/// (`memoryFramePng` needs the engine's decoder and a real photo).
+Future<Result<Uint8List>> fakeMemoryFrame(Uint8List encoded) async =>
+    Result.ok(Uint8List(40 << 10)..[0] = 0x89);
+
+/// A 1.2 s spoken question as the bundled clip is: a 16 kHz mono PCM16 WAV.
+Future<Result<Uint8List>> fakeAudioQuestion() async =>
+    Result.ok(wavFromPcm16(Uint8List(38400), sampleRate: 16000));
 
 /// The chat model as the self-test drives it.
 final class FakeSelfTestGemma implements SelfTestGemma {
@@ -459,6 +582,10 @@ SelfTestRunner fakeSelfTestRunner({
   String imageLabel = 'bundled cats',
   SelfTestAudio? audio,
   Duration audioTimeout = kSelfTestAudioTimeout,
+  SelfTestEmbedder? embedder,
+  Future<Result<Uint8List>> Function()? loadAudioQuestion,
+  Future<Result<Uint8List>> Function()? loadPhoto,
+  Future<Result<Uint8List>> Function(Uint8List encoded)? toMemoryFrame,
   void Function(String line)? progress,
   List<String> unhandled = const [],
 }) => SelfTestRunner(
@@ -477,6 +604,10 @@ SelfTestRunner fakeSelfTestRunner({
         SelfTestImage(frame: FakeTinyFrame(), label: 'cats', golden: true),
       ),
   imageLabel: imageLabel,
+  embedder: embedder ?? FakeSelfTestEmbedder(),
+  loadAudioQuestion: loadAudioQuestion ?? fakeAudioQuestion,
+  loadPhoto: loadPhoto ?? fakePhoto,
+  toMemoryFrame: toMemoryFrame ?? fakeMemoryFrame,
   audio: audio,
   audioTimeout: audioTimeout,
   progress: progress,

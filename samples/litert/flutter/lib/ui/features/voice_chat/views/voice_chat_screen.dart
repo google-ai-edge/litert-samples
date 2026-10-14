@@ -91,6 +91,7 @@ class VoiceChatScreen extends StatelessWidget {
                       ?.copyWith(color: kWarningColor),
                 ),
               ),
+            _ModeLine(text: viewModel.modeLine),
             _PhaseLine(phase: viewModel.phase),
             AttachmentBar(
               attachment: viewModel.attachment,
@@ -167,6 +168,41 @@ class _ErrorBar extends StatelessWidget {
             ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+/// How a spoken question reaches the chat model: as audio, or through
+/// Whisper's transcript (and, in audio mode, when there are no skills).
+class _ModeLine extends StatelessWidget {
+  const _ModeLine({required this.text});
+
+  final String text;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 4, 16, 0),
+      child: Row(
+        spacing: 6,
+        children: [
+          Icon(
+            Icons.graphic_eq,
+            size: 14,
+            color: theme.colorScheme.onSurfaceVariant,
+          ),
+          Expanded(
+            child: Text(
+              text,
+              key: ChatKeys.mode,
+              style: theme.textTheme.labelSmall?.copyWith(
+                color: theme.colorScheme.onSurfaceVariant,
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }

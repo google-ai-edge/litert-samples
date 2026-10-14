@@ -144,8 +144,9 @@ void main() {
     test('a manifest that does not parse throws FormatException', () async {
       for (final text in [
         'not json',
-        '{"format": "kb-prebuilt/1"}',
-        shippedManifest.replaceFirst('kb-prebuilt/1', 'kb-prebuilt/0'),
+        '{"format": "kb-prebuilt/2"}',
+        shippedManifest.replaceFirst('kb-prebuilt/2', 'kb-prebuilt/1'),
+        shippedManifest.replaceFirst('"profileId"', '"profile"'),
       ]) {
         final bundle = _MapBundle({
           kKbPrebuiltManifestAsset: utf8.encode(text),

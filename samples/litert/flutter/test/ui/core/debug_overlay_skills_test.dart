@@ -63,9 +63,10 @@ void main() {
     expect(skillLines(const DiagnosticsSnapshot()), isEmpty);
   });
 
-  test('a reset after an interrupted skill call is not called "budget"', () {
-    final lines = debugOverlayLines(
-      const DiagnosticsSnapshot(
+  test('a reset after an interrupted skill call, or a rebuild after a stop '
+      'that dropped turns, is not called "budget"', () {
+    String ctxFor(ContextResetReason reason) => debugOverlayLines(
+      DiagnosticsSnapshot(
         lastGeneration: GenerationMetrics(
           timeToFirstToken: null,
           chunks: 0,
@@ -74,12 +75,19 @@ void main() {
           total: Duration.zero,
           stopped: false,
           contextReset: true,
-          contextResetReason: ContextResetReason.interruptedSkill,
+          contextResetReason: reason,
         ),
       ),
+    ).singleWhere((l) => l.startsWith('ctx'));
+    expect(
+      ctxFor(ContextResetReason.interruptedSkill),
+      endsWith('reset (interrupted skill)'),
     );
-    final ctx = lines.singleWhere((l) => l.startsWith('ctx'));
-    expect(ctx, endsWith('reset (interrupted skill)'));
+    expect(
+      ctxFor(ContextResetReason.rebuildAfterStop),
+      endsWith('reset (rebuild after stop)'),
+    );
+    expect(ctxFor(ContextResetReason.budget), endsWith('reset (budget)'));
   });
 
   test('tool timings: each step at its time since the turn started, the '

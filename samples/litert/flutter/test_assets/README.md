@@ -19,8 +19,12 @@ under that licence here.
 - `showcase/sign_do_not_feed.jpg`, `showcase/sign_wifi.jpg`: drawn by `tool/make_showcase_signs.py`.
 - `images/`: synthetic JPEGs for the image normalizer tests (a grey gradient; a red/blue block with an EXIF
   orientation).
-- `litertlm/*.header.bin`: only the header (the first 1-2 KB, no weights) of two `.litertlm` files, a Gemma 4 E2B GPU
-  build and a Qualcomm NPU build, for the header-parsing tests.
+- `litertlm/*.header.bin`: only the header (the first 0.3-2 KB, no weights) of six `.litertlm` files, for the
+  header-parsing and tower tests: Gemma 4 E2B for the GPU (`gemma4_e2b_gpu`, and the newer one with its MTP drafter,
+  `gemma4_e2b_mtp`), the text-only Qualcomm SM8850 NPU build (`gemma4_2b_sm8850_npu`), two official per-SoC builds
+  from litert-community/gemma-4-E2B-it-litert-lm @b3ca0d2f — `gemma-4-E2B-it_qualcomm_qcs8275` (towers declared by the
+  file: both on the CPU, prefill on the NPU; `gemma4_e2b_qualcomm_qcs8275`) and `gemma-4-E2B-it_qualcomm_sm8750` (no
+  constraint anywhere, towers left undeclared; `gemma4_e2b_qualcomm_sm8750`) — and Qwen3 0.6B (`qwen3_0_6b`).
 
 ## Audio
 
@@ -38,10 +42,15 @@ list at the top of `integration_test/tools/make_question_audio_test.dart`; chang
 | `q_sign.wav`, `showcase/q_sign.wav` | "What does the sign say?" | 1.74 s |
 | `q_describe_detail.wav` | "Describe this scene in detail, please." | 3.08 s |
 | `showcase/q_see.wav` | "What do you see?" | 1.42 s |
+| `../assets/selftest/what_time_is_it.wav` (an app asset: the self-test's step 7b and the embedder's audio warm-up) | "What time is it?" | 1.37 s |
 
 ## Golden data
 
-- `kb_golden.json`: the knowledge-base retrieval golden set (on-topic and off-topic questions).
+- `kb_golden.json`: the knowledge-base retrieval golden set (on-topic and off-topic questions). For its audio and
+  Whisper paths `integration_test/kb_retrieval_test.dart` speaks the same questions with the app's own TTS into memory
+  at start-up (`integration_test/support/question_audio.dart`, the code that makes the clips above); they are not
+  shipped.
 - `router_golden.json`: Demo 3's question router golden set.
-- `skill_trigger_similarity.json`: measured EmbeddingGemma similarities of the skill trigger questions.
+- `skill_trigger_similarity.json`: measured EmbeddingGemma 2 similarities of the skill trigger questions against the
+  knowledge base; `integration_test/kb_retrieval_test.dart` prints it again (`KB_SKILL_TRIGGERS`).
 - `yolo26n/cats_golden.json`: the detector's strict-GPU fp32 detections on `yolo26n/cats_640x480_rgba.u8`.

@@ -27,6 +27,7 @@ import '../model_store/local_files.dart';
 import 'detector_engine.dart';
 import 'detector_worker.dart';
 import 'frame_message.dart';
+import 'memory_shot.dart';
 
 /// Runs the detector on one frame at a time. The live repository holds the
 /// latest-frame-wins slot; a second detect while one runs is an error.
@@ -39,6 +40,15 @@ abstract interface class Detector {
   /// [detect] plus the frame itself as upright RGBA: a question's snapshot,
   /// converted in the worker from the same bytes.
   Future<Result<SnapshotDetection>> detectWithSnapshot(FrameMessage frame);
+
+  /// [detect] plus the visual memory's frame, made in the worker from the
+  /// same bytes as [spec] says. Ok with the detections also when only the
+  /// memory frame failed ([MemoryShotReply.error]); Error when the
+  /// detection failed.
+  Future<Result<MemoryShotReply>> detectWithMemoryShot(
+    FrameMessage frame,
+    MemoryShotSpec spec,
+  );
 }
 
 /// A detected frame and its pixels (`Detector.detectWithSnapshot`).
@@ -200,7 +210,7 @@ class DetectorService implements Detector {
 
   @override
   Future<Result<DetectionFrame>> detect(FrameMessage frame) async {
-    final result = await _request(frame, withSnapshot: false);
+    final result = await _request((id) => DetectorDetectRequest(id, frame));
     return switch (result) {
       Ok(:final value) => Result.ok(value! as DetectionFrame),
       Error(:final error) => Result.error(error),
@@ -211,7 +221,9 @@ class DetectorService implements Detector {
   Future<Result<SnapshotDetection>> detectWithSnapshot(
     FrameMessage frame,
   ) async {
-    final result = await _request(frame, withSnapshot: true);
+    final result = await _request(
+      (id) => DetectorDetectRequest(id, frame, withSnapshot: true),
+    );
     switch (result) {
       case Error(:final error):
         return Result.error(error);
@@ -237,11 +249,25 @@ class DetectorService implements Detector {
     }
   }
 
-  /// One frame through the worker; the slot is this service's own guard.
+  @override
+  Future<Result<MemoryShotReply>> detectWithMemoryShot(
+    FrameMessage frame,
+    MemoryShotSpec spec,
+  ) async {
+    final result = await _request(
+      (id) => DetectorDetectRequest(id, frame, memory: spec),
+    );
+    return switch (result) {
+      Ok(:final value) => Result.ok(value! as MemoryShotReply),
+      Error(:final error) => Result.error(error),
+    };
+  }
+
+  /// One frame through the worker ([request] builds its message); the slot
+  /// is this service's own guard.
   Future<Result<Object?>> _request(
-    FrameMessage frame, {
-    required bool withSnapshot,
-  }) async {
+    DetectorDetectRequest Function(int id) request,
+  ) async {
     final worker = _worker;
     if (_closed || worker == null || _info == null) {
       return const Result.error(
@@ -255,9 +281,7 @@ class DetectorService implements Detector {
     }
     final done = _detectDone = Completer<void>();
     try {
-      final value = await worker.request(
-        (id) => DetectorDetectRequest(id, frame, withSnapshot: withSnapshot),
-      );
+      final value = await worker.request(request);
       return Result.ok(value);
     } on DetectorUnavailableException catch (e) {
       return Result.error(e);

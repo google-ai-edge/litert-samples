@@ -22,6 +22,7 @@ import 'package:litert_edge_demos/data/services/llm/llm_service.dart';
 import 'package:litert_edge_demos/domain/models/chat_model_config.dart';
 import 'package:litert_edge_demos/domain/models/npu_availability.dart';
 import 'package:litert_edge_demos/utils/result.dart';
+import 'package:litert_edge_demos/utils/wav.dart';
 
 import '../../../fakes/fake_inference_model.dart';
 
@@ -51,6 +52,13 @@ void main() {
 
       expect((result as Error<LlmInfo>).error, isA<BackendMismatchException>());
       expect(model.closeCalls, 1);
+    });
+
+    test('a load reports the process\'s RSS before and after it', () async {
+      final llm = LlmService(loadModel: (_) async => FakeInferenceModel());
+      final info = (await llm.load(kDefineChatModel) as Ok<LlmInfo>).value;
+      expect(info.rssBeforeBytes, greaterThan(0));
+      expect(info.rssAfterBytes, greaterThan(0));
     });
 
     test('a GPU load passes kLlmConfig through and keeps the model', () async {
@@ -90,7 +98,6 @@ void main() {
       llm: LlmConfig(
         maxTokens: 1280,
         backend: PreferredBackend.npu,
-        supportImage: false,
         maxNumImages: 1,
       ),
       tools: false,
@@ -337,6 +344,50 @@ void main() {
       expect(model.lastSession.closed, isTrue);
     });
 
+    test('withAudio: the one warm-up prompt also carries a 1 s WAV, so the '
+        "audio encoder's first use happens at setup", () async {
+      final model = FakeInferenceModel();
+      final wav = Uint8List.fromList([0x52, 0x49, 0x46, 0x46]);
+      final llm = LlmService(
+        loadModel: (_) async => model,
+        warmUpImage: () async => Uint8List.fromList([0x89]),
+        warmUpAudio: () => wav,
+      );
+      await llm.load(kDefineChatModel);
+
+      final warming = llm.warmUp(kSampler, withImage: true, withAudio: true);
+      (await warmUpSession(model))
+        ..emit('A')
+        ..finish();
+
+      expect(await warming, isA<Ok<Duration>>());
+      expect(model.created, hasLength(1), reason: 'still one generation');
+      final query = model.lastSession.queries.single;
+      expect(query.audioBytes, same(wav));
+      expect(query.hasImage, isTrue);
+    });
+
+    test('the default warm-up WAV: 1 s of 16 kHz mono PCM16, not silence', () {
+      final wav = warmUpWav();
+      expect(wavDuration(wav), const Duration(seconds: 1));
+      expect(pcm16FromWav(wav).any((b) => b != 0), isTrue);
+    });
+
+    test('without withAudio no recording goes out', () async {
+      final model = FakeInferenceModel();
+      final llm = LlmService(
+        loadModel: (_) async => model,
+        warmUpAudio: () => throw StateError('must not be made'),
+      );
+      await llm.load(kDefineChatModel);
+      final warming = llm.warmUp(kSampler, withImage: false);
+      (await warmUpSession(model))
+        ..emit('A')
+        ..finish();
+      expect(await warming, isA<Ok<Duration>>());
+      expect(model.lastSession.queries.single.hasAudio, isFalse);
+    });
+
     test(
       'a warm-up image that cannot be made fails the warm-up visibly',
       () async {
@@ -353,6 +404,110 @@ void main() {
         expect(result.toString(), contains('no raster'));
       },
     );
+  });
+
+  group('towers', () {
+    const npuLlm = LlmConfig(
+      maxTokens: 4096,
+      backend: PreferredBackend.npu,
+      maxNumImages: 1,
+      towers: ModelTowers(
+        vision: TowerPlacement(
+          PreferredBackend.npu,
+          reason: TowerReason.choice,
+        ),
+        audio: TowerPlacement(PreferredBackend.npu, reason: TowerReason.choice),
+      ),
+    );
+
+    Future<Map<String, Object?>> passed(LlmConfig config) async {
+      late Map<String, Object?> args;
+      await getActiveModelFor(
+        config,
+        getActiveModel:
+            ({
+              int? maxTokens,
+              PreferredBackend? preferredBackend,
+              PreferredBackend? preferredVisionBackend,
+              PreferredBackend? preferredAudioBackend,
+              bool? supportImage,
+              int? maxNumImages,
+              bool? supportAudio,
+            }) async {
+              args = {
+                'maxTokens': maxTokens,
+                'backend': preferredBackend,
+                'vision': preferredVisionBackend,
+                'audio': preferredAudioBackend,
+                'supportImage': supportImage,
+                'maxNumImages': maxNumImages,
+                'supportAudio': supportAudio,
+              };
+              return FakeInferenceModel(activeBackend: preferredBackend);
+            },
+      );
+      return args;
+    }
+
+    test('getActiveModel gets the backend of each tower the file has, and '
+        'nothing for one it does not have', () async {
+      expect(await passed(npuLlm), {
+        'maxTokens': 4096,
+        'backend': PreferredBackend.npu,
+        'vision': PreferredBackend.npu,
+        'audio': PreferredBackend.npu,
+        'supportImage': true,
+        'maxNumImages': 1,
+        'supportAudio': true,
+      });
+      const imagesOnly = LlmConfig(
+        maxTokens: 4096,
+        backend: PreferredBackend.npu,
+        maxNumImages: 1,
+        towers: ModelTowers(
+          vision: TowerPlacement(
+            PreferredBackend.cpu,
+            reason: TowerReason.declared,
+          ),
+        ),
+      );
+      final args = await passed(imagesOnly);
+      expect(args['vision'], PreferredBackend.cpu);
+      expect(args['supportImage'], isTrue);
+      expect(args['audio'], isNull);
+      expect(args['supportAudio'], isFalse);
+      // The app's own settings: the vision tower on the CPU, no audio.
+      final define = await passed(kLlmConfig);
+      expect(define['vision'], PreferredBackend.cpu);
+      expect(define['audio'], isNull);
+    });
+
+    test('a load that fails with a tower on the NPU reports the engine\'s '
+        'reason once; nothing retries (the hint is ModelRepository\'s, for '
+        'every step)', () async {
+      var loads = 0;
+      final llm = LlmService(
+        loadModel: (_) async {
+          loads++;
+          throw StateError('Failed to create engine: vision encoder');
+        },
+        npu: () => const NpuAvailable(soc: 'QTI SM8750'),
+      );
+      const model = ChatModelConfig(
+        name: 'Gemma 4 E2B NPU',
+        modelType: ModelType.gemma4,
+        llm: npuLlm,
+        tools: false,
+      );
+
+      final result = await llm.load(model);
+
+      final error = (result as Error<LlmInfo>).error;
+      expect(error, isA<ChatModelLoadException>());
+      expect('$error', contains('Failed to create engine: vision encoder'));
+      expect('$error', isNot(contains('Vision/Audio')));
+      expect(loads, 1);
+    });
   });
 }
 

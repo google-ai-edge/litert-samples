@@ -23,6 +23,7 @@ import '../../../../data/repositories/conversation_repository.dart';
 import '../../../../data/repositories/diagnostics_repository.dart';
 import '../../../../data/repositories/live_camera_settings_repository.dart';
 import '../../../../data/repositories/live_detection_repository.dart';
+import '../../../../data/repositories/visual_memory_repository.dart';
 import '../../../../domain/models/camera_side_event.dart';
 import '../../../../domain/models/camera_source.dart';
 import '../../../../domain/models/detection.dart';
@@ -33,6 +34,7 @@ import '../../../../domain/models/model_id.dart';
 import '../../../../domain/models/model_state.dart';
 import '../../../../domain/models/preview_source.dart';
 import '../../../../domain/models/scene_snapshot.dart';
+import '../../../../domain/models/visual_memory.dart';
 import '../../../../domain/models/voice.dart';
 import '../../../../domain/use_cases/voice_assistant.dart';
 import '../../../../utils/command.dart';
@@ -83,6 +85,18 @@ final class FrozenFrame {
   final bool flip;
 }
 
+/// The result card of a memory question: the remembered frame's PNG, how
+/// long ago it was seen (when the question was answered), its cosine and the
+/// phrase searched.
+final class const MemoryCard({
+  required final Uint8List png,
+  required final Duration age,
+
+  /// Null: the newest stored frame, not a search result.
+  required final double? cosine,
+  required final String query,
+});
+
 /// Demo 3: the live view with boxes plus push-to-talk questions about it.
 /// Entering opens the shared chat with the camera profile, makes moonshine
 /// the active recognizer (both in parallel) and starts live detection as
@@ -102,6 +116,14 @@ final class FrozenFrame {
 /// A detector that failed on its backend shows the reason with the other
 /// backend as the explicit way out; nothing switches by itself.
 ///
+/// The visual memory (with `memory`): sampled while this screen is open and
+/// idle (no turn, no generation, no playback, in the foreground), forgotten
+/// when it closes; a memory question's frame shows on the result card
+/// ([memoryCard]) until a tap or the next press; [clearMemory] forgets it all.
+/// The settings sheet's "Visual memory" switch ([setMemoryEnabled],
+/// persisted, on by default) is read before the memory starts, so a memory
+/// switched off never loads EmbeddingGemma's image encoder.
+///
 /// App lifecycle (with `foreground`, Android and iOS): leaving the app ends
 /// a held push-to-talk press without a turn and releases the camera; coming
 /// back starts live detection again. Desktop keeps both.
@@ -120,6 +142,7 @@ class LiveCameraViewModel extends ChangeNotifier {
     this._settings,
     this._models,
     this._foreground,
+    this._memory,
     Future<Result<void>> Function()? reloadDetector,
     TargetPlatform? platform,
   }) : _platform = platform ?? defaultTargetPlatform {
@@ -129,6 +152,8 @@ class LiveCameraViewModel extends ChangeNotifier {
       ..addListener(notifyListeners);
     stop = Command0<void>(_stop)..addListener(notifyListeners);
     micAccess = Command0<void>(_micAccess)..addListener(notifyListeners);
+    setMemoryEnabled = Command1<void, bool>(_setMemoryEnabled)
+      ..addListener(notifyListeners);
     _applier = LiveSettingsApplier(
       start: _start,
       runningStart: () => _startRun,
@@ -136,7 +161,13 @@ class LiveCameraViewModel extends ChangeNotifier {
       needsReconnect: () =>
           _startLive.result is Error<FrameSourceInfo> ||
           _live.state.value is LiveFailed,
-      onSwitch: unfreeze,
+      // A switch interrupts the live view: the frozen frame and the memory
+      // card go (the memory itself forgets its frames on a source change,
+      // a new detection session, not on a detector switch).
+      onSwitch: () {
+        unfreeze();
+        closeMemoryCard();
+      },
       onChanged: _notify,
       settings: _settings,
       reloadDetector: reloadDetector,
@@ -149,6 +180,7 @@ class LiveCameraViewModel extends ChangeNotifier {
     _foreground?.addListener(_onForeground);
     _events = _assistant.events.listen(_onEvent);
     _assistant.phase.addListener(_onPhase);
+    unawaited(_startMemory());
     unawaited(_applier.load());
     // The chat and the recognizer switch in parallel (~0.8 s for moonshine).
     unawaited(open.execute());
@@ -204,9 +236,20 @@ class LiveCameraViewModel extends ChangeNotifier {
 
   bool get _inForeground => _foreground?.value ?? true;
 
+  /// Demo 3's visual memory; null: none in this app.
+  final VisualMemoryRepository? _memory;
+
   /// Live detection was released (or a start was asked for) while the app
   /// was out of the foreground: it starts again when the app comes back.
   bool _restartOnReturn = false;
+
+  /// The start [_runStart] is running resumes the detection session
+  /// ([_start]'s `resume`).
+  bool _resuming = false;
+
+  /// A start asked for out of the foreground was a new session: the start
+  /// on return is one too ([_restartOnReturn]).
+  bool _restartNewSession = false;
 
   /// Applies Demo 3's settings: serialized, newest choice wins. Closed with
   /// this view model.
@@ -227,6 +270,7 @@ class LiveCameraViewModel extends ChangeNotifier {
   /// A failed post-turn reset: the camera chat may be gone; Retry reopens.
   String? _resetError;
 
+  final ValueNotifier<MemoryCard?> _memoryCard = ValueNotifier(null);
   final ValueNotifier<FrozenFrame?> _frozen = ValueNotifier(null);
   final ValueNotifier<DetectionFrame?> _frozenBoxes = ValueNotifier(null);
 
@@ -274,6 +318,7 @@ class LiveCameraViewModel extends ChangeNotifier {
     _startLive,
     stop,
     micAccess,
+    setMemoryEnabled,
   ];
 
   /// Owned by [_applier], which disposes them when it closes.
@@ -371,6 +416,107 @@ class LiveCameraViewModel extends ChangeNotifier {
   /// The detector is loading again after a backend switch.
   bool get detectorReloading => setDetectorBackend.running;
 
+  // The visual memory.
+
+  /// The memory's figures and state for the chip and the banner; null when
+  /// the app has no visual memory.
+  ValueListenable<VisualMemoryStatus>? get memoryStatus => _memory?.status;
+
+  /// The frame a memory question found; null when no card is shown.
+  ValueListenable<MemoryCard?> get memoryCard => _memoryCard;
+
+  /// The "Visual memory" switch: null until the saved value is read (and
+  /// when the app has no visual memory).
+  bool? get memoryEnabled => _memory == null ? null : _memoryEnabled;
+  bool? _memoryEnabled;
+
+  /// Why the switch could not be read (the memory then stays off) or
+  /// saved; null when it was.
+  String? get memorySettingError {
+    if (setMemoryEnabled.result case Error(:final error)) {
+      return 'Could not save the visual memory setting: $error';
+    }
+    return _memoryReadError;
+  }
+
+  String? _memoryReadError;
+
+  /// Why the switch is off by default on this device (less than 8 GB of
+  /// RAM); null where it is on by default or the app has no visual memory.
+  String? get memoryDefaultReason =>
+      _memory == null ? null : _settings?.visualMemoryDefaultReason;
+
+  /// The settings sheet's "Visual memory" switch: applied at once (off:
+  /// sampling stops, the frames and the card go, memory questions say it is
+  /// off; on: it starts, loading the image encoder the first time), then
+  /// saved. A failed save keeps the switch as set for this visit and says
+  /// so.
+  late final Command1<void, bool> setMemoryEnabled;
+
+  Future<Result<void>> _setMemoryEnabled(bool enabled) async {
+    final memory = _memory;
+    if (memory == null || _disposed) return const Result.ok(null);
+    _memoryEnabled = enabled;
+    _memoryReadError = null;
+    if (!enabled) closeMemoryCard();
+    memory.setEnabled(enabled: enabled);
+    _notify();
+    return await _settings?.saveVisualMemory(enabled: enabled) ??
+        const Result.ok(null);
+  }
+
+  /// Starts the memory as this screen's, with the saved switch: on when the
+  /// app keeps no settings (tests), off when they cannot be read (no image
+  /// encoder load on a guess; the sheet says why).
+  Future<void> _startMemory() async {
+    final memory = _memory;
+    if (memory == null) return;
+    final settings = _settings;
+    var enabled = true;
+    if (settings != null) {
+      switch (await settings.readVisualMemory()) {
+        case Ok(:final value):
+          enabled = value;
+        case Error(:final error):
+          enabled = false;
+          _memoryReadError =
+              'Could not read the visual memory setting, so it stays off: '
+              '$error';
+      }
+      if (_disposed) return;
+    }
+    // A switch flipped while the setting was read wins.
+    _memoryEnabled ??= enabled;
+    memory.start(
+      owner: this,
+      idle: _memoryMayWork,
+      enabled: _memoryEnabled ?? enabled,
+    );
+    _notify();
+  }
+
+  /// "Clear memory" (the settings sheet): forgets every frame and any
+  /// failure state, and closes the card.
+  void clearMemory() {
+    closeMemoryCard();
+    _memory?.clear();
+  }
+
+  /// Closes the result card (a tap on it, or the next press).
+  void closeMemoryCard() {
+    if (!_disposed) _memoryCard.value = null;
+  }
+
+  /// The memory may take a frame now: this screen is open and in the
+  /// foreground, no turn runs (opening the mic, listening, transcribing,
+  /// answering, speaking) and the chat model is not generating (a stopped
+  /// turn still draining included).
+  bool _memoryMayWork() =>
+      !_disposed &&
+      _inForeground &&
+      !_assistant.isBusy &&
+      !_conversation.isGenerating.value;
+
   /// The live statistics (the network camera's rate and size on its chip).
   ValueListenable<LiveStats> get stats => _live.stats;
 
@@ -380,6 +526,7 @@ class LiveCameraViewModel extends ChangeNotifier {
   /// next one.
   Future<void> pressMic() async {
     unfreeze();
+    closeMemoryCard();
     _exchangeState = _reducer.turnStarted(_exchangeState);
     await _assistant.micDown();
   }
@@ -511,15 +658,26 @@ class LiveCameraViewModel extends ChangeNotifier {
   /// Runs [startLive], or joins the start in progress; completes when that
   /// start ended. Every start goes through here, so [_startRun] is the one
   /// that runs and a switch can await it. Out of the foreground nothing
-  /// opens: the start runs when the app comes back.
-  Future<void> _start() {
+  /// opens: the start runs when the app comes back. [resume]: the start
+  /// continues the detection session this screen's own stop interrupted
+  /// (the camera released in the background, a detector switch), so the
+  /// visual memory keeps its frames; every other start (entering, Retry, a
+  /// source change) is a new session.
+  Future<void> _start({bool resume = false}) {
     if (!_inForeground) {
       _restartOnReturn = true;
+      // A deferred new session (a source change or a Retry asked for out of
+      // the foreground) stays one when it runs on return.
+      if (!resume) _restartNewSession = true;
       return Future<void>.value();
     }
-    return _startRun ??= _startLive.execute().whenComplete(
-      () => _startRun = null,
-    );
+    return _startRun ??= _runStart(resume: resume);
+  }
+
+  Future<void> _runStart({required bool resume}) {
+    // Read by [_startLiveAction] before its first await.
+    _resuming = resume;
+    return _startLive.execute().whenComplete(() => _startRun = null);
   }
 
   /// The app's lifecycle changed (Android and iOS only; see [_foreground]).
@@ -537,8 +695,10 @@ class LiveCameraViewModel extends ChangeNotifier {
     if (foreground.value) {
       if (!_restartOnReturn) return;
       _restartOnReturn = false;
+      final resume = !_restartNewSession;
+      _restartNewSession = false;
       debugPrint('[LiveCamera] back in the foreground: starting the camera');
-      unawaited(_start());
+      unawaited(_start(resume: resume));
       return;
     }
     unawaited(_assistant.cancelCapture());
@@ -606,6 +766,14 @@ class LiveCameraViewModel extends ChangeNotifier {
       _diagnostics.recordCameraReset(reset.elapsed, error: reset.error);
       _resetError = reset.error;
     }
+    if (update.memoryCard case final hit?) {
+      _memoryCard.value = MemoryCard(
+        png: hit.entry.png,
+        age: hit.age,
+        cosine: hit.cosine,
+        query: update.state.turnMemory?.query ?? '',
+      );
+    }
     if (update.notify) _notify();
   }
 
@@ -642,6 +810,8 @@ class LiveCameraViewModel extends ChangeNotifier {
   }
 
   Future<Result<FrameSourceInfo>> _startLiveAction() async {
+    final resume = _resuming;
+    _resuming = false;
     if (_disposed) return Result.error(asException(StateError('disposed')));
     final settings = _settings;
     final spec = switch ((settings, _source)) {
@@ -657,7 +827,11 @@ class LiveCameraViewModel extends ChangeNotifier {
     switch (spec) {
       case Ok(:final value):
         _activeSpec = value;
-        final started = await _live.start(value, owner: this);
+        final started = await _live.start(
+          value,
+          owner: this,
+          newSession: !resume,
+        );
         // The app was put away while the source started (a network camera
         // connecting): release it until the app comes back. Merely covered
         // (the camera permission dialog), it keeps the camera.
@@ -690,6 +864,8 @@ class LiveCameraViewModel extends ChangeNotifier {
     _applier.close();
     _models?.removeListener(_onModels);
     _foreground?.removeListener(_onForeground);
+    // Forgets every frame (only if this screen still owns the memory).
+    _memory?.stop(owner: this);
     unawaited(_events.cancel());
     _assistant.phase.removeListener(_onPhase);
     // Silences an answer in flight and closes the mic.
@@ -710,6 +886,7 @@ class LiveCameraViewModel extends ChangeNotifier {
     }
     _frozen.dispose();
     _frozenBoxes.dispose();
+    _memoryCard.dispose();
     super.dispose();
   }
 }

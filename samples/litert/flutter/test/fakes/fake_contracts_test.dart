@@ -100,6 +100,23 @@ void main() {
       },
     );
 
+    test(
+      'a recording the chat was built without answers AssistantFailed',
+      () async {
+        chat.capabilities = const ChatCapabilities(
+          modelName: 'Deaf',
+          images: true,
+          tools: false,
+        );
+        await chat.open(kVoiceChatProfile);
+
+        expect(
+          await firstEvent(chat.ask('', audioWav: Uint8List(48))),
+          failedWith<ConversationAudioUnsupportedException>(),
+        );
+      },
+    );
+
     test('a listener that cancels ends the turn; the next ask runs', () async {
       chat.leaveOpen(kVoiceChatProfile);
       final sub = chat.ask('one').listen((_) {});

@@ -26,9 +26,11 @@ import '../models/assistant_event.dart';
 import '../models/camera_side_event.dart';
 import '../models/route_decision.dart';
 import '../models/scene_snapshot.dart';
+import '../models/visual_memory.dart';
 import '../vision/stt_corrections.dart';
 import 'camera_prompt.dart';
 import 'fast_answer_composer.dart';
+import 'memory_answers.dart';
 import 'question_router.dart';
 import 'turn_responder_factory.dart';
 
@@ -39,6 +41,12 @@ typedef CaptureScene = Future<Result<SceneSnapshot>> Function();
 typedef SnapshotEncoding = Future<Result<EncodedSnapshot>> Function(
   SceneSnapshot snapshot,
 );
+
+/// Searches the visual memory for a phrase; `VisualMemoryRepository.recall`.
+typedef RecallMemory = Future<Result<MemoryRecall>> Function(String phrase);
+
+/// The visual memory's newest frame; `VisualMemoryRepository.latest`.
+typedef RecallLatestMemory = Future<Result<MemoryRecall>> Function();
 
 /// How long a detailed question waits for the previous turn's chat reset
 /// (normally well under 150 ms) before it checks the chat anyway.
@@ -57,6 +65,16 @@ const kCameraResetWait = Duration(seconds: 3);
 ///   reply streams back as text. Each detailed turn is stateless: after
 ///   it, the chat is reset off the critical path, and the next detailed
 ///   question waits for that reset first.
+/// - **memory**: the phrase searches the visual memory ([RecallMemory]);
+///   the release's snapshot is not needed (the past is not in it). A found
+///   frame ([MemoryRecalled] with a [MemoryHit], shown on the result card)
+///   goes to Gemma with the question when the chat model has images, like a
+///   detailed turn (stateless, reset after); with images off a template
+///   says when it was seen and what the detector saw in it. An ambiguous
+///   hit (two places scored alike) is answered from the newest of them, and
+///   the answer first says it may have been in more than one place.
+///   Nothing found, nothing remembered yet, the memory off or switched off:
+///   a template, no LLM.
 ///
 /// Scoping, as in Demo 1's `ChatTurnResponder`: a turn's stop only stops the
 /// chat while that turn's own ask runs, and the reset only applies while the
@@ -68,6 +86,8 @@ final class CameraTurnResponder
     required this._capture,
     required this._conversation,
     required this._encode,
+    this._recall,
+    this._latest,
     this._router = const QuestionRouter(),
     this._composer = const FastAnswerComposer(),
     this._profile = kCameraProfile,
@@ -78,6 +98,13 @@ final class CameraTurnResponder
   final CaptureScene _capture;
   final ConversationRepository _conversation;
   final SnapshotEncoding _encode;
+
+  /// Null: no visual memory in this app (memory questions say so).
+  final RecallMemory? _recall;
+
+  /// The newest frame, for a memory question with nothing to search for
+  /// ([MemoryRoute.latest]); null: no visual memory (said so).
+  final RecallLatestMemory? _latest;
   final QuestionRouter _router;
   final FastAnswerComposer _composer;
   final ConversationProfile _profile;
@@ -105,6 +132,9 @@ final class CameraTurnResponder
   static const imagesOff =
       "I can't look at the picture with this chat model, only list what the "
       'detector sees.';
+
+  /// The visual memory's templates.
+  static const memory = MemoryAnswers();
 
   /// Spoken when a detailed question finds the camera chat not open.
   static const chatNotReady =
@@ -218,8 +248,30 @@ final class _CameraPreparation implements TurnPreparation<CameraSideEvent> {
       );
       onSide(TranscriptCorrected(transcript, corrected.corrections));
     }
-    final route = _owner._router.classify(transcript);
+    var route = _owner._router.classify(transcript);
+    // Nothing to search for ("What did you see?"): the newest stored frame
+    // answers; with none stored, the frame now does (the detailed path).
+    Result<MemoryRecall>? newest;
+    if (route case MemoryRoute(latest: true)) {
+      newest = switch (_owner._latest) {
+        final latest? => await latest(),
+        null => const Result.ok(MemoryOff('this app has no visual memory')),
+      };
+      if (_cancelled) return;
+      if (newest case Ok(value: MemoryEmpty())) {
+        route = const DetailedRoute('memory-empty');
+      }
+    }
     onSide(RouteChosen(route, watch.elapsed));
+    switch (route) {
+      case MemoryRoute():
+        // About the past: the release's snapshot is not needed (it lands in
+        // the live view like any other frame, unobserved).
+        yield* _remember(transcript, route, onSide, found: newest);
+        return;
+      case FastRoute() || DetailedRoute():
+        break;
+    }
     final result = await _snapshot;
     if (_cancelled) return;
     final SceneSnapshot snapshot;
@@ -269,6 +321,79 @@ final class _CameraPreparation implements TurnPreparation<CameraSideEvent> {
           return;
         }
         yield* _detailed(transcript, snapshot, onSide);
+      case MemoryRoute():
+        return; // answered above, without the snapshot
+    }
+  }
+
+  /// The visual memory (the memory path); [found]: the newest frame, looked
+  /// up already for a question with nothing to search for.
+  Stream<String> _remember(
+    String question,
+    MemoryRoute route,
+    void Function(CameraSideEvent event) onSide, {
+    Result<MemoryRecall>? found,
+  }) async* {
+    final recall = _owner._recall;
+    final watch = Stopwatch()..start();
+    final Result<MemoryRecall> result =
+        found ??
+        (recall == null
+            ? const Result.ok(MemoryOff('this app has no visual memory'))
+            : await recall(route.query));
+    if (_cancelled) return;
+    final MemoryRecall recalled;
+    switch (result) {
+      case Ok(:final value):
+        recalled = value;
+      case Error(:final error):
+        // The phrase could not be embedded: a turn error the UI shows, never
+        // an answer that pretends nothing was seen.
+        throw error;
+    }
+    onSide(
+      MemoryRecalled(
+        recall: recalled,
+        query: route.query,
+        elapsed: watch.elapsed,
+      ),
+    );
+    const answers = CameraTurnResponder.memory;
+    switch (recalled) {
+      case MemoryOff(:final reason):
+        yield answers.off(reason);
+      case MemoryDisabled():
+        yield MemoryAnswers.disabled;
+      case MemoryEmpty():
+        yield MemoryAnswers.empty;
+      case MemoryMiss(:final span):
+        yield answers.notSeen(span);
+      case final MemoryHit hit when !_owner._conversation.capabilities.images:
+        yield answers.seen(hit);
+      case MemoryHit(:final entry) && final hit:
+        final ready = await _owner._chatReady();
+        if (_cancelled) return;
+        if (!ready) {
+          onSide(
+            CameraChatUnavailable(
+              'The camera chat is not open (profile: '
+              '${_owner._conversation.profile?.name ?? 'none'})',
+            ),
+          );
+          // The memory found it: say when, without the chat.
+          yield answers.seen(hit);
+          return;
+        }
+        // Said first, so the answer about this frame is not taken as the
+        // only sighting.
+        if (hit.ambiguous) yield '${answers.ambiguousLead(hit)} ';
+        // A new object per turn, like the detailed path's PNG: the
+        // conversation sends it as a new image, never "already in context".
+        yield* _ask(
+          answers.prompt(question, hit),
+          Uint8List.fromList(entry.png),
+          onSide,
+        );
     }
   }
 
@@ -306,6 +431,17 @@ final class _CameraPreparation implements TurnPreparation<CameraSideEvent> {
       snapshot.detections,
       mirrored: snapshot.mirrored,
     );
+    yield* _ask(prompt, image.png, onSide);
+  }
+
+  /// [prompt] with [png] to the camera chat, its text deltas yielded; the
+  /// chat is reset afterwards (stateless turns), also after a stop or a
+  /// failure. The caller checked that the camera chat is open.
+  Stream<String> _ask(
+    String prompt,
+    Uint8List png,
+    void Function(CameraSideEvent event) onSide,
+  ) async* {
     final conversation = _owner._conversation;
     _asking = true;
     var stopResent = false;
@@ -313,7 +449,7 @@ final class _CameraPreparation implements TurnPreparation<CameraSideEvent> {
       // Never break out of this loop: the final AssistantDone carries the
       // stop latency, and cancelling the subscription would skip the chat's
       // end-of-turn bookkeeping.
-      await for (final event in conversation.ask(prompt, image: image.png)) {
+      await for (final event in conversation.ask(prompt, image: png)) {
         switch (event) {
           case AssistantTextDelta(:final text) when !_cancelled:
             yield text;

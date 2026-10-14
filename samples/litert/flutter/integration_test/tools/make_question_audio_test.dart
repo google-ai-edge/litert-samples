@@ -14,10 +14,14 @@
 
 // Speaks the questions the integration tests play into the microphone
 // (test_assets/q_*.wav, test_assets/france_16k.pcm, test_assets/showcase/
-// q_*.wav) with the app's own speech synthesizer, Inflect-nano-v2
-// (Apache-2.0, built into the app), so the clips can ship with the sample.
-// Run it through the wrapper, which copies the files out of the macOS
-// sandbox into test_assets/:
+// q_*.wav) and the self-test's spoken question
+// (assets/selftest/what_time_is_it.wav, an app asset) with the app's own
+// speech synthesizer, Inflect-nano-v2 (Apache-2.0, built into the app), so
+// the clips can ship with the sample. The knowledge base's spoken golden set
+// is not shipped: kb_retrieval_test.dart speaks it into memory at start-up
+// with the same code (support/question_audio.dart). Run it through the wrapper, which
+// copies the files out of the macOS sandbox into test_assets/ (and assets/
+// for the app asset):
 //
 //   tool/make_question_audio.sh
 //
@@ -28,13 +32,16 @@
 // 2. Each question of [kQuestionClips]: synthesized (16-bit PCM, 24 kHz),
 //    resampled to 16 kHz (support/resample.dart: polyphase windowed sinc),
 //    150 ms of silence added before and after, checked against the app's
-//    voice gate and moonshine's 5 s window, and written as 16 kHz mono PCM16:
-//    a WAV (44-byte header) for `.wav`, raw little-endian samples for `.pcm`.
-//    Inflect seeds its noise with a constant, so a text comes out the same on
-//    a given machine.
+//    voice gate and the window of the recognizer that hears it (moonshine's
+//    5 s; Whisper's 30 s for the self-test clip, which is also
+//    EmbeddingGemma 2's audio cap), and written as 16 kHz mono PCM16:
+//    a WAV (44-byte header) for `.wav`, raw little-endian samples for `.pcm`
+//    (support/question_audio.dart). Inflect seeds its noise with a constant,
+//    so a text comes out the same on a given machine.
 // 3. Output: `<app documents>/question_audio/` (macOS:
 //    ~/Library/Containers/com.google.ai.edge.examples.litertEdgeDemos/Data/
-//    Documents/question_audio/), the showcase clips in `showcase/`.
+//    Documents/question_audio/), the showcase clips in `showcase/`, the
+//    self-test clip in `assets/selftest/`.
 //
 // Prints `QUESTION_AUDIO <file> bytes=… duration=… voiced=… tts=… text="…"`
 // per clip and `QUESTION_AUDIO_OUT=<dir>` at the end.
@@ -45,15 +52,10 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:litert_edge_demos/config/bootstrap.dart';
 import 'package:litert_edge_demos/config/model_catalog.dart';
-import 'package:litert_edge_demos/config/voice_config.dart';
-import 'package:litert_edge_demos/data/services/model_store/bundled_model_files.dart';
-import 'package:litert_edge_demos/data/services/speech/tts_service.dart';
-import 'package:litert_edge_demos/utils/pcm.dart';
-import 'package:litert_edge_demos/utils/result.dart';
 import 'package:path_provider/path_provider.dart';
 
 import '../support/app_window.dart';
-import '../support/resample.dart';
+import '../support/question_audio.dart';
 import '../support/wav.dart';
 import '../support/wav_writer.dart';
 
@@ -74,6 +76,9 @@ import '../support/wav_writer.dart';
 /// - q_describe_detail.wav: camera_assistant_test, the long detailed
 ///   question interrupted by the barge-in.
 /// - showcase/: showcase_test (the wording as its earlier runs logged it).
+/// - assets/selftest/what_time_is_it.wav: the self-test's step 7b and the
+///   embedder's audio warm-up (an app asset, so the path starts at the
+///   repository root).
 const kQuestionClips = <({String file, String text})>[
   (file: 'france_16k.pcm', text: 'What is the capital of France?'),
   (file: 'q_cats.wav', text: 'How many cats do you see?'),
@@ -87,22 +92,15 @@ const kQuestionClips = <({String file, String text})>[
   (file: 'showcase/q_see.wav', text: 'What do you see?'),
   (file: 'showcase/q_describe.wav', text: 'Describe the scene.'),
   (file: 'showcase/q_sign.wav', text: 'What does the sign say?'),
+  // The self-test's spoken question (step 7b), an app asset:
+  // kSelfTestAudioQuestionAsset, its words kSelfTestAudioQuestionText.
+  (file: 'assets/selftest/what_time_is_it.wav', text: 'What time is it?'),
 ];
 
-/// The clips' rate: what the app records and the recognizers hear.
-const kClipSampleRate = 16000;
-
-/// Silence before and after the speech: a person pressing the mic does not
-/// start talking on the same millisecond, nor release on the last one.
-const kClipSilence = Duration(milliseconds: 150);
-
-/// [speech] (16-bit PCM at [kClipSampleRate]) with [kClipSilence] of digital
-/// silence on each side.
-Uint8List _withSilence(Uint8List speech) {
-  final pad = kClipSilence.inMicroseconds * kClipSampleRate ~/ 1000000 * 2;
-  return Uint8List(pad + speech.length + pad)
-    ..setRange(pad, pad + speech.length, speech);
-}
+/// The longest a clip may be: the window of the recognizer that hears it.
+Duration _windowOf(String file) => file.startsWith('assets/')
+    ? kWhisperSttConfig.window
+    : kMoonshineSttConfig.window;
 
 void main() {
   initIntegrationTest();
@@ -112,28 +110,11 @@ void main() {
   ) async {
     // 1. The app's TTS, loaded as setup loads it.
     await initEdgeAi();
-    final directory = switch (await BundledModelFiles().directoryOf(
-      kBundledInflectFiles,
-    )) {
-      Ok(:final value) => value,
-      Error(:final error) => fail('The built-in Inflect bundle: $error'),
-    };
-    final tts = TtsService();
+    final tts = await loadAppTts();
     addTearDown(tts.close);
-    final installed = await tts.install(
-      directory: directory,
-      onProgress: (_) {},
-    );
-    expect(installed, isA<Ok<String>>(), reason: '$installed');
-    final loaded = await tts.load();
-    expect(loaded, isA<Ok<Duration>>(), reason: '$loaded');
-    final warm = await tts.warmUp();
-    expect(warm, isA<Ok<Duration>>(), reason: '$warm');
-    final rate = tts.sampleRate;
-    expect(rate, kTtsConfig.sampleRate);
     debugPrint(
-      'QUESTION_AUDIO tts=${tts.modelId} rate=${rate}Hz '
-      'backend=${kTtsConfig.backend.name} bundle=$directory',
+      'QUESTION_AUDIO tts=${tts.modelId} rate=${tts.sampleRate}Hz '
+      'backend=${kTtsConfig.backend.name}',
     );
 
     // 2. A fresh output folder: nothing of an earlier run is left to copy.
@@ -149,54 +130,26 @@ void main() {
       reason: 'one entry per file',
     );
     for (final (:file, :text) in kQuestionClips) {
-      final watch = Stopwatch()..start();
-      final spoken = await tts.synthesizer.synthesize(text);
-      final ttsTime = watch.elapsed;
-      expect(spoken, isNotEmpty, reason: 'no audio for "$text"');
-      final speech = resamplePcm16(
-        spoken,
-        fromRate: rate,
-        toRate: kClipSampleRate,
-      );
-      final pcm = _withSilence(speech);
-      final duration = pcm16Duration(pcm.length, kClipSampleRate);
-      // The app's own silence gate (VoiceAssistant drops a quieter capture).
-      final voice = measureVoice(
-        pcm,
-        gateDbfs: kVoiceConfig.silenceGateDbfs,
-        aboveFloorDb: kVoiceConfig.aboveFloorDb,
-        floorCapDbfs: kVoiceConfig.floorCapDbfs,
-        sampleRate: kClipSampleRate,
-      );
-      expect(
-        voice.voiced,
-        greaterThanOrEqualTo(kVoiceConfig.minVoiced),
-        reason: '$file would be dropped as silence',
-      );
-      expect(
-        duration,
-        lessThanOrEqualTo(kMoonshineSttConfig.window),
-        reason: '$file is longer than moonshine hears',
-      );
+      final clip = await speakQuestion(tts, text, window: _windowOf(file));
       final Uint8List bytes;
       if (file.endsWith('.wav')) {
-        bytes = wavFromPcm16(pcm, sampleRate: kClipSampleRate);
+        bytes = wavFromPcm16(clip.pcm, sampleRate: kClipSampleRate);
         // The tests' own reader gets the samples back.
-        expect(pcm16FromWav(bytes), pcm);
+        expect(pcm16FromWav(bytes), clip.pcm);
       } else {
         expect(file, endsWith('.pcm'));
-        bytes = pcm;
+        bytes = clip.pcm;
       }
       final target = File('${out.path}/$file');
       target.parent.createSync(recursive: true);
       target.writeAsBytesSync(bytes, flush: true);
       debugPrint(
         'QUESTION_AUDIO $file bytes=${bytes.length} '
-        'duration=${duration.inMilliseconds}ms '
-        'speech=${pcm16Duration(speech.length, kClipSampleRate).inMilliseconds}ms '
-        'voiced=${voice.voiced.inMilliseconds}ms '
-        'peak=${voice.peakFrameDbfs.toStringAsFixed(1)}dBFS '
-        'tts=${ttsTime.inMilliseconds}ms text="$text"',
+        'duration=${clip.duration.inMilliseconds}ms '
+        'speech=${clip.speech.inMilliseconds}ms '
+        'voiced=${clip.voiced.inMilliseconds}ms '
+        'peak=${clip.peakDbfs.toStringAsFixed(1)}dBFS '
+        'tts=${clip.ttsTime.inMilliseconds}ms text="$text"',
       );
     }
     debugPrint('QUESTION_AUDIO_OUT=${out.path}');

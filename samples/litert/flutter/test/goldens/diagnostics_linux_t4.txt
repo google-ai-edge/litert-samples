@@ -23,12 +23,12 @@ Chat model
   backend  gpu → gpu (confirmed: API)
   api      WebGPU/Vulkan (confirmed: native log)
   adapter  Tesla T4 (Discrete GPU) (confirmed: native log)
-  detail   vision encoder on the CPU (flutter_edge_ai default, requested)
+  detail   vision encoder on the CPU (requested)
   model    Gemma 4 E2B (GEMMA_MODEL_PATH, type gemma4)
   source   GEMMA_MODEL_PATH=/models/gemma-4-E2B-it.litertlm
   sha256   unknown (GEMMA_MODEL_PATH)
   context  8192 tokens
-  images   on
+  vision   cpu
   tools    on
   log      I0000 00:00:1759700000.000000 12345 environment.cc:526] Selected adapter: Tesla T4, arch=turing, vendor=nvidia, backend=Vulkan, adapterType=Discrete GPU
 Whisper base (STT)
@@ -46,7 +46,7 @@ YOLO26n detector
   detail   GPU fp32 full
 moonshine-tiny (STT, Live camera)
   state    loading
-EmbeddingGemma 300M (knowledge base)
+EmbeddingGemma 2 740m (knowledge base)
   state    unavailable: EmbeddingGemma is not in the model store yet
 
 MEMORY

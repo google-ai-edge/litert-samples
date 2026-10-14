@@ -20,6 +20,7 @@ import 'package:flutter_edge_ai_agent/flutter_edge_ai_agent.dart'
 import '../../config/model_catalog.dart';
 import '../../domain/models/assistant_event.dart';
 import '../../domain/models/chat_capabilities.dart';
+import '../../domain/models/conversation_history.dart';
 import '../../domain/models/skill_step.dart';
 import '../../utils/result.dart';
 import '../services/llm/llm_service.dart';
@@ -109,8 +110,32 @@ final class EdgeAiConversationRepository implements ConversationRepository {
   Stream<AssistantEvent> ask(
     String prompt, {
     Uint8List? image,
+    Uint8List? audioWav,
     void Function(SkillStep step)? onStep,
-  }) => askTurn(_live, prompt, image: image, onStep: onStep);
+    String? historyText,
+    int? turn,
+  }) => askTurn(
+    _live,
+    prompt,
+    image: image,
+    audioWav: audioWav,
+    onStep: onStep,
+    historyText: historyText,
+    turn: turn,
+  );
+
+  @override
+  bool setHistoryText(int turn, String text) {
+    final found = _live.mirror.setUser(turn, text);
+    debugPrint(
+      '[Conversation] history: turn $turn '
+      '${found ? 'now reads "$text"' : 'not in the history (reset since?)'}',
+    );
+    return found;
+  }
+
+  @override
+  List<HistoryTurn> get history => _live.mirror.turns;
 
   @override
   Future<void> stop() => _live.stop();

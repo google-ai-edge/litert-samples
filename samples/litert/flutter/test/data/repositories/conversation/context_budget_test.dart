@@ -31,6 +31,8 @@ ContextBudget _budget({
   int chat = 0,
   int prompt = _prompt,
   AgentReserve? agent,
+  int audio = 0,
+  bool rebuilding = false,
 }) => ContextBudget(
   nativeTokens: native,
   chatTokens: chat,
@@ -38,6 +40,8 @@ ContextBudget _budget({
   replyTokens: _reply,
   maxTokens: _window,
   agentReserve: agent,
+  audioTokens: audio,
+  rebuilding: rebuilding,
 );
 
 void main() {
@@ -184,6 +188,152 @@ void main() {
         started.summary(1050),
         'agent budget used=300 need=1050 (rounds 600, system 0) '
         'limit=$_limit',
+      );
+    });
+  });
+
+  group('a recording (an audio turn)', () {
+    test('the budget\'s arithmetic: audioTokensFor is kAudioTokensPerSecond '
+        '(25, the spec\'s estimate, not measured here) per second, rounded '
+        'up', () {
+      expect(kAudioTokensPerSecond, 25);
+      expect(audioTokensFor(Duration.zero), 0);
+      expect(audioTokensFor(const Duration(seconds: 2)), 50);
+      expect(audioTokensFor(const Duration(milliseconds: 3200)), 80);
+      expect(audioTokensFor(const Duration(milliseconds: 1001)), 26);
+      expect(audioTokensFor(const Duration(seconds: 30)), 750);
+    });
+
+    test('counts now and in a fresh chat alike (it is sent with its turn '
+        'only), on top of an image', () {
+      final budget = _budget(native: 1000, audio: 80);
+
+      expect(budget.needNow(sendsImage: false), _turn + 80);
+      expect(budget.needFresh(image: false), _turn + 80);
+      expect(
+        budget.needNow(sendsImage: true),
+        _turn + 80 + kImageTokenAllowance,
+      );
+    });
+
+    test('a chat that fits the text turn is reset for its recording; too '
+        'long when even a fresh chat cannot hold it', () {
+      expect(
+        _budget(native: _limit - _turn).check(image: false, sendsImage: false),
+        isA<BudgetFits>(),
+      );
+      expect(
+        _budget(
+          native: _limit - _turn,
+          audio: 50,
+        ).check(image: false, sendsImage: false),
+        isA<BudgetReset>().having((c) => c.needNow, 'needNow', _turn + 50),
+      );
+      expect(
+        _budget(
+          prompt: _limit - _reply - kTurnOverheadTokens,
+          audio: 1,
+        ).check(image: false, sendsImage: false),
+        isA<BudgetTooLong>(),
+      );
+    });
+
+    test('says so in the failure and the log line', () {
+      final plain = _budget(native: 300, audio: 75);
+      final agent = _budget(native: 300, agent: _reserve, audio: 75);
+
+      expect(
+        '${plain.tooLong(5000)}',
+        'The question needs about 5000 tokens with its recording and reply, '
+            'more than the $_limit the model can hold',
+      );
+      expect(
+        '${agent.tooLong(5000)}',
+        contains('with its recording, skills and reply'),
+      );
+      expect(
+        plain.summary(500),
+        'budget used=300 need=500 audio=75 limit=$_limit',
+      );
+      expect(
+        agent.summary(1100),
+        'agent budget used=300 need=1100 (rounds 600, system 0 audio=75) '
+        'limit=$_limit',
+      );
+    });
+  });
+
+  group('a rebuild from the text history (a stop left an audio turn in the '
+      'live chat)', () {
+    test('what the live chat holds does not count: never a reset, and an '
+        'agent chat\'s system prompt is prefilled again', () {
+      final full = _budget(native: _limit, rebuilding: true);
+      expect(full.used, 0);
+      expect(full.check(image: false, sendsImage: false), isA<BudgetFits>());
+      final agent = _budget(native: 2000, agent: _reserve, rebuilding: true);
+      expect(agent.systemNow, _reserve.system);
+      expect(
+        _budget(native: 2000, agent: _reserve).systemNow,
+        0,
+        reason: 'a live agent chat has its system prompt already',
+      );
+    });
+
+    test('a turn too long even for a fresh chat still fails', () {
+      expect(
+        _budget(
+          prompt: _limit,
+          rebuilding: true,
+        ).check(image: false, sendsImage: false),
+        isA<BudgetTooLong>(),
+      );
+    });
+  });
+
+  group('the replay room: what a fresh chat has left for the text history '
+      'once it holds the turn, never negative', () {
+    test('after a budget reset at most kHistoryReplayMaxFraction of the '
+        'limit', () {
+      final cap = (_limit * kHistoryReplayMaxFraction).floor();
+      expect(_budget().replayRoom(image: false, afterReset: true), cap);
+      expect(
+        _budget(prompt: _limit - _reply - kTurnOverheadTokens - 100)
+            .replayRoom(image: false, afterReset: true),
+        100,
+      );
+      expect(
+        _budget(prompt: _limit - _reply - kTurnOverheadTokens - 100)
+            .replayRoom(image: true, afterReset: true),
+        0,
+        reason: 'the image leaves no room',
+      );
+      expect(kHistoryReplayMaxFraction, greaterThan(0));
+      expect(kHistoryReplayMaxFraction, lessThan(0.5));
+    });
+
+    test('for any other rebuild (a stop with an audio turn in the chat, an '
+        'interrupted skill call) all of it: the limit less the turn', () {
+      final budget = _budget(native: 3000, rebuilding: true);
+      final full = budget.replayRoom(image: false, afterReset: false);
+      expect(full, budget.limit - budget.needFresh(image: false));
+      expect(
+        full,
+        greaterThan(budget.replayRoom(image: false, afterReset: true)),
+        reason: 'more than the reset\'s share',
+      );
+      expect(
+        budget.replayRoom(image: true, afterReset: false),
+        full - kImageTokenAllowance,
+      );
+      final agent = _budget(agent: _reserve, rebuilding: true);
+      expect(
+        agent.replayRoom(image: false, afterReset: false),
+        agent.limit - agent.needFresh(image: false),
+        reason: 'an agent chat\'s system prompt and tool rounds come first',
+      );
+      expect(
+        _budget(prompt: _limit).replayRoom(image: false, afterReset: false),
+        0,
       );
     });
   });

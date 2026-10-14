@@ -26,6 +26,7 @@ import '../models/model_id.dart';
 import '../models/voice.dart';
 import '../ports/voice_diagnostics_sink.dart';
 import 'push_to_talk_capture.dart';
+import 'transcript_job.dart';
 import 'turn_responder_factory.dart';
 import 'voice_turn_metrics.dart';
 
@@ -42,6 +43,34 @@ final class const UserSaid<S>(
   required final bool typed,
   final Uint8List? image,
 }) extends VoiceAssistantEvent<S>;
+
+/// A spoken question sent to the chat model as audio (audio mode), at the
+/// start of its turn: no transcript yet. [turn] is the number its transcript
+/// arrives with ([TranscriptArrived], [TranscriptFailed]); [duration] the
+/// recording's length; [image] as in [UserSaid].
+final class const UserSpoke<S>(
+  final int turn,
+  final Duration duration, {
+  final Uint8List? image,
+}) extends VoiceAssistantEvent<S>;
+
+/// The words of audio turn [turn], transcribed after its reply played.
+final class const TranscriptArrived<S>(final int turn, final String text)
+    extends VoiceAssistantEvent<S>;
+
+/// Audio turn [turn] got no transcript: [reason] (the recognizer failed or
+/// heard no words), or [interrupted]: a barge-in replaced the turn and its
+/// recording went with it ([kInterruptedTranscriptReason]). A dropped
+/// transcript (the demo was left, or the speech recognizer switched to
+/// another model) reports nothing.
+final class const TranscriptFailed<S>(
+  final int turn,
+  final String reason, {
+  final bool interrupted = false,
+}) extends VoiceAssistantEvent<S>;
+
+/// [TranscriptFailed.reason] of a barged-in audio question.
+const kInterruptedTranscriptReason = 'interrupted';
 
 /// The assistant's reply, committed. [interrupted]: cut short by Stop or a
 /// barge-in (the text is what was shown until then; may be empty).
@@ -73,12 +102,25 @@ final class const SideEvent<S>(final S event, {required final bool detached})
 /// barge-in and Stop. Generic over the demo's
 /// side events [S]; the demo plugs in its [TurnResponderFactory].
 ///
+/// Two kinds of spoken turn, chosen per turn by the responder: a transcript
+/// turn (STT, then the reply to the words: [UserSaid]) and, when the
+/// responder takes the recording itself (`respondToAudio`: a chat model
+/// that hears audio), an audio turn (`VoiceSession.runAudioTurn`, no STT:
+/// [UserSpoke] at once, the reply, then — once its audio has drained and the
+/// turn is idle — the transcript job, whose words arrive as
+/// [TranscriptArrived] with the turn's number, also after newer turns began:
+/// they never drop it). Typed turns are never audio turns.
+///
 /// One action at a time wins: every user action (mic down, a typed send,
 /// Stop, dispose) supersedes whatever an earlier one still awaits, and a
 /// barge-in detaches the running turn at once — its audio stops, its partial
 /// reply is committed as interrupted — while the session drains it in the
 /// background. The next turn starts only after that drain.
 class VoiceAssistant<S> {
+  /// [correctTranscript]: applied to every transcript (Demo 1's Whisper
+  /// corrections, `correctVoiceTranscript`), the transcript job's included.
+  /// [onTranscript]: an audio turn's words, before [TranscriptArrived] (Demo
+  /// 1 puts them into the conversation's text history).
   VoiceAssistant({
     required this._speech,
     required this._audio,
@@ -86,7 +128,11 @@ class VoiceAssistant<S> {
     required this._diagnostics,
     VoiceConfig? config,
     this._recognizer,
-  }) : _config = config ?? kVoiceConfig;
+    String Function(String transcript)? correctTranscript,
+    void Function(int turn, String text)? onTranscript,
+  }) : _config = config ?? kVoiceConfig,
+       _correct = correctTranscript,
+       _onTranscriptText = onTranscript;
 
   final SpeechRepository _speech;
   final AudioRepository _audio;
@@ -105,6 +151,18 @@ class VoiceAssistant<S> {
   /// is loaded (a failed switch) instead of being transcribed by it. Null
   /// accepts whichever is active (tests of the turn machine).
   final ModelId? _recognizer;
+  final String Function(String transcript)? _correct;
+  final void Function(int turn, String text)? _onTranscriptText;
+
+  /// Audio turns' transcripts, after their replies.
+  late final TranscriptJob _transcripts = TranscriptJob(
+    speech: _speech,
+    recognizer: _recognizer,
+    correct: _correct,
+  );
+
+  /// Numbers every turn at release ([TurnRequest.turn]).
+  int _turnNumbers = 0;
 
   final ValueNotifier<TurnPhase> _phase = ValueNotifier(TurnPhase.idle);
   final ValueNotifier<String> _partial = ValueNotifier('');
@@ -229,7 +287,7 @@ class VoiceAssistant<S> {
         // At the moment of release, in parallel with closing the capture,
         // the gate and STT (Demo 3 snapshots the frame the user was looking
         // at).
-        final prep = _prepare(TurnRequest(typed: false, image: image));
+        final prep = _prepare(_request(typed: false, image: image));
         final handle = await handOver;
         if (_disposed || handle == null) {
           prep.discard();
@@ -294,7 +352,7 @@ class VoiceAssistant<S> {
     if (active != null) _detach(active, since: clock);
     return _submit(
       utterance,
-      prep: _prepare(TurnRequest(typed: false, image: image)),
+      prep: _prepare(_request(typed: false, image: image)),
       clock: clock,
       epoch: epoch,
     );
@@ -313,7 +371,7 @@ class VoiceAssistant<S> {
     final active = _turn;
     if (active != null) _detach(active, since: clock);
     return _startTurn(
-      prep: _prepare(TurnRequest(typed: true, image: image)),
+      prep: _prepare(_request(typed: true, image: image)),
       epoch: epoch,
       clock: clock,
       metrics: TurnMetricsBuilder(typed: true),
@@ -368,6 +426,9 @@ class VoiceAssistant<S> {
   Future<void> dispose() async {
     if (_disposed) return;
     ++_epoch;
+    // First: a turn detached now (its reply's playback tail cut) must not
+    // hand its recording to a recognizer nobody listens to any more.
+    _transcripts.dispose();
     final turn = _turn;
     if (turn != null) _detach(turn);
     // Recorded before _disposed blocks phase updates: the overlay must not
@@ -508,6 +569,7 @@ class VoiceAssistant<S> {
     }
     final turn = _Turn(
       seq: _metrics.nextSeq(),
+      number: prep.turn,
       clock: clock,
       typed: typed != null,
       metrics: metrics,
@@ -520,13 +582,19 @@ class VoiceAssistant<S> {
       case Error(:final error):
         return _failBeforeTurn(error, metrics);
     }
+    // The responder decides: one that takes the recording makes this an
+    // audio turn (the chat model hears it; no STT before the reply).
+    final audio = pcm != null && responder.respondToAudio != null;
+    metrics.audio = audio;
     final started = _speech.startTurn(
       pcm: pcm,
       typedText: typed,
+      audio: audio,
       expectedStt: _recognizer,
       responder: responder,
       speak: speak,
       onTiming: (timing) => _onTiming(turn, timing),
+      correct: _correct,
     );
     switch (started) {
       case Error(:final error):
@@ -537,6 +605,21 @@ class VoiceAssistant<S> {
     _turn = turn;
     // _drive listens before its first await, in this synchronous block.
     unawaited(_drive(turn));
+    if (audio) {
+      // No transcript before the reply: the question is the recording. Its
+      // entry now, its words after the reply (the transcript job).
+      turn
+        ..audio = true
+        ..pcm = pcm
+        ..userCommitted = true;
+      final duration = pcm16Duration(pcm.length, _config.captureSampleRate);
+      debugPrint(
+        '[Voice] audio turn ${turn.number}: ${duration.inMilliseconds}ms '
+        'of audio to the chat model (no STT)',
+      );
+      _emit(UserSpoke(turn.number, duration, image: turn.image));
+      _setPhase(TurnPhase.thinking);
+    }
     return turn.result.future;
   }
 
@@ -599,12 +682,17 @@ class VoiceAssistant<S> {
         if (isFinal) turn.playback?.end();
       case VoiceTurnCompleteEvent(:final transcript, :final replyText):
         if (turn.detached) return;
-        if (transcript.trim().isEmpty) {
+        // An audio turn's transcript is always empty (no STT ran): only a
+        // transcript turn ends here when nothing was heard.
+        if (!turn.audio && transcript.trim().isEmpty) {
           _emit(const NotHeard(NotHeardReason.emptyTranscript));
           _finish(turn, TurnOutcome.notHeard, TurnPhase.idle);
           return;
         }
         if (replyText.trim().isEmpty) throw const EmptyReplyException();
+        // Generated in full: a press from here on cuts only the playback,
+        // and the question still gets its words ([_detach]).
+        turn.replyDone = true;
         final playback = turn.playback;
         if (playback != null) {
           playback.end();
@@ -614,6 +702,7 @@ class VoiceAssistant<S> {
         _setPartial('');
         _emit(AssistantSaid(replyText.trim(), interrupted: false));
         _finish(turn, TurnOutcome.completed, TurnPhase.idle);
+        _transcribeLater(turn);
       case VoiceTurnInterruptedEvent(:final partialReplyText):
         // A barged-in turn was committed when it was detached.
         if (turn.detached) return;
@@ -622,6 +711,8 @@ class VoiceAssistant<S> {
           _emit(AssistantSaid(partialReplyText.trim(), interrupted: true));
         }
         _finish(turn, TurnOutcome.interrupted, TurnPhase.idle);
+        // Stop, not a new press: the question still gets its words.
+        _transcribeLater(turn);
       case VoiceErrorEvent(:final error):
         // Reserved in flutter_edge_ai_speech 0.5.4: never emitted.
         throw asException(error);
@@ -644,6 +735,8 @@ class VoiceAssistant<S> {
     if (partial.isNotEmpty) _emit(AssistantSaid(partial, interrupted: false));
     _emit(TurnFailed(error));
     _finish(turn, TurnOutcome.failed, TurnPhase.error, error: error);
+    // The question was asked all the same: its entry still gets its words.
+    _transcribeLater(turn);
   }
 
   /// Barge-in (or a typed send / dispose during a turn): silence first, then
@@ -652,6 +745,27 @@ class VoiceAssistant<S> {
   void _detach(_Turn turn, {Stopwatch? since}) {
     if (turn.detached) return;
     turn.detached = true;
+    // A recording the transcript job holds already is not this one: pcm is
+    // null then.
+    if (turn.pcm case final pcm? when turn.audio) {
+      if (turn.replyDone) {
+        // Only the playback's tail is cut: the question was answered in
+        // full, and gets its words as at a normal end.
+        _startTranscript(turn, pcm);
+      } else {
+        // A question barged in on during its reply gets no transcript: its
+        // recording goes now, and its entry says so instead of looking
+        // pending forever.
+        _emit(
+          TranscriptFailed(
+            turn.number,
+            kInterruptedTranscriptReason,
+            interrupted: true,
+          ),
+        );
+      }
+    }
+    turn.pcm = null;
     if (identical(_turn, turn)) _turn = null;
     final playback = turn.playback;
     final wasPlaying = playback != null && !turn.muted;
@@ -777,12 +891,65 @@ class VoiceAssistant<S> {
     if (!turn.detached) _publish(turn);
   }
 
+  TurnRequest _request({required bool typed, Uint8List? image}) =>
+      TurnRequest(typed: typed, image: image, turn: ++_turnNumbers);
+
   _Prepared<S> _prepare(TurnRequest request) {
     try {
-      return _Prepared(_responders.prepare(request), image: request.image);
+      return _Prepared(
+        _responders.prepare(request),
+        image: request.image,
+        turn: request.turn,
+      );
     } catch (e, st) {
       debugPrint('[Voice] preparing the turn failed: $e\n$st');
-      return _Prepared.failed(e, image: request.image);
+      return _Prepared.failed(e, image: request.image, turn: request.turn);
+    }
+  }
+
+  // ---- Audio turns' transcripts ----
+
+  /// An audio turn that ended while it was still this assistant's (its reply
+  /// played to the end, Stop, or a failure; never a barge-in): its recording
+  /// goes to the transcript job, now that nothing plays and the turn is idle.
+  /// Later presses and turns do not drop it: its words reach its own entry.
+  void _transcribeLater(_Turn turn) {
+    final pcm = turn.pcm;
+    if (!turn.audio || pcm == null || turn.detached) return;
+    _startTranscript(turn, pcm);
+  }
+
+  /// Hands [turn]'s recording [pcm] to the transcript job, which holds it
+  /// from here until its result.
+  void _startTranscript(_Turn turn, Uint8List pcm) {
+    turn.pcm = null;
+    if (_disposed) return;
+    _transcripts.start(
+      turn: turn.number,
+      pcm: pcm,
+      onDone: (outcome) => _onTranscript(turn, outcome),
+    );
+  }
+
+  /// [asked]'s transcript arrived: its figures get the time (shown unless a
+  /// newer turn's are), its entry and the text history the words.
+  void _onTranscript(_Turn asked, TranscriptOutcome outcome) {
+    if (_disposed) return;
+    asked.metrics.transcript = outcome.elapsed;
+    if (outcome case TranscriptUnavailable(:final reason)) {
+      asked.metrics.transcriptError = reason;
+    }
+    _publish(asked);
+    switch (outcome) {
+      case TranscriptReady(:final turn, :final text):
+        try {
+          _onTranscriptText?.call(turn, text);
+        } catch (e, st) {
+          debugPrint('[Voice] the transcript hook failed: $e\n$st');
+        }
+        _emit(TranscriptArrived(turn, text));
+      case TranscriptUnavailable(:final turn, :final reason):
+        _emit(TranscriptFailed(turn, reason));
     }
   }
 
@@ -815,10 +982,13 @@ class VoiceAssistant<S> {
 /// A [TurnPreparation] used exactly once: [responder] when the turn runs,
 /// [discard] otherwise (later calls are no-ops).
 final class _Prepared<S> {
-  _Prepared(TurnPreparation<S> preparation, {required this.image})
-    : _preparation = preparation;
+  _Prepared(
+    TurnPreparation<S> preparation, {
+    required this.image,
+    required this.turn,
+  }) : _preparation = preparation;
 
-  _Prepared.failed(Object error, {required this.image})
+  _Prepared.failed(Object error, {required this.image, required this.turn})
     : _preparation = null,
       _error = error;
 
@@ -826,6 +996,9 @@ final class _Prepared<S> {
 
   /// The turn's attached image ([TurnRequest.image]).
   final Uint8List? image;
+
+  /// The turn's number ([TurnRequest.turn]).
+  final int turn;
   Object? _error;
   bool _used = false;
 
@@ -860,6 +1033,7 @@ final class _Prepared<S> {
 final class _Turn {
   _Turn({
     required this.seq,
+    required this.number,
     required this.clock,
     required this.typed,
     required this.metrics,
@@ -867,6 +1041,16 @@ final class _Turn {
   });
 
   final int seq;
+
+  /// [TurnRequest.turn]: what its entry and its transcript share.
+  final int number;
+
+  /// The chat model hears the recording (no STT before the reply).
+  bool audio = false;
+
+  /// An audio turn's recording, kept for the transcript job until the turn
+  /// ends; dropped by a barge-in.
+  Uint8List? pcm;
 
   /// The image attached to this turn, shown with the user's entry.
   final Uint8List? image;
@@ -883,6 +1067,10 @@ final class _Turn {
 
   /// A barge-in replaced it: its events no longer reach the UI.
   bool detached = false;
+
+  /// The reply was generated in full (only its playback may still run): a
+  /// press now does not cost the question its transcript.
+  bool replyDone = false;
 
   /// Stop was pressed: wait for its terminal, ignore further output.
   bool stopRequested = false;

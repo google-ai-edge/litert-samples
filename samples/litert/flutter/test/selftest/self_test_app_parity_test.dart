@@ -49,6 +49,7 @@ void main() {
 
   CustomChatPlan custom({bool inPlace = false}) => CustomChatPlan(
     path: customFile,
+    header: const [],
     model: CustomChatModel(
       displayName: 'My Gemma 3',
       source: inPlace

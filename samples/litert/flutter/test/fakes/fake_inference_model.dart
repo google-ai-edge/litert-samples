@@ -102,8 +102,15 @@ class FakeInferenceSession implements InferenceModelSession {
   @override
   Future<String> getResponse() => throw UnimplementedError();
 
+  /// When set, [sizeInTokens] waits for it: a test lands a stop while the
+  /// budget guard counts, before anything is sent.
+  Completer<void>? sizeGate;
+
   @override
-  Future<int> sizeInTokens(String text) async => (text.length / 4).ceil();
+  Future<int> sizeInTokens(String text) async {
+    await sizeGate?.future;
+    return (text.length / 4).ceil();
+  }
 
   @override
   SessionMetrics getSessionMetrics() => SessionMetrics(
@@ -131,7 +138,7 @@ class FakeInferenceModel extends InferenceModel {
   final PreferredBackend? activeBackend;
 
   final List<FakeInferenceSession> created = [];
-  final List<({double temperature, int topK, int? maxOutputTokens})>
+  final List<({double? temperature, int? topK, int? maxOutputTokens})>
   sessionSettings = [];
   int chatsCreated = 0;
   int closeCalls = 0;
@@ -159,9 +166,9 @@ class FakeInferenceModel extends InferenceModel {
 
   @override
   Future<InferenceModelSession> createSession({
-    double temperature = .8,
-    int randomSeed = 1,
-    int topK = 1,
+    double? temperature,
+    int? randomSeed,
+    int? topK,
     double? topP,
     String? loraPath,
     bool? enableVisionModality,
@@ -192,9 +199,9 @@ class FakeInferenceModel extends InferenceModel {
 
   @override
   Future<InferenceChat> createChat({
-    double temperature = .8,
-    int randomSeed = 1,
-    int topK = 1,
+    double? temperature,
+    int? randomSeed,
+    int? topK,
     double? topP,
     int tokenBuffer = 256,
     String? loraPath,

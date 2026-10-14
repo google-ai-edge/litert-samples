@@ -24,8 +24,10 @@ enum FastIntent {
   count,
 }
 
-/// Where a camera question goes. [rule] names the rule
-/// that decided, for the chip and the overlay.
+/// Where a camera question goes: the detections ([FastRoute]), the frame
+/// and the chat model ([DetailedRoute]), or the visual memory
+/// ([MemoryRoute]). [rule] names the rule that decided, for the chip and the
+/// overlay.
 sealed class RouteDecision {
   const RouteDecision(this.rule);
 
@@ -51,4 +53,22 @@ final class DetailedRoute extends RouteDecision {
 
   @override
   String toString() => 'DetailedRoute(rule=$rule)';
+}
+
+/// About the past: answered from the visual memory (frames EmbeddingGemma 2
+/// embedded while the demo was idle). [query] is what the frames are
+/// searched with: the noun phrase after the cue ("the sign about the wifi
+/// password"). [latest]: the cue had nothing to search for after it ("What
+/// did you see?", "… what I just put down?"): the newest stored frame
+/// answers (the frame now when nothing is stored), and [query] is the whole
+/// question, for the log.
+final class MemoryRoute extends RouteDecision {
+  const MemoryRoute(this.query, super.rule, {this.latest = false});
+
+  final String query;
+  final bool latest;
+
+  @override
+  String toString() =>
+      'MemoryRoute(${latest ? 'latest, ' : ''}query="$query", rule=$rule)';
 }

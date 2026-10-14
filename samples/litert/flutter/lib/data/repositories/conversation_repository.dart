@@ -18,6 +18,7 @@ import 'package:flutter_edge_ai_agent/flutter_edge_ai_agent.dart' show Skill;
 import '../../config/model_catalog.dart';
 import '../../domain/models/assistant_event.dart';
 import '../../domain/models/chat_capabilities.dart';
+import '../../domain/models/conversation_history.dart';
 import '../../domain/models/skill_step.dart';
 import '../../utils/result.dart';
 
@@ -103,15 +104,65 @@ abstract interface class ConversationRepository {
   /// (compared with `identical`, see [imageInContext]). A new object is sent
   /// as a new image.
   ///
+  /// [audioWav]: the spoken question itself, as a WAV (16 kHz mono PCM16
+  /// behind a 44-byte RIFF header), for a chat model that hears audio
+  /// ([ChatCapabilities.audio]). It rides on this turn's user message with
+  /// [prompt] (which may be empty, or carry the excerpts) and [image]; the
+  /// engine keeps only the current turn's recording, so it is never re-sent.
+  /// On a chat built without audio support the turn fails with
+  /// [ConversationAudioUnsupportedException] before anything reaches the
+  /// engine or its history: it never degrades to a text-only turn. A
+  /// recording that is not such a WAV, or has no samples, fails the same way
+  /// with a [FormatException].
+  ///
+  /// The engine's history holds the recording (inside `InferenceChat`'s
+  /// message list) until the chat is next rebuilt or replaced: at most
+  /// ~960 KB per 30 s question (16 kHz mono PCM16), and the context budget
+  /// bounds how many audio turns fit between rebuilds (about six of 30 s in
+  /// an 8192-token window, ≈ 6 MB). No rebuild keeps one: a rebuild replays
+  /// the text history only.
+  ///
+  /// [historyText]: the user's words as the conversation's text mirror
+  /// records them (the question without its excerpts, or
+  /// [kSpokenQuestionPlaceholder] for an audio turn); [prompt] when null.
+  /// [turn]: the voice turn's number, so [setHistoryText] can put the
+  /// transcript in later.
+  ///
   /// Before each turn a context budget guard compares the tokens in use plus
-  /// what this turn needs with the model's window; when it would not fit, the
-  /// chat is recreated with the same profile first (the history is dropped;
-  /// [GenerationMetrics.contextReset] says so).
+  /// what this turn needs with the model's window (a recording counts
+  /// [kAudioTokensPerSecond] per second); when it would not fit, the chat is
+  /// recreated with the same profile first and given back the newest turns of
+  /// the text mirror that fit (at most [kHistoryReplayMaxFraction] of the
+  /// window); the older ones are dropped ([GenerationMetrics.contextReset] and
+  /// [AssistantContextReset.keptTurns] say so). A chat rebuilt after an
+  /// interrupted skill call, or after a stop (below), replays every turn that
+  /// fits beside the new one; only turns that do not fit are dropped, and
+  /// announced the same way. The guard acts before `InferenceChat`'s own trim
+  /// ([kContextHeadroomTokens]), which would replay the history recordings
+  /// included.
+  ///
+  /// A turn after a stopped one, while an audio turn is in the live chat,
+  /// rebuilds the chat from the text mirror (`clearHistory(replayHistory:)`)
+  /// instead of letting LiteRT-LM replay its own text history, in which an
+  /// audio turn's question is missing.
   Stream<AssistantEvent> ask(
     String prompt, {
     Uint8List? image,
+    Uint8List? audioWav,
     void Function(SkillStep step)? onStep,
+    String? historyText,
+    int? turn,
   });
+
+  /// Puts [text] (a transcript) as the user's words of voice turn [turn] in
+  /// the conversation's text mirror, for the next rebuild. Returns false when
+  /// the mirror has no such turn (the chat was opened or reset since, or the
+  /// turn never reached the model).
+  bool setHistoryText(int turn, String text);
+
+  /// The conversation's text mirror, oldest first: what a rebuilt chat
+  /// replays. Empty after [open], [reset] and [release].
+  List<HistoryTurn> get history;
 
   /// The image the live chat can see: the last one a turn sent and that has
   /// not been lost since. Null after a stop, a failure, [open], [reset] or a
@@ -147,6 +198,18 @@ final class ConversationNotReadyException implements Exception {
 /// support (the engine would drop the image silently).
 final class ConversationImageUnsupportedException implements Exception {
   const ConversationImageUnsupportedException(this.message);
+
+  final String message;
+
+  @override
+  String toString() => message;
+}
+
+/// [ConversationRepository.ask] with a recording on a chat built without
+/// audio support (the engine would drop the audio silently, and the model
+/// would answer as if nothing was said).
+final class ConversationAudioUnsupportedException implements Exception {
+  const ConversationAudioUnsupportedException(this.message);
 
   final String message;
 

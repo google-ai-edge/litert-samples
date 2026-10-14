@@ -24,9 +24,8 @@ final _key = KbIndexKey(
   documents: 'a' * 64,
   chunker: 'md-chunker-1/1400/300',
   documentPrefix: 'title: none | text: ',
-  modelId: 'embeddinggemma-300M_seq512_mixed-precision',
+  modelId: 'embeddinggemma-2-740m',
   modelSha256: 'b' * 64,
-  tokenizerSha256: 'c' * 64,
   dim: 768,
 );
 
@@ -182,7 +181,6 @@ void main() {
           documentPrefix: _key.documentPrefix,
           modelId: _key.modelId,
           modelSha256: _key.modelSha256,
-          tokenizerSha256: _key.tokenizerSha256,
           dim: 512,
         );
         await marker.write(
@@ -195,6 +193,34 @@ void main() {
           await builtFrom(),
           'another knowledge-base documents (dddddddd ≠ aaaaaaaa), dimension '
           '(512 ≠ 768)',
+        );
+      });
+
+      test('an EmbeddingGemma-300M index (a kb-index/2 key): stale, the '
+          'format and the embedder named', () async {
+        writeJson({
+          'hash': 'digest-of-the-300M-key',
+          'chunks': 297,
+          'dim': 768,
+          'origin': 'prebuilt',
+          'key': {
+            'format': 'kb-index/2',
+            'documents': _key.documents,
+            'chunker': _key.chunker,
+            'documentPrefix': _key.documentPrefix,
+            'modelId': 'embeddinggemma-300M_seq512_mixed-precision',
+            'modelSha256': 'c' * 64,
+            'tokenizerSha256': 'd' * 64,
+            'dim': 768,
+          },
+        });
+
+        expect(
+          await builtFrom(),
+          'another key format ("kb-index/2" ≠ "kb-index/3"), embedder id '
+          '("embeddinggemma-300M_seq512_mixed-precision" ≠ '
+          '"embeddinggemma-2-740m"), embedder model file (cccccccc ≠ '
+          'bbbbbbbb)',
         );
       });
 

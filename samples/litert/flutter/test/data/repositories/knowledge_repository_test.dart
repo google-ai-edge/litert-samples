@@ -17,16 +17,19 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter/foundation.dart';
-import 'package:flutter_edge_ai/flutter_edge_ai.dart' show TaskType;
+import 'package:flutter_edge_ai/flutter_edge_ai.dart'
+    show CancelToken, EmbeddingInput, TaskType;
 import 'package:flutter_edge_ai_rag/flutter_edge_ai_rag.dart'
     show RetrievalResult;
 import 'package:flutter_test/flutter_test.dart';
+import 'package:litert_edge_demos/config/knowledge_config.dart';
 import 'package:litert_edge_demos/data/repositories/knowledge_repository.dart';
 import 'package:litert_edge_demos/data/services/knowledge/embedder_digests.dart';
 import 'package:litert_edge_demos/data/services/knowledge/embedder_service.dart';
 import 'package:litert_edge_demos/data/services/knowledge/kb_documents.dart';
 import 'package:litert_edge_demos/data/services/knowledge/kb_prebuilt_index.dart';
 import 'package:litert_edge_demos/domain/models/knowledge.dart';
+import 'package:litert_edge_demos/domain/models/knowledge_query.dart';
 import 'package:litert_edge_demos/domain/models/model_id.dart';
 import 'package:litert_edge_demos/domain/models/model_state.dart';
 import 'package:litert_edge_demos/utils/result.dart';
@@ -68,22 +71,16 @@ final class _GatedDigests implements EmbedderDigests {
   final Completer<void> started = Completer();
 
   @override
-  Future<EmbedderDigest> of({
-    required String modelPath,
-    required String tokenizerPath,
-  }) async {
+  Future<String> digestOf(String path) async {
     if (!started.isCompleted) started.complete();
     await gate.future;
-    return FixedEmbedderDigests().of(
-      modelPath: modelPath,
-      tokenizerPath: tokenizerPath,
-    );
+    return FixedEmbedderDigests().digestOf(path);
   }
 }
 
 const _ready = ModelReady(
   LoadedModelInfo(
-    modelId: 'embeddinggemma-300M_seq512_mixed-precision',
+    modelId: 'embeddinggemma-2-740m',
     backend: 'cpu',
     loadTime: Duration.zero,
     warmUpTime: Duration.zero,
@@ -95,8 +92,8 @@ const _ready = ModelReady(
 final class _BatchSignallingModel extends FakeEmbeddingModel {
   final List<(int, Completer<void>)> _waiters = [];
 
-  /// Completes once [count] batches have reached [generateEmbeddings]
-  /// (recorded, before [gate]): at once when they already have.
+  /// Completes once [count] batches have reached [embedAll] (recorded,
+  /// before [gate]): at once when they already have.
   Future<void> untilBatches(int count) {
     if (batches.length >= count) return Future.value();
     final waiter = Completer<void>();
@@ -105,12 +102,13 @@ final class _BatchSignallingModel extends FakeEmbeddingModel {
   }
 
   @override
-  Future<List<List<double>>> generateEmbeddings(
-    List<String> texts, {
-    TaskType taskType = TaskType.retrievalQuery,
+  Future<List<List<double>>> embedAll(
+    List<EmbeddingInput> inputs, {
+    required TaskType taskType,
+    CancelToken? cancelToken,
   }) {
     // Runs up to its first await: the batch is recorded on return.
-    final result = super.generateEmbeddings(texts, taskType: taskType);
+    final result = super.embedAll(inputs, taskType: taskType);
     _waiters.removeWhere((waiter) {
       if (waiter.$1 > batches.length) return false;
       waiter.$2.complete();
@@ -195,8 +193,9 @@ void main() {
         ),
       );
 
-      final retrieval =
-          (await repo.retrieve('What is LiteRT?') as Ok<Retrieval>).value;
+      final retrieval = (await repo.retrieve(
+        const KnowledgeQuery.text('What is LiteRT?'),
+      ) as Ok<Retrieval>).value;
       expect(retrieval.outcome, RetrievalOutcome.unavailable);
       expect(retrieval.detail, contains('not in this app bundle'));
       expect(store.searches, isEmpty);
@@ -215,6 +214,47 @@ void main() {
           'EmbeddingGemma failed: boom',
         ),
       );
+    });
+
+    test('an embedder that failed or went away and is ready again reopens '
+        'the index: ready again, reused, nothing embedded again', () async {
+      final repo = build();
+      models.value = {ModelId.embeddingGemma: _ready};
+      await repo.ensureIndexed();
+      expect(repo.status.value, isA<KnowledgeReady>());
+      final embedded = model.documentsEmbedded;
+
+      for (final (i, lost) in <ModelState>[
+        const ModelFailed('reload failed'),
+        const ModelUnavailable('gone'),
+      ].indexed) {
+        models.value = {ModelId.embeddingGemma: lost};
+        expect(repo.status.value, isA<KnowledgeUnavailable>(), reason: '$lost');
+
+        models.value = {ModelId.embeddingGemma: _ready};
+        // Joins the run the Ready started.
+        final ready = (await repo.ensureIndexed() as Ok<KnowledgeReady>).value;
+        expect(ready.reused, isTrue, reason: '$lost');
+        expect(repo.status.value, isA<KnowledgeReady>(), reason: '$lost');
+        expect(store.openedPaths, hasLength(2 + i), reason: 'reopened');
+      }
+      expect(model.documentsEmbedded, embedded);
+    });
+
+    test('a failure while a run is in flight keeps that run: the next Ready '
+        'shares it rather than starting a second one', () async {
+      final gate = Completer<void>();
+      final repo = build(indexDirGate: gate.future);
+      models.value = {ModelId.embeddingGemma: _ready};
+      models.value = {ModelId.embeddingGemma: const ModelFailed('boom')};
+      expect(repo.status.value, isA<KnowledgeUnavailable>());
+      models.value = {ModelId.embeddingGemma: _ready};
+
+      gate.complete();
+      final result = await repo.ensureIndexed();
+      expect(result, isA<Ok<KnowledgeReady>>());
+      expect(store.openedPaths, hasLength(1), reason: 'one run');
+      expect(repo.status.value, isA<KnowledgeReady>());
     });
   });
 
@@ -384,7 +424,9 @@ void main() {
         ),
       );
       expect(marker().existsSync(), isFalse);
-      final retrieval = (await repo.retrieve('q') as Ok<Retrieval>).value;
+      final retrieval = (await repo.retrieve(
+        const KnowledgeQuery.text('q'),
+      ) as Ok<Retrieval>).value;
       expect(retrieval.outcome, RetrievalOutcome.unavailable);
       expect(retrieval.detail, startsWith('indexing failed: '));
 
@@ -520,7 +562,9 @@ void main() {
         final repo = build();
         expect(await repo.ensureIndexed(), isA<Ok<KnowledgeReady>>());
         store.searchGate = Completer<void>();
-        final retrieving = repo.retrieve('what is litert?');
+        final retrieving = repo.retrieve(
+          const KnowledgeQuery.text('what is litert?'),
+        );
         await store.searchStarted.future;
 
         final closing = repo.close();
@@ -535,7 +579,10 @@ void main() {
         expect(store.closeCalls, 1);
         expect(store.closedWithCallsInFlight, 0);
 
-        expect(await repo.retrieve('again'), isA<Error<Retrieval>>());
+        expect(
+          await repo.retrieve(const KnowledgeQuery.text('again')),
+          isA<Error<Retrieval>>(),
+        );
         expect(await repo.ensureIndexed(), isA<Ok<KnowledgeReady>>());
         expect(store.searches, hasLength(1));
         expect(store.usedWhileClosed, isEmpty);
@@ -623,7 +670,9 @@ void main() {
         final repo = build();
         await model.untilBatches(1);
 
-        final retrieval = (await repo.retrieve('q') as Ok<Retrieval>).value;
+        final retrieval = (await repo.retrieve(
+          const KnowledgeQuery.text('q'),
+        ) as Ok<Retrieval>).value;
 
         expect(retrieval.outcome, RetrievalOutcome.unavailable);
         expect(retrieval.detail, 'indexing 0%');
@@ -643,25 +692,28 @@ void main() {
       await repo.ensureIndexed();
     });
 
-    test('top-3, gated per hit at 0.40; passages carry the citation '
-        'metadata', () async {
+    test('top-3, gated per hit at kKbMinSimilarityTextText; passages carry the '
+        'citation metadata', () async {
+      const gate = kKbMinSimilarityText;
       store.searchResults['q'] = [
-        hit('beta.md#0', 0.45),
-        hit('alpha.md#0', 0.62),
-        hit('alpha.md#1', 0.39),
+        hit('beta.md#0', gate + 0.05),
+        hit('alpha.md#0', gate + 0.14),
+        hit('alpha.md#1', gate - 0.01),
       ];
 
-      final retrieval = (await repo.retrieve('q') as Ok<Retrieval>).value;
+      final retrieval = (await repo.retrieve(
+        const KnowledgeQuery.text('q'),
+      ) as Ok<Retrieval>).value;
 
       expect(store.searches, [('q', 3)]);
       expect(retrieval.outcome, RetrievalOutcome.used);
-      expect(retrieval.gate, 0.40);
+      expect(retrieval.gate, gate);
       expect(retrieval.latency, isNotNull);
-      expect(retrieval.topSimilarity, 0.62);
+      expect(retrieval.topSimilarity, gate + 0.14);
       expect(retrieval.candidates.map((p) => (p.id, p.similarity)), [
-        ('alpha.md#0', 0.62),
-        ('beta.md#0', 0.45),
-        ('alpha.md#1', 0.39),
+        ('alpha.md#0', gate + 0.14),
+        ('beta.md#0', gate + 0.05),
+        ('alpha.md#1', gate - 0.01),
       ], reason: 'best first');
       expect(retrieval.passages.map((p) => p.id), ['alpha.md#0', 'beta.md#0']);
       final beta = retrieval.passages[1];
@@ -677,29 +729,73 @@ void main() {
     test(
       'nothing at or above the gate: below gate, with the top similarity',
       () async {
-        store.searchResults['weather?'] = [hit('alpha.md#0', 0.21)];
+        // EmbeddingGemma 2 scores off-topic questions 0.57–0.62.
+        store.searchResults['weather?'] = [hit('alpha.md#0', 0.58)];
 
-        final retrieval =
-            (await repo.retrieve('weather?') as Ok<Retrieval>).value;
+        final retrieval = (await repo.retrieve(
+          const KnowledgeQuery.text('weather?'),
+        ) as Ok<Retrieval>).value;
 
         expect(retrieval.outcome, RetrievalOutcome.belowGate);
         expect(retrieval.passages, isEmpty);
-        expect(retrieval.topSimilarity, 0.21);
+        expect(retrieval.topSimilarity, 0.58);
       },
     );
 
     test('exactly at the gate counts', () async {
-      store.searchResults['q'] = [hit('alpha.md#0', 0.40)];
+      store.searchResults['q'] = [hit('alpha.md#0', kKbMinSimilarityText)];
 
-      final retrieval = (await repo.retrieve('q') as Ok<Retrieval>).value;
+      final retrieval = (await repo.retrieve(
+        const KnowledgeQuery.text('q'),
+      ) as Ok<Retrieval>).value;
 
       expect(retrieval.outcome, RetrievalOutcome.used);
+    });
+
+    test('a spoken question is searched as it is and gated at '
+        'kKbMinSimilarityAudio, a typed one at kKbMinSimilarityText', () async {
+      // Between the two gates: kept for audio, dropped for text.
+      const score = (kKbMinSimilarityAudio + kKbMinSimilarityText) / 2;
+      expect(kKbMinSimilarityAudio, lessThan(kKbMinSimilarityText));
+      final wav = Uint8List(44 + 3200);
+      store.searchResults['audio:${wav.length}'] = [hit('alpha.md#0', score)];
+      store.searchResults['q'] = [hit('alpha.md#0', score)];
+
+      final spoken = (await repo.retrieve(
+        KnowledgeQuery.audio(wav),
+      ) as Ok<Retrieval>).value;
+      final typed = (await repo.retrieve(
+        const KnowledgeQuery.text('q'),
+      ) as Ok<Retrieval>).value;
+
+      expect(store.searchQueries.first, isA<KnowledgeAudioQuery>());
+      expect((store.searchQueries.first as KnowledgeAudioQuery).wav, same(wav));
+      expect(spoken.gate, kKbMinSimilarityAudio);
+      expect(spoken.outcome, RetrievalOutcome.used);
+      expect(typed.gate, kKbMinSimilarityText);
+      expect(typed.outcome, RetrievalOutcome.belowGate);
+    });
+
+    test('a question too long to embed is an Error carrying the typed '
+        'failure, not a truncated search', () async {
+      store.searchError = const KnowledgeQueryTooLongException(
+        kind: KnowledgeQueryKind.text,
+        length: '1200 UTF-8 bytes',
+        limit: '960 UTF-8 bytes',
+      );
+
+      final result = await repo.retrieve(const KnowledgeQuery.text('q'));
+
+      expect(
+        (result as Error<Retrieval>).error,
+        isA<KnowledgeQueryTooLongException>(),
+      );
     });
 
     test('a failed search is an Error', () async {
       store.searchError = Exception('database is locked');
 
-      final result = await repo.retrieve('q');
+      final result = await repo.retrieve(const KnowledgeQuery.text('q'));
 
       expect(result, isA<Error<Retrieval>>());
       expect(result.toString(), contains('database is locked'));
@@ -715,7 +811,7 @@ void main() {
         ),
       ];
 
-      final result = await repo.retrieve('q');
+      final result = await repo.retrieve(const KnowledgeQuery.text('q'));
 
       expect((result as Error<Retrieval>).error, isA<FormatException>());
     });
