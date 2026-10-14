@@ -29,8 +29,8 @@ The app uses a SwiftUI interface paired with a pure Swift implementation (`LiteR
 | **CameraManager** | `CameraManager.swift` | Manages AVFoundation camera capture session and frame streams |
 | **ImagePicker** | `ImagePicker.swift` | Wraps PHPickerViewController in UIViewControllerRepresentable for photo library access |
 | **ImageSegmentationApp** | `ImageSegmentationApp.swift` | Swift application entry point |
-| **LiteRT** (Swift Package Product) | `LiteRT/Package.swift` (`CLiteRT.xcframework`) | LiteRT Swift bindings and precompiled C framework |
-| **LiteRtMetalAccelerator** (Swift Package Product) | `LiteRT/Package.swift` (`LiteRtMetalAccelerator.xcframework`) | Standalone Metal GPU accelerator framework embedded into `ImageSegmentation.app/Frameworks/` |
+| **LiteRT** (Swift Package Product) | `https://github.com/google-ai-edge/LiteRT` (`release/2.3.0`) | LiteRT Swift bindings and precompiled C framework |
+| **LiteRtMetalAccelerator** (Swift Package Product) | `https://github.com/google-ai-edge/LiteRT` (`release/2.3.0`) | Standalone Metal GPU accelerator framework embedded into `ImageSegmentation.app/Frameworks/` |
 
 ---
 
@@ -41,13 +41,31 @@ The app uses a SwiftUI interface paired with a pure Swift implementation (`LiteR
 2. Select the **ImageSegmentation** target.
 3. In **Signing & Capabilities**, select your **Personal Team** profile. The bundle identifier is configured to `com.google.ai.edge.ImageSegmentation`.
 
-### 2. Building `CLiteRT` and `LiteRtMetalAccelerator` XCFrameworks from Source
-The iOS application links the `LiteRT` and `LiteRtMetalAccelerator` products from the local `LiteRT` Swift Package (`LiteRT/Package.swift`), which consume `prebuilt/CLiteRT.xcframework.zip` and `prebuilt/LiteRtMetalAccelerator.xcframework.zip`. Run the following Bazel commands inside the `LiteRT` repository to build both `.xcframework` archives:
+### 2. LiteRT Swift Package Dependencies
+
+The app depends on the `LiteRT` and `LiteRtMetalAccelerator` Swift Package products. You can use either the official released package or build them locally from source.
+
+#### Option A: Using the Released LiteRT Swift Package (Default)
+
+The project is pre-configured to resolve the official LiteRT Swift release package:
+* **Repository URL:** `https://github.com/google-ai-edge/LiteRT`
+* **Dependency Rule:** Branch `release/2.3.0` (or exact version `2.3.0`)
+* **Products:** `LiteRT`, `LiteRtMetalAccelerator`
+
+When you open `ImageSegmentation.xcodeproj` in Xcode or run `xcodebuild`, Swift Package Manager will automatically fetch and resolve the dependencies.
+
+> [!TIP]
+> **Git LFS Troubleshooting:** If Xcode reports an error during package checkout such as `smudge filter lfs failed` or `git-lfs: command not found`, run `git lfs uninstall` or build with `GIT_LFS_SKIP_SMUDGE=1`. The Swift package does not need Git LFS prebuilts. See the [LiteRT Swift Troubleshooting guide](https://github.com/google-ai-edge/LiteRT/tree/main/litert/swift#troubleshooting) for details.
+
+#### Option B: Building and Using Local Packages from Source
+
+If you are developing LiteRT locally or testing from source:
+1. Navigate to your local `LiteRT` checkout and build the `.xcframework` archives:
 ```bash
 # Navigate to the LiteRT repository
 cd path/to/LiteRT
 
-# Build the CLiteRT and standalone LiteRtMetalAccelerator xcframework targets for iOS (device and simulator slices)
+# Build the CLiteRT and standalone LiteRtMetalAccelerator xcframework targets for iOS
 bazel build -c opt //litert/swift:CLiteRT //litert/swift:LiteRtMetalAccelerator
 
 # Copy the compiled xcframework archives into LiteRT/prebuilt/ for the Swift Package
@@ -55,6 +73,7 @@ mkdir -p prebuilt
 cp -f bazel-bin/litert/swift/CLiteRT.xcframework.zip prebuilt/
 cp -f bazel-bin/litert/swift/LiteRtMetalAccelerator.xcframework.zip prebuilt/
 ```
+2. In Xcode, navigate to **ImageSegmentation** > **Package Dependencies**, remove the remote package, and add your local `LiteRT` directory via **File > Add Package Dependencies... > Add Local...**.
 
 ### 3. Download the Model File
 Because `selfie_multiclass_256x256.tflite` is excluded via `.gitignore`, download it into the `samples/litert/image_segmentation/swift_litert/` directory before building in Xcode:
