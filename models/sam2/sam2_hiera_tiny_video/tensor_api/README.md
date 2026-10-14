@@ -43,8 +43,11 @@ ledger).
 *   `sam2_image/` — the image-path encoder/decoder library the video
     graphs build on (Hiera encoder, prompt encoder in-graph, mask
     decoder) plus its standalone 512 sample (`sam2_main.cc`, which also
-    runs the frame pre/post-processing as `CreateLambdaRunner` graphs)
-    and PyTorch parity script.
+    runs the frame pre/post-processing as `CreateLambdaRunner` graphs),
+    PyTorch parity and MLX benchmark scripts (`verify/`), iOS LiteRT and
+    MLX-Swift benchmark apps (`ios/`), and cross-platform reproduction
+    instructions for macOS, iOS, and Android
+    ([`sam2_image/README.md`](sam2_image/README.md)).
 *   `sam2_video/` — the video graphs (`sam2v_graph.cc`), the video-stack
     weight loader (`sam2v_weights.cc`), the host tracking loop
     (`sam2v_main.cc`), and `verify/` (fp32 weight export from
@@ -115,6 +118,10 @@ target's runfiles) in the working directory. The Metal delegate's default
 compute precision is fp16; set `--gpu_precision` explicitly when
 comparing against fp32 references, and use `--gpu_buffer_storage=buffer`
 (texture storage silently falls back to CPU on these tensor sizes).
+
+### Cross-platform `512x512` image benchmarks (macOS, iOS, Android)
+
+See [`sam2_image/README.md`](sam2_image/README.md) for the complete architecture overview and step-by-step instructions to reproduce the `512x512` (`fp16`) image encoder and mask decoder latency benchmarks across **macOS** (`sam2_main` on Metal + Python MLX baseline `sam2_image/verify/mlx_512_bench.py`), **iOS** (`sam2_image/ios/sam2_litert` on Metal + MLX-Swift baseline `sam2_image/ios/sam2_mlx`), and **Android** (`sam2_main` on OpenCL GPU and XNNPACK CPU).
 
 ## Graph-level optimizations
 

@@ -393,6 +393,9 @@ absl::Status Run() {
         return absl::InvalidArgumentError(
             "--gpu_buffer_storage must be default|buffer|texture2d");
       }
+      if (absl::GetFlag(FLAGS_runs) > 0) {
+        gpu_options->EnableBenchmarkMode(true);
+      }
       std::cout << "gpu precision: " << precision << ", storage: " << storage
                 << std::endl;
     }
