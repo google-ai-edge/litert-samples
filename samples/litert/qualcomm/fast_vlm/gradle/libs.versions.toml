@@ -12,7 +12,7 @@ activityKtx = "1.10.1"
 coil = "2.7.0"
 constraintlayout = "2.2.1"
 litertlm = "0.10.2"
-litert = "1.1.0"
+litert = "2.3.0"
 qnn = "2.45.0"
 
 [libraries]
