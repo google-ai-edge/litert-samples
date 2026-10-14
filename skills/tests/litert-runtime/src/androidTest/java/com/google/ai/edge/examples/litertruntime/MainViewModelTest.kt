@@ -50,6 +50,10 @@ import org.junit.runner.RunWith
  * three things on each: the state the screen reads, that nothing is thrown on the ViewModel's
  * thread (an exception there ends the app), and that every model that was created is closed.
  *
+ * `load(Accelerator.GPU)` falls back to the CPU when the GPU throws, and `UiState.accelerator` says
+ * which one loaded: the tests that need the GPU are skipped when the app's own model ends on the
+ * CPU, and a graph the GPU does not compile is a load on the CPU, not an error.
+ *
  * A model that is never closed is unreachable from here, so those tests repeat the failing load and
  * bound what the process keeps instead. The bounds come from a Galaxy S26 (Android 16, LiteRT
  * 2.2.0): 20 unclosed CPU models kept 13.8 MB of native heap, 20 unclosed GPU models 62.9 MB and
@@ -97,7 +101,7 @@ class MainViewModelTest {
         val viewModel = newViewModel()
         viewModel.load(Accelerator.GPU)
         viewModel.awaitIdle()
-        assumeTrue("no GPU accelerator here: ${viewModel.uiState.value.error}", viewModel.isReady())
+        assumeLoadedOnGpu(viewModel)
         viewModel.classify(FloatArray(INPUT_SIZE))
         viewModel.awaitIdle()
         assertEquals(OUTPUT_SIZE, viewModel.uiState.value.result?.size)
@@ -111,6 +115,8 @@ class MainViewModelTest {
     @Test
     fun warmUpWriteThrows_onGpu_theModelIsClosed() {
         assumeGpu()
+        // The load on the GPU throws, and so does the load on the CPU it falls back to: each load()
+        // here fails twice.
         assertFailedLoadsKeepNothing("small_input", Accelerator.GPU)
     }
 
@@ -135,24 +141,29 @@ class MainViewModelTest {
     }
 
     @Test
-    fun gpuCreateThrows_theFailedLoadsKeepNothing() {
+    fun gpuCreateThrows_fallbackLifetimesKeepNothing() {
         assumeGpu()
-        assertFailedLoadsKeepNothing("gpu_unsupported", Accelerator.GPU)
+        assets.use("gpu_unsupported")
+        // Like the first failed load in assertFailedLoadsKeepNothing, the first lifetime is not
+        // counted.
+        fallbackLifetime()
+        val heap = Debug.getNativeHeapAllocatedSize()
+        val threads = threadCount()
+        repeat(FALLBACK_LIFETIMES) { fallbackLifetime() }
+        val heapKb = (Debug.getNativeHeapAllocatedSize() - heap) / 1024
+        val moreThreads = threadCount() - threads
+        val kept = "$heapKb KB of native heap and $moreThreads threads"
+        Log.i(TAG, "gpu_unsupported: $FALLBACK_LIFETIMES lifetimes on the CPU fallback kept $kept")
+        assertTrue("$FALLBACK_LIFETIMES lifetimes kept $kept", heapKb < HEAP_LIMIT_KB)
+        assertTrue("$FALLBACK_LIFETIMES lifetimes kept $kept", moreThreads < THREAD_LIMIT)
     }
 
     @Test
-    fun gpuCreateThrows_stateIsError_thenTheCpuLoads() {
+    fun gpuCreateThrows_loadFallsBackToTheCpu_andClassifyWorks() {
         assumeGpu()
         assets.use("gpu_unsupported")
         val viewModel = newViewModel()
-        viewModel.load(Accelerator.GPU)
-        viewModel.awaitIdle()
-        assertNotNull(viewModel.uiState.value.error)
-        assertFalse(viewModel.uiState.value.ready)
-        viewModel.load(Accelerator.CPU)
-        viewModel.awaitIdle()
-        assertTrue(viewModel.uiState.value.ready)
-        assertNull(viewModel.uiState.value.error)
+        viewModel.loadFallsBackToTheCpu()
         viewModel.classify(FloatArray(INPUT_SIZE))
         viewModel.awaitIdle()
         assertEquals(OUTPUT_SIZE, viewModel.uiState.value.result?.size)
@@ -309,11 +320,38 @@ class MainViewModelTest {
         assertTrue("$REPEATS failed loads kept $kept", moreThreads < THREAD_LIMIT)
     }
 
+    /** `load(Accelerator.GPU)` of a graph the GPU does not compile: the model loads on the CPU. */
+    private fun MainViewModel.loadFallsBackToTheCpu() {
+        load(Accelerator.GPU)
+        awaitIdle()
+        val state = uiState.value
+        assertTrue("the load did not end ready: ${state.error}", state.ready)
+        assertEquals(Accelerator.CPU, state.accelerator)
+        assertNull(state.error)
+    }
+
+    /** One ViewModel whose load falls back to the CPU, then `onCleared()`, which closes it. */
+    private fun fallbackLifetime() {
+        val viewModel = newViewModel()
+        viewModel.loadFallsBackToTheCpu()
+        val classifier = checkNotNull(viewModel.classifier())
+        clearAndAwait(viewModel)
+        assertTrue(classifier.isClosed())
+    }
+
+    /** Skips the test unless the app's own model loads on the GPU. */
     private fun assumeGpu() {
         val viewModel = newViewModel()
         viewModel.load(Accelerator.GPU)
         viewModel.awaitIdle()
-        assumeTrue("no GPU accelerator here: ${viewModel.uiState.value.error}", viewModel.isReady())
+        assumeLoadedOnGpu(viewModel)
+    }
+
+    /** `load(Accelerator.GPU)` falls back to the CPU on its own, so `accelerator` tells. */
+    private fun assumeLoadedOnGpu(viewModel: MainViewModel) {
+        val state = viewModel.uiState.value
+        val loaded = "accelerator ${state.accelerator}, error ${state.error}"
+        assumeTrue("no GPU accelerator here: $loaded", state.accelerator == Accelerator.GPU)
     }
 
     private fun newViewModel(): MainViewModel {
@@ -369,6 +407,7 @@ class MainViewModelTest {
         const val TIMEOUT_SECONDS = 120L
         const val REPEATS = 50
         const val LIFETIMES = 200
+        const val FALLBACK_LIFETIMES = 20
         const val HANDOVERS = 50
         const val AFTER_CLEAR_MS = 1000L
 

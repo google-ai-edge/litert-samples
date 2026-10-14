@@ -2,7 +2,7 @@
 
 This Gradle project builds the Kotlin of [`litert-runtime`](../litert-runtime/SKILL.md) and [`litert-lm`](../litert-lm/SKILL.md) into two apps and runs it on a device, through the paths where a step fails: a load that throws part-way, a `load()` while a model is loaded, and `onCleared()` or `load()` while a reply is streaming.
 
-The apps' Kotlin is not kept here. At build time the `extractSkillCode` task takes the `kotlin` code blocks out of each skill's `SKILL.md` and `references/` (the imports, the code, and `preprocess()`) and writes them to `<module>/build/generated/skill/SkillCode.kt`, so the code under test is the text of the skill. Checked in are the package line (`skill-header.txt`), an activity that shows the skill's screen, the manifest, the tests, and the models the tests load.
+The apps' Kotlin is not kept here. At build time the `extractSkillCode` task takes the Kotlin code blocks out of each skill and writes them to `<module>/build/generated/skill/SkillCode.kt`, so the code under test is the text of the skill. `litert-runtime/SKILL.md` is the text [android/skills](https://github.com/android/skills) publishes: its code blocks are indented by four spaces and each shows its own imports, so the task moves the imports to the top of the file, each once, and leaves out the Gradle block of step 1 (the module's `build.gradle.kts` has the dependencies). `litert-lm/SKILL.md` has `kotlin` code blocks, and a block may import only what `references/imports.md` lists. Checked in are the package line (`skill-header.txt`), an activity that shows the skill's screen, the manifest, the tests, and the models the tests load.
 
 ## Run
 
@@ -35,13 +35,15 @@ Every test fails if anything is thrown on the ViewModel's thread, because an exc
 | Path | What is checked |
 |---|---|
 | `load()` and `classify()` on the CPU and on the GPU | the state is `ready` and the result has the model's output size |
-| the warm-up `writeFloat` throws (CPU and GPU), the warm-up `run` throws, creating the input or the output buffers throws after `create`, `create` throws on a file that is not a model and on a graph the GPU does not compile | the state is `error`, and 50 such loads keep under 1 MB of native heap and under 10 threads |
-| `load(Accelerator.CPU)` after the GPU did not compile the graph | the model loads and `classify()` works |
+| the warm-up `writeFloat` throws (on the CPU, and on the GPU and then on the CPU it falls back to), the warm-up `run` throws, creating the input or the output buffers throws after `create`, `create` throws on a file that is not a model | the state is `error`, and 50 such loads keep under 1 MB of native heap and under 10 threads |
+| `load(Accelerator.GPU)` on a graph the GPU does not compile | the model loads on the CPU (`accelerator` is `CPU`, no `error`) and `classify()` works; 20 ViewModels in a row that load it this way and close it in `onCleared()` keep under 1 MB of native heap and under 10 threads |
 | `load()` after a failed load, and `load()` while a model is loaded | the first loads; the second keeps the loaded model open |
 | `classify()` throws | the state is `error` and the next `classify()` works |
 | `onCleared()` after a load, right after `load()`, with no load; `load()` after `onCleared()` | the model is closed and the thread ends; nothing is created afterwards |
 | 200 ViewModels in one process, each loading a model and closing it in `onCleared()`; a new ViewModel loading while the old one closes, 50 times | every one of them loads, and every model is closed |
 | `preprocess()` on a `HARDWARE` bitmap, the kind `ImageDecoder` and the photo picker return | the input array comes out; `getPixels` on such a bitmap would throw |
+
+The skill's `load()` catches the `LiteRtException` of a load on the GPU and loads the model on the CPU, and `UiState.accelerator` says which one loaded, so a GPU that cannot take the model is not an `error`. The tests that need the GPU are skipped where the app's own model ends on the CPU.
 
 A model that was never closed cannot be reached from a test, which is why the failing loads are repeated: on the Galaxy S26, 20 unclosed CPU models kept 13.8 MB of native heap and 20 unclosed GPU models 62.9 MB and 40 threads. Whether a model was closed is read from LiteRT's `JniHandle.destroyed` field by reflection (present in 2.2.0 and 2.3.0). The models are at most 2.2 KB each, made by `tools/make_fixtures.py`, in `litert-runtime/fixtures/` (its `.gitignore` re-includes `*.tflite`). A `ResourcesLoader` serves the one under test as `assets/model.tflite`.
 
