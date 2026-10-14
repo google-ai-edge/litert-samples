@@ -161,6 +161,14 @@ When the comparison is between two bundles of the same weights (a re-pack agains
   For the device loop, a minimal push-run-pull binary (tflite in, output
   tensor out; the LiteRT C++ SDK zip and its CompiledModel API) iterates
   in seconds without an app rebuild.
+- **Hybrid models: one Engine per conversation, one process per timing
+  run.** A new Conversation on a shared LiteRT-LM Engine starts with an
+  empty context but keeps the live state buffers, so its prompt prefills
+  on the previous conversation's linear-attention state (GatedDeltaNet,
+  Mamba, short-conv layers — LiteRT-LM#3165); slot-addressed KV caches
+  are not affected. A harness that loops N runs in one process measures
+  a drifting model and reports success. Run N processes, and gate each
+  prompt length in a fresh process.
 
 ## Output layout
 
