@@ -36,7 +36,10 @@ android {
     sourceCompatibility = JavaVersion.VERSION_17
     targetCompatibility = JavaVersion.VERSION_17
   }
-  kotlinOptions { jvmTarget = "17" }
+  kotlinOptions {
+    jvmTarget = "17"
+    freeCompilerArgs += "-Xskip-metadata-version-check"
+  }
 
   packaging {
     jniLibs {
@@ -52,6 +55,6 @@ android {
 }
 
 dependencies {
-  implementation("com.google.ai.edge.litert:litert:2.1.5")
+  implementation("com.google.ai.edge.litert:litert:2.3.0")
   implementation("androidx.core:core-ktx:1.15.0")
 }
