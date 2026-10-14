@@ -3,11 +3,15 @@
 How to build the Flutter sample in [`samples/litert/flutter`](../../litert/flutter/) on an NVIDIA Jetson Orin and run its two demos there:
 a voice chat with Gemma and a live camera assistant. Everything runs on the board.
 
-> **Status:** the steps below ran on Ubuntu 22.04 arm64 (the base of JetPack 6) on a cloud arm64 machine, and the
-> self-test passed on the CPU. The app's GPU path (LiteRT's WebGPU accelerator on Vulkan) ran Gemma 4 E2B on
-> an NVIDIA T4 at 82.5 tokens/s (x64, warm, with the previous LiteRT-LM release). It has not yet run on a physical
-> Jetson, so the Jetson's own GPU driver is not verified. Google's model card for Gemma 4 E2B gives about 24 tokens/s
-> decode on a Jetson Orin Nano's GPU. The self-test (step 6) tells you in two runs.
+## What runs where
+
+| Model | Runs on |
+|---|---|
+| Chat model, Gemma 4 E2B (`gemma-4-E2B-it.litertlm`) | GPU (LiteRT's WebGPU accelerator on Vulkan; checked on an NVIDIA T4, a physical Jetson's GPU is not verified), or CPU; its vision and audio towers on the CPU |
+| YOLO26n detector (Live camera) | GPU; CPU with **Run detector on CPU** (step 5) |
+| EmbeddingGemma 2 (knowledge base, visual memory), Whisper base and moonshine tiny (speech to text), Inflect-nano-v2 (spoken replies) | CPU |
+
+The app offers no NPU on a Jetson.
 
 ## Which Jetsons
 
@@ -25,7 +29,7 @@ a voice chat with Gemma and a live camera assistant. Everything runs on the boar
 | Storage | an NVMe SSD (much faster than microSD) with about 15 GB free for Flutter, the build and the models |
 | Camera | a USB webcam, or an Android phone as a Wi-Fi camera ([network camera](../../litert/flutter/README.md#using-the-demos)). The CSI camera ports are not supported by the app |
 | Audio | a USB speakerphone; the Orin Nano developer kit has no audio jack |
-| Models | a Hugging Face read token for the built-in models (step 3), and a chat model: Gemma 4 E2B, `gemma-4-E2B-it.litertlm` (2.6 GB) from [litert-community/gemma-4-E2B-it-litert-lm](https://huggingface.co/litert-community/gemma-4-E2B-it-litert-lm), no login needed |
+| Models | a chat model: Gemma 4 E2B, `gemma-4-E2B-it.litertlm` (2.6 GB) from [litert-community/gemma-4-E2B-it-litert-lm](https://huggingface.co/litert-community/gemma-4-E2B-it-litert-lm), no login needed |
 
 ## 1. Prepare the board
 
@@ -74,13 +78,10 @@ tool/flutter_litert/vendor.sh
 ## 3. The built-in models
 
 ```sh
-cp .env.example .env                      # then set HF_TOKEN=hf_... in it
 tool/fetch_models.sh
 ```
 
-- `HF_TOKEN` is a Hugging Face read token from an account that accepted the Gemma terms on
-  [litert-community/embeddinggemma-300m](https://huggingface.co/litert-community/embeddinggemma-300m); only that
-  download uses it.
+- Every built-in model downloads without a Hugging Face account or token.
 - The script derives the YOLO26n detector in a Python venv (the `ai-edge-litert` wheel exists for Linux aarch64). If
   you were given `yolo26n_fp16_rawhead.tflite`, copy it into `assets/models/` first and the script only verifies it.
 - `tool/fetch_models.sh --check` verifies every file without the network.
@@ -126,6 +127,7 @@ On **Set up models**, the **Chat model** card lists the files in `~/litert-demos
   each model runs.
 - **Live camera:** choose the camera with the **Camera** button at the top of the demo: a USB webcam, or a network
   camera such as a phone running IP Webcam. Hold the mic and ask "What do you see?", "Describe the scene".
+  It also remembers what it saw: "Where was the yellow sign?" shows the frame and how long ago it was.
 - **Self-test:** `./run.sh --selftest` (add `--skip-audio` without a microphone and speaker) runs the detector on a
   reference picture and checks it against golden detections, loads the chat model and times 64 tokens, checks the
   audio, and saves a report; the `report` line says where. Run it twice: the first run compiles the GPU programs.

@@ -4,9 +4,14 @@ How to build the Flutter sample in [`samples/litert/flutter`](../../../litert/fl
 QCS8275) and run its two demos there, with Gemma 4 E2B on the board's Hexagon NPU: a voice chat and a live camera
 assistant. Everything runs on the board.
 
-> **Status:** these steps ran on a VENTUNO Q (Ubuntu 24.04.4) through Qualcomm Device Cloud with
-> `flutter_edge_ai_litertlm` 1.11.0, and the self-test passed every step with Gemma 4 E2B on the NPU at 26.6 tokens/s
-> decode (numbers below; the audio step was skipped, the remote board had no microphone or speaker).
+## What runs where
+
+| Model | Runs on |
+|---|---|
+| Chat model `gemma-4-E2B-it_qualcomm_qcs8275.litertlm` | NPU (Hexagon V75); its vision and audio towers on the CPU (its header pins them) |
+| Chat model `gemma-4-E2B-it.litertlm` (alternative) | CPU or GPU (Adreno 623); its vision and audio towers on the CPU |
+| YOLO26n detector (Live camera) | GPU (Adreno 623, through LiteRT's WebGPU accelerator on Vulkan); CPU when chosen in the Live camera settings |
+| EmbeddingGemma 2 (knowledge base, visual memory), Whisper base and moonshine tiny (speech to text), Inflect-nano-v2 (spoken replies) | CPU |
 
 ## The board
 
@@ -26,7 +31,7 @@ assistant. Everything runs on the board.
 | Storage | about 18 GB free: Flutter, the build and the models |
 | Camera | a USB camera the board sees as `/dev/video*`, or an Android phone as a Wi-Fi camera ([network camera](../../../litert/flutter/README.md#using-the-demos)) |
 | Audio | a USB speakerphone, or a microphone and a speaker |
-| Models | **The YOLO26n detector (`yolo26n_fp16_rawhead.tflite`) will be provided.** The chat model is Gemma 4 E2B compiled for this chip, `gemma-4-E2B-it_qualcomm_qcs8275.litertlm` (3.29 GB) from [litert-community/gemma-4-E2B-it-litert-lm](https://huggingface.co/litert-community/gemma-4-E2B-it-litert-lm), no login needed (step 5). The other built-in models are downloaded in step 3 and need a Hugging Face token |
+| Models | **The YOLO26n detector (`yolo26n_fp16_rawhead.tflite`) will be provided.** The chat model is Gemma 4 E2B compiled for this chip, `gemma-4-E2B-it_qualcomm_qcs8275.litertlm` (3.29 GB) from [litert-community/gemma-4-E2B-it-litert-lm](https://huggingface.co/litert-community/gemma-4-E2B-it-litert-lm), no login needed (step 5). The other built-in models are downloaded in step 3, without a Hugging Face account |
 
 ## 1. Prepare the board
 
@@ -71,15 +76,12 @@ Put the provided detector where the app expects it, then let the script fetch an
 ```sh
 mkdir -p assets/models
 cp /path/to/yolo26n_fp16_rawhead.tflite assets/models/
-cp .env.example .env                      # then set HF_TOKEN=hf_... in it
 tool/fetch_models.sh
 ```
 
 - The script checks the provided detector against `tool/models.lock` and keeps it, so no Python step runs. Without
   the file it derives the detector itself (see the [sample's README](../../../litert/flutter/README.md#set-up-once-per-checkout)).
-- `HF_TOKEN` is a Hugging Face read token from an account that accepted the Gemma terms on
-  [litert-community/embeddinggemma-300m](https://huggingface.co/litert-community/embeddinggemma-300m); only that
-  download uses it.
+- Every built-in model downloads without a Hugging Face account or token.
 - `tool/fetch_models.sh --check` verifies every file without the network.
 
 ## 4. Build
@@ -118,23 +120,12 @@ install it, then starts the app. Each run is logged to `run.log` next to `run.sh
 
 On **Set up models**, the **Chat model** card lists the files in `~/litert-demos/models/` (**Rescan** if needed,
 **Path…** for a file elsewhere). Choose `gemma-4-E2B-it_qualcomm_qcs8275.litertlm`: its header marks it for the NPU,
-so the card selects **NPU** (context 4096 tokens, images on: the vision part runs on the CPU). Then **Use this
-model**. If the card cannot offer the NPU, it says why (for example, not in group `fastrpc`, or no
-`/dev/fastrpc-cdsp`); the app never switches to another backend on its own.
+so the card selects **NPU** (context 4096 tokens; its header pins the vision and audio towers to the CPU, and the
+card shows them that way). Then **Use this model**. If the card cannot offer the NPU, it says why (for example, not in
+group `fastrpc`, or no `/dev/fastrpc-cdsp`); the app never switches to another backend on its own.
 
-What to expect, measured on this board:
-
-| | Chat model | Decode | First token |
-|---|---|---|---|
-| NPU (Hexagon V75) | `gemma-4-E2B-it_qualcomm_qcs8275.litertlm` | **26.6 tokens/s** | 0.15 s (first chunk) |
-| CPU | `gemma-4-E2B-it.litertlm` | 9.9 tokens/s | 1.65 s (first chunk) |
-| GPU (Adreno 623) | `gemma-4-E2B-it.litertlm` | 5.4 tokens/s | 1.73 s (first chunk) |
-
-All three from the app's self-test (64 generated tokens). Loading the NPU build and warming it up took 13 s.
-
-The detector runs on the GPU by default (Live camera settings › **Detector**): 103 ms per frame on the Adreno 623,
-fully on the GPU through LiteRT's WebGPU accelerator on Vulkan, against 224 ms on the CPU (medians of 10).
-**This device** and the diagnostics overlay show where each model runs.
+The detector runs on the GPU by default (Live camera settings › **Detector**). **This device** and the diagnostics
+overlay show where each model runs.
 
 ## 6. Use it
 
@@ -142,7 +133,8 @@ fully on the GPU through LiteRT's WebGPU accelerator on Vulkan, against 224 ms o
   detector?" (answered from the knowledge base, with sources) and "Which accelerator are you running on?".
 - **Live camera:** choose the camera with the **Camera** button at the top of the demo: a camera on the board, or a
   network camera such as a phone running IP Webcam. Hold the mic and ask "What do you see?", "How many people are
-  there?", "Describe the scene".
+  there?", "Describe the scene". It also remembers what it saw: "Where was the yellow sign?" shows the frame and how
+  long ago it was.
 
 ## 7. Self-test
 
