@@ -34,7 +34,7 @@ latency.*
 ## Hardware & software
 
 - **Reference hardware** (what the numbers below were measured on): Raspberry Pi 5, 8 GB · quad-core Arm Cortex-A76 · Debian 12 · Python 3.12
-- **Runtimes:** LiteRT (`ai-edge-litert`) 2.1.6 (+ ML Drift GPU backend) · LiteRT-LM 0.15.0
+- **Runtimes:** LiteRT (`ai-edge-litert`) 2.3.0 (+ ML Drift GPU backend) · LiteRT-LM 0.15.0
 - **Footprint:** ~2.6 GB of model files, ~2.4 GB resident (of 8 GB)
 - **GPU path (optional):** a recent `v3dv` Vulkan driver with `V3D_WEBGPU_OVERRIDE` set (see Quickstart) — Raspberry Pi OS **Trixie+**, or Mesa from `main` on Bookworm.
 - **Robot (optional):** a [Reachy Mini](https://www.pollen-robotics.com/) — or its MuJoCo
