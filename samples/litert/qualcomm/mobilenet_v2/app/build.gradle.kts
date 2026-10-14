@@ -38,7 +38,10 @@ android {
     targetCompatibility = JavaVersion.VERSION_1_8
   }
   kotlin {
-    compilerOptions { jvmTarget = JvmTarget.JVM_1_8 }
+    compilerOptions {
+      jvmTarget = JvmTarget.JVM_1_8
+      freeCompilerArgs.add("-Xskip-metadata-version-check")
+    }
   }
 
   buildFeatures {
@@ -108,6 +111,7 @@ dependencies {
   implementation(libs.androidx.ui.tooling.preview)
   implementation(libs.kotlinx.coroutines.android)
   implementation(libs.litert)
+  implementation(libs.litert.gpu)
 
   testImplementation(libs.junit)
   debugImplementation(libs.androidx.ui.tooling)
