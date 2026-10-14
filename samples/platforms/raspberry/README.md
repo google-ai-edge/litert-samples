@@ -3,10 +3,15 @@
 How to build the Flutter sample in [`samples/litert/flutter`](../../litert/flutter/) on a Raspberry Pi 5 and run its two demos there: a
 voice chat with Gemma and a live camera assistant. Everything runs on the Pi.
 
-> **Status:** the steps below ran unchanged on Debian 12 arm64 (Bookworm, the base of Raspberry Pi OS) on a cloud
-> arm64 machine: the build took about 6 minutes, and the self-test passed on the CPU. They have not yet run on a
-> physical Raspberry Pi 5, so whether the Pi's GPU runs these models is not yet known; the CPU path is the expected
-> one. Google's model card for Gemma 4 E2B gives about 7.6 tokens/s decode on a Pi 5's CPU.
+## What runs where
+
+| Model | Runs on |
+|---|---|
+| Chat model, Gemma 4 E2B (`gemma-4-E2B-it.litertlm`) | CPU (select it on the card, step 5); its vision and audio towers on the CPU |
+| YOLO26n detector (Live camera) | CPU: choose **Run detector on CPU** (step 5); the Pi's GPU is not verified |
+| EmbeddingGemma 2 (knowledge base, visual memory), Whisper base and moonshine tiny (speech to text), Inflect-nano-v2 (spoken replies) | CPU |
+
+The app offers no NPU on the Pi.
 
 ## What you need
 
@@ -18,7 +23,7 @@ voice chat with Gemma and a live camera assistant. Everything runs on the Pi.
 | Cooling and power | the Active Cooler (the models keep all four cores busy) and the official 27 W supply |
 | Camera | a USB webcam, or an Android phone as a Wi-Fi camera ([network camera](../../litert/flutter/README.md#using-the-demos)). The Camera Module (CSI) is not supported by the app |
 | Audio | a USB speakerphone, or a USB microphone and a speaker. The Pi 5 has no audio jack |
-| Models | a Hugging Face read token for the built-in models (step 3), and a chat model: Gemma 4 E2B, `gemma-4-E2B-it.litertlm` (2.6 GB) from [litert-community/gemma-4-E2B-it-litert-lm](https://huggingface.co/litert-community/gemma-4-E2B-it-litert-lm), no login needed |
+| Models | a chat model: Gemma 4 E2B, `gemma-4-E2B-it.litertlm` (2.6 GB) from [litert-community/gemma-4-E2B-it-litert-lm](https://huggingface.co/litert-community/gemma-4-E2B-it-litert-lm), no login needed |
 
 ## 1. Prepare the Pi
 
@@ -58,13 +63,10 @@ tool/flutter_litert/vendor.sh
 ## 3. The built-in models
 
 ```sh
-cp .env.example .env                      # then set HF_TOKEN=hf_... in it
 tool/fetch_models.sh
 ```
 
-- `HF_TOKEN` is a Hugging Face read token from an account that accepted the Gemma terms on
-  [litert-community/embeddinggemma-300m](https://huggingface.co/litert-community/embeddinggemma-300m); only that
-  download uses it.
+- Every built-in model downloads without a Hugging Face account or token.
 - The script derives the YOLO26n detector in a Python venv (the `ai-edge-litert` wheel exists for Linux aarch64). If
   you were given `yolo26n_fp16_rawhead.tflite`, copy it into `assets/models/` first and the script only verifies it.
 - `tool/fetch_models.sh --check` verifies every file without the network.
@@ -110,6 +112,7 @@ show where each model runs.
   detector?" (answered from the knowledge base, with sources) and "Which accelerator are you running on?".
 - **Live camera:** choose the camera with the **Camera** button at the top of the demo: a USB webcam, or a network
   camera such as a phone running IP Webcam. Hold the mic and ask "What do you see?", "How many people are there?".
+  It also remembers what it saw: "Where was the yellow sign?" shows the frame and how long ago it was.
 - **Self-test:** `./run.sh --selftest` runs the detector on a reference picture and checks it against golden
   detections, loads the chat model and times 64 tokens, checks the speaker and microphone, and saves a report: board,
   OS, GPU and Vulkan driver, where each model ran, speed and memory; the `report` line says where. Exit code 0 means

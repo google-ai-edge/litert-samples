@@ -5,18 +5,24 @@ and run its two demos: a voice chat with Gemma and a live camera assistant. Ever
 installs only apps signed for your own devices, so there is no ready-made build: you build it on a Mac (about 15
 minutes the first time).
 
-> **Status:** tested on an iPhone 17 Pro (iOS 26.5.2, release build, signed without the two memory capabilities of
-> step 2): Gemma 4 E2B and the YOLO26n detector both run on the GPU (Metal); speech recognition, spoken replies and
-> the knowledge base run on the CPU.
+## What runs where
+
+| Model | Runs on |
+|---|---|
+| Chat model, Gemma 4 E2B (`gemma-4-E2B-it.litertlm`) | GPU (Metal); its vision and audio towers on the CPU (the file sets it) |
+| YOLO26n detector (Live camera) | GPU (Metal); CPU when chosen in the Live camera settings |
+| EmbeddingGemma 2 (knowledge base, visual memory), Whisper base and moonshine tiny (speech to text), Inflect-nano-v2 (spoken replies) | CPU |
+
+The app has no NPU path on iOS.
 
 ## What you need
 
 | | |
 |---|---|
-| Mac | Apple silicon, **Xcode 26** with the iOS platform, **CocoaPods** (`brew install cocoapods`: one plugin has no Swift Package Manager support), Flutter 3.47.3 (`flutter doctor` shows no errors for Xcode and CocoaPods), and the sample set up once: [Set up](../../litert/flutter/README.md#set-up-once-per-checkout) in the sample's README (Python 3.10+, a Hugging Face token in `.env`, `tool/flutter_litert/vendor.sh`, `tool/fetch_models.sh`, `flutter pub get`) |
+| Mac | Apple silicon, **Xcode 26** with the iOS platform, **CocoaPods** (`brew install cocoapods`: one plugin has no Swift Package Manager support), Flutter 3.47.3 (`flutter doctor` shows no errors for Xcode and CocoaPods), and the sample set up once: [Set up](../../litert/flutter/README.md#set-up-once-per-checkout) in the sample's README (Python 3.10+, `tool/flutter_litert/vendor.sh`, `tool/fetch_models.sh`, `flutter pub get`) |
 | iPhone | **iOS 26 or newer** (a dependency of the agent package links a system library that older iOS lacks), **8 GB of RAM or more** (iPhone 15 Pro or newer), about 4 GB free |
 | Apple account | signed in to Xcode (**Xcode › Settings › Accounts**). A paid Apple Developer Program team keeps the two memory capabilities of step 2. A free Personal Team works too, but it cannot use them, and its builds stop launching after 7 days (run step 3 again) |
-| Chat model | one `.litertlm` file for the GPU: Gemma 4 E2B, `gemma-4-E2B-it.litertlm` (2.6 GB) from [litert-community/gemma-4-E2B-it-litert-lm](https://huggingface.co/litert-community/gemma-4-E2B-it-litert-lm), no login needed. NPU builds (`…_qualcomm_…`, `…_Google_Tensor_…`, `…_intel_…`) and the text-only `-gpu` and `-web` files do not run in this app on an iPhone |
+| Chat model | one `.litertlm` file for the GPU: Gemma 4 E2B, `gemma-4-E2B-it.litertlm` (2.6 GB) from [litert-community/gemma-4-E2B-it-litert-lm](https://huggingface.co/litert-community/gemma-4-E2B-it-litert-lm), no login needed. |
 
 ## 1. Prepare the iPhone
 
@@ -86,18 +92,19 @@ models**. Any of these works:
 
 1. Open **LiteRT Demos**. On **Set up models**, the **Chat model** card lists the files in the models folder (tap
    **Rescan** if yours is missing). With exactly one file there and nothing chosen yet, it is already selected.
-2. Select **GPU**, then **Use this model**. A file added with **Import file…** or **Download from URL…** starts
-   with conservative settings (images and tools off): turn them on for Gemma 4 E2B. The first load on the GPU
-   compiles GPU programs once (up to a minute); later starts take a few seconds.
+2. Select **GPU**, check the **Towers** rows (read from the file: Gemma 4 E2B has vision and audio), then **Use this
+   model**. The first load on the GPU compiles GPU programs once (up to a minute); later starts take a few seconds.
 3. Allow the microphone and the camera when a demo asks.
 
 ## 6. Use it
 
 - **Voice chat:** hold the mic button, speak, release; or type. Try "What is the input size of the YOLO26 nano
   detector?" (answered from the knowledge base, with sources), "Which accelerator are you running on?", or attach a
-  photo and ask about it. Tap the mic while it speaks to interrupt it.
+  photo and ask about it. Gemma 4 E2B has an audio tower, so the question goes to it as audio. Tap the mic
+  while it speaks to interrupt it.
 - **Live camera:** boxes appear around objects. Hold the mic and ask, within 5 seconds, "What do you see?" or "How
   many people are there?" (answered from the detector at once), or "Describe the scene" (the frame goes to Gemma).
+  It also remembers what it saw: "Where was the yellow sign?" shows the frame and how long ago it was.
 - **Self-test:** on Home, the **…** menu (top right) › **Models** › **Run self-test**, then **Copy**. The **THIS
   DEVICE** card shows where each model really runs.
 
