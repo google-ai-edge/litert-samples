@@ -15,7 +15,7 @@
 [versions]
 agp = "8.13.2"
 kotlin = "2.3.0"
-litert = "2.2.0"
+litert = "2.3.0"
 compose-bom = "2024.12.01"
 activity = "1.10.0"
 lifecycle = "2.8.7"
@@ -23,6 +23,7 @@ camera = "1.4.1"
 
 [libraries]
 litert = { module = "com.google.ai.edge.litert:litert", version.ref = "litert" }
+litert-gpu = { module = "com.google.ai.edge.litert:litert-gpu", version.ref = "litert" }
 core = { module = "androidx.core:core-ktx", version = "1.15.0" }
 activity-compose = { module = "androidx.activity:activity-compose", version.ref = "activity" }
 lifecycle-viewmodel = { module = "androidx.lifecycle:lifecycle-viewmodel-ktx", version.ref = "lifecycle" }
