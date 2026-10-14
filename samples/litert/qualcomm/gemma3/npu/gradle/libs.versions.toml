@@ -13,8 +13,8 @@ lifecycle = "2.6.2"
 activity = "1.8.0"
 recyclerview = "1.3.2"
 securityCrypto = "1.1.0-alpha06"
-litert = "2.1.4"
-litertGpu = "1.4.2"
+litert = "2.3.0"
+litertGpu = "2.3.0"
 qnnDelegate = "2.44.0"
 
 [libraries]
