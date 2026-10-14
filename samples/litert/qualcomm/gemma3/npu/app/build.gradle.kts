@@ -35,6 +35,7 @@ android {
     }
     kotlinOptions {
         jvmTarget = "11"
+        freeCompilerArgs += "-Xskip-metadata-version-check"
     }
     buildFeatures {
         viewBinding = true
