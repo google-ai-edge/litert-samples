@@ -55,10 +55,16 @@ android {
   externalNativeBuild { cmake { path = file("src/main/cpp/CMakeLists.txt") } }
 }
 
-kotlin { compilerOptions { jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_17) } }
+kotlin {
+  compilerOptions {
+    jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_17)
+    freeCompilerArgs.add("-Xskip-metadata-version-check")
+  }
+}
 
 dependencies {
   implementation(libs.litert)
+  implementation(libs.litert.gpu)
   implementation(libs.litertlm)
   implementation(libs.coroutines)
   implementation(libs.activity.compose)
