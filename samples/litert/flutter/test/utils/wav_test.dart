@@ -16,8 +16,7 @@ import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:flutter_test/flutter_test.dart';
-
-import '../../../integration_test/support/wav.dart';
+import 'package:litert_edge_demos/utils/wav.dart';
 
 void main() {
   group('pcm16FromWav (any header size, never a fixed offset)', () {
@@ -58,6 +57,73 @@ void main() {
       );
       expect(
         () => pcm16FromWav(Uint8List.fromList('RIFF0000WAVE'.codeUnits)),
+        throwsA(isA<FormatException>()),
+      );
+    });
+  });
+
+  group('wavFromPcm16', () {
+    test('pcm16FromWav reads back exactly the samples written', () {
+      final samples = Uint8List.fromList(List.generate(64, (i) => i));
+      final wav = wavFromPcm16(samples, sampleRate: 16000);
+
+      expect(wav.length, kWavHeaderBytes + samples.length);
+      final pcm = pcm16FromWav(wav);
+      expect(pcm, samples);
+      expect(pcm.offsetInBytes, kWavHeaderBytes);
+    });
+
+    test('the canonical header: RIFF size, PCM, mono, rate, 16 bits', () {
+      final wav = wavFromPcm16(Uint8List(100), sampleRate: 24000);
+      final view = ByteData.sublistView(wav);
+      String id(int at) => String.fromCharCodes(wav, at, at + 4);
+
+      expect(id(0), 'RIFF');
+      expect(view.getUint32(4, Endian.little), 36 + 100);
+      expect(id(8), 'WAVE');
+      expect(id(12), 'fmt ');
+      expect(view.getUint32(16, Endian.little), 16);
+      expect(view.getUint16(20, Endian.little), 1, reason: 'PCM');
+      expect(view.getUint16(22, Endian.little), 1, reason: 'mono');
+      expect(view.getUint32(24, Endian.little), 24000);
+      expect(view.getUint32(28, Endian.little), 48000, reason: 'byte rate');
+      expect(view.getUint16(32, Endian.little), 2, reason: 'block align');
+      expect(view.getUint16(34, Endian.little), 16, reason: 'bits');
+      expect(id(36), 'data');
+      expect(view.getUint32(40, Endian.little), 100);
+    });
+
+    test('an odd byte count or a rate that is not positive is refused', () {
+      expect(
+        () => wavFromPcm16(Uint8List(3), sampleRate: 16000),
+        throwsArgumentError,
+      );
+      expect(
+        () => wavFromPcm16(Uint8List(4), sampleRate: 0),
+        throwsArgumentError,
+      );
+    });
+  });
+
+  group('wavDuration', () {
+    test('the data chunk at 16 kHz mono PCM16: 32 000 bytes a second', () {
+      expect(
+        wavDuration(wavFromPcm16(Uint8List(48000), sampleRate: 16000)),
+        const Duration(milliseconds: 1500),
+      );
+      expect(
+        wavDuration(_wav(Uint8List(3200), padding: 100)),
+        const Duration(milliseconds: 100),
+      );
+    });
+
+    test('anything but a 16 kHz mono PCM16 WAV is a FormatException', () {
+      expect(
+        () => wavDuration(Uint8List.fromList([1, 2, 3, 4])),
+        throwsA(isA<FormatException>()),
+      );
+      expect(
+        () => wavDuration(_wav(Uint8List(8), rate: 24000)),
         throwsA(isA<FormatException>()),
       );
     });

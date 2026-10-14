@@ -44,17 +44,41 @@ void main() {
     expect(reason, contains('library "libcdsprpc.so" not found'));
   });
 
-  test('macOS, iOS and Linux ship no NPU stack; the probe never runs', () {
-    for (final os in ['macos', 'ios', 'linux']) {
+  test('macOS and iOS ship no NPU stack; the probe never runs', () {
+    for (final os in ['macos', 'ios']) {
       final npu = npuAvailabilityFor(
         os,
         openFastRpc: () => fail('no dlopen on $os'),
+        probeLinuxNpu: () => fail('no Linux probe on $os'),
       );
       expect(
         (npu as NpuUnavailable).reason,
         'no NPU dispatch stack ships for $os',
       );
     }
+  });
+
+  test('Linux offers the NPU when the Qualcomm probe passes', () {
+    final npu = npuAvailabilityFor(
+      'linux',
+      openFastRpc: () => fail('no Android probe on Linux'),
+      probeLinuxNpu: () => null,
+    );
+    expect(npu, isA<NpuAvailable>());
+  });
+
+  test("Linux says why the NPU is missing, in the probe's words", () {
+    final npu = npuAvailabilityFor(
+      'linux',
+      openFastRpc: () => fail('no Android probe on Linux'),
+      probeLinuxNpu: () =>
+          '/dev/fastrpc-cdsp is not accessible to this user. Add the user to '
+          'group fastrpc',
+    );
+    expect(
+      (npu as NpuUnavailable).reason,
+      startsWith('/dev/fastrpc-cdsp is not accessible to this user'),
+    );
   });
 
   test('Windows is gated per OS, as flutter_edge_ai does', () {

@@ -14,6 +14,7 @@
 
 import 'dart:async';
 import 'dart:io';
+import 'dart:typed_data';
 
 import 'package:flutter_edge_ai/flutter_edge_ai.dart'
     show ModelType, PreferredBackend;
@@ -27,10 +28,14 @@ import 'package:litert_edge_demos/data/services/model_store/models_folder.dart';
 import 'package:litert_edge_demos/data/services/settings/settings_store.dart';
 import 'package:litert_edge_demos/data/services/settings/typed_settings.dart';
 import 'package:litert_edge_demos/domain/models/chat_model.dart';
+import 'package:litert_edge_demos/domain/models/chat_model_config.dart'
+    show ModelTowers;
 import 'package:litert_edge_demos/domain/models/npu_availability.dart';
 import 'package:litert_edge_demos/utils/result.dart';
 
 import '../../fakes/fake_settings_store.dart';
+import '../../support/fake_model_server.dart';
+import '../../support/litertlm_header.dart';
 import '../../support/test_bytes.dart';
 import '../../support/until.dart';
 
@@ -97,7 +102,12 @@ void main() {
   final repos = <ChatModelRepository>[];
 
   const fileName = 'Gemma3-1B-IT_q4_ekv1280_sm8750.litertlm';
-  final bytes = testBytes(64 * 1024, seed: 5);
+  // A text-only NPU build: its header marks the NPU (as the name does), no
+  // towers.
+  final bytes = Uint8List.fromList([
+    ...litertlmHeaderBytes(kTextOnlyNpuSections),
+    ...testBytes(64 * 1024, seed: 5),
+  ]);
 
   setUp(() {
     root = Directory.systemTemp.createTempSync('chat_model_root');
@@ -122,12 +132,14 @@ void main() {
     NpuAvailability npu = const NpuUnavailable(
       'no NPU dispatch stack ships for macos',
     ),
+    bool persistMigration = true,
   }) {
     final store = ModelStore(root: () async => root);
     stores.add(store);
     final repo = ChatModelRepository(
       settings: TypedSettings(store: prefs),
       store: store,
+      persistMigration: persistMigration,
       npu: () => npu,
       folders: [
         ModelsFolder(
@@ -165,8 +177,8 @@ void main() {
     );
 
     test('used where it is: no copy into the store; an NPU-only build '
-        'defaults to the NPU with images off; the SHA-256 follows in the '
-        'background', () async {
+        'defaults to the NPU, with no towers in its header; the SHA-256 '
+        'follows in the background', () async {
       final repo = newRepo(npu: const NpuAvailable(soc: 'QTI SM8850'));
       await repo.load();
       final file = inPlace('gemma4_2b_SM8850.litertlm', npuHeader);
@@ -177,7 +189,11 @@ void main() {
       expect(model.source, isA<LocalModelSource>());
       expect((model.source as LocalModelSource).path, file.path);
       expect(model.backend, PreferredBackend.npu);
-      expect(model.supportImage, isFalse, reason: 'no vision section');
+      expect(
+        model.towersOf(repo.state.value.header!),
+        ModelTowers.none,
+        reason: 'no vision or audio section',
+      );
       expect(model.maxTokens, 4096);
       expect(model.tools, isFalse, reason: 'an NPU build: off until known');
       expect(model.file?.sha256, isNull, reason: 'never blocks');
@@ -198,6 +214,8 @@ void main() {
       final plan = repo.plan as CustomChatPlan;
       expect(plan.path, file.path);
       expect(plan.config.llm.backend, PreferredBackend.npu);
+      expect(plan.config.llm.supportImage, isFalse);
+      expect(plan.config.llm.supportAudio, isFalse);
     });
 
     group('the saved file is gone from its path', () {
@@ -263,7 +281,8 @@ void main() {
     });
 
     test(
-      'a GPU file with a vision section defaults images on and the GPU',
+      'a GPU file with towers: the GPU, both towers on the CPU as its header '
+      'sets them',
       () async {
         final repo = newRepo(npu: const NpuAvailable());
         await repo.load();
@@ -274,11 +293,460 @@ void main() {
 
         final model = (result as Ok<CustomChatModel>).value;
         expect(model.backend, PreferredBackend.gpu);
-        expect(model.supportImage, isTrue);
+        final towers = model.towersOf(repo.state.value.header!);
+        expect(towers.visionBackend, PreferredBackend.cpu);
+        expect(towers.audioBackend, PreferredBackend.cpu);
         expect(model.maxTokens, 8192, reason: 'the app\'s GPU context');
         expect(model.tools, isTrue, reason: 'not an NPU build: skills work');
       },
     );
+
+    test('the towers follow the file: a replacement without towers loads '
+        'none, whatever the previous file had', () async {
+      final repo = newRepo();
+      await repo.load();
+      final gemma = (await repo.useLocalFile(
+        inPlace('gemma-4-E2B-it.litertlm', gpuHeader).path,
+      ) as Ok<CustomChatModel>).value;
+      expect(await repo.apply(gemma), isA<Ok<void>>());
+      final before = (repo.plan as CustomChatPlan).config.llm;
+      expect(before.supportImage && before.supportAudio, isTrue);
+
+      final npu = (await repo.useLocalFile(
+        inPlace('mine_sm8850.litertlm', npuHeader).path,
+      ) as Ok<CustomChatModel>).value;
+
+      expect(
+        npu.backend,
+        gemma.backend,
+        reason: 'a replacement keeps the rest',
+      );
+      expect(await repo.apply(npu), isA<Ok<void>>());
+      final after = (repo.plan as CustomChatPlan).config.llm;
+      expect(after.supportImage || after.supportAudio, isFalse);
+    });
+
+    group('towers: placed per tower from the header', () {
+      const npu = NpuAvailable(soc: 'QTI SM8750');
+
+      test('towers declared by the file (the official qcs8275 build: prefill '
+          'npu, audio encoder and adapter and vision adapter cpu): the NPU, '
+          'both towers on the CPU as the file sets them; the plan loads them '
+          'there', () async {
+        final repo = newRepo(npu: npu);
+        await repo.load();
+
+        final model = (await repo.useLocalFile(
+          inPlace(
+            'gemma-4-E2B-it_qualcomm_qcs8275.litertlm',
+            litertlmHeaderBytes(kQualcommQcs8275Sections),
+          ).path,
+        ) as Ok<CustomChatModel>).value;
+
+        expect(model.backend, PreferredBackend.npu, reason: 'prefill npu');
+        expect(await repo.apply(model), isA<Ok<void>>());
+        final llm = (repo.plan as CustomChatPlan).config.llm;
+        expect(llm.supportImage && llm.supportAudio, isTrue);
+        expect(llm.visionBackend, PreferredBackend.cpu);
+        expect(llm.audioBackend, PreferredBackend.cpu);
+        expect(llm.undeclaredTowersOnNpu, isFalse);
+      });
+
+      test(
+        'no constraint on any section (the official sm8750 build): on the '
+        'NPU both towers on the NPU by default; on the GPU both on the CPU',
+        () async {
+          final repo = newRepo(npu: npu);
+          await repo.load();
+
+          final model = (await repo.useLocalFile(
+            inPlace(
+              'gemma-4-E2B-it_qualcomm_sm8750.litertlm',
+              litertlmHeaderBytes(kQualcommSm8750Sections),
+            ).path,
+          ) as Ok<CustomChatModel>).value;
+
+          expect(
+            model.backend,
+            PreferredBackend.gpu,
+            reason:
+                'nothing marks it NPU-only: the GPU until the user picks NPU',
+          );
+          expect(await repo.apply(model), isA<Ok<void>>());
+          final gpu = (repo.plan as CustomChatPlan).config.llm;
+          expect(gpu.visionBackend, PreferredBackend.cpu);
+          expect(gpu.audioBackend, PreferredBackend.cpu);
+
+          expect(
+            await repo.apply(model.copyWith(backend: PreferredBackend.npu)),
+            isA<Ok<void>>(),
+          );
+          final onNpu = (repo.plan as CustomChatPlan).config.llm;
+          expect(onNpu.visionBackend, PreferredBackend.npu);
+          expect(onNpu.audioBackend, PreferredBackend.npu);
+          expect(onNpu.undeclaredTowersOnNpu, isTrue);
+        },
+      );
+
+      test('the choices for open towers are saved and reach the plan; a '
+          'tower the file sets ignores a saved choice', () async {
+        final repo = newRepo(npu: npu);
+        await repo.load();
+        final sm8750 = (await repo.useLocalFile(
+          inPlace(
+            'gemma-4-E2B-it_qualcomm_sm8750.litertlm',
+            litertlmHeaderBytes(kQualcommSm8750Sections),
+          ).path,
+        ) as Ok<CustomChatModel>).value;
+
+        final cpu = sm8750
+            .copyWith(backend: PreferredBackend.npu, maxTokens: 4096)
+            .withTowerChoices(
+              vision: PreferredBackend.cpu,
+              audio: PreferredBackend.cpu,
+            );
+        expect(await repo.apply(cpu), isA<Ok<void>>());
+
+        final llm = (repo.plan as CustomChatPlan).config.llm;
+        expect(llm.visionBackend, PreferredBackend.cpu);
+        expect(llm.audioBackend, PreferredBackend.cpu);
+        expect(llm.undeclaredTowersOnNpu, isFalse);
+        final stored = CustomChatModelCodec.decode(
+          prefs.values['chat.custom']! as String,
+        );
+        expect(stored.visionChoice, PreferredBackend.cpu);
+        expect(stored.audioChoice, PreferredBackend.cpu);
+
+        // The same choices on a file that sets its towers: the file wins.
+        final towers = (await repo.useLocalFile(
+          inPlace(
+            'gemma-4-E2B-it_qualcomm_qcs8275.litertlm',
+            litertlmHeaderBytes(kQualcommQcs8275Sections),
+          ).path,
+        ) as Ok<CustomChatModel>).value;
+        expect(
+          await repo.apply(
+            towers.withTowerChoices(
+              vision: PreferredBackend.npu,
+              audio: PreferredBackend.npu,
+            ),
+          ),
+          isA<Ok<void>>(),
+        );
+        final pinned = (repo.plan as CustomChatPlan).config.llm;
+        expect(pinned.visionBackend, PreferredBackend.cpu);
+        expect(pinned.audioBackend, PreferredBackend.cpu);
+      });
+
+      test('another file resets the choices; Run on GPU keeps them (they '
+          'apply again back on the NPU)', () async {
+        final repo = newRepo(npu: npu);
+        await repo.load();
+        final first = (await repo.useLocalFile(
+          inPlace(
+            'a.litertlm',
+            litertlmHeaderBytes(kQualcommSm8750Sections),
+          ).path,
+        ) as Ok<CustomChatModel>).value;
+        final chosen = first
+            .copyWith(backend: PreferredBackend.npu, maxTokens: 4096)
+            .withTowerChoices(vision: PreferredBackend.cpu, audio: null);
+        expect(await repo.apply(chosen), isA<Ok<void>>());
+
+        expect(await repo.runOn(PreferredBackend.gpu), isA<Ok<void>>());
+        final onGpu = repo.state.value.custom!;
+        expect(onGpu.visionChoice, PreferredBackend.cpu, reason: 'kept');
+        final gpuLlm = (repo.plan as CustomChatPlan).config.llm;
+        expect(gpuLlm.visionBackend, PreferredBackend.cpu);
+        expect(gpuLlm.audioBackend, PreferredBackend.cpu, reason: 'off NPU');
+
+        final replaced = (await repo.useLocalFile(
+          inPlace(
+            'b.litertlm',
+            litertlmHeaderBytes(kQualcommSm8750Sections),
+          ).path,
+        ) as Ok<CustomChatModel>).value;
+        expect(replaced.visionChoice, isNull, reason: 'another file');
+        expect(replaced.audioChoice, isNull);
+        expect(
+          CustomChatModelCodec.decode(prefs.values['chat.custom']! as String)
+              .visionChoice,
+          isNull,
+        );
+      });
+
+      test('the same file picked again keeps the choices (the official '
+          'SM8750 build works only with them): in place by its path and size, '
+          'imported by its SHA-256; another file drops them', () async {
+        final repo = newRepo(npu: npu);
+        await repo.load();
+        final file = inPlace(
+          'gemma-4-E2B-it_qualcomm_sm8750.litertlm',
+          litertlmHeaderBytes(kQualcommSm8750Sections),
+        );
+        final first =
+            (await repo.useLocalFile(file.path) as Ok<CustomChatModel>).value;
+        final cpu = first
+            .copyWith(backend: PreferredBackend.npu, maxTokens: 4096)
+            .withTowerChoices(
+              vision: PreferredBackend.cpu,
+              audio: PreferredBackend.cpu,
+            );
+        expect(await repo.apply(cpu), isA<Ok<void>>());
+
+        final again =
+            (await repo.useLocalFile(file.path) as Ok<CustomChatModel>).value;
+        expect(again.visionChoice, PreferredBackend.cpu);
+        expect(again.audioChoice, PreferredBackend.cpu);
+
+        // Imported into the store: the same bytes (its SHA-256, once the
+        // in-place hash is known), so the same file.
+        await hashed(repo);
+        final imported =
+            (await repo.importFile(file.path) as Ok<CustomChatModel>).value;
+        expect(imported.source, isA<ImportedModelSource>());
+        expect(imported.visionChoice, PreferredBackend.cpu, reason: 'same');
+
+        final other = (await repo.useLocalFile(
+          inPlace(
+            'other.litertlm',
+            litertlmHeaderBytes(kQualcommSm8750Sections),
+          ).path,
+        ) as Ok<CustomChatModel>).value;
+        expect(other.visionChoice, isNull, reason: 'another file');
+        expect(other.audioChoice, isNull);
+      });
+
+      test('a choice that is not the CPU or the NPU is refused', () async {
+        final repo = newRepo(npu: npu);
+        await repo.load();
+        final model = (await repo.useLocalFile(
+          inPlace(
+            'a.litertlm',
+            litertlmHeaderBytes(kQualcommSm8750Sections),
+          ).path,
+        ) as Ok<CustomChatModel>).value;
+
+        expect(
+          repo.problemWith(
+            model.withTowerChoices(vision: PreferredBackend.gpu, audio: null),
+          ),
+          contains('the CPU or the NPU'),
+        );
+      });
+
+      test('the header is read again at launch: the plan has it after a '
+          'restart', () async {
+        final first = newRepo(npu: npu);
+        await first.load();
+        final model = (await first.useLocalFile(
+          inPlace(
+            'towers.litertlm',
+            litertlmHeaderBytes(kQualcommQcs8275Sections),
+          ).path,
+        ) as Ok<CustomChatModel>).value;
+        expect(await first.apply(model), isA<Ok<void>>());
+
+        final relaunched = newRepo(npu: npu);
+        await relaunched.load();
+
+        final llm = (relaunched.plan as CustomChatPlan).config.llm;
+        expect(llm.visionBackend, PreferredBackend.cpu);
+        expect(llm.audioBackend, PreferredBackend.cpu);
+        expect(relaunched.state.value.header, isNotNull);
+      });
+
+      test('an imported or downloaded file whose header cannot be read is '
+          'refused with the inspection error, as a file in place is, before '
+          'the store copies it: nothing adopted or stored, the chosen model '
+          'and its file kept, also under the same name', () async {
+        final repo = newRepo(npu: npu);
+        await repo.load();
+        final first =
+            (await repo.importFile(pick()) as Ok<CustomChatModel>).value;
+        expect(await repo.apply(first), isA<Ok<void>>());
+        final plan = repo.plan as CustomChatPlan;
+        final chosen = File(plan.path).readAsBytesSync();
+        final noHeader = File('${picked.path}/no_header.litertlm')
+          ..writeAsBytesSync(testBytes(8192, seed: 4));
+
+        final imported = await repo.importFile(noHeader.path);
+
+        expect(
+          (imported as Error<CustomChatModel>).error,
+          isA<LocalModelException>().having(
+            (e) => e.message,
+            'message',
+            '${noHeader.path} is not a .litertlm file (it does not start '
+                'with "LITERTLM").',
+          ),
+          reason: 'it names the file the user picked',
+        );
+        expect(
+          File('${root.path}/custom/no_header.litertlm').existsSync(),
+          isFalse,
+          reason: 'never stored',
+        );
+
+        // The same name as the chosen model's file: that file is untouched.
+        final sameName = File('${picked.path}/other/$fileName')
+          ..createSync(recursive: true)
+          ..writeAsBytesSync(testBytes(8192, seed: 7));
+        expect(
+          await repo.importFile(sameName.path),
+          isA<Error<CustomChatModel>>(),
+        );
+        expect(File(plan.path).readAsBytesSync(), chosen);
+
+        final server = await FakeModelServer.start();
+        addTearDown(server.close);
+        server.files[fileName] = ServedFile(testBytes(4096, seed: 6));
+        final downloaded = await repo.download(server.url(fileName));
+        expect(
+          (downloaded as Error<CustomChatModel>).error.toString(),
+          allOf(
+            contains('is not a usable .litertlm'),
+            contains('the downloaded file is not a .litertlm file'),
+          ),
+        );
+        expect(File(plan.path).readAsBytesSync(), chosen);
+        expect(
+          Directory('${root.path}/custom')
+              .listSync()
+              .map((e) => e.path.split('/').last)
+              .where((n) => n.endsWith('.part')),
+          isEmpty,
+          reason: 'the refused download\'s bytes are deleted',
+        );
+
+        expect(repo.state.value.custom?.file?.name, fileName);
+        expect(prefs.values['chat.custom'], contains(fileName));
+        expect((repo.plan as CustomChatPlan).path, plan.path);
+      });
+
+      test('a stored file whose header cannot be read at launch is the '
+          'visible problem, not loaded with its towers off', () async {
+        final first = newRepo(npu: npu);
+        await first.load();
+        final model =
+            (await first.importFile(pick()) as Ok<CustomChatModel>).value;
+        expect(await first.apply(model), isA<Ok<void>>());
+        // The header turns unreadable; size and checksum record unchanged.
+        final stored = File('${root.path}/custom/$fileName');
+        final damaged = stored.readAsBytesSync()..fillRange(0, 8, 0);
+        stored.writeAsBytesSync(damaged);
+
+        final relaunched = newRepo(npu: npu);
+        final saved = prefs.values['chat.custom'];
+
+        await relaunched.load();
+        expect(
+          relaunched.plan,
+          isA<ChatPlanBlocked>().having(
+            (p) => p.reason,
+            'reason',
+            contains(
+              'the header of $fileName in the model store cannot be '
+              'read',
+            ),
+          ),
+        );
+        expect(relaunched.state.value.problem, isNull, reason: 'settings ok');
+        expect(prefs.values['chat.custom'], saved, reason: 'settings kept');
+
+        // Picked again: the settings stay (not a repair to defaults).
+        final again =
+            (await relaunched.importFile(pick()) as Ok<CustomChatModel>).value;
+        expect(again.backend, model.backend);
+        expect(again.maxTokens, model.maxTokens);
+        expect(relaunched.plan, isA<CustomChatPlan>());
+      });
+
+      test('an imported build with towers declared by the file (qcs8275): '
+          'its header is read from the '
+          'store\'s copy (and again at launch), so its towers load on the '
+          'CPU like the same file in place', () async {
+        final repo = newRepo(npu: npu);
+        await repo.load();
+        final towers = inPlace(
+          'gemma-4-E2B-it_qualcomm_qcs8275.litertlm',
+          litertlmHeaderBytes(kQualcommQcs8275Sections),
+        );
+
+        final model =
+            (await repo.importFile(towers.path) as Ok<CustomChatModel>).value;
+
+        expect(model.source, isA<ImportedModelSource>());
+        expect(model.backend, PreferredBackend.npu, reason: 'prefill npu');
+        expect(await repo.apply(model), isA<Ok<void>>());
+        final llm = (repo.plan as CustomChatPlan).config.llm;
+        expect(llm.visionBackend, PreferredBackend.cpu);
+        expect(llm.audioBackend, PreferredBackend.cpu);
+
+        final relaunched = newRepo(npu: npu);
+        await relaunched.load();
+        final again = (relaunched.plan as CustomChatPlan).config.llm;
+        expect(again.visionBackend, PreferredBackend.cpu);
+        expect(again.audioBackend, PreferredBackend.cpu);
+      });
+
+      test('a downloaded build with towers declared by the file (qcs8275): '
+          'the same, from the store\'s '
+          'copy', () async {
+        final server = await FakeModelServer.start();
+        addTearDown(server.close);
+        const name = 'gemma-4-E2B-it_qualcomm_qcs8275.litertlm';
+        server.files[name] = ServedFile(
+          Uint8List.fromList([
+            ...litertlmHeaderBytes(kQualcommQcs8275Sections),
+            ...testBytes(8192, seed: 9),
+          ]),
+        );
+        final repo = newRepo(npu: npu);
+        await repo.load();
+
+        final model = (await repo.download(
+          server.url(name),
+        ) as Ok<CustomChatModel>).value;
+
+        expect(model.source, isA<UrlModelSource>());
+        expect(model.backend, PreferredBackend.npu);
+        final towers = model.towersOf(repo.state.value.header!);
+        expect(towers.supportAudio, isTrue, reason: 'its header has audio');
+        expect(towers.visionBackend, PreferredBackend.cpu);
+        expect(towers.audioBackend, PreferredBackend.cpu);
+      });
+
+      test('a saved version 3 record with images off and the encoders on the '
+          'NPU, for a file whose header pins its towers to the CPU: it loads, '
+          'and the header wins (both towers, on the CPU); nothing is '
+          'repaired', () async {
+        final bytes = [
+          ...litertlmHeaderBytes(kQualcommQcs8275Sections),
+          ...testBytes(8192, seed: 3),
+        ];
+        final file = File('${picked.path}/towers.litertlm')
+          ..writeAsBytesSync(bytes);
+        prefs.values['chat.model'] = ChatModelKind.custom.name;
+        final v3 =
+            '{"v":3,"displayName":"towers","modelType":"gemma4",'
+            '"backend":"npu","maxTokens":4096,"supportImage":false,'
+            '"supportAudio":true,"encoderBackend":"npu","tools":false,'
+            '"source":{"kind":"local","path":"${file.path}"},'
+            '"file":{"name":"towers.litertlm","sizeBytes":${bytes.length},'
+            '"checksumMatched":false}}';
+        prefs.values['chat.custom'] = v3;
+        final repo = newRepo(npu: npu, persistMigration: false);
+
+        expect(await repo.load(), isA<Ok<void>>());
+
+        final llm = (repo.plan as CustomChatPlan).config.llm;
+        expect(llm.supportImage, isTrue, reason: 'the header has vision');
+        expect(llm.visionBackend, PreferredBackend.cpu);
+        expect(llm.audioBackend, PreferredBackend.cpu);
+        expect(prefs.values['chat.custom'], v3, reason: 'read only');
+      });
+    });
 
     test('another family by its name (Qwen 3): its own type and tools off; '
         'a Gemma file in place: tools on', () async {
@@ -666,6 +1134,11 @@ void main() {
         expect(plan.config.llm.backend, PreferredBackend.gpu);
         expect(plan.config.llm.maxTokens, 8192);
         expect(plan.config.llm.supportImage, isTrue);
+        expect(
+          plan.config.llm.supportAudio,
+          isTrue,
+          reason: 'its header has the audio encoder',
+        );
         expect(plan.config.tools, isTrue);
         expect(repo.state.value.note, kEarlierGemmaAdoptedNote);
         expect(prefs.values['chat.model'], 'custom');
@@ -742,8 +1215,12 @@ void main() {
     expect(model.backend, PreferredBackend.npu, reason: 'the NPU is offered');
     expect(model.maxTokens, 1280, reason: 'from ekv1280 in the name');
     expect(model.modelType, ModelType.gemmaIt, reason: 'Gemma3 in the name');
-    expect(model.supportImage, isFalse);
-    expect(model.tools, isFalse);
+    expect(
+      model.towersOf(repo.state.value.header!),
+      ModelTowers.none,
+      reason: 'a text-only build',
+    );
+    expect(model.tools, isFalse, reason: 'an NPU build');
     expect(model.file?.sha256, sha256Hex(bytes));
     expect(model.file?.checksumMatched, isFalse);
     expect(model.source, isA<ImportedModelSource>());

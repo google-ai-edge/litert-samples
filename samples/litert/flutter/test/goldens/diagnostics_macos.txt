@@ -20,12 +20,12 @@ Chat model
   api      Metal (confirmed: native log)
   adapter  Apple M4 Pro (inferred)
   note     GPU sampler unavailable: sampling on the CPU
-  detail   vision encoder on the CPU (flutter_edge_ai default, requested)
+  detail   vision encoder on the CPU (requested)
   model    Gemma 4 E2B (GEMMA_MODEL_PATH, type gemma4)
   source   GEMMA_MODEL_PATH=/models/gemma-4-E2B-it.litertlm
   sha256   unknown (GEMMA_MODEL_PATH)
   context  8192 tokens
-  images   on
+  vision   cpu
   tools    on
   log      INFO: [accelerator_registry.cc:54] RegisterAccelerator: ptr=0xb4dc50300, name=GPU Metal
   log      I0000 00:00:1791240441.593498 19514714 delegate_metal.mm:89] Created a Metal device.
@@ -45,7 +45,7 @@ YOLO26n detector
   detail   GPU fp32 full
 moonshine-tiny (STT, Live camera)
   state    loading
-EmbeddingGemma 300M (knowledge base)
+EmbeddingGemma 2 740m (knowledge base)
   state    unavailable: EmbeddingGemma is not in the model store yet
 
 MEMORY

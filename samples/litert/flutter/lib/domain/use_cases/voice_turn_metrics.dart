@@ -26,6 +26,14 @@ final class TurnMetricsBuilder {
 
   final bool typed;
   final Duration? captureClose;
+
+  /// An audio turn: the chat model heard the recording (no STT).
+  bool audio = false;
+
+  /// An audio turn's transcript job: its time, or why there is no
+  /// transcript.
+  Duration? transcript;
+  String? transcriptError;
   Duration? stt;
   Duration? firstText;
   Duration? firstAudio;
@@ -37,6 +45,9 @@ final class TurnMetricsBuilder {
 
   VoiceTurnMetrics build() => VoiceTurnMetrics(
     typed: typed,
+    audio: audio,
+    transcript: transcript,
+    transcriptError: transcriptError,
     captureClose: captureClose,
     stt: stt,
     firstText: firstText,
@@ -52,7 +63,11 @@ final class TurnMetricsBuilder {
 
   /// The turn's log line, after `[Voice] turn `.
   String summary() =>
-      '${typed ? 'typed' : 'voice'} '
+      '${typed
+          ? 'typed'
+          : audio
+          ? 'voice(audio)'
+          : 'voice'} '
       'outcome=${outcome?.name} '
       'capture=${captureClose?.inMilliseconds}ms '
       'stt=${stt?.inMilliseconds}ms '

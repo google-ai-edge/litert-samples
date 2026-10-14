@@ -15,7 +15,8 @@
 import 'package:flutter/foundation.dart';
 
 import '../../config/env.dart';
-import '../../config/live_camera_config.dart' show standardDetectorBackend;
+import '../../config/live_camera_config.dart'
+    show kMemoryDefaultOnMinRamBytes, standardDetectorBackend;
 import '../../domain/models/camera_source.dart';
 import '../../domain/models/detection.dart';
 import '../../domain/models/detector_choice.dart';
@@ -34,10 +35,11 @@ final class InvalidCameraSettingException implements Exception {
   String toString() => message;
 }
 
-/// Demo 3's two settings, persisted: the camera source (device camera or a
-/// network camera's URL) and where the detector runs (GPU or CPU). The
-/// build's defines win and lock the matching setting: `FRAME_SOURCE=fixture`
-/// or `network` (and an injected test source), `DETECTOR_BACKEND`.
+/// Demo 3's settings, persisted: the camera source (device camera or a
+/// network camera's URL), where the detector runs (GPU or CPU) and the
+/// visual memory switch. The build's defines win and lock the matching
+/// setting: `FRAME_SOURCE=fixture` or `network` (and an injected test
+/// source), `DETECTOR_BACKEND`.
 ///
 /// Read-backs never guess: an unreadable or foreign value is an error the
 /// screen shows, not a silent default.
@@ -47,6 +49,7 @@ class LiveCameraSettingsRepository {
     required this._environment,
     this._backendDefine = kDetectorBackend,
     DetectorBackend? standardBackend,
+    this._physicalMemoryBytes,
   }) : _standardBackend = standardBackend ?? standardDetectorBackend();
 
   final TypedSettings _settings;
@@ -58,6 +61,29 @@ class LiveCameraSettingsRepository {
 
   /// The backend with nothing chosen ([standardDetectorBackend]).
   final DetectorBackend _standardBackend;
+
+  /// The RAM the OS reports (`MemoryProbe.totalBytes`); null when it is not
+  /// measured on this device.
+  final int? _physicalMemoryBytes;
+
+  /// The visual memory with nothing saved: off on a device with less than 8
+  /// GB of RAM ([kMemoryDefaultOnMinRamBytes]), on otherwise. RAM that is
+  /// not measured (iOS has no probe) leaves the spec's default, on: the gate
+  /// turns a feature off on evidence of a small device, and no reading is
+  /// none (every phone that runs the app's chat model has 8 GB or more); the
+  /// log says the RAM was not measured.
+  bool get _memoryOnByDefault => switch (_physicalMemoryBytes) {
+    final bytes? => bytes >= kMemoryDefaultOnMinRamBytes,
+    null => true,
+  };
+
+  /// Why the visual memory is off by default on this device, for the
+  /// camera settings switch; null where it is on by default.
+  String? get visualMemoryDefaultReason => _memoryOnByDefault
+      ? null
+      : 'Off by default on this device '
+            '(${(_physicalMemoryBytes! / (1 << 30)).toStringAsFixed(1)} GB '
+            'RAM): the visual memory loads ~300 MB more.';
 
   /// What fixed the camera source, for the screen (`FRAME_SOURCE=fixture`);
   /// null when the user chooses it.
@@ -187,6 +213,39 @@ class LiveCameraSettingsRepository {
     final saved = await _settings.write(Settings.detectorBackend, backend.name);
     if (saved is Ok<void>) {
       debugPrint('[LiveCameraSettings] detector backend ${backend.name}');
+    }
+    return saved;
+  }
+
+  /// Whether the visual memory is on (the camera settings' switch); when
+  /// never set, on unless the device has less than 8 GB of RAM
+  /// ([visualMemoryDefaultReason]).
+  Future<Result<bool>> readVisualMemory() async {
+    switch (await _settings.read(Settings.visualMemory)) {
+      case Ok(:final value?):
+        return Result.ok(value);
+      case Ok():
+        debugPrint(
+          '[LiveCameraSettings] visual memory not set: '
+          '${_memoryOnByDefault ? 'on' : 'off'} by default '
+          '(${switch (_physicalMemoryBytes) {
+            final bytes? => '${(bytes / (1 << 30)).toStringAsFixed(1)} GiB RAM',
+            null => 'RAM not measured on this device',
+          }})',
+        );
+        return Result.ok(_memoryOnByDefault);
+      case Error(:final error):
+        return Result.error(error);
+    }
+  }
+
+  /// Saves the visual memory switch.
+  Future<Result<void>> saveVisualMemory({required bool enabled}) async {
+    final saved = await _settings.write(Settings.visualMemory, enabled);
+    if (saved is Ok<void>) {
+      debugPrint(
+        '[LiveCameraSettings] visual memory ${enabled ? 'on' : 'off'}',
+      );
     }
     return saved;
   }

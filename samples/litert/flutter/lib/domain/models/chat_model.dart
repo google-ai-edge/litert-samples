@@ -17,6 +17,9 @@ import 'package:flutter_edge_ai/flutter_edge_ai.dart'
 
 import '../../utils/redact_url.dart';
 import 'chat_model_config.dart';
+import 'model_towers.dart';
+
+export 'model_towers.dart' show LitertlmSection;
 
 /// Why a model link with a user name or password in it is refused: it
 /// would be saved, logged and shown with them.
@@ -192,12 +195,21 @@ final class const CustomChatModel({
   /// compiled length: this must be that length.
   required final int maxTokens,
 
-  /// Load the vision encoder (`supportImage`): off for files without one.
-  final bool supportImage = false,
-
   /// Send tool declarations (skills); off for models whose template has no
   /// tool calls.
   final bool tools = false,
+
+  /// Where the vision tower runs when the file's header says nothing about
+  /// it and [backend] is the NPU: the user's choice, `cpu` or `npu`; null
+  /// is the NPU (the default). A tower the header places (a
+  /// `backend_constraint`) ignores it, and off the NPU it means nothing
+  /// (kept for a return to the NPU). Reset when the file changes. With
+  /// [audioChoice], the only saved settings about the towers: which ones
+  /// load, and where, follows from the header ([towersOf]).
+  final PreferredBackend? visionChoice,
+
+  /// The same for the audio tower.
+  final PreferredBackend? audioChoice,
 }) {
   /// Why [maxTokens] is not usable with [backend]; null when it is.
   static String? contextProblem(int maxTokens, PreferredBackend backend) {
@@ -223,7 +235,6 @@ final class const CustomChatModel({
     ModelType? modelType,
     PreferredBackend? backend,
     int? maxTokens,
-    bool? supportImage,
     bool? tools,
   }) => CustomChatModel(
     displayName: displayName ?? this.displayName,
@@ -232,15 +243,40 @@ final class const CustomChatModel({
     modelType: modelType ?? this.modelType,
     backend: backend ?? this.backend,
     maxTokens: maxTokens ?? this.maxTokens,
-    supportImage: supportImage ?? this.supportImage,
     tools: tools ?? this.tools,
+    visionChoice: visionChoice,
+    audioChoice: audioChoice,
   );
 
-  /// One line: `npu · ctx 1280 · images off · tools off · gemma4`.
-  String get settingsLine => [
+  /// This model with [vision] and [audio] as the towers' choices (null:
+  /// none, the NPU by default).
+  CustomChatModel withTowerChoices({
+    required PreferredBackend? vision,
+    required PreferredBackend? audio,
+  }) => CustomChatModel(
+    displayName: displayName,
+    source: source,
+    file: file,
+    modelType: modelType,
+    backend: backend,
+    maxTokens: maxTokens,
+    tools: tools,
+    visionChoice: vision,
+    audioChoice: audio,
+  );
+
+  /// The towers this model loads from a file whose header has [header]:
+  /// [resolveTowers] on [backend] with [visionChoice] and [audioChoice].
+  ModelTowers towersOf(List<LitertlmSection> header) =>
+      resolveTowers(header, backend, vision: visionChoice, audio: audioChoice);
+
+  /// One line: `npu · ctx 1280 · vision cpu · audio npu · tools off ·
+  /// gemma4`, each tower of [towers] with where it runs (none for a
+  /// text-only file).
+  String settingsLine(ModelTowers towers) => [
     backend.name,
     'ctx $maxTokens',
-    'images ${supportImage ? 'on' : 'off'}',
+    ...towers.parts,
     'tools ${tools ? 'on' : 'off'}',
     modelType.name,
   ].join(' · ');
@@ -310,11 +346,20 @@ sealed class const ChatModelPlan();
 /// `kDefineChatModel` when it is set, and is unavailable otherwise.
 final class const NoChatModelPlan({final String? note}) extends ChatModelPlan;
 
-/// The user's own model: its verified store file and its settings.
+/// The user's own model: its verified store file, its settings and its
+/// file's header.
 final class const CustomChatPlan({
   required final String path,
   required final CustomChatModel model,
+
+  /// The sections of the file's header as last read (a file whose header
+  /// cannot be read is never planned).
+  required final List<LitertlmSection> header,
 }) extends ChatModelPlan {
+  /// The towers the load takes: the header's, on the model's backend
+  /// ([CustomChatModel.towersOf]).
+  ModelTowers get towers => model.towersOf(header);
+
   /// What `LlmService` loads.
   ChatModelConfig get config => ChatModelConfig(
     name: model.displayName,
@@ -322,8 +367,8 @@ final class const CustomChatPlan({
     llm: LlmConfig(
       maxTokens: model.maxTokens,
       backend: model.backend,
-      supportImage: model.supportImage,
       maxNumImages: 1,
+      towers: towers,
     ),
     tools: model.tools,
   );

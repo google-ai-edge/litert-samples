@@ -340,6 +340,18 @@ void main() {
       timeout: const Duration(seconds: 20),
       reason: 'the camera chat',
     );
+    // The screen's own start (the mug) must finish first: a scene started
+    // while it is still decoding takes it over, and the screen then shows
+    // that start as stopped ("Stopped while decoding the fixtures").
+    await pumpUntil(
+      tester,
+      () =>
+          !cam.startLive.running &&
+          deps.live.state.value is LiveRunning &&
+          cam.startError == null,
+      timeout: const Duration(seconds: 20),
+      reason: "the screen's own live start",
+    );
     overlay(LiveCameraScreen, on: false);
 
     Future<void> scene(String file) async {

@@ -21,7 +21,7 @@ import '../../../utils/markdown_chunker.dart';
 import 'kb_documents.dart';
 
 /// Everything the vectors of a knowledge-base index depend on. Two indexes
-/// with equal keys hold the same chunks embedded by the same model files, so
+/// with equal keys hold the same chunks embedded by the same model file, so
 /// one can stand in for the other.
 ///
 /// The on-device marker (`kb/index.json`) and the prebuilt index's manifest
@@ -40,9 +40,9 @@ final class const KbIndexKey({
   /// The installed embedder's id (its file name without the extension).
   required final String modelId,
 
-  /// SHA-256 of the embedder's `.tflite` and of its `sentencepiece.model`.
+  /// SHA-256 of the embedder's self-contained `.litertlm` (its tokenizer is
+  /// inside it).
   required final String modelSha256,
-  required final String tokenizerSha256,
 
   /// The vector size.
   required final int dim,
@@ -52,8 +52,10 @@ final class const KbIndexKey({
   /// invalidates on-device indexes and the shipped prebuilt index alike.
   final String keyFormat = format,
 }) {
-  /// Bump it when the key's meaning changes.
-  static const format = 'kb-index/2';
+  /// Bump it when the key's meaning changes. `kb-index/2` keyed
+  /// EmbeddingGemma-300M's `.tflite` and its separate tokenizer; `kb-index/3`
+  /// keys one self-contained `.litertlm` (EmbeddingGemma 2).
+  static const format = 'kb-index/3';
 
   /// One SHA-256 over every field (length-prefixed): the marker's `hash`.
   String get digest {
@@ -65,7 +67,6 @@ final class const KbIndexKey({
       documentPrefix,
       modelId,
       modelSha256,
-      tokenizerSha256,
       '$dim',
     ]) {
       final bytes = utf8.encode(field);
@@ -100,9 +101,6 @@ final class const KbIndexKey({
       if (modelSha256 != other.modelSha256)
         'embedder model file '
             '(${short(modelSha256)} ≠ ${short(other.modelSha256)})',
-      if (tokenizerSha256 != other.tokenizerSha256)
-        'embedder tokenizer '
-            '(${short(tokenizerSha256)} ≠ ${short(other.tokenizerSha256)})',
       if (dim != other.dim) 'dimension ($dim ≠ ${other.dim})',
     ];
   }
@@ -114,11 +112,12 @@ final class const KbIndexKey({
     'documentPrefix': documentPrefix,
     'modelId': modelId,
     'modelSha256': modelSha256,
-    'tokenizerSha256': tokenizerSha256,
     'dim': dim,
   };
 
-  /// Throws [FormatException] unless [json] has every field.
+  /// Throws [FormatException] unless [json] has every field. Fields of an
+  /// older format (a `kb-index/2` key's `tokenizerSha256`) are ignored: its
+  /// [keyFormat] already makes it differ from this app's key.
   static KbIndexKey fromJson(Object? json) {
     if (json case {
       'format': final String keyFormat,
@@ -127,7 +126,6 @@ final class const KbIndexKey({
       'documentPrefix': final String documentPrefix,
       'modelId': final String modelId,
       'modelSha256': final String modelSha256,
-      'tokenizerSha256': final String tokenizerSha256,
       'dim': final int dim,
     }) {
       return KbIndexKey(
@@ -136,7 +134,6 @@ final class const KbIndexKey({
         documentPrefix: documentPrefix,
         modelId: modelId,
         modelSha256: modelSha256,
-        tokenizerSha256: tokenizerSha256,
         dim: dim,
         keyFormat: keyFormat,
       );
@@ -172,6 +169,13 @@ String chunkerId(MarkdownChunker chunker) =>
 /// and this manifest saying what it was built from.
 final class const PrebuiltKbManifest({
   required final KbIndexKey key,
+
+  /// The RAG embedding profile `kb.db` is bound to (`kKbEmbeddingProfileId`
+  /// when it was built). flutter_edge_ai_rag refuses a database of another
+  /// profile, so the app compares it before installing, and
+  /// test/data/services/knowledge/kb_prebuilt_asset_test.dart fails unit CI
+  /// when the id changed without a rebuild.
+  required final String profileId,
   required final int chunks,
 
   /// Size and SHA-256 of the shipped `kb.db`.
@@ -189,11 +193,14 @@ final class const PrebuiltKbManifest({
   required final String builtOn,
   required final DateTime builtAt,
 }) {
-  static const format = 'kb-prebuilt/1';
+  /// `kb-prebuilt/2` adds [profileId]; a `kb-prebuilt/1` manifest is
+  /// refused (rebuild with tool/build_kb_index.sh).
+  static const format = 'kb-prebuilt/2';
 
   Map<String, Object?> toJson() => {
     'format': format,
     'key': key.toJson(),
+    'profileId': profileId,
     'chunks': chunks,
     'dbBytes': dbBytes,
     'dbSha256': dbSha256,
@@ -205,25 +212,31 @@ final class const PrebuiltKbManifest({
 
   /// Throws [FormatException] for another format or a missing field.
   static PrebuiltKbManifest fromJson(Object? json) {
-    if (json case {
-      'format': final String format,
-      'key': final Object key,
-      'chunks': final int chunks,
-      'dbBytes': final int dbBytes,
-      'dbSha256': final String dbSha256,
-      'store': final String store,
-      'embedderBackend': final String embedderBackend,
-      'builtOn': final String builtOn,
-      'builtAt': final String builtAt,
-    }) {
-      if (format != PrebuiltKbManifest.format) {
-        throw FormatException(
-          'Prebuilt index format "$format", this build reads '
-          '"${PrebuiltKbManifest.format}"',
-        );
-      }
+    // The format first: an earlier one may lack fields this one has.
+    if (json case {'format': final String format}
+        when format != PrebuiltKbManifest.format) {
+      throw FormatException(
+        'Prebuilt index format "$format", this build reads '
+        '"${PrebuiltKbManifest.format}"',
+      );
+    }
+    if (json
+        case {
+          'format': final String format,
+          'key': final Object key,
+          'profileId': final String profileId,
+          'chunks': final int chunks,
+          'dbBytes': final int dbBytes,
+          'dbSha256': final String dbSha256,
+          'store': final String store,
+          'embedderBackend': final String embedderBackend,
+          'builtOn': final String builtOn,
+          'builtAt': final String builtAt,
+        }
+        when format == PrebuiltKbManifest.format) {
       return PrebuiltKbManifest(
         key: KbIndexKey.fromJson(key),
+        profileId: profileId,
         chunks: chunks,
         dbBytes: dbBytes,
         dbSha256: dbSha256,

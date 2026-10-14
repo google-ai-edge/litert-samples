@@ -66,10 +66,11 @@ android {
     }
 
     // The built-in models stay uncompressed in the APK: the detector is read
-    // as one buffer, the embedder streamed out once. Deflating them saves
-    // little and costs a full inflate on every read.
+    // as one buffer, the others (the 485 MB EmbeddingGemma 2 .litertlm among
+    // them) streamed out once. Deflating them saves little and costs a full
+    // inflate on every read.
     androidResources {
-        noCompress += listOf("tflite", "model")
+        noCompress += listOf("tflite", "litertlm")
     }
 
     signingConfigs {

@@ -21,12 +21,14 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_edge_ai_rag/flutter_edge_ai_rag.dart'
     show VectorStoreStats;
 import 'package:flutter_test/flutter_test.dart';
+import 'package:litert_edge_demos/config/knowledge_config.dart';
 import 'package:litert_edge_demos/data/repositories/knowledge_repository.dart';
 import 'package:litert_edge_demos/data/services/knowledge/embedder_service.dart';
 import 'package:litert_edge_demos/data/services/knowledge/kb_documents.dart';
 import 'package:litert_edge_demos/data/services/knowledge/kb_index_key.dart';
 import 'package:litert_edge_demos/data/services/knowledge/kb_prebuilt_index.dart';
 import 'package:litert_edge_demos/domain/models/knowledge.dart';
+import 'package:litert_edge_demos/domain/models/knowledge_query.dart';
 import 'package:litert_edge_demos/domain/models/model_id.dart';
 import 'package:litert_edge_demos/domain/models/model_state.dart';
 import 'package:litert_edge_demos/utils/result.dart';
@@ -42,7 +44,7 @@ import 'knowledge_repository_test.dart' show FixedDocuments, corpus;
 
 const _ready = ModelReady(
   LoadedModelInfo(
-    modelId: 'embeddinggemma-300M_seq512_mixed-precision',
+    modelId: 'embeddinggemma-2-740m',
     backend: 'cpu',
     loadTime: Duration.zero,
     warmUpTime: Duration.zero,
@@ -171,6 +173,7 @@ PrebuiltKbManifest manifestFor(
   int chunks = 3,
 }) => PrebuiltKbManifest(
   key: key,
+  profileId: kKbEmbeddingProfileId,
   chunks: chunks,
   dbBytes: db.length,
   dbSha256: sha256.convert(db).toString(),
@@ -993,7 +996,7 @@ void main() {
       final repo = build(closeWait: const Duration(milliseconds: 50));
       expect(await repo.ensureIndexed(), isA<Ok<KnowledgeReady>>());
       store.searchGate = Completer<void>();
-      final retrieving = repo.retrieve('q');
+      final retrieving = repo.retrieve(const KnowledgeQuery.text('q'));
       await store.searchStarted.future;
       logs.clear();
 

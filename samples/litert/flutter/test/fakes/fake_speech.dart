@@ -28,6 +28,10 @@ class FakeRecognizer implements SpeechRecognizer {
   FakeRecognizer([this.text = 'What is the capital of France?']);
 
   String text;
+
+  /// When not empty, each call answers the next of these (taken when the
+  /// call arrives, so queued calls keep their order) instead of [text].
+  final List<String> texts = [];
   Error? error;
   Completer<void>? gate;
   final List<Uint8List> pcms = [];
@@ -41,9 +45,10 @@ class FakeRecognizer implements SpeechRecognizer {
   @override
   Future<String> transcribe(Uint8List pcm16kMono, {String? language}) async {
     pcms.add(pcm16kMono);
+    final answer = texts.isEmpty ? text : texts.removeAt(0);
     await gate?.future;
     if (error case final e?) throw e;
-    return text;
+    return answer;
   }
 
   @override

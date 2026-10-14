@@ -19,29 +19,38 @@ import 'package:flutter/foundation.dart';
 import 'package:path_provider/path_provider.dart';
 
 import '../../../domain/models/chat_model.dart';
+import '../../../domain/models/model_towers.dart';
 import '../../../utils/result.dart';
+
+export '../../../domain/models/model_towers.dart' show LitertlmSection;
 
 /// What a `.litertlm` header says about the file (LiteRT-LM's container:
 /// `litert_lm_builder` `litertlm_core.py` / `litertlm_peek.py`): the format
-/// version and the `model_type` of each TFLite section
-/// (`tf_lite_prefill_decode`, `tf_lite_vision_encoder`, …).
+/// version and each section's `model_type` and `backend_constraint`, in
+/// order.
 final class const LitertlmInfo({
   required final int major,
   required final int minor,
   required final int patch,
-  required final List<String> modelTypes,
-
-  /// `backend_constraint` items of the sections (`npu` for an NPU build).
-  final List<String> backendConstraints = const [],
+  required final List<LitertlmSection> sections,
 }) {
+  /// The `model_type` of each section that has one.
+  List<String> get modelTypes => [for (final s in sections) ?s.modelType];
+
+  /// The `backend_constraint` of each section that has one (`npu` for an
+  /// NPU build).
+  List<String> get backendConstraints => [
+    for (final s in sections) ?s.backendConstraint,
+  ];
+
   /// A section says it runs only on the NPU (`backend_constraint: npu`).
   bool get npuOnly => backendConstraints.contains('npu');
 
-  /// The file can read images: it has a vision encoder section.
-  bool get hasVision => modelTypes.contains('tf_lite_vision_encoder');
+  /// The file can read images: it has a vision tower ([hasTower]).
+  bool get hasVision => hasTower(sections, Tower.vision);
 
-  /// The file has an audio encoder section.
-  bool get hasAudio => modelTypes.any((t) => t.startsWith('tf_lite_audio'));
+  /// The file has an audio tower ([hasTower]).
+  bool get hasAudio => hasTower(sections, Tower.audio);
 
   String get version => '$major.$minor.$patch';
 }
@@ -135,13 +144,16 @@ LitertlmInfo parseLitertlmHeader(Uint8List prefix, Uint8List header) {
     return utf8.decode(header.sublist(s + 4, s + 4 + length));
   }
 
-  final types = <String>[];
-  final constraints = <String>[];
+  final sections = <LitertlmSection>[];
   final root = deref(0);
   final sectionMetadata = field(root, 1);
   if (sectionMetadata != null) {
     final objects = field(deref(sectionMetadata), 0);
     for (final o in objects == null ? const <int>[] : vector(objects)) {
+      // Each object is one section: its type and its constraint stay
+      // together (a tower's constraint is per section, not per file).
+      String? type;
+      String? constraint;
       final items = field(deref(o), 0);
       for (final item in items == null ? const <int>[] : vector(items)) {
         final kv = deref(item);
@@ -153,7 +165,16 @@ LitertlmInfo parseLitertlmHeader(Uint8List prefix, Uint8List header) {
         if (value == null) continue;
         final text = field(deref(value), 0);
         if (text == null) continue;
-        (name == 'model_type' ? types : constraints).add(string(text));
+        if (name == 'model_type') {
+          type = string(text);
+        } else {
+          constraint = string(text);
+        }
+      }
+      if (type != null || constraint != null) {
+        sections.add(
+          LitertlmSection(modelType: type, backendConstraint: constraint),
+        );
       }
     }
   }
@@ -161,8 +182,7 @@ LitertlmInfo parseLitertlmHeader(Uint8List prefix, Uint8List header) {
     major: p.getUint32(8, Endian.little),
     minor: p.getUint32(12, Endian.little),
     patch: p.getUint32(16, Endian.little),
-    modelTypes: types,
-    backendConstraints: constraints,
+    sections: sections,
   );
 }
 

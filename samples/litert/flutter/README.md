@@ -1,26 +1,84 @@
 # LiteRT Demos (Flutter)
 
 One Flutter app with two on-device AI demos for Android, iOS, macOS and Linux. Everything runs on the device: a chat
-model through LiteRT-LM (Gemma 4 E2B on the GPU, CPU or a Qualcomm NPU), speech in and out, a local knowledge base
-and a LiteRT object detector. Once the chat model is on the device, the app needs no network.
+model through LiteRT-LM (Gemma 4 E2B on the GPU, CPU or a Qualcomm NPU), speech in and out, EmbeddingGemma 2 for a
+local knowledge base and the camera's visual memory, and a LiteRT object detector. Once the chat model is on the
+device, the app needs no network.
 
 | Home | Voice chat | Live camera |
 |---|---|---|
 | ![Home screen with both demos ready](docs/screenshots/home.png) | ![A knowledge-base answer with citation chips](docs/screenshots/demo1-rag-citations.png) | ![Live boxes and a question answered from the detections](docs/screenshots/demo3-fast-count-cats.jpg) |
 
-- **Voice chat.** Hold the mic button and ask; Whisper base transcribes, the chat model streams the answer, and
-  Inflect-nano-v2 speaks it from the first finished sentence. Attach a photo and ask about it. Questions about LiteRT
-  and the Flutter packages are answered from a built-in knowledge base (EmbeddingGemma-300M and sqlite-vec) with
-  citation chips. Agent skills come from Markdown files (`SKILL.md`) and can be added at run time without a rebuild:
-  the current time, and device and accelerator info (the chip, the GPU and where each model runs).
-- **Live camera.** Live boxes from a YOLO26n detector on the GPU. Ask by voice (moonshine tiny): simple questions
+- **Voice chat.** Hold the mic button and ask; the chat model streams the answer, and Inflect-nano-v2 speaks it
+  from the first finished sentence. With a chat model that hears audio (a file with an audio tower, such as Gemma 4 E2B),
+  the recording itself goes to the model, and EmbeddingGemma 2 searches the knowledge base with the recording too;
+  Whisper base transcribes it after the reply has played, for the chat bubble and the text history. Otherwise
+  Whisper transcribes first. The screen shows the mode ("Voice → Gemma 4 E2B" or "Voice → Whisper → Gemma 4 E2B").
+  Attach a photo and ask about it. Questions about LiteRT and the Flutter packages are answered from a built-in
+  knowledge base (EmbeddingGemma 2 and sqlite-vec) with citation chips. Agent skills come from Markdown files
+  (`SKILL.md`) and can be added at run time without a rebuild: the current time, and device and accelerator info
+  (the chip, the GPU and where each model runs).
+- **Live camera.** Live boxes from a YOLO26n detector on the GPU (or the CPU, in the camera settings). Ask by voice (moonshine tiny): simple questions
   ("How many cats do you see?") are answered from the detections without the LLM; detailed ones ("Describe the
   scene", "What does the sign say?") send the current frame to the chat model.
+- **Visual memory (Live camera).** While the demo is idle, it keeps a frame every few seconds when the scene
+  changes, as an EmbeddingGemma 2 image vector, in memory only. "Where was the yellow sign?" or "Have you seen my
+  mug?" finds the frame by meaning, not only among the detector's 80 classes, and the answer comes with a card: the
+  frame and how long ago it was seen.
 
 The app is built on [`flutter_edge_ai`](https://pub.dev/packages/flutter_edge_ai) (formerly `flutter_gemma`) and its
-LiteRT-LM, speech, embeddings, RAG and agent packages, plus [`flutter_litert`](https://pub.dev/packages/flutter_litert)
+LiteRT-LM, speech, RAG and agent packages, plus [`flutter_litert`](https://pub.dev/packages/flutter_litert)
 for the detector. Both are community packages, not Google SDKs. How the pieces fit:
 [docs/architecture.md](docs/architecture.md).
+
+## Models and accelerators
+
+The chat model is the `.litertlm` file you choose: the app ships none. Every other model is built into the app. Where
+each one runs:
+
+| Role | Model and source | Android: Snapdragon with the NPU | Android: other | iOS | macOS | Linux: NVIDIA GPU (x86_64, Jetson Orin) | Linux: Raspberry Pi 5 | Linux: VENTUNO Q (QCS8275) |
+|---|---|---|---|---|---|---|---|---|
+| Chat (both demos) | the `.litertlm` you choose, such as Gemma 4 E2B from [litert-community/gemma-4-E2B-it-litert-lm](https://huggingface.co/litert-community/gemma-4-E2B-it-litert-lm) (Gemma 4: Apache-2.0); the files are [below](#chat-model-files) | NPU, with a build for that chip; or GPU | GPU | GPU | GPU | GPU | CPU | NPU, with the `qcs8275` build; or GPU |
+| Chat: vision and audio towers | in the chat model's file | CPU; NPU in builds whose towers are compiled for it | CPU | CPU | CPU | CPU | CPU | CPU |
+| Object detector (Live camera) | YOLO26n, raw head, derived from [Arm/yolo26n-fp16-litert](https://huggingface.co/Arm/yolo26n-fp16-litert) (Ultralytics YOLO26, AGPL-3.0) | GPU | GPU | GPU | GPU | GPU | CPU (the Pi's GPU is not verified) | GPU |
+| Embeddings (knowledge base, spoken questions, visual memory) | EmbeddingGemma 2 740m, text, audio and images, from [litert-community/embeddinggemma-2-740m-litert-lm](https://huggingface.co/litert-community/embeddinggemma-2-740m-litert-lm) (Apache-2.0) | CPU | CPU | CPU | CPU | CPU | CPU | CPU |
+| Speech to text (Voice chat) | Whisper base, int8, from [litert-community/whisper-base](https://huggingface.co/litert-community/whisper-base) (Apache-2.0) | CPU | CPU | CPU | CPU | CPU | CPU | CPU |
+| Speech to text (Live camera) | moonshine tiny, from [litert-community/moonshine-tiny](https://huggingface.co/litert-community/moonshine-tiny) (MIT) | CPU | CPU | CPU | CPU | CPU | CPU | CPU |
+| Text to speech | Inflect-nano-v2 (fp16) from [litert-community/Inflect-Nano-v2](https://huggingface.co/litert-community/Inflect-Nano-v2) (Apache-2.0), with Matcha's G2P from [litert-community/Matcha-TTS](https://huggingface.co/litert-community/Matcha-TTS) (G2P model and config MIT; `g2p_dict.txt.gz` BSD-3-Clause-Clear, from OpenPhonemizer) | CPU | CPU | CPU | CPU | CPU | CPU | CPU |
+
+- **GPU** is Metal on iOS and macOS, and LiteRT's WebGPU accelerator on Vulkan on Linux.
+- **NPU** is Qualcomm's Hexagon NPU, through LiteRT's Qualcomm dispatch library and Qualcomm's QNN runtime, both
+  fetched at build time ([Set up](#set-up-once-per-checkout)). The app offers it on Android phones where Qualcomm's
+  FastRPC library (`libcdsprpc.so`) opens, and on Linux arm64 boards with a Qualcomm compute DSP
+  (`/dev/fastrpc-cdsp`); nowhere else. An NPU build runs only on the chip it was compiled for.
+- **The CPU is always a choice:** for the chat model on its card, for the detector in the Live camera settings.
+- **Not yet verified:** the Raspberry Pi 5's GPU (its guide runs every model on the CPU), and the GPU of a physical
+  Jetson (the NVIDIA GPU path was checked on a T4, x86_64).
+
+### Chat model files
+
+| File | Source | Chip | Text | Vision and audio towers |
+|---|---|---|---|---|
+| `gemma-4-E2B-it.litertlm` (2.6 GB) | [litert-community/gemma-4-E2B-it-litert-lm](https://huggingface.co/litert-community/gemma-4-E2B-it-litert-lm) | any | GPU or CPU | CPU: the header pins them |
+| Qualcomm NPU builds, compiled for one chip each: `…_qualcomm_sm8750.litertlm`, `…_qualcomm_qcs8275.litertlm` | the same repository | Snapdragon 8 Elite (SM8750) phones; QCS8275 boards such as the VENTUNO Q | NPU | CPU: the `qcs8275` header pins them; the `sm8750` header says nothing, so set both of its **Towers** rows to CPU on the card |
+| Gemma 4 E2B with the vision and audio towers compiled for the NPU too, one file per chip | provided by Google, not yet published | one chip each | NPU | NPU |
+
+The chat model card's **Towers** rows show where each tower of the chosen file runs, read from its header. On the
+NPU, a tower the header says nothing about gets a **CPU | NPU** choice, NPU by default ([The chat
+model](#the-chat-model)).
+
+Measured in scripted runs on [Developer Device Platform](https://docs.cloud.google.com/developer-device-platform/overview),
+Google Cloud's lab of real phones, each run asking a spoken question as audio and a question about a photo:
+
+| Phone | Chat model | Text | Towers | Spoken question, first token | Photo, first token |
+|---|---|---|---|---|---|
+| Galaxy S24 (Snapdragon 8 Gen 3) | `gemma-4-E2B-it.litertlm` | GPU | CPU | 0.87 s | 5.5 s |
+| Galaxy S25 Ultra (Snapdragon 8 Elite) | `gemma-4-E2B-it_qualcomm_sm8750.litertlm` | NPU | CPU | 0.42 s | 3.9 s |
+| Galaxy S24, S25 Ultra, S26 | the builds with NPU towers | NPU | NPU | 0.33–0.44 s | 0.66–0.80 s |
+
+The app never moves a model to another backend on its own. If a requested GPU or NPU cannot be used, it says so and
+offers another backend as an explicit choice. **This device** (on Home) and the diagnostics overlay show the backend
+each model asked for and, where the runtime reports it, the one it got.
 
 ## Platform guides
 
@@ -42,8 +100,7 @@ macOS (Apple silicon) and Linux desktops run from this folder directly ([Run](#r
 |---|---|
 | Flutter | 3.47.3 (Dart 3.13), stable channel. [fvm](https://fvm.app) users get it from `.fvmrc` |
 | Python | 3.10 to 3.14 with `venv`, used once by `tool/fetch_models.sh` to derive the detector model. macOS ships 3.9: install a newer one (for example `brew install python@3.12`) and run `PYTHON=python3.12 tool/fetch_models.sh` |
-| Hugging Face | an account that accepted the Gemma terms for [litert-community/embeddinggemma-300m](https://huggingface.co/litert-community/embeddinggemma-300m), and a read token |
-| Disk | about 400 MB for the built-in models (plus a Python venv under `build/`), 2.6 GB for the chat model, and the build output |
+| Disk | about 720 MB for the built-in models (plus a Python venv under `build/`), 2.6 GB for the chat model, the build output, and about 385 MB of embedder caches the app writes at its first launch |
 | macOS | Xcode 26 and CocoaPods; Apple silicon, macOS 14 or newer |
 | Linux | x64 or arm64, Ubuntu 22.04+ / Debian 12+; a Vulkan GPU for GPU inference; the packages below |
 | Android, iOS | see the platform guides |
@@ -62,7 +119,6 @@ On Debian and Raspberry Pi OS the JPEG library is `libturbojpeg0`; on Ubuntu 22.
 
 ```sh
 tool/flutter_litert/vendor.sh        # flutter_litert 3.9.3 + a small patch into third_party/ (gitignored)
-cp .env.example .env                 # then put your token in it: HF_TOKEN=hf_...
 tool/fetch_models.sh                 # the built-in models into assets/models/, each one verified
 flutter pub get
 ```
@@ -73,8 +129,8 @@ flutter pub get
 - **`fetch_models.sh`.** The models built into the app are not in git. [`tool/models.lock`](tool/models.lock) pins
   every file (repository, commit, path, size and SHA-256); the script resumes interrupted downloads, skips files it
   has already verified, and `--check` verifies without the network. Until it has run, every `flutter build`, `run`
-  and `test` fails with "No file or variants found for asset: assets/models/…".
-- **The token** is sent only with the gated EmbeddingGemma download and never enters a build.
+  and `test` fails with "No file or variants found for asset: assets/models/…". Every file is public: no Hugging
+  Face account or token is needed.
 - **The detector model is derived, not downloaded.** The script downloads Arm's
   [`yolo26n_conv2d_f16_weights.tflite`](https://huggingface.co/Arm/yolo26n-fp16-litert) and cuts its head with
   [`tool/prune_yolo26n_head.py`](tool/prune_yolo26n_head.py) in a venv under `build/`, so the whole graph runs on the
@@ -88,12 +144,10 @@ flutter pub get
 
 ## The chat model
 
-The app ships no chat model: it loads the `.litertlm` file you choose. Start with Gemma 4 E2B from
+The app ships no chat model: it loads the `.litertlm` file you choose ([which files run
+where](#chat-model-files)). Start with Gemma 4 E2B from
 [litert-community/gemma-4-E2B-it-litert-lm](https://huggingface.co/litert-community/gemma-4-E2B-it-litert-lm) (no
-login needed): `gemma-4-E2B-it.litertlm` (2.6 GB) runs on the GPU or CPU everywhere. The same repository has NPU
-builds compiled ahead of time for one chip each; this app runs the Qualcomm ones, on that chip:
-`…_qualcomm_sm8750.litertlm` on a Snapdragon 8 Elite phone, `…_qualcomm_qcs8275.litertlm` on a QCS8275 board. The
-Google Tensor and Intel builds and the text-only `-gpu` and `-web` files are not supported.
+login needed): `gemma-4-E2B-it.litertlm` (2.6 GB).
 
 Start the app once, then put the file in its models folder and choose it on **Set up models › Chat model** (later
 **Home › More › Models**):
@@ -110,12 +164,19 @@ Start the app once, then put the file in its models folder and choose it on **Se
 **Import file…** (iOS and desktop) copies a file in. **Path…** uses a file where it is; a macOS build is sandboxed
 and can read only its own container.
 
-The card's starting settings, for a file used in place: the backend and image support come from the file's header
-(an NPU-only build starts on the NPU where the NPU is offered; a file with a vision encoder starts with images on),
-the context length and prompt format from the file name (`_ekv4096_`; otherwise 8192 tokens on the GPU or CPU, 4096
-on the NPU). Most official NPU builds do not mark themselves NPU-only, so select **NPU** yourself. A downloaded or
-imported file starts on the NPU where it is offered, otherwise the GPU, with images and tools off. Change any of it
-on the card.
+The card's starting settings: the backend comes from the file's header (an NPU-only build starts on the NPU where
+the NPU is offered), the context length and prompt format from the file name (`_ekv4096_`; otherwise 8192 tokens on
+the GPU or CPU, 4096 on the NPU). An imported or downloaded file gets the same, read from its stored copy. Most
+official NPU builds do not mark themselves NPU-only, so select **NPU** yourself. Change any of it on the card.
+
+The model's towers (vision and audio) are not switches: every tower the file has is loaded, and the card's
+**Towers** block shows each one with the processor it runs on, read from the header again whenever the file or the
+backend changes. A tower whose header declares a backend runs there ("CPU · the file sets it": the standard
+`gemma-4-E2B-it.litertlm` and the official `…_qualcomm_qcs8275` build pin both towers to the CPU). A tower the header
+says nothing about runs on the CPU when the model runs on the GPU or CPU; on the NPU its row has a **CPU | NPU**
+choice, NPU by default. Pick NPU only for builds whose towers are compiled for the chip, CPU otherwise: the
+official `…_qualcomm_sm8750` build declares nothing, but its towers fail on the NPU. A load that fails with such a
+tower on the NPU says to set it to CPU on the card.
 
 ## Run
 
@@ -145,25 +206,30 @@ compile GPU programs once and cache them.
 
 - **Voice chat:** hold the mic button, speak, release; or type. Try "What is the input size of the YOLO26 nano
   detector?" (answered from the knowledge base, with sources), "Which accelerator are you running on?" and a
-  question about an attached photo. Skills live in the folder the Skills sheet shows; add a folder with a `SKILL.md`
-  and press **Reload**.
+  question about an attached photo. In audio mode your bubble shows the recording's length until Whisper's transcript
+  fills it in, after the reply. Skills live in the folder the Skills sheet shows; add a folder with a `SKILL.md` and
+  press **Reload**.
 - **Live camera:** pick the camera source in the demo's settings (the tune icon; the **Camera** button on Linux):
   the device camera, or a network camera. Hold the mic and ask, within 5 seconds, "What do you see?", "How many
   people are there?", "Describe the scene". The chip under the answer says which route answered it.
+- **Visual memory:** leave the camera on a few scenes for a while ("Memory: 37 frames · 2 min" shows what it holds),
+  then ask about the past: "Where was the yellow sign?", "Have you seen my mug?". Questions about the present
+  ("Where is my cup right now?") go to the current frame instead. The first visit loads the embedder's image encoder
+  (about 2 s, "Memory: preparing…"). The memory keeps at most 200 frames (16 MB), is never written to disk, and is
+  forgotten when you leave the demo or change the source; the settings have a **Visual memory** switch and **Clear
+  memory**.
 - **Network camera:** a multipart MJPEG stream, for example an Android phone running the free IP Webcam app on the
   same Wi-Fi: tap **Start server** and enter the address it shows followed by `/video`
   (`http://192.168.1.23:8080/video`). The URL is stored on the device, and an `http` stream is not encrypted: do not
   put a password you use elsewhere in it.
 
-The app never moves a model to another backend on its own. If a requested GPU or NPU cannot be used, it says so and
-offers another backend as an explicit choice. **This device** (on Home) and the diagnostics overlay show the backend
-each model asked for and, where the runtime reports it, the one it got.
-
 ## Self-test and diagnostics
 
 `--selftest` probes the hardware, runs the detector on a reference picture against golden detections, loads the chat
 model and times 64 tokens, runs the detector again to check it is unchanged, plays a tone and records one second,
-then writes a report: device, OS, GPU and driver, where each model ran, speed and memory. On Linux run
+loads EmbeddingGemma 2 and compares a bundled spoken question with its words and a bundled photo (made into a
+memory frame) with a caption, then writes a report: device, OS, GPU and driver, where each model ran, speed and
+memory. On Linux run
 `./run.sh --selftest` (add `--skip-audio` without a microphone or speaker); everywhere, **Home › More › Models ›
 Run self-test** does the same in the app. **This device › Copy diagnostics** copies the same facts to the clipboard.
 
@@ -182,17 +248,11 @@ Everything has a default; these dart-defines change it (`flutter run --dart-defi
 
 Tunables (frame rate, voice gate, prompts, knowledge-base settings) are in `lib/config/`.
 
-## Models and licences
+## Licences
 
-| Role | Model | Where it comes from | Licence |
-|---|---|---|---|
-| Chat | Gemma 4 E2B, or any supported `.litertlm` | you choose it in the app | Gemma 4: Apache-2.0 |
-| Speech to text (Voice chat) | Whisper base, int8 | [litert-community/whisper-base](https://huggingface.co/litert-community/whisper-base) | Apache-2.0 |
-| Speech to text (Live camera) | moonshine tiny | [litert-community/moonshine-tiny](https://huggingface.co/litert-community/moonshine-tiny) | MIT |
-| Text to speech | Inflect-nano-v2 (fp16), with Matcha's G2P | [litert-community/Inflect-Nano-v2](https://huggingface.co/litert-community/Inflect-Nano-v2), [litert-community/Matcha-TTS](https://huggingface.co/litert-community/Matcha-TTS) | Apache-2.0; G2P model and config MIT; `g2p_dict.txt.gz` BSD-3-Clause-Clear (OpenPhonemizer) |
-| Embeddings | EmbeddingGemma-300M | [litert-community/embeddinggemma-300m](https://huggingface.co/litert-community/embeddinggemma-300m) (gated) | [Gemma Terms of Use](https://ai.google.dev/gemma/terms) |
-| Detector | YOLO26n, raw head | derived from [Arm/yolo26n-fp16-litert](https://huggingface.co/Arm/yolo26n-fp16-litert) (Ultralytics YOLO26) | AGPL-3.0 |
-| NPU runtime | Qualcomm QNN runtime (HTP), with LiteRT's Qualcomm dispatch library | fetched at build time (`qualcomm_npu: true`) | QNN: Qualcomm's licence (redistribution inside an app); dispatch: Apache-2.0 |
+[Models and accelerators](#models-and-accelerators) gives each model's source and licence. The NPU runtime, fetched
+at build time (`qualcomm_npu: true`), is Qualcomm's QNN runtime (HTP), under Qualcomm's licence (redistribution
+inside an app), with LiteRT's Qualcomm dispatch library (Apache-2.0).
 
 Every built-in model is fetched by `tool/fetch_models.sh`, none is in git; [assets/models/NOTICE.md](assets/models/NOTICE.md)
 and the in-app licence page (**Home › More › Licences**) list them with their sources.
@@ -201,8 +261,6 @@ and the in-app licence page (**Home › More › Licences**) list them with thei
   [licence](https://github.com/ultralytics/ultralytics/blob/main/LICENSE)), converted to LiteRT by Arm. The derived
   file is built on your machine and bundled into your build: if you distribute that build, the AGPL-3.0 applies to
   it. To avoid that, replace the detector with an Apache-licensed one (see `lib/data/services/detector/`).
-- **EmbeddingGemma** is distributed under the Gemma Terms of Use and its
-  [Prohibited Use Policy](https://ai.google.dev/gemma/prohibited_use_policy); every build carries it.
 - The knowledge base (`assets/kb/`, indexed into `assets/kb_index/` by `tool/build_kb_index.sh`) lists each
   document's source and licence in its front matter.
 
@@ -229,4 +287,6 @@ regenerates them on a Mac.
   There is no echo cancellation.
 - **iOS 26 or newer:** a dependency of the agent package (`flutter_inappwebview_ios`) links a system library that
   first ships in iOS 26, so on older iOS the app stops at launch.
-- **Speech models run on the CPU** everywhere; the GPU and NPU are used by the chat model and the detector.
+- **Visual memory costs RAM:** the camera demo's first visit loads EmbeddingGemma 2's image encoder, and it stays
+  loaded until the app exits (on a Galaxy S24 the app's peak went from 2.2 GB to 2.36 GB). Turn **Visual memory**
+  off in the camera settings to never load it.

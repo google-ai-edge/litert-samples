@@ -55,6 +55,7 @@ final class ChatFactory {
       modelName: loaded.name,
       images: loaded.llm.supportImage,
       tools: loaded.tools,
+      audio: loaded.llm.supportAudio,
     ),
     null => const ChatCapabilities(
       modelName: 'no chat model',
@@ -64,7 +65,9 @@ final class ChatFactory {
   };
 
   /// A plain chat: no tool declarations at all (`tools` stays empty, so the
-  /// native session gets no `tools_json`).
+  /// native session gets no `tools_json`). Built with the chat model's image
+  /// and audio support (a chat without `supportAudio` would drop a recording
+  /// without a word).
   Future<InferenceChat> plain(ConversationProfile profile) =>
       _llm.model.createChat(
         temperature: _sampler.temperature,
@@ -72,6 +75,7 @@ final class ChatFactory {
         maxOutputTokens: profile.maxOutputTokens,
         enableThinking: kThinking,
         supportImage: capabilities.images,
+        supportAudio: capabilities.audio,
         systemInstruction: profile.systemInstruction,
       );
 
@@ -86,7 +90,9 @@ final class ChatFactory {
   /// its tool format from the type the model was installed with
   /// (flutter_edge_ai_litertlm 1.9.0 `FfiInferenceModel._nativeToolsJson` reads
   /// the model's type, not the chat's), and a chat-only type would disagree
-  /// with it. A chat model with tools off always gets the plain chat.
+  /// with it. Its chat has the chat model's audio support too, which
+  /// `AgentSession.ask(audioBytes:)` requires. A chat model with tools off
+  /// always gets the plain chat.
   Future<(InferenceChat, AgentChat?)> build(
     ConversationProfile profile,
     List<Skill> skills,
@@ -106,6 +112,7 @@ final class ChatFactory {
       maxOutputTokens: profile.maxOutputTokens,
       enableThinking: kThinking,
       supportImage: capabilities.images,
+      supportAudio: capabilities.audio,
       tools: _agentTools,
       supportsFunctionCalls: true,
       toolChoice: ToolChoice.auto,

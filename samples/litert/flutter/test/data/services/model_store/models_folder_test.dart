@@ -18,10 +18,15 @@ import 'dart:isolate';
 import 'dart:math';
 import 'dart:typed_data';
 
+import 'package:flutter_edge_ai/flutter_edge_ai.dart' show PreferredBackend;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:litert_edge_demos/data/services/model_store/models_folder.dart';
 import 'package:litert_edge_demos/domain/models/chat_model.dart';
+import 'package:litert_edge_demos/domain/models/model_towers.dart'
+    show resolveTowers;
 import 'package:litert_edge_demos/utils/result.dart';
+
+import '../../../support/litertlm_header.dart';
 
 /// The headers of two real `.litertlm` files (the first bytes up to the
 /// header end; no weights): Gemma 4 E2B for the GPU (vision + audio) and the
@@ -270,6 +275,102 @@ void main() {
       expect(info.backendConstraints, ['npu']);
     });
 
+    test('each section keeps its own backend_constraint: Gemma 4 E2B pins '
+        'the audio encoder and adapter and the vision adapter to the CPU', () {
+      final info = parseLitertlmHeader(
+        gpuHeader.sublist(0, 32),
+        gpuHeader.sublist(32),
+      );
+
+      expect(
+        {
+          for (final s in info.sections)
+            if (s.backendConstraint != null) s.modelType: s.backendConstraint,
+        },
+        {
+          'tf_lite_audio_encoder_hw': 'cpu',
+          'tf_lite_audio_adapter': 'cpu',
+          'tf_lite_vision_adapter': 'cpu',
+        },
+      );
+    });
+
+    test('the synthetic headers parse to exactly their sections, each with '
+        'its own constraint', () {
+      LitertlmInfo parsed(List<HeaderSection> sections) {
+        final bytes = litertlmHeaderBytes(sections);
+        return parseLitertlmHeader(bytes.sublist(0, 32), bytes.sublist(32));
+      }
+
+      final declared = parsed(kQualcommQcs8275Sections);
+      expect(declared.npuOnly, isTrue, reason: 'its prefill says npu');
+      expect(declared.hasVision && declared.hasAudio, isTrue);
+      expect(
+        [for (final s in declared.sections) s.backendConstraint],
+        [null, null, 'cpu', 'cpu', null, null, 'cpu', null, 'npu', null],
+      );
+
+      final undeclared = parsed(kQualcommSm8750Sections);
+      expect(undeclared.npuOnly, isFalse);
+      expect(undeclared.hasVision && undeclared.hasAudio, isTrue);
+      expect(undeclared.backendConstraints, isEmpty);
+    });
+
+    // The headers of six real, public files (test_assets/litertlm/
+    // *.header.bin, the first bytes up to the header end, no weights), read
+    // as the app reads a file, and the towers each loads by the app's rule:
+    // towers declared by the file (the official qcs8275 build) and towers
+    // it leaves undeclared (the official sm8750 build; Google's all-NPU
+    // builds share that layout).
+    group('real headers: the towers each file loads', () {
+      Future<String> towersOf(String asset, PreferredBackend backend) async {
+        final info = switch (await inspectLitertlm(
+          'test_assets/litertlm/$asset.header.bin',
+        )) {
+          Ok(:final value) => value,
+          Error(:final error) => fail('$asset: $error'),
+        };
+        final towers = resolveTowers(info.sections, backend);
+        return [
+          'vision ${towers.vision ?? '-'}',
+          'audio ${towers.audio ?? '-'}',
+        ].join(' · ');
+      }
+
+      const npu = PreferredBackend.npu;
+      const gpu = PreferredBackend.gpu;
+      for (final (asset, backend, expected) in const [
+        (
+          'gemma4_e2b_qualcomm_qcs8275',
+          npu,
+          'vision cpu (declared) · audio cpu (declared)',
+        ),
+        (
+          'gemma4_e2b_qualcomm_qcs8275',
+          gpu,
+          'vision cpu (declared) · audio cpu (declared)',
+        ),
+        (
+          'gemma4_e2b_qualcomm_sm8750',
+          npu,
+          'vision npu (choice) · audio npu (choice)',
+        ),
+        (
+          'gemma4_e2b_qualcomm_sm8750',
+          gpu,
+          'vision cpu (offNpu) · audio cpu (offNpu)',
+        ),
+        ('gemma4_e2b_mtp', gpu, 'vision cpu (declared) · audio cpu (declared)'),
+        ('gemma4_e2b_gpu', gpu, 'vision cpu (declared) · audio cpu (declared)'),
+        ('gemma4_2b_sm8850_npu', npu, 'vision - · audio -'),
+        ('qwen3_0_6b', gpu, 'vision - · audio -'),
+      ]) {
+        test('$asset on ${backend.name}: $expected', () async {
+          expect(await towersOf(asset, backend), expected);
+        });
+      }
+    });
+
     test('not the magic, or a header cut short, is a FormatException', () {
       expect(
         () => parseLitertlmHeader(Uint8List(32), Uint8List(16)),
@@ -285,6 +386,18 @@ void main() {
     });
 
     test('every real header parses to exactly its sections, in order', () {
+      expect(
+        parseOutcome(
+          File('test_assets/litertlm/gemma4_e2b_qualcomm_qcs8275.header.bin')
+              .readAsBytesSync(),
+        ),
+        'ok 1.5.0 [tf_lite_embedder, tf_lite_per_layer_embedder, '
+        'tf_lite_audio_encoder_hw, tf_lite_audio_adapter, '
+        'tf_lite_end_of_audio, tf_lite_vision_encoder, '
+        'tf_lite_vision_adapter, tf_lite_end_of_vision, '
+        'tf_lite_prefill_decode, tf_lite_aux] [cpu, cpu, cpu, npu]',
+        reason: 'kQualcommQcs8275Sections is this header',
+      );
       expect(
         parseOutcome(gpuHeader),
         'ok 1.5.0 [tf_lite_embedder, tf_lite_per_layer_embedder, '

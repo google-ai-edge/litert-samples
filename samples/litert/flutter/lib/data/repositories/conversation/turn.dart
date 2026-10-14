@@ -18,8 +18,10 @@ import 'package:flutter_edge_ai/flutter_edge_ai.dart';
 import '../../../domain/models/assistant_event.dart';
 import '../../../domain/models/skill_step.dart';
 import '../../../utils/result.dart';
+import '../../../utils/wav.dart';
 import 'agent_turn.dart';
 import 'generation_metrics_builder.dart';
+import 'history_mirror.dart';
 import 'live_chat.dart';
 import 'native_chat.dart';
 import 'turn_start.dart';
@@ -32,26 +34,44 @@ Stream<AssistantEvent> askTurn(
   LiveChat live,
   String prompt, {
   Uint8List? image,
+  Uint8List? audioWav,
   void Function(SkillStep step)? onStep,
+  String? historyText,
+  int? turn,
 }) async* {
   // An agent chat runs its turn through AgentSession.
   if (live.agent case final agent?) {
-    yield* askAgent(live, agent, prompt, image, onStep);
+    yield* askAgent(
+      live,
+      agent,
+      prompt,
+      image,
+      onStep,
+      audioWav: audioWav,
+      historyText: historyText,
+      turn: turn,
+    );
     return;
   }
   final OpenChat ready;
-  switch (live.precheck(image)) {
+  switch (live.precheck(image, audioWav: audioWav)) {
     case Ok(:final value):
       ready = value;
     case Error(:final error):
       yield AssistantFailed(error);
       return;
   }
+  // Checked by the precheck: a 16 kHz mono PCM16 WAV with samples.
+  final audio = audioWav == null ? null : wavDuration(audioWav);
   final profile = ready.profile;
   final done = live.beginTurn();
   final metrics = GenerationMetricsBuilder(imageAttached: image != null);
   Uint8List? imageToSend;
   var sent = false;
+  // The turn in the conversation's text mirror, once it is sent, and its
+  // reply as far as it streamed.
+  MirrorSlot? slot;
+  final reply = StringBuffer();
 
   /// The image bookkeeping ran for a turn that reached the model. A caller
   /// that cancels the subscription skips everything but `finally` (async*
@@ -67,30 +87,53 @@ Stream<AssistantEvent> askTurn(
       profile: profile,
       image: image,
       metrics: metrics,
+      audio: audio,
     );
     final chat = guarded.chat;
     // Announced now, whatever happens to the turn next.
-    if (guarded.reset) yield const AssistantContextReset();
+    if (guarded.reset case final reason?) {
+      yield AssistantContextReset(
+        reason: reason,
+        keptTurns: guarded.replay?.turns.length ?? 0,
+        droppedTurns: guarded.replay?.dropped ?? 0,
+        wordlessTurns: wordlessIn(guarded.replay),
+      );
+    }
     if (stoppedBeforeSending(live, metrics, guarded.promptTokens)
         case final done?) {
       yield done;
       return;
     }
 
-    // 2. Send the image only when the live chat cannot see it; its prefill
+    // 2. A chat that must be rebuilt replays the text history first; then
+    //    send the image only when the live chat cannot see it; its prefill
     //    includes the system instruction on an empty conversation.
+    final replay = guarded.replay;
+    if (replay != null) await live.applyReplay(chat, replay);
     final (:send, :textTokens) = await startSend(
       live,
       chat,
       image,
-      promptTokens: guarded.promptTokens,
+      promptTokens: guarded.promptTokens + (replay?.tokens ?? 0),
       systemTokens: () => chat.session.sizeInTokens(profile.systemInstruction),
     );
     imageToSend = send.image;
     final (image: _, :resent, :rebuildPending, :before) = send;
     sent = true;
+    slot = live.mirror.begin(
+      user: historyText ?? prompt,
+      turn: turn,
+      audio: audioWav != null,
+    );
+    // One user message for the turn: the prompt, the image when the live
+    // chat cannot see it, and the recording (sent with its turn only).
     await chat.addQueryChunk(
-      Message(text: prompt, isUser: true, imageBytes: imageToSend),
+      Message(
+        text: prompt,
+        isUser: true,
+        imageBytes: imageToSend,
+        audioBytes: audioWav,
+      ),
     );
     // The turn always starts, even if a stop already arrived: the FFI
     // session buffers the prompt until generation, so skipping it would glue
@@ -114,6 +157,7 @@ Stream<AssistantEvent> askTurn(
         case TextResponse(:final token):
           if (token.isNotEmpty) {
             metrics.chunk();
+            reply.write(token);
             yield AssistantTextDelta(token);
           }
         case ThinkingResponse() ||
@@ -158,6 +202,7 @@ Stream<AssistantEvent> askTurn(
       // rebuilds the conversation from text, like a stop.
       live.cancelTurn(sentImage: imageToSend);
     }
+    if (slot != null) live.mirror.reply(slot, reply.toString());
     live.endTurn(done);
   }
 }

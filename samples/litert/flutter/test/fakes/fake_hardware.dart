@@ -70,6 +70,9 @@ final class FakeMemoryProbe implements MemoryProbe {
   int? availableBytes() => (9 << 30) - _samples * stepBytes;
 
   @override
+  int? totalBytes() => 16 << 30;
+
+  @override
   MemorySnapshot snapshot() {
     final available = availableBytes();
     _samples++;

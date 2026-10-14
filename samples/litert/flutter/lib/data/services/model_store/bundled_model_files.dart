@@ -35,16 +35,13 @@ final class const BundledFile({
   String get name => asset.split('/').last;
 }
 
-/// EmbeddingGemma-300M, built in (Gemma Terms of Use; NOTICE.md).
+/// EmbeddingGemma 2 740m, one self-contained `.litertlm` that carries its own
+/// tokenizer (litert-community/embeddinggemma-2-740m-litert-lm @24d962e9,
+/// Apache-2.0), built in (NOTICE.md).
 const kBundledEmbedderModel = BundledFile(
-  asset: 'assets/models/embeddinggemma-300M_seq512_mixed-precision.tflite',
-  sizeBytes: 179132472,
-  sha256: 'ad09e81557203cb0e177abf9bf8727dfe138a7d394aa0f70f0b2ed16432e121a',
-);
-const kBundledEmbedderTokenizer = BundledFile(
-  asset: 'assets/models/sentencepiece.model',
-  sizeBytes: 4683319,
-  sha256: 'd6daa52d93d7aad10e8388bd526c4e501d914b47177398d1d9621f1fe48438c7',
+  asset: 'assets/models/embeddinggemma-2-740m.litertlm',
+  sizeBytes: 484622336,
+  sha256: 'e7a8a2204b91e0f96e92960e84a09a89212e1633dcb7575a9bf3378b4df77f4c',
 );
 
 /// Whisper base int8 (litert-community/whisper-base, Apache-2.0) and its
@@ -127,7 +124,6 @@ const kBundledInflectFiles = [
 /// in `bundled/`.
 const kBundledModelFiles = [
   kBundledEmbedderModel,
-  kBundledEmbedderTokenizer,
   kBundledWhisperModel,
   kBundledWhisperTokenizer,
   kBundledMoonshineModel,
@@ -143,10 +139,7 @@ int bundledBytesOf(Iterable<BundledFile> files) =>
 /// model: none ships).
 int bundledModelBytes(ModelId id) => switch (id) {
   ModelId.yolo26n => kDetModelBytes,
-  ModelId.embeddingGemma => bundledBytesOf([
-    kBundledEmbedderModel,
-    kBundledEmbedderTokenizer,
-  ]),
+  ModelId.embeddingGemma => kBundledEmbedderModel.sizeBytes,
   ModelId.whisperBase || ModelId.moonshineTiny => bundledBytesOf([
     kBundledSttFiles[id]!.model,
     kBundledSttFiles[id]!.tokenizer,
@@ -214,7 +207,7 @@ typedef AssetCopier = Future<void> Function(String asset, String target);
 ///   [target] goes in relative to it (`../files/models/…`).
 ///
 /// The copy without progress: the progress variant posts one event per 1 KB
-/// read to the main thread (~175 000 for the embedder).
+/// read to the main thread (~475 000 for the embedder).
 Future<void> largeFileHandlerCopier(String asset, String target) async {
   const prefix = 'assets/';
   if (!asset.startsWith(prefix)) {
@@ -249,8 +242,10 @@ String relativePath(String path, {required String from}) {
 /// checked in a worker isolate, renamed into place, recorded in `.sha256`),
 /// so later launches skip the copy; a copy interrupted before its rename is
 /// started again, never used, and a failed one (a full disk) leaves no
-/// `.extract` behind. After an extraction, files of earlier builds (names
-/// not in [known]) are deleted from `bundled/`.
+/// `.extract` behind. Before an extraction, files of earlier builds (names
+/// not in [known]) are deleted from `bundled/`, so an upgrade that replaces
+/// a model (EmbeddingGemma-300M's 184 MB by EmbeddingGemma 2's 485 MB) frees
+/// the old file's space before it needs the new one's.
 ///
 /// flutter_edge_ai's own asset install would copy on every platform, into
 /// memory first on desktop, and verify nothing (flutter_edge_ai 2.1.0
@@ -353,6 +348,9 @@ class BundledModelFiles {
       debugPrint('[Bundled] ${file.name}: extracted before, verified');
       return target.path;
     }
+    // What earlier builds left goes first: on a nearly full device the old
+    // file's space is what the new copy needs.
+    await _pruneStale(dir, keeping: file);
     final temp = File('${target.path}.extract');
     if (await temp.exists()) await temp.delete();
     final watch = Stopwatch()..start();
@@ -382,14 +380,14 @@ class BundledModelFiles {
       '[Bundled] ${file.name}: extracted and verified in '
       '${watch.elapsedMilliseconds} ms',
     );
-    await _pruneStale(dir, keeping: file);
     return target.path;
   }
 
   /// Deletes what earlier builds extracted (a renamed or replaced model):
   /// every file in [dir] that is not one of [known] (or [keeping], the file
-  /// just extracted), its `.sha256` record or its `.extract` in progress. A
-  /// failure to delete is logged, not fatal.
+  /// about to be extracted), its `.sha256` record or its `.extract` in
+  /// progress. A failure to delete is logged, not fatal (the copy then
+  /// reports a full disk itself).
   Future<void> _pruneStale(
     Directory dir, {
     required BundledFile keeping,

@@ -23,6 +23,7 @@ import 'package:path_provider/path_provider.dart';
 
 import '../config/build_info.dart';
 import '../config/env.dart';
+import '../config/model_catalog.dart' show kEmbedderVisionTokensPerImage;
 import '../data/repositories/chat_model_repository.dart';
 import '../data/services/hardware/hardware_info_service.dart';
 import '../data/services/hardware/memory_probe.dart';
@@ -114,8 +115,16 @@ Future<Never> runSelfTestMode(Result<SelfTestOptions> parsed) async {
     );
     say('native log: ${logTap.description}');
 
-    // Gemma only: the self-test needs no speech, embedding or vector store.
-    await FlutterEdgeAi.initialize(inferenceEngines: const [LiteRtLmEngine()]);
+    // Gemma and EmbeddingGemma (steps 7a/7b): no speech engine or vector
+    // store.
+    await FlutterEdgeAi.initialize(
+      inferenceEngines: const [LiteRtLmEngine()],
+      embeddingBackends: const [
+        LiteRtEmbeddingBackend(
+          visionTokensPerImage: kEmbedderVisionTokensPerImage,
+        ),
+      ],
+    );
 
     final chatModel = await resolveSelfTestChatModel(
       argument: options.gemmaPath,
@@ -139,6 +148,9 @@ Future<Never> runSelfTestMode(Result<SelfTestOptions> parsed) async {
       detectorFile: detectorFile,
       loadImage: () => loadSelfTestImage(imagePath),
       imageLabel: imagePath ?? kSelfTestCatsLabel,
+      embedder: AppSelfTestEmbedder(),
+      loadAudioQuestion: loadSelfTestAudioQuestion,
+      loadPhoto: loadSelfTestPhoto,
       audio: options.skipAudio ? null : AppSelfTestAudio(platform),
       progress: say,
       unhandledErrors: unhandled,

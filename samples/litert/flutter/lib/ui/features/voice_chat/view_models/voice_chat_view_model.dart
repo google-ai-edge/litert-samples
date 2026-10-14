@@ -274,6 +274,26 @@ class VoiceChatViewModel extends ChangeNotifier {
       : 'Photos are off: ${_conversation.capabilities.modelName} was set up '
             'without images.';
 
+  /// How a spoken question reaches the chat model: as audio ("Voice →
+  /// Gemma 4 E2B", the model loaded with its audio encoder) or through
+  /// Whisper's transcript ("Voice → Whisper → Gemma 4 E2B"); in audio mode
+  /// also when it answers without skills ([voiceModeLine]).
+  String get modeLine {
+    final chat = _conversation.capabilities;
+    return voiceModeLine(
+      modelName: chat.modelName,
+      audio: chat.audio,
+      // Before the chat is open its skills are not known yet.
+      skills: !isReady
+          ? null
+          : _conversation.skillsNeedTools
+          ? AudioModeSkills.toolsOff
+          : _conversation.hasSkills
+          ? AudioModeSkills.on
+          : AudioModeSkills.noneLoaded,
+    );
+  }
+
   /// Why the skills that need tool calls are off (the chat model has tools
   /// off); null when they are on or no skill is installed. The questions
   /// the app recognizes itself (the time, device facts) still work.
@@ -553,6 +573,30 @@ class VoiceChatViewModel extends ChangeNotifier {
     }
     super.dispose();
   }
+}
+
+/// Whether audio mode has skills: an agent chat reaches the time and device
+/// intents through its tools; without one a spoken question gets no skill,
+/// because the rules that route a transcript have no words to read.
+enum AudioModeSkills { on, toolsOff, noneLoaded }
+
+/// The voice chat's mode line for a chat model named [modelName]
+/// (`Gemma 4 E2B` below): `Voice → Gemma 4 E2B` when it hears the question
+/// as audio, `Voice → Whisper → Gemma 4 E2B` when it reads Whisper's
+/// transcript. In audio mode [skills] adds why it
+/// answers without skills (null: not known yet, nothing added).
+String voiceModeLine({
+  required String modelName,
+  required bool audio,
+  AudioModeSkills? skills,
+}) {
+  if (!audio) return 'Voice → Whisper → $modelName';
+  final line = 'Voice → $modelName';
+  return switch (skills) {
+    AudioModeSkills.toolsOff => '$line · no skills (tools are off)',
+    AudioModeSkills.noneLoaded => '$line · no skills loaded',
+    AudioModeSkills.on || null => line,
+  };
 }
 
 /// The notice when a changed skill set re-opened the chat.

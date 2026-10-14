@@ -37,11 +37,13 @@ void main() {
     Result<FrameSourceSpec> environment = _userChoice,
     String backendDefine = '',
     DetectorBackend? standardBackend,
+    int? physicalMemoryBytes = 12 << 30,
   }) => LiveCameraSettingsRepository(
     settings: TypedSettings(store: store),
     environment: environment,
     backendDefine: backendDefine,
     standardBackend: standardBackend,
+    physicalMemoryBytes: physicalMemoryBytes,
   );
 
   group('camera source', () {
@@ -311,6 +313,56 @@ void main() {
             .toString(),
         contains('camera, fixture or network'),
       );
+    });
+  });
+
+  group('visual memory switch', () {
+    test('never set: on; saved off reads back off', () async {
+      final r = repo();
+      expect((await r.readVisualMemory() as Ok<bool>).value, isTrue);
+      expect(await r.saveVisualMemory(enabled: false), isA<Ok<void>>());
+      expect(store.values['camera.visualMemory'], false);
+      expect((await r.readVisualMemory() as Ok<bool>).value, isFalse);
+      expect(await r.saveVisualMemory(enabled: true), isA<Ok<void>>());
+      expect((await r.readVisualMemory() as Ok<bool>).value, isTrue);
+    });
+
+    test('a storage failure is an error, never a guess', () async {
+      store.failWith = Exception('disk');
+      final r = repo();
+      expect(await r.readVisualMemory(), isA<Error<bool>>());
+      expect(await r.saveVisualMemory(enabled: false), isA<Error<void>>());
+    });
+
+    test('never set on a device with less than 8 GB of RAM (a 6 GB phone '
+        'reports 5.5 GiB): off by default, with the reason; the user may turn '
+        'it on, and that is kept', () async {
+      final r = repo(physicalMemoryBytes: (5.5 * (1 << 30)).round());
+      expect((await r.readVisualMemory() as Ok<bool>).value, isFalse);
+      expect(
+        r.visualMemoryDefaultReason,
+        'Off by default on this device (5.5 GB RAM): the visual memory loads '
+        '~300 MB more.',
+      );
+      expect(await r.saveVisualMemory(enabled: true), isA<Ok<void>>());
+      expect((await r.readVisualMemory() as Ok<bool>).value, isTrue);
+    });
+
+    test('never set on 8 GB and more (an 8 GB phone reports about 7.3 GiB): '
+        'on, no reason', () async {
+      for (final bytes in [(7.3 * (1 << 30)).round(), 12 << 30]) {
+        final r = repo(physicalMemoryBytes: bytes);
+        expect((await r.readVisualMemory() as Ok<bool>).value, isTrue);
+        expect(r.visualMemoryDefaultReason, isNull);
+      }
+      expect(kMemoryDefaultOnMinRamBytes, (6.5 * (1 << 30)).round());
+    });
+
+    test('RAM not measured on this device (iOS has no probe): on, as the '
+        'spec defaults it; a gate needs a measurement', () async {
+      final r = repo(physicalMemoryBytes: null);
+      expect((await r.readVisualMemory() as Ok<bool>).value, isTrue);
+      expect(r.visualMemoryDefaultReason, isNull);
     });
   });
 }

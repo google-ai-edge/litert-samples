@@ -38,7 +38,9 @@ import '../data/services/audio/pcm_player_service.dart';
 import '../data/services/detector/detector_service.dart';
 import '../data/services/detector/frame_message.dart';
 import '../data/services/frames/frame_source.dart';
+import '../data/services/knowledge/embedder_service.dart';
 import '../data/services/llm/llm_service.dart';
+import '../data/services/model_store/bundled_model_files.dart';
 import '../data/services/model_store/local_files.dart';
 import '../domain/audio/audio_device_checks.dart';
 import '../domain/models/audio_devices.dart';
@@ -47,19 +49,31 @@ import '../domain/models/chat_model_config.dart';
 import '../domain/models/detection.dart';
 import '../domain/models/frame_source_info.dart';
 import '../domain/models/hardware_profile.dart' show HostPlatform;
+import '../domain/models/knowledge_query.dart';
+import '../domain/models/model_id.dart';
 import '../domain/models/model_source_resolver.dart';
+import '../domain/models/model_state.dart';
 import '../utils/result.dart';
 import 'cats_golden.dart';
+import 'embedder_steps.dart' show kSelfTestAudioQuestionAsset;
 import 'self_test_ports.dart';
 
 /// The self-test's chat model: an explicit `--gemma` with the app's Gemma 4
 /// E2B settings; otherwise exactly what the app would load, by the app's own
 /// rule ([ModelSourceResolver]):
 /// the chat model chosen on the Models screen ([plan]) — the user's own
-/// `.litertlm` with its saved settings (`GEMMA_MODEL_PATH` does not override
-/// it) — or, with none chosen, `GEMMA_MODEL_PATH` ([define]) when set, else
-/// "No chat model yet".
+/// `.litertlm` with its saved settings and its header's towers, as the app
+/// read them (`GEMMA_MODEL_PATH` does not override it) — or, with none
+/// chosen, `GEMMA_MODEL_PATH` ([define]) when set, else "No chat model yet".
+/// `--gemma-backend` places the header's towers for that backend
+/// ([SelfTestChatModel.withBackend]), as the app does.
 Future<SelfTestChatModel> resolveSelfTestChatModel({
+  required String? argument,
+  required String define,
+  required ChatModelPlan plan,
+}) => _resolveChatModel(argument: argument, define: define, plan: plan);
+
+Future<SelfTestChatModel> _resolveChatModel({
   required String? argument,
   required String define,
   required ChatModelPlan plan,
@@ -85,6 +99,8 @@ Future<SelfTestChatModel> resolveSelfTestChatModel({
         config: custom.config,
         settingsSource: 'your own .litertlm, saved settings',
         sha256: model.file?.sha256,
+        custom: model,
+        header: custom.header,
       );
     case BlockedChatSource(:final reason):
       return SelfTestChatModel(
@@ -247,7 +263,10 @@ final class AppSelfTestDetector implements SelfTestDetector {
 /// model per process: the app's chat model must be unloaded first (the in-app
 /// self-test does that).
 final class AppSelfTestGemma implements SelfTestGemma {
-  final LlmService _llm = LlmService();
+  /// [llm]: the app's own service by default (a fake in tests).
+  AppSelfTestGemma({LlmService? llm}) : _llm = llm ?? LlmService();
+
+  final LlmService _llm;
 
   @override
   Future<Result<GemmaLoad>> load(String path, ChatModelConfig config) async {
@@ -267,7 +286,13 @@ final class AppSelfTestGemma implements SelfTestGemma {
         return Result.error(error);
     }
     final Duration warmUp;
-    switch (await _llm.warmUp(kSampler, withImage: config.llm.supportImage)) {
+    // As the app warms it up (`ModelRepository`): an audio tower that fails
+    // only on its first use fails here too.
+    switch (await _llm.warmUp(
+      kSampler,
+      withImage: config.llm.supportImage,
+      withAudio: config.llm.supportAudio && kLlmAudioWarmUp,
+    )) {
       case Ok(:final value):
         warmUp = value;
       case Error(:final error):
@@ -334,6 +359,194 @@ final class AppSelfTestGemma implements SelfTestGemma {
 
   @override
   Future<void> close() => _llm.close();
+}
+
+/// The bundled spoken question of step 7b ([kSelfTestAudioQuestionAsset]),
+/// whole (a few tens of KB).
+/// The photo step 7c embeds: the bundled cats JPEG as it is ([kCatsAsset],
+/// 640×480, upright).
+Future<Result<Uint8List>> loadSelfTestPhoto() async {
+  try {
+    final data = await rootBundle.load(kCatsAsset);
+    return Result.ok(
+      data.buffer.asUint8List(data.offsetInBytes, data.lengthInBytes),
+    );
+  } catch (e) {
+    return Result.error(
+      asException(StateError('$kCatsAsset is not in this build ($e)')),
+    );
+  }
+}
+
+Future<Result<Uint8List>> loadSelfTestAudioQuestion() async {
+  try {
+    final data = await rootBundle.load(kSelfTestAudioQuestionAsset);
+    return Result.ok(
+      data.buffer.asUint8List(data.offsetInBytes, data.lengthInBytes),
+    );
+  } catch (e) {
+    return Result.error(
+      asException(
+        StateError(
+          '$kSelfTestAudioQuestionAsset is not in this build ($e): '
+          'tool/make_question_audio.sh makes it',
+        ),
+      ),
+    );
+  }
+}
+
+/// `audio+text`.
+String _mediaOf(Set<EmbeddingModality> modalities) =>
+    (modalities.map((m) => m.name).toList()..sort()).join('+');
+
+/// The headless self-test's embedder: the app's [EmbedderService]
+/// ([appEmbedderService]) over the built-in EmbeddingGemma 2 file,
+/// installed, loaded (audio declared, as setup loads it) and warmed up for
+/// the run with the app's text question and spoken clip (so step 7a runs a
+/// warm audio encoder, as in the app), the image encoder added for step 7c
+/// as the camera demo adds it, closed after the run.
+final class AppSelfTestEmbedder implements SelfTestEmbedder {
+  AppSelfTestEmbedder({BundledModelFiles? bundled, EmbedderService? service})
+    : _bundled = bundled ?? BundledModelFiles(),
+      _service = service ?? appEmbedderService();
+
+  final BundledModelFiles _bundled;
+  final EmbedderService _service;
+
+  @override
+  Future<Result<SelfTestEmbedderLoad>> prepare() async {
+    final String path;
+    switch (await _bundled.pathOf(kBundledEmbedderModel)) {
+      case Ok(:final value):
+        path = value;
+      case Error(:final error):
+        return Result.error(error);
+    }
+    final installed = await _service.install(
+      EmbedderFromFiles(modelPath: path),
+      onProgress: (_) {},
+    );
+    if (installed case Error(:final error)) return Result.error(error);
+    final EmbedderInfo info;
+    switch (await _service.load()) {
+      case Ok(:final value):
+        info = value;
+      case Error(:final error):
+        return Result.error(error);
+    }
+    switch (await _service.warmUp()) {
+      case Error(:final error):
+        return Result.error(error);
+      case Ok(value: final warmUp):
+        return Result.ok(
+          SelfTestEmbedderLoad(
+            modelId: info.modelId,
+            backend: info.backend.name,
+            media: _mediaOf(info.modalities),
+            loadTime: info.loadTime,
+            warmUpTime: warmUp,
+          ),
+        );
+    }
+  }
+
+  @override
+  Future<Result<List<double>>> embed(KnowledgeQuery query) =>
+      _service.embedQuery(query);
+
+  @override
+  Future<Result<SelfTestImagesLoad>> enableImages() async =>
+      _imagesLoad(await _service.enableImages());
+
+  @override
+  Future<Result<List<double>>> embedImage(Uint8List encoded) =>
+      _service.embedImage(encoded);
+
+  @override
+  Future<Result<List<double>>> embedMemoryText(String text) =>
+      _service.embedText(text);
+
+  @override
+  Future<void> close() => _service.close();
+}
+
+/// [EmbedderService.enableImages]'s report as the self-test's.
+Result<SelfTestImagesLoad> _imagesLoad(Result<EmbedderImagesLoad> result) =>
+    switch (result) {
+      Ok(:final value) => Result.ok(
+        SelfTestImagesLoad(
+          loadTime: value.loadTime,
+          rssBeforeBytes: value.rssBeforeBytes,
+          rssAfterBytes: value.rssAfterBytes,
+          alreadyLoaded: value.alreadyLoaded,
+        ),
+      ),
+      Error(:final error) => Result.error(error),
+    };
+
+/// The in-app self-test's embedder: the app's own [EmbedderService], as
+/// setup loaded it (one embedder per process: loading another would hand
+/// back this one, and closing it would take the knowledge base down). Used
+/// as it is and never closed; a run while it is not ready fails 7a with its
+/// state.
+final class BorrowedSelfTestEmbedder implements SelfTestEmbedder {
+  /// [enableImages]: the app's own way to add the image encoder
+  /// (`ModelRepository.enableEmbedderImages`, which also updates the
+  /// embedder's row), as the camera demo does.
+  BorrowedSelfTestEmbedder(
+    this._service,
+    this._models, {
+    required this._enableImages,
+  });
+
+  final EmbedderService _service;
+  final ValueListenable<Map<ModelId, ModelState>> _models;
+  final Future<Result<EmbedderImagesLoad>> Function() _enableImages;
+
+  @override
+  Future<Result<SelfTestEmbedderLoad>> prepare() async {
+    final state = _models.value[ModelId.embeddingGemma];
+    if (state is! ModelReady || !_service.isLoaded) {
+      final why = switch (state) {
+        ModelUnavailable(:final reason) => 'unavailable: $reason',
+        ModelFailed(:final message) => 'failed: $message',
+        ModelReady() => 'closed',
+        null || ModelPending() => 'not loaded yet',
+        ModelInstalling() || ModelLoading() || ModelWarmingUp() => 'loading',
+      };
+      return Result.error(
+        asException(StateError('The app\'s EmbeddingGemma is $why')),
+      );
+    }
+    return Result.ok(
+      SelfTestEmbedderLoad(
+        modelId: _service.modelId ?? state.info.modelId,
+        backend: state.info.backend,
+        media: _mediaOf(_service.modalities),
+        borrowed: true,
+      ),
+    );
+  }
+
+  @override
+  Future<Result<List<double>>> embed(KnowledgeQuery query) =>
+      _service.embedQuery(query);
+
+  @override
+  Future<Result<SelfTestImagesLoad>> enableImages() async =>
+      _imagesLoad(await _enableImages());
+
+  @override
+  Future<Result<List<double>>> embedImage(Uint8List encoded) =>
+      _service.embedImage(encoded);
+
+  @override
+  Future<Result<List<double>>> embedMemoryText(String text) =>
+      _service.embedText(text);
+
+  @override
+  Future<void> close() async {}
 }
 
 /// The app's audio path: a [DeviceAudioRepository] for the output (session,

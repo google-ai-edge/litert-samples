@@ -26,6 +26,7 @@ import 'package:flutter/foundation.dart';
 import '../../../domain/models/detection.dart';
 import 'detector_engine.dart';
 import 'frame_message.dart';
+import 'memory_shot.dart';
 
 /// The spawn message.
 final class DetectorWorkerBoot {
@@ -66,12 +67,17 @@ final class DetectorDetectRequest extends DetectorRequest {
     super.id,
     this.frame, {
     this.withSnapshot = false,
-  });
+    this.memory,
+  }) : assert(!withSnapshot || memory == null);
 
   final FrameMessage frame;
 
   /// Also reply with the frame as upright RGBA ([SnapshotReply]).
   final bool withSnapshot;
+
+  /// Also reply with the visual memory's frame made as this spec says
+  /// ([MemoryShotReply]: the detections, and the frame or why it failed).
+  final MemoryShotSpec? memory;
 }
 
 /// Worker → main for a [DetectorDetectRequest.withSnapshot] frame: the
@@ -152,14 +158,21 @@ void detectorWorkerMain(DetectorWorkerBoot boot) {
           debugPrint('[DetectorWorker] load failed: $e\n$st');
           reply(id, error: 'Detector load failed: $e');
         }
-      case DetectorDetectRequest(:final id, :final frame, :final withSnapshot):
+      case DetectorDetectRequest(
+        :final id,
+        :final frame,
+        :final withSnapshot,
+        :final memory,
+      ):
         final current = engine;
         if (current == null) {
           reply(id, error: 'The detector is not loaded');
           return;
         }
         try {
-          if (withSnapshot) {
+          if (memory != null) {
+            reply(id, value: current.detectWithMemoryShot(frame, memory));
+          } else if (withSnapshot) {
             final (detection, pixels, convertTime) = current.detectWithSnapshot(
               frame,
             );

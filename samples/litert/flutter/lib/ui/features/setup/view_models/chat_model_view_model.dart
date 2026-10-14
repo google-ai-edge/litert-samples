@@ -24,6 +24,7 @@ import '../../../../domain/models/chat_model.dart';
 import '../../../../domain/models/model_id.dart';
 import '../../../../domain/models/model_source_resolver.dart';
 import '../../../../domain/models/model_state.dart';
+import '../../../../domain/models/model_towers.dart';
 import '../../../../domain/models/npu_availability.dart';
 import '../../../../domain/models/provisioning.dart';
 import '../../../../domain/ports/model_file_picker.dart';
@@ -83,8 +84,24 @@ final class const ModelUrlRequest({
   }
 }
 
-/// What the user can do after the chat model failed to load.
+/// What the user can do after the chat model failed to load: run it on the
+/// GPU or the CPU. (A tower the header leaves open is set to the CPU on the
+/// card itself: the failure's message says so.)
 enum ChatModelAction { runOnGpu, runOnCpu }
+
+/// One tower's row in the card's Towers block (`ChatModelViewModel.towerRow`).
+sealed class const TowerRow();
+
+/// The file does not have the tower: [text] says what is off without it.
+final class const TowerMissing(final String text) extends TowerRow;
+
+/// Read-only: the header places the tower, or the model runs off the NPU
+/// (the CPU). [text]: `CPU · the file sets it`, `CPU`.
+final class const TowerFixed(final String text) extends TowerRow;
+
+/// The header says nothing about the tower and the model runs on the NPU:
+/// the user picks CPU or NPU ([selected]; the NPU by default).
+final class const TowerChoice(final PreferredBackend selected) extends TowerRow;
 
 /// One models folder as the card shows it: its path (or why it has none),
 /// the `.litertlm` files in it and how to get one there.
@@ -98,9 +115,10 @@ final class const ModelsFolderView({
 
 /// The Models screen's "Chat model" section. The app ships no chat model:
 /// the user chooses a `.litertlm` — from a models folder, a path, an import
-/// or a link — and sets its backend, context, images and tools; when a load
-/// fails, the explicit ways out.
-/// Never switches models by itself.
+/// or a link — and sets its backend, context and tools. Its towers (vision,
+/// audio) load as its header says, shown with where each runs; only a tower
+/// the header leaves open, on the NPU, is a choice. When a load fails, the
+/// explicit ways out. Never switches models by itself.
 class ChatModelViewModel extends ChangeNotifier {
   ChatModelViewModel({
     required this._chatModels,
@@ -351,14 +369,18 @@ class ChatModelViewModel extends ChangeNotifier {
   ModelType _type = ModelType.gemma4;
   PreferredBackend _backend = PreferredBackend.gpu;
   String _context = '';
-  bool _images = false;
   bool _tools = false;
+
+  /// The towers' choices (null: none, the NPU): they apply only on the NPU
+  /// to a tower the header says nothing about, and are kept across a
+  /// Backend change (back on the NPU they apply again).
+  PreferredBackend? _visionChoice;
+  PreferredBackend? _audioChoice;
 
   String get draftName => _name;
   ModelType get draftType => _type;
   PreferredBackend get draftBackend => _backend;
   String get draftContext => _context;
-  bool get draftImages => _images;
   bool get draftTools => _tools;
 
   /// The context an NPU build's file name announces, for the hint.
@@ -367,10 +389,79 @@ class ChatModelViewModel extends ChangeNotifier {
 
   void setName(String value) => _edit(() => _name = value);
   void setType(ModelType value) => _edit(() => _type = value);
+
+  /// The Towers block follows: on the NPU a tower the header leaves open
+  /// becomes a choice, elsewhere it runs on the CPU.
   void setBackend(PreferredBackend value) => _edit(() => _backend = value);
   void setContext(String value) => _edit(() => _context = value);
-  void setImages({required bool enabled}) => _edit(() => _images = enabled);
   void setTools({required bool enabled}) => _edit(() => _tools = enabled);
+
+  /// Where [tower] runs, for a tower the header leaves open on the NPU ([TowerChoice]);
+  /// a load setting: applying it reloads the chat model. The NPU is the
+  /// default, so choosing it saves no choice.
+  void setTowerBackend(Tower tower, PreferredBackend value) => _edit(() {
+    final choice = value == PreferredBackend.npu ? null : value;
+    switch (tower) {
+      case Tower.vision:
+        _visionChoice = choice;
+      case Tower.audio:
+        _audioChoice = choice;
+    }
+  });
+
+  // ---- The towers (read from the file's header) ----
+
+  /// The sections of the saved file's header; null when it has not been
+  /// read (before the launch's check, or a saved file that is gone or
+  /// unreadable: the card shows that problem, and no Towers block).
+  List<LitertlmSection>? get _header => _state.header;
+
+  /// The Towers block is shown: the file's header is read.
+  bool get towersShown => _header != null;
+
+  /// The towers the draft loads: the header's, on the draft backend, with
+  /// the draft's choices (as [CustomChatModel.towersOf] places them); null
+  /// when the header is not read ([towersShown]).
+  ModelTowers? get draftTowers => switch (_header) {
+    final header? => resolveTowers(
+      header,
+      _backend,
+      vision: _visionChoice,
+      audio: _audioChoice,
+    ),
+    null => null,
+  };
+
+  /// The Towers block's first row: where the text decoder runs (the draft
+  /// backend).
+  String get towerTextLine => _backend.name.toUpperCase();
+
+  /// [tower]'s row; null when the header is not read ([towersShown]).
+  TowerRow? towerRow(Tower tower) {
+    final towers = draftTowers;
+    if (towers == null) return null;
+    return switch (towers.of(tower)) {
+      null => TowerMissing(switch (tower) {
+        Tower.vision =>
+          'not in this file: photos in Voice chat and detailed answers in '
+              'Live camera are off',
+        Tower.audio =>
+          'not in this file: voice questions are transcribed first',
+      }),
+      TowerPlacement(:final backend, reason: TowerReason.choice) => TowerChoice(
+        backend,
+      ),
+      TowerPlacement(:final backend, reason: TowerReason.declared) =>
+        TowerFixed('${backend.name.toUpperCase()} · the file sets it'),
+      TowerPlacement(:final backend, reason: TowerReason.offNpu) => TowerFixed(
+        backend.name.toUpperCase(),
+      ),
+    };
+  }
+
+  /// A tower row is a choice: the card explains it once.
+  bool get towerChoiceShown =>
+      Tower.values.any((t) => towerRow(t) is TowerChoice);
 
   void _edit(void Function() change) {
     change();
@@ -384,24 +475,33 @@ class ChatModelViewModel extends ChangeNotifier {
     _type = model.modelType;
     _backend = model.backend;
     _context = '${model.maxTokens}';
-    _images = model.supportImage;
     _tools = model.tools;
+    _visionChoice = model.visionChoice;
+    _audioChoice = model.audioChoice;
   }
 
   /// The draft as a model; null without a saved custom model or with a
-  /// context that is not a number.
+  /// context that is not a number. Off the NPU the towers' choices show
+  /// nowhere and mean nothing: the saved ones stay (a choice made on the
+  /// NPU and left there neither enables Apply nor reloads; back on the NPU
+  /// the card shows it again).
   CustomChatModel? get _draft {
     final model = saved;
     final context = int.tryParse(_context.trim());
     if (model == null || context == null) return null;
-    return model.copyWith(
-      displayName: _name.trim(),
-      modelType: _type,
-      backend: _backend,
-      maxTokens: context,
-      supportImage: _images,
-      tools: _tools,
-    );
+    final onNpu = _backend == PreferredBackend.npu;
+    return model
+        .copyWith(
+          displayName: _name.trim(),
+          modelType: _type,
+          backend: _backend,
+          maxTokens: context,
+          tools: _tools,
+        )
+        .withTowerChoices(
+          vision: onNpu ? _visionChoice : model.visionChoice,
+          audio: onNpu ? _audioChoice : model.audioChoice,
+        );
   }
 
   /// Why the draft cannot be applied; null when it can.
@@ -427,18 +527,25 @@ class ChatModelViewModel extends ChangeNotifier {
 
   /// [model] is what the chat slot runs: the same file (by SHA-256: every
   /// nameless link used to land under one name; a file in place by its
-  /// path, its hash may still be computing) and the same settings.
-  bool _runs(CustomChatModel model) => switch (_slot) {
-    ModelReady(info: LoadedModelInfo(chat: final chat?)) when chat.custom =>
-      _sameFile(chat, model) &&
-          chat.name == model.displayName &&
-          chat.requestedBackend == model.backend.name &&
-          chat.requestedContext == model.maxTokens &&
-          chat.images == model.supportImage &&
-          chat.tools == model.tools &&
-          chat.modelType == model.modelType.name,
-    _ => false,
-  };
+  /// path, its hash may still be computing), the same settings and the same
+  /// towers where they run.
+  bool _runs(CustomChatModel model) {
+    final header = _header;
+    if (header == null) return false;
+    final towers = model.towersOf(header);
+    return switch (_slot) {
+      ModelReady(info: LoadedModelInfo(chat: final chat?)) when chat.custom =>
+        _sameFile(chat, model) &&
+            chat.name == model.displayName &&
+            chat.requestedBackend == model.backend.name &&
+            chat.requestedContext == model.maxTokens &&
+            chat.visionBackend == towers.visionBackend?.name &&
+            chat.audioBackend == towers.audioBackend?.name &&
+            chat.tools == model.tools &&
+            chat.modelType == model.modelType.name,
+      _ => false,
+    };
+  }
 
   /// A new file is saved while the previous one still runs: it runs only
   /// after Apply and reload.
@@ -479,7 +586,7 @@ class ChatModelViewModel extends ChangeNotifier {
   ModelState get _slot =>
       _models.states.value[ModelId.chat] ?? const ModelPending();
 
-  /// What runs now: `Gemma 3 1B NPU · npu → npu · ctx 1280 · images off …`.
+  /// What runs now: `Gemma 3 1B NPU · npu → npu · ctx 1280 · vision cpu …`.
   String get activeLine => switch (_slot) {
     _ when noModel && _planned is NoChatSource =>
       'No chat model yet: choose a .litertlm below',
@@ -511,16 +618,20 @@ class ChatModelViewModel extends ChangeNotifier {
 
   /// The ways out after a failed load of the user's model: never taken
   /// on its own. None when no load can help (a self-test that did not end).
+  /// A tower the header leaves open is set on the card itself (the
+  /// failure's message says so).
   List<ChatModelAction> get failureActions {
     final retryable = switch (_slot) {
       ModelFailed(:final retryable) => retryable,
       _ => false,
     };
-    if (!retryable || active != ChatModelKind.custom) return const [];
-    final backend = saved?.backend;
+    final model = saved;
+    if (!retryable || active != ChatModelKind.custom || model == null) {
+      return const [];
+    }
     return [
-      if (backend != PreferredBackend.gpu) ChatModelAction.runOnGpu,
-      if (backend != PreferredBackend.cpu) ChatModelAction.runOnCpu,
+      if (model.backend != PreferredBackend.gpu) ChatModelAction.runOnGpu,
+      if (model.backend != PreferredBackend.cpu) ChatModelAction.runOnCpu,
     ];
   }
 
@@ -680,13 +791,19 @@ class ChatModelViewModel extends ChangeNotifier {
   /// The last apply's or action's error (a reload's own failure shows as
   /// [loadError]), or why its reload was refused (the previous reply is
   /// still stopping).
-  String? get actionError => switch ((apply.result, runOn.result)) {
-    (Error(error: final InvalidChatModelException e), _) ||
-    (_, Error(error: final InvalidChatModelException e)) => e.message,
-    (Error(error: final ReplyStillStoppingException e), _) ||
-    (_, Error(error: final ReplyStillStoppingException e)) => '$e',
-    _ => null,
-  };
+  String? get actionError {
+    final errors = [
+      for (final result in [apply.result, runOn.result])
+        if (result case Error(:final error)) error,
+    ];
+    for (final error in errors) {
+      if (error is InvalidChatModelException) return error.message;
+    }
+    for (final error in errors) {
+      if (error is ReplyStillStoppingException) return '$error';
+    }
+    return null;
+  }
 
   void _onChanged() {
     // The saved model changed under the editor (an import elsewhere):

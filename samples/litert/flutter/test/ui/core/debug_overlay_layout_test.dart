@@ -113,7 +113,7 @@ DiagnosticsSnapshot _longSnapshot() {
           requestedBackend: 'gpu',
           requestedContext: 8192,
           contextTokens: 8192,
-          images: true,
+          visionBackend: 'cpu',
           tools: true,
           modelType: 'gemma4',
         ),

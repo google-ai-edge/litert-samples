@@ -43,6 +43,11 @@ final class FixtureMicService implements MicService {
   /// When the last start began playing.
   DateTime? startedAt;
 
+  /// The last start has sent every byte of its [pcm] (a press held until
+  /// then hands the whole question over on release).
+  bool get played => _played;
+  bool _played = false;
+
   @override
   Future<bool> hasPermission() async => true;
 
@@ -51,6 +56,7 @@ final class FixtureMicService implements MicService {
     required int sampleRate,
     required void Function(String actual) onFormatChanged,
   }) async {
+    _played = false;
     final delay = startDelay;
     startDelay = Duration.zero;
     if (delay > Duration.zero) await Future<void>.delayed(delay);
@@ -60,11 +66,13 @@ final class FixtureMicService implements MicService {
     _stream = StreamController<Uint8List>();
     var offset = 0;
     final source = pcm;
+    _played = source.isEmpty;
     _timer = Timer.periodic(const Duration(milliseconds: 64), (_) {
       if (offset >= source.length) return;
       final end = (offset + _chunkBytes).clamp(0, source.length);
       _stream?.add(Uint8List.sublistView(source, offset, end));
       offset = end;
+      if (offset >= source.length) _played = true;
     });
     return _stream!.stream;
   }

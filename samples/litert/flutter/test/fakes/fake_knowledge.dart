@@ -17,38 +17,83 @@ import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:flutter_edge_ai/flutter_edge_ai.dart'
-    show EmbeddingModel, PreferredBackend, TaskType;
+    show
+        CancelToken,
+        EmbeddingInput,
+        EmbeddingInputTooLongException,
+        EmbeddingModality,
+        EmbeddingModel,
+        PreferredBackend,
+        TaskType;
 import 'package:flutter_edge_ai_rag/flutter_edge_ai_rag.dart'
     show RetrievalResult, VectorStoreStats;
+import 'package:litert_edge_demos/config/knowledge_config.dart';
+import 'package:litert_edge_demos/config/model_catalog.dart';
 import 'package:litert_edge_demos/data/services/knowledge/embedder_digests.dart';
 import 'package:litert_edge_demos/data/services/knowledge/embedder_service.dart';
 import 'package:litert_edge_demos/data/services/knowledge/kb_prebuilt_index.dart';
 import 'package:litert_edge_demos/data/services/knowledge/vector_store_service.dart';
 import 'package:litert_edge_demos/domain/models/knowledge.dart';
+import 'package:litert_edge_demos/domain/models/knowledge_query.dart';
 import 'package:litert_edge_demos/domain/ports/knowledge_retriever.dart';
 import 'package:litert_edge_demos/utils/result.dart';
 
 /// An [EmbeddingModel] at the package edge: deterministic non-zero vectors
-/// of [dimension], with the calls recorded. [gate] pauses
-/// [generateEmbeddings]; from batch [failFromBatch] (1-based) it throws.
-class FakeEmbeddingModel extends EmbeddingModel {
+/// of [dimension], with the calls recorded. [gate] pauses [embedAll]; from
+/// batch [failFromBatch] (1-based) it throws. Like the engine it reports the
+/// media it was loaded with: text plus the config's ([loadedWith]; the
+/// app's setup load, text and audio, until then), unless a test fixes
+/// [modalities]; and it refuses an image or a recording it was not loaded
+/// for. A 1024-token limit unless told otherwise.
+base class FakeEmbeddingModel extends EmbeddingModel {
   FakeEmbeddingModel({
     this.dimension = 768,
     this.backend = PreferredBackend.cpu,
     this.zeroVectors = false,
-  });
+    Set<EmbeddingModality>? modalities,
+    this.maxInputTokens = kEmbedderMaxInputTokens,
+  }) : _fixed = modalities;
 
+  @override
   final int dimension;
   final PreferredBackend? backend;
   final bool zeroVectors;
 
+  final Set<EmbeddingModality>? _fixed;
+  Set<EmbeddingModality> _loaded = {
+    EmbeddingModality.text,
+    ...kEmbedderConfig.media,
+  };
+
+  @override
+  Set<EmbeddingModality> get modalities => _fixed ?? _loaded;
+
+  /// This model as a load with [config] makes it: it reports text plus
+  /// [config]'s media (unless the test fixed them). What the fake loaders
+  /// return.
+  FakeEmbeddingModel loadedWith(EmbedderConfig config) {
+    _loaded = {EmbeddingModality.text, ...config.media};
+    return this;
+  }
+
+  @override
+  final int? maxInputTokens;
+
+  /// Every [embed] call's input (text, audio and images), in order.
+  final List<(EmbeddingInput, TaskType)> inputs = [];
+
+  /// The text [embed] calls (the warm-up and text questions).
   final List<(String, TaskType)> queries = [];
+
+  /// When set, [embed] fails with it (an input the engine refused as too
+  /// long after counting it).
+  EmbeddingInputTooLongException? tooLong;
   final List<(List<String>, TaskType)> batches = [];
   Completer<void>? gate;
   int? failFromBatch;
   int closeCalls = 0;
 
-  /// When set, [generateEmbedding] (the warm-up and queries) throws it.
+  /// When set, [embed] (the warm-up and queries) throws it.
   StateError? queryError;
 
   int get documentsEmbedded =>
@@ -66,20 +111,37 @@ class FakeEmbeddingModel extends EmbeddingModel {
   bool get isClosed => closeCalls > 0;
 
   @override
-  Future<List<double>> generateEmbedding(
-    String text, {
-    TaskType taskType = TaskType.retrievalQuery,
+  Future<List<double>> embed(
+    EmbeddingInput input, {
+    required TaskType taskType,
   }) async {
-    queries.add((text, taskType));
+    inputs.add((input, taskType));
+    if (input.images.isNotEmpty &&
+        !modalities.contains(EmbeddingModality.image)) {
+      throw StateError('the embedder was loaded without images');
+    }
+    if (input.audio != null && !modalities.contains(EmbeddingModality.audio)) {
+      throw StateError('the embedder was loaded without audio');
+    }
+    final text =
+        input.text ??
+        switch (input.audio) {
+          final audio? => 'audio:${audio.length}',
+          null => 'image:${input.images.first.length}',
+        };
+    if (input.text != null) queries.add((text, taskType));
     if (queryError case final error?) throw error;
+    if (tooLong case final error?) throw error;
     return vectorFor(text);
   }
 
   @override
-  Future<List<List<double>>> generateEmbeddings(
-    List<String> texts, {
-    TaskType taskType = TaskType.retrievalQuery,
+  Future<List<List<double>>> embedAll(
+    List<EmbeddingInput> inputs, {
+    required TaskType taskType,
+    CancelToken? cancelToken,
   }) async {
+    final texts = [for (final input in inputs) input.text!];
     batches.add((texts, taskType));
     await gate?.future;
     if (failFromBatch case final n? when batches.length >= n) {
@@ -87,9 +149,6 @@ class FakeEmbeddingModel extends EmbeddingModel {
     }
     return [for (final text in texts) vectorFor(text)];
   }
-
-  @override
-  Future<int> getDimension() async => dimension;
 
   @override
   void addCloseListener(void Function() listener) {}
@@ -102,21 +161,22 @@ class FakeEmbeddingModel extends EmbeddingModel {
 /// installed and loaded with [model].
 Future<EmbedderService> loadedEmbedder(
   FakeEmbeddingModel model, {
-  String modelId = 'embeddinggemma-300M_seq512_mixed-precision',
+  String modelId = 'embeddinggemma-2-740m',
+  Future<Uint8List> Function()? warmUpAudio,
+  EmbedderConfig config = kEmbedderConfig,
 }) async {
   final service = EmbedderService(
+    config: config,
     install: (config, source, onProgress) async => modelId,
-    load: (config) async => model,
+    load: (config) async => model.loadedWith(config),
+    warmUpAudio: warmUpAudio,
   );
-  // Two empty files: the install checks they exist; the fake install
+  // An empty file: the install checks it exists; the fake install
   // registers nothing.
   final dir = Directory.systemTemp.createTempSync('fake_embedder');
   final installed = await service.install(
     EmbedderFromFiles(
-      modelPath: (File('${dir.path}/model.tflite')..createSync()).path,
-      tokenizerPath: (File(
-        '${dir.path}/sentencepiece.model',
-      )..createSync()).path,
+      modelPath: (File('${dir.path}/model.litertlm')..createSync()).path,
     ),
     onProgress: (_) {},
   );
@@ -126,14 +186,29 @@ Future<EmbedderService> loadedEmbedder(
   return service;
 }
 
+/// How the fakes key a question: a text question by its text, a spoken one
+/// as `audio:<bytes>`.
+String queryKey(KnowledgeQuery query) => switch (query) {
+  KnowledgeTextQuery(:final text) => text,
+  KnowledgeAudioQuery(:final wav) => 'audio:${wav.length}',
+};
+
 /// An in-memory [VectorStoreService]: rows survive as long as the instance,
 /// like the sqlite file across launches. [search] answers from
-/// [searchResults] by query (an empty list when absent).
+/// [searchResults] by [queryKey] (an empty list when absent).
 class FakeVectorStoreService implements VectorStoreService {
+  FakeVectorStoreService({this.profileId = kKbEmbeddingProfileId});
+
+  @override
+  final String profileId;
+
   final Map<String, ({String content, List<double> embedding, String metadata})>
   rows = {};
   final List<String> openedPaths = [];
   final List<(String, int)> searches = [];
+
+  /// The questions [search] got, as they were passed.
+  final List<KnowledgeQuery> searchQueries = [];
   int clearCalls = 0;
   int addCalls = 0;
   Map<String, List<RetrievalResult>> searchResults = {};
@@ -215,16 +290,17 @@ class FakeVectorStoreService implements VectorStoreService {
 
   @override
   Future<Result<List<RetrievalResult>>> search(
-    String query, {
+    KnowledgeQuery query, {
     required int topK,
   }) => _call('search', () async {
-    searches.add((query, topK));
+    searchQueries.add(query);
+    searches.add((queryKey(query), topK));
     if (searchGate case final gate?) {
       if (!searchStarted.isCompleted) searchStarted.complete();
       await gate.future;
     }
     if (searchError case final error?) return Result.error(error);
-    return Result.ok(searchResults[query] ?? const []);
+    return Result.ok(searchResults[queryKey(query)] ?? const []);
   });
 
   @override
@@ -271,12 +347,17 @@ class FakeRetriever implements KnowledgeRetriever {
   FakeRetriever(this.result);
 
   Result<Retrieval> result;
-  final List<String> questions = [];
+
+  /// Every question asked, as it was passed.
+  final List<KnowledgeQuery> queries = [];
   Completer<void>? gate;
 
+  /// The [queries] by [queryKey] (a text question's text).
+  List<String> get questions => [for (final q in queries) queryKey(q)];
+
   @override
-  Future<Result<Retrieval>> retrieve(String question) async {
-    questions.add(question);
+  Future<Result<Retrieval>> retrieve(KnowledgeQuery query) async {
+    queries.add(query);
     await gate?.future;
     return result;
   }
@@ -305,16 +386,12 @@ Passage passage(
 
 /// Fixed [EmbedderDigests]: no hashing.
 class FixedEmbedderDigests implements EmbedderDigests {
-  FixedEmbedderDigests({this.model = 'model-sha', this.tokenizer = 'tok-sha'});
+  FixedEmbedderDigests({this.model = 'model-sha'});
 
   String model;
-  String tokenizer;
 
   @override
-  Future<EmbedderDigest> of({
-    required String modelPath,
-    required String tokenizerPath,
-  }) async => EmbedderDigest(model: model, tokenizer: tokenizer);
+  Future<String> digestOf(String path) async => model;
 }
 
 /// A [PrebuiltKbIndexSource] serving [manifestRead] and [databaseBytes];

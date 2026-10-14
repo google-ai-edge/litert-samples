@@ -241,11 +241,14 @@ class ModelStore {
   /// The size is [sizeBytes], else what the server reports; the bytes must
   /// hash to [sha256] when one is given, otherwise their checksum is
   /// recorded. A failure keeps the partial file (Retry resumes it) and
-  /// leaves the previous custom file as it was.
+  /// leaves the previous custom file as it was. [accept], when given, sees
+  /// the downloaded bytes before they replace anything: its reason refuses
+  /// them (they are deleted; nothing in them is worth resuming).
   Future<Result<CustomModelFile>> downloadCustomFile(
     Uri url, {
     String? sha256,
     int? sizeBytes,
+    Future<String?> Function(String path)? accept,
   }) => _customOp((cancel) async {
     final name = customFileNameFor(url);
     final target = File(await customPathOf(name));
@@ -257,6 +260,10 @@ class ModelStore {
       cancel,
       _reporter,
     );
+    if (await accept?.call(part.path) case final reason?) {
+      await deleteQuietly(part);
+      throw CustomModelFileException(reason);
+    }
     final hex = await _verified.verifyAndCommit(
       ExpectedFile(
         name: name,

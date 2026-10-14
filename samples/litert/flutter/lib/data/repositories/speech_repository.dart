@@ -12,8 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import 'dart:typed_data';
-
+import 'package:flutter/foundation.dart';
 import 'package:flutter_edge_ai/flutter_edge_ai.dart'
     show SpeechRecognizer, SpeechSynthesizer;
 import 'package:flutter_edge_ai_speech/flutter_edge_ai_speech.dart';
@@ -60,6 +59,11 @@ class SpeechRepository {
   /// [speak] off every clause is silent. [onTiming] gets the STT time and
   /// each clause's TTS time.
   ///
+  /// [audio]: the recording goes to the model itself
+  /// (`VoiceSession.runAudioTurn`, the responder's `respondToAudio` gets it as
+  /// a WAV): no STT, so no recognizer needs to be loaded. [correct]: applied
+  /// to every transcript of an STT turn (the demo's corrections).
+  ///
   /// Fails when the models are not loaded. A voice turn while the demo's
   /// recognizer is still being switched in waits for it (the STT time then
   /// includes that wait). [expectedStt]: the demo's model; the transcription
@@ -67,23 +71,38 @@ class SpeechRepository {
   Result<VoiceTurn> startTurn({
     Uint8List? pcm,
     String? typedText,
+    bool audio = false,
     ModelId? expectedStt,
     required VoiceResponder responder,
     required bool speak,
     void Function(SpeechTiming timing)? onTiming,
+    String Function(String transcript)? correct,
   }) {
-    if (typedText == null && !_stt.isLoaded && !_stt.isSwitching) {
+    if (audio && (pcm == null || responder.respondToAudio == null)) {
+      return Result.error(
+        asException(
+          ArgumentError(
+            'an audio turn needs the recording and a responder '
+            'that takes it',
+          ),
+        ),
+      );
+    }
+    if (typedText == null && !audio && !_stt.isLoaded && !_stt.isSwitching) {
       return const Result.error(SpeechNotReadyException('speech recognizer'));
     }
     if (speak && !_tts.isLoaded) {
       return const Result.error(SpeechNotReadyException('speech synthesizer'));
     }
+    final SpeechRecognizer heard = InstrumentedRecognizer(
+      ActiveRecognizer(_stt, expected: expectedStt),
+      onTranscribed: (elapsed, _) => onTiming?.call(SttTiming(elapsed)),
+    );
     final SpeechRecognizer recognizer = typedText != null
         ? TypedTextRecognizer(typedText)
-        : InstrumentedRecognizer(
-            ActiveRecognizer(_stt, expected: expectedStt),
-            onTranscribed: (elapsed, _) => onTiming?.call(SttTiming(elapsed)),
-          );
+        : correct == null
+        ? heard
+        : CorrectingRecognizer(heard, correct: correct);
     final SpeechSynthesizer synthesizer = speak
         ? SpokenSynthesizer(
             InstrumentedSynthesizer(
@@ -101,9 +120,27 @@ class SpeechRepository {
     );
     return Result.ok(
       VoiceTurn(
-        events: session.runTurn(pcm ?? Uint8List(0)),
+        events: audio
+            ? session.runAudioTurn(pcm!)
+            : session.runTurn(pcm ?? Uint8List(0)),
         interrupt: session.interrupt,
       ),
     );
+  }
+
+  /// The active speech recognizer (null while none is loaded); it changes
+  /// when a demo switches recognizers.
+  ValueListenable<ActiveStt?> get activeStt => _stt.active;
+
+  /// Transcribes [pcm] (16 kHz mono PCM16) outside a turn: an audio-mode
+  /// question after its reply (the transcript job). Waits for a recognizer
+  /// switch in progress; fails ([SpeechNotReadyException]) when none is
+  /// loaded or when [expected] is not the active one.
+  Future<Result<String>> transcribe(Uint8List pcm, {ModelId? expected}) async {
+    try {
+      return Result.ok(await _stt.transcribe(pcm, expected: expected));
+    } catch (e) {
+      return Result.error(asException(e));
+    }
   }
 }

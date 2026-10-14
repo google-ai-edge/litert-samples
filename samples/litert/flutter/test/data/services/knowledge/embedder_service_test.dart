@@ -13,14 +13,24 @@
 // limitations under the License.
 
 import 'dart:async';
+import 'dart:convert';
 import 'dart:io';
+import 'dart:typed_data';
 
 import 'package:flutter_edge_ai/flutter_edge_ai.dart'
-    show EmbeddingModel, PreferredBackend, TaskType;
+    show
+        EmbeddingInputTooLongException,
+        EmbeddingModality,
+        EmbeddingModel,
+        PreferredBackend,
+        TaskType;
 import 'package:flutter_test/flutter_test.dart';
+import 'package:litert_edge_demos/config/knowledge_config.dart';
 import 'package:litert_edge_demos/config/model_catalog.dart';
 import 'package:litert_edge_demos/data/services/knowledge/embedder_service.dart';
+import 'package:litert_edge_demos/domain/models/knowledge_query.dart';
 import 'package:litert_edge_demos/utils/result.dart';
+import 'package:litert_edge_demos/utils/wav.dart';
 
 import '../../../fakes/fake_knowledge.dart';
 
@@ -33,7 +43,7 @@ void main() {
       install: (config, source, onProgress) async {
         installs.add(source);
         onProgress(100);
-        return 'embeddinggemma-300M_seq512_mixed-precision';
+        return 'embeddinggemma-2-740m';
       },
       load: (config) async => FakeEmbeddingModel(),
     );
@@ -46,12 +56,10 @@ void main() {
     tearDown(() => dir.deleteSync(recursive: true));
 
     test('a missing file is reported before anything is registered', () async {
-      final tokenizer = File('${dir.path}/${kEmbedderConfig.tokenizerFile}')
-        ..writeAsStringSync('');
       final model = '${dir.path}/${kEmbedderConfig.modelFile}';
 
       final result = await service().install(
-        EmbedderFromFiles(modelPath: model, tokenizerPath: tokenizer.path),
+        EmbedderFromFiles(modelPath: model),
         onProgress: (_) {},
       );
 
@@ -62,29 +70,29 @@ void main() {
       expect(error.toString(), contains('tool/fetch_models.sh'));
     });
 
-    test('both files there: installed from them, and recorded', () async {
-      final [model, tokenizer] = [
-        for (final name in [
-          kEmbedderConfig.modelFile,
-          kEmbedderConfig.tokenizerFile,
-        ])
-          (File('${dir.path}/$name')..writeAsStringSync('x')).path,
-      ];
-      final embedder = service();
+    test(
+      'the .litertlm there: installed from it alone, and recorded',
+      () async {
+        expect(kEmbedderConfig.modelFile, endsWith('.litertlm'));
+        final model = (File(
+          '${dir.path}/${kEmbedderConfig.modelFile}',
+        )..writeAsStringSync('x')).path;
+        final embedder = service();
 
-      final result = await embedder.install(
-        EmbedderFromFiles(modelPath: model, tokenizerPath: tokenizer),
-        onProgress: (_) {},
-      );
+        final result = await embedder.install(
+          EmbedderFromFiles(modelPath: model),
+          onProgress: (_) {},
+        );
 
-      expect(result, isA<Ok<String>>());
-      expect(
-        installs.single,
-        isA<EmbedderFromFiles>().having((s) => s.modelPath, 'model', model),
-      );
-      expect(embedder.modelId, 'embeddinggemma-300M_seq512_mixed-precision');
-      expect(embedder.installedFiles, (model: model, tokenizer: tokenizer));
-    });
+        expect(result, isA<Ok<String>>());
+        expect(
+          installs.single,
+          isA<EmbedderFromFiles>().having((s) => s.modelPath, 'model', model),
+        );
+        expect(embedder.modelId, 'embeddinggemma-2-740m');
+        expect(embedder.installedModelPath, model);
+      },
+    );
   });
 
   group('load', () {
@@ -99,23 +107,81 @@ void main() {
       addTearDown(() => files.deleteSync(recursive: true));
       await embedder.install(
         EmbedderFromFiles(
-          modelPath: (File('${files.path}/m.tflite')..createSync()).path,
-          tokenizerPath: (File('${files.path}/t.model')..createSync()).path,
+          modelPath: (File('${files.path}/m.litertlm')..createSync()).path,
         ),
         onProgress: (_) {},
       );
       return (await embedder.load(), model);
     }
 
-    test('the CPU and 768 dimensions: ready, with what it reports', () async {
+    test('the CPU, 768 dimensions, audio and 1024 tokens: ready, with what '
+        'it reports', () async {
       final (result, model) = await loadWith(FakeEmbeddingModel());
 
       final info = (result as Ok<EmbedderInfo>).value;
       expect(info.backend, PreferredBackend.cpu);
       expect(info.dimension, 768);
       expect(info.modelId, 'eg');
+      expect(info.modalities, contains(EmbeddingModality.audio));
+      expect(info.maxInputTokens, kEmbedderMaxInputTokens);
+      expect(info.rssBeforeBytes, isPositive);
+      expect(info.rssAfterBytes, isPositive);
       expect(model.closeCalls, 0);
     });
+
+    test('setup declares audio only (images are added for the visual '
+        'memory: 70 vision tokens) and the 1024-token limit', () {
+      expect(kEmbedderConfig.media, {EmbeddingModality.audio});
+      expect(kEmbedderMemoryMedia, {
+        EmbeddingModality.audio,
+        EmbeddingModality.image,
+      });
+      expect(kEmbedderVisionTokensPerImage, 70);
+      expect(kEmbedderConfig.maxInputTokens, 1024);
+    });
+
+    test(
+      'a model without the vision tower loads (setup does not ask for it)',
+      () async {
+        final (result, model) = await loadWith(
+          FakeEmbeddingModel(
+            modalities: const {EmbeddingModality.text, EmbeddingModality.audio},
+          ),
+        );
+
+        expect(result, isA<Ok<EmbedderInfo>>());
+        expect(model.closeCalls, 0);
+      },
+    );
+
+    test('a model without the audio encoder fails and closes', () async {
+      final (result, model) = await loadWith(
+        FakeEmbeddingModel(modalities: const {EmbeddingModality.text}),
+      );
+
+      expect(
+        (result as Error<EmbedderInfo>).error,
+        isA<EmbedderMismatchException>(),
+      );
+      expect(result.error.toString(), contains('asked for audio'));
+      expect(model.closeCalls, 1);
+    });
+
+    test(
+      'another input limit fails and closes (the caps derive from it)',
+      () async {
+        final (result, model) = await loadWith(
+          FakeEmbeddingModel(maxInputTokens: 512),
+        );
+
+        expect(result.toString(), contains('512 input tokens'));
+        expect(model.closeCalls, 1);
+        final (unlimited, _) = await loadWith(
+          FakeEmbeddingModel(maxInputTokens: null),
+        );
+        expect(unlimited.toString(), contains('unlimited'));
+      },
+    );
 
     test('another backend fails and closes the model', () async {
       final (result, model) = await loadWith(
@@ -167,6 +233,306 @@ void main() {
     });
   });
 
+  group('visual memory', () {
+    test('a frame is embedded as an image with the document task type; a '
+        'question as raw text (TaskType.none)', () async {
+      final model = FakeEmbeddingModel();
+      final embedder = await loadedEmbedder(model);
+      // Setup's load has no image encoder: the camera demo widens it first.
+      expect(embedder.imageUnavailableReason, isNotNull);
+      expect(await embedder.enableImages(), isA<Ok<EmbedderImagesLoad>>());
+      expect(embedder.imageUnavailableReason, isNull);
+      final png = Uint8List.fromList(List.filled(40, 7));
+
+      final image = await embedder.embedImage(png);
+      final text = await embedder.embedText('sign about the wifi password');
+
+      expect((image as Ok<List<double>>).value, hasLength(768));
+      expect((text as Ok<List<double>>).value, hasLength(768));
+      final (imageInput, imageTask) = model.inputs[model.inputs.length - 2];
+      expect(imageInput.images.single, png);
+      expect(imageInput.text, isNull);
+      expect(imageTask, TaskType.retrievalDocument);
+      final (textInput, textTask) = model.inputs.last;
+      expect(textInput.text, 'sign about the wifi password');
+      expect(textTask, TaskType.none);
+    });
+
+    test('without the vision tower, or before the load, images are refused '
+        'with the reason, never sent', () async {
+      final noVision = await loadedEmbedder(
+        FakeEmbeddingModel(
+          modalities: const {EmbeddingModality.text, EmbeddingModality.audio},
+        ),
+        config: const EmbedderConfig(
+          modelFile: kEmbedderModelFile,
+          dimension: 768,
+          backend: PreferredBackend.cpu,
+          media: {EmbeddingModality.audio},
+          maxInputTokens: kEmbedderMaxInputTokens,
+        ),
+      );
+      expect(
+        noVision.imageUnavailableReason,
+        'EmbeddingGemma was loaded without images',
+      );
+      final refused = await noVision.embedImage(Uint8List.fromList([1, 2]));
+      expect(refused.toString(), contains('without images'));
+
+      final unloaded = EmbedderService();
+      expect(unloaded.imageUnavailableReason, 'EmbeddingGemma is not loaded');
+      expect(
+        (await unloaded.embedImage(Uint8List.fromList([1]))).toString(),
+        contains('before load()'),
+      );
+      expect(await unloaded.embedText('mug'), isA<Error<List<double>>>());
+    });
+
+    test('an engine failure is an Error, never a throw', () async {
+      final model = FakeEmbeddingModel();
+      final embedder = await loadedEmbedder(model);
+      expect(await embedder.enableImages(), isA<Ok<EmbedderImagesLoad>>());
+      model.queryError = StateError('engine');
+      final image = await embedder.embedImage(Uint8List.fromList([1, 2, 3]));
+      final text = await embedder.embedText('mug');
+      expect(image.toString(), contains('engine'));
+      expect(text.toString(), contains('engine'));
+    });
+  });
+
+  group('image encoder (enableImages)', () {
+    const textAudio = {EmbeddingModality.text, EmbeddingModality.audio};
+    late List<EmbedderConfig> loads;
+    late FakeEmbeddingModel old;
+    late FakeEmbeddingModel widened;
+    late Completer<void>? loadGate;
+    late StateError? failWith;
+    late bool closeOldOnLoad;
+
+    /// A service loaded with [old] (text and audio); its next loads act like
+    /// flutter_edge_ai's cache: a wider request closes [old] first (when
+    /// [closeOldOnLoad]), then builds [widened] — or fails with [failWith]
+    /// — and a request for setup's media builds a fresh text and audio
+    /// model.
+    Future<EmbedderService> service() async {
+      final files = Directory.systemTemp.createTempSync('embedder_images');
+      addTearDown(() => files.deleteSync(recursive: true));
+      final embedder = EmbedderService(
+        install: (config, source, onProgress) async => 'eg',
+        load: (config) async {
+          loads.add(config);
+          if (loads.length == 1) return old;
+          if (config.media.contains(EmbeddingModality.image)) {
+            if (closeOldOnLoad) await old.close();
+            await loadGate?.future;
+            if (failWith case final error?) throw error;
+            return widened;
+          }
+          return FakeEmbeddingModel(modalities: textAudio);
+        },
+      );
+      await embedder.install(
+        EmbedderFromFiles(
+          modelPath: (File('${files.path}/m.litertlm')..createSync()).path,
+        ),
+        onProgress: (_) {},
+      );
+      expect(await embedder.load(), isA<Ok<EmbedderInfo>>());
+      return embedder;
+    }
+
+    setUp(() {
+      loads = [];
+      old = FakeEmbeddingModel(modalities: textAudio);
+      widened = FakeEmbeddingModel(
+        modalities: const {
+          EmbeddingModality.text,
+          EmbeddingModality.audio,
+          EmbeddingModality.image,
+        },
+      );
+      loadGate = null;
+      failWith = null;
+      closeOldOnLoad = true;
+    });
+
+    test(
+      'reloads with audio and image, swaps the model, and images embed',
+      () async {
+        final embedder = await service();
+        expect(
+          embedder.imageUnavailableReason,
+          'EmbeddingGemma was loaded without images',
+        );
+        final result = await embedder.enableImages();
+        final load = (result as Ok<EmbedderImagesLoad>).value;
+        expect(load.alreadyLoaded, isFalse);
+        expect(load.rssBeforeBytes, isPositive);
+        expect(load.rssAfterBytes, isPositive);
+        expect(loads.last.media, {
+          EmbeddingModality.audio,
+          EmbeddingModality.image,
+        });
+        expect(embedder.imageUnavailableReason, isNull);
+        expect(embedder.modalities, contains(EmbeddingModality.image));
+        expect(
+          await embedder.embedImage(Uint8List.fromList([1, 2])),
+          isA<Ok<List<double>>>(),
+        );
+        expect(widened.inputs.last.$1.images, isNotEmpty);
+        expect(widened.queries.first.$1, 'What is LiteRT?', reason: 'probe');
+
+        // Loaded already: nothing to do.
+        final again = await embedder.enableImages();
+        expect((again as Ok<EmbedderImagesLoad>).value.alreadyLoaded, isTrue);
+        expect(loads, hasLength(2));
+      },
+    );
+
+    test('concurrent calls share one reload', () async {
+      final embedder = await service();
+      loadGate = Completer();
+      final a = embedder.enableImages();
+      final b = embedder.enableImages();
+      loadGate!.complete();
+      expect(await a, isA<Ok<EmbedderImagesLoad>>());
+      expect(await b, isA<Ok<EmbedderImagesLoad>>());
+      expect(loads, hasLength(2));
+    });
+
+    test('a knowledge-base question during the reload waits and runs on the '
+        'new model: it never fails for it', () async {
+      final embedder = await service();
+      loadGate = Completer();
+      final widening = embedder.enableImages();
+      await pumpEventQueue();
+      var answered = false;
+      final query = embedder
+          .embedQuery(const KnowledgeQuery.text('What is LiteRT?'))
+          .whenComplete(() => answered = true);
+      await pumpEventQueue();
+      expect(answered, isFalse, reason: 'waits for the swap');
+
+      loadGate!.complete();
+      await widening;
+      expect(await query, isA<Ok<List<double>>>());
+      expect(old.queries, isEmpty, reason: 'nothing ran on the old model');
+      expect(widened.queries.map((q) => q.$1), contains('What is LiteRT?'));
+    });
+
+    test('a call already running finishes on the old model before the '
+        'reload starts', () async {
+      final embedder = await service();
+      old.gate = Completer();
+      final documents = embedder.embedDocuments(['a', 'b']);
+      await pumpEventQueue();
+      final widening = embedder.enableImages();
+      await pumpEventQueue();
+      expect(loads, hasLength(1), reason: 'the reload waits for the call');
+
+      old.gate!.complete();
+      expect(await documents, isA<Ok<List<List<double>>>>());
+      expect(await widening, isA<Ok<EmbedderImagesLoad>>());
+      expect(loads, hasLength(2));
+    });
+
+    test('a failed reload that took the embedder down loads text and audio '
+        'again: the knowledge base goes on, images stay off', () async {
+      final embedder = await service();
+      failWith = StateError('vision tower missing');
+      final result = await embedder.enableImages();
+      final error = (result as Error<EmbedderImagesLoad>).error;
+      expect(
+        error,
+        isA<EmbedderImagesException>().having(
+          (e) => e.restored,
+          'restored',
+          isTrue,
+        ),
+      );
+      expect(error.toString(), contains('vision tower missing'));
+      expect(loads.last.media, {EmbeddingModality.audio});
+      expect(
+        embedder.imageUnavailableReason,
+        'EmbeddingGemma was loaded without images',
+      );
+      expect(
+        await embedder.embedQuery(const KnowledgeQuery.text('LiteRT?')),
+        isA<Ok<List<double>>>(),
+      );
+    });
+
+    test('a reload refused before the old model was closed keeps it (no '
+        'second load)', () async {
+      final embedder = await service();
+      closeOldOnLoad = false;
+      failWith = StateError('refused');
+      final result = await embedder.enableImages();
+      expect(
+        (result as Error<EmbedderImagesLoad>).error,
+        isA<EmbedderImagesException>().having(
+          (e) => e.restored,
+          'restored',
+          isTrue,
+        ),
+      );
+      expect(loads, hasLength(2));
+      expect(
+        await embedder.embedQuery(const KnowledgeQuery.text('LiteRT?')),
+        isA<Ok<List<double>>>(),
+      );
+      expect(old.queries.map((q) => q.$1), contains('LiteRT?'));
+    });
+
+    test('a widened model without the vision tower is closed, and text and '
+        'audio come back', () async {
+      widened = FakeEmbeddingModel(modalities: textAudio);
+      final embedder = await service();
+      final result = await embedder.enableImages();
+      expect(result.toString(), contains('asked for audio+image'));
+      expect(widened.closeCalls, 1);
+      expect(embedder.isLoaded, isTrue);
+    });
+
+    test('when text and audio cannot come back either, nothing is loaded and '
+        'it says so', () async {
+      final embedder = EmbedderService(
+        install: (config, source, onProgress) async => 'eg',
+        load: (config) async {
+          loads.add(config);
+          if (loads.length == 1) return old;
+          await old.close();
+          throw StateError('out of memory');
+        },
+      );
+      final files = Directory.systemTemp.createTempSync('embedder_images');
+      addTearDown(() => files.deleteSync(recursive: true));
+      await embedder.install(
+        EmbedderFromFiles(
+          modelPath: (File('${files.path}/m.litertlm')..createSync()).path,
+        ),
+        onProgress: (_) {},
+      );
+      await embedder.load();
+      final result = await embedder.enableImages();
+      final error = (result as Error<EmbedderImagesLoad>).error;
+      expect(
+        error,
+        isA<EmbedderImagesException>().having(
+          (e) => e.restored,
+          'restored',
+          isFalse,
+        ),
+      );
+      expect(error.toString(), contains('could not be loaded again'));
+      expect(embedder.isLoaded, isFalse);
+      expect(
+        await embedder.embedQuery(const KnowledgeQuery.text('LiteRT?')),
+        isA<Error<List<double>>>(),
+      );
+    });
+  });
+
   group('warm-up and documents', () {
     test('the warm-up embeds one query', () async {
       final model = FakeEmbeddingModel();
@@ -176,21 +542,205 @@ void main() {
       expect(model.queries.single.$2, TaskType.retrievalQuery);
     });
 
-    test('a knowledge-base query is embedded with the retrievalQuery task '
-        'type (its prefix), checked like the warm-up\'s', () async {
+    test(
+      'with a clip, the warm-up also embeds it as audio (no prefix), so '
+      'the first spoken question does not pay for the audio encoder',
+      () async {
+        final model = FakeEmbeddingModel();
+        final clip = wavFromPcm16(Uint8List(32000), sampleRate: 16000);
+        final embedder = await loadedEmbedder(
+          model,
+          warmUpAudio: () async => clip,
+        );
+
+        expect(await embedder.warmUp(), isA<Ok<Duration>>());
+        expect(model.inputs, hasLength(2));
+        expect(model.inputs.first.$1.text, isNotNull);
+        expect(model.inputs.last.$1.audio, clip);
+        expect(model.inputs.last.$2, TaskType.none);
+        expect(embedder.isLoaded, isTrue);
+      },
+    );
+
+    test('a clip that cannot be read fails the warm-up and unloads the '
+        'model (fail fast)', () async {
+      final model = FakeEmbeddingModel();
+      final embedder = await loadedEmbedder(
+        model,
+        warmUpAudio: () async => throw StateError('no asset'),
+      );
+
+      final result = await embedder.warmUp();
+
+      expect(result, isA<Error<Duration>>());
+      expect(result.toString(), contains('no asset'));
+      expect(model.closeCalls, 1);
+      expect(embedder.isLoaded, isFalse);
+    });
+
+    test('a clip whose embedding is all zeros fails the warm-up too', () async {
+      final model = FakeEmbeddingModel(zeroVectors: true);
+      final embedder = await loadedEmbedder(
+        model,
+        warmUpAudio: () async => Uint8List(0),
+      );
+      expect(await embedder.warmUp(), isA<Error<Duration>>());
+      expect(embedder.isLoaded, isFalse);
+    });
+
+    test('a model loaded without audio skips the clip', () async {
+      final model = FakeEmbeddingModel();
+      final embedder = EmbedderService(
+        config: const EmbedderConfig(
+          modelFile: kEmbedderModelFile,
+          dimension: 768,
+          backend: PreferredBackend.cpu,
+          maxInputTokens: kEmbedderMaxInputTokens,
+        ),
+        install: (config, source, onProgress) async => 'id',
+        load: (config) async => model,
+        warmUpAudio: () async => throw StateError('must not be read'),
+      );
+      final dir = Directory.systemTemp.createTempSync('embedder_noaudio');
+      await embedder.install(
+        EmbedderFromFiles(
+          modelPath: (File('${dir.path}/m.litertlm')..createSync()).path,
+        ),
+        onProgress: (_) {},
+      );
+      expect(await embedder.load(), isA<Ok<EmbedderInfo>>());
+      expect(await embedder.warmUp(), isA<Ok<Duration>>());
+      expect(model.inputs, hasLength(1));
+    });
+
+    test('a typed knowledge-base question is embedded as text with the '
+        'retrievalQuery task type (its prefix), checked like the '
+        'warm-up\'s', () async {
       final model = FakeEmbeddingModel();
       final embedder = await loadedEmbedder(model);
 
-      final vector = await embedder.embedQuery('What is LiteRT?');
+      final vector = await embedder.embedQuery(
+        const KnowledgeQuery.text('What is LiteRT?'),
+      );
 
       expect((vector as Ok<List<double>>).value, hasLength(768));
       expect(model.queries.last, ('What is LiteRT?', TaskType.retrievalQuery));
+      final (input, _) = model.inputs.last;
+      expect(input.audio, isNull);
 
       final zero = await loadedEmbedder(FakeEmbeddingModel(zeroVectors: true));
       expect(
-        '${(await zero.embedQuery('q') as Error).error}',
+        '${(await zero.embedQuery(const KnowledgeQuery.text('q')) as Error).error}',
         contains('all-zero'),
       );
+    });
+
+    test('a spoken question is embedded as audio, the WAV as it is, with no '
+        'prefix (TaskType.none: a task type reaches text only)', () async {
+      final model = FakeEmbeddingModel();
+      final embedder = await loadedEmbedder(model);
+      final wav = wavFromPcm16(Uint8List(32000), sampleRate: 16000);
+
+      final vector = await embedder.embedQuery(KnowledgeQuery.audio(wav));
+
+      expect((vector as Ok<List<double>>).value, hasLength(768));
+      final (input, taskType) = model.inputs.last;
+      expect(input.text, isNull);
+      expect(input.audio, wav);
+      expect(taskType, TaskType.none);
+      expect(model.queries, isEmpty, reason: 'no text was embedded');
+    });
+
+    group('over-long questions: a typed failure, never a cut', () {
+      test('text over kKbMaxTextQueryUtf8Bytes is refused before embedding, '
+          'counted in UTF-8 bytes', () async {
+        final model = FakeEmbeddingModel();
+        final embedder = await loadedEmbedder(model);
+        final atCap = 'a' * kKbMaxTextQueryUtf8Bytes;
+        // 3 bytes each: a third as many characters reach the cap.
+        final cjk = '語' * (kKbMaxTextQueryUtf8Bytes ~/ 3 + 1);
+
+        expect(
+          await embedder.embedQuery(KnowledgeQuery.text(atCap)),
+          isA<Ok<List<double>>>(),
+        );
+        final over = await embedder.embedQuery(
+          KnowledgeQuery.text('${atCap}b'),
+        );
+        final wide = await embedder.embedQuery(KnowledgeQuery.text(cjk));
+
+        for (final result in [over, wide]) {
+          final error = (result as Error<List<double>>).error;
+          expect(error, isA<KnowledgeQueryTooLongException>());
+          expect(
+            (error as KnowledgeQueryTooLongException).kind,
+            KnowledgeQueryKind.text,
+          );
+          expect(error.limit, '$kKbMaxTextQueryUtf8Bytes UTF-8 bytes');
+        }
+        expect(
+          '${(over as Error).error}',
+          contains('${kKbMaxTextQueryUtf8Bytes + 1} UTF-8 bytes'),
+        );
+        expect(utf8.encode(cjk).length, greaterThan(kKbMaxTextQueryUtf8Bytes));
+        expect(model.queries, hasLength(1), reason: 'only the one at the cap');
+      });
+
+      test('audio over kKbMaxAudioQuery is refused before embedding', () async {
+        final model = FakeEmbeddingModel();
+        final embedder = await loadedEmbedder(model);
+        final long = wavFromPcm16(
+          Uint8List((kKbMaxAudioQuery.inSeconds + 1) * 32000),
+          sampleRate: 16000,
+        );
+
+        final result = await embedder.embedQuery(KnowledgeQuery.audio(long));
+
+        final error = (result as Error<List<double>>).error;
+        expect(error, isA<KnowledgeQueryTooLongException>());
+        expect(
+          (error as KnowledgeQueryTooLongException).kind,
+          KnowledgeQueryKind.audio,
+        );
+        expect(error.length, '31.0 s');
+        expect(model.inputs, isEmpty);
+      });
+
+      test('the embedder refusing an input as too long becomes the same '
+          'typed failure, with its token counts', () async {
+        final model = FakeEmbeddingModel()
+          ..tooLong = const EmbeddingInputTooLongException(
+            'too long',
+            maxInputTokens: 1024,
+            actualTokens: 1100,
+          );
+        final embedder = await loadedEmbedder(model);
+
+        final result = await embedder.embedQuery(
+          const KnowledgeQuery.text('q'),
+        );
+
+        final error = (result as Error<List<double>>).error;
+        expect(error, isA<KnowledgeQueryTooLongException>());
+        expect((error as KnowledgeQueryTooLongException).length, '1100 tokens');
+        expect(error.limit, '1024 tokens');
+        expect(error.toString(), contains('ask a shorter one'));
+      });
+
+      test('audio that is not a 16 kHz mono PCM16 WAV, or has no samples, '
+          'is a FormatException', () async {
+        final embedder = await loadedEmbedder(FakeEmbeddingModel());
+
+        final notWav = await embedder.embedQuery(
+          KnowledgeQuery.audio(Uint8List.fromList([1, 2, 3, 4])),
+        );
+        final empty = await embedder.embedQuery(
+          KnowledgeQuery.audio(wavFromPcm16(Uint8List(0), sampleRate: 16000)),
+        );
+
+        expect((notWav as Error).error, isA<FormatException>());
+        expect((empty as Error).error, isA<FormatException>());
+      });
     });
 
     test('an all-zero vector fails the warm-up', () async {

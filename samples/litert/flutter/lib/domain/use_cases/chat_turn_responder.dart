@@ -32,12 +32,20 @@ import '../../data/repositories/conversation_repository.dart';
 import '../../utils/result.dart';
 import '../models/assistant_event.dart';
 import '../models/chat_side_event.dart';
+import '../models/conversation_history.dart';
 import '../models/knowledge.dart';
+import '../models/knowledge_query.dart';
 import '../models/skill_step.dart';
 import '../ports/knowledge_retriever.dart';
 import 'prompt_builder.dart';
 import 'skill_question_router.dart';
 import 'turn_responder_factory.dart';
+
+/// Runs one app intent with JSON parameters (`AppIntentExecutor.run`).
+typedef DirectIntentRunner = Future<SkillResult> Function(
+  String intent,
+  String paramsJson,
+);
 
 /// Demo 1's LLM step: the transcript is looked up in the knowledge base — the
 /// excerpts that clear the gate go into the prompt, and the retrieval reaches
@@ -47,12 +55,12 @@ import 'turn_responder_factory.dart';
 /// call (it re-sends only what the live chat cannot see), and so is the context
 /// budget: an excerpt-heavy prompt plus an image can make it start the chat
 /// over before the turn.
-/// Runs one app intent with JSON parameters (`AppIntentExecutor.run`).
-typedef DirectIntentRunner = Future<SkillResult> Function(
-  String intent,
-  String paramsJson,
-);
-
+///
+/// Audio mode (a chat model loaded with its audio encoder): a spoken turn's
+/// recording is searched as audio (the audio gate), and the spoken question's
+/// prompt with its excerpts goes to the chat with the recording itself; the
+/// text history records [kSpokenQuestionPlaceholder] until [transcribed]
+/// brings the words.
 final class ChatTurnResponder implements TurnResponderFactory<ChatSideEvent> {
   /// [retriever]: the knowledge base. Null builds a responder without one
   /// (tests of the plain chat path); the app always passes it, and an
@@ -76,41 +84,42 @@ final class ChatTurnResponder implements TurnResponderFactory<ChatSideEvent> {
   /// Live skill questions skip retrieval on an agent chat.
   final SkillQuestionRouter _skillRouter;
 
-  /// Nothing to start at release: the chat needs only the transcript and
-  /// this turn's image, captured here so a later change of the attachment
-  /// cannot reach this turn.
+  /// Nothing to start at release: the chat needs only the transcript (or
+  /// the recording) and this turn's image, captured here so a later change of
+  /// the attachment cannot reach this turn.
   @override
   TurnPreparation<ChatSideEvent> prepare(TurnRequest request) =>
-      _ChatPreparation(this, request.image);
+      _ChatPreparation(this, request);
 
+  /// Puts an audio turn's transcript (it arrives after the reply) into the
+  /// conversation's text history, where a rebuilt chat reads it instead of
+  /// [kSpokenQuestionPlaceholder].
+  void transcribed(int turn, String text) =>
+      _conversation.setHistoryText(turn, text);
+
+  /// The responder of one turn. A spoken turn on a chat model that hears
+  /// audio gets `respondToAudio` too, which makes it an audio turn: the
+  /// recording is searched in the knowledge base as audio and goes to the
+  /// chat model with the excerpts; no transcript is needed before the reply.
   VoiceResponder _build(
     void Function(ChatSideEvent event) onSide,
-    Uint8List? image,
+    TurnRequest request,
   ) {
+    final image = request.image;
     // Per-turn latches: a later turn's responder can never un-cancel this
     // one, and this one's stop never reaches a turn it did not start.
     var cancelled = false;
     var asking = false;
 
-    Stream<String> respond(String text) async* {
-      if (cancelled) return;
-      // The time and live device questions run their intent
-      // directly. The device_info text is exact; the model could only get it
-      // wrong.
-      // With a chat model that has tools off the
-      // skills are not in the chat, but these direct intents need no tool
-      // call and keep working.
-      final direct = _direct;
-      if (direct != null &&
-          (_conversation.hasSkills || _conversation.skillsNeedTools)) {
-        if (_skillRouter.action(text) case final action?) {
-          final reply = await _runDirect(action, direct, onSide);
-          if (!cancelled) yield reply;
-          return;
-        }
-      }
-      final (:prompt, :retrieval) = await _augment(text, image: image);
-      if (cancelled) return;
+    /// Asks the chat with [prompt] (and the recording [audioWav] of an audio
+    /// turn) and streams the reply; [retrieval] reaches the UI once the turn
+    /// really asks. [historyText]: the question as the text history keeps it.
+    Stream<String> ask(
+      String prompt,
+      Retrieval? retrieval, {
+      required String historyText,
+      Uint8List? audioWav,
+    }) async* {
       await whenPreviousReplyEnded(
         _conversation.isGenerating,
         wait: _idleWait,
@@ -135,6 +144,9 @@ final class ChatTurnResponder implements TurnResponderFactory<ChatSideEvent> {
         await for (final event in _conversation.ask(
           prompt,
           image: image,
+          audioWav: audioWav,
+          historyText: historyText,
+          turn: request.turn,
           // Skill steps are facts for the UI, also after a stop (the
           // tool may have run).
           onStep: (step) {
@@ -156,10 +168,24 @@ final class ChatTurnResponder implements TurnResponderFactory<ChatSideEvent> {
                 stopResent = true;
                 unawaited(_conversation.stop());
               }
-            case AssistantContextReset(:final reason):
+            case AssistantContextReset(
+              :final reason,
+              :final keptTurns,
+              :final droppedTurns,
+              :final wordlessTurns,
+              :final replayed,
+            ):
               // Even for a stopped (barged-in) turn: the chat it leaves
               // behind has forgotten everything, and the user must know.
-              onSide(ChatContextReset(reason: reason));
+              onSide(
+                ChatContextReset(
+                  reason: reason,
+                  keptTurns: keptTurns,
+                  droppedTurns: droppedTurns,
+                  wordlessTurns: wordlessTurns,
+                  replayed: replayed,
+                ),
+              );
             case AssistantDone(:final metrics):
               onSide(ChatGenerationDone(metrics));
             case AssistantFailed(:final error):
@@ -170,6 +196,8 @@ final class ChatTurnResponder implements TurnResponderFactory<ChatSideEvent> {
           }
         }
         if (!cancelled && !spoke) {
+          // The conversation's text history keeps the same result as the
+          // reply (`agent_turn.dart`), so a rebuilt chat replays it.
           if (intentResult case final result? when result.trim().isNotEmpty) {
             debugPrint(
               '[ChatTurnResponder] empty reply after an intent: speaking its '
@@ -183,8 +211,48 @@ final class ChatTurnResponder implements TurnResponderFactory<ChatSideEvent> {
       }
     }
 
+    Stream<String> respond(String text) async* {
+      if (cancelled) return;
+      // The time and live device questions run their intent
+      // directly. The device_info text is exact; the model could only get it
+      // wrong.
+      // With a chat model that has tools off the
+      // skills are not in the chat, but these direct intents need no tool
+      // call and keep working.
+      final direct = _direct;
+      if (direct != null &&
+          (_conversation.hasSkills || _conversation.skillsNeedTools)) {
+        if (_skillRouter.action(text) case final action?) {
+          final reply = await _runDirect(action, direct, onSide);
+          if (!cancelled) yield reply;
+          return;
+        }
+      }
+      final (:prompt, :retrieval) = await _augment(text, image: image);
+      if (cancelled) return;
+      yield* ask(prompt, retrieval, historyText: text.trim());
+    }
+
+    // An audio turn: no words to route, so the time and device questions
+    // reach their intents through the agent's tools (an agent chat) or not
+    // at all (the mode line says so).
+    Stream<String> respondToAudio(Uint8List wav) async* {
+      if (cancelled) return;
+      final (:prompt, :retrieval) = await _augmentSpoken(wav, image: image);
+      if (cancelled) return;
+      yield* ask(
+        prompt,
+        retrieval,
+        historyText: kSpokenQuestionPlaceholder,
+        audioWav: wav,
+      );
+    }
+
     return VoiceResponder(
       respond: respond,
+      respondToAudio: !request.typed && _conversation.capabilities.audio
+          ? respondToAudio
+          : null,
       stop: () async {
         cancelled = true;
         // Only stop the chat while this responder's own ask runs: a late
@@ -316,6 +384,39 @@ final class ChatTurnResponder implements TurnResponderFactory<ChatSideEvent> {
     );
   }
 
+  /// An audio turn's prompt and retrieval: the recording searched as audio
+  /// (gated at the audio threshold by the retriever), and the spoken
+  /// question's prompt ([PromptBuilder.buildSpoken]) with the excerpts that
+  /// cleared it. A failed search goes on without excerpts, like a typed one.
+  Future<({String prompt, Retrieval? retrieval})> _augmentSpoken(
+    Uint8List wav, {
+    required Uint8List? image,
+  }) async {
+    final retriever = _retriever;
+    Retrieval? retrieval;
+    if (retriever != null) {
+      retrieval = switch (await retriever.retrieve(KnowledgeQuery.audio(wav))) {
+        Ok(:final value) => value,
+        Error(:final error) => Retrieval(
+          outcome: RetrievalOutcome.failed,
+          detail: error.toString(),
+          queryKind: KnowledgeQueryKind.audio,
+        ),
+      };
+    }
+    final passages = retrieval?.outcome == RetrievalOutcome.used
+        ? retrieval!.passages
+        : const <Passage>[];
+    return (
+      prompt: PromptBuilder.buildSpoken(
+        passages,
+        skills: _conversation.hasSkills,
+        image: image != null,
+      ),
+      retrieval: retrieval,
+    );
+  }
+
   Future<({String prompt, Retrieval? retrieval})> _retrieve(
     String question,
     SkillRoute? route,
@@ -332,11 +433,14 @@ final class ChatTurnResponder implements TurnResponderFactory<ChatSideEvent> {
         ),
       );
     }
-    final retrieval = switch (await retriever.retrieve(question)) {
+    final retrieval = switch (await retriever.retrieve(
+      KnowledgeQuery.text(question),
+    )) {
       Ok(:final value) => value,
       Error(:final error) => Retrieval(
         outcome: RetrievalOutcome.failed,
         detail: error.toString(),
+        queryKind: KnowledgeQueryKind.text,
       ),
     };
     final passages = retrieval.outcome == RetrievalOutcome.used
@@ -355,14 +459,14 @@ final class ChatTurnResponder implements TurnResponderFactory<ChatSideEvent> {
 }
 
 final class _ChatPreparation implements TurnPreparation<ChatSideEvent> {
-  _ChatPreparation(this._factory, this._image);
+  _ChatPreparation(this._factory, this._request);
 
   final ChatTurnResponder _factory;
-  final Uint8List? _image;
+  final TurnRequest _request;
 
   @override
   VoiceResponder responder(void Function(ChatSideEvent event) onSide) =>
-      _factory._build(onSide, _image);
+      _factory._build(onSide, _request);
 
   @override
   void discard() {}

@@ -1,5 +1,5 @@
 {
- "description": "Demo 3 question router golden set. Whisper-styled transcripts; route fast|detailed; fast items name the intent and the Darknet class; must=true marks questions a fast answer would get wrong. Kinds of a class (kids, women, kittens), numbers in the noun phrase, past tense and follow-ups are detailed; words for any person (someone, anybody) stay fast.",
+ "description": "Demo 3 question router golden set. Whisper-styled transcripts; route fast|detailed|memory; fast items name the intent and the Darknet class; memory items ask about the past (the visual memory); must=true marks questions whose route must be exactly right: a fast answer would be wrong, or a memory answer would be about the past when the question is about the frame (or the reverse). Kinds of a class (kids, women, kittens), numbers in the noun phrase, past tense without a memory cue and follow-ups are detailed; words for any person (someone, anybody) stay fast. A memory cue (where was, where is my, did/have you see(n), do you remember, where did I leave) is not memory when the words after it mark the present (now, right now, currently, at the moment; here or in the/this picture/frame/image/photo unless earlier, ago, before, last, was, were or just now puts them in the past; just now itself is the past), name a body part (hand, face, head, arm, finger; a trailing -ing word is skipped: where is my finger pointing), start an embedded wh-question in the present, with is/are/am or a third-person present verb or a demonstrative subject (did you see how many people are here, what color the car is, which cup is mine, what this sign says, where the cat goes), hold a relative clause in the present (the cat that is on the table), end in an -ing word after where is my X (where is my dog going), or are only the speaker or the listener (where was I, where were we, did you see where I was): those stay detailed. An embedded wh-question in the past is memory (did you see where I put my keys, who took my cup, where the cat went), and so is where with my and no present marker (have you seen where my glasses are), like where are my glasses. A cue with nothing to search for after it (what did you see, what have you seen, what I just put down) is memory: the newest stored frame.",
  "items": [
   {
    "q": " How many cats do you see?",
@@ -586,7 +586,7 @@
   },
   {
    "q": " Did you see a dog?",
-   "route": "detailed",
+   "route": "memory",
    "must": true
   },
   {
@@ -625,6 +625,276 @@
    "route": "fast",
    "intent": "count",
    "class": "dog"
+  },
+  {
+   "q": " Where is my cup right now?",
+   "route": "detailed",
+   "must": true
+  },
+  {
+   "q": " Where are my keys now?",
+   "route": "detailed",
+   "must": true
+  },
+  {
+   "q": " Where's my phone at the moment?",
+   "route": "detailed",
+   "must": true
+  },
+  {
+   "q": " Have you seen a dog here?",
+   "route": "detailed",
+   "must": true
+  },
+  {
+   "q": " Did you see a cat in the picture?",
+   "route": "detailed",
+   "must": true
+  },
+  {
+   "q": " Did you see a cup in the frame?",
+   "route": "detailed",
+   "must": true
+  },
+  {
+   "q": " Where is my hand?",
+   "route": "detailed",
+   "must": true
+  },
+  {
+   "q": " Where are my hands?",
+   "route": "detailed",
+   "must": true
+  },
+  {
+   "q": " Where's my left arm?",
+   "route": "detailed",
+   "must": true
+  },
+  {
+   "q": " Where are my fingers?",
+   "route": "detailed",
+   "must": true
+  },
+  {
+   "q": " Where was my face?",
+   "route": "detailed",
+   "must": true
+  },
+  {
+   "q": " Have you seen my head?",
+   "route": "detailed",
+   "must": true
+  },
+  {
+   "q": " Did you see how many people are here?",
+   "route": "detailed",
+   "must": true
+  },
+  {
+   "q": " Did you see what color the car is?",
+   "route": "detailed",
+   "must": true
+  },
+  {
+   "q": " Did you see which cup is mine?",
+   "route": "detailed",
+   "must": true
+  },
+  {
+   "q": " Did you see who came in?",
+   "route": "memory",
+   "must": true
+  },
+  {
+   "q": " Did you see where the cat went?",
+   "route": "memory",
+   "must": true
+  },
+  {
+   "q": " Where was I?",
+   "route": "detailed",
+   "must": true
+  },
+  {
+   "q": " Where were we?",
+   "route": "detailed",
+   "must": true
+  },
+  {
+   "q": " Where was the cat?",
+   "route": "memory",
+   "must": true
+  },
+  {
+   "q": " Where is my cup?",
+   "route": "memory",
+   "must": true
+  },
+  {
+   "q": " Have you seen my keys anywhere today?",
+   "route": "memory",
+   "must": true
+  },
+  {
+   "q": " Where did I leave my hand cream?",
+   "route": "memory",
+   "must": true
+  },
+  {
+   "q": " Now, where did I put my glasses?",
+   "route": "memory",
+   "must": true
+  },
+  {
+   "q": " When did you last see the remote?",
+   "route": "memory",
+   "must": true
+  },
+  {
+   "q": " Where was it?",
+   "route": "memory",
+   "must": true
+  },
+  {
+   "q": " Did you see where I put my keys?",
+   "route": "memory",
+   "must": true
+  },
+  {
+   "q": " Did you see where I left my phone?",
+   "route": "memory",
+   "must": true
+  },
+  {
+   "q": " Did you see who took my cup?",
+   "route": "memory",
+   "must": true
+  },
+  {
+   "q": " Have you seen where my glasses are?",
+   "route": "memory",
+   "must": true
+  },
+  {
+   "q": " Do you remember where I put my keys?",
+   "route": "memory",
+   "must": true
+  },
+  {
+   "q": " Did you see a cat just now?",
+   "route": "memory",
+   "must": true
+  },
+  {
+   "q": " Did you see a dog here earlier?",
+   "route": "memory",
+   "must": true
+  },
+  {
+   "q": " Have you seen a cup in the picture before?",
+   "route": "memory",
+   "must": true
+  },
+  {
+   "q": " Where was my phone in the picture a minute ago?",
+   "route": "memory",
+   "must": true
+  },
+  {
+   "q": " Have you seen my keys here last time?",
+   "route": "memory",
+   "must": true
+  },
+  {
+   "q": " Did you see where the cat is?",
+   "route": "detailed",
+   "must": true
+  },
+  {
+   "q": " Have you seen where my glasses are now?",
+   "route": "detailed",
+   "must": true
+  },
+  {
+   "q": " Did you see where I was?",
+   "route": "detailed",
+   "must": true
+  },
+  {
+   "q": " Where is my finger pointing?",
+   "route": "detailed",
+   "must": true
+  },
+  {
+   "q": " Where are my hands going?",
+   "route": "detailed",
+   "must": true
+  },
+  {
+   "q": " Did you see a cat in this picture?",
+   "route": "detailed",
+   "must": true
+  },
+  {
+   "q": " Have you seen a cup in this photo?",
+   "route": "detailed",
+   "must": true
+  },
+  {
+   "q": " Did you see a dog in this frame?",
+   "route": "detailed",
+   "must": true
+  },
+  {
+   "q": " Have you seen a bag in this image?",
+   "route": "detailed",
+   "must": true
+  },
+  {
+   "q": " Did you see what this sign says?",
+   "route": "detailed",
+   "must": true
+  },
+  {
+   "q": " Did you see where the cat goes?",
+   "route": "detailed",
+   "must": true
+  },
+  {
+   "q": " Where is my dog going?",
+   "route": "detailed",
+   "must": true
+  },
+  {
+   "q": " Where is my phone charging?",
+   "route": "detailed",
+   "must": true
+  },
+  {
+   "q": " Did you see the cat that is on the table?",
+   "route": "detailed",
+   "must": true
+  },
+  {
+   "q": " Did you see how many people were here?",
+   "route": "memory",
+   "must": true
+  },
+  {
+   "q": " What did you see?",
+   "route": "memory",
+   "must": true
+  },
+  {
+   "q": " What have you seen?",
+   "route": "memory",
+   "must": true
+  },
+  {
+   "q": " Did you see what I just put down?",
+   "route": "memory",
+   "must": true
   }
  ]
 }

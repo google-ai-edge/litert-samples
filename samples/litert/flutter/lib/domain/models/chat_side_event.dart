@@ -29,11 +29,27 @@ final class const ChatGenerationDone(final GenerationMetrics metrics)
 final class const ChatRetrieval(final Retrieval retrieval)
     extends ChatSideEvent;
 
-/// The conversation started over before this turn ([reason]: the context
-/// was full, or an interrupted skill call left the chat unusable): the user
+/// The conversation started over before this turn, or lost its oldest turns
+/// ([reason]: the context was full, an interrupted skill call left the chat
+/// unusable, or a rebuild after a stop could not keep every turn): the user
 /// must be told, whatever happens to the turn afterwards.
 final class const ChatContextReset({
   final ContextResetReason reason = ContextResetReason.budget,
+
+  /// The newest turns the rebuilt chat keeps, as text.
+  final int keptTurns = 0,
+
+  /// The older turns that did not fit and are forgotten.
+  final int droppedTurns = 0,
+
+  /// Of the [keptTurns], the spoken questions that went back only as the
+  /// placeholder (`AssistantContextReset.wordlessTurns`).
+  final int wordlessTurns = 0,
+
+  /// False when the turn failed before the history went back to the
+  /// rebuilt chat (`AssistantContextReset.replayed`): the counts mean
+  /// nothing, and the next turn replays it.
+  final bool replayed = true,
 }) extends ChatSideEvent;
 
 /// One skill step of the turn (loadSkill, runIntent, its result), as

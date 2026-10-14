@@ -1,4 +1,4 @@
-result     FAIL · 2 pass · 6 skip · exit 1
+result     FAIL · 2 pass · 9 skip · exit 1
 --- steps ---
 PASS  1   hardware probe                                   <time>
            macOS 26.5.1 (25F80) · Apple M4 Pro · 1 GPU(s) · 0 note(s)
@@ -16,4 +16,10 @@ SKIP  5   detector again                                   0.00 s
 SKIP  6a  audio output (tone → sink monitor)               0.00 s
            the run was stopped after its time limit
 SKIP  6b  microphone (1 s, default input)                  0.00 s
+           the run was stopped after its time limit
+SKIP  7a  embedder load (audio + text)                     0.00 s
+           the run was stopped after its time limit
+SKIP  7b  embedder audio ↔ text                            0.00 s
+           the run was stopped after its time limit
+SKIP  7c  embedder image ↔ text                            0.00 s
            the run was stopped after its time limit

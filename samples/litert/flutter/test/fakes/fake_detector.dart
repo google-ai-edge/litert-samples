@@ -18,6 +18,7 @@ import 'dart:typed_data';
 import 'package:litert_edge_demos/data/services/detector/detector_codec.dart';
 import 'package:litert_edge_demos/data/services/detector/detector_service.dart';
 import 'package:litert_edge_demos/data/services/detector/frame_message.dart';
+import 'package:litert_edge_demos/data/services/detector/memory_shot.dart';
 import 'package:litert_edge_demos/domain/models/detection.dart';
 import 'package:litert_edge_demos/utils/result.dart';
 
@@ -56,6 +57,14 @@ class FakeDetector implements Detector {
 
   /// Which [calls] asked for a snapshot (`detectWithSnapshot`).
   final List<bool> snapshotCalls = [];
+
+  /// The memory spec of each of [calls] (`detectWithMemoryShot`); null for
+  /// the others.
+  final List<MemoryShotSpec?> memoryCalls = [];
+
+  /// Set: a memory frame fails with this (the reply still carries the
+  /// detections), as the worker reports a failed downscale or PNG.
+  String? memoryShotError;
   final List<Completer<Result<Object>>> _pending = [];
 
   /// Frames handed to the detector whose results are still pending.
@@ -77,11 +86,28 @@ class FakeDetector implements Detector {
     Error(:final error) => Result.error(error),
   };
 
-  Future<Result<Object>> _detect(FrameMessage frame, {required bool snapshot}) {
+  /// The real worker conversion (`memoryShot`) on the frame's bytes.
+  @override
+  Future<Result<MemoryShotReply>> detectWithMemoryShot(
+    FrameMessage frame,
+    MemoryShotSpec spec,
+  ) async => switch (await _detect(frame, snapshot: false, memory: spec)) {
+    Ok(:final value) => Result.ok(value as MemoryShotReply),
+    Error(:final error) => Result.error(error),
+  };
+
+  Future<Result<Object>> _detect(
+    FrameMessage frame, {
+    required bool snapshot,
+    MemoryShotSpec? memory,
+  }) {
     calls.add(frame);
     snapshotCalls.add(snapshot);
+    memoryCalls.add(memory);
     if (failWith case final error?) return Future.value(Result.error(error));
-    if (autoComplete) return Future.value(Result.ok(_value(frame, snapshot)));
+    if (autoComplete) {
+      return Future.value(Result.ok(_value(frame, snapshot, memory)));
+    }
     final completer = Completer<Result<Object>>();
     _pending.add(completer);
     return completer.future;
@@ -92,11 +118,22 @@ class FakeDetector implements Detector {
     final i = calls.length - _pending.length;
     _pending
         .removeAt(0)
-        .complete(Result.ok(_value(calls[i], snapshotCalls[i])));
+        .complete(
+          Result.ok(_value(calls[i], snapshotCalls[i], memoryCalls[i])),
+        );
   }
 
-  Object _value(FrameMessage frame, bool snapshot) {
+  Object _value(FrameMessage frame, bool snapshot, [MemoryShotSpec? memory]) {
     final detection = results?.call(frame) ?? resultFor(frame);
+    if (memory != null) {
+      if (memoryShotError case final error?) {
+        return MemoryShotReply(detections: detection, error: error);
+      }
+      return MemoryShotReply(
+        detections: detection,
+        shot: memoryShot(frame, frame.materialize(), detection, memory),
+      );
+    }
     if (!snapshot) return detection;
     return SnapshotDetection(
       frame: detection,

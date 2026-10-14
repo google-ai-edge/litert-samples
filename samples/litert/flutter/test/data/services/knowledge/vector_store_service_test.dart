@@ -13,11 +13,15 @@
 // limitations under the License.
 
 import 'dart:async';
+import 'dart:io';
 
 import 'package:flutter_edge_ai_rag/flutter_edge_ai_rag.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:litert_edge_demos/config/knowledge_config.dart';
+import 'package:litert_edge_demos/config/model_catalog.dart';
 import 'package:litert_edge_demos/data/services/knowledge/vector_store_service.dart';
+import 'package:litert_edge_demos/data/services/model_store/bundled_model_files.dart';
+import 'package:litert_edge_demos/domain/models/knowledge_query.dart';
 import 'package:litert_edge_demos/utils/result.dart';
 
 /// An in-memory sqlite stand-in: rows and the profile binding per location,
@@ -27,7 +31,7 @@ final class _Disk {
   final Map<String, EmbeddingProfile> profiles = {};
 }
 
-final class _FakeStore implements VectorStoreRepository {
+final class _FakeStore extends VectorStoreRepository {
   _FakeStore(this.disk);
 
   final _Disk disk;
@@ -44,16 +48,18 @@ final class _FakeStore implements VectorStoreRepository {
   Future<void> initialize(String location) async => this.location = location;
 
   @override
-  Future<EmbeddingProfile?> readEmbeddingProfile() async =>
-      disk.profiles[location];
+  Future<VectorStoreBinding?> readBinding() async {
+    final profile = disk.profiles[location];
+    return profile == null ? null : VectorStoreBinding(profile: profile);
+  }
 
   @override
-  Future<void> bindEmbeddingProfile(EmbeddingProfile profile) async {
+  Future<void> bind(VectorStoreBinding binding) async {
     final bound = disk.profiles[location];
-    if (bound != null && bound != profile) {
+    if (bound != null && bound != binding.profile) {
       throw StateError('already bound to $bound');
     }
-    disk.profiles[location!] = profile;
+    disk.profiles[location!] = binding.profile;
   }
 
   @override
@@ -143,7 +149,7 @@ List<double> vector(double first) => [
 void main() {
   late _Disk disk;
   late _FakeProvider provider;
-  final queries = <String>[];
+  final queries = <KnowledgeQuery>[];
 
   VectorStoreService service({String profileId = kKbEmbeddingProfileId}) =>
       VectorStoreService(
@@ -178,19 +184,58 @@ void main() {
     );
 
     final hits =
-        (await store.search('what?', topK: 3) as Ok).value
+        (await store.search(
+              const KnowledgeQuery.text('what?'),
+              topK: 3,
+            ) as Ok).value
             as List<RetrievalResult>;
-    expect(queries, ['what?']);
+    expect(queries.single, isA<KnowledgeTextQuery>());
+    expect((queries.single as KnowledgeTextQuery).text, 'what?');
+    expect(store.profileId, kKbEmbeddingProfileId);
     expect(hits.single.id, 'a#1');
   });
 
   test('a database written before profiles existed (rows, no profile) is '
-      'adopted and bound', () async {
+      'refused: its EmbeddingGemma-300M vectors have the same 768 dimensions '
+      'but another space', () async {
     disk.rows['/kb/kb.db'] = {'old#1': ('old', vector(0.9), '{}')};
 
-    expect(await service().open('/kb/kb.db'), isA<Ok<void>>());
+    final opened = await service().open('/kb/kb.db');
 
-    expect(disk.profiles['/kb/kb.db']?.id, kKbEmbeddingProfileId);
+    expect('${(opened as Error).error}', contains('legacy vectors'));
+    expect(disk.profiles['/kb/kb.db'], isNull, reason: 'nothing bound');
+  });
+
+  test('an index of EmbeddingGemma-300M (its profile) is refused', () async {
+    disk.profiles['/kb/kb.db'] = EmbeddingProfile(
+      id: 'embeddinggemma-300m-seq512-mp-ad09e815-sp-d6daa52d-retrieval-prefix-v1',
+      dimension: 768,
+    );
+
+    final opened = await service().open('/kb/kb.db');
+
+    expect(opened, isA<Error<void>>());
+  });
+
+  test('the profile names the built-in EmbeddingGemma 2 bundle at its '
+      'pinned revision (tool/models.lock) and SHA-256, and holds no control '
+      'character', () {
+    final lock = File('tool/models.lock')
+        .readAsLinesSync()
+        .map((line) => line.split(RegExp(r'\s+')))
+        .singleWhere(
+          (f) => f.length == 8 && f[1] == kBundledEmbedderModel.name,
+        );
+    final revision = lock[6];
+
+    expect(kKbEmbeddingProfileId, startsWith('embeddinggemma-2-740m-'));
+    expect(kKbEmbeddingProfileId, contains(revision.substring(0, 8)));
+    expect(
+      kKbEmbeddingProfileId,
+      contains(kBundledEmbedderModel.sha256.substring(0, 8)),
+    );
+    expect(kKbEmbeddingProfileId.codeUnits.every((u) => u > 0x1F), isTrue);
+    expect(kKbEmbeddingDimension, kEmbedderConfig.dimension);
   });
 
   test('a database bound to another profile is refused', () async {

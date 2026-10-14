@@ -20,6 +20,7 @@ import 'package:flutter_edge_ai/flutter_edge_ai.dart'
     show ModelType, PreferredBackend;
 
 import '../../../../domain/models/chat_model.dart';
+import '../../../../domain/models/model_towers.dart' show Tower;
 import '../../../../utils/result.dart';
 import '../../../core/warning_color.dart';
 import '../view_models/chat_model_view_model.dart';
@@ -44,7 +45,17 @@ abstract final class ChatModelKeys {
   static const backend = ValueKey('chat-model-backend');
   static const npuReason = ValueKey('chat-model-npu-reason');
   static const context = ValueKey('chat-model-context');
-  static const images = ValueKey('chat-model-images');
+
+  /// The read-only Towers block (from the file's header) and its rows.
+  static const towers = ValueKey('chat-model-towers');
+  static const towerText = ValueKey('chat-model-tower-text');
+  static const towerVision = ValueKey('chat-model-tower-vision');
+  static const towerAudio = ValueKey('chat-model-tower-audio');
+
+  /// The CPU | NPU control of a tower the header leaves open (on the NPU).
+  static const visionBackend = ValueKey('chat-model-vision-backend');
+  static const audioBackend = ValueKey('chat-model-audio-backend');
+  static const towerChoiceCaption = ValueKey('chat-model-tower-choice');
   static const tools = ValueKey('chat-model-tools');
   static const apply = ValueKey('chat-model-apply');
   static const draftProblem = ValueKey('chat-model-draft-problem');
@@ -77,8 +88,9 @@ abstract final class ChatModelKeys {
 
 /// The Models screen's "Chat model" card: the app ships no chat model, so it
 /// leads with how to choose a `.litertlm` (the models folders, Path…, import, a
-/// link), then its backend, context, images and tools; a failed load offers
-/// "Run on GPU" / "Run on CPU".
+/// link), then its backend, context, its towers as its header has them (a
+/// CPU | NPU choice only for a tower the header leaves open, on the NPU) and
+/// tools; a failed load offers "Run on GPU" / "Run on CPU".
 class ChatModelSection extends StatelessWidget {
   const ChatModelSection({super.key, required this.viewModel});
 
@@ -479,17 +491,7 @@ class _EditorState extends State<_Editor> {
           ),
           onChanged: vm.setContext,
         ),
-        SwitchListTile(
-          key: ChatModelKeys.images,
-          contentPadding: EdgeInsets.zero,
-          title: const Text('Images'),
-          subtitle: const Text(
-            'Load the vision encoder. Off: photos in Voice chat and detailed '
-            'answers in Live camera are disabled.',
-          ),
-          value: vm.draftImages,
-          onChanged: (value) => vm.setImages(enabled: value),
-        ),
+        if (vm.towersShown) _Towers(viewModel: vm, caption: caption),
         SwitchListTile(
           key: ChatModelKeys.tools,
           contentPadding: EdgeInsets.zero,
@@ -515,6 +517,109 @@ class _EditorState extends State<_Editor> {
             child: Text(vm.applyLabel),
           ),
         ),
+      ],
+    );
+  }
+}
+
+/// The read-only Towers block: where the text decoder and each tower of the
+/// file run, from its header and the draft backend; a CPU | NPU control only
+/// for a tower the header leaves open while the model runs on the NPU.
+class _Towers extends StatelessWidget {
+  const _Towers({required this.viewModel, required this.caption});
+
+  final ChatModelViewModel viewModel;
+  final TextStyle? caption;
+
+  /// Under the block when a tower is a choice.
+  static const choiceCaption =
+      'This file does not say where its towers run: NPU only if they are '
+      'compiled for this chip, CPU otherwise (for example the official '
+      'qualcomm_sm8750 build)';
+
+  Widget _row(Key key, String label, Widget value) => Row(
+    key: key,
+    spacing: 8,
+    children: [
+      SizedBox(
+        width: 52,
+        child: Text(
+          label,
+          style: caption?.copyWith(fontWeight: FontWeight.w600),
+        ),
+      ),
+      Expanded(child: value),
+    ],
+  );
+
+  Widget _tower(Tower tower) {
+    final vm = viewModel;
+    final (key, control, label) = switch (tower) {
+      Tower.vision => (
+        ChatModelKeys.towerVision,
+        ChatModelKeys.visionBackend,
+        'Vision',
+      ),
+      Tower.audio => (
+        ChatModelKeys.towerAudio,
+        ChatModelKeys.audioBackend,
+        'Audio',
+      ),
+    };
+    return switch (vm.towerRow(tower)) {
+      TowerMissing(:final text) ||
+      TowerFixed(:final text) => _row(key, label, Text(text, style: caption)),
+      TowerChoice(:final selected) => _row(
+        key,
+        label,
+        Align(
+          alignment: Alignment.centerLeft,
+          child: SegmentedButton<PreferredBackend>(
+            key: control,
+            showSelectedIcon: false,
+            style: const ButtonStyle(
+              visualDensity: VisualDensity.compact,
+              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+            ),
+            segments: const [
+              ButtonSegment(value: PreferredBackend.cpu, label: Text('CPU')),
+              ButtonSegment(value: PreferredBackend.npu, label: Text('NPU')),
+            ],
+            selected: {selected},
+            onSelectionChanged: (selection) =>
+                vm.setTowerBackend(tower, selection.single),
+          ),
+        ),
+      ),
+      null => const SizedBox.shrink(),
+    };
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final vm = viewModel;
+    return Column(
+      key: ChatModelKeys.towers,
+      crossAxisAlignment: CrossAxisAlignment.start,
+      spacing: 4,
+      children: [
+        Text(
+          "Towers (from the file's header)",
+          style: Theme.of(context).textTheme.labelLarge,
+        ),
+        _row(
+          ChatModelKeys.towerText,
+          'Text',
+          Text(vm.towerTextLine, style: caption),
+        ),
+        _tower(Tower.vision),
+        _tower(Tower.audio),
+        if (vm.towerChoiceShown)
+          Text(
+            choiceCaption,
+            key: ChatModelKeys.towerChoiceCaption,
+            style: caption,
+          ),
       ],
     );
   }

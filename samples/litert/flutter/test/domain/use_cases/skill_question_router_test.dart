@@ -21,8 +21,9 @@ import 'package:litert_edge_demos/domain/use_cases/skill_question_router.dart';
 /// Live device-fact and time questions skip retrieval
 /// (deterministic), so Gemma sees only its skills for them; every
 /// knowledge-base question still retrieves. Device questions clear the KB
-/// gate (0.40–0.56, `test_assets/skill_trigger_similarity.json`), which is
-/// why this router exists.
+/// gate (5 of 6 at 0.68–0.77 against 0.70 with EmbeddingGemma 2,
+/// `test_assets/skill_trigger_similarity.json`), which is why this router
+/// exists.
 void main() {
   const router = SkillQuestionRouter();
   SkillTopic? topic(String q) => router.classify(q)?.topic;

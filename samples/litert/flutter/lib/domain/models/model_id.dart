@@ -72,11 +72,11 @@ const kYolo26nSpec = ModelSpec(
   required: false,
 );
 
-/// EmbeddingGemma-300M, the knowledge base's embedder. Optional:
+/// EmbeddingGemma 2 740m, the knowledge base's embedder. Optional:
 /// without it Demo 1 chats without the knowledge base and says so.
 const kEmbeddingGemmaSpec = ModelSpec(
   id: ModelId.embeddingGemma,
-  displayName: 'EmbeddingGemma 300M (knowledge base)',
+  displayName: 'EmbeddingGemma 2 740m (knowledge base)',
   required: false,
 );
 

@@ -21,12 +21,14 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_edge_ai_rag/flutter_edge_ai_rag.dart'
     show RetrievalResult;
 import 'package:flutter_test/flutter_test.dart';
+import 'package:litert_edge_demos/config/knowledge_config.dart';
 import 'package:litert_edge_demos/data/repositories/knowledge_repository.dart';
 import 'package:litert_edge_demos/data/services/knowledge/embedder_service.dart';
 import 'package:litert_edge_demos/data/services/knowledge/kb_documents.dart';
 import 'package:litert_edge_demos/data/services/knowledge/kb_index_key.dart';
 import 'package:litert_edge_demos/data/services/knowledge/kb_prebuilt_index.dart';
 import 'package:litert_edge_demos/domain/models/knowledge.dart';
+import 'package:litert_edge_demos/domain/models/knowledge_query.dart';
 import 'package:litert_edge_demos/domain/models/model_id.dart';
 import 'package:litert_edge_demos/domain/models/model_state.dart';
 import 'package:litert_edge_demos/utils/markdown_chunker.dart';
@@ -40,7 +42,7 @@ import 'knowledge_repository_test.dart' show FixedDocuments, corpus;
 /// prebuilt `kb.db` is such a file, made by indexing into one. [search] ranks
 /// the rows by cosine similarity to the query's fake embedding.
 class FileBackedStore extends FakeVectorStoreService {
-  FileBackedStore(this._model);
+  FileBackedStore(this._model, {super.profileId});
 
   final FakeEmbeddingModel _model;
   String? _path;
@@ -120,11 +122,12 @@ class FileBackedStore extends FakeVectorStoreService {
 
   @override
   Future<Result<List<RetrievalResult>>> search(
-    String query, {
+    KnowledgeQuery query, {
     required int topK,
   }) async {
-    searches.add((query, topK));
-    final q = _model.vectorFor(query);
+    final key = queryKey(query);
+    searches.add((key, topK));
+    final q = _model.vectorFor(key);
     double cosine(List<double> a, List<double> b) {
       var dot = 0.0;
       var na = 0.0;
@@ -152,7 +155,7 @@ class FileBackedStore extends FakeVectorStoreService {
 
 const _ready = ModelReady(
   LoadedModelInfo(
-    modelId: 'embeddinggemma-300M_seq512_mixed-precision',
+    modelId: 'embeddinggemma-2-740m',
     backend: 'cpu',
     loadTime: Duration.zero,
     warmUpTime: Duration.zero,
@@ -218,6 +221,7 @@ void main() {
     return (
       manifest: PrebuiltKbManifest(
         key: KbIndexKey.fromJson(marker['key']),
+        profileId: kKbEmbeddingProfileId,
         chunks: 3,
         dbBytes: db.length,
         dbSha256: sha256.convert(db).toString(),
@@ -334,8 +338,12 @@ void main() {
         'Alpha two',
         'Something else entirely',
       ]) {
-        final a = (await device.retrieve(question) as Ok<Retrieval>).value;
-        final b = (await installed.retrieve(question) as Ok<Retrieval>).value;
+        final a = (await device.retrieve(
+          KnowledgeQuery.text(question),
+        ) as Ok<Retrieval>).value;
+        final b = (await installed.retrieve(
+          KnowledgeQuery.text(question),
+        ) as Ok<Retrieval>).value;
         expect(
           [for (final p in b.candidates) (p.id, p.similarity, p.content)],
           [for (final p in a.candidates) (p.id, p.similarity, p.content)],
@@ -414,6 +422,36 @@ void main() {
       expect(ready.prebuiltSkipped, contains('embedder model file'));
       expect(ready.prebuiltSkipped, isNot(contains('documents')));
     });
+
+    test(
+      'bound to another RAG profile: skipped before its database is read',
+      () async {
+        final (:manifest, :db) = await buildPrebuilt();
+        final prebuilt = FakePrebuiltKbIndex(
+          PrebuiltManifestFound(manifest),
+          database: db,
+        );
+        final ready = await indexWith(
+          build(
+            name: 'app',
+            store: FileBackedStore(model, profileId: 'another-profile'),
+            prebuilt: prebuilt,
+          ),
+          [],
+        );
+
+        expect(ready.origin, KnowledgeOrigin.device);
+        expect(
+          ready.prebuiltSkipped,
+          allOf(
+            contains('embedding profile "$kKbEmbeddingProfileId"'),
+            contains('"another-profile"'),
+            contains('tool/build_kb_index.sh'),
+          ),
+        );
+        expect(prebuilt.databaseReads, 0);
+      },
+    );
 
     test('another chunker budget', () async {
       final (:manifest, :db) = await buildPrebuilt();
@@ -504,6 +542,7 @@ void main() {
       final (:manifest, :db) = await buildPrebuilt();
       final wrongCount = PrebuiltKbManifest(
         key: manifest.key,
+        profileId: manifest.profileId,
         chunks: 4,
         dbBytes: manifest.dbBytes,
         dbSha256: manifest.dbSha256,
@@ -538,6 +577,7 @@ void main() {
       final garbage = Uint8List.fromList(utf8.encode('not a database'));
       final unreadable = PrebuiltKbManifest(
         key: manifest.key,
+        profileId: manifest.profileId,
         chunks: 3,
         dbBytes: garbage.length,
         dbSha256: sha256.convert(garbage).toString(),
@@ -566,11 +606,7 @@ void main() {
     });
   });
 
-  test('the installed files are what the key hashes', () {
-    expect(embedder.installedFiles?.model, endsWith('/model.tflite'));
-    expect(
-      embedder.installedFiles?.tokenizer,
-      endsWith('/sentencepiece.model'),
-    );
+  test('the installed file is what the key hashes', () {
+    expect(embedder.installedModelPath, endsWith('/model.litertlm'));
   });
 }

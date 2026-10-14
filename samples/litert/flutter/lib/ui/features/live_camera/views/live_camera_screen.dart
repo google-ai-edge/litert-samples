@@ -19,7 +19,9 @@ import 'package:provider/provider.dart';
 
 import '../../../../domain/models/detection.dart';
 import '../../../../domain/models/live_state.dart';
+import '../../../../domain/models/visual_memory.dart';
 import '../../../../domain/models/voice.dart';
+import '../../../../domain/use_cases/memory_answers.dart';
 import '../../../core/debug_overlay.dart';
 import '../../../core/detection_painter.dart';
 import '../../../core/level_meter.dart';
@@ -51,6 +53,9 @@ abstract final class LiveCameraKeys {
   static const useNetworkCamera = ValueKey('live-camera-use-network-camera');
   static const detectorFailure = ValueKey('live-camera-detector-failure');
   static const otherBackend = ValueKey('live-camera-other-backend');
+  static const memoryChip = ValueKey('live-camera-memory-chip');
+  static const memoryOff = ValueKey('live-camera-memory-off');
+  static const memoryCard = ValueKey('live-camera-memory-card');
 }
 
 /// Demo 3: the live preview with detector boxes, the live status, and
@@ -100,6 +105,13 @@ class LiveCameraScreen extends StatelessWidget {
                     // Over the live view while a detailed answer is about
                     // one frame; rebuilds only on freeze and unfreeze.
                     _FrozenLayer(viewModel: viewModel),
+                    // A memory question's frame; rebuilds only when it
+                    // changes.
+                    Positioned(
+                      top: 12,
+                      right: 12,
+                      child: _MemoryCardLayer(viewModel: viewModel),
+                    ),
                     Positioned(
                       left: 12,
                       right: 12,
@@ -111,6 +123,7 @@ class LiveCameraScreen extends StatelessWidget {
                         children: [
                           _Caption(viewModel: viewModel),
                           _BlackFramesWarning(viewModel: viewModel),
+                          _MemoryStatus(viewModel: viewModel),
                           _LiveStatus(viewModel: viewModel),
                         ],
                       ),
@@ -177,6 +190,117 @@ class _FrozenLayer extends StatelessWidget {
             ],
           ),
         );
+      },
+    );
+  }
+}
+
+/// The frame a memory question found, over the top of the view: the
+/// remembered thumbnail, how long ago it was seen and the phrase searched.
+/// A tap closes it.
+class _MemoryCardLayer extends StatelessWidget {
+  const _MemoryCardLayer({required this.viewModel});
+
+  final LiveCameraViewModel viewModel;
+
+  @override
+  Widget build(BuildContext context) {
+    return ValueListenableBuilder<MemoryCard?>(
+      valueListenable: viewModel.memoryCard,
+      builder: (context, card, _) {
+        if (card == null) return const SizedBox.shrink();
+        final theme = Theme.of(context);
+        return GestureDetector(
+          key: LiveCameraKeys.memoryCard,
+          onTap: viewModel.closeMemoryCard,
+          child: DecoratedBox(
+            decoration: BoxDecoration(
+              color: Colors.black.withValues(alpha: 0.75),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Padding(
+              padding: const EdgeInsets.all(8),
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 240),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  spacing: 6,
+                  children: [
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(8),
+                      child: Image.memory(
+                        card.png,
+                        gaplessPlayback: true,
+                        fit: BoxFit.contain,
+                      ),
+                    ),
+                    Text(
+                      'Seen ${agoLabel(card.age)} · “${card.query}”',
+                      style: theme.textTheme.labelLarge?.copyWith(
+                        color: Colors.white,
+                      ),
+                    ),
+                    Text(
+                      'From the visual memory · '
+                      '${switch (card.cosine) {
+                        final cosine? => 'cos ${cosine.toStringAsFixed(2)}',
+                        null => 'the latest frame',
+                      }} · tap to close',
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        color: Colors.white70,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
+}
+
+/// The visual memory: "Memory: 37 frames · 2 min", "Memory: preparing…"
+/// while EmbeddingGemma's image encoder loads, or an amber banner with the
+/// reason when it is off. Rebuilds only when the memory's status changes;
+/// nothing when the app has no visual memory or the settings switched it
+/// off.
+class _MemoryStatus extends StatelessWidget {
+  const _MemoryStatus({required this.viewModel});
+
+  final LiveCameraViewModel viewModel;
+
+  @override
+  Widget build(BuildContext context) {
+    final status = viewModel.memoryStatus;
+    if (status == null) return const SizedBox.shrink();
+    return ValueListenableBuilder<VisualMemoryStatus>(
+      valueListenable: status,
+      builder: (context, memory, _) => switch (memory) {
+        VisualMemoryStatus(active: false) ||
+        VisualMemoryStatus(enabled: false) => const SizedBox.shrink(),
+        VisualMemoryStatus(:final String unavailable) => _Chip(
+          chipKey: LiveCameraKeys.memoryOff,
+          text: 'Visual memory off: $unavailable',
+          color: kWarningColor,
+        ),
+        VisualMemoryStatus(preparing: true) => const _Chip(
+          chipKey: LiveCameraKeys.memoryChip,
+          text: 'Memory: preparing…',
+        ),
+        VisualMemoryStatus(frames: 0) => const _Chip(
+          chipKey: LiveCameraKeys.memoryChip,
+          text: 'Memory: nothing yet',
+        ),
+        VisualMemoryStatus(:final frames, :final span, :final failures) =>
+          _Chip(
+            chipKey: LiveCameraKeys.memoryChip,
+            text:
+                'Memory: ${memorySpanLabel(frames, span)}'
+                '${failures > 0 ? ' · $failures failed' : ''}',
+          ),
       },
     );
   }

@@ -15,8 +15,10 @@
 import '../../../config/model_catalog.dart';
 import '../../../domain/models/assistant_event.dart';
 import '../../../domain/models/audio_devices.dart';
+import '../../../domain/models/camera_side_event.dart';
 import '../../../domain/models/diagnostics_snapshot.dart';
 import '../../../domain/models/knowledge.dart';
+import '../../../domain/models/knowledge_query.dart';
 import '../../../domain/models/live_state.dart';
 import '../../../domain/models/llm_image.dart';
 import '../../../domain/models/model_id.dart';
@@ -24,6 +26,7 @@ import '../../../domain/models/model_state.dart';
 import '../../../domain/models/route_decision.dart';
 import '../../../domain/models/scene_snapshot.dart';
 import '../../../domain/models/skill_step.dart';
+import '../../../domain/models/visual_memory.dart';
 import '../../../domain/models/voice.dart';
 
 /// The panel's text, one line per fact. [now] is for tests (the paused
@@ -45,6 +48,7 @@ List<String> debugOverlayLines(DiagnosticsSnapshot s, {DateTime? now}) {
   lines.addAll(_skillLines(s));
   lines.addAll(_knowledgeLines(s));
   lines.addAll(_cameraLines(s));
+  lines.addAll(_memoryLines(s));
   lines.add(_rssLine(s));
   return lines;
 }
@@ -130,6 +134,8 @@ List<String> _imageLines(DiagnosticsSnapshot s) {
 String _resetLabel(ContextResetReason reason) => switch (reason) {
   ContextResetReason.budget => 'budget',
   ContextResetReason.interruptedSkill => 'interrupted skill',
+  ContextResetReason.rebuildAfterStop => 'rebuild after stop',
+  ContextResetReason.transcriptArrived => 'rebuild with transcript',
 };
 
 String _modelLine(ModelId id, LoadedModelInfo? info, {bool active = false}) =>
@@ -139,6 +145,14 @@ String _modelLine(ModelId id, LoadedModelInfo? info, {bool active = false}) =>
           '${info.detail ?? info.backend.toUpperCase()} · '
           'load ${_ms(info.loadTime)} · warm ${_ms(info.warmUpTime)}'
           '${active ? ' · ACTIVE' : ''}';
+
+/// `EmbeddingGemma 2 740m · cpu · 768-d · text+audio · load 1612 ms · warm
+/// 410 ms`: the knowledge base's embedder, named as the catalog names it
+/// (the installed file id says less).
+String _embedderLine(LoadedModelInfo? info) => info == null
+    ? '${ModelId.embeddingGemma.spec.displayName}: not loaded'
+    : '$kEmbedderName · ${info.detail ?? info.backend} · '
+          'load ${_ms(info.loadTime)} · warm ${_ms(info.warmUpTime)}';
 
 /// How a ready index came to be on this launch.
 String _kbHow(bool reused, KnowledgeOrigin origin) =>
@@ -160,7 +174,7 @@ List<String> _knowledgeLines(DiagnosticsSnapshot s) {
   final status = s.knowledge;
   if (status == null) return const [];
   final lines = [
-    _modelLine(ModelId.embeddingGemma, s.models[ModelId.embeddingGemma]),
+    _embedderLine(s.models[ModelId.embeddingGemma]),
     switch (status) {
       KnowledgeWaiting() => 'KB waiting for the embedder',
       KnowledgeUnavailable(:final reason) => 'KB unavailable: $reason',
@@ -186,13 +200,18 @@ List<String> _knowledgeLines(DiagnosticsSnapshot s) {
   ];
   final r = s.lastRetrieval;
   if (r != null) {
+    // A spoken question searched as audio: the time is mostly its audio
+    // embedding.
+    final kind = r.queryKind == KnowledgeQueryKind.audio ? 'audio ' : '';
     final time = r.latency == null ? '–' : _ms(r.latency!);
     final top = r.topSimilarity?.toStringAsFixed(2) ?? '–';
     final gate = r.gate?.toStringAsFixed(2) ?? '–';
     lines.add(switch (r.outcome) {
       RetrievalOutcome.used =>
-        'RAG $time · top $top · ${r.passages.length} excerpts (gate $gate)',
-      RetrievalOutcome.belowGate => 'RAG $time · top $top · below gate $gate',
+        'RAG $kind$time · top $top · ${r.passages.length} excerpts '
+            '(gate $gate)',
+      RetrievalOutcome.belowGate =>
+        'RAG $kind$time · top $top · below gate $gate',
       RetrievalOutcome.unavailable => 'RAG unavailable: ${r.detail ?? '–'}',
       RetrievalOutcome.failed => 'RAG failed: ${r.detail ?? '–'}',
       RetrievalOutcome.skipped =>
@@ -268,9 +287,18 @@ List<String> _voiceLines(DiagnosticsSnapshot s) {
     t == null
         ? 'voice ${s.voicePhase.name} · STT – · first audio –'
         : 'voice ${s.voicePhase.name} · '
-              '${t.typed ? 'typed' : 'STT ${opt(t.stt)}'} · '
+              '${t.typed
+                  ? 'typed'
+                  : t.audio
+                  ? 'audio → chat model (no STT)'
+                  : 'STT ${opt(t.stt)}'} · '
               'first audio ${opt(t.firstAudio)}'
               '${t.outcome == null ? '' : ' · ${t.outcome!.name}'}',
+    // Audio mode: Whisper's transcript after the reply.
+    if (t != null && t.transcriptError != null)
+      'transcript none after ${opt(t.transcript)}: ${t.transcriptError}'
+    else if (t?.transcript case final Duration d)
+      'transcript ${_ms(d)} (after the reply)',
     _audioLine(s.audioDevices),
   ];
   if (t != null && t.peakDbfs != null) {
@@ -340,6 +368,7 @@ List<String> _cameraLines(DiagnosticsSnapshot s) {
   final kind = switch (c.route) {
     FastRoute(:final intent) => 'fast/${intent.name}',
     DetailedRoute() => 'detailed',
+    MemoryRoute() => 'memory',
   };
   final snap = c.snapshotLatency == null ? '–' : _ms(c.snapshotLatency!);
   final lines = [
@@ -367,6 +396,11 @@ List<String> _cameraLines(DiagnosticsSnapshot s) {
       '${s.liveState is LivePaused ? 'paused' : 'live'}',
     );
   }
+  if (c.memory case final MemoryRecalled m?) {
+    lines.add(
+      'camq memory "${m.query}" ${_ms(m.elapsed)} · ${_recall(m.recall)}',
+    );
+  }
   if (c.snapshotError case final String error) {
     lines.add('camq no frame: $error');
   }
@@ -374,6 +408,48 @@ List<String> _cameraLines(DiagnosticsSnapshot s) {
     lines.add('camq chat: $error');
   }
   return lines;
+}
+
+/// `latest frame · #123 12 s ago`, `hit 0.71 (rival 0.55) · #123 12 s ago`,
+/// `ambiguous hit 0.66 (rival 0.65) · …`, `miss 0.52: below the floor
+/// 0.60`, `empty`, `switched off`, or `off:` and the reason.
+String _recall(MemoryRecall r) => switch (r) {
+  MemoryHit(cosine: null, :final entry, :final age) =>
+    'latest frame · #${entry.frameId} ${age.inSeconds} s ago',
+  MemoryHit(
+    cosine: final double cosine,
+    :final rival,
+    :final entry,
+    :final age,
+    :final ambiguous,
+  ) =>
+    '${ambiguous ? 'ambiguous ' : ''}hit ${cosine.toStringAsFixed(2)}'
+        '${rival == null ? '' : ' (rival ${rival.toStringAsFixed(2)})'} · '
+        '#${entry.frameId} ${age.inSeconds} s ago',
+  MemoryMiss(:final cosine, :final reason) =>
+    'miss ${cosine.toStringAsFixed(2)}: $reason',
+  MemoryEmpty() => 'empty',
+  MemoryDisabled() => 'switched off',
+  MemoryOff(:final reason) => 'off: $reason',
+};
+
+/// The visual memory: `memory 37 frames · 2 min · 4.1 MB · embed 260 ms ·
+/// best 0.71 · failed 0`, why it is off, `memory preparing (image encoder)`
+/// or `memory switched off (camera settings)`. None when no memory is wired
+/// or the camera demo is closed.
+List<String> _memoryLines(DiagnosticsSnapshot s) {
+  final m = s.memory;
+  if (m == null || !m.active) return const [];
+  if (!m.enabled) return const ['memory switched off (camera settings)'];
+  if (m.preparing) return const ['memory preparing (image encoder)'];
+  final embed = m.lastEmbed == null ? '–' : _ms(m.lastEmbed!);
+  final best = m.lastBestCosine?.toStringAsFixed(2) ?? '–';
+  return [
+    'memory ${m.frames} frames · ${m.span.inSeconds} s · ${_size(m.bytes)} · '
+        'embed $embed · best $best · failed ${m.failures}'
+        '${m.failuresInARow > 0 ? ' (${m.failuresInARow} in a row)' : ''}',
+    if (m.unavailable case final String reason) 'memory off: $reason',
+  ];
 }
 
 String _ms(Duration d) => '${d.inMilliseconds} ms';

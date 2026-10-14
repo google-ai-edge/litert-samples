@@ -23,11 +23,9 @@ const _key = KbIndexKey(
   documents: '987e8d5ae18cc7542fd9494b929c25e1d53a528768c69a2aae7a7702ef90c478',
   chunker: 'md-chunker-1/1400/300',
   documentPrefix: 'title: none | text: ',
-  modelId: 'embeddinggemma-300M_seq512_mixed-precision',
+  modelId: 'embeddinggemma-2-740m',
   modelSha256:
-      'ad09e81557203cb0e177abf9bf8727dfe138a7d394aa0f70f0b2ed16432e121a',
-  tokenizerSha256:
-      'd6daa52d93d7aad10e8388bd526c4e501d914b47177398d1d9621f1fe48438c7',
+      'e7a8a2204b91e0f96e92960e84a09a89212e1633dcb7575a9bf3378b4df77f4c',
   dim: 768,
 );
 
@@ -37,7 +35,6 @@ KbIndexKey _with({
   String? documentPrefix,
   String? modelId,
   String? modelSha256,
-  String? tokenizerSha256,
   int? dim,
 }) => KbIndexKey(
   documents: documents ?? _key.documents,
@@ -45,7 +42,6 @@ KbIndexKey _with({
   documentPrefix: documentPrefix ?? _key.documentPrefix,
   modelId: modelId ?? _key.modelId,
   modelSha256: modelSha256 ?? _key.modelSha256,
-  tokenizerSha256: tokenizerSha256 ?? _key.tokenizerSha256,
   dim: dim ?? _key.dim,
 );
 
@@ -62,7 +58,6 @@ void main() {
         _with(documentPrefix: ''),
         _with(modelId: 'embeddinggemma-v2'),
         _with(modelSha256: 'f' * 64),
-        _with(tokenizerSha256: 'e' * 64),
         _with(dim: 512),
       ];
       final digests = {_key.digest, for (final v in variants) v.digest};
@@ -86,7 +81,7 @@ void main() {
       );
       expect(other.differencesFrom(_key), [
         'knowledge-base documents (1a2b3c4d ≠ 987e8d5a)',
-        'embedder model file (ffffffff ≠ ad09e815)',
+        'embedder model file (ffffffff ≠ e7a8a220)',
         'dimension (512 ≠ 768)',
       ]);
       expect(_with(chunker: 'md-chunker-1/1000/300').differencesFrom(_key), [
@@ -94,7 +89,7 @@ void main() {
       ]);
       expect(
         _with(modelId: 'other').differencesFrom(_key).single,
-        'embedder id ("other" ≠ "embeddinggemma-300M_seq512_mixed-precision")',
+        'embedder id ("other" ≠ "embeddinggemma-2-740m")',
       );
     });
 
@@ -107,6 +102,36 @@ void main() {
       final missing = Map<String, Object?>.of(_key.toJson())..remove('dim');
       expect(() => KbIndexKey.fromJson(missing), throwsFormatException);
       expect(() => KbIndexKey.fromJson('nope'), throwsFormatException);
+    });
+
+    test('kb-index/3 keys one self-contained file: no tokenizer digest', () {
+      expect(KbIndexKey.format, 'kb-index/3');
+      expect(_key.keyFormat, 'kb-index/3');
+      expect(_key.toJson().keys, isNot(contains('tokenizerSha256')));
+    });
+
+    test('an EmbeddingGemma-300M key (kb-index/2, with its tokenizer digest) '
+        'still reads, and differs: never reused', () {
+      final old = KbIndexKey.fromJson({
+        'format': 'kb-index/2',
+        'documents': _key.documents,
+        'chunker': _key.chunker,
+        'documentPrefix': _key.documentPrefix,
+        'modelId': 'embeddinggemma-300M_seq512_mixed-precision',
+        'modelSha256':
+            'ad09e81557203cb0e177abf9bf8727dfe138a7d394aa0f70f0b2ed16432e121a',
+        'tokenizerSha256':
+            'd6daa52d93d7aad10e8388bd526c4e501d914b47177398d1d9621f1fe48438c7',
+        'dim': 768,
+      });
+
+      expect(old.digest, isNot(_key.digest));
+      expect(old.differencesFrom(_key), [
+        'key format ("kb-index/2" ≠ "kb-index/3")',
+        'embedder id ("embeddinggemma-300M_seq512_mixed-precision" ≠ '
+            '"embeddinggemma-2-740m")',
+        'embedder model file (ad09e815 ≠ e7a8a220)',
+      ]);
     });
   });
 
@@ -141,6 +166,7 @@ void main() {
   group('PrebuiltKbManifest', () {
     final manifest = PrebuiltKbManifest(
       key: _key,
+      profileId: 'embeddinggemma-2-740m-litertlm-test-profile',
       chunks: 290,
       dbBytes: 3616768,
       dbSha256: '0047ec8b${'0' * 56}',
@@ -155,6 +181,7 @@ void main() {
         jsonDecode(jsonEncode(manifest.toJson())),
       );
       expect(back.key.digest, _key.digest);
+      expect(back.profileId, 'embeddinggemma-2-740m-litertlm-test-profile');
       expect(back.chunks, 290);
       expect(back.dbBytes, 3616768);
       expect(back.dbSha256, manifest.dbSha256);
@@ -166,19 +193,40 @@ void main() {
 
     test('another format or a missing field is a FormatException', () {
       final json = manifest.toJson();
+      expect(json['format'], 'kb-prebuilt/2');
       expect(
-        () => PrebuiltKbManifest.fromJson({...json, 'format': 'kb-prebuilt/2'}),
+        () => PrebuiltKbManifest.fromJson({...json, 'format': 'kb-prebuilt/3'}),
         throwsA(
           isFormatException.having(
             (e) => e.message,
             'message',
-            contains('kb-prebuilt/2'),
+            contains('kb-prebuilt/3'),
           ),
         ),
       );
       expect(
         () => PrebuiltKbManifest.fromJson({...json}..remove('dbSha256')),
         throwsFormatException,
+      );
+      expect(
+        () => PrebuiltKbManifest.fromJson({...json}..remove('profileId')),
+        throwsFormatException,
+      );
+    });
+
+    test('a kb-prebuilt/1 manifest (no profile id) is refused by its format, '
+        'not mistaken for a broken one', () {
+      final v1 = {...manifest.toJson(), 'format': 'kb-prebuilt/1'}
+        ..remove('profileId');
+      expect(
+        () => PrebuiltKbManifest.fromJson(v1),
+        throwsA(
+          isFormatException.having(
+            (e) => e.message,
+            'message',
+            allOf(contains('kb-prebuilt/1'), contains('kb-prebuilt/2')),
+          ),
+        ),
       );
     });
   });

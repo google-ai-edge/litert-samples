@@ -94,7 +94,7 @@ void main() {
       requestedBackend: 'gpu',
       requestedContext: 4096,
       contextTokens: 4096,
-      images: !custom,
+      visionBackend: custom ? null : 'cpu',
       tools: !custom,
       modelType: 'gemma4',
     );
@@ -123,7 +123,7 @@ void main() {
           model('Whisper base', 'cpu', EvidenceSource.requested),
           model('Inflect nano', 'cpu', EvidenceSource.requested),
           model('YOLO26n', 'gpu', EvidenceSource.api),
-          model('EmbeddingGemma 300M', 'cpu', EvidenceSource.requested),
+          model('EmbeddingGemma 2 740m', 'cpu', EvidenceSource.requested),
           model(
             'Gemma 4 E2B',
             'gpu',

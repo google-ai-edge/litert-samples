@@ -33,5 +33,19 @@
     "How do I get red wine out of a carpet?",
     "Can you recommend a good movie for tonight?",
     "How many calories are in an avocado?"
+  ],
+  "everyday_chat": [
+    "How are you today?",
+    "Tell me a joke.",
+    "What's the weather like?",
+    "Thanks, that's great.",
+    "Write one short sentence about the sea.",
+    "What is the capital of France?",
+    "Can you help me?",
+    "Good morning!",
+    "What did I just say?",
+    "Explain what a neural network is.",
+    "Sorry, I didn't catch that.",
+    "Do you like music?"
   ]
 }

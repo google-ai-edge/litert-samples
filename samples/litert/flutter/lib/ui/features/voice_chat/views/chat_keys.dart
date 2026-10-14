@@ -28,6 +28,7 @@ abstract final class ChatKeys {
   static const retryAccess = ValueKey('chat-retry-access');
   static const speakReplies = ValueKey('chat-speak-replies');
   static const phase = ValueKey('chat-phase');
+  static const mode = ValueKey('chat-mode');
   static const attachGallery = ValueKey('chat-attach-gallery');
   static const attachCamera = ValueKey('chat-attach-camera');
   static const attachmentThumbnail = ValueKey('chat-attachment-thumbnail');

@@ -13,22 +13,25 @@
 // limitations under the License.
 
 import 'package:flutter_edge_ai/flutter_edge_ai.dart';
-import 'package:flutter_edge_ai_embeddings/flutter_edge_ai_embeddings.dart'
-    show GemmaEmbeddingTokenizers;
 import 'package:flutter_edge_ai_litertlm/flutter_edge_ai_litertlm.dart';
 import 'package:flutter_edge_ai_speech/flutter_edge_ai_speech.dart';
 
+import 'model_catalog.dart' show kEmbedderVisionTokensPerImage;
+
 /// One-time flutter_edge_ai setup: the LiteRT-LM engine, the LiteRT speech
-/// backends, the LiteRT embedding backend and Gemma's embedding
-/// tokenizer. The sqlite-vec store is no longer
-/// registered here: since flutter_edge_ai 2.0 RAG is `flutter_edge_ai_rag`,
-/// opened by `VectorStoreService`. Registering loads nothing; models load
-/// in `getActive*`. Keep this the only `initialize` call: a second one
-/// returns early and silently ignores its arguments.
+/// backends and the LiteRT embedding backend, with EmbeddingGemma 2's images
+/// at [kEmbedderVisionTokensPerImage] tokens. No embedding tokenizer is
+/// registered: the built-in EmbeddingGemma 2 `.litertlm` carries its own. The
+/// sqlite-vec store is no longer registered here: since flutter_edge_ai 2.0
+/// RAG is `flutter_edge_ai_rag`, opened by `VectorStoreService`. Registering
+/// loads nothing; models load in `getActive*`. Keep this the only
+/// `initialize` call: a second one returns early and silently ignores its
+/// arguments.
 Future<void> initEdgeAi() => FlutterEdgeAi.initialize(
   inferenceEngines: const [LiteRtLmEngine()],
   sttBackends: const [LiteRtSttBackend()],
   ttsBackends: const [LiteRtTtsBackend()],
-  embeddingBackends: const [LiteRtEmbeddingBackend()],
-  embeddingTokenizers: const [GemmaEmbeddingTokenizers()],
+  embeddingBackends: const [
+    LiteRtEmbeddingBackend(visionTokensPerImage: kEmbedderVisionTokensPerImage),
+  ],
 );

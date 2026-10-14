@@ -12,20 +12,31 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import 'dart:typed_data';
+
 import '../data/services/hardware/hardware_info_service.dart';
 import '../data/services/hardware/memory_probe.dart';
 import '../data/services/hardware/native_log_tap.dart';
+import '../data/services/images/memory_frame.dart';
 import '../domain/models/hardware_profile.dart';
 import '../utils/result.dart';
 import 'audio_steps.dart';
 import 'chat_model_steps.dart';
 import 'detector_steps.dart';
+import 'embedder_steps.dart';
 import 'evidence_judge.dart';
 import 'self_test_options.dart';
 import 'self_test_ports.dart';
 import 'step_recorder.dart';
 
 export 'audio_steps.dart' show kSelfTestAudioTimeout;
+export 'embedder_steps.dart'
+    show
+        kSelfTestAudioQuestionAsset,
+        kSelfTestAudioQuestionText,
+        kSelfTestAudioTextMinCosine,
+        kSelfTestImageText,
+        kSelfTestImageTextMinCosine;
 export 'self_test_ports.dart';
 export 'step_recorder.dart' show SelfTestStep, StepStatus;
 
@@ -73,12 +84,14 @@ final class const SelfTestReport({
 /// the user's own `.litertlm`); 5 the detector again,
 /// bit-identical; 6a a tone on the default output (recorded from the sink's
 /// monitor where possible), 6b one second from the default microphone
-/// (without `--skip-audio`). Memory is sampled around each step. Closes the
-/// models and the audio at the end.
+/// (without `--skip-audio`); 7a EmbeddingGemma 2 ready with audio, 7b a
+/// bundled spoken "What time is it?" against its words, above a calibrated
+/// cosine. Memory (available, the process's RSS and peak RSS) is sampled
+/// around each step. Closes the models and the audio at the end.
 ///
-/// The orchestrator: it runs step 1 (the hardware probe) itself; steps 2 to 6
-/// are [DetectorSteps], [ChatModelSteps] and [AudioSteps]. One
-/// [StepRecorder] records them all and one [EvidenceJudge] judges them.
+/// The orchestrator: it runs step 1 (the hardware probe) itself; steps 2 to 7
+/// are [DetectorSteps], [ChatModelSteps], [AudioSteps] and [EmbedderSteps].
+/// One [StepRecorder] records them all and one [EvidenceJudge] judges them.
 final class SelfTestRunner {
   SelfTestRunner({
     required this._options,
@@ -92,6 +105,10 @@ final class SelfTestRunner {
     required this._detectorFile,
     required this._loadImage,
     required this._imageLabel,
+    required this._embedder,
+    required this._loadAudioQuestion,
+    required this._loadPhoto,
+    this._toMemoryFrame = memoryFramePng,
     this._audio,
     this._audioTimeout = kSelfTestAudioTimeout,
     void Function(String line)? progress,
@@ -113,6 +130,18 @@ final class SelfTestRunner {
   final ModelFileChoice _detectorFile;
   final Future<Result<SelfTestImage>> Function() _loadImage;
   final String _imageLabel;
+
+  /// Steps 7a/7b: the app's embedder (in the app) or one loaded for the run.
+  final SelfTestEmbedder _embedder;
+
+  /// The bundled spoken question ([kSelfTestAudioQuestionAsset]).
+  final Future<Result<Uint8List>> Function() _loadAudioQuestion;
+
+  /// The bundled photo step 7c embeds (the cats, [kSelfTestImageText]).
+  final Future<Result<Uint8List>> Function() _loadPhoto;
+
+  /// Step 7c's photo as the visual memory stores a frame ([memoryFramePng]).
+  final Future<Result<Uint8List>> Function(Uint8List encoded) _toMemoryFrame;
 
   /// Null: no audio steps (`--skip-audio`).
   final SelfTestAudio? _audio;
@@ -149,6 +178,14 @@ final class SelfTestRunner {
     chatModel: _chatModel,
     logTap: _logTap,
     hardware: () => _profile,
+  );
+
+  late final EmbedderSteps _embedderSteps = EmbedderSteps(
+    recorder: _recorder,
+    embedder: _embedder,
+    loadClip: _loadAudioQuestion,
+    loadPhoto: _loadPhoto,
+    toMemoryFrame: _toMemoryFrame,
   );
 
   /// Null: no audio steps (`--skip-audio`).
@@ -195,11 +232,13 @@ final class SelfTestRunner {
       await _chatSteps.run();
       await _detectorSteps.again();
       await _audioSteps?.run();
+      await _embedderSteps.run();
     } finally {
       await _detector.close();
       await _gemma.close();
       _chatModelClosed = true;
       await _audioSteps?.close();
+      await _embedder.close();
     }
     return report();
   }

@@ -702,6 +702,7 @@ void main() {
                 (item['class'] == null ||
                     cls == kCocoNames.indexOf(item['class']! as String)),
           ('detailed', DetailedRoute()) => true,
+          ('memory', MemoryRoute()) => true,
           _ => false,
         };
         if (!ok) {

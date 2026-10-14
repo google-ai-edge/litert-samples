@@ -12,7 +12,10 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import 'package:flutter_edge_ai_agent/flutter_edge_ai_agent.dart'
+    show AgentToolNames;
 import 'package:flutter_test/flutter_test.dart';
+import 'package:litert_edge_demos/domain/skills/app_intents.dart';
 import 'package:litert_edge_demos/domain/use_cases/prompt_builder.dart';
 
 import '../../fakes/fake_knowledge.dart';
@@ -112,6 +115,91 @@ void main() {
       expect(PromptBuilder.citedNumbers('Shape `[1, 3]` here.', 3), isEmpty);
       expect(PromptBuilder.citedNumbers('Both [1], [2].', 3), {1, 2});
       expect(PromptBuilder.citedNumbers('Both [1, 2].', 3), {1, 2});
+    });
+  });
+
+  group('buildSpoken (audio mode: the question is the recording)', () {
+    final passages = [passage(1), passage(2)];
+
+    test('without excerpts: the minimal prompt, never empty', () {
+      expect(PromptBuilder.buildSpoken(const []), PromptBuilder.spokenQuestion);
+      expect(
+        PromptBuilder.buildSpoken(const [], skills: true),
+        PromptBuilder.spokenQuestionWithSkills,
+      );
+      expect(PromptBuilder.spokenQuestion, isNotEmpty);
+      expect(
+        PromptBuilder.buildSpoken(const [], skills: true, image: true),
+        '${PromptBuilder.spokenQuestionWithSkills}'
+        '${PromptBuilder.spokenImageHint}',
+      );
+      expect(
+        PromptBuilder.buildSpoken(const [], image: true),
+        PromptBuilder.spokenQuestion,
+        reason: 'the hint is for agent chats only',
+      );
+    });
+
+    test('on an agent chat without excerpts: a task as well as a question, '
+        'and only the time and this device or app take a tool', () {
+      const prompt = PromptBuilder.spokenQuestionWithSkills;
+      expect(
+        prompt,
+        startsWith('Answer the question asked in this audio, or '),
+      );
+      expect(prompt, contains('do what it asks'));
+      expect(prompt, contains('current-time only for the time'));
+      expect(prompt, contains('device-info only for this device or app'));
+      expect(prompt, endsWith('reply directly with no tool call.'));
+      // The measured regression: a generic "use a skill if needed" made
+      // Gemma call invented intents for stories, capitals and jokes.
+      expect(prompt, isNot(contains('Use a skill only if')));
+    });
+
+    test('with excerpts: numbered from 1, the question is in the audio, '
+        'cite only the numbers given; no "Question:" line', () {
+      final prompt = PromptBuilder.buildSpoken(passages);
+      expect(prompt, startsWith('Excerpts from the knowledge base:\n\n[1] '));
+      expect(prompt, contains('[2] ${passages[1].content}'));
+      expect(prompt, contains('The question is in this audio. Answer it.'));
+      expect(prompt, contains('cite each one you use as [1] or [2]'));
+      expect(prompt, isNot(contains('Question:')));
+      expect(prompt, isNot(contains(PromptBuilder.noToolCall)));
+    });
+
+    test('on an agent chat the excerpts never forbid a skill: a live device '
+        'or time question is told which intent answers it', () {
+      final prompt = PromptBuilder.buildSpoken(passages, skills: true);
+      expect(prompt, startsWith('Reference excerpts from the knowledge base'));
+      expect(
+        prompt,
+        contains(
+          'The question is in this audio. ${PromptBuilder.spokenExcerptSkills}'
+          'Use the excerpts only if they are relevant',
+        ),
+      );
+      expect(
+        PromptBuilder.spokenExcerptSkills,
+        contains(
+          'call ${AgentToolNames.runIntent} with ${AppIntent.deviceInfo} '
+          'instead of using the excerpts',
+        ),
+        reason: 'the tool and intent names the chat really has',
+      );
+      expect(
+        PromptBuilder.spokenExcerptSkills,
+        contains(
+          'call ${AgentToolNames.runIntent} with ${AppIntent.currentTime}',
+        ),
+      );
+      expect(
+        prompt,
+        contains('Otherwise answer it directly with no tool call'),
+      );
+      expect(
+        PromptBuilder.buildSpoken(passages, skills: true, image: true),
+        endsWith(PromptBuilder.spokenImageHint),
+      );
     });
   });
 }

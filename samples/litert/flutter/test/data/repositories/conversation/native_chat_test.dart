@@ -14,12 +14,15 @@
 
 import 'dart:io';
 
+import 'package:flutter_edge_ai/flutter_edge_ai.dart'
+    show ModelType, PreferredBackend;
 import 'package:flutter_edge_ai_agent/flutter_edge_ai_agent.dart'
     show Skill, parseSkillMd;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:litert_edge_demos/config/model_catalog.dart';
 import 'package:litert_edge_demos/data/repositories/conversation/native_chat.dart';
 import 'package:litert_edge_demos/data/services/llm/llm_service.dart';
+import 'package:litert_edge_demos/domain/models/chat_model_config.dart';
 import 'package:litert_edge_demos/utils/result.dart';
 
 import '../../../fakes/fake_tool_model.dart';
@@ -52,7 +55,41 @@ void main() {
     final none = chats.capabilities;
 
     expect(none.modelName, 'no chat model');
-    expect((none.images, none.tools), (false, false));
+    expect((none.images, none.tools, none.audio), (false, false, false));
+  });
+
+  test('both chats (plain and agent) are built with the chat model\'s audio '
+      'support, which the capabilities report', () async {
+    expect(await llm.load(kDefineChatModel), isA<Ok<LlmInfo>>());
+    expect(chats.capabilities.audio, isFalse);
+    final (deafPlain, _) = await chats.build(kCameraProfile, skills);
+    final (deafAgent, _) = await chats.build(kVoiceChatProfile, skills);
+    expect([deafPlain.supportAudio, deafAgent.supportAudio], [false, false]);
+
+    const hearing = ChatModelConfig(
+      name: 'Gemma 4 E2B',
+      modelType: ModelType.gemma4,
+      llm: LlmConfig(
+        maxTokens: 4096,
+        backend: PreferredBackend.gpu,
+        maxNumImages: 1,
+        towers: ModelTowers(
+          vision: TowerPlacement(PreferredBackend.cpu),
+          audio: TowerPlacement(PreferredBackend.cpu),
+        ),
+      ),
+      tools: true,
+    );
+    expect(await llm.load(hearing), isA<Ok<LlmInfo>>());
+    expect(chats.capabilities.audio, isTrue);
+    final (plain, none) = await chats.build(kCameraProfile, skills);
+    final (agentChat, agent) = await chats.build(kVoiceChatProfile, skills);
+
+    expect(none, isNull);
+    expect(agent, isNotNull);
+    expect(plain.supportAudio, isTrue);
+    expect(agentChat.supportAudio, isTrue);
+    expect(model.chats.map((c) => c.supportAudio), [false, false, true, true]);
   });
 
   test('a profile with a skills template and skills gets an agent chat; '

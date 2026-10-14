@@ -145,6 +145,144 @@ const kNetworkLogInterval = Duration(seconds: 5);
 /// The painter draws at most this many boxes.
 const kMaxPaintedBoxes = 50;
 
+// Visual memory (docs/design/eg2-multimodal.md, "Live camera: visual
+// memory"): frames EmbeddingGemma 2 embeds while the camera demo is idle, and
+// a spoken question searches by meaning.
+
+/// The sampler asks for a memory frame no sooner than this after the end of
+/// its previous attempt…
+const kMemoryMinInterval = Duration(seconds: 3);
+
+/// …nor sooner than this many times the last frame embedding took (a phone
+/// that needs 1 s per frame embeds at most every 4 s).
+const kMemoryEmbedSpacing = 4;
+
+/// A frame is stored without a scene change once this much time has passed
+/// since the last stored one (a static scene still gets a fresh frame).
+const kMemoryMaxInterval = Duration(seconds: 10);
+
+/// How often the sampler checks whether a frame is due (its timer).
+const kMemoryTick = Duration(milliseconds: 500);
+
+/// A scene change, between two grey thumbnails of 32×32 cells (on 0–255)
+/// once the reference is re-aligned for a hand-held camera's shift
+/// ([kMemoryMaxShift]) and the overall brightness is matched (`sceneChange`
+/// in `data/services/detector/memory_shot.dart`): a mean absolute cell
+/// difference of at least [kMemorySceneChange], or at least
+/// [kMemoryChangedCells] cells that differ by at least [kMemoryCellChange].
+/// Each cell averages ~900 pixels of a 720p frame, so sensor noise stays
+/// well under 1, and the brightness match takes out an exposure or lighting
+/// change of the whole view; a new view gives a mean of 30 and more. A small
+/// object moves the mean by well under 6 but changes a few cells a lot,
+/// which the cell test catches.
+///
+/// Measured by test/data/services/detector/memory_shot_test.dart on a
+/// synthetic 720p desk (2026-10-14; `SCENE_CHANGE`): keys put down or taken
+/// away give a mean of 0.27 with 3 cells ≥ 24 (up to 39); a phone 1.31 (21
+/// cells, up to 92), a mug 2.06 (21, up to 123), a book 2.49 (56), a laptop
+/// 11.7 (177); the same with the camera moved 4 px: keys 1.16 (3–4 cells),
+/// phone 2.2 (21), mug 2.9 (21), book 3.1–3.3 (52–56), laptop 12.3 (178).
+/// The camera moved 3, 4 or 8 px (sensor noise ±3, empty desk, mug, book and
+/// mug, laptop) leaves a mean of 0.18–1.13 and a largest cell of 3–10 (no
+/// cell ≥ 24); a black phone on white paper (contrast 200) moved 5–15 px
+/// leaves a largest cell of 0.1–10.4, and taking it away changes 16 cells
+/// (up to 200). Without the re-alignment 4 px changed 4–5 cells and 8 px up
+/// to 60 (a new frame each time the hand shook); with whole pixels only, the
+/// phone on paper moved 5 px changed 12 cells. Sensor noise
+/// of ±3–8 per pixel leaves every cell within 1, noise of ±4 per cell within
+/// 4; 10 % darker or brighter is a raw mean of 14.1 (a change under the old
+/// mean-only test) and, matched, a largest cell of 0.5–1.7. The five
+/// fixture scenes of integration_test/visual_memory_test.dart differ by
+/// 39–56 (548–767 cells; measured before the re-alignment).
+const kMemorySceneChange = 6.0;
+const kMemoryCellChange = 24.0;
+const kMemoryChangedCells = 2;
+
+/// The visual memory is on by default only where the OS reports at least
+/// this much RAM in all: a device with less than 8 GB fitted gets it off by
+/// default, with the reason on the camera settings switch (the user may
+/// turn it on). Its image encoder adds ~300 MB (spec "Resources: go /
+/// no-go"; widening measured +327 MB on the Mac, the first image +280 MB on
+/// the Galaxy S24, which peaks at 2.36 GB with it and keeps ≈ 1 GB for the
+/// system). The OS reports less than the RAM fitted: an 8 GB phone shows
+/// about 7–7.5 GiB, a 6 GB one under 6 GiB, so the line is drawn between
+/// them, at 6.5 GiB.
+const kMemoryDefaultOnMinRamBytes = 6979321856; // 6.5 GiB
+
+/// The scene-change thumbnail's side, in cells.
+const kMemoryGreySide = 32;
+
+/// Each scene-change cell is this many grey pixels a side: the thumbnail is
+/// 128×128 (one pixel ≈ 10 × 5.6 px of a 720p frame), fine enough to
+/// re-align a hand-held camera's shift before the pixels are averaged into
+/// cells.
+const kMemoryCellPixels = 4;
+
+/// A hand-held camera moves between two samples: the reference thumbnail
+/// is re-aligned by every global shift of up to this many thumbnail pixels
+/// in x and y, in half-pixel steps (≈ 20 px across and 11 px down a 720p
+/// frame), and the best alignment is compared (`sceneChange`). A larger
+/// move is a new frame.
+const kMemoryMaxShift = 2;
+
+/// A memory frame's long side, in pixels: what is embedded, kept, shown on
+/// the result card and sent to the chat model.
+const kMemoryThumbMaxSide = 320;
+
+/// The memory keeps at most this many frames and this many bytes of PNG
+/// thumbnails (measured), dropping the oldest first.
+const kMemoryMaxEntries = 200;
+const kMemoryMaxBytes = 16 << 20;
+
+/// A memory frame must come back from the detector worker within this, or
+/// the attempt is dropped.
+const kMemoryCaptureTimeout = Duration(seconds: 2);
+
+/// A memory question's best frame is accepted when its cosine is at least
+/// [kMemoryMinCosine] and it beats, by at least [kMemoryMinMargin], the best
+/// frame that is more than [kMemoryMarginSeparation] away from it in time
+/// and shows a different scene (image vectors less alike than
+/// [kMemorySameSceneCosine]: frames of one long sighting are not rivals).
+/// With no such rival (a session that saw one scene) it must clear the
+/// floor plus the margin. A rival within the margin makes the answer
+/// ambiguous ("maybe in more than one place", the newest competing frame)
+/// when the best clears the floor plus the margin (both sightings then at or
+/// above the floor), and a miss when it does not.
+///
+/// Set by integration_test/visual_memory_test.dart (M4 Pro Mac, CPU,
+/// EmbeddingGemma 2 740m at 70 vision tokens, 2026-10-13; the spike's
+/// starting values were 0.60 and 0.03): over five scenes (the Wi-Fi note, the
+/// street sign, the pirate mug, the cats, the GATE 42 sign) the five scene
+/// questions' frames score 0.713–0.770 and beat their best rival by
+/// 0.037–0.185 (the least: the street sign over the GATE 42 sign, both
+/// signs); the six questions about things never shown best-match 0.566–0.612
+/// with margins of 0.003–0.015. The floor 0.62 rejects every negative by
+/// itself and leaves 0.09 below the weakest positive for real camera frames;
+/// the margin 0.025 is the middle of (0.015, 0.037). Two frames of one scene
+/// (10 % darker, shifted 24 px) score 0.994–0.998 against each other,
+/// different scenes 0.605–0.746: 0.88 is the middle of that gap.
+const kMemoryMinCosine = 0.62;
+const kMemoryMinMargin = 0.025;
+const kMemoryMarginSeparation = Duration(seconds: 5);
+const kMemorySameSceneCosine = 0.88;
+
+/// Frames of the best one's scene (image cosine ≥ [kMemorySameSceneCosine])
+/// whose question cosine is within this of the best are ties, and the newest
+/// of them is reported: "seen 12 s ago" comes from the latest sighting, not
+/// from whichever copy won by noise. A frame whose grey thumbnail shows a
+/// change from the best's (the sampler's scene-change test: keys put down or
+/// taken away hardly move the image vector) is never a tie.
+/// integration_test/visual_memory_test.dart
+/// prints the spread (`MEMORY_TIE`, M4 Pro Mac, 2026-10-14): the Wi-Fi
+/// question scores 0.761 / 0.755 / 0.755 against its frame, the frame 10 %
+/// darker and the frame shifted 24 px (spread 0.006); the smallest margin of
+/// a right frame over a different scene is 0.036.
+const kMemoryTieCosine = 0.01;
+
+/// Failed frame embeddings in a row that turn the visual memory off (with
+/// the last failure as its reason) until it is cleared.
+const kMemoryFailuresUntilOff = 3;
+
 /// The source Demo 3 opens, from `FRAME_SOURCE`, `FIXTURE_DIR` and
 /// `NETWORK_CAMERA_URL`. [CameraSourceSpec] means "the user's choice":
 /// `LiveCameraSettingsRepository.resolveSource` turns it into the device

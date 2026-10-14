@@ -14,9 +14,11 @@
 
 // The prebuilt knowledge-base index shipped in assets/kb_index/ still
 // matches this checkout: built from these assets/kb documents, this chunker,
-// the built-in embedder files and the resolved flutter_edge_ai_sqlite. When
+// the built-in embedder file and the resolved flutter_edge_ai_sqlite, and
+// bound to this build's RAG profile (kKbEmbeddingProfileId). When
 // this fails, the app would ignore the prebuilt index and embed on every
-// device (216 s on a Galaxy S24): rebuild it with tool/build_kb_index.sh.
+// device (29 s on an M4 Pro Mac, minutes on a phone): rebuild it with
+// tool/build_kb_index.sh.
 import 'dart:convert';
 import 'dart:io';
 
@@ -93,9 +95,11 @@ void main() {
       documents: kbDocumentsHash(documents),
       chunker: chunkerId(chunker),
       documentPrefix: TaskType.retrievalDocument.prefix,
-      modelId: kBundledEmbedderModel.name.replaceAll(RegExp(r'\.tflite$'), ''),
+      modelId: kBundledEmbedderModel.name.replaceAll(
+        RegExp(r'\.litertlm$'),
+        '',
+      ),
       modelSha256: kBundledEmbedderModel.sha256,
-      tokenizerSha256: kBundledEmbedderTokenizer.sha256,
       dim: kEmbedderConfig.dimension,
     );
 
@@ -115,5 +119,19 @@ void main() {
       reason: 'kb.db is the store\'s own vec0 layout: $_rebuild',
     );
     expect(manifest.embedderBackend, kEmbedderConfig.backend.name);
+  });
+
+  test('it is bound to this build\'s RAG embedding profile ($_rebuild '
+      'otherwise)', () {
+    final manifest = PrebuiltKbManifest.fromJson(
+      jsonDecode(manifestFile.readAsStringSync()),
+    );
+    // flutter_edge_ai_rag refuses a database bound to another profile: the
+    // app would skip the prebuilt index and embed on every device.
+    expect(
+      manifest.profileId,
+      kKbEmbeddingProfileId,
+      reason: 'kKbEmbeddingProfileId changed without a rebuild: $_rebuild',
+    );
   });
 }

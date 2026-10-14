@@ -37,6 +37,10 @@ enum ImageLoss {
 
   /// The context budget guard recreated the chat.
   budget,
+
+  /// The chat was rebuilt from the conversation's text (a spoken question's
+  /// words arrived after its placeholder had been replayed).
+  rebuild,
 }
 
 /// Timing of one assistant turn.
@@ -107,23 +111,56 @@ sealed class const AssistantEvent();
 /// A piece of the reply, in order.
 final class const AssistantTextDelta(final String text) extends AssistantEvent;
 
-/// Why the chat was recreated before a turn, dropping its history.
+/// Why the chat lost its history, or its oldest turns, before a turn.
 enum ContextResetReason {
-  /// The context budget guard: the next turn would not have fit.
+  /// The context budget guard: the next turn would not have fit, so the chat
+  /// was recreated.
   budget,
 
   /// The last agent turn was stopped, ran out of tool rounds or
   /// failed, leaving input staged that LiteRT-LM would glue onto the next
-  /// message.
+  /// message, so the chat was recreated.
   interruptedSkill,
+
+  /// A stop left an audio turn in the chat, so it was rebuilt from the
+  /// conversation's text, and the oldest turns did not fit beside this one
+  /// (rare: the text is far shorter than what the chat held).
+  rebuildAfterStop,
+
+  /// A spoken question's transcript arrived after the chat had been rebuilt
+  /// with its placeholder, so it was rebuilt from the conversation's text
+  /// again with the words, and the oldest turns did not fit beside this one
+  /// (rare, as for [rebuildAfterStop]).
+  transcriptArrived,
 }
 
-/// The chat was recreated before this turn ([reason]): the earlier history
-/// (and any image in it) is gone. Arrives before any text, whatever the
-/// turn's outcome afterwards (done, stopped, failed or cancelled), so the UI
-/// can say so even for a turn a barge-in replaced.
+/// The chat was recreated, or rebuilt without its oldest turns, before this
+/// turn ([reason]): the earlier history (and any image in it) is gone,
+/// except the newest [keptTurns] exchanges the rebuilt chat was given back
+/// as text; [droppedTurns] older ones did not fit. Arrives before any text,
+/// whatever the turn's outcome afterwards (done, stopped, failed or
+/// cancelled), so the UI can say so even for a turn a barge-in replaced.
 final class const AssistantContextReset({
   final ContextResetReason reason = ContextResetReason.budget,
+
+  /// The newest turns replayed into the rebuilt chat as text (the
+  /// conversation's text mirror); 0 when it starts empty.
+  final int keptTurns = 0,
+
+  /// The older turns of the mirror that did not fit the replay and are
+  /// forgotten (`ReplayPlan.dropped`); 0 when every turn was kept.
+  final int droppedTurns = 0,
+
+  /// Of the [keptTurns], the spoken questions replayed only as the
+  /// placeholder (their transcripts had not arrived): their words reach the
+  /// chat with a later rebuild, once they arrive.
+  final int wordlessTurns = 0,
+
+  /// False when the turn failed before the rebuilt chat was given the
+  /// history back (an interrupted skill call's rebuild, then a budget check
+  /// that threw): [keptTurns] and [droppedTurns] then count nothing, and the
+  /// next turn replays the history, announcing any turn it has to drop.
+  final bool replayed = true,
 }) extends AssistantEvent;
 
 /// The turn ended, normally or because of a stop. Always the last event of a

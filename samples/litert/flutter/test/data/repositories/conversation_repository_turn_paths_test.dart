@@ -34,6 +34,7 @@ import 'package:litert_edge_demos/data/services/llm/llm_service.dart';
 import 'package:litert_edge_demos/domain/models/assistant_event.dart';
 import 'package:litert_edge_demos/domain/models/chat_model_config.dart';
 import 'package:litert_edge_demos/utils/result.dart';
+import 'package:litert_edge_demos/utils/wav.dart';
 
 import '../../fakes/fake_tool_model.dart';
 
@@ -51,9 +52,9 @@ class _GatedToolModel extends FakeToolModel {
 
   @override
   Future<InferenceModelSession> createSession({
-    double temperature = .8,
-    int randomSeed = 1,
-    int topK = 1,
+    double? temperature,
+    int? randomSeed,
+    int? topK,
     double? topP,
     String? loraPath,
     bool? enableVisionModality,
@@ -314,7 +315,6 @@ void main() {
               llm: LlmConfig(
                 maxTokens: 4096,
                 backend: PreferredBackend.gpu,
-                supportImage: false,
                 maxNumImages: 1,
               ),
               tools: true,
@@ -333,6 +333,142 @@ void main() {
           );
           expect(session().queries, isEmpty);
           expect(noImages.isGenerating.value, isFalse);
+        });
+      });
+
+      group('a spoken question (audioWav)', () {
+        // Gemma 4 E2B with its audio encoder on.
+        const withAudio = ChatModelConfig(
+          name: 'Gemma 4 E2B',
+          modelType: ModelType.gemma4,
+          llm: LlmConfig(
+            maxTokens: 4096,
+            backend: PreferredBackend.gpu,
+            maxNumImages: 1,
+            towers: ModelTowers(
+              vision: TowerPlacement(PreferredBackend.cpu),
+              audio: TowerPlacement(PreferredBackend.cpu),
+            ),
+          ),
+          tools: true,
+        );
+        // 2 s of 16 kHz mono PCM16: 50 tokens at 25 a second.
+        final wav = wavFromPcm16(Uint8List(64000), sampleRate: 16000);
+
+        test('on a chat built without audio: '
+            'ConversationAudioUnsupportedException, nothing reaches the '
+            'engine or its history, idle; the next text turn sees only '
+            'itself', () async {
+          expect(repo.capabilities.audio, isFalse);
+          expect(model.chats.last.supportAudio, isFalse);
+
+          final events = await repo.ask('', audioWav: wav).toList();
+
+          final failed = events.single as AssistantFailed;
+          expect(failed.error, isA<ConversationAudioUnsupportedException>());
+          expect('${failed.error}', contains('without audio'));
+          expect(session().queries, isEmpty);
+          expect(repo.isGenerating.value, isFalse);
+
+          model.script.add(const TextTurn(['Hi.']));
+          final next = _Turn(repo, 'Hello');
+          await next.done;
+          final users = session().queries.where((m) => m.isUser).toList();
+          expect(users.map((m) => m.text), ['Hello']);
+          expect(users.single.hasAudio, isFalse);
+        });
+
+        test(
+          'on a chat built with audio: the recording rides on the turn\'s '
+          'one user message with the prompt and the image (the agent path '
+          'through AgentSession.ask(audioBytes:)), and only on that turn',
+          () async {
+            final audioRepo = await repoOn(withAudio);
+            addTearDown(audioRepo.close);
+            await open(audioRepo, path);
+            expect(audioRepo.capabilities.audio, isTrue);
+            expect(model.chats.last.supportAudio, isTrue);
+            model.script.addAll([
+              const TextTurn(['Paris.']),
+              const TextTurn(['Yes.']),
+            ]);
+
+            final spoken = await audioRepo
+                .ask('Excerpts …', image: cats, audioWav: wav)
+                .toList();
+            final typed = await audioRepo.ask('Sure?').toList();
+
+            expect(spoken.last, isA<AssistantDone>());
+            expect(typed.last, isA<AssistantDone>());
+            final users = session().queries.where((m) => m.isUser).toList();
+            expect(users.first.text, 'Excerpts …');
+            expect(users.first.audioBytes, same(wav));
+            expect(users.first.hasImage, isTrue);
+            expect(users.last.text, 'Sure?');
+            expect(users.last.hasAudio, isFalse, reason: 'never re-sent');
+          },
+        );
+
+        test('a recording that is not a 16 kHz mono PCM16 WAV, or has no '
+            'samples, is refused before the engine', () async {
+          final audioRepo = await repoOn(withAudio);
+          addTearDown(audioRepo.close);
+          await open(audioRepo, path);
+          final queries = session().queries.length;
+
+          for (final bad in [
+            Uint8List.fromList([1, 2, 3, 4]),
+            wavFromPcm16(Uint8List(0), sampleRate: 16000),
+            wavFromPcm16(Uint8List(100), sampleRate: 44100),
+          ]) {
+            final events = await audioRepo.ask('', audioWav: bad).toList();
+            expect(
+              (events.single as AssistantFailed).error,
+              isA<FormatException>(),
+            );
+          }
+          expect(session().queries, hasLength(queries));
+          expect(audioRepo.isGenerating.value, isFalse);
+        });
+
+        test('the budget counts the recording at 25 tokens a second: a prompt '
+            'that fits without it fails as too long with it', () async {
+          final audioRepo = await repoOn(withAudio);
+          addTearDown(audioRepo.close);
+          await open(audioRepo, path);
+          var reserve = kVoiceChatProfile.maxOutputTokens + kTurnOverheadTokens;
+          if (path == _Path.agent) {
+            final largestSkill = _skills
+                .map(
+                  (s) =>
+                      ('${s.name}\n${s.description}\n${s.instructions}'.length /
+                              4)
+                          .ceil(),
+                )
+                .reduce((a, b) => a > b ? a : b);
+            reserve +=
+                kAgentToolRounds * (kToolCallTokens + kToolResultTokens) +
+                largestSkill +
+                (model.chats.last.systemInstruction!.length / 4).ceil() +
+                kToolDeclarationTokens;
+          }
+          expect(kAudioTokensPerSecond, 25);
+          // 25 tokens below the limit: the 2 s recording's 50 do not fit.
+          final prompt = _tokens(limit - reserve - 25);
+
+          final refused = await audioRepo.ask(prompt, audioWav: wav).toList();
+
+          expect(
+            (refused.single as AssistantFailed).error,
+            isA<ConversationTooLongException>().having(
+              (e) => '$e',
+              'message',
+              contains('recording'),
+            ),
+          );
+          model.script.add(const TextTurn(['Ok.']));
+          final accepted = await audioRepo.ask(prompt).toList();
+          expect(accepted.last, isA<AssistantDone>());
         });
       });
 

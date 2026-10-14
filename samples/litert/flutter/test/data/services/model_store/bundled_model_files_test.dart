@@ -235,8 +235,9 @@ void main() {
       },
     );
 
-    test('after an extraction, files of earlier builds are removed; this '
-        "build's files, records and copies in progress stay", () async {
+    test('before an extraction, files of earlier builds are removed (their '
+        "space is what the copy needs); this build's files, records and "
+        'copies in progress stay', () async {
       final dir = Directory('${tmp.path}/bundled')..createSync();
       final other = const BundledFile(
         asset: 'assets/models/other.model',
@@ -251,25 +252,47 @@ void main() {
       ]) {
         File('${dir.path}/$name').writeAsStringSync('old');
       }
+      Set<String> listing() =>
+          dir.listSync().map((e) => e.uri.pathSegments.last).toSet();
+      Set<String>? atCopy;
       final files = BundledModelFiles(
         operatingSystem: 'android',
         executable: '/system/bin/app_process64',
         storeRoot: () async => tmp,
-        copier: copier,
+        copier: (asset, target) async {
+          // What is on disk when the copy starts (a nearly full device: the
+          // old embedder must be gone by now).
+          atCopy = listing();
+          await copier(asset, target);
+        },
         ops: ops,
         known: [file, other],
       );
 
       expect(await files.pathOf(file), isA<Ok<String>>());
 
-      final left = dir.listSync().map((e) => e.uri.pathSegments.last).toSet();
-      expect(left, {
+      expect(atCopy, {'other.model', 'other.model.extract'});
+      expect(listing(), {
         'tiny.tflite',
         'tiny.tflite.sha256',
         'other.model',
         'other.model.extract',
       });
     });
+
+    test(
+      'a file extracted before is used without pruning or copying',
+      () async {
+        await android().pathOf(file);
+        final stale = File('${tmp.path}/bundled/embedder_v1.tflite')
+          ..writeAsStringSync('old');
+
+        expect(await android().pathOf(file), isA<Ok<String>>());
+
+        expect(copies, hasLength(1));
+        expect(stale.existsSync(), isTrue, reason: 'pruned with the next copy');
+      },
+    );
 
     test('a changed file (no matching record) is extracted again', () async {
       await android().pathOf(file);
@@ -360,10 +383,12 @@ void main() {
   });
 
   test('the real assets in the repository match the build constants', () {
-    for (final f in [kBundledEmbedderModel, kBundledEmbedderTokenizer]) {
-      final local = File(f.asset);
-      expect(local.existsSync(), isTrue, reason: f.asset);
-      expect(local.lengthSync(), f.sizeBytes, reason: f.asset);
-    }
+    final local = File(kBundledEmbedderModel.asset);
+    expect(local.existsSync(), isTrue, reason: kBundledEmbedderModel.asset);
+    expect(
+      local.lengthSync(),
+      kBundledEmbedderModel.sizeBytes,
+      reason: kBundledEmbedderModel.asset,
+    );
   });
 }

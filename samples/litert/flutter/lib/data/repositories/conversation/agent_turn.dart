@@ -19,9 +19,11 @@ import 'package:flutter/foundation.dart';
 import '../../../domain/models/assistant_event.dart';
 import '../../../domain/models/skill_step.dart';
 import '../../../utils/result.dart';
+import '../../../utils/wav.dart';
 import '../conversation_repository.dart';
 import 'agent_turn_fold.dart';
 import 'generation_metrics_builder.dart';
+import 'history_mirror.dart';
 import 'live_chat.dart';
 import 'native_chat.dart';
 import 'turn_start.dart';
@@ -37,8 +39,11 @@ Stream<AssistantEvent> askAgent(
   AgentChat agent,
   String prompt,
   Uint8List? image,
-  void Function(SkillStep step)? onStep,
-) {
+  void Function(SkillStep step)? onStep, {
+  Uint8List? audioWav,
+  String? historyText,
+  int? turn,
+}) {
   late final StreamController<AssistantEvent> out;
   var listening = true;
   var ended = false;
@@ -49,6 +54,9 @@ Stream<AssistantEvent> askAgent(
         agent,
         prompt,
         image,
+        audioWav: audioWav,
+        historyText: historyText,
+        turn: turn,
         onStep: onStep,
         emit: (event) {
           if (listening && !out.isClosed) out.add(event);
@@ -76,6 +84,9 @@ Future<void> _runAgentTurn(
   AgentChat agentChat,
   String prompt,
   Uint8List? image, {
+  required Uint8List? audioWav,
+  required String? historyText,
+  required int? turn,
   required void Function(AssistantEvent event) emit,
   required void Function(SkillStep step)? onStep,
 }) async {
@@ -83,13 +94,15 @@ Future<void> _runAgentTurn(
   // No check that `agentChat` is still the open agent: `askTurn` read it
   // from the slot in the same synchronous run (its `yield*` listens to
   // `askAgent`'s controller at once, and `onListen` runs this at once).
-  switch (live.precheck(image)) {
+  switch (live.precheck(image, audioWav: audioWav)) {
     case Ok(:final value):
       ready = value;
     case Error(:final error):
       emit(AssistantFailed(error));
       return;
   }
+  // Checked by the precheck: a 16 kHz mono PCM16 WAV with samples.
+  final audio = audioWav == null ? null : wavDuration(audioWav);
   final profile = ready.profile;
   final done = live.beginTurn();
   final metrics = GenerationMetricsBuilder(imageAttached: image != null);
@@ -97,7 +110,17 @@ Future<void> _runAgentTurn(
   var agent = agentChat;
   Uint8List? imageToSend;
   var sent = false;
+  // The turn in the conversation's text mirror, once it is sent, and its
+  // reply as far as it streamed.
+  MirrorSlot? slot;
+  final reply = StringBuffer();
   final fold = AgentTurnFold(clock: () => metrics.elapsed, onStep: onStep);
+  // The turn ended normally (AssistantDone): only then is an intent's result
+  // the answer the user heard.
+  var succeeded = false;
+  // An interrupted skill call's rebuild, announced with the budget guard's
+  // replay (how many turns the rebuilt chat keeps).
+  ContextResetReason? staleReset;
   try {
     // 0. The last agent turn ended with input staged (LiteRT-LM would prepend
     //    it to the next user message). The model forgets the history while the
@@ -109,13 +132,13 @@ Future<void> _runAgentTurn(
         'generation, leaving input staged: rebuilding the chat first '
         '(history lost)',
       );
-      (chat, agent) = await live.recreateAgent(profile, agent, ImageLoss.stop);
-      metrics.contextWasReset(ContextResetReason.interruptedSkill);
-      emit(
-        const AssistantContextReset(
-          reason: ContextResetReason.interruptedSkill,
-        ),
+      (chat, agent) = await live.recreateAgent(
+        profile,
+        agent,
+        ContextResetReason.interruptedSkill,
       );
+      metrics.contextWasReset(ContextResetReason.interruptedSkill);
+      staleReset = ContextResetReason.interruptedSkill;
     }
 
     // 1. Budget guard, then the stop check: the plain guard's prompt +
@@ -130,16 +153,32 @@ Future<void> _runAgentTurn(
       profile: profile,
       image: image,
       metrics: metrics,
+      audio: audio,
     );
     chat = guarded.chat;
     agent = guarded.agent ?? agent;
-    // Announced now, whatever happens to the turn next.
-    if (guarded.reset) emit(const AssistantContextReset());
+    // Announced now, whatever happens to the turn next: one reset at most,
+    // the interrupted skill's when there was one.
+    if (staleReset ?? guarded.reset case final reason?) {
+      emit(
+        AssistantContextReset(
+          reason: reason,
+          keptTurns: guarded.replay?.turns.length ?? 0,
+          droppedTurns: guarded.replay?.dropped ?? 0,
+          wordlessTurns: wordlessIn(guarded.replay),
+        ),
+      );
+      staleReset = null;
+    }
     if (stoppedBeforeSending(live, metrics, guarded.promptTokens)
         case final done?) {
       emit(done);
       return;
     }
+
+    // A chat that must be rebuilt replays the text history first.
+    final replay = guarded.replay;
+    if (replay != null) await live.applyReplay(chat, replay);
 
     // 2. Send the image only when the live chat cannot see it; its prefill
     //    includes, on an empty conversation, the system prompt (template,
@@ -149,18 +188,24 @@ Future<void> _runAgentTurn(
       live,
       chat,
       image,
-      promptTokens: guarded.promptTokens,
+      promptTokens: guarded.promptTokens + (replay?.tokens ?? 0),
       systemTokens: () async => (await agent.reserve(chat)).system,
     );
     imageToSend = send.image;
     final (image: _, :resent, :rebuildPending, :before) = send;
     sent = true;
+    slot = live.mirror.begin(
+      user: historyText ?? prompt,
+      turn: turn,
+      audio: audioWav != null,
+    );
 
     // 3. Drain the agent's stream to its end (never cancel it).
     var stopResent = false;
     await for (final event in agent.session.ask(
       prompt,
       imageBytes: imageToSend,
+      audioBytes: audioWav,
       isCancelled: () => live.stopRequested,
     )) {
       if (live.stopRequested && !stopResent) {
@@ -171,6 +216,7 @@ Future<void> _runAgentTurn(
       }
       if (fold.on(event, stopRequested: live.stopRequested) case final text?) {
         metrics.chunk();
+        reply.write(text);
         emit(AssistantTextDelta(text));
       }
     }
@@ -191,6 +237,7 @@ Future<void> _runAgentTurn(
       return;
     }
     final after = sessionMetricsOf(chat);
+    succeeded = true;
     emit(
       AssistantDone(
         metrics.finished(
@@ -215,8 +262,25 @@ Future<void> _runAgentTurn(
       // Core balances a failed generation by staging failure answers.
       live.markStaleToolTail();
     }
+    // An interrupted skill's rebuild that the guard's failure kept from
+    // being announced: the chat forgot all the same. No replay ran (the
+    // guard plans it), so there are no counts to give: the next turn
+    // replays the history and says what it had to drop.
+    if (staleReset != null) {
+      emit(AssistantContextReset(reason: staleReset, replayed: false));
+    }
     emit(AssistantFailed(asException(e)));
   } finally {
+    if (slot != null) {
+      final text = reply.toString();
+      // A final generation that came back empty after an intent: its result
+      // is what the user hears (ChatTurnResponder speaks it), so it is the
+      // reply a rebuilt chat replays.
+      final kept = text.trim().isEmpty && succeeded && !live.stopRequested
+          ? fold.lastIntentResult ?? text
+          : text;
+      live.mirror.reply(slot, kept);
+    }
     live.endTurn(done);
   }
 }

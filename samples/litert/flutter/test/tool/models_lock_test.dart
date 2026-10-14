@@ -100,12 +100,12 @@ void main() {
       reason: 'one line per file',
     );
     expect(
-      {
+      [
         for (final e in entries)
-          if (e.access == 'gated') e.repo,
-      },
-      {'litert-community/embeddinggemma-300m'},
-      reason: 'fetch_models.sh asks for HF_TOKEN for this repo only',
+          if (e.access == 'gated') e.dest,
+      ],
+      isEmpty,
+      reason: 'every built-in model is public: a checkout needs no HF_TOKEN',
     );
   });
 

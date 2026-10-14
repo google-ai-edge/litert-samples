@@ -37,9 +37,9 @@ class _GatedToolModel extends FakeToolModel {
 
   @override
   Future<InferenceModelSession> createSession({
-    double temperature = .8,
-    int randomSeed = 1,
-    int topK = 1,
+    double? temperature,
+    int? randomSeed,
+    int? topK,
     double? topP,
     String? loraPath,
     bool? enableVisionModality,

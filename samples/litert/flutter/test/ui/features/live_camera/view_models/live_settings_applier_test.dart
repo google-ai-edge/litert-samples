@@ -53,12 +53,16 @@ final class _Screen {
   bool get startFailed => lastStart is Error<FrameSourceInfo>;
   bool needsReconnect() => startFailed || live.state.value is LiveFailed;
 
-  Future<void> start() =>
-      running ??= _start().whenComplete(() => running = null);
+  Future<void> start({bool resume = false}) =>
+      running ??= _start(resume).whenComplete(() => running = null);
 
-  Future<void> _start() async {
+  Future<void> _start(bool resume) async {
     lastStart = switch (await settings.resolveSource()) {
-      Ok(:final value) => await live.start(value, owner: owner),
+      Ok(:final value) => await live.start(
+        value,
+        owner: owner,
+        newSession: !resume,
+      ),
       Error(:final error) => Result.error(error),
     };
   }
@@ -514,6 +518,33 @@ void main() {
       expect(applier.backend, DetectorBackend.cpu);
       expect(applier.setDetectorBackend.result, isA<Ok<void>>());
       expect(live.state.value, isA<LiveRunning>());
+    });
+
+    test('a source change starts a new detection session (the visual memory '
+        'forgets); a detector switch resumes the one it interrupted', () async {
+      final (applier, _) = await running();
+      final starts = live.sourceStarts.value;
+      expect(await backendStep(applier, DetectorBackend.cpu), isA<Ok<void>>());
+      expect(log, [
+        'backend cpu',
+        'switch',
+        'reload',
+        'start CameraSourceSpec',
+      ]);
+      expect(live.state.value, isA<LiveRunning>());
+      expect(live.sourceStarts.value, starts, reason: 'the same session');
+
+      expect(
+        await sourceStep(
+          applier,
+          const CameraSourceChoice(
+            kind: CameraSourceKind.network,
+            networkUrl: _phone,
+          ),
+        ),
+        isA<Ok<void>>(),
+      );
+      expect(live.sourceStarts.value, starts + 1, reason: 'a new session');
     });
 
     test('the same source while it runs: nothing; after a failed start: it '

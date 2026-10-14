@@ -18,6 +18,8 @@ import 'package:flutter_edge_ai_speech/flutter_edge_ai_speech.dart'
     show VoiceResponder;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:litert_edge_demos/config/model_catalog.dart';
+import 'package:litert_edge_demos/domain/models/assistant_event.dart'
+    show ContextResetReason;
 import 'package:litert_edge_demos/domain/models/chat_side_event.dart';
 import 'package:litert_edge_demos/domain/models/knowledge.dart';
 import 'package:litert_edge_demos/domain/use_cases/chat_turn_responder.dart';
@@ -185,9 +187,17 @@ void main() {
       final done = responder.respond('Hi').listen((_) {}).asFuture<void>();
       await pumpEventQueue();
 
-      conversation.emitContextReset();
+      conversation.emitContextReset(
+        keptTurns: 3,
+        droppedTurns: 2,
+        wordlessTurns: 1,
+      );
       await pumpEventQueue();
-      expect(sides.whereType<ChatContextReset>(), hasLength(1));
+      final reset = sides.whereType<ChatContextReset>().single;
+      expect(reset.keptTurns, 3);
+      expect(reset.droppedTurns, 2);
+      expect(reset.wordlessTurns, 1);
+      expect(reset.replayed, isTrue);
 
       conversation.emit('Hello.');
       await conversation.finish();
@@ -205,6 +215,23 @@ void main() {
       await expectLater(done, throwsA(isA<Exception>()));
 
       expect(sides.whereType<ChatContextReset>(), hasLength(1));
+    });
+
+    test('a reset whose replay never ran is forwarded as such', () async {
+      final responder = responderWith(null);
+      final done = responder.respond('Hi').listen((_) {}).asFuture<void>();
+      await pumpEventQueue();
+
+      conversation.emitContextReset(
+        reason: ContextResetReason.interruptedSkill,
+        replayed: false,
+      );
+      await conversation.fail(Exception('too long'));
+      await expectLater(done, throwsA(isA<Exception>()));
+
+      final reset = sides.whereType<ChatContextReset>().single;
+      expect(reset.reason, ContextResetReason.interruptedSkill);
+      expect(reset.replayed, isFalse);
     });
 
     test('forwarded even after this turn was stopped (barge-in)', () async {

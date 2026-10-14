@@ -25,21 +25,27 @@ import 'package:flutter_edge_ai_sqlite/flutter_edge_ai_sqlite.dart'
     show SqliteVectorStoreProvider;
 
 import '../../../config/knowledge_config.dart';
+import '../../../domain/models/knowledge_query.dart';
 import '../../../utils/result.dart';
 
 /// The query embedding [VectorStoreService.search] searches with
-/// (`EmbedderService.embedQuery`: the `retrievalQuery` prefix).
-typedef QueryEmbedder = Future<Result<List<double>>> Function(String query);
+/// (`EmbedderService.embedQuery`: text with the `retrievalQuery` prefix,
+/// audio as it is).
+typedef QueryEmbedder = Future<Result<List<double>>> Function(
+  KnowledgeQuery query,
+);
 
 /// The sqlite-vec knowledge-base index: one `flutter_edge_ai_rag` index over
 /// `flutter_edge_ai_sqlite`. Only `KnowledgeRepository` uses it.
 ///
 /// - [open] opens (or creates) the database at a path, bound to the
 ///   knowledge base's embedding profile ([kKbEmbeddingProfileId]). A
-///   database an earlier build wrote before the RAG package had profiles
-///   is adopted: its vectors came from the same built-in EmbeddingGemma,
-///   and the package checks their dimension.
-/// - [search] embeds the query through [QueryEmbedder] and returns
+///   database bound to another profile, or one an earlier build wrote
+///   before the RAG package had profiles (EmbeddingGemma-300M vectors, the
+///   same 768 dimensions but another space), is refused: the repository
+///   deletes it and indexes again, never searching foreign vectors.
+/// - [search] embeds the question (text or audio) through [QueryEmbedder]
+///   and returns
 ///   similarity = 1 − cosine distance, best first. No threshold: the
 ///   repository gates.
 /// - [clear] drops the rows (the profile binding stays); the next [add]
@@ -59,6 +65,10 @@ class VectorStoreService {
   final QueryEmbedder _embedQuery;
   final FlutterEdgeAiRag _rag;
   final EmbeddingProfile _profile;
+
+  /// The embedding profile every database this store opens is bound to
+  /// ([kKbEmbeddingProfileId] in the app).
+  String get profileId => _profile.id;
   RagIndex? _index;
   bool _closed = false;
 
@@ -69,13 +79,9 @@ class VectorStoreService {
     final previous = _index;
     _index = null;
     await previous?.dispose();
-    final index = await _rag.open(
-      spec: VectorStoreSpec(
-        providerId: 'sqlite',
-        location: databasePath,
-        allowLegacyProfileAdoption: true,
-      ),
-      embeddingProfile: _profile,
+    final index = await _rag.openVectors(
+      spec: VectorStoreSpec(providerId: 'sqlite', location: databasePath),
+      profile: _profile,
     );
     if (_closed) {
       // close() ran during the open.
@@ -101,7 +107,7 @@ class VectorStoreService {
   );
 
   Future<Result<List<RetrievalResult>>> search(
-    String query, {
+    KnowledgeQuery query, {
     required int topK,
   }) async {
     final List<double> embedding;

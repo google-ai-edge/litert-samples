@@ -27,6 +27,7 @@ import '../../config/model_catalog.dart'
         kRetiredGemmaFolder,
         kRetiredGemmaSha256;
 import '../../domain/models/chat_model.dart';
+import '../../domain/models/chat_model_config.dart' show ModelTowers;
 import '../../domain/models/npu_availability.dart';
 import '../../domain/models/provisioning.dart';
 import '../../domain/ports/chat_model_planner.dart';
@@ -54,6 +55,13 @@ final class const ChatModelState({
 
   /// Something to tell once, not a problem (a retired saved choice).
   final String? note,
+
+  /// The sections of [custom]'s file header as last read (the file in
+  /// place, or the store's copy); null when it could not be read or there
+  /// is no file. The towers follow from it and the backend
+  /// ([CustomChatModel.towersOf]): nothing about them is saved but the
+  /// user's choices for the towers it leaves open (on the NPU).
+  final List<LitertlmSection>? header,
 
   /// [ChatModelRepository.load] has run.
   final bool loaded = false,
@@ -108,6 +116,19 @@ class ChatModelRepository implements ChatModelPlanner {
   /// Why the in-place file of the saved model cannot be used (missing,
   /// unreadable, not a `.litertlm`, changed); null when it can.
   String? _localProblem;
+
+  /// Why the store's copy of the saved model cannot be used although it
+  /// verified (its header cannot be read at launch); null when it can. Like
+  /// [_localProblem] it blocks the plan, not the saved settings: picking the
+  /// file again keeps them.
+  String? _storedProblem;
+
+  /// The header of the saved model's file as last read: the file in place
+  /// (when it was chosen, or checked at [load]) or the store's copy of an
+  /// imported or downloaded file (after it was stored, or verified at
+  /// [load]); null when it could not be read. Published with every state
+  /// ([ChatModelState.header]): the towers follow from it.
+  LitertlmInfo? _fileHeader;
 
   /// The background SHA-256 of a file used in place runs.
   final ValueNotifier<bool> _hashing = ValueNotifier(false);
@@ -239,8 +260,25 @@ class ChatModelRepository implements ChatModelPlanner {
       }
       _localProblem = await _checkLocal(found ?? path, file);
     } else if (custom?.file case final file?) {
-      if (await _store.useCustomFile(file) case Error(:final error)) {
-        problems.add('its file could not be checked ($error)');
+      switch (await _store.useCustomFile(file)) {
+        case Error(:final error):
+          problems.add('its file could not be checked ($error)');
+        case Ok(value: final stored?):
+          // Fail fast, as for a file in place: never loaded with its towers
+          // off on a guess.
+          switch (await inspectLitertlm(stored)) {
+            case Ok(:final value):
+              _fileHeader = value;
+              _storedProblem = null;
+            case Error(:final error):
+              _storedProblem =
+                  'the header of ${file.name} in the model store cannot be '
+                  'read ($error). Import or download it again, or choose '
+                  'another .litertlm.';
+              debugPrint('[ChatModel] $_storedProblem');
+          }
+        case Ok():
+          break; // missing or changed: the plan says so
       }
     }
     final problem = problems.isEmpty
@@ -255,12 +293,14 @@ class ChatModelRepository implements ChatModelPlanner {
         problem: problem,
         note: note,
         loaded: true,
+        header: _fileHeader?.sections,
       ),
     );
     debugPrint(
       '[ChatModel] ${kind.name}'
       '${custom == null ? '' : ' · custom ${custom.displayName} '
-                '(${custom.settingsLine}) ${custom.sourceLine}'}',
+                '(${_settingsLineOf(custom)}) '
+                '${custom.sourceLine}'}',
     );
     if (custom
         case CustomChatModel(
@@ -277,8 +317,9 @@ class ChatModelRepository implements ChatModelPlanner {
 
   /// After an upgrade: the Gemma 4 E2B an earlier build downloaded and
   /// verified (`<store>/gemma4E2b/`, its `.sha256` record matching), made
-  /// the chat model in place with Gemma 4 E2B's settings (GPU, 8192,
-  /// images and tools on) and a one-time note. Null when there is none.
+  /// the chat model in place with Gemma 4 E2B's settings (GPU, 8192, tools
+  /// on; its towers from its header) and a one-time note. Null when there is
+  /// none.
   Future<Result<void>?> _adoptEarlierGemma() async {
     final String path;
     try {
@@ -292,9 +333,13 @@ class ChatModelRepository implements ChatModelPlanner {
     } on FileSystemException {
       return null;
     }
-    if (await inspectLitertlm(path) case Error(:final error)) {
-      debugPrint('[ChatModel] the earlier Gemma 4 E2B at $path: $error');
-      return null;
+    final LitertlmInfo header;
+    switch (await inspectLitertlm(path)) {
+      case Ok(:final value):
+        header = value;
+      case Error(:final error):
+        debugPrint('[ChatModel] the earlier Gemma 4 E2B at $path: $error');
+        return null;
     }
     final model = CustomChatModel(
       displayName: kDefineChatModel.name,
@@ -308,7 +353,6 @@ class ChatModelRepository implements ChatModelPlanner {
       modelType: kDefineChatModel.modelType,
       backend: PreferredBackend.gpu,
       maxTokens: kLlmConfig.maxTokens,
-      supportImage: true,
       tools: true,
     );
     final adopted = await _settingsWrites.run(() async {
@@ -320,12 +364,14 @@ class ChatModelRepository implements ChatModelPlanner {
         }
       }
       _localProblem = null;
+      _fileHeader = header;
       _publish(
         ChatModelState(
           kind: ChatModelKind.custom,
           custom: model,
           note: kEarlierGemmaAdoptedNote,
           loaded: true,
+          header: header.sections,
         ),
       );
       return const Result<void>.ok(null);
@@ -357,14 +403,34 @@ class ChatModelRepository implements ChatModelPlanner {
         'Your own chat model is chosen but has no file: choose a .litertlm.',
       );
     }
+    // Read whenever the file was chosen or checked at launch; a file whose
+    // header cannot be read is refused or a problem before this.
+    final header = s.header;
+    const unread = 'its header has not been read: choose the .litertlm again.';
     if (custom.source case LocalModelSource(:final path)) {
       final problem = _localProblem ?? _quickLocalProblem(path, file);
-      return problem == null
-          ? CustomChatPlan(path: path, model: custom)
-          : ChatPlanBlocked('${custom.displayName}: $problem');
+      return switch ((problem, header)) {
+        (final problem?, _) => ChatPlanBlocked(
+          '${custom.displayName}: $problem',
+        ),
+        (null, final header?) => CustomChatPlan(
+          path: path,
+          model: custom,
+          header: header,
+        ),
+        (null, null) => ChatPlanBlocked('${custom.displayName}: $unread'),
+      };
+    }
+    if (_storedProblem case final problem?) {
+      return ChatPlanBlocked('${custom.displayName}: $problem');
     }
     return switch (_store.customFile.value) {
-      StoreFileReady(:final path) => CustomChatPlan(path: path, model: custom),
+      StoreFileReady(:final path) when header != null => CustomChatPlan(
+        path: path,
+        model: custom,
+        header: header,
+      ),
+      StoreFileReady() => ChatPlanBlocked('${custom.displayName}: $unread'),
       StoreFileUnverified() => ChatPlanBlocked(
         '${custom.displayName}: ${file.name} changed on disk since it was '
         'stored (its size or checksum record differs). Import or download it '
@@ -382,17 +448,52 @@ class ChatModelRepository implements ChatModelPlanner {
 
   /// Imports the `.litertlm` at [path] (see `ModelStore.importCustomFile`)
   /// as the custom model's file: a first one gets default settings, a
-  /// replacement keeps the current ones. Saved, but the choice is not
-  /// changed: [apply] makes it the chat model.
+  /// replacement keeps the current ones ([_adoptStored]: refused when its
+  /// header cannot be read). Saved, but the choice is not changed: [apply]
+  /// makes it the chat model.
   Future<Result<CustomChatModel>> importFile(
     String path, {
     String? moveFrom,
   }) async {
+    // Read before the store copies it over `custom/<name>`: a file that is
+    // not a .litertlm never replaces the chosen model's file of that name.
+    if (await inspectLitertlm(path) case Error(:final error)) {
+      debugPrint('[ChatModel] import of $path refused: $error');
+      return Result.error(error);
+    }
     final stored = await _store.importCustomFile(path, moveFrom: moveFrom);
     return switch (stored) {
-      Ok(:final value) => _adopt(value, ImportedModelSource(path)),
+      Ok(:final value) => _adoptStored(value, ImportedModelSource(path)),
       Error(:final error) => Result.error(error),
     };
+  }
+
+  /// Adopts the store's copy [file] (just imported or downloaded) from
+  /// [source], its defaults and towers from its header like a file in place.
+  /// The picked file and the downloaded bytes were checked before they were
+  /// stored; should the copy's header still not read (an I/O error), it is
+  /// refused with the inspection error, never adopted with its towers off:
+  /// the chosen model and the store's slot stay as they were, and the copy
+  /// goes with the next prune of the store ([pruneUnused], the next adopt).
+  Future<Result<CustomChatModel>> _adoptStored(
+    CustomModelFile file,
+    CustomModelSource source,
+  ) async {
+    switch (await inspectLitertlm(await _store.customPathOf(file.name))) {
+      case Ok(:final value):
+        final adopted = await _adopt(file, source, header: value);
+        if (adopted is Ok<CustomChatModel>) _storedProblem = null;
+        return adopted;
+      case Error(:final error):
+        debugPrint('[ChatModel] ${file.name} refused: $error');
+        // The store's slot points at the refused copy now: back to the
+        // chosen model's stored file (none for a file in place or no model).
+        final current = _state.value.custom;
+        await _store.useCustomFile(
+          current?.source is LocalModelSource ? null : current?.file,
+        );
+        return Result.error(error);
+    }
   }
 
   /// Downloads the custom model's file from [url] (see
@@ -414,9 +515,16 @@ class ChatModelRepository implements ChatModelPlanner {
       url,
       sha256: sha256,
       sizeBytes: sizeBytes,
+      // Read before it replaces the chosen model's file of that name.
+      accept: (path) async => switch (await inspectLitertlm(path)) {
+        Ok() => null,
+        Error(:final error) =>
+          'The download from ${redactUrl(url)} is not a usable .litertlm '
+              '(${'$error'.replaceAll(path, 'the downloaded file')})',
+      },
     );
     return switch (stored) {
-      Ok(:final value) => _adopt(
+      Ok(:final value) => _adoptStored(
         value,
         UrlModelSource(
           Uri.parse(redactUrl(url)),
@@ -430,10 +538,11 @@ class ChatModelRepository implements ChatModelPlanner {
 
   /// Uses the `.litertlm` at [path] where it is (no copy): it must exist, be
   /// readable and start with the `LITERTLM` header. A first file gets
-  /// default settings, a replacement keeps the current ones; images are
-  /// off when the header has no vision section, and an NPU-only build
-  /// (`backend_constraint: npu`) defaults to the NPU where it is offered.
-  /// Saved, but the choice is not changed: [apply] makes it the chat model.
+  /// default settings, a replacement keeps the current ones (but not the
+  /// towers' choices); an NPU-only build (`backend_constraint: npu`)
+  /// defaults to the NPU where it is offered. Its towers follow from its
+  /// header ([ChatModelState.header]). Saved, but the choice is not changed:
+  /// [apply] makes it the chat model.
   /// The SHA-256 is computed in the background afterwards, never blocking.
   Future<Result<CustomChatModel>> useLocalFile(String path) async {
     final absolute = File(path).absolute.path;
@@ -475,9 +584,11 @@ class ChatModelRepository implements ChatModelPlanner {
     );
     if (adopted is Ok<CustomChatModel>) {
       _localProblem = null;
+      _storedProblem = null;
       debugPrint(
         '[ChatModel] in place: $absolute (${stat.size} B, litertlm '
-        '${info.version}, sections ${info.modelTypes.join(',')}'
+        '${info.version}, sections ${[for (final s in info.sections)
+          if (s.modelType case final type?) s.backendConstraint == null ? type : '$type:${s.backendConstraint}'].join(',')}'
         '${info.npuOnly ? ', npu-only' : ''})',
       );
       _hashInBackground(absolute);
@@ -504,16 +615,20 @@ class ChatModelRepository implements ChatModelPlanner {
   }
 
   /// Why the in-place [file] at [path] cannot be used, or null: it must be
-  /// there with the size it had when chosen and still be a `.litertlm`.
+  /// there with the size it had when chosen and still be a `.litertlm`. The
+  /// header it reads becomes [_fileHeader].
   Future<String?> _checkLocal(String path, CustomModelFile file) async {
+    _fileHeader = null;
     if (_quickLocalProblem(path, file) case final problem?) return problem;
-    return switch (await inspectLitertlm(path)) {
-      Ok() => null,
-      Error(error: LocalModelException(permissionDenied: true) && final e) =>
-        '${await _withAdvice(path, e)}',
-      Error(:final error) =>
-        '$error Pick the file again, or choose another .litertlm.',
-    };
+    switch (await inspectLitertlm(path)) {
+      case Ok(:final value):
+        _fileHeader = value;
+        return null;
+      case Error(error: LocalModelException(permissionDenied: true) && final e):
+        return '${await _withAdvice(path, e)}';
+      case Error(:final error):
+        return '$error Pick the file again, or choose another .litertlm.';
+    }
   }
 
   /// [path] (a saved file in place) when it is gone and exactly one file of
@@ -657,6 +772,7 @@ class ChatModelRepository implements ChatModelPlanner {
           custom: hashed,
           problem: _state.value.problem,
           loaded: true,
+          header: _fileHeader?.sections,
         ),
       );
       return true;
@@ -665,26 +781,27 @@ class ChatModelRepository implements ChatModelPlanner {
   }
 
   /// Settings for a first file, from what this device, the file name and
-  /// (for a file in place) its header say: the NPU where flutter_edge_ai
-  /// offers it — for a file in place only when the header marks an NPU
-  /// build (`backend_constraint: npu`) — else the GPU; the model type the
+  /// its [header] say: the NPU where flutter_edge_ai offers it and the
+  /// header marks an NPU build (`backend_constraint: npu`), else the GPU;
+  /// the model type the
   /// name announces ([modelTypeFromFileName]); the context an NPU build's
   /// name announces (`…_ekv1280_…`), else 4096 on the NPU (the official
   /// Gemma 4 Qualcomm NPU builds are compiled for 4096: their KV-cache
   /// inputs are 4096 long) and the app's 8192 on GPU/CPU (agent turns,
-  /// excerpts and a picture outgrow 4096 in two or three turns); images on
-  /// only when the header has a vision section (off when unknown); tools on
-  /// for a Gemma-family file in place that is not an NPU build (what Gemma
-  /// 4 E2B gets: its skills work as with the old built-in setting), off for
-  /// other types, NPU builds and files whose header was not read, until the
-  /// user knows the file has them.
+  /// excerpts and a picture outgrow 4096 in two or three turns); no towers'
+  /// choices (the header places its towers, the rest start on the NPU when
+  /// the model does: `resolveTowers`); tools on for a Gemma-family file
+  /// that is not an NPU build (what Gemma 4 E2B gets: its skills work as
+  /// with the old built-in setting), off for other types and NPU builds,
+  /// until the user knows the file has them. A file in place, an imported
+  /// and a downloaded one alike (the last two read from the store's copy).
   CustomChatModel defaultsFor(
     CustomModelFile file,
     CustomModelSource source, {
-    LitertlmInfo? header,
+    required LitertlmInfo header,
   }) {
     final npuOffered = _npu() is NpuAvailable;
-    final backend = (header == null ? npuOffered : header.npuOnly && npuOffered)
+    final backend = header.npuOnly && npuOffered
         ? PreferredBackend.npu
         : PreferredBackend.gpu;
     final hint = contextHintFromFileName(file.name);
@@ -701,40 +818,38 @@ class ChatModelRepository implements ChatModelPlanner {
       modelType: type,
       backend: backend,
       maxTokens: context,
-      supportImage: header?.hasVision ?? false,
-      tools:
-          header != null &&
-          !header.npuOnly &&
-          kToolsByDefaultTypes.contains(type),
+      tools: !header.npuOnly && kToolsByDefaultTypes.contains(type),
     );
   }
 
   Future<Result<CustomChatModel>> _adopt(
     CustomModelFile file,
     CustomModelSource source, {
-    LitertlmInfo? header,
+    required LitertlmInfo header,
   }) => _settingsWrites.run(() => _adoptNow(file, source, header: header));
 
   Future<Result<CustomChatModel>> _adoptNow(
     CustomModelFile file,
     CustomModelSource source, {
-    LitertlmInfo? header,
+    required LitertlmInfo header,
   }) async {
     final current = _state.value.custom;
-    var updated = switch (current) {
-      final c? when _state.value.problem == null => c.copyWith(
+    final updated = switch (current) {
+      final c? when _state.value.problem == null => switch (c.copyWith(
         file: file,
         source: source,
         displayName: c.file != null && c.displayName == _stem(c.file!.name)
             ? _stem(file.name)
             : null,
-      ),
+      )) {
+        // The same file picked again keeps its towers' choices (the
+        // official SM8750 build works only with both set to CPU); another
+        // file drops them: they were made for the old one.
+        final kept when _sameFile(c, file, source) => kept,
+        final replaced => replaced.withTowerChoices(vision: null, audio: null),
+      },
       _ => defaultsFor(file, source, header: header),
     };
-    // What the header knows wins over a kept setting that cannot work.
-    if (header != null && !header.hasVision && updated.supportImage) {
-      updated = updated.copyWith(supportImage: false);
-    }
     final repairing = _state.value.problem != null;
     final kind = _state.value.kind;
     // Repairing: the unreadable choice is saved again as what it was taken
@@ -753,13 +868,40 @@ class ChatModelRepository implements ChatModelPlanner {
     await _store.pruneCustom(
       keep: {if (source is! LocalModelSource) file.name, ?inUse},
     );
-    _publish(ChatModelState(kind: kind, custom: updated, loaded: true));
+    _fileHeader = header;
+    _publish(
+      ChatModelState(
+        kind: kind,
+        custom: updated,
+        loaded: true,
+        header: header.sections,
+      ),
+    );
     debugPrint(
       '[ChatModel] custom file ${file.name} (${file.sizeBytes} B, sha256 '
       '${file.sha256 ?? 'pending'}, '
       '${file.checksumMatched ? 'matched' : 'recorded'}) ${updated.sourceLine}',
     );
     return Result.ok(updated);
+  }
+
+  /// [file] from [source] is [current]'s file again: the same SHA-256 and
+  /// size when both are known, else the same path and size in place.
+  static bool _sameFile(
+    CustomChatModel current,
+    CustomModelFile file,
+    CustomModelSource source,
+  ) {
+    final old = current.file;
+    if (old == null || old.sizeBytes != file.sizeBytes) return false;
+    if (old.sha256 != null && file.sha256 != null) {
+      return old.sha256 == file.sha256;
+    }
+    return switch ((current.source, source)) {
+      (LocalModelSource(path: final a), LocalModelSource(path: final b)) =>
+        a == b,
+      _ => false,
+    };
   }
 
   /// [a] and [b] save as the same settings (the persisted form compared).
@@ -781,6 +923,11 @@ class ChatModelRepository implements ChatModelPlanner {
     if (CustomChatModel.contextProblem(model.maxTokens, model.backend)
         case final problem?) {
       return problem;
+    }
+    for (final choice in [model.visionChoice, model.audioChoice]) {
+      if (choice == PreferredBackend.gpu) {
+        return 'A tower the file leaves open runs on the CPU or the NPU.';
+      }
     }
     if (model.backend == PreferredBackend.npu) {
       if (_npu() case NpuUnavailable(:final reason)) {
@@ -805,13 +952,26 @@ class ChatModelRepository implements ChatModelPlanner {
       return Result.error(error);
     }
     _publish(
-      ChatModelState(kind: ChatModelKind.custom, custom: model, loaded: true),
+      ChatModelState(
+        kind: ChatModelKind.custom,
+        custom: model,
+        loaded: true,
+        header: _fileHeader?.sections,
+      ),
     );
     debugPrint(
-      '[ChatModel] using ${model.displayName} (${model.settingsLine})',
+      '[ChatModel] using ${model.displayName} '
+      '(${_settingsLineOf(model)})',
     );
     return const Result.ok(null);
   }
+
+  /// [model]'s settings line with the towers its file's header places; the
+  /// header not read yet (a problem at launch) says so instead.
+  String _settingsLineOf(CustomChatModel model) => switch (_fileHeader) {
+    final header? => model.settingsLine(model.towersOf(header.sections)),
+    null => '${model.settingsLine(ModelTowers.none)}, header not read',
+  };
 
   /// Saves [custom] as the custom model, then [kind] as the choice. In this
   /// order every step is a configuration a launch can load: the custom
@@ -830,7 +990,8 @@ class ChatModelRepository implements ChatModelPlanner {
   /// "Run on GPU" / "Run on CPU" after a failed load: the same model on
   /// [backend], saved. GPU and CPU need at least 1024 tokens of context (the
   /// engine raises a smaller one anyway), so a smaller NPU context is raised
-  /// to it, visibly.
+  /// to it, visibly. The towers' choices are kept: they mean nothing off the
+  /// NPU and apply again on a return to it.
   Future<Result<void>> runOn(PreferredBackend backend) =>
       _settingsWrites.run(() async {
         final custom = _state.value.custom;

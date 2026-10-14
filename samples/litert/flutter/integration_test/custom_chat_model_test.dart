@@ -47,6 +47,7 @@ import 'package:litert_edge_demos/config/model_catalog.dart';
 import 'package:litert_edge_demos/domain/models/chat_model.dart';
 import 'package:litert_edge_demos/domain/models/model_id.dart';
 import 'package:litert_edge_demos/domain/models/model_state.dart';
+import 'package:litert_edge_demos/domain/models/model_towers.dart' show Tower;
 import 'package:litert_edge_demos/domain/models/self_test.dart';
 import 'package:litert_edge_demos/domain/ports/model_file_picker.dart';
 import 'package:litert_edge_demos/ui/features/setup/view_models/chat_model_view_model.dart';
@@ -142,13 +143,16 @@ void main() {
     expect(vm.canApply, isFalse);
     final npuReason = vm.draftProblem;
 
-    // 3. Use this model on the GPU, images on (Gemma 4 E2B has a vision
-    //    encoder), tools on, as gemma4.
+    // 3. Use this model on the GPU, tools on, as gemma4. Its towers are on
+    //    as its header sets them (read from the store's copy): the card
+    //    shows them, nothing to switch.
     vm
       ..setBackend(PreferredBackend.gpu)
       ..setName('My Gemma (custom)')
-      ..setImages(enabled: true)
       ..setTools(enabled: true);
+    expect(vm.towerRow(Tower.vision), isA<TowerFixed>());
+    expect(vm.towerRow(Tower.audio), isA<TowerFixed>());
+    expect(vm.draftTowers?.visionBackend, PreferredBackend.cpu);
     expect(vm.draftProblem, isNull);
     final reloadWatch = Stopwatch()..start();
     unawaited(vm.apply.execute());
@@ -172,6 +176,8 @@ void main() {
     expect(chat.source, startsWith('imported from $source'));
     expect(deps.conversation.capabilities.modelName, 'My Gemma (custom)');
     expect(deps.conversation.capabilities.images, isTrue);
+    expect(chat.visionBackend, 'cpu');
+    expect(chat.audioBackend, 'cpu');
     debugPrint('CUSTOM_MODEL ${vm.activeLine}');
 
     // The diagnostics report names it.

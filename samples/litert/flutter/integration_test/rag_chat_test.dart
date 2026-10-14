@@ -13,16 +13,17 @@
 // limitations under the License.
 
 // The knowledge base end to end in Demo 1 (macOS): Gemma 4 E2B on the GPU,
-// EmbeddingGemma on the CPU, the app's own sqlite-vec index over assets/kb.
+// EmbeddingGemma 2 on the CPU (text), the app's own sqlite-vec index over
+// assets/kb.
 //
 //   flutter test integration_test/rag_chat_test.dart -d macos \
 //     --dart-define=GEMMA_MODEL_PATH=<path/to/gemma-4-E2B-it.litertlm>
 //
-// EmbeddingGemma is the one built into the app, loaded by setup.
+// EmbeddingGemma 2 is the one built into the app, loaded by setup.
 //
 // 1. setup → the knowledge base installs the prebuilt index (first launch,
 //    ~0.1 s; `[Knowledge] prebuilt index installed`), indexes on the device
-//    when the prebuilt one does not match (~50 s; the reason is logged), or
+//    when the prebuilt one does not match (~30 s; the reason is logged), or
 //    reuses the index from an earlier launch (`[Knowledge] index reused`).
 //    Run twice to see both; the run prints
 //    `KB launch=prebuilt|indexed|reused …`.

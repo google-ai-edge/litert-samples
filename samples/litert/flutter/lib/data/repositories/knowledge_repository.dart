@@ -24,6 +24,7 @@ import 'package:flutter_edge_ai_rag/flutter_edge_ai_rag.dart'
 
 import '../../config/knowledge_config.dart';
 import '../../domain/models/knowledge.dart';
+import '../../domain/models/knowledge_query.dart';
 import '../../domain/models/model_id.dart';
 import '../../domain/models/model_state.dart';
 import '../../domain/ports/knowledge_retriever.dart';
@@ -63,7 +64,7 @@ final class KnowledgeIndexOpenException implements Exception {
 /// `<dir>/index.json` = `{hash, chunks, dim, origin, key}` ([KbIndexMarker]).
 /// The [KbIndexKey] covers every document's path and bytes, the chunker
 /// (version and budget), the document prefix, the embedder's id and the SHA-256
-/// of its model and tokenizer files; `hash` is its digest. A matching marker
+/// of its model file; `hash` is its digest. A matching marker
 /// over a store with that many rows is reused. Anything else deletes the marker
 /// and then:
 ///
@@ -88,7 +89,7 @@ class KnowledgeRepository implements KnowledgeRetriever {
     required this._digests,
     this._indexDir = defaultKbIndexDir,
     this._chunker = const MarkdownChunker(),
-    this._minSimilarity = kKbMinSimilarity,
+    this._minSimilarity = kbMinSimilarityFor,
     this._topK = kKbTopK,
     this._batchSize = kKbEmbedBatch,
     this._closeWait = const Duration(seconds: 5),
@@ -105,7 +106,10 @@ class KnowledgeRepository implements KnowledgeRetriever {
   final EmbedderDigests _digests;
   final Future<Directory> Function() _indexDir;
   final MarkdownChunker _chunker;
-  final double _minSimilarity;
+
+  /// The similarity gate for a question of each kind
+  /// ([kbMinSimilarityFor]: text and audio score differently).
+  final double Function(KnowledgeQueryKind kind) _minSimilarity;
   final int _topK;
   final int _batchSize;
 
@@ -116,6 +120,9 @@ class KnowledgeRepository implements KnowledgeRetriever {
     const KnowledgeWaiting(),
   );
   Future<Result<KnowledgeReady>>? _indexing;
+
+  /// [_indexing] has completed (either way).
+  bool _indexFinished = false;
   bool _indexStarted = false;
   bool _closed = false;
   Future<void>? _closing;
@@ -137,8 +144,10 @@ class KnowledgeRepository implements KnowledgeRetriever {
         // ensureIndexed never throws: failures land in [status] and the log.
         unawaited(ensureIndexed());
       case ModelUnavailable(:final reason):
+        _embedderLost();
         _set(KnowledgeUnavailable(reason));
       case ModelFailed(:final message):
+        _embedderLost();
         _set(KnowledgeUnavailable('EmbeddingGemma failed: $message'));
       case ModelPending() ||
           ModelInstalling() ||
@@ -146,6 +155,16 @@ class KnowledgeRepository implements KnowledgeRetriever {
           ModelWarmingUp():
         if (!_indexStarted) _set(const KnowledgeWaiting());
     }
+  }
+
+  /// The embedder failed or became unavailable: the next Ready runs
+  /// [ensureIndexed] again, which reopens the index (reused when its marker
+  /// matches) and replaces the Unavailable status this leaves. A finished
+  /// run is forgotten for that; one still in flight is kept (one run at a
+  /// time) and the next Ready shares it.
+  void _embedderLost() {
+    _indexStarted = false;
+    if (_indexFinished) _indexing = null;
   }
 
   /// Makes the index match the bundled documents: reuses it when the marker
@@ -157,11 +176,12 @@ class KnowledgeRepository implements KnowledgeRetriever {
     if (_closed) return Future.value(_closedError());
     final run = _ensureIndexed();
     _indexing = run;
+    _indexFinished = false;
     unawaited(
       run.then((result) {
-        if (result is Error<KnowledgeReady> && identical(_indexing, run)) {
-          _indexing = null;
-        }
+        if (!identical(_indexing, run)) return;
+        _indexFinished = true;
+        if (result is Error<KnowledgeReady>) _indexing = null;
       }),
     );
     return run;
@@ -173,8 +193,8 @@ class KnowledgeRepository implements KnowledgeRetriever {
   Future<Result<KnowledgeReady>> _ensureIndexed() async {
     final watch = Stopwatch()..start();
     try {
-      final files = _embedder.installedFiles;
-      if (!_embedder.isLoaded || files == null) {
+      final modelPath = _embedder.installedModelPath;
+      if (!_embedder.isLoaded || modelPath == null) {
         return _fail(StateError('EmbeddingGemma is not loaded'));
       }
       final dir = await _indexDir();
@@ -186,7 +206,7 @@ class KnowledgeRepository implements KnowledgeRetriever {
         return _fail(error);
       }
       final documents = await _documents.load();
-      final key = await _keyFor(documents, files);
+      final key = await _keyFor(documents, modelPath);
       _stopIfClosed();
 
       if (await _reuse(marker, key, watch) case final reused?) return reused;
@@ -421,26 +441,19 @@ class KnowledgeRepository implements KnowledgeRetriever {
   }
 
   /// This app's [KbIndexKey]: the documents, the chunker, the document
-  /// prefix and the embedder's files (their SHA-256, see
+  /// prefix and the embedder's file (its SHA-256, see
   /// [FileEmbedderDigests]).
   Future<KbIndexKey> _keyFor(
     List<KbDocument> documents,
-    ({String model, String tokenizer}) files,
-  ) async {
-    final digest = await _digests.of(
-      modelPath: files.model,
-      tokenizerPath: files.tokenizer,
-    );
-    return KbIndexKey(
-      documents: kbDocumentsHash(documents),
-      chunker: chunkerId(_chunker),
-      documentPrefix: TaskType.retrievalDocument.prefix,
-      modelId: _embedder.modelId ?? '',
-      modelSha256: digest.model,
-      tokenizerSha256: digest.tokenizer,
-      dim: _embedder.dimension,
-    );
-  }
+    String modelPath,
+  ) async => KbIndexKey(
+    documents: kbDocumentsHash(documents),
+    chunker: chunkerId(_chunker),
+    documentPrefix: TaskType.retrievalDocument.prefix,
+    modelId: _embedder.modelId ?? '',
+    modelSha256: await _digests.digestOf(modelPath),
+    dim: _embedder.dimension,
+  );
 
   /// Strategy 2: puts the prebuilt index in place of `<dir>/kb.db` when its
   /// manifest's key is [key]: the asset is checked against the manifest's
@@ -464,6 +477,13 @@ class KnowledgeRepository implements KnowledgeRetriever {
       }
     } catch (e) {
       return _PrebuiltSkipped('its manifest is unreadable: $e');
+    }
+    if (manifest.profileId != _store.profileId) {
+      return _PrebuiltSkipped(
+        'it is bound to the embedding profile "${manifest.profileId}", this '
+        'app searches "${_store.profileId}"; rebuild it with '
+        'tool/build_kb_index.sh',
+      );
     }
     final differences = manifest.key.differencesFrom(key);
     if (differences.isNotEmpty) {
@@ -555,14 +575,15 @@ class KnowledgeRepository implements KnowledgeRetriever {
   }
 
   /// One gated search: the top-k hits, of which those at or above the gate
-  /// become the prompt's excerpts.
+  /// of the question's kind become the prompt's excerpts.
   @override
-  Future<Result<Retrieval>> retrieve(String question) async {
+  Future<Result<Retrieval>> retrieve(KnowledgeQuery query) async {
     if (_closed) {
       return Result.error(
         asException(StateError('KnowledgeRepository closed')),
       );
     }
+    final gate = _minSimilarity(query.kind);
     final unavailable = switch (_status.value) {
       KnowledgeReady() => null,
       KnowledgeWaiting() => 'the embedder is still loading',
@@ -574,8 +595,9 @@ class KnowledgeRepository implements KnowledgeRetriever {
       return Result.ok(
         Retrieval(
           outcome: RetrievalOutcome.unavailable,
-          gate: _minSimilarity,
+          gate: gate,
           detail: unavailable,
+          queryKind: query.kind,
         ),
       );
     }
@@ -583,7 +605,7 @@ class KnowledgeRepository implements KnowledgeRetriever {
     final Result<List<RetrievalResult>> searched;
     _retrievals++;
     try {
-      searched = await _store.search(question, topK: _topK);
+      searched = await _store.search(query, topK: _topK);
     } finally {
       if (--_retrievals == 0) {
         _retrievalsDone?.complete();
@@ -600,7 +622,7 @@ class KnowledgeRepository implements KnowledgeRetriever {
             ..sort((a, b) => b.similarity.compareTo(a.similarity));
           final passages = [
             for (final passage in candidates)
-              if (passage.similarity >= _minSimilarity) passage,
+              if (passage.similarity >= gate) passage,
           ];
           final retrieval = Retrieval(
             outcome: passages.isEmpty
@@ -608,11 +630,13 @@ class KnowledgeRepository implements KnowledgeRetriever {
                 : RetrievalOutcome.used,
             passages: passages,
             candidates: candidates,
-            gate: _minSimilarity,
+            gate: gate,
             latency: watch.elapsed,
+            queryKind: query.kind,
           );
           debugPrint(
-            '[Knowledge] retrieve ${watch.elapsedMilliseconds}ms '
+            '[Knowledge] retrieve ${query.kind.name} '
+            '${watch.elapsedMilliseconds}ms '
             'top=${retrieval.topSimilarity?.toStringAsFixed(3) ?? '–'} '
             '${retrieval.outcome.name} excerpts=${passages.length}',
           );

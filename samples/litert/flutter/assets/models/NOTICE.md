@@ -13,15 +13,16 @@
   corresponding source available under AGPL-compatible terms. That source includes the derivation script.
 - Shown in the app under Home › More › Licences.
 
-## EmbeddingGemma 300M (knowledge base) — `embeddinggemma-300M_seq512_mixed-precision.tflite`, `sentencepiece.model`
+## EmbeddingGemma 2 740m (knowledge base) — `embeddinggemma-2-740m.litertlm`
 
-- `embeddinggemma-300M_seq512_mixed-precision.tflite`: 179 132 472 bytes, SHA-256
-  `ad09e81557203cb0e177abf9bf8727dfe138a7d394aa0f70f0b2ed16432e121a`.
-- `sentencepiece.model`: 4 683 319 bytes, SHA-256 `d6daa52d93d7aad10e8388bd526c4e501d914b47177398d1d9621f1fe48438c7`.
-- From [litert-community/embeddinggemma-300m](https://huggingface.co/litert-community/embeddinggemma-300m). Redistributed unmodified.
-- **Gemma is provided under and subject to the Gemma Terms of Use found at
-  [ai.google.dev/gemma/terms](https://ai.google.dev/gemma/terms).** Use is also subject to the
-  [Gemma Prohibited Use Policy](https://ai.google.dev/gemma/prohibited_use_policy).
+- `embeddinggemma-2-740m.litertlm`: 484 622 336 bytes, SHA-256
+  `e7a8a2204b91e0f96e92960e84a09a89212e1633dcb7575a9bf3378b4df77f4c`. One self-contained bundle: the model and its
+  tokenizer.
+- From [litert-community/embeddinggemma-2-740m-litert-lm](https://huggingface.co/litert-community/embeddinggemma-2-740m-litert-lm/tree/24d962e906c7d332c6428e71c9676855024569e2)
+  (revision 24d962e9), the LiteRT-LM packaging of
+  [google/embeddinggemma-2](https://huggingface.co/google/embeddinggemma-2).
+- **Licence: Apache License 2.0** ([full text](https://www.apache.org/licenses/LICENSE-2.0)). Redistributed
+  unmodified. The app embeds text only.
 - Shown in the app under Home › More › Licences.
 
 ## Whisper base (speech recognition, Demo 1) — `whisper_base_30s_i8.tflite`, `whisper_base_tokenizer.json`

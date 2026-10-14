@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import 'knowledge_query.dart';
+
 /// One knowledge-base hit, with the metadata a citation shows.
 final class const Passage({
   /// `doc#n`.
@@ -80,6 +82,11 @@ final class const Retrieval({
 
   /// Why the knowledge base was unavailable, or what failed.
   final String? detail,
+
+  /// What was searched: a typed or transcribed question, or a spoken one
+  /// embedded as audio (then [latency] is mostly the audio embedding). Null
+  /// when nothing was (a skipped search).
+  final KnowledgeQueryKind? queryKind,
 }) {
   /// The best hit's similarity, gated or not; null without hits.
   double? get topSimilarity =>

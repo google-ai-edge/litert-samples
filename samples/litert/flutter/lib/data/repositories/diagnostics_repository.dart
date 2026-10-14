@@ -27,6 +27,7 @@ import '../../domain/models/llm_image.dart';
 import '../../domain/models/model_id.dart';
 import '../../domain/models/model_state.dart';
 import '../../domain/models/skill_catalog.dart';
+import '../../domain/models/visual_memory.dart';
 import '../../domain/models/voice.dart';
 import '../../domain/ports/voice_diagnostics_sink.dart';
 import '../services/speech/stt_service.dart' show ActiveStt;
@@ -45,6 +46,7 @@ class DiagnosticsRepository implements VoiceDiagnosticsSink {
     this._sttSwitchError,
     this._skills,
     this._audioDevices,
+    this._memory,
     this._minInterval = const Duration(milliseconds: 250),
     Duration rssInterval = const Duration(seconds: 1),
     bool sampleRss = true,
@@ -66,6 +68,8 @@ class DiagnosticsRepository implements VoiceDiagnosticsSink {
     _onActiveStt();
     _sttSwitchError?.addListener(_onSttSwitchError);
     _onSttSwitchError();
+    _memory?.addListener(_onMemory);
+    _onMemory();
     if (sampleRss) {
       _sampleRss();
       _rssTimer = Timer.periodic(rssInterval, (_) => _sampleRss());
@@ -95,6 +99,9 @@ class DiagnosticsRepository implements VoiceDiagnosticsSink {
 
   /// The voice demos' input and output checks (a few changes per session).
   final ValueListenable<AudioDeviceStatus>? _audioDevices;
+
+  /// Demo 3's visual memory (a change per stored frame, clear or question).
+  final ValueListenable<VisualMemoryStatus>? _memory;
   final Duration _minInterval;
   final ValueNotifier<DiagnosticsSnapshot> _snapshot = ValueNotifier(
     const DiagnosticsSnapshot(),
@@ -153,6 +160,7 @@ class DiagnosticsRepository implements VoiceDiagnosticsSink {
   /// turn's facts arrive: snapshot, PNG, TTFT).
   void recordCameraTurn(CameraTurnMetrics metrics) {
     final image = metrics.image;
+    final memory = metrics.memory;
     debugPrint(
       '[Diagnostics] camq route=${metrics.route.runtimeType} '
       'rule=${metrics.route.rule} '
@@ -164,7 +172,8 @@ class DiagnosticsRepository implements VoiceDiagnosticsSink {
                 'frame=${image.frameId}'}'
       '${metrics.timeToFirstToken == null ? '' : ' ttft=${metrics.timeToFirstToken!.inMilliseconds}ms'}'
       '${metrics.snapshotError == null ? '' : ' snapshot_error="${metrics.snapshotError}"'}'
-      '${metrics.chatError == null ? '' : ' chat_error="${metrics.chatError}"'}',
+      '${metrics.chatError == null ? '' : ' chat_error="${metrics.chatError}"'}'
+      '${memory == null ? '' : ' memory="${memory.query}" recall=${memory.recall.runtimeType} search=${memory.elapsed.inMilliseconds}ms'}',
     );
     _update(_latest.copyWith(lastCameraTurn: metrics));
   }
@@ -233,6 +242,12 @@ class DiagnosticsRepository implements VoiceDiagnosticsSink {
     _update(_latest.copyWith(skills: catalog));
   }
 
+  void _onMemory() {
+    final status = _memory?.value;
+    if (status == null) return;
+    _update(_latest.copyWith(memory: status));
+  }
+
   void _onAudioDevices() {
     final status = _audioDevices?.value;
     if (status == null) return;
@@ -299,6 +314,7 @@ class DiagnosticsRepository implements VoiceDiagnosticsSink {
     _sttSwitchError?.removeListener(_onSttSwitchError);
     _skills?.removeListener(_onSkills);
     _audioDevices?.removeListener(_onAudioDevices);
+    _memory?.removeListener(_onMemory);
     _rssTimer?.cancel();
     _flushTimer?.cancel();
     _snapshot.dispose();

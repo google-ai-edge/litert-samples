@@ -54,6 +54,12 @@ final class AgentTurnFold {
   /// The turn's skill steps so far, in order.
   List<SkillStep> get steps => List.unmodifiable(_steps);
 
+  /// What the last intent that succeeded reported; null when none did.
+  String? get lastIntentResult => _steps.reversed
+      .whereType<IntentSucceeded>()
+      .map((s) => s.result)
+      .firstOrNull;
+
   /// Tool calls so far: loadSkill and runIntent each count (every one cost
   /// a generation before the answer).
   int get toolRounds => _toolRounds;

@@ -44,7 +44,7 @@ void main() {
 
   /// A 5-byte "model" the build knows by name, size and SHA-256.
   final known = BundledFile(
-    asset: 'assets/models/model.tflite',
+    asset: 'assets/models/model.litertlm',
     sizeBytes: 5,
     sha256: sha256.convert(utf8.encode('model')).toString(),
   );
@@ -73,16 +73,16 @@ void main() {
 
   test('Android\'s extracted copy: the build\'s SHA-256 from its record, '
       'nothing hashed', () async {
-    final model = write('${dir.path}/bundled/model.tflite', 'model');
-    write('${model.path}.sha256', '${known.sha256}  model.tflite\n');
+    final model = write('${dir.path}/bundled/model.litertlm', 'model');
+    write('${model.path}.sha256', '${known.sha256}  model.litertlm\n');
 
     expect(await digests().digestOf(model.path), known.sha256);
     expect(ops.hashed, isEmpty);
   });
 
   test('a record that does not match the size is not trusted', () async {
-    final model = write('${dir.path}/bundled/model.tflite', 'model!');
-    write('${model.path}.sha256', '${known.sha256}  model.tflite\n');
+    final model = write('${dir.path}/bundled/model.litertlm', 'model!');
+    write('${model.path}.sha256', '${known.sha256}  model.litertlm\n');
 
     final hex = await digests().digestOf(model.path);
 
@@ -96,7 +96,7 @@ void main() {
       final app = '${dir.path}/X.app/Contents';
       final model = write(
         '$app/Frameworks/App.framework/Resources/flutter_assets/'
-            'assets/models/model.tflite',
+            'assets/models/model.litertlm',
         'model',
       );
 
@@ -112,7 +112,7 @@ void main() {
 
   test('any other file is hashed once, then cached by size and mtime; a '
       'changed file is hashed again', () async {
-    final model = write('${dir.path}/dev/model.tflite', 'model');
+    final model = write('${dir.path}/dev/model.litertlm', 'model');
 
     final first = await digests().digestOf(model.path);
     final second = await digests().digestOf(model.path);
@@ -132,23 +132,10 @@ void main() {
   });
 
   test('an unreadable cache is hashed again, not trusted', () async {
-    final model = write('${dir.path}/dev/model.tflite', 'model');
+    final model = write('${dir.path}/dev/model.litertlm', 'model');
     write('${dir.path}/cache/embedder_digests.json', '{not json');
 
     expect(await digests().digestOf(model.path), known.sha256);
     expect(ops.hashed, [model.path]);
-  });
-
-  test('of() digests the model and the tokenizer', () async {
-    final model = write('${dir.path}/dev/model.tflite', 'model');
-    final tokenizer = write('${dir.path}/dev/sentencepiece.model', 'tok');
-
-    final digest = await digests().of(
-      modelPath: model.path,
-      tokenizerPath: tokenizer.path,
-    );
-
-    expect(digest.model, known.sha256);
-    expect(digest.tokenizer, sha256.convert(utf8.encode('tok')).toString());
   });
 }
