@@ -20,7 +20,7 @@ coreKtx = "1.17.0"
 lifecycleRuntimeKtx = "2.10.0"
 activityCompose = "1.12.1"
 composeBom = "2025.12.00"
-litert = "2.1.5"
+litert = "2.3.0"
 coroutines = "1.10.2"
 
 [libraries]
@@ -37,6 +37,7 @@ androidx-ui-tooling-preview = { group = "androidx.compose.ui", name = "ui-toolin
 androidx-material2 = { group = "androidx.compose.material", name = "material" }
 kotlinx-coroutines-android = { group = "org.jetbrains.kotlinx", name = "kotlinx-coroutines-android", version.ref = "coroutines" }
 litert = { group = "com.google.ai.edge.litert", name = "litert", version.ref = "litert" }
+litert-gpu = { group = "com.google.ai.edge.litert", name = "litert-gpu", version.ref = "litert" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }

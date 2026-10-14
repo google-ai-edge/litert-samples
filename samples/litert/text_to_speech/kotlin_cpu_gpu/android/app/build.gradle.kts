@@ -37,7 +37,10 @@ android {
     sourceCompatibility = JavaVersion.VERSION_17
     targetCompatibility = JavaVersion.VERSION_17
   }
-  kotlinOptions { jvmTarget = "17" }
+  kotlinOptions {
+    jvmTarget = "17"
+    freeCompilerArgs += "-Xskip-metadata-version-check"
+  }
   buildFeatures { compose = true }
 
   packaging {
@@ -67,6 +70,7 @@ dependencies {
   implementation(libs.androidx.material2)
   implementation(libs.kotlinx.coroutines.android)
   implementation(libs.litert)
+  implementation(libs.litert.gpu)
 
   debugImplementation(libs.androidx.ui.tooling)
 }
