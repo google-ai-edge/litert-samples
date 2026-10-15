@@ -1,5 +1,5 @@
-# Generated / fetched at build time — see README.md
-CLiteRT.xcframework/
-LiteRtMetalAccelerator.xcframework/
-libLiteRtMetalAccelerator.dylib
+# Model file required at runtime (downloaded or bundled)
 selfie_multiclass_256x256.tflite
+
+# Build artifacts
+.build/

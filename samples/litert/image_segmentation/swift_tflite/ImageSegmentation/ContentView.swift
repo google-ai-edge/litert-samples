@@ -1,28 +1,6 @@
 import SwiftUI
 import TensorFlowLite
 
-enum AcceleratorOption: String, CaseIterable {
-    case cpu = "CPU"
-    case gpu = "Metal"
-    case coreML = "CoreML"
-
-    var title: String {
-        switch self {
-        case .cpu: return "CPU (XNNPACK)"
-        case .gpu: return "GPU (MetalDelegate)"
-        case .coreML: return "NPU (CoreMLDelegate)"
-        }
-    }
-
-    var tfliteAccelerator: TFLiteAccelerator {
-        switch self {
-        case .cpu: return .cpu
-        case .gpu: return .metal
-        case .coreML: return .coreML
-        }
-    }
-}
-
 enum AppTab {
     case camera
     case gallery
@@ -38,7 +16,6 @@ struct ContentView: View {
     #else
     @State private var activeTab: AppTab = .camera
     #endif
-    @State private var selectedAccelerator: AcceleratorOption = .gpu
 
     // Gallery Mode State
     @State private var originalImage: UIImage? = nil
@@ -55,7 +32,6 @@ struct ContentView: View {
 
     // Cached segmenter instance
     @State private var activeSegmenter: TFLiteSegmenter? = nil
-    @State private var activeAccelerator: TFLiteAccelerator? = nil
     @State private var isInitializingSegmenter = false
 
     // Performance metrics
@@ -201,19 +177,18 @@ struct ContentView: View {
         case .authorized:
             if let cameraFrame = cameraManager.currentFrame {
                 ZStack(alignment: .topTrailing) {
-                    ZStack {
-                        Image(decorative: cameraFrame, scale: 1.0, orientation: .up)
-                            .resizable()
-                            .scaledToFit()
-                        if let mask = segmentedMask {
-                            Image(uiImage: mask)
-                                .resizable()
-                                .scaledToFit()
-                                .blendMode(.multiply)
+                    Image(decorative: cameraFrame, scale: 1.0, orientation: .up)
+                        .resizable()
+                        .scaledToFit()
+                        .overlay {
+                            if let mask = segmentedMask {
+                                Image(uiImage: mask)
+                                    .resizable()
+                                    .blendMode(.multiply)
+                            }
                         }
-                    }
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
-                    .clipped()
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                        .clipped()
 
                     // Floating Camera Flip FAB
                     Button(action: {
@@ -247,19 +222,18 @@ struct ContentView: View {
                 ProgressView("Running segmentation...")
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
             } else if let image = originalImage {
-                ZStack {
-                    Image(uiImage: image)
-                        .resizable()
-                        .scaledToFit()
-                    if let mask = segmentedMask {
-                        Image(uiImage: mask)
-                            .resizable()
-                            .scaledToFit()
-                            .blendMode(.multiply)
+                Image(uiImage: image)
+                    .resizable()
+                    .scaledToFit()
+                    .overlay {
+                        if let mask = segmentedMask {
+                            Image(uiImage: mask)
+                                .resizable()
+                                .blendMode(.multiply)
+                        }
                     }
-                }
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-                .padding(.bottom, 120)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .padding(.bottom, 120)
             } else {
                 Text("No image loaded.")
                     .foregroundColor(.secondary)
@@ -288,7 +262,7 @@ struct ContentView: View {
     @ViewBuilder
     private func BottomSheetView() -> some View {
         let peekHeight: CGFloat = 85
-        let expandedHeight: CGFloat = 275
+        let expandedHeight: CGFloat = 220
 
         VStack(spacing: 0) {
             // Drag Indicator & Peek Content
@@ -299,7 +273,7 @@ struct ContentView: View {
                     .padding(.top, 8)
 
                 HStack {
-                    Text("Inference Time (\(selectedAccelerator.title))")
+                    Text("Inference Time (CPU XNNPACK)")
                         .font(.subheadline)
                         .foregroundColor(.secondary)
                     Spacer()
@@ -320,10 +294,18 @@ struct ContentView: View {
 
             Divider()
 
-            // Expanded content (Metrics & Backend Controls)
-            VStack(spacing: 14) {
-                // Secondary Metrics Rows
+            // Expanded content (Metrics & Backend Info)
+            VStack(spacing: 12) {
                 VStack(spacing: 6) {
+                    HStack {
+                        Text("Backend:")
+                            .font(.footnote)
+                            .foregroundColor(.secondary)
+                        Spacer()
+                        Text("CPU (XNNPACK, 4 threads)")
+                            .font(.footnote)
+                            .bold()
+                    }
                     HStack {
                         Text("Preprocess Time:")
                             .font(.footnote)
@@ -350,31 +332,6 @@ struct ContentView: View {
                         Text(TensorFlowLite.Runtime.version)
                             .font(.footnote)
                             .bold()
-                    }
-                }
-
-                Divider()
-
-                // Backend Selection Picker (CPU XNNPACK / GPU MetalDelegate / NPU CoreMLDelegate)
-                VStack(alignment: .leading, spacing: 8) {
-                    Text("Delegate / Accelerator")
-                        .font(.subheadline)
-                        .fontWeight(.medium)
-
-                    Picker("Accelerator", selection: $selectedAccelerator) {
-                        ForEach(AcceleratorOption.allCases, id: \.self) { option in
-                            Text(option.rawValue).tag(option)
-                        }
-                    }
-                    .pickerStyle(.segmented)
-                    .onChange(of: selectedAccelerator) { _ in
-                        if activeTab == .gallery {
-                            runSegmentationOnSelectedImage()
-                        } else {
-                            segmentedMask = nil
-                            let accelerator = selectedAccelerator.tfliteAccelerator
-                            getOrInitializeSegmenter(for: accelerator) { _ in }
-                        }
                     }
                 }
             }
@@ -404,8 +361,8 @@ struct ContentView: View {
 
     // MARK: - Core Processing Logic
 
-    private func getOrInitializeSegmenter(for accelerator: TFLiteAccelerator, completion: @escaping (TFLiteSegmenter?) -> Void) {
-        if let segmenter = activeSegmenter, activeAccelerator == accelerator {
+    private func getOrInitializeSegmenter(completion: @escaping (TFLiteSegmenter?) -> Void) {
+        if let segmenter = activeSegmenter {
             completion(segmenter)
             return
         }
@@ -426,10 +383,9 @@ struct ContentView: View {
 
         modelQueue.async {
             do {
-                let segmenter = try TFLiteSegmenter(modelPath: modelPath, accelerator: accelerator)
+                let segmenter = try TFLiteSegmenter(modelPath: modelPath, threadCount: 4)
                 DispatchQueue.main.async {
                     self.activeSegmenter = segmenter
-                    self.activeAccelerator = accelerator
                     self.isInitializingSegmenter = false
                     completion(segmenter)
                 }
@@ -468,9 +424,7 @@ struct ContentView: View {
             cgImage = cg
         }
 
-        let accelerator = selectedAccelerator.tfliteAccelerator
-
-        getOrInitializeSegmenter(for: accelerator) { segmenter in
+        getOrInitializeSegmenter { segmenter in
             guard let segmenter = segmenter else {
                 self.isProcessingStatic = false
                 return
@@ -499,8 +453,7 @@ struct ContentView: View {
     private func processLiveFrame(_ cgImage: CGImage) {
         guard activeTab == .camera, !isProcessingLiveFrame, !isInitializingSegmenter else { return }
 
-        let accelerator = selectedAccelerator.tfliteAccelerator
-        getOrInitializeSegmenter(for: accelerator) { segmenter in
+        getOrInitializeSegmenter { segmenter in
             guard let segmenter = segmenter else { return }
 
             self.isProcessingLiveFrame = true

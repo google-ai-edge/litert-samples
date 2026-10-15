@@ -1,25 +1,25 @@
 # TensorFlow Lite (Swift API) Image Segmentation - iOS
 
-An iOS application demonstrating real-time and static multi-class image segmentation using the **TensorFlow Lite Swift API** (`TensorFlowLite` module integrated into the `LiteRT` Swift Package). The app supports switching at runtime between **3 hardware execution backends**:
+An iOS application demonstrating real-time and static multi-class image segmentation using the **TensorFlow Lite Swift API** (`TensorFlowLite` module integrated into the `LiteRT` Swift Package release `2.3.0`). The app uses multi-threaded CPU execution powered by the built-in **XNNPACK delegate** (`Interpreter.Options.isXNNPackEnabled = true`, `threadCount = 4`).
 
-1. **CPU (`XNNPACK`)** — Multi-threaded CPU execution (`Interpreter.Options.isXNNPackEnabled = true`, `threadCount = 4`).
-2. **GPU (`MetalDelegate`)** — Apple GPU compute acceleration (`MetalDelegate` built with `--define=use_metal_delegate=1`).
-3. **NPU / ANE (`CoreMLDelegate`)** — Apple Neural Engine / Core ML acceleration (`CoreMLDelegate` built with `--define=use_coreml_delegate=1`).
+> [!NOTE]
+> The LiteRT 2.3.0 Swift release package (`https://github.com/google-ai-edge/LiteRT` branch `release/2.3.0`) provides the core TensorFlow Lite C runtime (`TensorFlowLiteC`) optimized for CPU with XNNPACK. For native GPU acceleration on iOS, see the sibling [`swift_litert`](../swift_litert) sample utilizing LiteRT's native Swift API and Metal accelerator.
 
 ---
 
-## Screenshots
+## Screenshot
 
-| CPU (`XNNPACK`) | GPU (`MetalDelegate`) | NPU / ANE (`CoreMLDelegate`) |
-|---|---|---|
-| <img src="output/CPU.PNG" alt="CPU XNNPACK Inference" width="250"> | <img src="output/GPU(Metal).PNG" alt="GPU MetalDelegate Inference" width="250"> | <img src="output/NPU(CoreML).PNG" alt="NPU CoreMLDelegate Inference" width="250"> |
+| CPU (`XNNPACK`) Inference |
+|:---:|
+| <img src="output/CPU.PNG" alt="CPU XNNPACK Inference" width="300"> |
 
 ---
 
 ## Features
 
-- **3-Way Backend Switching**: Select between **CPU (XNNPACK)**, **GPU (MetalDelegate)**, and **NPU (CoreMLDelegate)** directly in the expandable bottom sheet.
-- **Real-Time Camera Stream**: Run live segmentation on the front/back camera feed.
+- **TFLite Swift API on LiteRT 2.3.0**: Runs inference via the standard `TensorFlowLite.Interpreter` API resolved from the official `LiteRT` Swift release package.
+- **CPU Acceleration via XNNPACK**: Highly optimized 4-threaded CPU execution enabled through `Interpreter.Options.isXNNPackEnabled = true`.
+- **Real-Time Camera Stream**: Run live segmentation on the front/back camera feed with auto aspect ratio matching.
 - **Gallery Image Selection**: Run static segmentation on the bundled portrait (`image.jpeg`) or import custom images from the photo library.
 - **Performance Metrics Display**: Live measurements of Pre-process, Inference, and Post-process execution times in milliseconds alongside `TensorFlowLite.Runtime.version`.
 
@@ -29,50 +29,46 @@ An iOS application demonstrating real-time and static multi-class image segmenta
 
 | Component | File | Description |
 |-----------|------|-------------|
-| **TFLiteSegmenter** | `ImageSegmentation/TFLiteSegmenter.swift` | Native Swift implementation utilizing `TensorFlowLite` (`Interpreter`, `Interpreter.Options`, `MetalDelegate`, `CoreMLDelegate`, `Tensor`) |
-| **ContentView** | `ImageSegmentation/ContentView.swift` | Single-page SwiftUI interface displaying camera/gallery segmentation, latency telemetry, and 3-way delegate picker |
+| **TFLiteSegmenter** | `ImageSegmentation/TFLiteSegmenter.swift` | Native Swift implementation utilizing `TensorFlowLite` (`Interpreter`, `Interpreter.Options`, `Tensor`) |
+| **ContentView** | `ImageSegmentation/ContentView.swift` | Single-page SwiftUI interface displaying camera/gallery segmentation and latency telemetry |
 | **CameraManager** | `ImageSegmentation/CameraManager.swift` | Manages `AVFoundation` camera capture session and frame streams |
 | **ImagePicker** | `ImageSegmentation/ImagePicker.swift` | Wraps `PHPickerViewController` in `UIViewControllerRepresentable` for photo library access |
 | **ImageSegmentationApp** | `ImageSegmentation/ImageSegmentationApp.swift` | SwiftUI application entry point |
+| **LiteRT** (Swift Package) | `https://github.com/google-ai-edge/LiteRT` (`release/2.3.0`) | Provides the `TensorFlowLite` Swift module and `TensorFlowLiteC` precompiled runtime |
 
 ---
 
 ## Prerequisites & Setup
 
-### 1. Building `TensorFlowLiteC`, `TensorFlowLiteCCoreML`, and `TensorFlowLiteCMetal` XCFrameworks
+### 1. LiteRT Swift Package Dependency
 
-The `TensorFlowLite` Swift module is built directly from source in the `LiteRT` Swift Package, while the C runtime and delegate implementations are provided as separate prebuilt binary xcframeworks:
+#### Option A: Using the Released LiteRT Swift Package (Default)
 
-- `TensorFlowLiteC.xcframework.zip`: Core C runtime (XNNPACK / CPU).
-- `TensorFlowLiteCCoreML.xcframework.zip`: Apple Core ML / Neural Engine delegate (`CoreMLDelegate`).
-- `TensorFlowLiteCMetal.xcframework.zip`: Apple Metal GPU delegate (`MetalDelegate`).
+The project is pre-configured to resolve the official LiteRT Swift release package via Swift Package Manager:
+* **Repository URL:** `https://github.com/google-ai-edge/LiteRT`
+* **Dependency Rule:** Branch `release/2.3.0` (or exact version `2.3.0`)
+* **Product:** `TensorFlowLite`
 
-To compile these packages:
+When you open `ImageSegmentation.xcodeproj` in Xcode or run `xcodebuild`, Swift Package Manager will automatically fetch and resolve the dependencies.
 
+> [!TIP]
+> **Git LFS Troubleshooting:** If Xcode reports an error during package checkout such as `smudge filter lfs failed` or `git-lfs: command not found`, run `git lfs uninstall` or build with `GIT_LFS_SKIP_SMUDGE=1`. The Swift package does not need Git LFS prebuilts. See the [LiteRT Swift Troubleshooting guide](https://github.com/google-ai-edge/LiteRT/tree/main/litert/swift#troubleshooting) for details.
+
+#### Option B: Building `TensorFlowLiteC` Locally from Source
+
+If you are developing LiteRT locally or testing from source:
 ```bash
 # Navigate to the LiteRT repository
 cd path/to/LiteRT
 
-# 1. Build TensorFlowLiteC runtime
-bazel build -c opt --config=ios \
-  //litert/swift:TensorFlowLiteC
+# Build the TensorFlowLiteC runtime xcframework target
+bazel build -c opt --config=ios //litert/swift:TensorFlowLiteC
 
-# 2. Build TensorFlowLiteCCoreML delegate
-bazel build -c opt --config=ios \
-  --define=use_coreml_delegate=1 \
-  //litert/swift:TensorFlowLiteCCoreML
-
-# 3. Build TensorFlowLiteCMetal delegate
-bazel build -c opt --config=ios \
-  --define=use_metal_delegate=1 \
-  //litert/swift:TensorFlowLiteCMetal
-
-# Copy the compiled xcframework archives into LiteRT/prebuilt/
+# Copy the compiled xcframework archive into LiteRT/prebuilt/ for the Swift Package
 mkdir -p prebuilt
 cp -f bazel-bin/litert/swift/TensorFlowLiteC.xcframework.zip prebuilt/
-cp -f bazel-bin/litert/swift/TensorFlowLiteCCoreML.xcframework.zip prebuilt/
-cp -f bazel-bin/litert/swift/TensorFlowLiteCMetal.xcframework.zip prebuilt/
 ```
+In Xcode, remove the remote package under **ImageSegmentation** > **Package Dependencies**, and add your local `LiteRT` directory via **File > Add Package Dependencies... > Add Local...**.
 
 ### 2. Download the Model File (if not already present)
 ```bash
@@ -88,38 +84,17 @@ curl -L -o selfie_multiclass_256x256.tflite \
 
 ---
 
-## How the 3 Backends Work in `TFLiteSegmenter.swift`
+## How the CPU Backend Works in `TFLiteSegmenter.swift`
 
-### 1. CPU Backend (`XNNPACK`)
-Uses the built-in XNNPACK delegate via `Interpreter.Options`:
+The app initializes the TFLite interpreter with the built-in XNNPACK engine:
+
 ```swift
 var options = Interpreter.Options()
 options.threadCount = 4
 options.isXNNPackEnabled = true
+
 let interpreter = try Interpreter(modelPath: modelPath, options: options)
 try interpreter.allocateTensors()
 ```
 
-### 2. GPU Backend (`MetalDelegate`)
-Uses `MetalDelegate` (`--define=use_metal_delegate=1`):
-```swift
-var metalOptions = MetalDelegate.Options()
-metalOptions.isPrecisionLossAllowed = true
-metalOptions.waitType = .passive
-let metalDelegate = MetalDelegate(options: metalOptions)
-let interpreter = try Interpreter(modelPath: modelPath, options: options, delegates: [metalDelegate])
-try interpreter.allocateTensors()
-```
-
-### 3. Core ML / Neural Engine Backend (`CoreMLDelegate`)
-Uses `CoreMLDelegate` (`--define=use_coreml_delegate=1`), targeting `.neuralEngine` (Apple Neural Engine / NPU) first and falling back to `.all` on Simulator or non-ANE devices:
-```swift
-var coreMLOptions = CoreMLDelegate.Options()
-coreMLOptions.enabledDevices = .neuralEngine
-let coreMLDelegate = CoreMLDelegate(options: coreMLOptions) ?? {
-    coreMLOptions.enabledDevices = .all
-    return CoreMLDelegate(options: coreMLOptions)!
-}()
-let interpreter = try Interpreter(modelPath: modelPath, options: options, delegates: [coreMLDelegate])
-try interpreter.allocateTensors()
-```
+Preprocessing normalizes input pixels to `[-1.0, 1.0]` (NHWC float32), copies data to input tensor 0, runs `interpreter.invoke()`, and postprocesses the 6-class output tensor (`1 x 256 x 256 x 6`) into a colored alpha mask.
