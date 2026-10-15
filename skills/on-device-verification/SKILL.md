@@ -94,6 +94,8 @@ output, re-read the residency line before believing the GPU ran** — a
 full `N/T` decides, not the equality; fp16 GPU runs usually drift in the
 last digits, and an fp32-forced or integer graph may not.
 
+When the comparison is between two bundles of the same weights (a re-pack against its source, external against inline weights), byte-compare the text on single-thread CPU (`--cpu-thread-count 1`) or on the GPU: at the default thread count the CPU greedy text of one file moves between fresh processes, so a byte difference there is not a file difference. Long replies in several fresh processes per file are the test; short answers agree even when long ones do not.
+
 ## Device-only failures
 
 | What you see | What it is, what to do |
