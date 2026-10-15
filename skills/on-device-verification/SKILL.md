@@ -109,6 +109,7 @@ When the comparison is between two bundles of the same weights (a re-pack agains
 | A deep transformer shipped as an fp16 graph is bit-exact on desktop and noise on the device CPU | Android ARM XNNPACK computes fp16 **activations** natively; desktop XNNPACK upcasts to fp32. Deep residual streams compound the difference to collapse. Ship fp32 activations for CPU inference on device (fp16 *weights* that dequantize on load are a size route, not this case) |
 | Attention quality collapses only for a small-head submodule | head_dim is the fp16-fragile axis, not token count: the same graph at head_dim 64 held corr 0.998 where head_dim 16 fell to 0.86. Pad heads to ≥32 or keep the small-head module on CPU |
 | A `[1,N,C]` token tensor that is a graph output **and** feeds other consumers comes back corrupted | 3-D fan-out corruption — the later branch is clobbered, it cascades, and it reads exactly like an fp16 wall downstream (4-D NCHW maps with the same fan-out are fine). Keep token tensors as sole leaf outputs (or keep them 4-D) and push per-token heads to the host — exact, since per-token ops commute with the gather |
+| An output that is one of the graph's own inputs, passed through with no op writing it, comes back as stale bytes; a graph that also reads that tensor computes on that unwritten buffer (zeros in the case on record) | The CompiledModel API binds the output to its own buffer and the graph reads the tensor from that output binding, which nothing writes. Measured on one speech encoder with LiteRT 2.2.0 (Android, CPU) and ai-edge-litert 2.4.0.dev20261011 (macOS, CPU and Metal); the Interpreter API keeps one tensor and gives the right answer, so a host Interpreter check passes. Export without the pass-through output (or produce it with a real op), or write the value into the output buffer as well, or bind one buffer to both; when a host hands streaming state back, copy pass-through states from the inputs |
 | A fused-LSTM-style graph with **variable tensors** (state kept inside the graph) will not load | The CompiledModel loader rejects it: `model_load.cc: Variable tensors not yet supported` (2.2.0 and 2.3.0, `from_file` and `from_buffer`). Re-export the graph stateless — the recurrent state as explicit inputs and outputs that the host feeds back each call — and verify the per-call parity on that form |
 
 ## Watch for
@@ -116,6 +117,16 @@ When the comparison is between two bundles of the same weights (a re-pack agains
 - **Two references, two verdicts.** The source-framework dump is the
   truth; the device CPU run is the control that isolates the GPU. A
   GPU-vs-CPU comparison alone can pass while both are wrong.
+- **Gate a reduced-precision form on the whole check set, long inputs
+  included.** On one speech encoder a subset of 7–9 rows passed the NPU
+  (fp16 arithmetic) and one phone's GPU at FP16_WITH_FP32_ACCUM; the
+  whole set (41–90 windows by window length, every window of the opening
+  10 minutes of a 54-minute recording among them) failed both. The failing
+  tokens were quiet but not silent, at the same moments of the recording
+  on every backend and every window cut, and an int8 form failed at most
+  of those moments too: content-sensitive tokens, not an op bug. List
+  the failures by input position before bisecting ops, and keep the
+  subset for speed iterations only.
 - **The fp32-forcing knob is for attribution, not shipping.** It tells
   you precision is the cause; the fix is a rewrite or hybrid placement.
 - **First inference includes shader compilation.** Correctness on the
