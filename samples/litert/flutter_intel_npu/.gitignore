@@ -1,0 +1,93 @@
+# Copyright 2026 The Google AI Edge Authors. All Rights Reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+# Miscellaneous
+*.class
+*.log
+*.pyc
+*.swp
+.DS_Store
+.atom/
+.build/
+.buildlog/
+.history
+.svn/
+.swiftpm/
+migrate_working_dir/
+
+# IntelliJ related
+*.iml
+*.ipr
+*.iws
+.idea/
+
+# The .vscode folder contains launch configuration and tasks you configure in
+# VS Code which you may wish to be included in version control, so this line
+# is commented out by default.
+#.vscode/
+
+# Flutter/Dart/Pub related
+**/doc/api/
+**/ios/Flutter/.last_build_id
+.dart_tool/
+.flutter-plugins-dependencies
+.pub-cache/
+.pub/
+/build/
+/coverage/
+
+# Symbolication related
+app.*.symbols
+
+# Obfuscation related
+app.*.map.json
+
+# Android Studio will place build artifacts here
+/android/app/debug
+/android/app/profile
+/android/app/release
+
+# Widget Preview related
+.widget_preview/
+
+# Local secrets / machine-specific run config (see config.json.example)
+config.json
+
+# Coverage / profiling output
+*.profraw
+
+# Platforms this sample does not ship
+/ios/
+/android/
+/linux/
+/web/
+
+# Models and the caches LiteRT-LM writes next to them (~0.4 GB each)
+*.litertlm
+*_mldrift_*
+*.xnnpack_cache
+/models/
+
+# Videos recorded with ACT3_RECORD
+*.mp4
+
+# Local agent notes and settings, and the flutter_scene skills that
+# `dart run flutter_scene:skills` installs
+AGENTS.md
+AGENTS.local.md
+CLAUDE.md
+CLAUDE.local.md
+.claude/
+.codex/
+.fvm/
