@@ -41,6 +41,32 @@ val extractSkillCode =
         outputDir.set(layout.buildDirectory.dir("generated/skill"))
     }
 
+// The skill's migration templates, compiled into the test APK as they are, with the app's package
+// in place of the template's, and the tests in src/migrationTest that run them. They use LiteRT
+// Support, whose com.google.ai.edge.litert.support package starts with 2.3.0, so they are built
+// from that version on, and only from a copy of the skill that has the templates.
+val migrationTemplates =
+    rootProject.layout.projectDirectory.dir(skillsDir).map {
+        it.dir("litert-runtime/references/migration")
+    }
+val migrationTests = litertHasGpuArtifact.get() && migrationTemplates.get().asFile.isDirectory
+val migrationSources = layout.buildDirectory.dir("generated/migration")
+val copyMigrationTemplates =
+    tasks.register<Copy>("copyMigrationTemplates") {
+        if (migrationTests) {
+            from(migrationTemplates) { include("MigrationValidationTest.kt", "SupportBridge.kt") }
+        }
+        into(migrationSources)
+        filter { line ->
+            line.replace(
+                "package com.example.validation",
+                "package com.google.ai.edge.examples.litertruntime",
+            )
+        }
+        // Otherwise a template removed from the skill would stay in the test APK.
+        doFirst { migrationSources.get().asFile.deleteRecursively() }
+    }
+
 // The app's own model, under the asset name the skill's Classifier opens. The other fixtures are
 // test assets.
 val copyAppModel =
@@ -71,10 +97,14 @@ android {
     sourceSets.getByName("main").kotlin.directories += "build/generated/skill"
     sourceSets.getByName("main").assets.directories += "build/generated/assets"
     sourceSets.getByName("androidTest").assets.directories += "fixtures"
+    if (migrationTests) {
+        sourceSets.getByName("androidTest").kotlin.directories +=
+            listOf("build/generated/migration", "src/migrationTest/java")
+    }
 }
 
 tasks.named("preBuild") {
-    dependsOn(extractSkillCode, copyAppModel)
+    dependsOn(extractSkillCode, copyAppModel, copyMigrationTemplates)
 }
 
 dependencies {
@@ -93,4 +123,7 @@ dependencies {
     }
     androidTestImplementation("androidx.test.ext:junit:1.3.0")
     androidTestImplementation("androidx.test:runner:1.7.0")
+    if (migrationTests) {
+        androidTestImplementation("com.google.ai.edge.litert:litert-support:${litertVersion.get()}")
+    }
 }

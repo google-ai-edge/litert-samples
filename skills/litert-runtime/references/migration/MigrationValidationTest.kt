@@ -20,8 +20,8 @@ import com.google.ai.edge.litert.Accelerator
 import com.google.ai.edge.litert.CompiledModel
 
 /**
- * Stage 2 gate: the Step 0 input, through the app's preprocessing and the migrated model on the
- * CPU, must reproduce the golden captured from the legacy app
+ * Stage 2 gate: the GoldenCaptureTest input, through the app's preprocessing and the migrated
+ * model on the CPU, must reproduce the golden captured from the legacy app
  * (app/src/androidTest/assets/golden/output.txt).
  * Runs on a connected device or emulator: ./gradlew connectedDebugAndroidTest
  */
@@ -36,8 +36,8 @@ class MigrationValidationTest {
         // TODO: Replace with the actual model name in the assets folder
         val modelAssetPath = "model.tflite"
 
-        // TODO: Build the same fixed input Step 0 used and run it through the app's preprocessing:
-        // its ImageProcessor on LiteRT Support (expose it as a function such as
+        // TODO: Build the same fixed input GoldenCaptureTest used and run it through the app's
+        // preprocessing: its ImageProcessor on LiteRT Support (expose it as a function such as
         // preprocess(bitmap): TensorImage, then SupportBridge.write / read in place of writeFloat /
         // readFloat below), or the function that replaced it. The placeholder below is a 224x224
         // pattern bitmap normalized to [-1, 1]. Int8 models use writeInt8 / readInt8.
@@ -81,8 +81,8 @@ class MigrationValidationTest {
     }
 
     /**
-     * The Step 0 golden, in the test APK: one value per line, every output float or the top-1 index
-     * alone.
+     * The GoldenCaptureTest golden, in the test APK: one value per line, every output float or the
+     * top-1 index alone.
      */
     private fun readGolden(): List<Float> {
         val assets = InstrumentationRegistry.getInstrumentation().context.assets
@@ -91,14 +91,14 @@ class MigrationValidationTest {
         } catch (e: IOException) {
             throw AssertionError(
                 "app/src/androidTest/assets/golden/output.txt is missing: " +
-                    "capture it as in Step 0 of SKILL.md",
+                    "capture it with GoldenCaptureTest (references/migration.md)",
                 e
             )
         }
         return lines.filter { it.isNotBlank() }.map { it.trim().toFloat() }
     }
 
-    /** Deterministic, non-uniform RGB pattern; Step 0 builds its input with the same function. */
+    /** Deterministic, non-uniform RGB pattern; GoldenCaptureTest builds the same one. */
     private fun fixedBitmap(size: Int): Bitmap {
         val pixels = IntArray(size * size)
         for (y in 0 until size) {

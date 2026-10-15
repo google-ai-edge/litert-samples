@@ -11,8 +11,8 @@ import org.junit.runner.RunWith
 import java.io.File
 
 /**
- * Step 0 (throwaway, before any dependency changes): the legacy app's output for one fixed input,
- * written to the app's external files dir. Run it with, in the project directory:
+ * The golden capture (throwaway, before any dependency changes): the legacy app's output for one
+ * fixed input, written to the app's external files dir. Run it with, in the project directory:
  *   ./gradlew installDebug installDebugAndroidTest
  *   adb shell am instrument -w -e class <test package>.GoldenCaptureTest \
  *     <applicationId>.test/androidx.test.runner.AndroidJUnitRunner
@@ -33,8 +33,7 @@ class GoldenCaptureTest {
 
         // TODO: Run the app's existing inference entry point (the class the UI calls, with its own
         // preprocessing) on the bitmap, on the CPU with no GPU or NNAPI delegate, and return the
-        // raw output floats (or the top-1 index alone when that is all the app exposes). Print
-        // interpreter.getInputTensor(0).name() too: Step 4 needs the tensor name.
+        // raw output floats (or the top-1 index alone when that is all the app exposes).
         val result: FloatArray = TODO("call the legacy inference on the fixed input")
 
         val file = File(context.getExternalFilesDir(null), "golden.txt")

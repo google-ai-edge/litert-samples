@@ -331,14 +331,26 @@ outputs on a physical device, you must follow [device verification](references/v
 
 ## Migrating from legacy TFLite Interpreter
 
-When upgrading an existing project from `org.tensorflow.lite.Interpreter`,
-replace legacy constructs with their `CompiledModel` equivalents:
+An existing app on `org.tensorflow.lite.Interpreter` or `InterpreterApi` (from
+`org.tensorflow:tensorflow-lite*`, from `com.google.ai.edge.litert:litert` 1.x,
+or from LiteRT in Google Play services) moves to the `CompiledModel` code of
+Steps 1 to 5 in the seven steps below, in this order. The [migration
+details](references/migration.md) give the commands for each step, and
+`references/migration/` holds the two tests and the bridge class that the steps
+copy into the app.
 
-- **Gradle dependencies** : Remove all `org.tensorflow:tensorflow-lite*` artifacts (`org.tensorflow:tensorflow-lite`, `org.tensorflow:tensorflow-lite-gpu`, `org.tensorflow:tensorflow-lite-support`, and `org.tensorflow:tensorflow-lite-metadata`). Replace them with `com.google.ai.edge.litert:litert:2.3.0` and `com.google.ai.edge.litert:litert-gpu:2.3.0`. If you still need Support or Metadata utilities (such as `ImageProcessor`, `TensorImage`, or `MetadataExtractor`), use `com.google.ai.edge.litert:litert-support:2.3.0` (or `litert-support-api:2.3.0` alongside `litert:2.3.0`) and `com.google.ai.edge.litert:litert-metadata:2.3.0`, and rename package imports from `org.tensorflow.lite.support.*` to `com.google.ai.edge.litert.support.*` per the [LiteRT Support migration guide](https://github.com/google-ai-edge/LiteRT/blob/main/litert/support_lib/MIGRATION_GUIDE.md).
-- **Model loading** : Replace `FileUtil.loadMappedFile` and `Interpreter` with `CompiledModel.create(context.assets, name, options, environment)`.
-- **GPU delegation** : Replace `GpuDelegate` on `Interpreter.Options` with `CompiledModel.Options(Accelerator.GPU)` and the `com.google.ai.edge.litert:litert-gpu:2.3.0` dependency.
-- **Execution** : Replace `interpreter.run` on `ByteBuffer` inputs with `inputs[0].writeFloat(input)`, `model.run(inputs, outputs)`, and `outputs[0].readFloat`.
-- **Label loading** : Replace `FileUtil.loadLabels` with `bufferedReader` and `readLines` on `context.assets.open(name)` (or `com.google.ai.edge.litert.support.common.FileUtil.loadLabels` if using `litert-support:2.3.0`).
+1. **Find the runtime** : Read `app/build.gradle.kts`, `libs.versions.toml`, and the output of `./gradlew :app:dependencies`, and note the delegate, the thread count, the TensorFlow Lite Support classes, and any native code the app uses.
+2. **Capture a golden output first** : While the legacy runtime is still in the project, run one fixed input through the app's own inference class on the CPU with `GoldenCaptureTest.kt` on a device, and keep the output as `app/src/androidTest/assets/golden/output.txt`.
+3. **Swap the dependencies** : Remove every legacy artifact, including `litert` and `litert-gpu` 1.x and the ones that other libraries pull in, and add the dependencies of Step 1. An app on the Support library keeps it as `com.google.ai.edge.litert:litert-support:2.3.0`, with the package `org.tensorflow.lite.support` renamed to `com.google.ai.edge.litert.support`. Raise the Kotlin plugin, AGP, and `compileSdk` to what the 2.3.0 artifacts need.
+4. **Replace the delegates** : `GpuDelegate` becomes `CompiledModel.Options(Accelerator.GPU, Accelerator.CPU)`, so that the CPU runs the operators the GPU doesn't support, as it did with the delegate. An NNAPI option becomes the same GPU option; the `CompiledModel` API has no NNAPI accelerator. A model that needs Select TensorFlow operators (`FlexDelegate`) is exported again without them.
+5. **Rewrite the inference code** : Replace `Interpreter` and `FileUtil.loadMappedFile` with the `Classifier` helper of Step 2 on the executor of Step 3, and `run` on a `ByteBuffer` with `writeFloat`, `run`, and `readFloat` on buffers created once. With the Support library, keep `ImageProcessor` and `TensorLabel`, and replace its `Model` with the helper and `SupportBridge.kt`.
+6. **Verify in two stages** : First, `./gradlew assembleDebug assembleDebugAndroidTest` passes and the two searches for legacy references in the migration details, one in the code and one in the resolved dependencies, print nothing; the `litert` artifact still contains `org.tensorflow.lite.Interpreter`, so the build alone doesn't reveal leftover code. Then `MigrationValidationTest.kt` reproduces the golden output on the device, and Step 5 compares the CPU and the GPU.
+7. **Native modules** : Link the `litert_cc_api` target of the LiteRT C++ SDK of the same version in place of `tensorflowlite_jni`.
+
+An app on LiteRT in Google Play services (`play-services-tflite-*`,
+`TfLite.initialize`, `InterpreterApi`) follows the same steps and also removes
+the Play services initialization; a new app follows Steps 1 to 5. See [Google
+Play services](references/migration.md#google-play-services).
 
 ## Antipatterns
 
@@ -351,7 +363,8 @@ replace legacy constructs with their `CompiledModel` equivalents:
 ## Checklist
 
 - \[ \] Is `minSdk` set to `24` or higher and are both `com.google.ai.edge.litert:litert:2.3.0` and `com.google.ai.edge.litert:litert-gpu:2.3.0` added in `app/build.gradle.kts`?
-- \[ \] Are all legacy `org.tensorflow:tensorflow-lite*` dependencies and `org.tensorflow.lite.*` imports removed?
+- \[ \] Are all legacy `org.tensorflow:tensorflow-lite*`, `com.google.ai.edge.litert` 1.x, and `com.google.android.gms:play-services-tflite-*` dependencies removed, with no `org.tensorflow.lite` import left other than `DataType` and the `schema` package?
+- \[ \] After a migration, do both searches for legacy references print nothing, and does `MigrationValidationTest` match the golden output on a device?
 - \[ \] Do `CompiledModel.create`, `model.run`, and `close` all execute on the same single-thread background dispatcher?
 - \[ \] Are `TensorBuffer` instances allocated once, reused across calls, and closed before `model.close`, including when `init` or warm-up throws?
 - \[ \] Does `load` execute one warm-up inference and fall back to `Accelerator.CPU` if `Accelerator.GPU` throws `LiteRtException`?

@@ -13,13 +13,13 @@ import org.tensorflow.lite.DataType
 /**
  * Moves data between LiteRT Support tensors (litert-support 2.3.0: [TensorImage] and its
  * [SupportTensorBuffer]) and the buffers of a [CompiledModel]. Copy this file only into an app
- * that keeps LiteRT Support (LiteRtModel.kt does not need it). Both libraries have a class named
- * TensorBuffer, so this file imports the Support one as SupportTensorBuffer.
+ * that keeps LiteRT Support. Both libraries have a class named TensorBuffer, so this file imports
+ * the Support one as SupportTensorBuffer.
  *
  * Create one per model after CompiledModel.create, with the names of the input and the output
- * tensor (`args_0` / `output_0` for LiteRT-Torch exports, the graph's tensor names otherwise,
- * which Step 0 prints). It reads the byte size of both tensors once and refuses a Support tensor
- * of another size, as the Interpreter did for a ByteBuffer. The Kotlin buffer API does not check:
+ * tensor (`args_0` / `output_0` for LiteRT-Torch exports, the graph's tensor names otherwise).
+ * It reads the byte size of both tensors once and refuses a Support tensor of another size, as
+ * the Interpreter did for a ByteBuffer. The Kotlin buffer API does not check:
  * writeFloat of a shorter array leaves the rest of the input unchanged, and writeInt8 of a uint8
  * image into a float input runs and returns NaN. For a float input it also refuses a uint8 image
  * (a TensorImage that did not go through NormalizeOp). Call [write], run and [read] on the

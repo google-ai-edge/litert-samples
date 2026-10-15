@@ -23,8 +23,8 @@ Options, each added to the `./gradlew` line:
 
 - `-Pandroid.testInstrumentationRunnerArguments.backend=GPU` runs the LiteRT-LM tests on the GPU backend.
 - `-Pandroid.testInstrumentationRunnerArguments.modelPath=<path on the device>` uses another `.litertlm` file.
-- `-PlitertVersion=<version>` builds the `litert-runtime` app against another release of `litert` (`litert-gpu` is added from 2.3.0 on; for 2.2.0 or 2.1.6 add `-Pandroid.uniquePackageNames=false`, step 1 of the skill); `-PlitertlmVersion=<version>` builds the `litert-lm` app against another release of `litertlm-android`.
-- `-PskillsDir=<dir>` builds the apps from another copy of the two skills (a relative path counts from this directory).
+- `-PlitertVersion=<version>` builds the `litert-runtime` app against another release of `litert` (`litert-gpu` is added from 2.3.0 on; for 2.2.0 or 2.1.6 add `-Pandroid.uniquePackageNames=false`, step 1 of the skill); `-PlitertlmVersion=<version>` builds the `litert-lm` app against another release of `litertlm-android`. The migration tests are built from 2.3.0 on, the first release of LiteRT Support under `com.google.ai.edge.litert.support`.
+- `-PskillsDir=<dir>` builds the apps from another copy of the two skills (a relative path counts from this directory). A copy without `litert-runtime/references/migration/` is built without the migration tests.
 
 ## What the tests check
 
@@ -46,6 +46,17 @@ Every test fails if anything is thrown on the ViewModel's thread, because an exc
 The skill's `load()` catches the `LiteRtException` of a load on the GPU and loads the model on the CPU, and `UiState.accelerator` says which one loaded, so a GPU that cannot take the model is not an `error`. The tests that need the GPU are skipped where the app's own model ends on the CPU.
 
 A model that was never closed cannot be reached from a test, which is why the failing loads are repeated: on the Galaxy S26, 20 unclosed CPU models kept 13.8 MB of native heap and 20 unclosed GPU models 62.9 MB and 40 threads. Whether a model was closed is read from LiteRT's `JniHandle.destroyed` field by reflection (present in 2.2.0 and 2.3.0). The models are at most 2.2 KB each, made by `tools/make_fixtures.py`, in `litert-runtime/fixtures/` (its `.gitignore` re-includes `*.tflite`). A `ResourcesLoader` serves the one under test as `assets/model.tflite`.
+
+The migration tests (6 tests) run the templates of [`litert-runtime/references/migration/`](../litert-runtime/references/migration/): at build time `MigrationValidationTest.kt` and `SupportBridge.kt` are copied from the skill with this app's package in place of `com.example.validation`, and the tests in `litert-runtime/src/migrationTest/` run them.
+
+| Path | What is checked |
+|---|---|
+| `MigrationValidationTest`, as the skill has it: its fixed input through its placeholder preprocessing and the app's model on the CPU | the output matches `golden/output.txt` (maximum absolute difference below 1e-3) |
+| the same test with `golden/output_wrong.txt`, whose first value is moved by 0.01, served as `golden/output.txt` | the test fails with `Output differs from the golden` |
+| `SupportBridge` with that input as a `TensorImage` through `NormalizeOp(127.5f, 127.5f)` | the output matches `golden/output.txt` |
+| `SupportBridge` given an image of another size, a uint8 image for the float input, and an output shape of another size | each one is refused with `IllegalArgumentException` |
+
+`litert-runtime/fixtures/golden/` holds the output of the app's model for that input on the workstation, from `tools/make_golden.py` (the `CompiledModel` API of the Python package `ai-edge-litert` on the CPU). `tools/check_legacy_imports.sh <dir>` is the source search of stage 1 of the migration: it prints each reference to the legacy runtime under the directory and exits 1, or prints `PASS`.
 
 `ChatViewModelTest` ([LiteRT-LM](https://github.com/google-ai-edge/LiteRT-LM), 20 tests):
 
