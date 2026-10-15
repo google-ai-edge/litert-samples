@@ -72,8 +72,8 @@ An iOS SwiftUI implementation using the **TensorFlow Lite `Interpreter` Swift AP
 
 **Features:**
 
--   Native Swift `Interpreter`, `MetalDelegate`, and `CoreMLDelegate` APIs
--   3-way hardware backend switching: **CPU (XNNPACK)**, **GPU (`MetalDelegate`)**, and **NPU / Apple Neural Engine (`CoreMLDelegate`)**
+-   Native Swift `Interpreter` API from the `LiteRT` Swift Package (`TensorFlowLite` product)
+-   High-performance CPU inference powered by **XNNPACK**
 -   Real-time camera and gallery image segmentation
 
 ## Technical Details

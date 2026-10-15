@@ -19,12 +19,6 @@ import CoreGraphics
 import UIKit
 import TensorFlowLite
 
-public enum TFLiteAccelerator: Int {
-    case cpu = 0
-    case metal = 1
-    case coreML = 2
-}
-
 public final class TFLiteSegmentationResult {
     public let maskImage: UIImage
     public let preProcessTimeMs: Double
@@ -46,7 +40,6 @@ public final class TFLiteSegmentationResult {
 
 public final class TFLiteSegmenter {
     private var interpreter: Interpreter!
-    private var delegates: [Delegate] = []
 
     private struct ColoredLabel {
         let r: UInt8
@@ -65,67 +58,18 @@ public final class TFLiteSegmenter {
 
     deinit {
         interpreter = nil
-        delegates.removeAll()
     }
 
-    public init(modelPath: String, accelerator: TFLiteAccelerator) throws {
+    public init(modelPath: String, threadCount: Int = 4) throws {
         var options = Interpreter.Options()
-        options.threadCount = 4
+        options.threadCount = threadCount
+        options.isXNNPackEnabled = true
 
-        switch accelerator {
-        case .cpu:
-            // CPU backend: enable XNNPACK delegate via Interpreter.Options
-            options.isXNNPackEnabled = true
-            self.delegates = []
-            self.interpreter = try Interpreter(
-                modelPath: modelPath,
-                options: options,
-                delegates: nil
-            )
-            print("[TFLiteSegmenter] Initialized TFLite Interpreter (v\(TensorFlowLite.Runtime.version)) with CPU (XNNPACK, 4 threads)")
-
-        case .metal:
-            // GPU backend: configure MetalDelegate
-            var metalOptions = MetalDelegate.Options()
-            metalOptions.isPrecisionLossAllowed = true
-            metalOptions.waitType = .passive
-            let metalDelegate = MetalDelegate(options: metalOptions)
-            self.delegates = [metalDelegate]
-            self.interpreter = try Interpreter(
-                modelPath: modelPath,
-                options: options,
-                delegates: [metalDelegate]
-            )
-            print("[TFLiteSegmenter] Initialized TFLite Interpreter (v\(TensorFlowLite.Runtime.version)) with MetalDelegate (GPU)")
-
-        case .coreML:
-            // NPU / Neural Engine backend: configure CoreMLDelegate
-            // Prefer .neuralEngine first; fall back to .all (e.g. on iOS Simulator or devices without ANE)
-            var coreMLOptions = CoreMLDelegate.Options()
-            coreMLOptions.enabledDevices = .neuralEngine
-            let coreMLDelegate: CoreMLDelegate
-            if let aneDelegate = CoreMLDelegate(options: coreMLOptions) {
-                coreMLDelegate = aneDelegate
-                print("[TFLiteSegmenter] Initialized TFLite Interpreter (v\(TensorFlowLite.Runtime.version)) with CoreMLDelegate (.neuralEngine / ANE)")
-            } else {
-                coreMLOptions.enabledDevices = .all
-                guard let fallbackDelegate = CoreMLDelegate(options: coreMLOptions) else {
-                    throw NSError(
-                        domain: "com.google.tflite.segmentation",
-                        code: 12,
-                        userInfo: [NSLocalizedDescriptionKey: "CoreMLDelegate could not be created on this device"]
-                    )
-                }
-                coreMLDelegate = fallbackDelegate
-                print("[TFLiteSegmenter] Initialized TFLite Interpreter (v\(TensorFlowLite.Runtime.version)) with CoreMLDelegate (.all devices)")
-            }
-            self.delegates = [coreMLDelegate]
-            self.interpreter = try Interpreter(
-                modelPath: modelPath,
-                options: options,
-                delegates: [coreMLDelegate]
-            )
-        }
+        self.interpreter = try Interpreter(
+            modelPath: modelPath,
+            options: options
+        )
+        print("[TFLiteSegmenter] Initialized TFLite Interpreter (v\(TensorFlowLite.Runtime.version)) on CPU (XNNPACK, \(threadCount) threads)")
 
         // Allocate tensors for inference
         try self.interpreter.allocateTensors()
@@ -136,6 +80,8 @@ public final class TFLiteSegmenter {
         let modelHeight = 256
         let channels = 3
         let pixelCount = modelWidth * modelHeight
+
+        let startPreprocess = DispatchTime.now()
 
         // 1. Draw image into 256x256 32bpp RGBA buffer
         var imageData = [UInt8](repeating: 0, count: pixelCount * 4)
@@ -159,8 +105,6 @@ public final class TFLiteSegmenter {
         }
 
         context.draw(image, in: CGRect(x: 0, y: 0, width: modelWidth, height: modelHeight))
-
-        let startPreprocess = DispatchTime.now()
 
         // 2. Normalize pixel values to [-1, 1] (NHWC float32) and copy to input Tensor at index 0
         var inputFloat = [Float](repeating: 0, count: pixelCount * channels)
