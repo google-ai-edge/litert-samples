@@ -35,7 +35,8 @@
 #     -Lib 'C:\Program Files\LibreHardwareMonitor\LibreHardwareMonitorLib.dll'
 # Without -Lib (or if it fails to load) only the loads are reported, with
 # lhm_error saying why. The app reads $Out (POWER_FILE; the default below is
-# also the app's default on Windows).
+# also the app's default on Windows). $Out's folder is reserved for the
+# sidecar: it is made admin-only (see Protect-OutputFolder).
 param(
   [string]$Lib = '',
   [string]$LibSha256 = '',
@@ -57,7 +58,59 @@ if (-not $Lib) {
     $lhm.Open()
   } catch { $lhm = $null; $lhmError = "$_" }
 }
-New-Item -ItemType Directory -Force -Path (Split-Path -Parent $Out) | Out-Null
+# This process runs elevated and rewrites $Out four times a second. If an
+# ordinary user could write to its folder (any user may create folders under
+# ProgramData, and owns what they create), they could swap power.json.tmp for
+# a link to a system file, and this script would overwrite that file as
+# administrator. So the folder must be the sidecar's own: not a link, nothing
+# else in it, owned by Administrators, no inherited rules, users may only read.
+function Protect-OutputFolder([string]$dir, [string[]]$ours) {
+  # SIDs, not names: group names are translated on non-English Windows.
+  $admins = New-Object System.Security.Principal.SecurityIdentifier('S-1-5-32-544')
+  $system = New-Object System.Security.Principal.SecurityIdentifier('S-1-5-18')
+  $users = New-Object System.Security.Principal.SecurityIdentifier('S-1-5-32-545')
+  $me = [System.Security.Principal.WindowsIdentity]::GetCurrent().User
+  if (Test-Path -LiteralPath $dir) {
+    $item = Get-Item -LiteralPath $dir -Force
+    if ($item.Attributes -band [IO.FileAttributes]::ReparsePoint) {
+      throw "$dir is a link; give -Out a folder of its own"
+    }
+    # A folder an ordinary user made is theirs to swap for a link at any
+    # moment, even while its rules are being reset: never touch it.
+    $owner = (Get-Acl -LiteralPath $dir).GetOwner([System.Security.Principal.SecurityIdentifier])
+    if (@($admins.Value, $system.Value, $me.Value) -notcontains $owner.Value) {
+      throw "$dir was not created by an administrator; delete it or give -Out another folder"
+    }
+    $others = @(Get-ChildItem -LiteralPath $dir -Force | Where-Object { $ours -notcontains $_.Name })
+    if ($others.Count -gt 0) {
+      throw "$dir holds other files; give -Out a folder of its own (its access rules are reset)"
+    }
+  } else {
+    New-Item -ItemType Directory -Path $dir | Out-Null
+  }
+  $inherit = [System.Security.AccessControl.InheritanceFlags]'ContainerInherit,ObjectInherit'
+  $none = [System.Security.AccessControl.PropagationFlags]::None
+  $allow = [System.Security.AccessControl.AccessControlType]::Allow
+  $acl = New-Object System.Security.AccessControl.DirectorySecurity
+  $acl.SetOwner($admins)
+  $acl.SetAccessRuleProtection($true, $false)
+  foreach ($id in $admins, $system) {
+    $acl.AddAccessRule((New-Object System.Security.AccessControl.FileSystemAccessRule($id, 'FullControl', $inherit, $none, $allow)))
+  }
+  $acl.AddAccessRule((New-Object System.Security.AccessControl.FileSystemAccessRule($users, 'ReadAndExecute', $inherit, $none, $allow)))
+  Set-Acl -LiteralPath $dir -AclObject $acl
+  # Whatever was left in it was made before the lock: drop the entries
+  # themselves (a link is removed, not followed; Test-Path would follow it
+  # and miss a dangling one), then check nothing of ours is left.
+  foreach ($name in $ours) {
+    $f = Join-Path $dir $name
+    try { [IO.File]::Delete($f) } catch {}
+    try { if ([IO.Directory]::Exists($f)) { [IO.Directory]::Delete($f) } } catch {}
+  }
+  $left = @([IO.Directory]::GetFileSystemEntries($dir) | ForEach-Object { Split-Path -Leaf $_ } | Where-Object { $ours -contains $_ })
+  if ($left.Count -gt 0) { throw "could not clear $($left -join ', ') in $dir" }
+}
+Protect-OutputFolder (Split-Path -Parent $Out) @((Split-Path -Leaf $Out), (Split-Path -Leaf "$Out.tmp"))
 $tmp = "$Out.tmp"
 function NullIfZero($v) { if ($null -eq $v -or $v -le 0) { $null } else { [math]::Round([double]$v, 2) } }
 $rx = 'luid_0x[0-9A-Fa-f]+_(0x[0-9A-Fa-f]+)_phys_\d+_eng_\d+_engtype_(\w+)'
@@ -110,7 +163,7 @@ while ($true) {
     $s.npu_luid = $npuLuid
     $s.npu_load = [math]::Round([math]::Min(100, $byLuid[$npuLuid]['compute']), 1)
   }
-  ($s | ConvertTo-Json -Compress) | Set-Content -Path $tmp -Encoding UTF8
-  Move-Item -Force $tmp $Out
+  ($s | ConvertTo-Json -Compress) | Set-Content -LiteralPath $tmp -Encoding UTF8
+  Move-Item -Force -LiteralPath $tmp -Destination $Out
   Start-Sleep -Milliseconds $IntervalMs
 }

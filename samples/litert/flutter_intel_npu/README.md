@@ -223,7 +223,8 @@ showing, not measuring; with the GPU commentator add `ACT3_RENDER_SCALE=0.75`, o
 writes `%ProgramData%\intel_npu_demo\power.json` (the app's default `POWER_FILE`) about every 1.5 s: CPU, GPU 3D,
 GPU compute and NPU load from the Windows `GPU Engine` counters (the NPU is the compute-only adapter), and watts from
 LibreHardwareMonitor. Run it from an elevated PowerShell, with the LibreHardwareMonitor DLL in a folder only
-administrators can write to:
+administrators can write to. It writes into a folder of its own and makes that folder admin-only (users may read); it
+refuses a folder an ordinary user created, or one that holds other files:
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File tools\power_sidecar\power_sidecar.ps1 `
