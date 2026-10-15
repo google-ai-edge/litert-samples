@@ -25,6 +25,7 @@ Options, each added to the `./gradlew` line:
 - `-Pandroid.testInstrumentationRunnerArguments.modelPath=<path on the device>` uses another `.litertlm` file.
 - `-PlitertVersion=<version>` builds the `litert-runtime` app against another release of `litert` (`litert-gpu` is added from 2.3.0 on; for 2.2.0 or 2.1.6 add `-Pandroid.uniquePackageNames=false`, step 1 of the skill); `-PlitertlmVersion=<version>` builds the `litert-lm` app against another release of `litertlm-android`.
 - `-PskillsDir=<dir>` builds the apps from another copy of the two skills (a relative path counts from this directory).
+- `-PprobeModels=<path>,<path>` packs those `.tflite` files into the `litert-runtime` test APK for `MemoryProbeTest` (below), which is skipped without them.
 
 ## What the tests check
 
@@ -46,6 +47,15 @@ Every test fails if anything is thrown on the ViewModel's thread, because an exc
 The skill's `load()` catches the `LiteRtException` of a load on the GPU and loads the model on the CPU, and `UiState.accelerator` says which one loaded, so a GPU that cannot take the model is not an `error`. The tests that need the GPU are skipped where the app's own model ends on the CPU.
 
 A model that was never closed cannot be reached from a test, which is why the failing loads are repeated: on the Galaxy S26, 20 unclosed CPU models kept 13.8 MB of native heap and 20 unclosed GPU models 62.9 MB and 40 threads. Whether a model was closed is read from LiteRT's `JniHandle.destroyed` field by reflection (present in 2.2.0 and 2.3.0). The models are at most 2.2 KB each, made by `tools/make_fixtures.py`, in `litert-runtime/fixtures/` (its `.gitignore` re-includes `*.tflite`). A `ResourcesLoader` serves the one under test as `assets/model.tflite`.
+
+`MemoryOptionsTest` (2 tests) calls the skill's `memoryOptions` and `CompiledModel.create` directly, on one thread, with the app's own model:
+
+| Path | What is checked |
+|---|---|
+| the model copied into `noBackupFilesDir` and created from that file with `memoryOptions` twice, the weight cache file deleted before the first load | the first load writes the cache file; the second gives the same output, bit for bit, and leaves the file's size as it was |
+| `CompiledModel.create` with `memoryOptions` on a file that does not exist | it throws `LiteRtException` |
+
+`MemoryProbeTest` (8 tests) runs only in a test APK built with `-PprobeModels`. For each way of loading a model (from the assets or from a file, with the weight cache and `xnnPackFlags`, on the CPU or the GPU, kept open or closed after its task) it reads the process's memory from `/proc/self/status` and `android.os.Debug` at five points from before the load to after `close`, with the load and inference times, and writes the result as JSON to `memprobe/` in the app's external files directory. Run one test per process with `adb shell am instrument`; the class comment lists its arguments.
 
 `ChatViewModelTest` ([LiteRT-LM](https://github.com/google-ai-edge/LiteRT-LM), 20 tests):
 

@@ -49,6 +49,22 @@ val copyAppModel =
         into(layout.buildDirectory.dir("generated/assets"))
     }
 
+// -PprobeModels=<path>,<path> packs .tflite files into the test APK's assets under their file
+// names, for MemoryProbeTest. Without it the test APK has none and those tests are skipped.
+val probeModels =
+    providers
+        .gradleProperty("probeModels")
+        .map { paths -> paths.split(",").map { it.trim() }.filter { it.isNotEmpty() } }
+        .orElse(emptyList())
+val probeAssets = layout.buildDirectory.dir("generated/probe-assets")
+val copyProbeModels =
+    tasks.register<Copy>("copyProbeModels") {
+        from(probeModels)
+        into(probeAssets)
+        // Otherwise a build without the property would still pack the models of an earlier one.
+        doFirst { probeAssets.get().asFile.deleteRecursively() }
+    }
+
 android {
     namespace = "com.google.ai.edge.examples.litertruntime"
     compileSdk = 36
@@ -60,6 +76,7 @@ android {
         versionCode = 1
         versionName = "1.0"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+        testInstrumentationRunnerArguments["litertVersion"] = litertVersion.get()
     }
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_11
@@ -71,10 +88,11 @@ android {
     sourceSets.getByName("main").kotlin.directories += "build/generated/skill"
     sourceSets.getByName("main").assets.directories += "build/generated/assets"
     sourceSets.getByName("androidTest").assets.directories += "fixtures"
+    sourceSets.getByName("androidTest").assets.directories += "build/generated/probe-assets"
 }
 
 tasks.named("preBuild") {
-    dependsOn(extractSkillCode, copyAppModel)
+    dependsOn(extractSkillCode, copyAppModel, copyProbeModels)
 }
 
 dependencies {
