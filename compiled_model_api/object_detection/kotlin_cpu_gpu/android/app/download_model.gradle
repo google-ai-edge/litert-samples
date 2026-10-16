@@ -1,0 +1,44 @@
+// Downloads the detector LiteRT models (Apache-2.0) from the litert-community HF org into assets/:
+// the four YOLOX variants (single graph each) and RF-DETR Nano (two-graph DETR split).
+// These are the GPU-native (litert_torch) conversions; see the conversion/ scripts and README.
+
+def hf = "https://huggingface.co/litert-community"
+
+tasks.register('downloadYoloxS', Download) {
+    src "${hf}/yolox-s-litert/resolve/main/yolox_s.tflite"
+    dest project.ext.ASSET_DIR + '/yolox_s.tflite'
+    overwrite false
+}
+
+tasks.register('downloadYoloxTiny', Download) {
+    src "${hf}/yolox-tiny-litert/resolve/main/yolox_tiny.tflite"
+    dest project.ext.ASSET_DIR + '/yolox_tiny.tflite'
+    overwrite false
+}
+
+tasks.register('downloadYoloxNano', Download) {
+    src "${hf}/yolox-nano-litert/resolve/main/yolox_nano.tflite"
+    dest project.ext.ASSET_DIR + '/yolox_nano.tflite'
+    overwrite false
+}
+
+tasks.register('downloadYoloxM', Download) {
+    src "${hf}/yolox-m-litert/resolve/main/yolox_m.tflite"
+    dest project.ext.ASSET_DIR + '/yolox_m.tflite'
+    overwrite false
+}
+
+tasks.register('downloadRfDetrGraphA', Download) {
+    src "${hf}/RF-DETR-Nano-LiteRT/resolve/main/rfdetr_graphA_fp16.tflite"
+    dest project.ext.ASSET_DIR + '/rfdetr_graphA_fp16.tflite'
+    overwrite false
+}
+
+tasks.register('downloadRfDetrGraphB', Download) {
+    src "${hf}/RF-DETR-Nano-LiteRT/resolve/main/rfdetr_graphB_fp16.tflite"
+    dest project.ext.ASSET_DIR + '/rfdetr_graphB_fp16.tflite'
+    overwrite false
+}
+
+preBuild.dependsOn downloadYoloxS, downloadYoloxTiny, downloadYoloxNano, downloadYoloxM,
+        downloadRfDetrGraphA, downloadRfDetrGraphB
