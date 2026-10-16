@@ -2,7 +2,7 @@
   "name": "litert-web-demos",
   "private": true,
   "type": "module",
-  "description": "Model web demos on LiteRT.js: MoGe-2 photo-to-3D, Matcha-TTS text-to-speech, PP-OCRv5 image-to-text, CLIPSeg text-prompted segmentation and SAM 2.1 click-to-segment",
+  "description": "Model web demos on LiteRT.js: MoGe-2 photo-to-3D, Matcha-TTS text-to-speech, PP-OCRv5 image-to-text, CLIPSeg text-prompted segmentation, SAM 2.1 click-to-segment and RF-DETR-Nano object detection",
   "scripts": {
     "dev": "vite",
     "build": "vite build",
