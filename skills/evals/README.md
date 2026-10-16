@@ -115,7 +115,12 @@ Device: the apps of the runs with the skill (R1, R2, R3, L1, L3, L4, L5 and L6, 
 
 ## After the change of 2026-10-16
 
-Device: pending — no cell of this section ran on a phone.
+Device: the R8 and L7 fixture apps and the four apps of the runs with the skill (R8 and L7, both agents) ran on 2026-10-16 and 2026-10-17 on a Pixel 8a (Android 15) of the Developer Device Platform lab, with the 224 × 224 test picture for R8 and `Qwen3-0.6B.litertlm` for L7.
+
+- R8 fixture app: class 7 for the picture, the value its input gives in Python, where the right input gives class 8.
+- R8, Claude Code and Codex CLI with the skill: both fixed apps showed class 8 with a score of 0.84149295 on the CPU, the class and score of the Python reference.
+- L7 fixture app: every message started a new engine, the second reply did not know the first message, and the app's memory grew by about 1 GB per message.
+- L7, Claude Code and Codex CLI with the skill: each chat ran in one process on one engine, created once when the chat screen opened, with no new engine for the later messages and the app's memory between 1.95 and 1.98 GB after each message. After a message giving a name, both apps answered "What is my name?" with a reply about the assistant's own name; after "Remember the word pineapple.", both named pineapple when asked which word they were to remember, so the conversation keeps the earlier message.
 
 This change updates the two skills for an app that already runs a model and adds three prompts for it:
 
@@ -156,4 +161,4 @@ Notes:
 - Galaxy S26 (Android 16): the R1, R2, R3, L1 and L3 apps from the Flash runs with the skills, on the GPU; `Qwen3-0.6B.litertlm` for the two chats.
 - Android Studio Rabbit 1 (2026.2.1), Agent Mode with its default model, Gemini 3.6 Flash.
 - Claude Code 2.1.301 with claude-opus-5-5 and Codex CLI 0.162.1 with gpt-6-astra (the CLI's default effort, medium), headless on macOS, 2026-10-16; android/architecture-templates `base` at 5467a8dc; the skills of litert-samples 2166c0f9 (`litert` 2.3.0 with `litert-gpu` 2.3.0, `litertlm-android` 0.18.0); the apps of the runs with the skill on a Pixel 8a (Android 15) and, the R apps, also a Galaxy S26 (Android 16) of the Developer Device Platform lab, 2026-10-16, with `Qwen3-0.6B.litertlm` for the chats (the Device paragraph of that section). Antigravity CLI 1.4.0 stopped at its weekly quota and Gemini CLI 0.63.0 at `UNSUPPORTED_CLIENT`, so neither ran a prompt.
-- Claude Code 2.1.301 with claude-opus-5-5 and Codex CLI 0.162.1 with gpt-6-astra (the CLI's default effort, medium), headless on macOS, 2026-10-16, for [After the change of 2026-10-16](#after-the-change-of-2026-10-16): android/architecture-templates `base` at 5467a8dc; the skills as updated on 2026-10-16 (this change: `litert` 2.3.0 with `litert-gpu` 2.3.0, `litertlm-android` 0.18.0); no device.
+- Claude Code 2.1.301 with claude-opus-5-5 and Codex CLI 0.162.1 with gpt-6-astra (the CLI's default effort, medium), headless on macOS, 2026-10-16, for [After the change of 2026-10-16](#after-the-change-of-2026-10-16): android/architecture-templates `base` at 5467a8dc; the skills as updated on 2026-10-16 (this change: `litert` 2.3.0 with `litert-gpu` 2.3.0, `litertlm-android` 0.18.0); the fixture apps and the four apps of the runs with the skill on R8 and L7 on a Pixel 8a (Android 15) of the Developer Device Platform lab, 2026-10-16 and 2026-10-17 (the Device paragraph of that section).
