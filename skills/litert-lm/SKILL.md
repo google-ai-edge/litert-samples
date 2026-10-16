@@ -1,9 +1,9 @@
 ---
 name: litert-lm
-description: Creates an Android app that runs an open text LLM on the device, on the CPU or the GPU, with the LiteRT-LM Kotlin API. Use this skill to build a new chat, summarization or extraction app with a .litertlm model from Hugging Face litert-community (Gemma, Qwen, Llama, Phi) - the dependency and manifest entries, getting the model file onto the device, engine initialization, a streamed multi-turn conversation, the ViewModel and screen.
+description: Creates an Android app that runs an open text LLM on the device, on the CPU or the GPU, with the LiteRT-LM Kotlin API. Use this skill to build a new chat, summarization or extraction app with a .litertlm model from Hugging Face litert-community (Gemma, Qwen, Llama, Phi) - the dependency and manifest entries, getting the model file onto the device, engine initialization, a streamed multi-turn conversation, the ViewModel and screen. Also use it to fix a chat app where every reply takes seconds to start, memory grows with each message or a reply forgets the earlier messages (a new engine and conversation for each message) - the engine and its conversation belong to the screen's ViewModel, are created once, and are closed in onCleared() on the ViewModel's own thread after cancelProcess(), never in a composable.
 license: Apache-2.0
 metadata:
-  last-updated: '2026-10-07'
+  last-updated: '2026-10-16'
   keywords: [LiteRT-LM, litertlm, Gemma, on-device LLM, Android app, GPU]
 ---
 

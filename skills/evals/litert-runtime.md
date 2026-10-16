@@ -1,6 +1,6 @@
 # Prompts for the litert-runtime skill
 
-Seven prompts for the [`litert-runtime`](../litert-runtime/SKILL.md) skill ([LiteRT](https://github.com/google-ai-edge/litert); language models are the [`litert-lm` prompts](litert-lm.md), [LiteRT-LM](https://github.com/google-ai-edge/LiteRT-LM)). Each prompt is what a developer would type to a coding agent in a fresh checkout of [android/architecture-templates](https://github.com/android/architecture-templates) (branch `base`, commit `5467a8dc`), with the tests' fixture [`model.tflite`](../tests/litert-runtime/fixtures/model.tflite) (input 1x224x224x3, output 1x10) copied to the project root where the prompt names it. The prompt says what the developer wants and names no API. The label is the experience the task takes. The checks are the ones of the [README](README.md): whether the project builds, what the changed files (or the answer) contain and do not contain, and one sentence read against the diff. The results are in [results-litert-runtime.md](results-litert-runtime.md).
+Nine prompts for the [`litert-runtime`](../litert-runtime/SKILL.md) skill ([LiteRT](https://github.com/google-ai-edge/litert); language models are the [`litert-lm` prompts](litert-lm.md), [LiteRT-LM](https://github.com/google-ai-edge/LiteRT-LM)). Each prompt is what a developer would type to a coding agent in a fresh checkout of [android/architecture-templates](https://github.com/android/architecture-templates) (branch `base`, commit `5467a8dc`), with the tests' fixtures [`model.tflite`](../tests/litert-runtime/fixtures/model.tflite) (input 1x224x224x3, output 1x10) and [`audio.tflite`](../tests/litert-runtime/fixtures/audio.tflite) (input 1x16000, output 1x8) copied to the project root where the prompt names one. The prompt says what the developer wants and names no API. The label is the experience the task takes. A `fix the app` prompt starts from the files under `fixtures/<id>/`, copied over the project before the prompt. The checks are the ones of the [README](README.md): whether the project builds, what the changed files (or the answer) contain and do not contain, and one sentence read against the diff. The results are in [results-litert-runtime.md](results-litert-runtime.md).
 
 ## R0 · beginner · a question
 Prompt: What do I need to add to this project to run a .tflite model, and where should the model file go?
@@ -46,7 +46,22 @@ Read: the answer says why: `litert` and `litert-api` 2.2.0 declare the same name
 
 ## R7 · advanced · build the app
 Prompt: Add my audio-event model audio.tflite (project root; input = 1 second of 16 kHz mono samples) so the app classifies a 1-second clip I already hold as a FloatArray.
-Builds: yes (the file named in the prompt is the fixture under another name; the run is not taken to a device).
+Builds: yes (the run is not taken to a device).
 Contains: `CompiledModel.create`, an input element count of 16000, `writeFloat` of the clip.
 Does not contain: `org.tensorflow`, a bitmap step on the audio path.
 Read: the inference class keeps the shape of the image one with the input element count changed; the samples are written as they are, and the output is read as one score per event.
+
+## R8 · intermediate · fix the app
+Prompt: The app in this project classifies a picked photo with model.tflite (224x224 RGB input, one score per class), but the top class is wrong for every photo, while the same model gives the right class in Python for the same pictures. Find what is different and fix it.
+Fixture: the files under [fixtures/R8/](fixtures/R8/) over the project, with model.tflite under `app/src/main/assets/`: an app that already runs the model on the CPU behind a ViewModel; its preprocessing writes one float per pixel (a third of the input) and `writeFloat` does not report the short array.
+Builds: yes.
+Contains: an input of 224 × 224 × 3 floats (`224 * 224 * 3` or 150528) filled with the three channels of each pixel in the model's order and scale, written by one `writeFloat`; the answer names the cause (one float per pixel, and `writeFloat` taking a shorter array without an error).
+Does not contain: `org.tensorflow`, a change of runtime or of accelerator as the fix, `getPixels` on a `HARDWARE` bitmap, a second model object for the fix.
+Read: the fix is in the preprocessing and keeps the inference class, its buffers and its thread; a check that the written array has the input's element count is there, or the answer says to add one.
+Device: the fixed app gives the class of the Python reference for the test picture on a phone.
+
+## R9 · intermediate · a question
+Prompt: My app creates the model object inside the screen's composable and runs model.tflite in the button's click handler. On a slow phone the screen freezes while it classifies, and every rotation loads the model again without closing the old one. How should I restructure it?
+Contains: a `ViewModel` that owns the model and loads it once (a second load after a rotation is a no-op), one background thread (a single-thread executor or dispatcher) for create, run and close, `onCleared` closing the buffers and then the model, one `Environment` for the process.
+Does not contain: the model in a composable or `remember`, `runBlocking` or inference on the main thread, a change of runtime.
+Read: the answer is a restructuring the developer can apply to the existing files (what moves where), not an app written from scratch.
