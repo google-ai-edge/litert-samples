@@ -1,0 +1,4 @@
+<resources>
+    <string name="app_name" translatable="false">MoViNet Action Recognition</string>
+    <string name="action_run">Run</string>
+</resources>
