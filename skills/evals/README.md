@@ -1,6 +1,6 @@
 # Prompt evals for the litert-runtime and litert-lm skills
 
-Thirteen prompts, written the way a developer asks a coding agent, run in a fresh checkout of [android/architecture-templates](https://github.com/android/architecture-templates) (branch `base`, commit `5467a8dc`) once without the skills and once with [`litert-runtime`](../litert-runtime/SKILL.md) ([LiteRT](https://github.com/google-ai-edge/litert)) and [`litert-lm`](../litert-lm/SKILL.md) ([LiteRT-LM](https://github.com/google-ai-edge/LiteRT-LM)) in `.agents/skills/`. Each prompt says what the developer wants and names no API; nothing else is given to the agent: no rules file, no other skill, no earlier conversation. The prompts and what a correct answer contains are in [litert-runtime.md](litert-runtime.md) (seven) and [litert-lm.md](litert-lm.md) (six); every run's row is in [results-litert-runtime.md](results-litert-runtime.md) and [results-litert-lm.md](results-litert-lm.md).
+Sixteen prompts, written the way a developer asks a coding agent, run in a fresh checkout of [android/architecture-templates](https://github.com/android/architecture-templates) (branch `base`, commit `5467a8dc`) once without the skills and once with [`litert-runtime`](../litert-runtime/SKILL.md) ([LiteRT](https://github.com/google-ai-edge/litert)) and [`litert-lm`](../litert-lm/SKILL.md) ([LiteRT-LM](https://github.com/google-ai-edge/LiteRT-LM)) in `.agents/skills/`. Each prompt says what the developer wants and names no API; nothing else is given to the agent: no rules file, no other skill, no earlier conversation. A `fix the app` prompt (R8, L7) starts from an app that already runs a model: the files under [`fixtures/R8/`](fixtures/R8/) or [`fixtures/L7/`](fixtures/L7/) are copied over the checkout before the prompt. The prompts and what a correct answer contains are in [litert-runtime.md](litert-runtime.md) (nine) and [litert-lm.md](litert-lm.md) (seven); every run's row is in [results-litert-runtime.md](results-litert-runtime.md) and [results-litert-lm.md](results-litert-lm.md).
 
 ## Run
 
@@ -52,12 +52,17 @@ A row is ✓ when it builds (where it must), contains everything listed, contain
 | R5 | ✗ | ✓ | — | ✗ | — | — |
 | R6 | ✗ | ✓ | ✓ | ✓ | — | — |
 | R7 | ✗ | ✓ | — | ✓ | — | — |
+| R8 | — | — | — | — | — | — |
+| R9 | — | — | — | — | — | — |
 | L1 | ✗ | ✓ | ✗ | ✓ | — | — |
 | L2 | ✗ | ✓ | — | ✗ | — | — |
 | L3 | ✗ | ✓ | ✗ | ✓ | — | — |
 | L4 | ✗ | ✓ | — | ✓ | — | — |
 | L5 | ✗ | ✓ | — | ✓ | — | — |
 | L6 | ✗ | ✓ | — | ✗ | — | — |
+| L7 | — | — | — | — | — | — |
+
+R8, R9 and L7 were added on 2026-10-16 and have not run on Antigravity CLI yet.
 
 With the skills, every prompt passed on Gemini 3.8 Flash (High) and ten of thirteen on Gemini 3.1 Pro (High); a skill was opened in 13 of the 13 Flash runs and 12 of the 13 Pro runs: on R5 the Pro agent answered without opening one, on L2 it left out the `INTERNET` permission, and on L6 its `SamplerConfig` call did not compile. Without the skills, every Flash answer and three of the four Pro answers went to another library or to no runtime: `org.tensorflow:tensorflow-lite` 2.16.1 with the pre-LiteRT TensorFlow Lite API for the `.tflite` prompts, `com.google.mediapipe:tasks-genai` or a class that emits canned text for the LLM prompts; R6 was the one prompt a web search could answer. A cell is — where the run was not made: the Pro model ran without the skills on four prompts only, and the Android Studio runs are the prompts pasted by hand in the IDE.
 
@@ -108,6 +113,42 @@ Device: the apps of the runs with the skill (R1, R2, R3, L1, L3, L4, L5 and L6, 
 - L5: three model switches, one of them in the middle of a reply, ran in one process without a crash in both apps; Gemma 3 270M stood in for the 2.6 GB Gemma 4 E2B file both apps name as their second model.
 - L6: both apps gave the same three neutral bullets for the same text twice, the second time after a restart; Codex CLI's app served the second from its own cache without a model call.
 
+## After the change of 2026-10-16
+
+Device: pending — no cell of this section ran on a phone.
+
+This change updates the two skills for an app that already runs a model and adds three prompts for it:
+
+1. The descriptions of `litert-runtime` and `litert-lm` also name fixing such an app, with the usual cause or fix in a few words. `litert-runtime`: a different result in the Android app than in Python (a `HARDWARE` bitmap, a `writeFloat` array shorter than the input), a screen that freezes while the model runs, the model loaded again on every rotation (the ViewModel owns the model and runs it on a thread of its own). `litert-lm`: a reply that takes seconds to start, memory that grows with each message, a reply that forgets the earlier messages (one engine and one conversation, owned by the ViewModel and closed in `onCleared()`).
+2. [`litert-runtime/references/verify.md`](../litert-runtime/references/verify.md) gets one paragraph under "Device CPU, then the GPU": when the app builds the input from a picture, compare the array it writes with the reference input. It says to check the array's element count first (`writeFloat` writes a shorter array without an error), then the bitmap's config (`getPixels` cannot read a `HARDWARE` bitmap), then size, mean and std, channel order and layout.
+3. [`audio.tflite`](../tests/litert-runtime/fixtures/audio.tflite) (input 1x16000, output 1x8) is a new test fixture with the input the R7 prompt names. Before it, R7 got the image model under that name, and all four R7 runs of the section above stopped there.
+4. Three prompts: R8 (fix the app: its preprocessing writes one float per pixel), R9 (a question: a model created in a composable and run in a click handler) and L7 (fix the app: a chat that builds a new engine and conversation for every message). The R8 and L7 apps are the files under [`fixtures/R8/`](fixtures/R8/) and [`fixtures/L7/`](fixtures/L7/).
+
+The runs keep the conditions of [Across agents (2026-10-16)](#across-agents-2026-10-16), with the skills as updated on 2026-10-16 (this change): both last updated 2026-10-16, still on LiteRT 2.3.0 with `litert-gpu` and `litertlm-android` 0.18.0. Each run starts from a fresh copy of the template with only the prompt's skill installed and no rules file, and gets the prompt's `Prompt:` line through the same headless commands. For R8 and L7, the fixture files are copied over the template before the project's first commit, so a run's changes are the agent's alone. All 24 runs ran in the sandbox that refuses to start an emulator, each with a private adb server and no device connected; none reached a device or an emulator. The six prompts are the three new ones and the three this change touches: R5 (the description and `verify.md`), R7 (the fixture) and L5 (the description).
+
+| prompt | without, Claude Code | with, Claude Code | without, Codex CLI | with, Codex CLI |
+|---|---|---|---|---|
+| R5 | ✗ | ✓ | ✗ | ✓ |
+| R7 | ✗ | ✓ | ✗ | ✓ |
+| R8 | ✗ | ✓ | ✗ | ✗ |
+| R9 | ✗ | ✓ | ✗ | ✗ |
+| L5 | ✗ | ✓ | ✗ | ✓ |
+| L7 | ✗ | ✓ | ✗ | ✓ |
+
+With the skill, 10 of the 12 runs passed (Claude Code 6 of 6, Codex CLI 4 of 6), and all 12 opened the skill on their first or second tool call, before writing anything; without it, none of the 12 passed. The agents worked 991 s in all with the skill and 1,405 s without it (Claude Code 447 s against 790 s, Codex CLI 544 s against 615 s).
+
+R5, R7 and L5 also ran on the skills of 2166c0f9 (the section above): with the skill, 1 of those 6 runs passed then and 6 of 6 now; without it, 1 of 6 then and 0 of 6 now. R5 with the skill went from ✗ to ✓ on both agents. Both answers now name the `HARDWARE` bitmap copy and the short `writeFloat` array, which this change adds to the description and to `verify.md`. Before, Claude Code's answer left out the copy and Codex CLI's left out both, though both runs had read them in `preprocess.md` and `SKILL.md`. L5 with the skill went from ✗ to ✓ on Codex CLI (a ViewModel owns the engine and closes it in `onCleared`) and stayed ✓ on Claude Code. Without the skill, Claude Code's L5 went from ✓ to ✗: it closes an engine whose `initialize()` threw. On R7, all four runs stopped at the image model before; with the new fixture, all four wrote code that builds, on `CompiledModel` with the skill (✓) and on the pre-LiteRT TensorFlow Lite API without it (✗). Each cell is one run.
+
+- Claude Code: with the skill installed, it called its Skill tool before writing anything in all six runs, on the first tool call or, for L5, on the second. On R5 that is new: on 2166c0f9 it found the skill's files in a file listing and printed them instead. Without the skill it failed all six. On R8 and L7 it did fix the app's code, but the R8 answer never names `writeFloat`, and the L7 close runs on a new IO scope that does not wait for the engine's `initialize()`.
+- Codex CLI: with the skill installed, it read `SKILL.md` on the first or second tool call in all six runs, before writing anything, as on 2166c0f9. R5 and L5, which it failed on 2166c0f9, now pass. R8 and R9 fail the way R5 failed there: its answer leaves out a fact that the file it read states (R8: `writeFloat` writes a shorter array without an error; R9: one `Environment` for the process). Without the skill it failed all six, on LiteRT 1.4.2 with its pre-LiteRT API for R7, on MediaPipe `tasks-genai` 0.10.27 for L5, and with no `onCleared` for L7.
+
+Notes:
+
+- R8: in Python (`ai-edge-litert`, on the CPU), the fixture model gives class 8 for a 224×224 test picture with the right input (RGB, each value / 255) and class 7 with the fixture app's input (one grey value per pixel in the first third of the input, zeros after it). All four R8 runs changed the preprocessing to the right input. The three ✗ are on what the answer says about `writeFloat`, and, without the skill, also on the missing element-count check.
+- R8, Codex CLI with the skill: its code adds an element-count check before `writeFloat`, and its answer gives the cause as "supplying only 50,176 floats". It does not say that `writeFloat` takes the shorter array without an error, which `SKILL.md` and `verify.md` say.
+- R9, Codex CLI with the skill: the answer has everything but one `Environment` for the process. `SKILL.md`, the only file it read, says "One `Environment` serves every model in the process and stays open".
+- Without the skill, the agents found the API elsewhere. Claude Code downloaded the `litert` 2.3.0 AAR from Google Maven for R7, and read the `litertlm-android` 0.18.0 AAR in the test machine's Gradle cache with `javap` for L5 and L7. Codex CLI read the LiteRT-LM 0.18.0 JAR in the Gradle cache with `javap` and fetched LiteRT-LM's `Conversation.kt` from GitHub for L7. The web results of four Codex CLI runs held the `litert-runtime` skill page of developer.android.com: R7 and R9 without the skill, R5 and R9 with it.
+
 ## Tested on
 
 - Antigravity CLI 1.3.1 on macOS, 2026-10-07, Gemini 3.8 Flash (High) and Gemini 3.1 Pro (High): the first four Flash runs with the skills through the CLI's sign-in, the rest through a Gemini API key.
@@ -115,3 +156,4 @@ Device: the apps of the runs with the skill (R1, R2, R3, L1, L3, L4, L5 and L6, 
 - Galaxy S26 (Android 16): the R1, R2, R3, L1 and L3 apps from the Flash runs with the skills, on the GPU; `Qwen3-0.6B.litertlm` for the two chats.
 - Android Studio Rabbit 1 (2026.2.1), Agent Mode with its default model, Gemini 3.6 Flash.
 - Claude Code 2.1.301 with claude-opus-5-5 and Codex CLI 0.162.1 with gpt-6-astra (the CLI's default effort, medium), headless on macOS, 2026-10-16; android/architecture-templates `base` at 5467a8dc; the skills of litert-samples 2166c0f9 (`litert` 2.3.0 with `litert-gpu` 2.3.0, `litertlm-android` 0.18.0); the apps of the runs with the skill on a Pixel 8a (Android 15) and, the R apps, also a Galaxy S26 (Android 16) of the Developer Device Platform lab, 2026-10-16, with `Qwen3-0.6B.litertlm` for the chats (the Device paragraph of that section). Antigravity CLI 1.4.0 stopped at its weekly quota and Gemini CLI 0.63.0 at `UNSUPPORTED_CLIENT`, so neither ran a prompt.
+- Claude Code 2.1.301 with claude-opus-5-5 and Codex CLI 0.162.1 with gpt-6-astra (the CLI's default effort, medium), headless on macOS, 2026-10-16, for [After the change of 2026-10-16](#after-the-change-of-2026-10-16): android/architecture-templates `base` at 5467a8dc; the skills as updated on 2026-10-16 (this change: `litert` 2.3.0 with `litert-gpu` 2.3.0, `litertlm-android` 0.18.0); no device.
