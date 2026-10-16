@@ -1,0 +1,13 @@
+<resources>
+    <string name="app_name" translatable="false">Image Matching</string>
+    <string name="action_pick_first">Pick first image</string>
+    <string name="action_pick_second">Pick second image</string>
+    <string name="status_loading">Loading XFeat on GPU…</string>
+    <string name="status_ready">Ready — pick two photos of the same scene.</string>
+    <string name="status_image_set">Image %1$d set (%2$d×%3$d).</string>
+    <string name="status_processing">Matching on GPU…</string>
+    <string name="status_result" translatable="false">✓ %1$d matches (%2$d/%3$d kpts) in %4$d ms · XFeat, CompiledModel GPU</string>
+    <string name="error_model_missing">Model not found. Push it first with install_to_device.sh:\n%1$s</string>
+    <string name="error_model_load">Failed to load model</string>
+    <string name="error_pick_failed">Failed to load image</string>
+</resources>
