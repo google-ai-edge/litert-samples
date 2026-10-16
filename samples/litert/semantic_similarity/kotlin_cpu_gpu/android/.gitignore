@@ -1,0 +1,9 @@
+build/
+.gradle/
+.kotlin/
+local.properties
+.idea/
+*.tflite
+*.iml
+app/src/main/assets/*.tflite
+app/src/main/assets/*.bin
