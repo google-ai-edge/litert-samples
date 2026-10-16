@@ -1,0 +1,24 @@
+<resources>
+    <string name="app_name" translatable="false">Audio Source Separation</string>
+
+    <string name="action_pick">🎬  Pick audio / video clip</string>
+    <string name="action_record">🎙  Record 15 s</string>
+    <string name="action_stop">⏹  Stop</string>
+
+    <string name="stems_label">Stems (first %1$ds):</string>
+    <string name="stem_mixture">▶  Mixture</string>
+    <string name="stem_dialog">🗣  Dialogue</string>
+    <string name="stem_effect">💥  Sound effects</string>
+    <string name="stem_music">🎵  Music</string>
+
+    <string name="status_loading">Loading TIGER-DnR on GPU…</string>
+    <string name="status_ready">Ready — pick a clip (movie scene, game, vlog…) to separate.</string>
+    <string name="status_decoding">Decoding…</string>
+    <string name="status_recording">● Recording (up to 15 s)…</string>
+    <string name="status_separating">Separating on GPU… %1$s %2$d/%3$d</string>
+    <string name="status_separated">Separated %1$ds in %2$ss · TIGER-DnR, CompiledModel GPU</string>
+    <string name="status_too_short">Too short — record at least 1 s.</string>
+
+    <string name="error_clip_too_short">Clip too short (need ≥1 s of audio).</string>
+    <string name="error_load">%1$s\n\nPush the models first:\n  ./install_to_device.sh</string>
+</resources>
