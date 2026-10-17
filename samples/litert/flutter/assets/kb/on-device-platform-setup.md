@@ -1,6 +1,6 @@
 ---
 title: Platform setup and memory limits for on-device models
-source: https://pub.dev/packages/flutter_edge_ai/versions/2.1.1 (skills/flutter-edge-ai-inference/references/platform-setup.md, README.md, android/src/main/AndroidManifest.xml, lib/mobile/smart_downloader.dart) ; https://pub.dev/packages/flutter_edge_ai_litertlm/versions/1.10.1 (README.md) ; https://github.com/DenisovAV/flutter_edge_ai/blob/8ab3ca0d53dd4fab353d5880635d95e9d888472b/packages/flutter_edge_ai/DESKTOP_SUPPORT.md ; https://github.com/DenisovAV/flutter_edge_ai/blob/8ab3ca0d53dd4fab353d5880635d95e9d888472b/website/content/docs/installation.md ; https://github.com/DenisovAV/flutter_edge_ai/blob/8ab3ca0d53dd4fab353d5880635d95e9d888472b/website/content/docs/troubleshooting.md
+source: https://pub.dev/packages/flutter_edge_ai/versions/2.4.0 (skills/flutter-edge-ai-inference/references/platform-setup.md, README.md, android/src/main/AndroidManifest.xml, lib/src/mobile/smart_downloader.dart) ; https://pub.dev/packages/flutter_edge_ai_litertlm/versions/1.14.0 (README.md: Context and reply length, Platforms, Qualcomm NPU, Where a model runs; lib/src/ffi/backend_preference.dart) ; https://pub.dev/packages/flutter_edge_ai_diagnostics/versions/0.3.0 (README.md) ; https://github.com/DenisovAV/flutter_edge_ai/blob/d35c575ab91e078c47201131800cf33dd7630833/packages/flutter_edge_ai/DESKTOP_SUPPORT.md ; https://github.com/DenisovAV/flutter_edge_ai/blob/d35c575ab91e078c47201131800cf33dd7630833/website/content/docs/installation.md ; https://github.com/DenisovAV/flutter_edge_ai/blob/d35c575ab91e078c47201131800cf33dd7630833/website/content/docs/troubleshooting.md ; https://github.com/DenisovAV/flutter_edge_ai/blob/d35c575ab91e078c47201131800cf33dd7630833/website/content/docs/models.md
 license: MIT
 ---
 
@@ -49,7 +49,9 @@ hooks:
       qualcomm_npu: true
 ```
 
-The build hook then downloads `com.qualcomm.qti:qnn-runtime` from Maven Central once, checks its SHA-256, raises the Hexagon libraries' alignment to the 16 KB Google Play requires, and bundles them: about 22 MB more to download and 83 MB more installed. Setting the flag means accepting Qualcomm's AI Stack License. Without the flag, `npu` falls back to GPU, then CPU, and the log names the flag; an NPU-only `.litertlm` bundle then fails on every backend, which reads like a broken model file but is not.
+The build hook then downloads `com.qualcomm.qti:qnn-runtime` from Maven Central once, checks its SHA-256, raises the Hexagon libraries' alignment to the 16 KB Google Play requires, and bundles them: about 22 MB more to download and 83 MB more installed. Setting the flag means accepting Qualcomm's AI Stack License. Without the flag, a request for `npu` with a generic bundle falls back to GPU, then CPU (with the default engine; the strict `LiteRtLmEngine(backendFallback: false)` makes no second attempt), and the log says how to enable it. A bundle compiled for an NPU is never tried on the GPU or the CPU, which cannot run it: without the flag it is refused at once with a `BackendInitException` whose one attempt is an `NpuDispatchUnavailableException` naming the flag.
+
+The same `qualcomm_npu: true` flag bundles the Qualcomm stack into Linux arm64 builds, for Qualcomm Linux boards with a Hexagon V68–V81 compute DSP (QCS6490, QCS8275, QCS9075 and others). Qualcomm publishes no Maven artifact for Linux, so the build hook reads the libraries out of Qualcomm's public QAIRT 2.50 SDK zip by range requests (about 32 MB of the archive), checks each against a pinned SHA-256 and caches them: about 90 MB more installed. On the board, Qualcomm's FastRPC library must be installed (`qcom-fastrpc1` on Ubuntu) and the user must be in group `fastrpc`, so that `/dev/fastrpc-cdsp` opens. If either is missing, `npu` with a generic bundle falls back to GPU, then CPU, and a bundle compiled for an NPU is refused with a `BackendInitException` that names what to fix. A Linux x64 build ignores the flag.
 
 ## Android foreground service for large model downloads
 
@@ -88,7 +90,7 @@ The iOS Simulator cannot run GPU inference; use the CPU there, or a real device.
 
 macOS is supported on Apple Silicon (`arm64`) only; there is no native library for Intel Macs. Add two keys to both `macos/Runner/DebugProfile.entitlements` and `macos/Runner/Release.entitlements`: `com.apple.security.cs.disable-library-validation` and `com.apple.security.network.client`, each set to true.
 
-`network.client` lets the sandboxed app download the model — without it the request fails with `Operation not permitted`. `disable-library-validation` matters once Hardened Runtime is on, which notarization requires: the build phase signs LiteRT-LM and its companion libraries ad hoc, and library validation refuses code that is not signed by Apple or by the app's own team. Add both keys to both files — the debug and release builds read different ones.
+`network.client` lets the sandboxed app download the model. `disable-library-validation` matters once Hardened Runtime is on, which notarization requires: the build phase signs LiteRT-LM and its companion libraries ad hoc, and library validation refuses code that is not signed by Apple or by the app's own team. Add both keys to both files — the debug and release builds read different ones.
 
 Do not copy the iOS `com.apple.developer.kernel.*` keys into these files; they are iOS entitlements. Without a signing team the build fails with `"Runner" has entitlements that require signing with a development certificate`, and a team-signed build silently drops them. A `.litertlm` model loads on macOS without them.
 
@@ -102,7 +104,7 @@ With CocoaPods, the `post_install` block from the package README is pasted into 
 
 Desktop platforms run LiteRT-LM directly via `dart:ffi`. The previous Kotlin and JVM gRPC server is gone — no Java required, no separate process, no IPC overhead — and engine startup is about 2 seconds instead of 10–15 seconds. Native libraries are fetched at build time by `hook/build.dart` from a GitHub release, SHA256-verified, and bundled by Flutter Native Assets. The Dart FFI layer is shared with mobile: Android and iOS use the same client against the same C API.
 
-Desktop does not run MediaPipe: `.bin` and `.task` models won't load there, so use `.litertlm` files. Supported desktop targets are macOS arm64 (Apple Silicon) with Metal, Windows x86_64 with DirectX 12 via Dawn and WebGPU, and Linux x86_64 and arm64 with Vulkan via Dawn and WebGPU, all with vision and audio. Intel Macs and Windows on arm64 are not supported. Requirements are Flutter 3.44.0 or later and Dart SDK 3.12.0 or later.
+Desktop does not run MediaPipe: `.bin` and `.task` models won't load there, so use `.litertlm` files. Supported desktop targets are macOS arm64 (Apple Silicon) with Metal, Windows x86_64 with DirectX 12 via Dawn and WebGPU, and Linux x86_64 and arm64 with Vulkan via Dawn and WebGPU, all with vision and audio. Qualcomm Linux arm64 boards also run `PreferredBackend.npu` on the Hexagon DSP when the app opts in with `qualcomm_npu: true`. Intel Macs and Windows on arm64 are not supported. Requirements are Flutter 3.44.0 or later and Dart SDK 3.12.0 or later.
 
 ## Windows desktop setup
 
@@ -128,9 +130,9 @@ On mobile, Android and iOS store models in the local file system in the app docu
 
 ## Web setup: script tags and model storage helpers
 
-All script tags go in `web/index.html` `<head>`, before Flutter boots. Every web app needs the model storage helpers: copy `cache_api.js` and `opfs_helper.js` from the flutter_edge_ai package's `web/` directory into the app's `web/`, and load them with script tags. Then add the script for each engine package used: the `.litertlm` engine loads `@litert-lm/core` from a CDN as an ES module and exposes a `window.litertLmReady` promise that resolves to the `Engine` constructor; MediaPipe loads `@mediapipe/tasks-genai`. Web RAG with `flutter_edge_ai_sqlite` needs the package's custom `sqlite3.wasm` copied into the web root and the app served with cross-origin isolation headers.
+All script tags go in `web/index.html` `<head>`, before Flutter boots. Every web app needs the model storage helpers: copy `cache_api.js` and `opfs_helper.js` from the flutter_edge_ai package's `web/` directory into the app's `web/`, and load them with script tags. Then add the script for each engine package used: the `.litertlm` engine loads `@litert-lm/core` from a CDN as an ES module and exposes a `window.litertLmReady` promise that resolves to the `Engine` constructor, and the same script sets `window.EmbeddingEngine`, which EmbeddingGemma 2 embedders need on the web (`flutter_edge_ai_litertlm` 1.13.1 and later); MediaPipe loads `@mediapipe/tasks-genai`. Web RAG with `flutter_edge_ai_sqlite` needs the package's custom `sqlite3.wasm` copied into the web root and the app served with cross-origin isolation headers.
 
-The `.litertlm` web engine loads the web build of a model — `gemma-4-E2B-it-web.litertlm` (2.0 GB, so use streaming storage), not `gemma-4-E2B-it.litertlm`. It supports text and function calling, with no images, audio or LoRA. A `--dart-define` token is compiled into `main.dart.js`, where every visitor can read it, so serve web users a model from a repo that needs no token.
+The `.litertlm` web engine loads the web build of a model — `gemma-4-E2B-it-web.litertlm` (2.0 GB, so use streaming storage), not `gemma-4-E2B-it.litertlm`. It takes text input only — an image or audio message throws `UnsupportedError`, and LoRA is not supported — while function calling and Gemma 4 thinking work. A `--dart-define` token is compiled into `main.dart.js`, where every visitor can read it, so serve web users a model from a repo that needs no token.
 
 ## Web storage modes: Cache API, OPFS streaming and ephemeral
 
@@ -148,17 +150,17 @@ Large models may hit browser memory limits. The maximum model size in the browse
 
 ## Memory considerations for on-device models
 
-- Model size: larger models, such as 7B, might be too resource-intensive for on-device inference.
+- Model size: larger models might be too resource-intensive for on-device inference.
 - Multimodal models: Gemma 4 and Gemma 3n with vision and audio need more memory; plan for devices with 8 GB or more of RAM.
 - iOS memory requirements: large models require memory entitlements in `Runner.entitlements`.
 - Each open chat session holds its own context, about 100–500 MB depending on model and context size, so several concurrent sessions with Gemma 4 E2B or larger can run out of memory on phones.
 - On Android the GPU shares system memory, so on a 4–6 GB phone running out of GPU memory can end the app rather than fall back to CPU.
-- The `flutter_edge_ai_diagnostics` package measures what a model costs in memory the OS cannot reclaim, read from the OS, on Android and iOS.
+- The `flutter_edge_ai_diagnostics` package measures what a model costs in memory the OS cannot reclaim, read from the OS, on Android, iOS and macOS (macOS since version 0.3.0).
 
 ## Fixing out-of-memory problems
 
 - On iOS, ensure `Runner.entitlements` contains the memory entitlements and is linked to the target.
-- Reduce `maxTokens` if experiencing memory issues, because it sets the context window and KV-cache size — but keep it at 1024 or higher for `.litertlm` models, and shorten replies with `maxOutputTokens` instead.
+- Reduce `maxTokens` if experiencing memory issues, because it sets the context window and KV-cache size — but keep it at 1024 or higher for `.litertlm` models on the CPU and the GPU (on the NPU, use the context the bundle was compiled for), and shorten replies with `maxOutputTokens` instead.
 - Use smaller models (1B–2B parameters) for devices with less than 6 GB of RAM.
 - Close sessions and models when not needed.
 - Monitor token usage with `sizeInTokens()`.

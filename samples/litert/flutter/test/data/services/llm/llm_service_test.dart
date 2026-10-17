@@ -16,42 +16,35 @@ import 'dart:async';
 import 'dart:typed_data';
 
 import 'package:flutter_edge_ai/flutter_edge_ai.dart' hide ModelSpec;
+import 'package:flutter_edge_ai_litertlm/flutter_edge_ai_litertlm.dart'
+    show
+        BackendInitAttemptFailure,
+        BackendInitException,
+        LiteRtLmBundleException,
+        LiteRtLmBundleProblem,
+        LiteRtLmEngineCreateException,
+        NpuDispatchUnavailableException;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:litert_edge_demos/config/model_catalog.dart';
 import 'package:litert_edge_demos/data/services/llm/llm_service.dart';
 import 'package:litert_edge_demos/domain/models/chat_model_config.dart';
-import 'package:litert_edge_demos/domain/models/npu_availability.dart';
 import 'package:litert_edge_demos/utils/result.dart';
 import 'package:litert_edge_demos/utils/wav.dart';
 
 import '../../../fakes/fake_inference_model.dart';
 
 void main() {
-  group('backend guard', () {
-    test('a CPU load is rejected and the CPU model is closed', () async {
-      final cpuModel = FakeInferenceModel(activeBackend: PreferredBackend.cpu);
-      final llm = LlmService(loadModel: (_) async => cpuModel);
-
-      final result = await llm.load(kDefineChatModel);
-
-      expect(result, isA<Error<LlmInfo>>());
-      final error = (result as Error<LlmInfo>).error;
-      expect(error, isA<BackendMismatchException>());
-      expect(error.toString(), contains('requested gpu'));
-      expect(error.toString(), contains('loaded on cpu'));
-      expect(cpuModel.closeCalls, 1, reason: 'no CPU model left running');
-      expect(llm.isLoaded, isFalse);
-      expect(() => llm.model, throwsStateError);
-    });
-
-    test('an unknown backend is rejected too', () async {
+  group('strict engine', () {
+    test('an engine that reports no backend is loaded, and the info says it '
+        'reported none', () async {
       final model = FakeInferenceModel(activeBackend: null);
       final llm = LlmService(loadModel: (_) async => model);
 
-      final result = await llm.load(kDefineChatModel);
+      final info = (await llm.load(kDefineChatModel) as Ok<LlmInfo>).value;
 
-      expect((result as Error<LlmInfo>).error, isA<BackendMismatchException>());
-      expect(model.closeCalls, 1);
+      expect(info.backend, isNull);
+      expect(llm.model, same(model));
+      expect(model.closeCalls, 0);
     });
 
     test('a load reports the process\'s RSS before and after it', () async {
@@ -91,6 +84,173 @@ void main() {
     });
   });
 
+  group("a failed load says the plugin's typed reason", () {
+    const npuModel = ChatModelConfig(
+      name: 'Gemma 4 E2B NPU',
+      modelType: ModelType.gemma4,
+      llm: LlmConfig(
+        maxTokens: 4096,
+        backend: PreferredBackend.npu,
+        maxNumImages: 1,
+      ),
+      tools: false,
+    );
+
+    Future<ChatModelLoadException> failWith(
+      Exception error, {
+      ChatModelConfig model = kDefineChatModel,
+    }) async {
+      var loads = 0;
+      final llm = LlmService(
+        loadModel: (_) async {
+          loads++;
+          throw error;
+        },
+      );
+      final result = await llm.load(model);
+      expect(loads, 1, reason: 'one attempt: nothing is tried in its place');
+      expect(llm.isLoaded, isFalse);
+      final failure = (result as Error<LlmInfo>).error;
+      expect(failure, isA<ChatModelLoadException>());
+      expect((failure as ChatModelLoadException).cause, same(error));
+      return failure;
+    }
+
+    test('a LiteRtLmBundleException (an NPU build asked for the GPU): its '
+        'message and problem', () async {
+      final error = await failWith(
+        const LiteRtLmBundleException(
+          LiteRtLmBundleProblem.wrongBackend,
+          '/m/gemma_sm8750.litertlm is compiled for the Qualcomm SM8750 NPU '
+          'and runs only there; gpu was asked for',
+        ),
+      );
+
+      expect(
+        '$error',
+        'Gemma 4 E2B did not load on gpu: /m/gemma_sm8750.litertlm is '
+            'compiled for the Qualcomm SM8750 NPU and runs only there; gpu was '
+            'asked for (wrongBackend)',
+      );
+    });
+
+    test("a BackendInitException: each attempt's backend and LiteRT-LM's own "
+        'message, once: the engine-create message has it already', () async {
+      final error = await failWith(
+        BackendInitException(
+          attempts: [
+            const BackendInitAttemptFailure(
+              backend: PreferredBackend.npu,
+              error: LiteRtLmEngineCreateException(
+                'Failed to create engine on npu: Failed to retrieve graph. '
+                'Model: /m/gemma_sm8750.litertlm. The bundle is compiled for '
+                'the Qualcomm SM8750 NPU; if this device is not a Qualcomm '
+                'SM8750, that is the cause.',
+                nativeCode: 13,
+                nativeMessage: 'Failed to retrieve graph',
+              ),
+              stackTrace: StackTrace.empty,
+            ),
+          ],
+        ),
+        model: npuModel,
+      );
+
+      expect(
+        '$error',
+        'Gemma 4 E2B NPU did not load on npu: npu: Failed to create engine on '
+            'npu: Failed to retrieve graph. Model: /m/gemma_sm8750.litertlm. '
+            'The bundle is compiled for the Qualcomm SM8750 NPU; if this '
+            'device is not a Qualcomm SM8750, that is the cause.',
+      );
+    });
+
+    test("an engine-create message without LiteRT-LM's reason in it (a "
+        'declared section_backend_constraint) gets it appended', () async {
+      final error = await failWith(
+        BackendInitException(
+          attempts: [
+            const BackendInitAttemptFailure(
+              backend: PreferredBackend.npu,
+              error: LiteRtLmEngineCreateException(
+                'This .litertlm model requires the "gpu" backend — it '
+                'declares section_backend_constraint: gpu, but the "npu" '
+                'backend was requested. Use PreferredBackend.gpu (or omit '
+                'preferredBackend to try GPU first).',
+                nativeCode: 13,
+                nativeMessage:
+                    'Main backend constraint mismatch. Model requires one '
+                    'of [gpu] but Main backend is npu',
+              ),
+              stackTrace: StackTrace.empty,
+            ),
+          ],
+        ),
+        model: npuModel,
+      );
+
+      expect(
+        error.reason,
+        endsWith(
+          '(LiteRT-LM: Main backend constraint mismatch. Model requires one '
+          'of [gpu] but Main backend is npu)',
+        ),
+      );
+    });
+
+    test(
+      'an engine create without a native message says the message alone',
+      () async {
+        final error = await failWith(
+          BackendInitException(
+            attempts: [
+              const BackendInitAttemptFailure(
+                backend: PreferredBackend.gpu,
+                error: LiteRtLmEngineCreateException('Failed to create engine'),
+                stackTrace: StackTrace.empty,
+              ),
+            ],
+          ),
+        );
+
+        expect(error.reason, 'gpu: Failed to create engine');
+      },
+    );
+
+    test('an NPU this device cannot reach: the plugin says so before any '
+        'engine (NpuDispatchUnavailableException)', () async {
+      final error = await failWith(
+        BackendInitException(
+          attempts: [
+            const BackendInitAttemptFailure(
+              backend: PreferredBackend.npu,
+              error: NpuDispatchUnavailableException(
+                'no NPU dispatch stack ships for macos',
+              ),
+              stackTrace: StackTrace.empty,
+            ),
+          ],
+        ),
+        model: npuModel,
+      );
+
+      expect(
+        '$error',
+        'Gemma 4 E2B NPU did not load on npu: npu: no NPU dispatch stack '
+            'ships for macos',
+      );
+    });
+
+    test('anything else as it was thrown', () async {
+      final error = await failWith(Exception('engine create failed'));
+
+      expect(
+        '$error',
+        'Gemma 4 E2B did not load on gpu: Exception: engine create failed',
+      );
+    });
+  });
+
   group('custom chat model: exactly the chosen backend', () {
     const npuModel = ChatModelConfig(
       name: 'Gemma 3 1B NPU',
@@ -113,7 +273,6 @@ void main() {
             requested = config;
             return model;
           },
-          npu: () => const NpuAvailable(soc: 'QTI SM8750'),
         );
 
         final result = await llm.load(npuModel);
@@ -122,94 +281,6 @@ void main() {
         expect(result.value.contextTokens, model.maxTokens);
         expect(requested, same(npuModel.llm));
         expect(llm.loaded, same(npuModel));
-      },
-    );
-
-    test(
-      'an engine that reports another backend is an error naming the '
-      'model, the request and why the NPU failed; the model is closed',
-      () async {
-        final gpuModel = FakeInferenceModel();
-        final llm = LlmService(
-          loadModel: (_) async {
-            // What flutter_edge_ai prints when the NPU attempt fails and it
-            // moves on (backend_preference.dart:296).
-            Zone.current.print(
-              '[flutter_edge_ai] WARNING: [LiteRtLmEngine] npu backend failed, '
-              'trying the next candidate: Exception: Failed to create engine. '
-              'Model may be invalid: /x/model.litertlm',
-            );
-            return gpuModel;
-          },
-          npu: () => const NpuAvailable(),
-        );
-
-        final result = await llm.load(npuModel);
-
-        final error = (result as Error<LlmInfo>).error;
-        expect(error, isA<BackendMismatchException>());
-        final text = error.toString();
-        expect(text, contains('Gemma 3 1B NPU'));
-        expect(text, contains('requested npu'));
-        expect(text, contains('loaded on gpu'));
-        expect(text, contains('npu backend failed'));
-        expect(text, contains('Failed to create engine'));
-        expect(
-          gpuModel.closeCalls,
-          1,
-          reason: 'never kept on the wrong backend',
-        );
-        expect(llm.isLoaded, isFalse);
-        expect(llm.loaded, isNull);
-      },
-    );
-
-    test('NPU where flutter_edge_ai would not offer it fails before loading, '
-        'with its reason', () async {
-      var loads = 0;
-      final llm = LlmService(
-        loadModel: (_) async {
-          loads++;
-          return FakeInferenceModel();
-        },
-        npu: () =>
-            const NpuUnavailable('no NPU dispatch stack ships for macos'),
-      );
-
-      final result = await llm.load(npuModel);
-
-      final error = (result as Error<LlmInfo>).error;
-      expect(error, isA<NpuUnavailableException>());
-      expect(error.toString(), contains('Gemma 3 1B NPU'));
-      expect(
-        error.toString(),
-        contains('no NPU dispatch stack ships for macos'),
-      );
-      expect(loads, 0, reason: 'nothing loads on a GPU in its place');
-    });
-
-    test(
-      'a load that throws names the model, the backend and the cause',
-      () async {
-        final llm = LlmService(
-          loadModel: (_) async {
-            Zone.current.print(
-              '[flutter_edge_ai] WARNING: [LiteRtLmEngine] npu backend failed, '
-              'no candidates are left: wrong SoC',
-            );
-            throw Exception('BackendInitException: all FFI backends failed');
-          },
-          npu: () => const NpuAvailable(),
-        );
-
-        final result = await llm.load(npuModel);
-
-        final error = (result as Error<LlmInfo>).error;
-        expect(error, isA<ChatModelLoadException>());
-        final text = error.toString();
-        expect(text, startsWith('Gemma 3 1B NPU did not load on npu'));
-        expect(text, contains('all FFI backends failed'));
-        expect(text, contains('wrong SoC'));
       },
     );
 
@@ -238,20 +309,6 @@ void main() {
 
       expect(first.closeCalls, 1);
     });
-  });
-
-  test('only flutter_edge_ai warnings count as native reasons', () {
-    expect(
-      nativeReasonsIn([
-        '[LlmService] something else',
-        '[flutter_edge_ai] WARNING: [LiteRtLmEngine] npu was requested, but '
-            'no NPU dispatch stack ships for macos',
-      ]),
-      [
-        '[LiteRtLmEngine] npu was requested, but no NPU dispatch stack ships '
-            'for macos',
-      ],
-    );
   });
 
   group('close', () {
@@ -411,13 +468,8 @@ void main() {
       maxTokens: 4096,
       backend: PreferredBackend.npu,
       maxNumImages: 1,
-      towers: ModelTowers(
-        vision: TowerPlacement(
-          PreferredBackend.npu,
-          reason: TowerReason.choice,
-        ),
-        audio: TowerPlacement(PreferredBackend.npu, reason: TowerReason.choice),
-      ),
+      supportImage: true,
+      supportAudio: true,
     );
 
     Future<Map<String, Object?>> passed(LlmConfig config) async {
@@ -449,49 +501,40 @@ void main() {
       return args;
     }
 
-    test('getActiveModel gets the backend of each tower the file has, and '
-        'nothing for one it does not have', () async {
+    test('getActiveModel loads each tower the file has and asks for no tower '
+        'backend: the engine places them', () async {
       expect(await passed(npuLlm), {
         'maxTokens': 4096,
         'backend': PreferredBackend.npu,
-        'vision': PreferredBackend.npu,
-        'audio': PreferredBackend.npu,
+        'vision': null,
+        'audio': null,
         'supportImage': true,
         'maxNumImages': 1,
         'supportAudio': true,
       });
-      const imagesOnly = LlmConfig(
+      const textOnly = LlmConfig(
         maxTokens: 4096,
         backend: PreferredBackend.npu,
         maxNumImages: 1,
-        towers: ModelTowers(
-          vision: TowerPlacement(
-            PreferredBackend.cpu,
-            reason: TowerReason.declared,
-          ),
-        ),
       );
-      final args = await passed(imagesOnly);
-      expect(args['vision'], PreferredBackend.cpu);
-      expect(args['supportImage'], isTrue);
-      expect(args['audio'], isNull);
+      final args = await passed(textOnly);
+      expect(args['supportImage'], isFalse);
       expect(args['supportAudio'], isFalse);
-      // The app's own settings: the vision tower on the CPU, no audio.
+      // The app's own settings: the vision tower on, no audio.
       final define = await passed(kLlmConfig);
-      expect(define['vision'], PreferredBackend.cpu);
-      expect(define['audio'], isNull);
+      expect(define['supportImage'], isTrue);
+      expect(define['supportAudio'], isFalse);
+      expect(define['vision'], isNull);
     });
 
-    test('a load that fails with a tower on the NPU reports the engine\'s '
-        'reason once; nothing retries (the hint is ModelRepository\'s, for '
-        'every step)', () async {
-      var loads = 0;
+    test("the load reports where the engine put each tower: the model's "
+        'activeVisionBackend and activeAudioBackend', () async {
       final llm = LlmService(
-        loadModel: (_) async {
-          loads++;
-          throw StateError('Failed to create engine: vision encoder');
-        },
-        npu: () => const NpuAvailable(soc: 'QTI SM8750'),
+        loadModel: (_) async => FakeInferenceModel(
+          activeBackend: PreferredBackend.npu,
+          activeVisionBackend: PreferredBackend.npu,
+          activeAudioBackend: PreferredBackend.cpu,
+        ),
       );
       const model = ChatModelConfig(
         name: 'Gemma 4 E2B NPU',
@@ -500,13 +543,11 @@ void main() {
         tools: false,
       );
 
-      final result = await llm.load(model);
+      final info = (await llm.load(model) as Ok<LlmInfo>).value;
 
-      final error = (result as Error<LlmInfo>).error;
-      expect(error, isA<ChatModelLoadException>());
-      expect('$error', contains('Failed to create engine: vision encoder'));
-      expect('$error', isNot(contains('Vision/Audio')));
-      expect(loads, 1);
+      expect(info.backend, PreferredBackend.npu);
+      expect(info.visionBackend, PreferredBackend.npu);
+      expect(info.audioBackend, PreferredBackend.cpu);
     });
   });
 }

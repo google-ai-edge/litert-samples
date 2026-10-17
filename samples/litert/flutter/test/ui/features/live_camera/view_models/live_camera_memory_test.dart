@@ -114,7 +114,8 @@ void main() {
       liveState: live.state,
       capturePending: () => live.capturePending,
       tickInterval: null,
-      clockMicros: () => nowMicros,
+      wallClockMicros: () => nowMicros,
+      monotonicMicros: () => nowMicros,
     );
   });
 

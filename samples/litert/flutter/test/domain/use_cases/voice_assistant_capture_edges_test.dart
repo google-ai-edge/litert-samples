@@ -28,6 +28,7 @@ import 'package:litert_edge_demos/config/model_catalog.dart';
 import 'package:litert_edge_demos/data/repositories/audio_repository.dart';
 import 'package:litert_edge_demos/data/repositories/diagnostics_repository.dart';
 import 'package:litert_edge_demos/domain/models/audio_devices.dart';
+import 'package:litert_edge_demos/domain/models/audio_interruption.dart';
 import 'package:litert_edge_demos/domain/models/chat_side_event.dart';
 import 'package:litert_edge_demos/domain/models/model_id.dart';
 import 'package:litert_edge_demos/domain/models/model_state.dart';
@@ -63,6 +64,18 @@ class _GatedAudio implements AudioRepository {
 
   @override
   Future<Result<void>> prepare() => inner.prepare();
+
+  @override
+  Stream<AudioInterruption> get interruptions => inner.interruptions;
+
+  @override
+  Future<Result<void>> activate() => inner.activate();
+
+  @override
+  Future<void> deactivate() => inner.deactivate();
+
+  @override
+  void appHidden() => inner.appHidden();
 
   @override
   Future<Result<void>> requestMicAccess() => inner.requestMicAccess();

@@ -13,6 +13,7 @@
 // limitations under the License.
 
 import 'dart:async';
+import 'dart:io' show Platform;
 import 'dart:ui' show AppExitResponse;
 
 import 'package:flutter/material.dart';
@@ -87,6 +88,7 @@ List<SingleChildWidget> _modelsScreen(AppDependencies deps, SetupMode mode) => [
       models: c.read(),
       switcher: deps.chatModelSwitcher,
       picker: deps.picker,
+      autoApplyTheOnlyFile: Platform.isAndroid || Platform.isIOS,
     ),
   ),
   ChangeNotifierProvider(
@@ -123,11 +125,14 @@ class _AppState extends State<App> {
     super.initState();
     // Desktop quit: close the chat and the native model before the process
     // goes, instead of leaving the engine to process teardown. Resume:
-    // rescan the skills folder. Every state: AppForeground, which the demos
-    // follow to release the camera and the mic on Android and iOS.
+    // rescan the skills folder. Hide: on iOS the audio is prepared again at
+    // the next turn. Every state: AppForeground, which the demos follow to
+    // release the camera and the mic on Android and iOS (and on iOS to stop
+    // a running turn).
     _lifecycle = AppLifecycleListener(
       onExitRequested: _onExitRequested,
       onResume: widget.dependencies.onResumed,
+      onHide: widget.dependencies.onHidden,
       onStateChange: _foreground.onStateChange,
     );
   }
@@ -201,17 +206,22 @@ class _AppState extends State<App> {
           Routes.chat: (context) => ChangeNotifierProvider(
             // The view model owns this demo's assistant and disposes it.
             create: (c) {
+              final skills = c.read<SkillRepository>();
               final responders = ChatTurnResponder(
                 conversation: c.read(),
                 retriever: c.read<KnowledgeRepository>(),
-                direct: deps.intents.run,
+                direct: deps.intents.handleIntent,
+                // The installed skills gate the direct intents, also when
+                // the chat model has tools off.
+                installedSkills: () =>
+                    skills.catalog.value?.agentSkills ?? const [],
               );
               return VoiceChatViewModel(
                 conversation: c.read(),
                 diagnostics: c.read(),
                 images: c.read(),
                 activateStt: deps.activateStt,
-                skills: c.read<SkillRepository>(),
+                skills: skills,
                 foreground: _foreground,
                 assistant: VoiceAssistant<ChatSideEvent>(
                   speech: c.read(),

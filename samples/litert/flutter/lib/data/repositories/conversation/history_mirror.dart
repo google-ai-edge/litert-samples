@@ -23,12 +23,13 @@ typedef MirrorSlot = ({int index, int generation});
 /// streamed. It holds text only: no image and no recording outlives the turn
 /// that sent it here.
 ///
-/// Why it exists: LiteRT-LM rebuilds its conversation from the turns' text
-/// after a stopped turn, and an audio turn has no text (its prompt carries at
-/// most the excerpts), so that rebuild would replay a question nobody can
-/// read. A chat that must be rebuilt — after a stop when an audio turn is in
-/// it, after a budget reset, after an interrupted skill call — is rebuilt from
-/// this mirror instead ([replayText]).
+/// Why it exists: flutter_edge_ai_litertlm (its FFI session) rebuilds the
+/// native conversation from the turns' text after a stopped turn, and an
+/// audio turn has no text (its prompt carries at most the excerpts), so that
+/// rebuild would replay a question nobody can read. A chat that must be
+/// rebuilt — after a stop when an audio turn is in it, after a budget reset,
+/// after an interrupted skill call — is rebuilt from this mirror instead
+/// ([replayText]).
 final class HistoryMirror {
   final List<HistoryTurn> _turns = [];
 
@@ -82,8 +83,11 @@ final class HistoryMirror {
 
   /// Replaces the user's words of voice turn [turn] (its transcript arrived).
   /// False when no entry has that number (the chat was reopened or reset
-  /// since, or the turn never reached the model). When the live chat holds
-  /// that turn only as the placeholder, the replay is [replayOutdated].
+  /// since, or the turn never reached the model). Turn numbers are never
+  /// reused (`TurnRequest.turn`), so a turn that never reached the model
+  /// cannot land on an entry another assistant's turn made in this chat.
+  /// When the live chat holds that turn only as the placeholder, the replay
+  /// is [replayOutdated].
   bool setUser(int turn, String text) {
     for (var i = _turns.length - 1; i >= 0; i--) {
       final t = _turns[i];
@@ -182,7 +186,8 @@ final class HistoryMirror {
   }
 
   /// What a rebuilt chat is given: one user message, staged before the next
-  /// turn's own (LiteRT-LM sends what is staged as one message), so it ends
+  /// turn's own (flutter_edge_ai_litertlm's FFI session sends what is staged
+  /// as one message), so it ends
   /// with a blank line.
   static String replayText(List<HistoryTurn> turns) {
     final text = StringBuffer(replayHeader);

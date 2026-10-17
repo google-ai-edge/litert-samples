@@ -40,7 +40,9 @@ final class const Passage({
 
 /// What retrieval did for one turn.
 enum RetrievalOutcome {
-  /// At least one hit cleared the gate; those hits went into the prompt.
+  /// At least one hit cleared the gate; those hits went into the prompt, as
+  /// many of them as fit the chat model's context window beside the turn
+  /// (best first; [Retrieval.detail] says when some did not).
   used,
 
   /// The best hit was below the gate; the prompt is the plain question.
@@ -55,10 +57,10 @@ enum RetrievalOutcome {
   /// reply shows the error as a chip.
   failed,
 
-  /// Not searched: a live skill question (device facts, the time)
-  /// on an agent chat; the prompt is the plain
-  /// question, so the model sees only its skills. [Retrieval.detail] names
-  /// the route.
+  /// Not searched: a live question the app recognizes (device facts, the
+  /// time) while an installed intent skill names its intent; the intent ran
+  /// directly, or the prompt is the plain question. [Retrieval.detail] names
+  /// the route (or the intent run directly).
   skipped,
 }
 
@@ -66,8 +68,8 @@ enum RetrievalOutcome {
 final class const Retrieval({
   required final RetrievalOutcome outcome,
 
-  /// The hits that cleared the gate, best first: these are the excerpts in
-  /// the prompt, numbered from 1 in this order.
+  /// The hits that cleared the gate and fit the context window, best first:
+  /// these are the excerpts in the prompt, numbered from 1 in this order.
   final List<Passage> passages = const [],
 
   /// Every hit the search returned (at most top-k), best first, gated or
@@ -80,7 +82,10 @@ final class const Retrieval({
   /// Query embedding plus vector search.
   final Duration? latency,
 
-  /// Why the knowledge base was unavailable, or what failed.
+  /// Why the knowledge base was unavailable, or what failed; for a used
+  /// retrieval whose excerpts did not all fit the chat model's context
+  /// window, how many went into the prompt (`2 of 3 excerpts (context)`,
+  /// [keeping]); for a skipped one, the route.
   final String? detail,
 
   /// What was searched: a typed or transcribed question, or a spoken one
@@ -91,6 +96,22 @@ final class const Retrieval({
   /// The best hit's similarity, gated or not; null without hits.
   double? get topSimilarity =>
       candidates.isEmpty ? null : candidates.first.similarity;
+
+  /// This retrieval with only its [keep] best excerpts in the prompt: the
+  /// others, lowest score first, did not fit the chat model's context window
+  /// beside the turn. [detail] says so (`2 of 3 excerpts (context)`).
+  Retrieval keeping(int keep) {
+    RangeError.checkValueInInterval(keep, 0, passages.length, 'keep');
+    return Retrieval(
+      outcome: outcome,
+      passages: List.unmodifiable(passages.take(keep)),
+      candidates: candidates,
+      gate: gate,
+      latency: latency,
+      detail: '$keep of ${passages.length} excerpts (context)',
+      queryKind: queryKind,
+    );
+  }
 }
 
 /// The knowledge base's state, for the home tile, the overlay and each

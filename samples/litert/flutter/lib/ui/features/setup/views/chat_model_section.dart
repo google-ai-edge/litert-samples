@@ -20,7 +20,6 @@ import 'package:flutter_edge_ai/flutter_edge_ai.dart'
     show ModelType, PreferredBackend;
 
 import '../../../../domain/models/chat_model.dart';
-import '../../../../domain/models/model_towers.dart' show Tower;
 import '../../../../utils/result.dart';
 import '../../../core/warning_color.dart';
 import '../view_models/chat_model_view_model.dart';
@@ -40,22 +39,27 @@ abstract final class ChatModelKeys {
   static const urlError = ValueKey('chat-model-url-error');
   static const fileLine = ValueKey('chat-model-file');
   static const replacementPending = ValueKey('chat-model-replacement');
+
+  /// A picked file is not applied yet.
+  static const candidate = ValueKey('chat-model-candidate');
   static const name = ValueKey('chat-model-name');
   static const type = ValueKey('chat-model-type');
   static const backend = ValueKey('chat-model-backend');
   static const npuReason = ValueKey('chat-model-npu-reason');
+
+  /// Why GPU and CPU are off: a build compiled for an NPU.
+  static const gpuCpuReason = ValueKey('chat-model-gpu-cpu-reason');
   static const context = ValueKey('chat-model-context');
 
-  /// The read-only Towers block (from the file's header) and its rows.
+  /// The read-only Towers block (what the file has) and its rows; [towerText]
+  /// is the line of a build compiled for the NPU.
   static const towers = ValueKey('chat-model-towers');
   static const towerText = ValueKey('chat-model-tower-text');
+
+  /// The line of a file whose header the plugin could not read.
+  static const headerNotRead = ValueKey('chat-model-header-not-read');
   static const towerVision = ValueKey('chat-model-tower-vision');
   static const towerAudio = ValueKey('chat-model-tower-audio');
-
-  /// The CPU | NPU control of a tower the header leaves open (on the NPU).
-  static const visionBackend = ValueKey('chat-model-vision-backend');
-  static const audioBackend = ValueKey('chat-model-audio-backend');
-  static const towerChoiceCaption = ValueKey('chat-model-tower-choice');
   static const tools = ValueKey('chat-model-tools');
   static const apply = ValueKey('chat-model-apply');
   static const draftProblem = ValueKey('chat-model-draft-problem');
@@ -88,9 +92,11 @@ abstract final class ChatModelKeys {
 
 /// The Models screen's "Chat model" card: the app ships no chat model, so it
 /// leads with how to choose a `.litertlm` (the models folders, Path…, import, a
-/// link), then its backend, context, its towers as its header has them (a
-/// CPU | NPU choice only for a tower the header leaves open, on the NPU) and
-/// tools; a failed load offers "Run on GPU" / "Run on CPU".
+/// link), then its backend, context, the towers the file has (where the
+/// engine put each, once it is loaded) and tools; a picked file is only shown
+/// until Apply; a failed load shows the plugin's reason and the ways out it
+/// allows ("Run on NPU" for a build compiled for one, else "Run on GPU" /
+/// "Run on CPU").
 class ChatModelSection extends StatelessWidget {
   const ChatModelSection({super.key, required this.viewModel});
 
@@ -135,6 +141,7 @@ class ChatModelSection extends StatelessWidget {
                                 ? null
                                 : () => vm.runAction(action),
                             child: Text(switch (action) {
+                              ChatModelAction.runOnNpu => 'Run on NPU',
                               ChatModelAction.runOnGpu => 'Run on GPU',
                               ChatModelAction.runOnCpu => 'Run on CPU',
                             }),
@@ -151,15 +158,15 @@ class ChatModelSection extends StatelessWidget {
                 if (vm.noModel)
                   Text(
                     'The app ships no chat model: use a .litertlm such as '
-                    'gemma-4-E2B-it.litertlm (GPU) or a Gemma build compiled '
-                    "for this phone's Qualcomm NPU.",
+                    'gemma-4-E2B-it.litertlm (GPU) or, on a Qualcomm device, '
+                    'a Gemma build compiled for its NPU.',
                     style: caption,
                   ),
                 if (vm.problem case final problem?) Text(problem, style: error),
                 if (vm.actionError case final message?)
                   Text(message, style: error),
                 _FileRow(viewModel: vm, caption: caption, error: error),
-                if (vm.saved != null) _Editor(viewModel: vm),
+                if (vm.shown != null) _Editor(viewModel: vm),
               ],
             ),
           ),
@@ -324,7 +331,13 @@ class _FileRow extends StatelessWidget {
           Text(line, key: ChatModelKeys.fileLine, style: caption)
         else
           Text('No file yet.', style: caption),
-        if (vm.replacementPending)
+        if (vm.candidateNotice case final notice?)
+          Text(
+            notice,
+            key: ChatModelKeys.candidate,
+            style: caption?.copyWith(color: kWarningColor),
+          )
+        else if (vm.replacementPending)
           Text(
             'This file is saved, but the previous one still runs: press '
             '"${vm.applyLabel}" to load it.',
@@ -458,14 +471,16 @@ class _EditorState extends State<_Editor> {
               enabled: vm.npuOffered,
               tooltip: vm.npuUnavailableReason,
             ),
-            const ButtonSegment(
-              value: PreferredBackend.gpu,
-              label: Text('GPU'),
-            ),
-            const ButtonSegment(
-              value: PreferredBackend.cpu,
-              label: Text('CPU'),
-            ),
+            for (final (backend, label) in const [
+              (PreferredBackend.gpu, 'GPU'),
+              (PreferredBackend.cpu, 'CPU'),
+            ])
+              ButtonSegment(
+                value: backend,
+                label: Text(label),
+                enabled: vm.gpuCpuUnavailableReason == null,
+                tooltip: vm.gpuCpuUnavailableReason,
+              ),
           ],
           selected: {vm.draftBackend},
           onSelectionChanged: (selection) => vm.setBackend(selection.single),
@@ -477,6 +492,8 @@ class _EditorState extends State<_Editor> {
               ? caption
               : caption?.copyWith(color: kWarningColor),
         ),
+        if (vm.gpuCpuUnavailableReason case final reason?)
+          Text(reason, key: ChatModelKeys.gpuCpuReason, style: caption),
         TextField(
           key: ChatModelKeys.context,
           controller: _context,
@@ -522,20 +539,15 @@ class _EditorState extends State<_Editor> {
   }
 }
 
-/// The read-only Towers block: where the text decoder and each tower of the
-/// file run, from its header and the draft backend; a CPU | NPU control only
-/// for a tower the header leaves open while the model runs on the NPU.
+/// The read-only Towers block: which towers the file has
+/// (`readLiteRtLmBundleInfo`) and, once it is loaded, where the engine put
+/// each; a first line for a build compiled for the NPU. Nothing to choose:
+/// every tower the file has loads, and the engine places it.
 class _Towers extends StatelessWidget {
   const _Towers({required this.viewModel, required this.caption});
 
   final ChatModelViewModel viewModel;
   final TextStyle? caption;
-
-  /// Under the block when a tower is a choice.
-  static const choiceCaption =
-      'This file does not say where its towers run: NPU only if they are '
-      'compiled for this chip, CPU otherwise (for example the official '
-      'qualcomm_sm8750 build)';
 
   Widget _row(Key key, String label, Widget value) => Row(
     key: key,
@@ -553,44 +565,12 @@ class _Towers extends StatelessWidget {
   );
 
   Widget _tower(Tower tower) {
-    final vm = viewModel;
-    final (key, control, label) = switch (tower) {
-      Tower.vision => (
-        ChatModelKeys.towerVision,
-        ChatModelKeys.visionBackend,
-        'Vision',
-      ),
-      Tower.audio => (
-        ChatModelKeys.towerAudio,
-        ChatModelKeys.audioBackend,
-        'Audio',
-      ),
+    final (key, label) = switch (tower) {
+      Tower.vision => (ChatModelKeys.towerVision, 'Vision'),
+      Tower.audio => (ChatModelKeys.towerAudio, 'Audio'),
     };
-    return switch (vm.towerRow(tower)) {
-      TowerMissing(:final text) ||
-      TowerFixed(:final text) => _row(key, label, Text(text, style: caption)),
-      TowerChoice(:final selected) => _row(
-        key,
-        label,
-        Align(
-          alignment: Alignment.centerLeft,
-          child: SegmentedButton<PreferredBackend>(
-            key: control,
-            showSelectedIcon: false,
-            style: const ButtonStyle(
-              visualDensity: VisualDensity.compact,
-              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-            ),
-            segments: const [
-              ButtonSegment(value: PreferredBackend.cpu, label: Text('CPU')),
-              ButtonSegment(value: PreferredBackend.npu, label: Text('NPU')),
-            ],
-            selected: {selected},
-            onSelectionChanged: (selection) =>
-                vm.setTowerBackend(tower, selection.single),
-          ),
-        ),
-      ),
+    return switch (viewModel.towerRow(tower)) {
+      final row? => _row(key, label, Text(row.text, style: caption)),
       null => const SizedBox.shrink(),
     };
   }
@@ -604,22 +584,19 @@ class _Towers extends StatelessWidget {
       spacing: 4,
       children: [
         Text(
-          "Towers (from the file's header)",
+          'Towers (as the file has them)',
           style: Theme.of(context).textTheme.labelLarge,
         ),
-        _row(
-          ChatModelKeys.towerText,
-          'Text',
-          Text(vm.towerTextLine, style: caption),
-        ),
+        if (vm.npuBuildLine case final line?)
+          Text(line, key: ChatModelKeys.towerText, style: caption),
+        if (vm.headerNotRead case final line?)
+          Text(
+            line,
+            key: ChatModelKeys.headerNotRead,
+            style: caption?.copyWith(color: kWarningColor),
+          ),
         _tower(Tower.vision),
         _tower(Tower.audio),
-        if (vm.towerChoiceShown)
-          Text(
-            choiceCaption,
-            key: ChatModelKeys.towerChoiceCaption,
-            style: caption,
-          ),
       ],
     );
   }

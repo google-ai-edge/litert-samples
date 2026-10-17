@@ -18,8 +18,9 @@ import '../../../domain/models/assistant_event.dart';
 
 /// Which image the live chat can see, and why it lost the last one. LiteRT-LM
 /// keeps an image in the native conversation until the conversation is
-/// rebuilt — after a stopped turn it is rebuilt from text only — so the
-/// repository re-sends the caller's image whenever the chat cannot see it.
+/// rebuilt — after a stopped turn flutter_edge_ai_litertlm rebuilds it from
+/// text only — so the repository re-sends the caller's image whenever the
+/// chat cannot see it.
 ///
 /// Images are compared with `identical`: the caller passes the same object
 /// every turn while it stays attached, and a new object is a new image.

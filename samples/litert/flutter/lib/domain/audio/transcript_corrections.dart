@@ -14,7 +14,7 @@
 
 import 'package:flutter/foundation.dart';
 
-/// Whisper base's measured misses of the knowledge base's product names, as
+/// Whisper base's observed misses of the knowledge base's product names, as
 /// the voice chat's transcripts write them (the spoken golden set,
 /// integration_test/kb_retrieval_test.dart, 2026-10-13): what it heard →
 /// what was said. Matched as whole words, ignoring case; a longer phrase wins

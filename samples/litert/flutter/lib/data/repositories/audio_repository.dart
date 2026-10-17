@@ -15,6 +15,7 @@
 import 'package:flutter/foundation.dart';
 
 import '../../domain/models/audio_devices.dart';
+import '../../domain/models/audio_interruption.dart';
 import '../../domain/models/voice.dart';
 import '../../utils/result.dart';
 
@@ -24,6 +25,14 @@ import '../../utils/result.dart';
 /// playback that a newer one replaced ignores its owner's later calls, so a
 /// demo that was left (and disposes asynchronously) can never stop the next
 /// demo's audio.
+///
+/// The platform session is held per turn where the platform shares the audio
+/// that way: on Android [activate] takes the audio focus (other apps' audio
+/// pauses) and [deactivate] gives it back once the turn has ended. On iOS
+/// the session is activated by [prepare] and stays active between turns.
+/// When the OS or another app takes the audio ([interruptions]) the capture
+/// is cancelled, the playback stopped, and the next turn activates the
+/// session again.
 abstract interface class AudioRepository {
   /// Mic level 0–1 (RMS of each incoming chunk, −60…0 dBFS), latest value
   /// only; 0 when no capture runs. For a `CustomPaint(repaint:)` meter.
@@ -33,14 +42,44 @@ abstract interface class AudioRepository {
   /// "This device" card and the diagnostics show, or why one is unusable.
   ValueListenable<AudioDeviceStatus> get devices;
 
-  /// Configures the audio session and starts the output engine, once.
-  /// Calling it again after a failure retries.
+  /// The interruptions of the platform session (a call, Siri, an alarm,
+  /// another app's audio; the output unplugged), each reported once the
+  /// capture in progress was cancelled and the playback stopped. Broadcast,
+  /// delivered synchronously; only iOS and Android have any.
+  Stream<AudioInterruption> get interruptions;
+
+  /// Configures the audio session and starts the output engine, once (iOS:
+  /// also activates the session). Calling it again after a failure retries;
+  /// on iOS, after an interruption or after the app was hidden, it runs
+  /// again and activates the session again; after the app was hidden it
+  /// also restarts the output engine.
   Future<Result<void>> prepare();
 
-  /// Opens the mic for one push-to-talk press. At most [maxLength] is kept;
-  /// reaching it calls [onLimit] once (the press should end). A capture that
-  /// is still open is cancelled first. Fails with [MicAccessException] when
-  /// the app may not record.
+  /// Takes the audio for a turn that records or plays: [prepare]s, then on
+  /// Android requests the audio focus (until [deactivate]). Fails with
+  /// [AudioFocusException] when the OS refuses (a call holds the audio).
+  /// [startCapture] activates by itself.
+  Future<Result<void>> activate();
+
+  /// The turn has ended: Android gives the audio focus back, so other apps'
+  /// audio resumes. Elsewhere nothing changes (iOS keeps the session active,
+  /// which keeps `setActive` off the press path). An [activate] after
+  /// this one wins.
+  Future<void> deactivate();
+
+  /// The app went out of sight. iOS: another app may take the session while
+  /// this one is suspended, and that interruption comes marked as such
+  /// (`audio_session` drops it) or not at all (read from the sources, not
+  /// observed on a device), so as a precaution a playback still running is
+  /// stopped and the next [prepare] activates the session again and
+  /// restarts the output engine. Elsewhere nothing changes.
+  void appHidden();
+
+  /// Opens the mic for one push-to-talk press ([activate]s first). At most
+  /// [maxLength] is kept; reaching it calls [onLimit] once (the press should
+  /// end). A capture that is still open is cancelled first. Fails with
+  /// [MicAccessException] when the app may not record, with
+  /// [AudioFocusException] when the OS keeps the audio from it.
   Future<Result<CaptureHandle>> startCapture({
     required Duration maxLength,
     required void Function() onLimit,
@@ -101,6 +140,26 @@ final class MicAccessException implements Exception {
   @override
   String toString() => message;
 }
+
+/// The OS did not give the app the audio ([kAudioFocusMessage]), or took it
+/// back while it was being prepared ([kAudioInterruptedMessage]).
+final class AudioFocusException implements Exception {
+  const AudioFocusException(this.message);
+
+  final String message;
+
+  @override
+  String toString() => message;
+}
+
+/// [AudioFocusException.message] when the OS refuses the audio.
+const kAudioFocusMessage =
+    'Another app is using the audio (a call?); try again once it has ended';
+
+/// [AudioFocusException.message] when an interruption came while the audio
+/// was being prepared.
+const kAudioInterruptedMessage =
+    'The audio was interrupted while it started; try again';
 
 /// The platform delivered another format than 16 kHz mono PCM16.
 final class MicFormatException implements Exception {

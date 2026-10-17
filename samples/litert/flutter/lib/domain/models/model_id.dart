@@ -46,8 +46,9 @@ const kWhisperSpec = ModelSpec(
 );
 
 /// moonshine-tiny f32, Demo 3's speech recognizer: English only, a 5 s
-/// window, ~65 ms per question (Whisper base: 1.8 s); router 96/98 and
-/// must-detailed 43/43 on its transcripts of the router's golden questions.
+/// window, ~65 ms per question on an M4 Pro (Whisper base: 1.8 s); router
+/// 96/98 and must-detailed 43/43 on its transcripts of the router's golden
+/// questions (2026-10-02, the 98-question golden set of then).
 /// Optional: without it Demo 3 is unavailable and says why; Demo 1 is not
 /// affected.
 const kMoonshineSpec = ModelSpec(

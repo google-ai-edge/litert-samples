@@ -15,6 +15,7 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:litert_edge_demos/data/services/hardware/macos_sysctl.dart';
 import 'package:litert_edge_demos/data/services/hardware/memory_probe.dart';
+import 'package:litert_edge_demos/domain/models/hardware_profile.dart';
 
 import '../../../support/hardware_trees.dart';
 
@@ -32,7 +33,7 @@ final class _Sysctl implements Sysctl {
 
 void main() {
   test('the physical RAM: MemTotal on Linux and Android, hw.memsize on '
-      'macOS, none elsewhere; null when unreadable', () {
+      'macOS and iOS, none elsewhere; null when unreadable', () {
     const meminfo =
         'MemTotal:        7654321 kB\nMemFree:  1000 kB\n'
         'MemAvailable:    3000000 kB\n';
@@ -49,5 +50,15 @@ void main() {
     );
     expect(MacMemoryProbe(sysctl: const _Sysctl({})).totalBytes(), isNull);
     expect(const ProcessMemoryProbe().totalBytes(), isNull);
+  });
+
+  test('the probe per platform: iOS reads hw.memsize like macOS (its RAM '
+      'gates the visual memory there too); Windows and others RSS only', () {
+    expect(memoryProbeFor(HostPlatform.linux), isA<LinuxMemoryProbe>());
+    expect(memoryProbeFor(HostPlatform.android), isA<LinuxMemoryProbe>());
+    expect(memoryProbeFor(HostPlatform.macos), isA<MacMemoryProbe>());
+    expect(memoryProbeFor(HostPlatform.ios), isA<MacMemoryProbe>());
+    expect(memoryProbeFor(HostPlatform.windows), isA<ProcessMemoryProbe>());
+    expect(memoryProbeFor(HostPlatform.other), isA<ProcessMemoryProbe>());
   });
 }

@@ -71,6 +71,76 @@ void main() {
     expect(text, contains('Apache License, Version 2.0'));
   });
 
+  test('the Matcha G2P files each name their own licence: g2p_dict.txt.gz '
+      "is OpenPhonemizer's, under BSD-3-Clause-Clear; the other three are "
+      'MIT', () {
+    final inflect = modelLicenses.firstWhere(
+      (e) => e.packages.single.startsWith('Inflect-nano-v2'),
+    );
+    final text = inflect.paragraphs.map((p) => p.text).join('\n');
+    expect(
+      text,
+      contains(
+        'config.json, dp_g2p_matcha_fp16.tflite and g2p_meta.json are '
+        'licensed under the MIT License',
+      ),
+    );
+    expect(
+      text,
+      contains(
+        "g2p_dict.txt.gz is OpenPhonemizer's dictionary, licensed under the "
+        'Clear BSD License (BSD-3-Clause-Clear)',
+      ),
+    );
+  });
+
+  test("OpenPhonemizer's Clear BSD licence is on the licence page in full, "
+      'as licenses/OpenPhonemizer-BSD-3-Clause-Clear.txt has it, and the '
+      'Linux package ships that file', () {
+    String words(String s) => s.replaceAll(RegExp(r'\s+'), ' ').trim();
+    final file = File('licenses/OpenPhonemizer-BSD-3-Clause-Clear.txt')
+        .readAsStringSync();
+    final start = file.indexOf('The Clear BSD License');
+    expect(start, greaterThan(0), reason: 'the licence follows a header');
+    final licence = words(file.substring(start));
+    expect(
+      licence,
+      startsWith(
+        'The Clear BSD License Copyright (c) 2024 mrfakename, NeuralVox, '
+        'OpenPhonemizer Contributors All rights reserved.',
+      ),
+    );
+    expect(
+      licence,
+      endsWith('EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.'),
+    );
+
+    final entry = modelLicenses.firstWhere(
+      (e) => e.packages.single.startsWith('OpenPhonemizer'),
+    );
+    expect(words(entry.text), endsWith(licence));
+    expect(
+      entry.text,
+      contains(
+        'g2p_dict.txt.gz (1762038 bytes, SHA-256 '
+        '5b3493a8cd4d20b72c7b91415afaf3f32335ebd81f349698e1cedc898c59f979',
+      ),
+    );
+    expect(
+      File('tool/linux/package.sh').readAsStringSync(),
+      contains(r'"$ROOT/licenses/OpenPhonemizer-BSD-3-Clause-Clear.txt"'),
+    );
+  });
+
+  test('the libjpeg-turbo entry says what licenses/libjpeg-turbo.txt says', () {
+    final entry = modelLicenses.firstWhere(
+      (e) => e.packages.single.startsWith('libjpeg-turbo'),
+    );
+    final file = File('licenses/libjpeg-turbo.txt').readAsStringSync();
+    // The file adds a title line and a blank line.
+    expect(file.split('\n').skip(2).join('\n').trim(), entry.text.trim());
+  });
+
   test("the self-test's photo (CC BY-SA 2.0) is credited: title, author, "
       'source and licence', () {
     final cats = modelLicenses.firstWhere(

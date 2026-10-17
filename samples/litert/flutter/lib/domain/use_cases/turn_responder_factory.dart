@@ -47,9 +47,12 @@ final class const TurnRequest({
   /// LLM. Demo 3 takes its own snapshot and ignores it.
   final Uint8List? image,
 
-  /// The turn's number, unique per assistant: the user's entry and a
-  /// transcript that arrives after the reply find each other by it (Demo 1's
-  /// audio mode). 0 when the caller numbers none.
+  /// The turn's number, unique in the process (every assistant draws from
+  /// one count): the user's entry and a transcript that arrives after the
+  /// reply find each other by it (Demo 1's audio mode), and so do the
+  /// transcript and its line in the shared chat's text history, which an
+  /// earlier visit of the demo may have filled. 0 when the caller numbers
+  /// none.
   final int turn = 0,
 });
 

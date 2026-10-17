@@ -968,6 +968,45 @@ void main() {
       await tearDownScreen(tester);
     });
 
+    testWidgets('a software GPU (llvmpipe) is a GPU failure: the card names '
+        'it and offers the CPU, and the overlay never calls it GPU', (
+      tester,
+    ) async {
+      // ModelRepository's row after a GPU load on llvmpipe.
+      models.value = {
+        ModelId.yolo26n: const ModelFailed(
+          'The GPU is a software rasterizer: llvmpipe (LLVM 15.0.7, 128 bits) '
+          '(CPU) (confirmed: native log). It runs on the CPU, far slower than '
+          'the CPU backend. No fallback: install the GPU driver, or run the '
+          "detector on the CPU (Live camera's settings, or "
+          'DETECTOR_BACKEND=cpu).',
+          backend: 'gpu',
+          retryable: false,
+        ),
+      };
+      detector.info = null;
+      await pump(tester);
+
+      expect(
+        find.textContaining(
+          'The detector failed on the GPU: The GPU is a software rasterizer: '
+          'llvmpipe',
+        ),
+        findsOneWidget,
+      );
+      expect(
+        find.widgetWithText(FilledButton, 'Run detector on CPU'),
+        findsOneWidget,
+      );
+      final overlay = debugOverlayLines(diagnostics.latest);
+      expect(
+        overlay,
+        contains('${ModelId.yolo26n.spec.displayName}: not loaded'),
+      );
+      expect(overlay.where((line) => line.contains('GPU')), isEmpty);
+      await tearDownScreen(tester);
+    });
+
     testWidgets('the settings sheet applies a network camera URL', (
       tester,
     ) async {

@@ -26,6 +26,7 @@ import '../../domain/models/live_state.dart';
 import '../../domain/models/llm_image.dart';
 import '../../domain/models/model_id.dart';
 import '../../domain/models/model_state.dart';
+import '../../domain/models/route_decision.dart' show MemoryRoute;
 import '../../domain/models/skill_catalog.dart';
 import '../../domain/models/visual_memory.dart';
 import '../../domain/models/voice.dart';
@@ -168,7 +169,8 @@ class DiagnosticsRepository implements VoiceDiagnosticsSink {
       'snap=${metrics.snapshotLatency?.inMilliseconds}ms '
       'basis="${metrics.basis ?? ''}" llm_turns=${_latest.llmTurns}'
       '${image == null ? '' : ' png=${image.width}x${image.height} '
-                '${image.png.length}B enc=${image.encodeTime.inMilliseconds}ms '
+                '${image.png.length}B '
+                '${metrics.route is MemoryRoute ? 'memory_frame' : 'enc=${image.encodeTime.inMilliseconds}ms'} '
                 'frame=${image.frameId}'}'
       '${metrics.timeToFirstToken == null ? '' : ' ttft=${metrics.timeToFirstToken!.inMilliseconds}ms'}'
       '${metrics.snapshotError == null ? '' : ' snapshot_error="${metrics.snapshotError}"'}'

@@ -12,219 +12,62 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter/foundation.dart';
+import 'package:flutter_edge_ai_litertlm/flutter_edge_ai_litertlm.dart'
+    show
+        LiteRtLmBundleException,
+        LiteRtLmBundleInfo,
+        LiteRtLmBundleProblem,
+        readLiteRtLmBundleInfo;
 import 'package:path_provider/path_provider.dart';
 
 import '../../../domain/models/chat_model.dart';
-import '../../../domain/models/model_towers.dart';
 import '../../../utils/result.dart';
 
-export '../../../domain/models/model_towers.dart' show LitertlmSection;
+/// Reads what a `.litertlm` says about itself (a seam for tests; the app's
+/// is flutter_edge_ai_litertlm's [readLiteRtLmBundleInfo]).
+typedef BundleReader = Future<LiteRtLmBundleInfo> Function(String path);
 
-/// What a `.litertlm` header says about the file (LiteRT-LM's container:
-/// `litert_lm_builder` `litertlm_core.py` / `litertlm_peek.py`): the format
-/// version and each section's `model_type` and `backend_constraint`, in
-/// order.
-final class const LitertlmInfo({
-  required final int major,
-  required final int minor,
-  required final int patch,
-  required final List<LitertlmSection> sections,
-}) {
-  /// The `model_type` of each section that has one.
-  List<String> get modelTypes => [for (final s in sections) ?s.modelType];
-
-  /// The `backend_constraint` of each section that has one (`npu` for an
-  /// NPU build).
-  List<String> get backendConstraints => [
-    for (final s in sections) ?s.backendConstraint,
-  ];
-
-  /// A section says it runs only on the NPU (`backend_constraint: npu`).
-  bool get npuOnly => backendConstraints.contains('npu');
-
-  /// The file can read images: it has a vision tower ([hasTower]).
-  bool get hasVision => hasTower(sections, Tower.vision);
-
-  /// The file has an audio tower ([hasTower]).
-  bool get hasAudio => hasTower(sections, Tower.audio);
-
-  String get version => '$major.$minor.$patch';
-}
-
-/// Where the `.litertlm` header ends (u64 at byte 24) and starts (32).
-const _headerEndOffset = 24;
-const _headerBegin = 32;
-
-/// A header larger than this is not one: LiteRT-LM writes a few KB.
-const _maxHeaderBytes = 4 << 20;
-
-/// The magic bytes every `.litertlm` starts with.
-const kLitertlmMagic = 'LITERTLM';
-
-/// Parses a `.litertlm` header: [prefix] is the file's first 32 bytes,
-/// [header] the bytes from 32 to the header end (a `LiteRTLMMetaData`
-/// flatbuffer: `section_metadata.objects[].items[]` key `model_type`, a
-/// `StringValue`). Throws [FormatException] when it is not one.
-LitertlmInfo parseLitertlmHeader(Uint8List prefix, Uint8List header) {
-  if (prefix.length < _headerBegin ||
-      ascii.decode(prefix.sublist(0, 8), allowInvalid: true) !=
-          kLitertlmMagic) {
-    throw const FormatException('no LITERTLM magic');
-  }
-  final p = ByteData.sublistView(prefix);
-  final b = ByteData.sublistView(header);
-  // Every read is bounds-checked: a header cut short (or an offset past its
-  // end) is a FormatException.
-  void need(int offset, int bytes) {
-    if (offset < 0 || offset + bytes > header.length) {
-      throw const FormatException('the header is cut short');
-    }
-  }
-
-  int u32(int o) {
-    need(o, 4);
-    return b.getUint32(o, Endian.little);
-  }
-
-  int i32(int o) {
-    need(o, 4);
-    return b.getInt32(o, Endian.little);
-  }
-
-  int u16(int o) {
-    need(o, 2);
-    return b.getUint16(o, Endian.little);
-  }
-
-  int deref(int pos) => pos + u32(pos);
-  // The position of a table's field [slot], or null when absent.
-  int? field(int table, int slot) {
-    final vtable = table - i32(table);
-    final vtableLength = u16(vtable);
-    final entry = 4 + 2 * slot;
-    if (entry >= vtableLength) return null;
-    final offset = u16(vtable + entry);
-    return offset == 0 ? null : table + offset;
-  }
-
-  // Offsets may point anywhere, also at what another one already points at:
-  // every object at one object, every item at one table, every key at one
-  // long string. A header that holds its entries and strings once visits at
-  // most as many entries as it has words and decodes at most as many bytes
-  // as it has; one that repeats them (crafted: (H/4)² visits, tens of
-  // minutes for 4 MB) runs out of these budgets instead. Seven real headers
-  // used 4–23 entries of 88–356 and 32–362 string bytes of 352–1424.
-  var entriesLeft = header.length ~/ 4;
-  var bytesLeft = header.length;
-
-  // The positions of a vector's entries (u32 offsets, 4 bytes each). A count
-  // the bytes left cannot hold is corrupt: checked before the list is built,
-  // or a count near 2^32 builds a list that long.
-  List<int> vector(int pos) {
-    final v = deref(pos);
-    final count = u32(v);
-    need(v + 4, 4 * count);
-    if ((entriesLeft -= count) < 0) {
-      throw const FormatException('the header repeats its entries');
-    }
-    return [for (var i = 0; i < count; i++) v + 4 + 4 * i];
-  }
-
-  String string(int pos) {
-    final s = deref(pos);
-    final length = u32(s);
-    need(s + 4, length);
-    if ((bytesLeft -= length) < 0) {
-      throw const FormatException('the header repeats its strings');
-    }
-    return utf8.decode(header.sublist(s + 4, s + 4 + length));
-  }
-
-  final sections = <LitertlmSection>[];
-  final root = deref(0);
-  final sectionMetadata = field(root, 1);
-  if (sectionMetadata != null) {
-    final objects = field(deref(sectionMetadata), 0);
-    for (final o in objects == null ? const <int>[] : vector(objects)) {
-      // Each object is one section: its type and its constraint stay
-      // together (a tower's constraint is per section, not per file).
-      String? type;
-      String? constraint;
-      final items = field(deref(o), 0);
-      for (final item in items == null ? const <int>[] : vector(items)) {
-        final kv = deref(item);
-        final key = field(kv, 0);
-        if (key == null) continue;
-        final name = string(key);
-        if (name != 'model_type' && name != 'backend_constraint') continue;
-        final value = field(kv, 2);
-        if (value == null) continue;
-        final text = field(deref(value), 0);
-        if (text == null) continue;
-        if (name == 'model_type') {
-          type = string(text);
-        } else {
-          constraint = string(text);
-        }
-      }
-      if (type != null || constraint != null) {
-        sections.add(
-          LitertlmSection(modelType: type, backendConstraint: constraint),
-        );
-      }
-    }
-  }
-  return LitertlmInfo(
-    major: p.getUint32(8, Endian.little),
-    minor: p.getUint32(12, Endian.little),
-    patch: p.getUint32(16, Endian.little),
-    sections: sections,
-  );
-}
-
-/// Opens a file for reading (a seam for tests).
-typedef FileOpener = Future<RandomAccessFile> Function(String path);
-
-Future<RandomAccessFile> _open(String path) => File(path).open();
-
-/// Reads [path]'s header: the file exists, is readable and is a
-/// `.litertlm`. Reads only the header (a few KB), never the model. No
-/// `exists()` first: it says false for a file in a folder the app may not
+/// What the plugin makes of the `.litertlm` at [path]
+/// ([readLiteRtLmBundleInfo]: the header and a few hundred bytes per
+/// compiled section, never the weights), refused only where a load of it is
+/// refused, so the app is never stricter than the plugin:
+/// - a file that cannot be opened (missing, unreadable): a
+///   [LocalModelException] naming it;
+/// - an incomplete file: the reader's `incomplete` (it ends inside its own
+///   header), with the plugin's message, or a file it reads whose
+///   [LiteRtLmBundleInfo.isComplete] is false, with the lengths it reports.
+///   flutter_edge_ai_litertlm 1.14.0 refuses both at the load
+///   (`LiteRtLmEngine._readBundle` rethrows the first,
+///   `liteRtLmTextCandidates` throws `incomplete` for the second).
+///
+/// Any other [LiteRtLmBundleException] (not a container the plugin knows, a
+/// container version it does not read, a header or stamp out of range) is
+/// [BundleNotRead] with the plugin's exception: the engine loads such a file
+/// "without reading the file", so the pick goes on and the card says so.
+///
+/// No `exists()` first: it says false for a file in a folder the app may not
 /// search (an Android push made before the app created its folder), which
 /// would read as "does not exist". The open itself tells ENOENT (missing)
 /// from EACCES/EPERM ([LocalModelException.permissionDenied]).
-Future<Result<LitertlmInfo>> inspectLitertlm(
+Future<Result<BundleReading>> inspectLitertlm(
   String path, {
-  FileOpener open = _open,
+  BundleReader read = readLiteRtLmBundleInfo,
 }) async {
-  RandomAccessFile? raf;
   try {
-    raf = await open(path);
-    final prefix = await raf.read(_headerBegin);
-    if (prefix.length < _headerBegin ||
-        ascii.decode(prefix.sublist(0, 8), allowInvalid: true) !=
-            kLitertlmMagic) {
+    final info = await read(path);
+    if (!info.isComplete) {
       return Result.error(
         LocalModelException(
-          '$path is not a .litertlm file (it does not start with '
-          '"$kLitertlmMagic").',
+          '$path is incomplete: it is ${info.fileLength} bytes and its '
+          'sections end at ${info.expectedLength} (a copy or download that '
+          'stopped early). Copy or download it again.',
         ),
       );
     }
-    final end = ByteData.sublistView(prefix)
-        .getUint64(_headerEndOffset, Endian.little);
-    if (end <= _headerBegin || end > _maxHeaderBytes + _headerBegin) {
-      return Result.error(
-        LocalModelException('$path has an unreadable .litertlm header.'),
-      );
-    }
-    await raf.setPosition(_headerBegin);
-    final header = await raf.read(end - _headerBegin);
-    return Result.ok(parseLitertlmHeader(prefix, header));
+    return Result.ok(BundleRead(info));
   } on FileSystemException catch (e) {
     if (isNotFound(e)) {
       return Result.error(LocalModelException('$path does not exist.'));
@@ -235,14 +78,12 @@ Future<Result<LitertlmInfo>> inspectLitertlm(
         permissionDenied: isPermissionDenied(e),
       ),
     );
-  } on FormatException catch (e) {
-    return Result.error(
-      LocalModelException(
-        '$path has an unreadable .litertlm header (${e.message}).',
-      ),
-    );
-  } finally {
-    await raf?.close();
+  } on LiteRtLmBundleException catch (e) {
+    if (e.problem == LiteRtLmBundleProblem.incomplete) {
+      return Result.error(LocalModelException(e.message));
+    }
+    debugPrint('[ModelsFolder] $path: the plugin cannot read its header: $e');
+    return Result.ok(BundleNotRead(e));
   }
 }
 

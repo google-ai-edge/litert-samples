@@ -13,20 +13,24 @@
 // limitations under the License.
 
 // Demo 1 and the app's lifecycle: on Android and iOS leaving the app with
-// the push-to-talk button held ends the press without a turn; desktop keeps
+// the push-to-talk button held ends the press without a turn; on iOS hiding
+// the app also stops a running turn, on Android it goes on; desktop keeps
 // the microphone.
+import 'dart:async';
 import 'dart:ui' show AppLifecycleState;
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:litert_edge_demos/data/repositories/diagnostics_repository.dart';
 import 'package:litert_edge_demos/data/repositories/skill_repository.dart';
+import 'package:litert_edge_demos/domain/models/chat_entry.dart';
 import 'package:litert_edge_demos/domain/models/model_id.dart';
 import 'package:litert_edge_demos/domain/models/model_state.dart';
 import 'package:litert_edge_demos/domain/models/voice.dart';
 import 'package:litert_edge_demos/domain/use_cases/chat_turn_responder.dart';
 import 'package:litert_edge_demos/domain/use_cases/voice_assistant.dart';
 import 'package:litert_edge_demos/ui/core/app_foreground.dart';
+import 'package:litert_edge_demos/ui/core/voice_notices.dart';
 import 'package:litert_edge_demos/ui/features/voice_chat/view_models/voice_chat_view_model.dart';
 import 'package:litert_edge_demos/utils/result.dart';
 
@@ -108,6 +112,76 @@ void main() {
     await viewModel.releaseMic();
     expect(recognizer.calls, 0);
     expect(conversation.prompts, isEmpty);
+  });
+
+  /// A typed turn whose reply is being generated.
+  Future<void> generating(AppForeground foreground) async {
+    viewModel = await build(foreground);
+    await untilNotified(viewModel, () => viewModel.isReady, what: 'Demo 1');
+    unawaited(viewModel.send.execute('Tell me a story'));
+    await pumpEventQueue();
+    conversation.emit('Once upon a time');
+    await pumpEventQueue();
+    expect(viewModel.phase, TurnPhase.thinking);
+  }
+
+  test('on iOS, hiding the app stops a reply being generated (no GPU work in '
+      'the background): the model is stopped, the partial reply stays as '
+      'interrupted, a notice says why', () async {
+    final foreground = AppForeground(platform: TargetPlatform.iOS);
+    addTearDown(foreground.dispose);
+    await generating(foreground);
+
+    // Control Centre or a banner (inactive) leaves the reply alone.
+    foreground.onStateChange(AppLifecycleState.inactive);
+    await pumpEventQueue();
+    expect(viewModel.phase, TurnPhase.thinking);
+    expect(conversation.stopCalls, 0);
+
+    foreground.onStateChange(AppLifecycleState.hidden);
+    await untilNotified(
+      viewModel,
+      () => viewModel.phase == TurnPhase.idle,
+      what: 'the turn stopped',
+    );
+
+    expect(conversation.stopCalls, 1);
+    final [..., reply, notice] = viewModel.entries;
+    expect(reply.role, ChatRole.assistant);
+    expect(reply.text, 'Once upon a time');
+    expect(reply.interrupted, isTrue);
+    expect(notice.role, ChatRole.notice);
+    expect(notice.text, interruptedText(InterruptionCause.background));
+
+    // Paused next: nothing more to stop.
+    foreground.onStateChange(AppLifecycleState.paused);
+    await pumpEventQueue();
+    expect(conversation.stopCalls, 1);
+  });
+
+  test('on Android the reply goes on in the background', () async {
+    final foreground = AppForeground(platform: TargetPlatform.android);
+    addTearDown(foreground.dispose);
+    await generating(foreground);
+
+    foreground
+      ..onStateChange(AppLifecycleState.inactive)
+      ..onStateChange(AppLifecycleState.hidden)
+      ..onStateChange(AppLifecycleState.paused);
+    await pumpEventQueue();
+    expect(viewModel.phase, TurnPhase.thinking);
+    expect(conversation.stopCalls, 0);
+
+    conversation.emit(' there was a cat.');
+    await conversation.finish();
+    await untilNotified(
+      viewModel,
+      () => viewModel.phase == TurnPhase.idle,
+      what: 'the turn completed',
+    );
+    final reply = viewModel.entries.last;
+    expect(reply.text, 'Once upon a time there was a cat.');
+    expect(reply.interrupted, isFalse);
   });
 
   test('on Linux the held press goes on when the window loses focus or is '

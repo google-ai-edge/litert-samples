@@ -66,6 +66,28 @@ final class IntentSucceeded extends SkillStep {
   String toString() => '$intent → $result';
 }
 
+/// The model ended a generation with no text right after `loadSkill`
+/// ([skill]), so the agent loop asked again: it added [nudge] to the chat as
+/// a user message and generated once more (flutter_edge_ai_agent's
+/// `EmptyAnswerRetryEvent`). [attempt]: 1 for the turn's first retry.
+final class EmptyAnswerRetried extends SkillStep {
+  const EmptyAnswerRetried(
+    this.skill, {
+    required this.attempt,
+    required this.nudge,
+    required super.at,
+  });
+
+  final String skill;
+  final int attempt;
+  final String nudge;
+
+  @override
+  String toString() =>
+      'no answer after loadSkill($skill): asked again (attempt $attempt): '
+      '"$nudge"';
+}
+
 /// A tool call failed (an error result, an unknown skill or tool); the model
 /// was told [message] so it can recover.
 final class IntentFailed extends SkillStep {

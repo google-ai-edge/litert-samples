@@ -505,6 +505,29 @@ void main() {
     expect(update.notify, isTrue);
   });
 
+  test('a turn ended from outside is a notice saying why, after the reply '
+      'it cut short; the turn facts go, the error stays', () {
+    for (final cause in InterruptionCause.values) {
+      final before = _midTurn();
+      final cut = _reducer.reduce(
+        before,
+        const AssistantSaid('Once upon', interrupted: true),
+      );
+
+      final update = _reducer.reduce(cut.state, TurnInterrupted(cause));
+
+      final [..., reply, notice] = update.state.entries;
+      expect(reply.role, ChatRole.assistant, reason: cause.name);
+      expect(reply.interrupted, isTrue);
+      expect(notice.role, ChatRole.notice);
+      expect(notice.text, interruptedText(cause));
+      expect(update.state.turnRetrieval, isNull);
+      expect(update.state.turnSteps, isEmpty);
+      expect(update.state.error, before.error);
+      expect(update.notify, isTrue);
+    }
+  });
+
   test('a failed turn is the error with the steps it got to; the turn '
       'facts go', () {
     final update = _reducer.reduce(

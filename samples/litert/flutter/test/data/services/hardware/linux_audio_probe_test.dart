@@ -116,7 +116,7 @@ void main() {
         'Connection failure: Connection refused). Start it: systemctl --user '
         'start pipewire pipewire-pulse (or pulseaudio --start)',
       );
-      expect(audioNotes(a).single, contains('need PulseAudio or PipeWire'));
+      expect(audioNotes(a).single, contains('needs PulseAudio or PipeWire'));
       expect(
         audioSystemLines(a).single,
         'audio      no sound server (see the note) · ALSA cards 0',

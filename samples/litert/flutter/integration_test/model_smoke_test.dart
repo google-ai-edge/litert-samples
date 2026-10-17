@@ -19,16 +19,21 @@
 // GEMMA_MODEL_PATH: absolute path, or a path relative to the app's documents
 // directory (copy the file in first: `xcrun devicectl device copy to` on iOS).
 // On macOS the sandboxed debug build reads model files from ~/Downloads.
-// GEMMA_BACKEND: gpu (default) or cpu. A silent GPU→CPU fallback fails the test.
+// GEMMA_BACKEND: gpu (default) or cpu. The app's strict engine
+// (kStrictLiteRtLmEngine: no backend fallback) makes one attempt, on that
+// backend: the test checks that the model loads there (activeBackend is the
+// backend asked for; a backend that cannot run it fails the load with the
+// plugin's reason) and answers "Paris".
 //
 //   flutter test integration_test/model_smoke_test.dart -d macos \
 //     --dart-define=GEMMA_MODEL_PATH=<path/to/gemma-4-E2B-it.litertlm>
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter_edge_ai/flutter_edge_ai.dart';
-import 'package:flutter_edge_ai_litertlm/flutter_edge_ai_litertlm.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:integration_test/integration_test.dart';
+import 'package:litert_edge_demos/config/bootstrap.dart'
+    show kStrictLiteRtLmEngine;
 import 'package:path_provider/path_provider.dart';
 
 const _modelPath = String.fromEnvironment('GEMMA_MODEL_PATH');
@@ -57,7 +62,9 @@ void main() {
     final backend = PreferredBackend.values.byName(_backendName);
     final path = await _resolveModelPath();
 
-    await FlutterEdgeAi.initialize(inferenceEngines: [const LiteRtLmEngine()]);
+    await FlutterEdgeAi.initialize(
+      inferenceEngines: const [kStrictLiteRtLmEngine],
+    );
     await FlutterEdgeAi.installModel(
       modelType: ModelType.gemma4,
       fileType: ModelFileType.litertlm,

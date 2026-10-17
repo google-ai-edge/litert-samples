@@ -137,9 +137,22 @@ List<String> _modelLines(ModelDiagnostics m) {
   ];
 }
 
+/// The detail lines of a loaded chat model's encoders (`vision`, `audio`: a
+/// `PreferredBackend` name, null when not loaded or not reported), for the
+/// Models screen's report and the self-test: where the engine put each one
+/// (`InferenceModel.activeVisionBackend` / `activeAudioBackend`). The app
+/// asks for no tower backend.
+List<String> encoderDetails({String? vision, String? audio}) => [
+  if (vision case final v?)
+    'vision encoder on the ${v.toUpperCase()} (activeVisionBackend)',
+  if (audio case final a?)
+    'audio encoder on the ${a.toUpperCase()} (activeAudioBackend)',
+];
+
 /// The chat model's report rows (also the self-test's): name, source, full
-/// SHA-256, context (asked vs built), the towers loaded, tools. The backend row above
-/// already shows requested → actual (`activeBackend`).
+/// SHA-256, context (asked vs built), the towers loaded with where the
+/// engine put each, tools. The backend row above already shows requested →
+/// actual (`activeBackend`).
 List<(String, String)> chatModelRows(ChatModelFacts c) => [
   (
     '  model',
@@ -160,7 +173,8 @@ List<(String, String)> chatModelRows(ChatModelFacts c) => [
         : '${c.contextTokens} tokens (asked ${c.requestedContext}; the engine '
               'raised it)',
   ),
-  // Each loaded tower with where it runs; none for a text-only load.
+  // Each loaded tower with where the engine put it; none for a text-only
+  // load.
   if (c.visionBackend case final v?) ('  vision', v),
   if (c.audioBackend case final a?) ('  audio', a),
   ('  tools', c.tools ? 'on' : 'off'),

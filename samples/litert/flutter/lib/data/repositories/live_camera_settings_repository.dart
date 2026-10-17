@@ -66,12 +66,13 @@ class LiveCameraSettingsRepository {
   /// measured on this device.
   final int? _physicalMemoryBytes;
 
-  /// The visual memory with nothing saved: off on a device with less than 8
-  /// GB of RAM ([kMemoryDefaultOnMinRamBytes]), on otherwise. RAM that is
-  /// not measured (iOS has no probe) leaves the spec's default, on: the gate
-  /// turns a feature off on evidence of a small device, and no reading is
-  /// none (every phone that runs the app's chat model has 8 GB or more); the
-  /// log says the RAM was not measured.
+  /// The visual memory with nothing saved: off where the OS reports less
+  /// than 6.5 GiB of RAM ([kMemoryDefaultOnMinRamBytes]), i.e. on devices
+  /// sold with 6 GB or less (an 8 GB one reports about 6.9 GiB, the Galaxy
+  /// S24, and keeps it on); on otherwise. RAM that is not measured (a
+  /// platform without a probe, or an unreadable one) leaves the spec's
+  /// default, on: the gate turns a feature off on evidence of a small
+  /// device, and no reading is none; the log says the RAM was not measured.
   bool get _memoryOnByDefault => switch (_physicalMemoryBytes) {
     final bytes? => bytes >= kMemoryDefaultOnMinRamBytes,
     null => true,
@@ -83,7 +84,7 @@ class LiveCameraSettingsRepository {
       ? null
       : 'Off by default on this device '
             '(${(_physicalMemoryBytes! / (1 << 30)).toStringAsFixed(1)} GB '
-            'RAM): the visual memory loads ~300 MB more.';
+            'RAM): the visual memory loads about 300–450 MB more.';
 
   /// What fixed the camera source, for the screen (`FRAME_SOURCE=fixture`);
   /// null when the user chooses it.
@@ -218,8 +219,8 @@ class LiveCameraSettingsRepository {
   }
 
   /// Whether the visual memory is on (the camera settings' switch); when
-  /// never set, on unless the device has less than 8 GB of RAM
-  /// ([visualMemoryDefaultReason]).
+  /// never set, on unless the OS reports less than 6.5 GiB of RAM (devices
+  /// sold with 6 GB or less; [visualMemoryDefaultReason]).
   Future<Result<bool>> readVisualMemory() async {
     switch (await _settings.read(Settings.visualMemory)) {
       case Ok(:final value?):

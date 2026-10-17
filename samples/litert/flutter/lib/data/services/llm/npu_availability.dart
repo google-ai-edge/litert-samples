@@ -20,18 +20,21 @@ import 'package:flutter/foundation.dart';
 import '../../../domain/models/npu_availability.dart';
 import '../hardware/android_props.dart';
 
-/// The app's copy of flutter_edge_ai_litertlm 1.11.0's NPU gate
-/// (`lib/src/ffi/backend_preference.dart`): `npuDispatchShipsFor` — Windows
-/// yes, Android only when `libcdsprpc.so` opens (`_androidHasFastRpc`),
-/// Linux arm64 when the Qualcomm FastRPC probe passes, every other OS no —
-/// with the reason text of `npuUnavailableReason`.
-/// Mirrored, not imported: the package keeps it in `src/` and marks the
-/// reason `@visibleForTesting`.
+/// The app's copy of flutter_edge_ai_litertlm 1.14.0's private NPU gate
+/// (`lib/src/ffi/backend_preference.dart`): `hostShipsNpuDispatch` through
+/// `npuDispatchShipsFor` (Windows yes, Android only when `libcdsprpc.so`
+/// opens: `_androidHasFastRpc`, Linux arm64 when the Qualcomm probe passes:
+/// `_linuxHasQualcommNpu`, every other OS no), with the reason text of
+/// `npuUnavailableReason`. It mirrors a private check because the plugin
+/// has no public API for "would a load reach the NPU here" (a plugin gap):
+/// the gate lives in `src/` and its reason is `@visibleForTesting`. The
+/// plugin also checks, at the load, that the app bundled the Qualcomm stack
+/// (`checkQualcommNpuStack`, `lib/src/ffi/npu_stack_manifest.dart`); this
+/// copy does not.
 ///
-/// The Models screen offers `npu` only when this says [NpuAvailable];
-/// `LlmService` checks it again before a load so an NPU request on a host
-/// without the stack fails with the reason instead of loading on the GPU
-/// (where flutter_edge_ai would put it).
+/// Only for the Models screen, which offers `npu` only when this says
+/// [NpuAvailable]. A load does not ask it: the strict engine refuses an NPU
+/// it cannot reach itself (`NpuDispatchUnavailableException`).
 NpuAvailability npuAvailabilityFor(
   String operatingSystem, {
   required ({bool opened, String? error}) Function() openFastRpc,
@@ -51,13 +54,17 @@ NpuAvailability npuAvailabilityFor(
         soc: soc,
       );
     case 'linux':
-      // flutter_edge_ai_litertlm 1.11.0 ships the Qualcomm stack for
-      // linux_arm64 (`qualcomm_npu: true`); the board must expose it.
+      // flutter_edge_ai_litertlm 1.14.0 ships the Qualcomm stack for
+      // linux_arm64 (`qualcomm_npu: true`); the board must expose it. The
+      // reason is worded as `npuUnavailableReason('linux', …)` words it.
       final probe = probeLinuxNpu != null
           ? probeLinuxNpu()
           : _probeLinuxQualcommNpu();
       if (probe == null) return NpuAvailable(soc: soc);
-      return NpuUnavailable(probe, soc: soc);
+      return NpuUnavailable(
+        'the bundled Qualcomm NPU stack cannot run here: $probe',
+        soc: soc,
+      );
     default:
       return NpuUnavailable(
         'no NPU dispatch stack ships for $operatingSystem',
@@ -66,8 +73,9 @@ NpuAvailability npuAvailabilityFor(
   }
 }
 
-/// The Linux arm64 Qualcomm NPU probe of flutter_edge_ai_litertlm 1.11.0
-/// (`_linuxHasQualcommNpu`): null when the stack can run, else why not.
+/// The Linux arm64 Qualcomm NPU probe of flutter_edge_ai_litertlm 1.14.0
+/// (`_linuxHasQualcommNpu`, private: mirrored, as above): null when the
+/// stack can run, else why not.
 String? _probeLinuxQualcommNpu() {
   if (Abi.current() != Abi.linuxArm64) {
     return 'the Qualcomm NPU stack is built for linux_arm64 only, and this is '

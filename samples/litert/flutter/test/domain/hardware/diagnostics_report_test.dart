@@ -187,6 +187,50 @@ void main() {
     );
   });
 
+  test("each loaded tower's row and detail: where the engine put it "
+      '(activeVisionBackend / activeAudioBackend), never a requested one', () {
+    const facts = ChatModelFacts(
+      name: 'Gemma 4 E2B NPU',
+      custom: true,
+      source: 'in place: /m/gemma_sm8750.litertlm',
+      requestedBackend: 'npu',
+      requestedContext: 4096,
+      contextTokens: 4096,
+      tools: false,
+      modelType: 'gemma4',
+      visionBackend: 'npu',
+      audioBackend: 'cpu',
+    );
+    final row = diagnosticsFor(
+      ModelId.chat,
+      const ModelReady(
+        LoadedModelInfo(
+          modelId: 'gemma_sm8750',
+          backend: 'npu',
+          loadTime: Duration(seconds: 4),
+          warmUpTime: Duration(milliseconds: 300),
+          chat: facts,
+        ),
+      ),
+      hardware: _m4Pro,
+    );
+
+    expect(
+      row.detail,
+      'vision encoder on the NPU (activeVisionBackend) · audio encoder on '
+      'the CPU (activeAudioBackend)',
+    );
+    final rows = chatModelRows(facts);
+    expect(rows, contains(('  vision', 'npu')));
+    expect(rows, contains(('  audio', 'cpu')));
+    expect(
+      facts.capabilityLine,
+      'ctx 4096 · vision npu · audio cpu · tools '
+      'off · gemma4',
+    );
+    expect(encoderDetails(), isEmpty, reason: 'a text-only load');
+  });
+
   test('the chat model rows: your own NPU model, its source, checksum, '
       'context, towers and tools; the card names it', () {
     const facts = ChatModelFacts(

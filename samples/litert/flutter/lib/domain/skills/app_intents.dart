@@ -12,9 +12,15 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-/// The app's intents: the only actions a Markdown skill can run (Markdown
-/// combines intents, it never adds Dart). A SKILL.md names them as intent
-/// `current_time` and calls `run_intent` with one.
+import 'package:flutter_edge_ai_agent/flutter_edge_ai_agent.dart'
+    show Skill, SkillType;
+
+/// The intents the app adds to the agent package's `NativeIntentExecutor`
+/// (`buildAppIntents`), next to the package's built-in ones
+/// (`get_current_date_and_time`, `send_email`, …). A SKILL.md names an intent
+/// as intent `current_time` (or `intent: current_time`, the agent package's
+/// form) and calls `run_intent` with it; Markdown combines intents, it never
+/// adds Dart.
 ///
 /// There is no camera-watch or timer intent: simpler, no camera in the chat,
 /// less memory.
@@ -23,24 +29,55 @@ abstract final class AppIntent {
   static const currentTime = 'current_time';
 
   static const all = {deviceInfo, currentTime};
-
-  /// `device_info, current_time`, for error results the model reads.
-  static String get listed => all.join(', ');
-
-  /// [raw] as an intent name: trimmed, lowercased, `-` → `_` (small models
-  /// echo `current-time`). Null when that is not one of [all].
-  static String? normalize(String raw) {
-    final name = raw.trim().toLowerCase().replaceAll('-', '_');
-    return all.contains(name) ? name : null;
-  }
 }
 
-/// The intents a SKILL.md body names, written as intent `name` (in
-/// backticks, the form every bundled skill uses). The scan checks them
-/// against [AppIntent.all] so a typo is listed as an error, not discovered
-/// by the model at run time.
+/// The intents a SKILL.md body names, as written, in the forms skills are
+/// written in: intent `name` (in backticks, the form every bundled skill
+/// uses), or `intent: name`, also as a list item (`- intent: name`, the agent
+/// package's own skills). No case or `-`/`_` folding: the executor runs an
+/// intent only by its exact name (`NativeIntentExecutor` trims, nothing
+/// more), so the scan checks the names as the model will copy them, and a
+/// typo is listed as an error, not discovered by the model at run time.
+///
+/// Prose never names an intent: "this intent tells the time" has neither a
+/// colon nor backticks, and after a colon a bare word counts only when it
+/// looks like an identifier (it has `_`, as every intent name does), so
+/// `## Intent: tell the user the time`, "the user's intent: they may want
+/// the time" and `## Intent: real-time clock` name nothing. In backticks or
+/// quotes the value always counts.
 Set<String> intentsNamedIn(String body) => {
-  for (final match in _namedIntent.allMatches(body)) match[1]!.trim(),
+  for (final match in _namedIntent.allMatches(body)) ?_namedBy(match),
 };
 
-final _namedIntent = RegExp(r'\bintent\s+`([^`\n]+)`');
+/// The app intents [skills] offer: the ones in [AppIntent.all] that their
+/// intent-type skills name ([intentsNamedIn]). An instruction-only skill
+/// that merely quotes an intent offers nothing. Over the installed skills,
+/// these are the requests the app may answer itself (`ChatTurnResponder`),
+/// with tools on or off.
+Set<String> intentsOfferedBy(Iterable<Skill> skills) => {
+  for (final skill in skills)
+    if (skill.type == SkillType.intent)
+      for (final intent in intentsNamedIn(skill.instructions))
+        if (AppIntent.all.contains(intent)) intent,
+};
+
+/// The name [match] gives, or null when it is a prose word after a colon.
+String? _namedBy(RegExpMatch match) {
+  if ((match[2] ?? match[4])?.trim() case final quoted?
+      when quoted.isNotEmpty) {
+    return quoted;
+  }
+  final bare = match[3];
+  // `_` marks an identifier; `-` does not (prose: "real-time",
+  // "kid-friendly").
+  return bare != null && bare.contains('_') ? bare : null;
+}
+
+/// After `intent` and a colon (only spaces around it, so a colon at a
+/// line's end does not take the next line's first word): a value in
+/// backticks or quotes (group 2) or a bare word (group 3). Or intent `name`
+/// (group 4). `\b` keeps `run_intent` out: `_` is a word character.
+final _namedIntent = RegExp(
+  r'''\bintent(?:[ \t]*:[ \t]*(?:([`"'])([A-Za-z0-9_-]+)\1|([A-Za-z0-9_-]+))|\s+`([^`\n]+)`)''',
+  caseSensitive: false,
+);

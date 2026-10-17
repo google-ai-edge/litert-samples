@@ -81,6 +81,7 @@ class ModelStore {
     this.progressInterval = const Duration(milliseconds: 250),
     PartOpener openPart = openRandomAccessPart,
     this._closeWait = const Duration(seconds: 5),
+    Duration Function()? clock,
   }) : _rootOf = root ?? _defaultRoot,
        _downloader = HttpFileDownloader(
          httpClient: httpClient,
@@ -88,6 +89,7 @@ class ModelStore {
          maxAttempts: maxAttempts,
          retryDelay: retryDelay,
          openPart: openPart,
+         clock: clock,
        );
 
   static Future<Directory> _defaultRoot() async =>
@@ -201,12 +203,15 @@ class ModelStore {
   /// Imports the `.litertlm` at [path] as the custom chat model: moved when
   /// it is the picker's temporary copy inside [moveFrom], else APFS-cloned
   /// (macOS/iOS) or copied, into `custom/<name>`; hashed, checked against
-  /// [expectedSha256] when one is given, and its checksum recorded. A
-  /// failure leaves the previous custom file as it was.
+  /// [expectedSha256] when one is given, and its checksum recorded. Other
+  /// bytes than [reserved]'s (the file the chat model uses) never go onto it:
+  /// they are stored beside it ([placementFor]), and the returned name says
+  /// where. A failure leaves the previous custom file as it was.
   Future<Result<CustomModelFile>> importCustomFile(
     String path, {
     String? expectedSha256,
     String? moveFrom,
+    String? reserved,
   }) => _customOp((cancel) async {
     final name = _baseName(path);
     if (!name.toLowerCase().endsWith(kCustomModelExtension) ||
@@ -217,6 +222,7 @@ class ModelStore {
     }
     final size = await File(path).length();
     final target = File(await customPathOf(name));
+    File? placed;
     final (_, hex) = await _importer.importFile(
       path,
       target,
@@ -226,14 +232,54 @@ class ModelStore {
       moveFrom: moveFrom,
       cancel: cancel,
       reporter: _reporter,
+      placeFor: (hex) async =>
+          placed = await placementFor(name, hex, reserved: reserved),
     );
     return CustomModelFile(
-      name: name,
+      name: _baseName((placed ?? target).path),
       sizeBytes: size,
       sha256: hex,
       checksumMatched: expectedSha256 != null,
     );
   });
+
+  /// Where a custom file stored as [name] whose SHA-256 is [hex] goes:
+  /// `custom/<name>`, unless [name] is [reserved] (the file the chat model
+  /// uses) and that file's record names other bytes; then beside it as
+  /// `custom/<stem>-<the hash's first 8 hex>.litertlm` ([renamedFor]), so a
+  /// file picked but not applied never replaces the one in use. The same
+  /// bytes keep the name.
+  Future<File> placementFor(
+    String name,
+    String hex, {
+    required String? reserved,
+  }) async {
+    final target = File(await customPathOf(name));
+    if (name != reserved) return target;
+    final String? record;
+    try {
+      record = await ChecksumRecord.read(target);
+    } on FileSystemException catch (e) {
+      debugPrint('[ModelStore] custom $name: its record cannot be read ($e)');
+      return File(await customPathOf(renamedFor(name, hex)));
+    }
+    if (record == null || record == hex) return target;
+    final renamed = renamedFor(name, hex);
+    debugPrint(
+      '[ModelStore] custom $name is the chat model\'s file: other bytes '
+      '(sha256 $hex) are stored beside it as $renamed',
+    );
+    return File(await customPathOf(renamed));
+  }
+
+  /// [name] with the first 8 hex digits of [hex] before its extension:
+  /// another file of that name, kept beside it.
+  static String renamedFor(String name, String hex) {
+    final stem = name.toLowerCase().endsWith(kCustomModelExtension)
+        ? name.substring(0, name.length - kCustomModelExtension.length)
+        : name;
+    return '$stem-${hex.substring(0, 8)}$kCustomModelExtension';
+  }
 
   /// Downloads the custom chat model from [url] into `custom/<name>`
   /// ([customFileNameFor]), with Range resume (a `.part` per URL), the
@@ -243,12 +289,15 @@ class ModelStore {
   /// recorded. A failure keeps the partial file (Retry resumes it) and
   /// leaves the previous custom file as it was. [accept], when given, sees
   /// the downloaded bytes before they replace anything: its reason refuses
-  /// them (they are deleted; nothing in them is worth resuming).
+  /// them (they are deleted; nothing in them is worth resuming). Other bytes
+  /// than [reserved]'s (the file the chat model uses) are stored beside it
+  /// ([placementFor]); the returned name says where.
   Future<Result<CustomModelFile>> downloadCustomFile(
     Uri url, {
     String? sha256,
     int? sizeBytes,
     Future<String?> Function(String path)? accept,
+    String? reserved,
   }) => _customOp((cancel) async {
     final name = customFileNameFor(url);
     final target = File(await customPathOf(name));
@@ -264,6 +313,7 @@ class ModelStore {
       await deleteQuietly(part);
       throw CustomModelFileException(reason);
     }
+    File? placed;
     final hex = await _verified.verifyAndCommit(
       ExpectedFile(
         name: name,
@@ -275,9 +325,11 @@ class ModelStore {
       target,
       cancel,
       _reporter,
+      placeFor: (hex) async =>
+          placed = await placementFor(name, hex, reserved: reserved),
     );
     return CustomModelFile(
-      name: name,
+      name: _baseName((placed ?? target).path),
       sizeBytes: size,
       sha256: hex,
       checksumMatched: sha256 != null,

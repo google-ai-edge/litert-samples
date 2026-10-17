@@ -132,10 +132,22 @@ class FakeInferenceSession implements InferenceModelSession {
 /// [InferenceModel] without an engine. Like the FFI model it has one session
 /// slot: a new session closes the previous one. Chats get `ModelType.gemma4`.
 class FakeInferenceModel extends InferenceModel {
-  FakeInferenceModel({this.activeBackend = PreferredBackend.gpu});
+  /// [maxTokens]: the context window (a small-context NPU build has 1280).
+  FakeInferenceModel({
+    this.activeBackend = PreferredBackend.gpu,
+    this.activeVisionBackend,
+    this.activeAudioBackend,
+    this.maxTokens = 4096,
+  });
 
   @override
   final PreferredBackend? activeBackend;
+
+  /// Where the engine put each encoder; null: none loaded.
+  @override
+  final PreferredBackend? activeVisionBackend;
+  @override
+  final PreferredBackend? activeAudioBackend;
 
   final List<FakeInferenceSession> created = [];
   final List<({double? temperature, int? topK, int? maxOutputTokens})>
@@ -159,7 +171,7 @@ class FakeInferenceModel extends InferenceModel {
   InferenceModelSession? get session => _session;
 
   @override
-  int get maxTokens => 4096;
+  final int maxTokens;
 
   @override
   ModelFileType get fileType => ModelFileType.litertlm;

@@ -15,13 +15,13 @@
 import '../skills/app_intents.dart' as intents;
 import 'question_router.dart' show normalizeQuestion;
 
-/// Which live skill a Demo 1 question is about.
+/// Which app intent's facts a Demo 1 question is about.
 enum SkillTopic {
   /// The loaded models, their backends and accelerators, memory, hardware
-  /// (`device-info`).
+  /// (`device_info`).
   deviceFacts,
 
-  /// The time, date or day (`current-time`).
+  /// The time, date or day (`current_time`).
   time,
 }
 
@@ -35,6 +35,12 @@ final class const DirectAction(
 
 /// A question routed to a skill; [rule] names what matched (overlay, logs).
 final class const SkillRoute(final SkillTopic topic, final String rule) {
+  /// The app intent that answers [topic].
+  String get intent => switch (topic) {
+    SkillTopic.deviceFacts => intents.AppIntent.deviceInfo,
+    SkillTopic.time => intents.AppIntent.currentTime,
+  };
+
   @override
   String toString() => '${topic.name} ($rule)';
 }
@@ -42,15 +48,21 @@ final class const SkillRoute(final SkillTopic topic, final String rule) {
 /// Recognizes the Demo 1 questions only a skill can answer, so
 /// the turn skips retrieval and Gemma sees nothing but its skills.
 ///
+/// The rules are about the app's own intents, not about any skill: the
+/// caller (`ChatTurnResponder`) acts on a route or an action only while an
+/// installed intent skill names its intent, with tools on or off (a skill
+/// that is deleted or replaced turns the shortcut off).
+///
 /// Why: retrieval runs before every turn, and live device questions clear
 /// the knowledge-base gate against the GPU and backend docs (EmbeddingGemma
 /// 2: 5 of 6 at 0.68–0.77 against 0.70,
 /// `test_assets/skill_trigger_similarity.json`); at temperature 0.6 Gemma
-/// then sometimes answered "which accelerator is running" from the docs
-/// instead of calling `device_info`. Rules, not similarity, so the outcome
-/// is deterministic. Like Demo 3's `QuestionRouter`, it prefers a miss (the
-/// question retrieves; the agent prompt still puts skills first) to a false
-/// hit (a documentation question loses its excerpts).
+/// was then seen answering "which accelerator is running" from the docs
+/// instead of calling `device_info` (observed, not counted). Rules, not
+/// similarity, so the outcome is deterministic. Like Demo 3's
+/// `QuestionRouter`, it prefers a miss (the question retrieves; the agent
+/// prompt still puts skills first) to a false hit (a documentation question
+/// loses its excerpts).
 ///
 /// Rules, in order:
 /// 1. time: the whole question is a time/date question once polite filler

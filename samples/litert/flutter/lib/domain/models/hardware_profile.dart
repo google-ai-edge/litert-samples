@@ -146,7 +146,8 @@ final class const JetsonInfo({
   final String? powerMode,
 });
 
-/// An NPU the device has. Information only: no model here runs on it.
+/// An NPU the device has, as the hardware probe found it; where each model
+/// runs is in the model lines.
 final class const NpuHint(final String text);
 
 /// The system-on-chip the OS names (Android `ro.soc.manufacturer` and

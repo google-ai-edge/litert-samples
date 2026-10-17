@@ -12,7 +12,7 @@ PASS  3   cats golden                                      <time>
 PASS  4a  chat model load + warm-up (gpu)                  <time>
            Gemma 4 E2B (gemma-4-E2B-it) · maxTokens 8192 · vision cpu · tools on · type gemma4 · load 3.60 s · warm-up 2.20 s
            gpu → gpu (confirmed: API) · api Metal (inferred) · adapter Apple M4 Pro (inferred)
-           vision encoder on the CPU (requested)
+           vision encoder on the CPU (activeVisionBackend)
 FAIL  4b  chat model generate 64 tokens                    <time>
            generate failed: Exception: session lost
 PASS  5   detector again (bit-identical)                   <time>

@@ -26,9 +26,9 @@ import 'kb_documents.dart';
 // capture its caller (the knowledge repository and its unsendable embedder
 // ports).
 
-/// Every document's chunks, in order (~50 ms for the bundled KB, a dropped
-/// frame as home appears otherwise). A chunker error (a malformed document)
-/// crosses the isolate as it was thrown.
+/// Every document's chunks, in order (off the main isolate, so chunking
+/// cannot drop a frame as home appears). A chunker error (a malformed
+/// document) crosses the isolate as it was thrown.
 Future<List<KbChunk>> chunkInBackground(
   MarkdownChunker chunker,
   List<KbDocument> documents,
@@ -40,8 +40,8 @@ Future<List<KbChunk>> chunkInBackground(
   debugName: 'kb-chunker',
 );
 
-/// SHA-256 of a few MB as lowercase hex (tens of ms on a phone, a dropped
-/// frame on the home screen otherwise).
+/// SHA-256 of a few MB as lowercase hex (off the main isolate, so hashing
+/// cannot drop a frame on the home screen).
 Future<String> sha256InBackground(Uint8List bytes) => Isolate.run(
   () => sha256.convert(bytes).toString(),
   debugName: 'kb-prebuilt-sha256',

@@ -43,10 +43,11 @@ final class ModelImporter {
   final ModelFileOps _ops;
   final VerifiedCommit _commit;
 
-  /// Imports [source] ([sizeBytes] long, stored as [name]) onto [target]:
-  /// checked against [expectedSha256] when one is given, and recorded.
-  /// Returns how it came in and its SHA-256. Completing [cancel] stops a
-  /// hash or a copy ([OperationCancelledException]).
+  /// Imports [source] ([sizeBytes] long, stored as [name]) onto [target]
+  /// (or where [placeFor] puts it once its hash is known): checked against
+  /// [expectedSha256] when one is given, and recorded. Returns how it came
+  /// in and its SHA-256. Completing [cancel] stops a hash or a copy
+  /// ([OperationCancelledException]).
   Future<(ImportMethod, String)> importFile(
     String source,
     File target, {
@@ -56,6 +57,7 @@ final class ModelImporter {
     required String? moveFrom,
     required CancelToken cancel,
     required FileStateReporter reporter,
+    PlaceFor? placeFor,
   }) async {
     final temp = File('${target.path}.import');
     try {
@@ -80,6 +82,7 @@ final class ModelImporter {
         target,
         hex,
         reporter,
+        placeFor: placeFor,
       );
       await _dropPickerCopy(method, picked);
       debugPrint(

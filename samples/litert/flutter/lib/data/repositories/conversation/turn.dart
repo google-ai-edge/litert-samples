@@ -198,8 +198,9 @@ Stream<AssistantEvent> askTurn(
     yield AssistantFailed(asException(e));
   } finally {
     if (sent && !settled) {
-      // Cancelled mid-turn: LiteRT-LM cancels native generation and
-      // rebuilds the conversation from text, like a stop.
+      // Cancelled mid-turn: LiteRT-LM's generation is cancelled and
+      // flutter_edge_ai_litertlm rebuilds the conversation from text, like a
+      // stop.
       live.cancelTurn(sentImage: imageToSend);
     }
     if (slot != null) live.mirror.reply(slot, reply.toString());

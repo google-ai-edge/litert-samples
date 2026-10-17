@@ -148,8 +148,8 @@ Future<JpegFrameDecoder> openJpegDecoder({
   if (expected) {
     debugPrint(
       '[NetworkCamera] SLOW JPEG decoder: the engine codec, because $reason. '
-      'Install libturbojpeg (Debian/Ubuntu: sudo apt install libturbojpeg; '
-      'Raspberry Pi OS: libturbojpeg0) or use a bundle that ships it.',
+      'Install libturbojpeg (Ubuntu: sudo apt install libturbojpeg; Debian '
+      'and Raspberry Pi OS: libturbojpeg0) or use a bundle that ships it.',
     );
   } else {
     debugPrint('[NetworkCamera] JPEG decoder: engine codec ($reason)');

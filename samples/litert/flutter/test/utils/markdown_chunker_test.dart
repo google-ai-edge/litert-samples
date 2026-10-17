@@ -48,10 +48,11 @@ void main() {
     // its .litertlm. The engine refuses an input over its 1024-token limit
     // (EmbeddingInputTooLongException) instead of truncating it, so an
     // over-long chunk fails tool/build_kb_index.sh and on-device indexing.
-    test('16 documents give about 300 chunks within the budget', () {
+    test('16 documents give about 340 chunks within the budget', () {
       expect(files, hasLength(16));
-      // 304 today; the range leaves room for edits to the documents.
-      expect(all.length, inInclusiveRange(270, 310));
+      // 344 today (2026-10-17, after the review fixes); the range
+      // leaves room for edits to the documents.
+      expect(all.length, inInclusiveRange(310, 380));
       for (final chunk in all) {
         expect(
           cost(chunk.body),
@@ -101,7 +102,7 @@ void main() {
         'chunk': 3,
         // The front matter lists several URLs separated by " ; ", each
         // followed by the files it was read from in parentheses.
-        'source': 'https://pub.dev/packages/flutter_edge_ai_rag/versions/1.0.0',
+        'source': 'https://pub.dev/packages/flutter_edge_ai_rag/versions/1.1.1',
       });
       expect(meta['source'], isNot(contains(';')));
     });

@@ -262,22 +262,20 @@ void main() {
       expect(r.llm.warmUpCalls, 0);
     });
 
-    test(
-      'a load on another backend than requested is a failure naming both',
-      () async {
-        final r = rig();
-        r.llm.activeBackend = PreferredBackend.cpu;
+    test('a backend the strict engine cannot create is a failure with the '
+        "plugin's reason, never a load on another backend", () async {
+      final r = rig();
+      r.llm.loadError = engineCreateFailure();
 
-        final result = await r.models.prepareAll();
+      final result = await r.models.prepareAll();
 
-        final error = (result as Error<void>).error;
-        expect(error, isA<BackendMismatchException>());
-        expect(r.transitions, [..._chat.take(4), 'chat failed: $error']);
-        expect(error.toString(), contains('requested gpu'));
-        expect(error.toString(), contains('loaded on cpu'));
-        expect(r.llm.warmUpCalls, 0);
-      },
-    );
+      final error = (result as Error<void>).error;
+      expect(error, isA<ChatModelLoadException>());
+      expect(r.transitions, [..._chat.take(4), 'chat failed: $error']);
+      expect(error.toString(), contains('did not load on gpu'));
+      expect(error.toString(), contains('Can not find OpenCL library'));
+      expect(r.llm.warmUpCalls, 0);
+    });
 
     test('a warm-up failure fails the slot with its error', () async {
       final r = rig();

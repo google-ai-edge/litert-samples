@@ -24,12 +24,21 @@
 	<string>????</string>
 	<key>CFBundleVersion</key>
 	<string>$(FLUTTER_BUILD_NUMBER)</string>
+	<key>LSApplicationQueriesSchemes</key>
+	<array>
+		<string>mailto</string>
+		<string>sms</string>
+	</array>
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
 	<key>LSSupportsOpeningDocumentsInPlace</key>
 	<true/>
+	<key>NSCalendarsUsageDescription</key>
+	<string>A skill can open the calendar's event editor with a new event filled in; it is saved only if you save it.</string>
 	<key>NSCameraUsageDescription</key>
 	<string>The camera feeds the live object detector and lets you show the assistant what you're looking at.</string>
+	<key>NSContactsUsageDescription</key>
+	<string>The calendar's event editor, opened by a skill, can suggest locations from your contacts.</string>
 	<key>NSLocalNetworkUsageDescription</key>
 	<string>Demo 3 can use a network camera on your Wi-Fi, such as a phone running IP Webcam.</string>
 	<key>NSMicrophoneUsageDescription</key>

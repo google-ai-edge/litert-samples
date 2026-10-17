@@ -28,7 +28,8 @@ final class SelfTestUsageException implements Exception {
 }
 
 const kSelfTestUsage = '''
-Self-test: hardware probe, detector, cats golden, Gemma, detector again, audio.
+Self-test: hardware probe, detector, cats golden, Gemma, detector again, audio,
+embedder.
   --selftest (or SELFTEST=1)
   --gemma=PATH              chat model .litertlm, loaded with the app's Gemma 4 E2B settings
                             (default: the chat model chosen on the Models screen with its saved
@@ -36,7 +37,8 @@ Self-test: hardware probe, detector, cats golden, Gemma, detector again, audio.
   --detector=PATH           YOLO26n raw-head .tflite (default: the one built into the app)
   --image=PATH              detect on this image instead of the bundled cats (no golden check)
   --gemma-backend=npu|gpu|cpu  default: the chat model's own (gpu for Gemma 4 E2B); never falls
-                            back; npu fails with the reason where flutter_edge_ai has no NPU stack
+                            back; npu fails with the reason where flutter_edge_ai_litertlm has no
+                            NPU stack
   --detector-backend=gpu|cpu  default gpu; never falls back
   --detector-cpu-retry      after a failed GPU detector load, also try the CPU (information only)
   --allow-software-gpu      a software GPU (llvmpipe) passes, labelled: tests the GPU code path only

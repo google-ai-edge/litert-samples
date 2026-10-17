@@ -13,8 +13,9 @@
 // limitations under the License.
 
 // Demo 3 and the app's lifecycle: on Android and iOS leaving the app
-// releases the camera (and ends a held push-to-talk press without a turn),
-// coming back starts it again; desktop keeps both.
+// releases the camera (and ends a held push-to-talk press without a turn;
+// on iOS hiding it also stops a running turn), coming back starts it again;
+// desktop keeps both.
 import 'dart:async';
 import 'dart:ui' show AppLifecycleState;
 
@@ -32,6 +33,7 @@ import 'package:litert_edge_demos/domain/models/voice.dart';
 import 'package:litert_edge_demos/domain/use_cases/camera_turn_responder.dart';
 import 'package:litert_edge_demos/domain/use_cases/voice_assistant.dart';
 import 'package:litert_edge_demos/ui/core/app_foreground.dart';
+import 'package:litert_edge_demos/ui/core/voice_notices.dart';
 import 'package:litert_edge_demos/ui/features/live_camera/view_models/live_camera_view_model.dart';
 import 'package:litert_edge_demos/utils/result.dart';
 
@@ -172,6 +174,58 @@ void main() {
     await viewModel.releaseMic();
     expect(recognizer.calls, 0);
     expect(viewModel.exchange.question, isNull);
+    viewModel.dispose();
+  });
+
+  /// Presses and releases the mic; the turn waits in STT on the recognizer's
+  /// gate, which the test opens.
+  Future<Completer<void>> transcribing(LiveCameraViewModel viewModel) async {
+    final gate = recognizer.gate = Completer<void>();
+    await viewModel.pressMic();
+    unawaited(viewModel.releaseMic());
+    await until(() => recognizer.calls == 1);
+    expect(viewModel.phase, TurnPhase.transcribing);
+    return gate;
+  }
+
+  test('on iOS, hiding the app stops a running turn (no GPU work in the '
+      'background) and the caption says why; covering it does not', () async {
+    foreground.dispose();
+    foreground = AppForeground(platform: TargetPlatform.iOS);
+    final viewModel = await create();
+    await running(viewModel);
+    final gate = await transcribing(viewModel);
+
+    foreground.onStateChange(AppLifecycleState.inactive);
+    await pumpEventQueue();
+    expect(viewModel.phase, TurnPhase.transcribing);
+
+    foreground.onStateChange(AppLifecycleState.hidden);
+    gate.complete();
+    await until(() => viewModel.phase == TurnPhase.idle);
+    expect(
+      viewModel.exchange.notice,
+      interruptedText(InterruptionCause.background),
+    );
+    expect(conversation.prompts, isEmpty);
+    viewModel.dispose();
+  });
+
+  test('on Android a running turn goes on when the app is hidden', () async {
+    final viewModel = await create();
+    await running(viewModel);
+    final gate = await transcribing(viewModel);
+
+    leave();
+    gate.complete();
+    await until(() => viewModel.phase == TurnPhase.idle);
+    expect(viewModel.exchange.question, 'How many cats do you see?');
+    // Answered (the released camera's notice is the fast path's own), not
+    // interrupted.
+    expect(
+      viewModel.exchange.notice,
+      isNot(interruptedText(InterruptionCause.background)),
+    );
     viewModel.dispose();
   });
 

@@ -361,7 +361,9 @@ void main() {
       expect((withCard as DeviceReady).caution, isTrue);
       expect(
         withCard.detail,
-        startsWith('PulseAudio or ALSA: pactl did not run'),
+        startsWith(
+          'ALSA (perhaps routed to a sound server): pactl did not run',
+        ),
       );
       final noCard = outputCheck(
         platform: HostPlatform.linux,

@@ -43,11 +43,12 @@ final class TappedLoad<T> {
   /// What [_raw] says about the accelerator.
   final NativeLogEvidence _log;
 
-  /// Where the model runs: [requested] and what the runtime [reported],
-  /// read together with the native log and the probed [hardware].
+  /// Where the model runs: [requested] and what the runtime [reported]
+  /// (null: it reports nothing), read together with the native log and the
+  /// probed [hardware].
   AcceleratorEvidence evidence({
     required String requested,
-    required String reported,
+    required String? reported,
     required HardwareProfile? hardware,
   }) => inferEvidence(
     requested: requested,

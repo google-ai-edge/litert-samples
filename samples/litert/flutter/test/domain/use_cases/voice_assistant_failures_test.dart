@@ -437,9 +437,10 @@ void main() {
       expect(result.error, isA<PlaybackException>());
       expect(h.beginPlaybacks, ['beginPlayback(24000)']);
       expect(h.phase, TurnPhase.error);
+      // Kept, as interrupted: the failure cut the reply off.
       expect(
         h.events.whereType<AssistantSaid<ChatSideEvent>>().single,
-        _said('The first sentence is here.'),
+        _said('The first sentence is here.', interrupted: true),
       );
       expect(h.events.last, _failedWith(contains('output device is gone')));
       await settle();

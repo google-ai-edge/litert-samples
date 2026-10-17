@@ -89,6 +89,10 @@ final class const ContextBudget({
   int needFresh({required bool image}) =>
       _turn + (agentReserve?.system ?? 0) + (image ? kImageTokenAllowance : 0);
 
+  /// Whether a fresh chat could hold this turn (with an [image] attached):
+  /// otherwise [check] says [BudgetTooLong].
+  bool fitsFresh({required bool image}) => needFresh(image: image) <= limit;
+
   /// What this turn adds to the live chat: the image only when it is sent.
   int needNow({required bool sendsImage}) =>
       _turn + systemNow + (sendsImage ? kImageTokenAllowance : 0);
@@ -110,8 +114,7 @@ final class const ContextBudget({
   /// The verdict for a turn with an [image] attached that [sendsImage] (the
   /// live chat cannot see it).
   BudgetCheck check({required bool image, required bool sendsImage}) {
-    final fresh = needFresh(image: image);
-    if (fresh > limit) return BudgetTooLong(fresh);
+    if (!fitsFresh(image: image)) return BudgetTooLong(needFresh(image: image));
     if (rebuilding) return BudgetFits(needNow(sendsImage: image));
     final now = needNow(sendsImage: sendsImage);
     return used + now > limit ? BudgetReset(now) : BudgetFits(now);

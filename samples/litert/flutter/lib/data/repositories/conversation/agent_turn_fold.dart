@@ -20,6 +20,8 @@ import 'package:flutter_edge_ai_agent/flutter_edge_ai_agent.dart'
         AgentErrorEvent,
         AgentEvent,
         DoneEvent,
+        EmptyAnswerEvent,
+        EmptyAnswerRetryEvent,
         ErrorResult,
         ImageResult,
         MaxIterationsEvent,
@@ -50,15 +52,19 @@ final class AgentTurnFold {
   String? _lastErrorResult;
   bool _finished = false;
   int _maxIterations = 0;
+  String? _noAnswerAfter;
+
+  /// Raw tool-call JSON that came as text ([_isRawToolCall]), with when it
+  /// came. Since flutter_edge_ai 2.4.0 a call the SDK reads never reaches the
+  /// text, also one that follows prose; this is only core's unparsed-call
+  /// fallback (`InferenceChat.generateChatResponseAsync` surfaces the call
+  /// text it held back when `lastRawResponse` has no call it can read). That
+  /// generation has no call, so it is the final one, and the [DoneEvent] that
+  /// ends it reports each as a failed step ([_reportUnreadCalls]).
+  final List<({String text, Duration at})> _rawCalls = [];
 
   /// The turn's skill steps so far, in order.
   List<SkillStep> get steps => List.unmodifiable(_steps);
-
-  /// What the last intent that succeeded reported; null when none did.
-  String? get lastIntentResult => _steps.reversed
-      .whereType<IntentSucceeded>()
-      .map((s) => s.result)
-      .firstOrNull;
 
   /// Tool calls so far: loadSkill and runIntent each count (every one cost
   /// a generation before the answer).
@@ -70,6 +76,11 @@ final class AgentTurnFold {
   /// The generations the loop used up without an answer
   /// ([MaxIterationsEvent]); 0 when it did not run out.
   int get maxIterations => _maxIterations;
+
+  /// The skill whose `loadSkill` came right before a final generation that
+  /// stayed empty ([EmptyAnswerEvent]: after the loop's retry, or with none
+  /// when no generation was left for it); null when the turn ended otherwise.
+  String? get noAnswerAfter => _noAnswerAfter;
 
   /// Whether the turn ended stopped: a stop was requested, or the loop ended
   /// without [DoneEvent] or [MaxIterationsEvent] (it saw the cancel).
@@ -86,23 +97,9 @@ final class AgentTurnFold {
         // swallowed-tool-call fallback, or for a text-stream format from
         // its end-of-stream buffer) or a cut reply; dropped either way.
         if (stopRequested || text.isEmpty) return null;
-        // A `{`-leading turn whose tool call the SDK could not parse is
-        // surfaced as one text chunk (the swallowed-tool-call fallback at
-        // the end of `InferenceChat.generateChatResponseAsync`): never
-        // speak it.
+        // Tool-call JSON in the text channel is never spoken ([_rawCalls]).
         if (_isRawToolCall(text)) {
-          debugPrint(
-            '[Conversation] unparsed tool call dropped from the reply: '
-            '${text.length > 160 ? '${text.substring(0, 160)}…' : text}',
-          );
-          _step(
-            IntentFailed(
-              null,
-              'The model wrote a tool call that could not be read; it '
-              'was not spoken.',
-              at: _clock(),
-            ),
-          );
+          _rawCalls.add((text: text, at: _clock()));
           return null;
         }
         return text;
@@ -146,19 +143,67 @@ final class AgentTurnFold {
             );
         }
       case AgentErrorEvent(:final message, :final toolName):
-        // The loop repeats every ErrorResult as an error event
-        // (agent_loop.dart:379-382): one failed step, not two.
+        // Every error event comes from dispatching a call. The loop repeats
+        // every ErrorResult as an error event (`AgentLoop._runExecutor`): one
+        // failed step, not two.
         if (message == _lastErrorResult) {
           _lastErrorResult = null;
           return null;
         }
         _step(IntentFailed(toolName, message, at: _clock()));
+      case EmptyAnswerRetryEvent(
+        :final skillName,
+        :final attempt,
+        :final nudge,
+      ):
+        // The loop asks again after an empty answer to a loaded skill: a
+        // generation of its own, with its nudge in the chat's history. The
+        // package's README says to mirror the nudge in a copy of the history
+        // an app keeps; the conversation's text mirror is no such copy: it
+        // holds the user's words and the reply, no tool rounds, and a
+        // rebuilt chat replays it as plain turns. The nudge answers a
+        // loadSkill result the mirror never had, so a replayed nudge would
+        // point at a skill the rebuilt chat never loaded: not added.
+        _step(
+          EmptyAnswerRetried(
+            skillName,
+            attempt: attempt,
+            nudge: nudge,
+            at: _clock(),
+          ),
+        );
+      // A DoneEvent with empty text: matched before DoneEvent. Raw call
+      // JSON would have made its generation's text non-empty (a DoneEvent).
+      case EmptyAnswerEvent(:final skillName):
+        _finished = true;
+        _noAnswerAfter = skillName;
       case DoneEvent():
         _finished = true;
+        _reportUnreadCalls();
       case MaxIterationsEvent(:final iterations):
         _maxIterations = iterations;
     }
     return null;
+  }
+
+  /// Reports each of [_rawCalls] as a failed step: a tool call the SDK could
+  /// not read, which was not spoken.
+  void _reportUnreadCalls() {
+    for (final (:text, :at) in _rawCalls) {
+      final short = text.length > 160 ? '${text.substring(0, 160)}…' : text;
+      debugPrint(
+        '[Conversation] unparsed tool call dropped from the reply: $short',
+      );
+      _step(
+        IntentFailed(
+          null,
+          'The model wrote a tool call that could not be read; it '
+          'was not spoken.',
+          at: at,
+        ),
+      );
+    }
+    _rawCalls.clear();
   }
 
   void _step(SkillStep step) {

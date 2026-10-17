@@ -42,11 +42,10 @@ typedef SttInstaller = Future<String> Function(
 /// Loads the active STT model with [SttConfig]'s backend and language.
 typedef RecognizerLoader = Future<SpeechRecognizer> Function(SttConfig config);
 
-/// `installStt` with the files of [source]. Must run on every launch: it
-/// sets the active spec, and flutter_edge_ai 2.1.0 restores a saved STT
-/// spec only from its own model directory (`_restoreActiveSttModel` in
-/// `mobile_model_manager.dart`), never files registered in place like these.
-/// Files register in place (measured: 0 ms).
+/// `installStt` with the files of [source]. It sets the active spec, which
+/// must be this recognizer's at a load: the service runs it again before a
+/// load whenever the other recognizer's spec is the active one (Whisper base
+/// and moonshine-tiny take turns). Files register in place (no copy).
 Future<String> installStt(
   SttConfig config,
   SttSource source,
@@ -110,9 +109,10 @@ final class const ActiveStt({
 });
 
 /// Owns the speech recognizer: install, load, warm up, switch, close. The
-/// STT model is a process-wide singleton in flutter_edge_ai 2.1.0
-/// (`createSttModel` in `lib/desktop/flutter_edge_ai_desktop.dart` and the
-/// mobile shell): loading one closes the other.
+/// STT model is a process-wide singleton in flutter_edge_ai 2.4.0
+/// (`createSttModel` in `lib/src/desktop/flutter_edge_ai_desktop.dart` and
+/// `lib/src/mobile/flutter_edge_ai_mobile.dart`): loading one closes the
+/// other.
 /// So this service holds one *active* recognizer for several configs
 /// ([kSttConfigs]): Whisper for Demo 1, moonshine for Demo 3.
 ///

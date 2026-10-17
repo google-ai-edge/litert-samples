@@ -33,6 +33,7 @@ import 'package:litert_edge_demos/utils/result.dart';
 import 'package:litert_edge_demos/utils/wav.dart';
 
 import '../fakes/fake_hardware.dart';
+import '../fakes/fake_llm_service.dart' show engineCreateFailure;
 import '../fakes/fake_self_test_adapters.dart';
 
 /// [fakeSelfTestRunner] with the chat model as a file and a config (the
@@ -388,32 +389,36 @@ void main() {
     expect(report.passed, isFalse);
   });
 
-  test('Gemma on the GPU comes up on the CPU: a failure, never a CPU retry; '
-      'generation skipped; exit 1', () async {
-    final gemma = FakeSelfTestGemma(active: PreferredBackend.cpu);
-    final report = await _runner(
-      detector: FakeSelfTestDetector(),
-      gemma: gemma,
-    ).run();
+  test(
+    'Gemma on a GPU the strict engine cannot create: a failure with the '
+    "plugin's reason, never a CPU retry; generation skipped; exit 1",
+    () async {
+      final gemma = FakeSelfTestGemma(loadError: engineCreateFailure());
+      final report = await _runner(
+        detector: FakeSelfTestDetector(),
+        gemma: gemma,
+      ).run();
 
-    expect(gemma.loads, [PreferredBackend.gpu]);
-    expect(gemma.generations, 0);
-    expect(_statuses(report), {
-      '1': StepStatus.pass,
-      '2': StepStatus.pass,
-      '3': StepStatus.pass,
-      '4a': StepStatus.fail,
-      '4b': StepStatus.skip,
-      '5': StepStatus.pass,
-      '7a': StepStatus.pass,
-      '7b': StepStatus.pass,
-      '7c': StepStatus.pass,
-    });
-    final why = report.steps[3].details.first;
-    expect(why, contains('load failed (no fallback)'));
-    expect(why, contains('requested gpu but the engine loaded on cpu'));
-    expect(report.exitCode, 1);
-  });
+      expect(gemma.loads, [PreferredBackend.gpu]);
+      expect(gemma.generations, 0);
+      expect(_statuses(report), {
+        '1': StepStatus.pass,
+        '2': StepStatus.pass,
+        '3': StepStatus.pass,
+        '4a': StepStatus.fail,
+        '4b': StepStatus.skip,
+        '5': StepStatus.pass,
+        '7a': StepStatus.pass,
+        '7b': StepStatus.pass,
+        '7c': StepStatus.pass,
+      });
+      final why = report.steps[3].details.first;
+      expect(why, contains('load failed (no fallback)'));
+      expect(why, contains('did not load on gpu'));
+      expect(why, contains('Can not find OpenCL library on this device'));
+      expect(report.exitCode, 1);
+    },
+  );
 
   test('a missing model file is a failure with the reason', () async {
     final gemma = FakeSelfTestGemma();
@@ -474,7 +479,7 @@ void main() {
       contains(
         'chat model Gemma 3 1B NPU (your own .litertlm, saved settings) · '
         '/store/custom/g3_ekv1280.litertlm (model store, custom/) · npu · '
-        'ctx 1280 · tools off · type gemmaIt',
+        'ctx 1280 · towers none · tools off · type gemmaIt',
       ),
     );
   });

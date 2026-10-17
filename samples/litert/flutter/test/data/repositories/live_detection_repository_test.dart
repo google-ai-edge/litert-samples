@@ -188,7 +188,7 @@ void main() {
 
     detector.complete(); // the in-flight frame finishes
     await settle();
-    expect(repo.frames.value, isNotNull);
+    expect(repo.recent.single.frameId, detector.calls.single.frameId);
     for (var i = 0; i < 10; i++) {
       emitAfter(_period);
     }
@@ -201,6 +201,37 @@ void main() {
     expect(detector.calls, hasLength(2));
     detector.complete();
     await settle();
+  });
+
+  test('no boxes while paused: a pause clears them, a frame landing during '
+      'it (the one in flight, a question\'s capture) is not drawn, and the '
+      'first detection after the resume brings them back', () async {
+    await start();
+    emitAfter(0);
+    detector.complete();
+    await settle();
+    expect(repo.frames.value, isNotNull);
+
+    emitAfter(_period);
+    expect(detector.inFlight, 1);
+    repo.setDuty(DetectorDuty.paused, reason: 'Gemma');
+    expect(repo.frames.value, isNull, reason: 'cleared at the pause');
+    detector.complete();
+    await settle();
+    expect(repo.frames.value, isNull, reason: 'the frame in flight landed');
+
+    final capturing = repo.capture();
+    emitAfter(_period);
+    detector.complete();
+    expect(await capturing, isA<Ok<Object?>>());
+    expect(repo.frames.value, isNull, reason: 'a capture while paused');
+
+    repo.setDuty(DetectorDuty.live);
+    expect(repo.frames.value, isNull, reason: 'until the next detection');
+    emitAfter(_period);
+    detector.complete();
+    await settle();
+    expect(repo.frames.value?.frameId, detector.calls.last.frameId);
   });
 
   test('a pause requested before start applies when it starts', () async {

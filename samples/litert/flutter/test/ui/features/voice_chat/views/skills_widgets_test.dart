@@ -95,6 +95,53 @@ void main() {
     expect(find.text('It is just after two.'), findsOneWidget);
   });
 
+  testWidgets('a retry after an empty answer to a loaded skill is a step '
+      'line of its own, with the skill', (tester) async {
+    await tester.pumpWidget(
+      const MaterialApp(
+        home: Scaffold(
+          body: MessageBubble(
+            entry: ChatEntry(
+              role: ChatRole.assistant,
+              text: 'It is just after two.',
+              steps: [
+                SkillLoaded(
+                  'kid-clock',
+                  found: true,
+                  at: Duration(milliseconds: 840),
+                ),
+                EmptyAnswerRetried(
+                  'kid-clock',
+                  attempt: 1,
+                  nudge: 'Go on.',
+                  at: Duration(milliseconds: 1240),
+                ),
+                EmptyAnswerRetried(
+                  'kid-clock',
+                  attempt: 2,
+                  nudge: 'Go on.',
+                  at: Duration(milliseconds: 1640),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+
+    expect(
+      find.text('no answer after loadSkill(kid-clock): asked again · 1.2 s'),
+      findsOneWidget,
+    );
+    expect(
+      find.text(
+        'no answer after loadSkill(kid-clock): asked again (2) · 1.6 s',
+      ),
+      findsOneWidget,
+    );
+    expect(find.byIcon(Icons.replay), findsNWidgets(2));
+  });
+
   testWidgets('the streaming bubble shows the running turn\'s steps before '
       'any text, so silent tool rounds do not look like a hang', (
     tester,

@@ -17,6 +17,7 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:litert_edge_demos/data/repositories/audio_repository.dart';
 import 'package:litert_edge_demos/domain/models/audio_devices.dart';
+import 'package:litert_edge_demos/domain/models/audio_interruption.dart';
 import 'package:litert_edge_demos/domain/models/voice.dart';
 import 'package:litert_edge_demos/utils/result.dart';
 
@@ -36,10 +37,26 @@ import '../support/pcm.dart';
 /// cancel during its stop does nothing; [close] cancels the open capture
 /// and stops the playback (completing its drain), after it every call
 /// returns the closed error, and it is idempotent.
+///
+/// The session: [activate] prepares (counted in [prepareCalls]) and answers
+/// [activateResult]; a capture start activates too; [deactivate] and
+/// [appHidden] are counted. Session calls go to [sessionLog], not [log].
+/// [interrupt] acts as the real one does: the open capture is cancelled, the
+/// playback stopped, the audio not ready until the next prepare, then the
+/// listeners hear it (synchronously).
 class FakeAudioRepository implements AudioRepository {
   FakeAudioRepository({List<String>? log}) : log = log ?? [];
 
   final List<String> log;
+
+  /// `activate`, `deactivate`, `appHidden`, `interrupt(<what>)` in order.
+  final List<String> sessionLog = [];
+  Result<void> activateResult = const Result.ok(null);
+  final StreamController<AudioInterruption> _interruptions =
+      StreamController.broadcast(sync: true);
+
+  int get activateCalls => sessionLog.where((e) => e == 'activate').length;
+  int get deactivateCalls => sessionLog.where((e) => e == 'deactivate').length;
   final ValueNotifier<double> level = ValueNotifier(0);
   Utterance nextUtterance = speechUtterance();
   Result<Utterance>? stopResult;
@@ -110,6 +127,40 @@ class FakeAudioRepository implements AudioRepository {
     return _prepare();
   }
 
+  @override
+  Stream<AudioInterruption> get interruptions => _interruptions.stream;
+
+  /// Prepares (one of [prepareCalls]), then answers [activateResult].
+  @override
+  Future<Result<void>> activate() async {
+    prepareCalls++;
+    return _activate();
+  }
+
+  Result<void> _activate() {
+    if (_prepare() case Error(:final error)) return Result.error(error);
+    sessionLog.add('activate');
+    return activateResult;
+  }
+
+  @override
+  Future<void> deactivate() async {
+    if (_closed) return;
+    sessionLog.add('deactivate');
+  }
+
+  @override
+  void appHidden() => sessionLog.add('appHidden');
+
+  /// The OS took the audio ([what]), as the real repository handles it.
+  void interrupt(AudioInterruption what) {
+    sessionLog.add('interrupt(${what.name})');
+    if (_current case final open? when open.isOpen) unawaited(open.cancel());
+    if (_playing case final playback?) unawaited(playback.stop());
+    if (what == AudioInterruption.taken) _ready = false;
+    _interruptions.add(what);
+  }
+
   /// What [requestMicAccess] answers.
   Result<void> micAccess = const Result.ok(null);
   int micAccessRequests = 0;
@@ -139,7 +190,7 @@ class FakeAudioRepository implements AudioRepository {
       // A capture that is still open is cancelled first.
       open.supersede();
     }
-    if (_prepare() case Error(:final error)) return Result.error(error);
+    if (_activate() case Error(:final error)) return Result.error(error);
     lastOnLimit = onLimit;
     final capture = FakeCapture(this);
     _current = capture;
@@ -187,6 +238,7 @@ class FakeAudioRepository implements AudioRepository {
       await capture.cancel();
     }
     await _playing?.stop();
+    await _interruptions.close();
     level.dispose();
     deviceStatus.dispose();
   }

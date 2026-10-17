@@ -39,8 +39,9 @@ import '../../fakes/fake_knowledge.dart';
 ///   skills.
 ///
 /// The policy alone was not enough (at temperature 0.6 Gemma still answered
-/// some device questions from the docs), so on an agent chat
-/// `SkillQuestionRouter` skips retrieval for live device and time questions
+/// some device questions from the docs), so on an agent chat whose skills
+/// name `device_info` or `current_time`, `SkillQuestionRouter` skips
+/// retrieval for live device and time questions
 /// (`skill_question_router_test.dart` covers every phrase here). The prompt
 /// policy stays as the backstop for phrasings the rules miss.
 ///
@@ -91,13 +92,16 @@ void main() {
       isNotEmpty,
       reason: 'if none did, the policy below could be relaxed',
     );
+    const skills = ['current-time', 'device-info'];
     final prompt = PromptBuilder.build('Which accelerator is running?', [
       passage(1, similarity: 0.747),
-    ], skills: true);
-    // An agent prompt that carries excerpts is a knowledge question (live
-    // skill questions are routed before retrieval), so it says this turn
-    // needs no tool call (a KB question was once pulled into a tool call).
-    expect(prompt, contains(PromptBuilder.noToolCall));
+    ], skills: skills);
+    // An agent prompt that carries excerpts may still be a skill request
+    // (the router acts only for skills that name its intents, and a skill
+    // added at run time has no rule at all): the skills come first, and
+    // anything else takes no tool call (a KB question was once pulled into
+    // a tool call).
+    expect(prompt, contains(PromptBuilder.excerptSkills(skills)));
     expect(kSkillsTemplate, contains('never from knowledge-base excerpts'));
   });
 }

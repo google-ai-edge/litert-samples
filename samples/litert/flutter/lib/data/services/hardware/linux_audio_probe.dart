@@ -27,9 +27,10 @@ const kPulseUtilsHint =
 
 /// Linux's audio stack: the sound server (`pactl info`), its sources and sinks
 /// (`pactl list sources|sinks`) and the ALSA cards (`/proc/asound/cards`).
-/// record_linux records with `parecord` and flutter_soloud's miniaudio prefers
-/// PulseAudio, so both need a PulseAudio-compatible server (PulseAudio itself
-/// or pipewire-pulse).
+/// record_linux records with `parecord`, so voice input needs a
+/// PulseAudio-compatible server (PulseAudio itself or pipewire-pulse);
+/// flutter_soloud 4.1.7 builds miniaudio without PulseAudio
+/// (`-DMA_NO_PULSEAUDIO`, `src/src.cmake`), so replies play through ALSA.
 final class LinuxAudioProbe {
   const LinuxAudioProbe({
     this._processes = const LocalProcessRunner(),
@@ -191,8 +192,8 @@ List<String> audioNotes(AudioSystem audio) {
   final server = audio.server;
   if (server == null) {
     return [
-      '${audio.problem ?? 'No sound server'}. Voice input and spoken replies '
-          'need PulseAudio or PipeWire (pipewire-pulse).',
+      '${audio.problem ?? 'No sound server'}. Voice input needs PulseAudio '
+          'or PipeWire (pipewire-pulse); spoken replies play through ALSA.',
     ];
   }
   final source = audio.defaultSource;

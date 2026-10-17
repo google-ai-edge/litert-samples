@@ -182,7 +182,7 @@ final class const PrebuiltKbManifest({
   required final int dbBytes,
   required final String dbSha256,
 
-  /// The store that wrote it, e.g. `flutter_edge_ai_sqlite 2.0.0`: the
+  /// The store that wrote it, e.g. `flutter_edge_ai_sqlite 2.1.0`: the
   /// database file is that release's vec0 layout.
   required final String store,
 

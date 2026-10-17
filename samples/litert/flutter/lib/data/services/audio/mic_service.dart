@@ -12,8 +12,12 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import 'dart:io' show Platform;
+
 import 'package:flutter/foundation.dart';
 import 'package:record/record.dart';
+
+import '../../../domain/models/hardware_profile.dart' show HostPlatform;
 
 /// The microphone as a stream of headerless PCM16 mono chunks. One capture
 /// at a time; the audio repository owns the policy (cap, level, stop).
@@ -36,11 +40,36 @@ abstract interface class MicService {
   Future<void> dispose();
 }
 
+/// What `record` does when the audio is interrupted, on [platform]. The
+/// session owner (`AudioSessionService`) reports every interruption and the
+/// audio repository cancels the capture, so `record` only must not get in
+/// the way:
+/// - Android: nothing. With any other mode record_android 2.2.0 requests its
+///   own permanent audio focus at every start (`AudioSessionManager.apply`):
+///   a second focus owner, whose request takes the focus from the session
+///   owner, which then reads as an interruption.
+/// - elsewhere: pause, `record`'s default. On iOS `none` would also set
+///   `prefersNoInterruptionsFromSystemAlerts` on the shared session
+///   (record_ios `RecorderSessionExtension.swift`), and an incoming call
+///   would no longer interrupt a reply.
+AudioInterruptionMode recordInterruptionFor(HostPlatform platform) =>
+    platform == HostPlatform.android
+    ? AudioInterruptionMode.none
+    : AudioInterruptionMode.pause;
+
 /// [MicService] over `record` 7.x: PCM16, the voice-recognition source on
 /// Android, no echo cancellation (half-duplex). On iOS it is told not to manage
-/// the audio session, which `audio_session` owns; macOS resamples from the
-/// device rate itself.
+/// the audio session, which `audio_session` owns, and on Android not to take
+/// the audio focus ([recordInterruptionFor]); macOS resamples from the device
+/// rate itself.
 final class RecordMicService implements MicService {
+  /// [platform]: the host's, read from `dart:io` when not given.
+  RecordMicService({HostPlatform? platform})
+    : _interruption = recordInterruptionFor(
+        platform ?? HostPlatform.fromOperatingSystem(Platform.operatingSystem),
+      );
+
+  final AudioInterruptionMode _interruption;
   AudioRecorder? _recorder;
 
   Future<AudioRecorder> _ensure() async {
@@ -75,6 +104,7 @@ final class RecordMicService implements MicService {
         androidConfig: const AndroidRecordConfig(
           audioSource: AndroidAudioSource.voiceRecognition,
         ),
+        audioInterruption: _interruption,
       ),
     );
     debugPrint('[Mic] capture started: pcm16 $sampleRate Hz mono');

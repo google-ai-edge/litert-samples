@@ -18,11 +18,10 @@ import 'package:flutter_edge_ai_agent/flutter_edge_ai_agent.dart'
     show SkillMdParseException, SkillType, parseSkillMd;
 import 'package:flutter_edge_ai_agent/flutter_edge_ai_agent.dart' as agent;
 import 'package:flutter_test/flutter_test.dart';
-import 'package:litert_edge_demos/domain/skills/app_intent_executor.dart';
-import 'package:litert_edge_demos/domain/skills/app_intent_handlers.dart';
 import 'package:litert_edge_demos/domain/skills/app_intents.dart';
 
 import '../../../integration_test/support/skill_fixtures.dart';
+import '../../support/app_intent_executor.dart';
 
 /// The seed skills that ship in `assets/skills/`.
 void main() {
@@ -87,17 +86,13 @@ void main() {
       );
     });
 
-    test('called by its own name, it runs its one literal call', () async {
-      final executor = AppIntentExecutor(
-        buildAppIntents(
-          deviceFacts: () => '',
-          now: () => DateTime(2026, 10, 6, 9, 41),
-        ),
-        skillNamed: (name) =>
-            name == 'kid-clock' ? parseSkillMd(kidClockSkillMd) : null,
+    test('called by its own name as the intent, it is an unknown intent: '
+        'the package executor runs intents by their names only', () async {
+      final executor = appIntentExecutor(
+        now: () => DateTime(2026, 10, 6, 9, 41),
       );
       // What the agent loop hands the executor for
-      // runIntent(intent: "kid-clock") without a skillName.
+      // runIntent(intent: "kid-clock").
       final result = await executor.execute(
         const agent.Skill(
           name: 'kid-clock',
@@ -110,6 +105,18 @@ void main() {
 
       expect(
         result,
+        isA<agent.ErrorResult>().having(
+          (r) => r.message,
+          'message',
+          allOf(
+            contains('Unknown intent "kid-clock"'),
+            contains(AppIntent.currentTime),
+          ),
+        ),
+      );
+      // The intent its instructions name runs.
+      expect(
+        await executor.handleIntent(AppIntent.currentTime, '{}'),
         isA<agent.TextResult>().having(
           (r) => r.text,
           'text',

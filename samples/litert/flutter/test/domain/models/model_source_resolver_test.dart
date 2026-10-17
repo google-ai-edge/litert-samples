@@ -20,14 +20,16 @@ import 'package:litert_edge_demos/domain/models/chat_model.dart';
 import 'package:litert_edge_demos/domain/models/chat_model_config.dart';
 import 'package:litert_edge_demos/domain/models/model_source_resolver.dart';
 
+import '../../support/fake_bundles.dart';
+
 /// One precedence for the chat model, shared by the app and the self-test.
 void main() {
   const withDefine = ModelSourceResolver(gemmaModelPath: '/dev/gemma.litertlm');
 
-  const custom = CustomChatPlan(
+  final custom = CustomChatPlan(
     path: '/store/custom/g3.litertlm',
-    header: [],
-    model: CustomChatModel(
+    bundle: BundleRead(bundleInfo()),
+    model: const CustomChatModel(
       displayName: 'Gemma 3 1B NPU',
       source: ImportedModelSource('/picked/g3.litertlm'),
       backend: PreferredBackend.npu,

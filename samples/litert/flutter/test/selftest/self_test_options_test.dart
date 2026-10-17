@@ -49,7 +49,7 @@ void main() {
   });
 
   test('--gemma-backend=npu parses (it fails later, with the reason, where '
-      'flutter_edge_ai has no NPU stack)', () {
+      'flutter_edge_ai_litertlm has no NPU stack)', () {
     expect(
       _ok(const ['--selftest', '--gemma-backend=npu']).gemmaBackend,
       PreferredBackend.npu,

@@ -16,8 +16,9 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:litert_edge_demos/data/services/llm/npu_availability.dart';
 import 'package:litert_edge_demos/domain/models/npu_availability.dart';
 
-/// The app's copy of flutter_edge_ai_litertlm 1.9.0's NPU gate
-/// (`backend_preference.dart:54` and `:108`).
+/// The app's copy of flutter_edge_ai_litertlm 1.14.0's private NPU gate
+/// (`lib/src/ffi/backend_preference.dart`: `npuDispatchShipsFor`,
+/// `npuUnavailableReason`).
 void main() {
   ({bool opened, String? error}) opens() => (opened: true, error: null);
   ({bool opened, String? error}) fails() => (
@@ -32,10 +33,10 @@ void main() {
       soc: 'QTI SM8750',
     );
     expect(npu, isA<NpuAvailable>());
-    expect(describeNpu(npu), contains('SM8750'));
+    expect(describeNpu(npu), 'available (SoC QTI SM8750)');
   });
 
-  test("Android without FastRPC: flutter_edge_ai's reason, with the dlopen "
+  test("Android without FastRPC: the plugin's wording, with the dlopen "
       'error', () {
     final npu = npuAvailabilityFor('android', openFastRpc: fails);
     expect(npu, isA<NpuUnavailable>());
@@ -67,7 +68,8 @@ void main() {
     expect(npu, isA<NpuAvailable>());
   });
 
-  test("Linux says why the NPU is missing, in the probe's words", () {
+  test("Linux says why the NPU is missing, in the plugin's words around the "
+      "probe's", () {
     final npu = npuAvailabilityFor(
       'linux',
       openFastRpc: () => fail('no Android probe on Linux'),
@@ -77,11 +79,12 @@ void main() {
     );
     expect(
       (npu as NpuUnavailable).reason,
-      startsWith('/dev/fastrpc-cdsp is not accessible to this user'),
+      'the bundled Qualcomm NPU stack cannot run here: /dev/fastrpc-cdsp is '
+      'not accessible to this user. Add the user to group fastrpc',
     );
   });
 
-  test('Windows is gated per OS, as flutter_edge_ai does', () {
+  test("Windows is gated per OS, as flutter_edge_ai_litertlm's gate is", () {
     expect(
       npuAvailabilityFor('windows', openFastRpc: () => fail('no probe')),
       isA<NpuAvailable>(),

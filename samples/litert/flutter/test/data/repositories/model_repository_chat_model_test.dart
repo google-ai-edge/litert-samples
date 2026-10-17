@@ -14,6 +14,8 @@
 
 import 'package:flutter_edge_ai/flutter_edge_ai.dart'
     show ModelType, PreferredBackend;
+import 'package:flutter_edge_ai_litertlm/flutter_edge_ai_litertlm.dart'
+    show NpuDispatchUnavailableException;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:litert_edge_demos/config/model_catalog.dart';
 import 'package:litert_edge_demos/data/repositories/model_repository.dart';
@@ -29,7 +31,7 @@ import '../../fakes/fake_bundled_files.dart';
 import '../../fakes/fake_detector_runtime.dart';
 import '../../fakes/fake_llm_service.dart';
 import '../../fakes/fake_speech.dart';
-import '../../support/litertlm_header.dart';
+import '../../support/fake_bundles.dart';
 
 /// A planner the test switches by hand.
 final class _Planner implements ChatModelPlanner {
@@ -44,8 +46,6 @@ final _sha = 'cd' * 32;
 CustomChatModel _custom({
   PreferredBackend backend = PreferredBackend.npu,
   bool tools = false,
-  PreferredBackend? vision,
-  PreferredBackend? audio,
 }) => CustomChatModel(
   displayName: 'Gemma 3 1B NPU',
   source: const ImportedModelSource('/picked/g3.litertlm'),
@@ -59,19 +59,17 @@ CustomChatModel _custom({
   backend: backend,
   maxTokens: 1280,
   tools: tools,
-  visionChoice: vision,
-  audioChoice: audio,
 );
 
-/// The plan for [model] whose file's header has [header] (by default the
-/// older text-only per-SoC build: no towers).
+/// The plan for [model] whose file is [bundle] (by default a text-only
+/// per-SoC build: no towers).
 CustomChatPlan _plan(
   CustomChatModel model, {
-  List<HeaderSection> header = kTextOnlyNpuSections,
+  FakeBundle bundle = FakeBundle.textOnlyNpu,
 }) => CustomChatPlan(
   path: '/store/custom/g3.litertlm',
   model: model,
-  header: litertlmSections(header),
+  bundle: BundleRead(bundle.info(4096)),
 );
 
 /// The chat slot loads exactly what the plan says, with its own type,
@@ -83,7 +81,7 @@ void main() {
   late ModelRepository models;
 
   setUp(() {
-    llm = FakeLlmService()..followRequested = true;
+    llm = FakeLlmService();
     planner = _Planner(_plan(_custom()));
     models = ModelRepository(
       bundled: FakeBundledFiles(),
@@ -200,7 +198,8 @@ void main() {
     expect(chat.source, 'GEMMA_MODEL_PATH=/dev/gemma.litertlm');
     expect(chat.requestedBackend, kLlmConfig.backend.name);
     expect(llm.installTypes.single, ModelType.gemma4);
-    // Fixed towers, not read from the file: vision on the CPU, no audio.
+    // Fixed towers, not read from the file: vision on, no audio; the engine
+    // put the vision encoder on the CPU.
     expect(chat.visionBackend, 'cpu');
     expect(chat.audioBackend, isNull);
   });
@@ -222,17 +221,25 @@ void main() {
     );
   });
 
-  test('a load on another backend fails the slot naming the model', () async {
-    llm
-      ..followRequested = false
-      ..activeBackend = PreferredBackend.gpu;
+  test('an NPU the strict engine cannot reach fails the slot with the '
+      "plugin's reason, naming the model", () async {
+    llm.loadError = const ChatModelLoadException(
+      modelName: 'Gemma 3 1B NPU',
+      requested: PreferredBackend.npu,
+      cause: NpuDispatchUnavailableException(
+        'no NPU dispatch stack ships for macos',
+      ),
+    );
 
     expect(await models.prepareAll(), isA<Error<void>>());
 
     final failed = models.states.value[ModelId.chat] as ModelFailed;
-    expect(failed.message, contains('Gemma 3 1B NPU'));
-    expect(failed.message, contains('requested npu'));
-    expect(failed.message, contains('loaded on gpu'));
+    expect(
+      failed.message,
+      'Gemma 3 1B NPU did not load on npu: '
+      'NpuDispatchUnavailableException: no NPU dispatch stack ships for macos',
+    );
+    expect(llm.models, hasLength(1), reason: 'one attempt, nothing else');
   });
 
   test(
@@ -273,133 +280,21 @@ void main() {
     },
   );
 
-  group('a failed load with a tower the header leaves open on the NPU adds '
-      'a line on how to set it to the CPU, whichever step failed; nothing '
-      'retries', () {
-    const hint =
-        "If this build's towers are not compiled for the NPU, set Vision/Audio "
-        'to CPU on the card.';
+  test("a failure at any step is the slot's error as the plugin or the "
+      'engine said it: nothing added, nothing retried', () async {
+    planner.plan = _plan(_custom(), bundle: FakeBundle.npuWithTowers);
+    final cause = Exception('Failed to create conversation');
+    llm.warmUpError = cause;
 
-    /// The towers of [header] on the NPU with the choices [vision] and
-    /// [audio] (none: the NPU).
-    void plan({
-      List<HeaderSection> header = kQualcommSm8750Sections,
-      PreferredBackend? vision,
-      PreferredBackend? audio,
-    }) => planner.plan = _plan(
-      _custom(vision: vision, audio: audio),
-      header: header,
+    final error = (await models.prepareAll() as Error<void>).error;
+
+    expect(error, same(cause));
+    expect(
+      (models.states.value[ModelId.chat] as ModelFailed).message,
+      'Exception: Failed to create conversation',
     );
-
-    String failedMessage() =>
-        (models.states.value[ModelId.chat] as ModelFailed).message;
-
-    test('the warm-up (its first conversation) fails (the official SM8750 '
-        'build with its towers left on the NPU)', () async {
-      plan();
-      final cause = Exception('Failed to create conversation');
-      llm.warmUpError = cause;
-
-      final error = (await models.prepareAll() as Error<void>).error;
-
-      expect(error, isA<TowersOnNpuLoadException>());
-      expect((error as TowersOnNpuLoadException).cause, same(cause));
-      expect('$error', 'Exception: Failed to create conversation\n$hint');
-      expect(failedMessage(), endsWith(hint));
-      expect(llm.models, hasLength(1), reason: 'no retry');
-      expect(llm.unloadCalls, 1, reason: 'the failed model is released');
-    });
-
-    test('the engine fails to come up (only the audio tower left on the '
-        'NPU)', () async {
-      plan(vision: PreferredBackend.cpu);
-      llm.loadError = ChatModelLoadException(
-        modelName: 'Gemma 3 1B NPU',
-        requested: PreferredBackend.npu,
-        cause: Exception('Failed to create engine'),
-      );
-
-      final error = (await models.prepareAll() as Error<void>).error;
-
-      expect('$error', contains('Failed to create engine'));
-      expect('$error', endsWith(hint));
-      expect(failedMessage(), endsWith(hint));
-      expect(llm.models, hasLength(1), reason: 'no retry');
-      expect(llm.warmUpCalls, 0);
-    });
-
-    test('no hint with both open towers set to the CPU, with towers the file '
-        'sets (even on the NPU: nothing on the card moves them), with no '
-        'tower, or when the NPU itself is unavailable', () async {
-      plan(vision: PreferredBackend.cpu, audio: PreferredBackend.cpu);
-      final cause = Exception('Failed to create conversation');
-      llm.warmUpError = cause;
-      expect((await models.prepareAll() as Error<void>).error, same(cause));
-      expect(failedMessage(), isNot(contains('Vision/Audio')));
-
-      for (final header in [
-        kQualcommQcs8275Sections,
-        const [
-          (type: 'tf_lite_vision_encoder', constraint: 'npu'),
-          (type: 'tf_lite_prefill_decode', constraint: 'npu'),
-        ],
-        kTextOnlyNpuSections,
-      ]) {
-        plan(header: header);
-        llm.warmUpError = cause;
-        expect(
-          (await models.reloadChatModel() as Error<void>).error,
-          same(cause),
-          reason: '$header',
-        );
-      }
-
-      plan();
-      const unavailable = NpuUnavailableException(
-        modelName: 'Gemma 3 1B NPU',
-        reason: 'no NPU dispatch stack ships for macos',
-      );
-      llm.loadError = unavailable;
-      expect(
-        (await models.reloadChatModel() as Error<void>).error,
-        same(unavailable),
-      );
-      expect(failedMessage(), isNot(contains('Vision/Audio')));
-    });
-
-    test('no hint for what the towers cannot cause: a missing file at the '
-        'install, a missing file at the load, any install failure, a closed '
-        'service', () async {
-      plan();
-      const missing = ModelFileMissingException('/store/custom/g3.litertlm');
-      llm.installError = missing;
-      expect((await models.prepareAll() as Error<void>).error, same(missing));
-      expect(failedMessage(), isNot(contains('Vision/Audio')));
-      expect(llm.models, isEmpty, reason: 'nothing loaded');
-
-      llm.loadError = missing;
-      expect(
-        (await models.reloadChatModel() as Error<void>).error,
-        same(missing),
-      );
-      expect(failedMessage(), isNot(contains('Vision/Audio')));
-
-      final registry = Exception('the model registry could not be written');
-      llm.installError = registry;
-      expect(
-        (await models.reloadChatModel() as Error<void>).error,
-        same(registry),
-      );
-      expect(failedMessage(), isNot(contains('Vision/Audio')));
-
-      const closed = LlmServiceClosedException();
-      llm.loadError = closed;
-      expect(
-        (await models.reloadChatModel() as Error<void>).error,
-        same(closed),
-      );
-      expect(failedMessage(), isNot(contains('Vision/Audio')));
-    });
+    expect(llm.models, hasLength(1), reason: 'no retry');
+    expect(llm.unloadCalls, 1, reason: 'the failed model is released');
   });
 
   test('unloadChatModel frees the model and marks the slot pending', () async {
@@ -412,10 +307,11 @@ void main() {
   });
 
   test('a chat model loaded with its audio tower warms it up too '
-      '(kLlmAudioWarmUp), and the row says where each tower runs', () async {
+      '(kLlmAudioWarmUp), and the row says where the engine put each '
+      'tower', () async {
     planner.plan = _plan(
       _custom(backend: PreferredBackend.gpu),
-      header: kGemma4E2bSections,
+      bundle: FakeBundle.gemma4E2b,
     );
     expect(await models.prepareAll(), isA<Ok<void>>());
     expect(llm.models.single.llm.supportAudio, isTrue);
@@ -428,17 +324,32 @@ void main() {
     expect(chat.capabilityLine, contains('vision cpu · audio cpu'));
   });
 
-  test('the row names the towers on the NPU as the plan placed them', () async {
+  test('the row shows where the engine put each tower '
+      '(activeVisionBackend / activeAudioBackend), nothing the app '
+      'predicted; a file without towers has none', () async {
+    // Encoders that declare their backends: the plugin runs vision on the
+    // GPU and audio on the CPU.
+    llm
+      ..visionBackend = PreferredBackend.gpu
+      ..audioBackend = PreferredBackend.cpu;
     planner.plan = _plan(
-      _custom(audio: PreferredBackend.cpu),
-      header: kQualcommSm8750Sections,
+      _custom(backend: PreferredBackend.gpu),
+      bundle: FakeBundle.constrainedTowers,
     );
+
     expect(await models.prepareAll(), isA<Ok<void>>());
+
     final loaded = llm.models.single.llm;
-    expect(loaded.visionBackend, PreferredBackend.npu);
-    expect(loaded.audioBackend, PreferredBackend.cpu);
+    expect(loaded.supportImage && loaded.supportAudio, isTrue);
     final chat = (models.states.value[ModelId.chat] as ModelReady).info.chat!;
-    expect(chat.visionBackend, 'npu');
+    expect(chat.visionBackend, 'gpu');
     expect(chat.audioBackend, 'cpu');
+
+    planner.plan = _plan(_custom(), bundle: FakeBundle.textOnlyNpu);
+    expect(await models.reloadChatModel(), isA<Ok<void>>());
+    final textOnly =
+        (models.states.value[ModelId.chat] as ModelReady).info.chat!;
+    expect(textOnly.visionBackend, isNull);
+    expect(textOnly.audioBackend, isNull);
   });
 }

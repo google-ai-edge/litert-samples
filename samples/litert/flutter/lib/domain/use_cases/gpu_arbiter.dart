@@ -22,8 +22,9 @@ typedef DetectorDutySetter = void Function(DetectorDuty duty, {String? reason});
 
 /// App-scoped GPU policy: while the chat model
 /// generates, the detector gets `duringGeneration` (the app passes
-/// `kDetectorDuringGeneration`, paused: no GPU priority knob exists, and
-/// contention would slow the answer the user waits for).
+/// `kDetectorDuringGeneration`, paused: neither plugin exposes a GPU
+/// scheduling priority, and contention would slow the answer the user waits
+/// for).
 final class GpuArbiter {
   GpuArbiter({
     required this._llmBusy,

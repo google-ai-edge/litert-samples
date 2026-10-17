@@ -36,7 +36,10 @@ import '../../support/frames.dart';
 const _s = 1000000;
 
 void main() {
+  /// The monotonic clock (µs), and the wall clock unless [wallShift] moves
+  /// it (a clock set back or forward).
   late int now;
+  late int wallShift;
   late bool idle;
   late bool capturePending;
   late FakeMemoryCapture capture;
@@ -62,11 +65,13 @@ void main() {
     models: models,
     tickInterval: null,
     store: store,
-    clockMicros: () => now,
+    wallClockMicros: () => now + wallShift,
+    monotonicMicros: () => now,
   );
 
   setUp(() {
     now = 100 * _s;
+    wallShift = 0;
     idle = true;
     capturePending = false;
     capture = FakeMemoryCapture();
@@ -77,12 +82,20 @@ void main() {
         3: [0, 0, 1],
         // Scene 1 again, a little moved: image cosine 0.995 to it.
         4: [0.995, 0.0998, 0],
+        // Vectors no cosine can use.
+        5: [0, 0, 0],
+        6: [double.nan, 1, 0],
+        7: [double.infinity, 0, 0],
+        8: [1e-50, 0, 0], // zeros once stored as float32
       },
       textVectors: {
         'mug': [0.9, 0.1, 0.1], // scene 1
         'sign': [0.7, 0.7, 0.1], // scenes 1 and 2 alike
         'giraffe': [0.5, 0.5, 0.5], // no scene well
         'faint': [0.63, 0, 0.7766], // scene 1 at 0.630: over the floor only
+        'zero': [0, 0, 0],
+        'nan': [double.nan, 1, 0],
+        'tiny': [1e-200, 0, 0], // its squares underflow to zero
       },
     );
     starts = ValueNotifier(0);
@@ -188,6 +201,17 @@ void main() {
               as MemoryMiss;
       expect(miss.span, const Duration(seconds: 25));
       expect(memory.status.value.span, const Duration(seconds: 25));
+    });
+
+    test('a PNG mirrored back keeps that flag in the entry, through a '
+        'refresh', () async {
+      capture.results.add(Result.ok(fakeShot(unmirrored: true)));
+      await tickAt(100);
+      expect(memory.entries.single.unmirrored, isTrue);
+      capture.results.add(Result.ok(fakeShot(frameId: 2, png: false)));
+      await tickAt(110);
+      expect(memory.entries.single.atMicros, 110 * _s, reason: 'refreshed');
+      expect(memory.entries.single.unmirrored, isTrue);
     });
 
     test('a changed scene is stored as a new frame', () async {
@@ -298,6 +322,133 @@ void main() {
       await tickAt(100); // nothing queued: the capture fails
       expect(memory.status.value.failures, 0);
       expect(memory.status.value.unavailable, isNull);
+    });
+  });
+
+  group('clocks: the sampler\'s is monotonic, the frames\' the wall clock', () {
+    test('a wall clock set back never stops sampling; the new frame keeps '
+        'the wall clock\'s time, and no age is negative', () async {
+      capture.results.add(Result.ok(fakeShot()));
+      await tickAt(100);
+      // The wall clock goes back an hour (a time-zone or network time fix).
+      wallShift = -3600 * _s;
+      capture.results.add(Result.ok(fakeShot(frameId: 2, scene: 2)));
+      await tickAt(103);
+      expect(capture.calls, hasLength(2), reason: '3 s on the monotonic clock');
+      expect(memory.entries, hasLength(2));
+      expect(memory.entries.last.atMicros, (103 - 3600) * _s);
+
+      now = 105 * _s;
+      final newest =
+          (await memory.latest() as Ok<MemoryRecall>).value as MemoryHit;
+      expect(newest.age, const Duration(seconds: 2));
+      // The first frame is "later" than the wall clock now: zero, not
+      // negative.
+      expect(memory.status.value.span, Duration.zero);
+
+      // And sampling goes on at the usual gap.
+      capture.results.add(Result.ok(fakeShot(frameId: 3, scene: 3)));
+      await tickAt(108);
+      expect(memory.entries, hasLength(3));
+    });
+
+    test('after a wall clock set back, the later sighting is still the '
+        'newest: keys on the desk at 3600 s, on the shelf at 10 s → the '
+        'shelf; a miss\'s span is never negative', () async {
+      wallShift = 3500 * _s; // the wall clock reads 3600 s
+      capture.results.add(Result.ok(fakeShot(frameId: 1)));
+      await tickAt(100);
+      wallShift = -100 * _s; // back an hour: the wall clock reads 10 s
+      capture.results.add(Result.ok(fakeShot(frameId: 2, scene: 2)));
+      await tickAt(110);
+      expect(
+        [for (final e in memory.entries) e.atMicros],
+        [3600 * _s, 10 * _s],
+      );
+
+      now = 115 * _s; // the wall clock reads 15 s
+      final hit =
+          (await memory.recall('sign') as Ok<MemoryRecall>).value as MemoryHit;
+      expect(hit.ambiguous, isTrue);
+      expect(hit.entry.frameId, 2, reason: 'the shelf, seen later');
+      expect(hit.age, const Duration(seconds: 5));
+
+      final miss =
+          (await memory.recall('giraffe') as Ok<MemoryRecall>).value
+              as MemoryMiss;
+      expect(miss.span, Duration.zero, reason: 'not -3585 s');
+    });
+
+    test('a wall clock set forward makes no frame due early and forces no '
+        'refresh; a refresh takes the wall clock\'s time', () async {
+      capture.results.add(Result.ok(fakeShot()));
+      await tickAt(100);
+      wallShift = 3600 * _s;
+      await tickAt(101);
+      expect(capture.calls, hasLength(1), reason: '1 s since the last attempt');
+
+      // Due 3 s on, but an unchanged scene is not forced before 10 s.
+      capture.results.add(Result.ok(fakeShot(frameId: 2, png: false)));
+      await tickAt(103);
+      expect(capture.calls, hasLength(2));
+      expect(memory.entries.single.atMicros, 100 * _s, reason: 'not forced');
+
+      capture.results.add(Result.ok(fakeShot(frameId: 3, png: false)));
+      await tickAt(110);
+      expect(memory.entries.single.atMicros, (110 + 3600) * _s);
+      expect(memory.entries.single.firstSeenMicros, 100 * _s);
+    });
+  });
+
+  group('unusable vectors (NaN, infinite, all zeros)', () {
+    test(
+      'a frame\'s is never stored: it counts as a failed embedding, three '
+      'in a row turn the memory off; a float32 underflow counts too',
+      () async {
+        for (final (i, scene) in [5, 6, 7].indexed) {
+          capture.results.add(Result.ok(fakeShot(frameId: i, scene: scene)));
+          await tickAt(100 + i * 10);
+          expect(memory.entries, isEmpty, reason: 'scene $scene');
+          expect(memory.status.value.failures, i + 1);
+        }
+        expect(
+          memory.status.value.unavailable,
+          allOf(contains('embedding is unusable'), contains('infinite value')),
+        );
+
+        memory.clear();
+        capture.results.add(Result.ok(fakeShot(frameId: 8, scene: 8)));
+        await tickAt(200);
+        expect(memory.entries, isEmpty);
+        expect(memory.status.value.failures, 1);
+        // A usable frame next: stored, the run of failures over.
+        capture.results.add(Result.ok(fakeShot(frameId: 9)));
+        await tickAt(210);
+        expect(memory.entries, hasLength(1));
+        expect(memory.status.value.failuresInARow, 0);
+      },
+    );
+
+    test('a question\'s is an Error (MemoryVectorException), never a throw, '
+        'a miss or a NaN hit', () async {
+      capture.results.add(Result.ok(fakeShot()));
+      await tickAt(100);
+      for (final phrase in ['zero', 'nan', 'tiny']) {
+        final recall = await memory.recall(phrase);
+        expect(
+          recall,
+          isA<Error<MemoryRecall>>().having(
+            (e) => e.error,
+            'error',
+            isA<MemoryVectorException>(),
+          ),
+          reason: phrase,
+        );
+      }
+      expect(memory.status.value.lastBestCosine, isNull);
+      // A usable phrase still finds the frame.
+      final mug = (await memory.recall('mug') as Ok<MemoryRecall>).value;
+      expect(mug, isA<MemoryHit>());
     });
   });
 

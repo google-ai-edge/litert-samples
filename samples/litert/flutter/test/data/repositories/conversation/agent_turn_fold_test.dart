@@ -17,6 +17,8 @@ import 'package:flutter_edge_ai_agent/flutter_edge_ai_agent.dart'
     show
         AgentErrorEvent,
         DoneEvent,
+        EmptyAnswerEvent,
+        EmptyAnswerRetryEvent,
         ErrorResult,
         ImageResult,
         MaxIterationsEvent,
@@ -70,19 +72,23 @@ void main() {
     expect(fold.steps, isEmpty, reason: 'nothing reported after a stop');
   });
 
-  test('a tool call the SDK could not parse is never shown: one failed step '
-      'without an intent, logged', () {
+  test('a tool call the SDK could not parse (core\'s fallback surfaces it as '
+      'text) is never shown: the DoneEvent that ends its generation reports '
+      'one failed step without an intent, at the time it came, logged', () {
     now = const Duration(milliseconds: 40);
 
     expect(
       fold.on(const TextChunkEvent('  $_rawToolCall'), stopRequested: false),
       isNull,
     );
+    expect(fold.steps, isEmpty, reason: 'reported when the loop ends');
+    now = const Duration(milliseconds: 90);
+    fold.on(const DoneEvent(_rawToolCall), stopRequested: false);
 
     final step = fold.steps.single as IntentFailed;
     expect(step.intent, isNull);
     expect(step.message, contains('could not be read'));
-    expect(step.at, now);
+    expect(step.at, const Duration(milliseconds: 40));
     expect(heard, fold.steps);
     expect(
       log.where((l) => l.contains('unparsed tool call dropped')),
@@ -144,6 +150,41 @@ void main() {
           .having((s) => s.result, 'result', 'It is 2:03 PM.')
           .having((s) => s.elapsed, 'elapsed', const Duration(milliseconds: 50))
           .having((s) => s.at, 'at', const Duration(milliseconds: 350)),
+    );
+  });
+
+  test('the loop asking again after an empty answer to a loaded skill: a '
+      'step with the skill, the attempt and the nudge, at its time, logged; '
+      'not a tool round', () {
+    fold.on(const SkillLoadEvent('kid-clock'), stopRequested: false);
+    now = const Duration(milliseconds: 900);
+
+    expect(
+      fold.on(
+        const EmptyAnswerRetryEvent(
+          skillName: 'kid-clock',
+          nudge: 'Go on.',
+          attempt: 1,
+        ),
+        stopRequested: false,
+      ),
+      isNull,
+    );
+
+    expect(
+      fold.steps.last,
+      isA<EmptyAnswerRetried>()
+          .having((s) => s.skill, 'skill', 'kid-clock')
+          .having((s) => s.attempt, 'attempt', 1)
+          .having((s) => s.nudge, 'nudge', 'Go on.')
+          .having((s) => s.at, 'at', const Duration(milliseconds: 900)),
+    );
+    expect(heard, fold.steps);
+    expect(fold.toolRounds, 1);
+    expect(fold.finished, isFalse, reason: 'the loop generates again');
+    expect(
+      log.where((l) => l.contains('no answer after loadSkill(kid-clock)')),
+      hasLength(1),
     );
   });
 
@@ -214,7 +255,7 @@ void main() {
   });
 
   test('an ErrorResult is one failed step: the loop\'s repeat of it as an '
-      'error event is not a second one (agent_loop.dart:379)', () {
+      'error event is not a second one (AgentLoop._runExecutor)', () {
     fold
       ..on(
         const ToolCallEvent(
@@ -305,6 +346,23 @@ void main() {
       expect(fold.maxIterations, 0);
       expect(fold.stopped(stopRequested: false), isFalse);
       expect(fold.stopped(stopRequested: true), isTrue);
+    });
+
+    test('EmptyAnswerEvent (a DoneEvent with empty text): finished, not '
+        'stopped, with the skill no answer came after', () {
+      fold.on(const EmptyAnswerEvent('kid-clock'), stopRequested: false);
+
+      expect(fold.finished, isTrue);
+      expect(fold.noAnswerAfter, 'kid-clock');
+      expect(fold.stopped(stopRequested: false), isFalse);
+    });
+
+    test('a plain DoneEvent with empty text (after an intent) is no '
+        'EmptyAnswerEvent', () {
+      fold.on(const DoneEvent(''), stopRequested: false);
+
+      expect(fold.finished, isTrue);
+      expect(fold.noAnswerAfter, isNull);
     });
 
     test('MaxIterationsEvent: not finished, not stopped, the cap kept', () {

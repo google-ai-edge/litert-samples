@@ -21,6 +21,7 @@ import 'package:litert_edge_demos/data/repositories/audio_repository.dart'
     show MicAccessException;
 import 'package:litert_edge_demos/data/repositories/diagnostics_repository.dart';
 import 'package:litert_edge_demos/domain/audio/transcript_corrections.dart';
+import 'package:litert_edge_demos/domain/models/audio_interruption.dart';
 import 'package:litert_edge_demos/domain/models/chat_capabilities.dart';
 import 'package:litert_edge_demos/domain/models/chat_side_event.dart';
 import 'package:litert_edge_demos/domain/models/conversation_history.dart';
@@ -399,8 +400,8 @@ void main() {
 
     test('a press during the playback tail (the reply generated in full, '
         'only its speech still playing) transcribes the question as a '
-        'normal end does: the words reach its entry and the text '
-        'history', () async {
+        'normal end does, once the press has ended: the words reach its '
+        'entry and the text history', () async {
       h.audio.autoDrain = false;
       h.recognizer.text = 'What is the capital of France?';
       unawaited(h.assistant.submitUtterance(speechUtterance()));
@@ -413,6 +414,18 @@ void main() {
       expect(h.recognizer.calls, 0);
 
       await h.assistant.micDown();
+      await settle();
+      expect(h.phase, TurnPhase.listening);
+      expect(
+        h.recognizer.calls,
+        0,
+        reason:
+            'queued until nothing runs: Whisper must not compete with '
+            'the next turn',
+      );
+
+      // The press ends without a turn: idle, so the job runs now.
+      await h.assistant.stop();
       await settle();
 
       expect(h.recognizer.calls, 1);
@@ -428,7 +441,101 @@ void main() {
         (spoke.turn, 'What is the capital of France?'),
       ]);
       expect(h.spokenEntries, [(spoke.turn, 'What is the capital of France?')]);
-      await h.assistant.stop();
+    });
+
+    test('a barge-in on the playback tail that asks the next question: the '
+        'first question\'s transcript waits while that turn generates, runs '
+        'once its reply is generated (beside its playback only), and both '
+        'land in their own entries, in order', () async {
+      h.audio.autoDrain = false;
+      h.recognizer.texts.addAll([
+        'What is the capital of France?',
+        'And of Germany?',
+      ]);
+      unawaited(h.assistant.submitUtterance(speechUtterance()));
+      await settle();
+      h.conversation.emit('Paris is the capital of France.');
+      await h.conversation.finish();
+      await settle();
+      expect(h.phase, TurnPhase.speaking, reason: 'only the tail plays');
+
+      await h.assistant.micDown();
+      final next = h.assistant.micUp();
+      await settle();
+      expect(h.phase, TurnPhase.thinking, reason: 'the next audio turn runs');
+      h.conversation.emit('Berlin');
+      await settle();
+      expect(h.recognizer.calls, 0, reason: 'nothing transcribes beside it');
+
+      h.conversation.emit(' is the capital of Germany.');
+      await h.conversation.finish();
+      await settle();
+      expect(h.phase, TurnPhase.speaking);
+      expect(
+        h.recognizer.calls,
+        1,
+        reason: 'its reply is generated: the first question goes now',
+      );
+
+      h.audio.lastPlayback!.completeDrain();
+      expect((await next).outcome, TurnOutcome.completed);
+      await settle();
+
+      expect(h.recognizer.calls, 2);
+      final [first, second] = h.spokenTurns;
+      expect(h.spokenEntries, [
+        (first, 'What is the capital of France?'),
+        (second, 'And of Germany?'),
+      ]);
+      expect(h.conversation.historyUpdates, [
+        (first, 'What is the capital of France?'),
+        (second, 'And of Germany?'),
+      ]);
+    });
+
+    test('a chain of presses: on the first reply\'s tail, then during the '
+        'second reply\'s generation: the first question\'s words reach the '
+        'text history as soon as that generation is cut, before the third '
+        'question is asked (its chat is rebuilt from that history)', () async {
+      h.audio.autoDrain = false;
+      h.recognizer.text = 'What is the capital of France?';
+      unawaited(h.assistant.submitUtterance(speechUtterance()));
+      await settle();
+      h.conversation.emit('Paris is the capital of France.');
+      await h.conversation.finish();
+      await settle();
+      expect(h.phase, TurnPhase.speaking, reason: 'only the tail plays');
+
+      // The second question, pressed on the first reply's tail.
+      await h.assistant.micDown();
+      unawaited(h.assistant.micUp());
+      await settle();
+      h.conversation.emit('Berlin is');
+      await settle();
+      expect(h.recognizer.calls, 0, reason: 'its reply is generating');
+
+      // The third, pressed during the second reply's generation.
+      await h.assistant.micDown();
+      await settle();
+      final [first, second] = h.spokenTurns;
+      expect(h.recognizer.calls, 1);
+      expect(h.conversation.historyUpdates, [
+        (first, 'What is the capital of France?'),
+      ]);
+      expect(h.conversation.prompts, hasLength(2), reason: 'not asked yet');
+      expect(
+        h.events.whereType<TranscriptFailed<ChatSideEvent>>().single.turn,
+        second,
+        reason: 'the cut question goes without words, as before',
+      );
+
+      h.audio.autoDrain = true;
+      final third = h.assistant.micUp();
+      await settle();
+      expect(h.conversation.prompts, hasLength(3));
+      h.conversation.emit('Rome.');
+      await h.conversation.finish();
+      expect((await third).outcome, TurnOutcome.completed);
     });
 
     test('leaving the demo during the playback tail starts no transcription '
@@ -487,6 +594,38 @@ void main() {
         hasLength(1),
       );
     });
+
+    for (final (what, cause) in [
+      ('a call takes the audio', InterruptionCause.audioTaken),
+      ('the app is hidden on iOS', InterruptionCause.background),
+    ]) {
+      test('$what during the reply: like Stop, the question still gets its '
+          'transcript', () async {
+        final turn = h.assistant.submitUtterance(speechUtterance());
+        await settle();
+        h.conversation.emit('Paris');
+        await settle();
+
+        if (cause == InterruptionCause.audioTaken) {
+          h.audio.interrupt(AudioInterruption.taken);
+        } else {
+          await h.assistant.interrupt(cause);
+        }
+
+        expect((await turn).outcome, TurnOutcome.interrupted);
+        await settle();
+        expect(h.recognizer.calls, 1);
+        expect(
+          h.events.whereType<TranscriptArrived<ChatSideEvent>>().single.turn,
+          h.spokenTurns.single,
+        );
+        expect(
+          h.events.whereType<TurnInterrupted<ChatSideEvent>>().single.cause,
+          cause,
+        );
+        expect(h.spokenEntries.single.$2, isNotNull);
+      });
+    }
 
     test('a typed turn never goes as audio', () async {
       final turn = h.assistant.sendText('What is LiteRT?');

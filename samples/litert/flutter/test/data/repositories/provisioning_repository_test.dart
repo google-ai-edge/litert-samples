@@ -25,6 +25,8 @@ import 'package:litert_edge_demos/domain/models/model_id.dart';
 import 'package:litert_edge_demos/domain/models/provisioning.dart';
 import 'package:litert_edge_demos/domain/ports/chat_model_planner.dart';
 
+import '../../support/fake_bundles.dart';
+
 void main() {
   late Directory root;
 
@@ -72,10 +74,10 @@ void main() {
     );
 
     final planner = _Planner(
-      const CustomChatPlan(
+      CustomChatPlan(
         path: '/store/custom/mine.litertlm',
-        header: [],
-        model: CustomChatModel(
+        bundle: BundleRead(bundleInfo()),
+        model: const CustomChatModel(
           displayName: 'Mine',
           source: ImportedModelSource('/picked/mine.litertlm'),
           file: CustomModelFile(
@@ -105,7 +107,7 @@ void main() {
     final local = planner.plan as CustomChatPlan;
     planner.plan = CustomChatPlan(
       path: '/data/local/tmp/mine.litertlm',
-      header: const [],
+      bundle: BundleRead(bundleInfo()),
       model: local.model.copyWith(
         source: const LocalModelSource('/data/local/tmp/mine.litertlm'),
       ),
@@ -140,10 +142,10 @@ void main() {
       final mine = build(
         gemmaModelPath: define,
         chatModels: _Planner(
-          const CustomChatPlan(
+          CustomChatPlan(
             path: '/models/mine.litertlm',
-            header: [],
-            model: CustomChatModel(
+            bundle: BundleRead(bundleInfo()),
+            model: const CustomChatModel(
               displayName: 'Mine',
               source: LocalModelSource('/models/mine.litertlm'),
               backend: PreferredBackend.gpu,
@@ -169,7 +171,7 @@ void main() {
 
     planner.plan = CustomChatPlan(
       path: retired.path,
-      header: const [],
+      bundle: BundleRead(bundleInfo()),
       model: CustomChatModel(
         displayName: 'Gemma 4 E2B',
         source: LocalModelSource(retired.path),

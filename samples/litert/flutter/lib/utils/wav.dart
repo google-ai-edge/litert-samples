@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-/// 16 kHz mono PCM16 in a RIFF/WAVE container: the form LiteRT-LM decodes
+/// 16 kHz mono PCM16 in a RIFF/WAVE container: a form LiteRT-LM decodes
 /// (an audio question to EmbeddingGemma 2 or to a chat model that hears
 /// audio), the self-test's bundled clip and the integration tests' spoken
 /// questions.

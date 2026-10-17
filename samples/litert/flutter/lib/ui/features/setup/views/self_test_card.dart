@@ -71,8 +71,10 @@ class SelfTestCard extends StatelessWidget {
                 Text(
                   'The --selftest steps in the app: hardware probe, detector, '
                   'cats golden, the chat model on its backend with a short '
-                  'generation and tok/s, memory, audio. The chat model is '
-                  'unloaded for the run and loaded again after it.',
+                  'generation and tok/s, memory, audio, the embedder (a '
+                  'spoken question and a photo against their words). The '
+                  'chat model is unloaded for the run and loaded again after '
+                  'it.',
                   style: caption,
                 ),
                 Row(

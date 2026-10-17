@@ -26,7 +26,8 @@ enum TokenRateSource {
 /// Why the chat no longer saw an image it had been sent, so the next turn
 /// sent it again.
 enum ImageLoss {
-  /// A stopped turn: LiteRT-LM rebuilds the conversation from text only.
+  /// A stopped turn: flutter_edge_ai_litertlm (its FFI session) rebuilds the
+  /// conversation from text only.
   stop,
 
   /// A failed turn: whatever reached the model is treated as gone.
@@ -86,7 +87,9 @@ final class const GenerationMetrics({
 
   /// The text in this turn's prefill, counted by the model's tokenizer: the
   /// prompt, plus the system instruction on a chat's first turn with an
-  /// image (LiteRT-LM prefills it with the first message).
+  /// image (LiteRT-LM prefills it with the first message: an agent chat's
+  /// first prefill was 416 tokens with its system prompt and tools against
+  /// 63 without, macOS, 2026-10-02).
   final int? promptTokens,
 
   /// Tool calls in this agent turn (loadSkill and runIntent each
@@ -118,8 +121,8 @@ enum ContextResetReason {
   budget,
 
   /// The last agent turn was stopped, ran out of tool rounds or
-  /// failed, leaving input staged that LiteRT-LM would glue onto the next
-  /// message, so the chat was recreated.
+  /// failed, leaving input staged that flutter_edge_ai_litertlm's FFI session
+  /// would glue onto the next message, so the chat was recreated.
   interruptedSkill,
 
   /// A stop left an audio turn in the chat, so it was rebuilt from the

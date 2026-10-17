@@ -31,4 +31,22 @@ void main() {
     expect(() => cosineSimilarity([], []), throwsArgumentError);
     expect(() => cosineSimilarity([0, 0], [1, 2]), throwsArgumentError);
   });
+
+  test('a NaN or infinite value gives NaN (callers check vectorDefect)', () {
+    expect(cosineSimilarity([double.nan, 1], [1, 1]), isNaN);
+    expect(cosineSimilarity([double.infinity, 1], [1, 1]), isNaN);
+  });
+
+  test('vectorDefect names what no cosine can use, null otherwise', () {
+    expect(vectorDefect([0.1, -2, 3]), isNull);
+    expect(vectorDefect([1e-150]), isNull, reason: 'its square is 1e-300');
+    expect(vectorDefect(const []), 'no values');
+    expect(vectorDefect([1, double.nan]), 'a value that is not a number');
+    expect(vectorDefect([double.negativeInfinity]), 'an infinite value');
+    expect(vectorDefect([0, 0, 0]), 'no direction (all zeros)');
+    expect(vectorDefect([1e-200, 0]), 'no direction (all zeros)');
+    expect(vectorDefect([1e200, 1e200]), 'a length too large to compute');
+    // Two vectors that pass give a finite cosine, never a throw.
+    expect(cosineSimilarity([1e-150, 0], [0, 1e150]).isFinite, isTrue);
+  });
 }

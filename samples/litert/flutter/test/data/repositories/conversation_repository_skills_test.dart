@@ -20,6 +20,8 @@ import 'package:flutter_edge_ai/flutter_edge_ai.dart' hide ModelSpec;
 import 'package:flutter_edge_ai_agent/flutter_edge_ai_agent.dart'
     show
         AgentToolNames,
+        NativeIntentExecutor,
+        defaultEmptyAfterSkillNudge,
         Skill,
         TextSkillExecutor,
         loadSkillTool,
@@ -33,12 +35,12 @@ import 'package:litert_edge_demos/data/services/llm/llm_service.dart';
 import 'package:litert_edge_demos/domain/models/assistant_event.dart';
 import 'package:litert_edge_demos/domain/models/chat_model_config.dart';
 import 'package:litert_edge_demos/domain/models/skill_step.dart';
-import 'package:litert_edge_demos/domain/skills/app_intent_executor.dart';
 import 'package:litert_edge_demos/domain/skills/app_intent_handlers.dart';
 import 'package:litert_edge_demos/domain/skills/app_intents.dart';
 import 'package:litert_edge_demos/utils/result.dart';
 
 import '../../fakes/fake_tool_model.dart';
+import '../../support/package_skill_fixtures.dart';
 
 Skill bundled(String name) =>
     parseSkillMd(File('assets/skills/$name/SKILL.md').readAsStringSync());
@@ -99,18 +101,17 @@ void main() {
       now: () => DateTime(2026, 10, 2, 14, 3),
     );
     final deviceInfo = intents[AppIntent.deviceInfo]!;
-    final executor = AppIntentExecutor({
-      ...intents,
-      AppIntent.deviceInfo: AppIntentSpec(
-        usage: deviceInfo.usage,
-        handler: (params) async {
+    final executor = NativeIntentExecutor(
+      handlers: {
+        ...intents,
+        AppIntent.deviceInfo: (params) async {
           // A test can hold the executor (a tool still running at Stop).
           await deviceGate?.future;
           deviceCalls++;
-          return await deviceInfo.handler(params);
+          return await deviceInfo(params);
         },
-      ),
-    });
+      },
+    );
     final llm = LlmService(loadModel: (_) async => model);
     expect(await llm.load(kDefineChatModel), isA<Ok<LlmInfo>>());
     repo = EdgeAiConversationRepository(
@@ -140,26 +141,18 @@ void main() {
         AgentToolNames.loadSkill,
         AgentToolNames.runIntent,
       ]);
-      // Our wording, the package's names and parameters.
-      expect(args.tools.last.description, contains('loaded skill'));
-      for (final (ours, theirs) in [
-        (args.tools.first, loadSkillTool),
-        (args.tools.last, runIntentTool),
-      ]) {
-        expect(ours.parameters['required'], theirs.parameters['required']);
-        expect(
-          (ours.parameters['properties'] as Map).keys,
-          (theirs.parameters['properties'] as Map).keys,
-        );
-      }
+      // The package's own declarations, its wording included.
+      expect(args.tools.first, same(loadSkillTool));
+      expect(args.tools.last, same(runIntentTool));
       expect(args.supportsFunctionCalls, isTrue);
       // The chat inherits the installed type (gemma4 for Gemma 4 E2B);
       // a chat-only type would disagree with the native session's.
       expect(args.modelType, isNull);
       expect(args.toolChoice, ToolChoice.auto);
       expect(args.supportImage, isTrue);
-      expect(args.temperature, kSampler.temperature, reason: 'not .8');
-      expect(args.topK, kSampler.topK, reason: 'not fromModel\'s 1');
+      // The shared sampler, never left to the engine (the bundle's).
+      expect(args.temperature, kSampler.temperature);
+      expect(args.topK, kSampler.topK);
       final prompt = args.systemInstruction!;
       expect(prompt, contains('- current-time: Get the current local time'));
       expect(prompt, contains('- device-info: Say which models'));
@@ -294,9 +287,10 @@ void main() {
       expect(repo.isGenerating.value, isFalse);
     });
 
-    test('a final generation that comes back empty: the intent\'s result is '
-        'the reply the text history keeps (what the user hears), so a '
-        'rebuilt chat replays it', () async {
+    test('a final generation that comes back empty after an intent: the turn '
+        'ends with no text (the agent package ends it with a plain '
+        'DoneEvent), and the text history keeps that empty reply, not the '
+        'intent\'s result', () async {
       model.script.addAll([
         const ToolCallTurn('loadSkill', {'skillName': 'current-time'}),
         const ToolCallTurn('runIntent', {
@@ -310,12 +304,179 @@ void main() {
       await turn.done;
 
       expect(turn.deltas, isEmpty);
+      // Empty after an intent's result: no retry (the package asks again
+      // only after loadSkill), a plain end.
+      expect(turn.steps.whereType<EmptyAnswerRetried>(), isEmpty);
+      expect(session().responseRequests, 3);
+      expect(turn.last, isA<AssistantDone>());
+      expect(turn.metrics.stopped, isFalse);
+      expect(turn.steps.last, isA<IntentSucceeded>(), reason: 'the tool ran');
       final kept = repo.history.single;
-      expect(kept.assistant, 'It is 2:03 PM on Friday, October 2, 2026.');
-      expect(kept.replayable, isTrue);
+      expect(kept.assistant, isEmpty);
+      expect(kept.replayable, isFalse);
     });
 
-    test('an ErrorResult is one failed step, not two (agent_loop.dart:379), '
+    test('an empty answer right after loadSkill is asked for again once '
+        '(the package default): a retry step, the nudge in the chat, then '
+        'the answer', () async {
+      model.script.addAll([
+        const ToolCallTurn('loadSkill', {'skillName': 'current-time'}),
+        const TextTurn([]),
+        const ToolCallTurn('runIntent', {
+          'intent': 'current_time',
+          'parameters': '{}',
+        }),
+        const TextTurn(['It is just after two.']),
+      ]);
+
+      final turn = AgentTurn(repo, 'What time is it?');
+      await turn.done;
+
+      expect(turn.steps.map((s) => s.runtimeType), [
+        SkillLoaded,
+        EmptyAnswerRetried,
+        IntentCalled,
+        IntentSucceeded,
+      ]);
+      expect(
+        turn.steps[1],
+        isA<EmptyAnswerRetried>()
+            .having((s) => s.skill, 'skill', 'current-time')
+            .having((s) => s.attempt, 'attempt', 1)
+            .having((s) => s.nudge, 'nudge', defaultEmptyAfterSkillNudge),
+      );
+      expect(turn.deltas.join(), 'It is just after two.');
+      expect(turn.last, isA<AssistantDone>());
+      expect(turn.metrics.skillSteps, turn.steps);
+      final users = [
+        for (final m in session().queries)
+          if (m.isUser && m.type != MessageType.toolResponse) m.text,
+      ];
+      expect(users, ['What time is it?', defaultEmptyAfterSkillNudge]);
+      expect(
+        repo.history.single.user,
+        'What time is it?',
+        reason: 'the text mirror keeps the question, not the nudge',
+      );
+    });
+
+    test('still empty after the retry: the turn fails with an '
+        'EmptyAnswerAfterSkillException naming the skill, nothing is '
+        'spoken, and the chat is kept', () async {
+      model.script.addAll([
+        const ToolCallTurn('loadSkill', {'skillName': 'current-time'}),
+        const TextTurn([]),
+        const TextTurn([]),
+      ]);
+
+      final turn = AgentTurn(repo, 'What time is it?');
+      await turn.done;
+
+      expect(
+        turn.last,
+        isA<AssistantFailed>().having(
+          (e) => e.error,
+          'error',
+          isA<EmptyAnswerAfterSkillException>().having(
+            (e) => e.skillName,
+            'skillName',
+            'current-time',
+          ),
+        ),
+      );
+      expect(
+        '${(turn.last as AssistantFailed).error}',
+        contains('empty reply'),
+      );
+      expect(turn.events.whereType<AssistantDone>(), isEmpty);
+      expect(turn.deltas, isEmpty);
+      expect(turn.steps.map((s) => s.runtimeType), [
+        SkillLoaded,
+        EmptyAnswerRetried,
+      ]);
+      expect(session().responseRequests, 3);
+      expect(repo.isGenerating.value, isFalse);
+      expect(repo.history.single.assistant, isEmpty);
+
+      // The last generation consumed what was staged: no rebuild.
+      final chatsBefore = model.chats.length;
+      model.script.add(const TextTurn(['Hello.']));
+      final next = AgentTurn(repo, 'Hi');
+      await next.done;
+      expect(model.chats.length, chatsBefore);
+      expect(next.deltas.join(), 'Hello.');
+    });
+
+    test('a call that follows prose: core 2.4.0 takes the call chunk out of '
+        'the text, so the prose is spoken, the JSON is not, the call runs, '
+        'and no failed step is reported', () async {
+      model.script.addAll([
+        const ProseThenToolCallTurn(
+          ['Let me check. '],
+          'loadSkill',
+          {'skillName': 'current-time'},
+        ),
+        const ToolCallTurn('runIntent', {
+          'intent': 'current_time',
+          'parameters': '{}',
+        }),
+        const TextTurn(['It is just after two.']),
+      ]);
+
+      final turn = AgentTurn(repo, 'What time is it?');
+      await turn.done;
+
+      expect(turn.deltas.join(), 'Let me check. It is just after two.');
+      expect(turn.deltas.join(), isNot(contains('tool_calls')));
+      expect(turn.steps.map((s) => s.runtimeType), [
+        SkillLoaded,
+        IntentCalled,
+        IntentSucceeded,
+      ]);
+      expect(turn.last, isA<AssistantDone>());
+    });
+
+    test('a skill written for the agent package: its get-current-time loads '
+        'and its intent, a built-in of the package executor, runs', () async {
+      await repo.open(
+        kVoiceChatProfile,
+        skills: [parseSkillMd(packageGetCurrentTimeSkillMd)],
+      );
+      model.script.addAll([
+        const ToolCallTurn('loadSkill', {'skillName': 'get-current-time'}),
+        const ToolCallTurn('runIntent', {
+          'intent': packageGetCurrentTimeIntent,
+          'parameters': '{}',
+        }),
+        const TextTurn(['It is Friday.']),
+      ]);
+
+      final turn = AgentTurn(repo, 'What day is it?');
+      await turn.done;
+
+      expect(
+        turn.steps[0],
+        isA<SkillLoaded>()
+            .having((s) => s.name, 'name', 'get-current-time')
+            .having((s) => s.found, 'found', isTrue),
+      );
+      expect(
+        session().toolResponses.first.text,
+        contains(packageGetCurrentTimeIntent),
+        reason: 'loadSkill returned its instructions',
+      );
+      expect(turn.steps.whereType<IntentFailed>(), isEmpty);
+      // The package's own format: `yyyy-MM-ddTHH:mm:ss Weekday`.
+      expect(
+        turn.steps.whereType<IntentSucceeded>().single.result,
+        matches(
+          RegExp(r'^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2} [A-Z][a-z]+day$'),
+        ),
+      );
+      expect(turn.deltas.join(), 'It is Friday.');
+    });
+
+    test('an ErrorResult is one failed step, not two (AgentLoop._runExecutor), '
         'and the model can still answer', () async {
       model.script.addAll([
         const ToolCallTurn('runIntent', {
@@ -331,7 +492,14 @@ void main() {
       final failed = turn.steps.whereType<IntentFailed>().toList();
       expect(failed, hasLength(1));
       expect(failed.single.message, contains('Unknown intent "make_coffee"'));
-      expect(failed.single.message, contains(AppIntent.listed));
+      expect(
+        failed.single.message,
+        allOf(
+          contains('Allowed intents:'),
+          contains(AppIntent.currentTime),
+          contains(AppIntent.deviceInfo),
+        ),
+      );
       expect(turn.metrics.stopped, isFalse);
       expect(turn.deltas.join(), 'I cannot make coffee.');
     });
@@ -503,6 +671,73 @@ void main() {
           if (m.isUser) m.text,
       ];
       expect(users, ['Hi'], reason: 'no stale tool response before it');
+    });
+
+    test('Stop during the generation right after loadSkill: the stop flag '
+        "is up before native stops (the package's stop rule), so the stopped "
+        'empty generation is not taken for an empty answer: no retry, no '
+        'nudge, the turn ends stopped; the next turn rebuilds the chat '
+        '(0.3.0 ends the cut run with no event)', () async {
+      final gate = Completer<void>();
+      model.script.addAll([
+        const ToolCallTurn('loadSkill', {'skillName': 'current-time'}),
+        TextTurn(const ['It is noon.'], gate: gate),
+        const TextTurn(['A retry would read this.']),
+      ]);
+      final turn = AgentTurn(repo, 'What time is it');
+      // A native stop that returns after the cut reply ended: with the flag
+      // set after it, the loop would see an empty answer and retry.
+      session().stopReturnsAfterTheEnd = true;
+      // The loadSkill round ran; the next generation streams, still empty.
+      for (
+        var i = 0;
+        i < 200 && !(session().responseRequests == 2 && session().streaming);
+        i++
+      ) {
+        await Future<void>.delayed(Duration.zero);
+      }
+      expect(session().responseRequests, 2);
+      expect(session().streaming, isTrue);
+
+      await repo.stop();
+      await turn.done;
+      gate.complete();
+      await settle();
+
+      expect(session().nativeCancels, 1);
+      expect(turn.steps.whereType<EmptyAnswerRetried>(), isEmpty);
+      expect(session().responseRequests, 2, reason: 'no generation after it');
+      expect(
+        [
+          for (final m in session().queries)
+            if (m.isUser && m.type != MessageType.toolResponse) m.text,
+        ],
+        ['What time is it'],
+        reason: 'no nudge was sent',
+      );
+      expect(turn.deltas, isEmpty);
+      expect(turn.last, isA<AssistantDone>());
+      expect(turn.metrics.stopped, isTrue);
+
+      // flutter_edge_ai_agent 0.3.0 ends this cut run with no event, as it
+      // ends a cancel seen at a poll with input staged: the app cannot tell
+      // the two apart, so the next turn rebuilds and says the history went.
+      model.script
+        ..clear()
+        ..add(const TextTurn(['Hello.']));
+      final chatsBefore = model.chats.length;
+      final next = AgentTurn(repo, 'Hi');
+      await next.done;
+      expect(model.chats.length, chatsBefore + 1);
+      expect(
+        next.events.first,
+        isA<AssistantContextReset>().having(
+          (e) => e.reason,
+          'reason',
+          ContextResetReason.interruptedSkill,
+        ),
+      );
+      expect(next.deltas.join(), 'Hello.');
     });
 
     test('Stop mid tool-call generation: the partial JSON core surfaces as '

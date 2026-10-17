@@ -49,8 +49,9 @@ enum Demo {
   final String subtitle;
 
   /// The speech recognizer this demo makes active on entry: Whisper base for
-  /// Demo 1 (multilingual, 30 s window), moonshine-tiny for Demo 3 (~65 ms,
-  /// so a fast answer reaches the ear in well under a second).
+  /// Demo 1 (a multilingual model run in English, 30 s window),
+  /// moonshine-tiny for Demo 3 (~65 ms per question on a Mac, so a fast
+  /// answer reaches the ear in well under a second).
   final ModelId stt;
   final Set<ModelId> models;
 

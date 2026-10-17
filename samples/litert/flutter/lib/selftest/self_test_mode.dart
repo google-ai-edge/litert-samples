@@ -18,12 +18,12 @@ import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_edge_ai/flutter_edge_ai.dart' hide ModelSpec;
-import 'package:flutter_edge_ai_litertlm/flutter_edge_ai_litertlm.dart';
 import 'package:path_provider/path_provider.dart';
 
+import '../config/bootstrap.dart'
+    show EdgeAiInitialize, kStrictEmbeddingBackend, kStrictLiteRtLmEngine;
 import '../config/build_info.dart';
 import '../config/env.dart';
-import '../config/model_catalog.dart' show kEmbedderVisionTokensPerImage;
 import '../data/repositories/chat_model_repository.dart';
 import '../data/services/hardware/hardware_info_service.dart';
 import '../data/services/hardware/memory_probe.dart';
@@ -39,6 +39,18 @@ import 'self_test_adapters.dart';
 import 'self_test_options.dart';
 import 'self_test_report.dart';
 import 'self_test_runner.dart';
+
+/// The self-test's flutter_edge_ai setup: Gemma and EmbeddingGemma (steps
+/// 7a/7b), no speech engine or vector store, with the app's own strict
+/// registrations ([kStrictLiteRtLmEngine], [kStrictEmbeddingBackend], as
+/// `initEdgeAi`). [initialize] is `FlutterEdgeAi.initialize`; a test passes
+/// one that keeps what is registered.
+Future<void> initSelfTestEdgeAi({
+  EdgeAiInitialize initialize = FlutterEdgeAi.initialize,
+}) => initialize(
+  inferenceEngines: const [kStrictLiteRtLmEngine],
+  embeddingBackends: const [kStrictEmbeddingBackend],
+);
 
 /// `--selftest` / `SELFTEST=1` (main.dart): runs the steps without the app's
 /// UI, prints the SELFTEST block to stdout, writes it to the report file and
@@ -115,16 +127,7 @@ Future<Never> runSelfTestMode(Result<SelfTestOptions> parsed) async {
     );
     say('native log: ${logTap.description}');
 
-    // Gemma and EmbeddingGemma (steps 7a/7b): no speech engine or vector
-    // store.
-    await FlutterEdgeAi.initialize(
-      inferenceEngines: const [LiteRtLmEngine()],
-      embeddingBackends: const [
-        LiteRtEmbeddingBackend(
-          visionTokensPerImage: kEmbedderVisionTokensPerImage,
-        ),
-      ],
-    );
+    await initSelfTestEdgeAi();
 
     final chatModel = await resolveSelfTestChatModel(
       argument: options.gemmaPath,

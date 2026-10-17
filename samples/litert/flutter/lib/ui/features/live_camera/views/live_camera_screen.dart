@@ -90,7 +90,8 @@ class LiveCameraScreen extends StatelessWidget {
                       preview: viewModel.preview,
                     ),
                     // Repaints at the detection rate without rebuilding, and
-                    // without repainting the preview under it.
+                    // without repainting the preview under it. Empty while
+                    // the detector is paused (the repository clears them).
                     RepaintBoundary(
                       child: IgnorePointer(
                         child: CustomPaint(

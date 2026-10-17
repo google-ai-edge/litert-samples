@@ -21,24 +21,24 @@ import 'package:flutter_edge_ai/flutter_edge_ai.dart'
         Tool,
         TtsModelType;
 import 'package:flutter_edge_ai_agent/flutter_edge_ai_agent.dart'
-    show AgentToolNames;
+    show loadSkillTool, onDemandAgentSystemPrompt, runIntentTool;
 
 import '../domain/models/chat_model_config.dart';
 import '../domain/models/model_id.dart';
 import 'knowledge_config.dart' show kEmbedderMaxInputTokens;
 
 /// The [LlmConfig] of every chat model load from the app's own settings
-/// (`GEMMA_MODEL_PATH`; a user's own model keeps its saved ones and its
-/// header's towers).
+/// (`GEMMA_MODEL_PATH`; a user's own model keeps its saved ones and loads
+/// the towers its file has).
 //
 // 8192, not 4096: agent turns (skills system prompt + tool rounds) plus RAG
 // excerpts (~1k tokens kept in history) and images (~283) reset the chat every
 // 2–3 turns at 4096. Measured on macOS: +~200 MB GPU (IOAccelerator), similar
 // TTFT, one-time ~8 s GPU program cache rebuild on the first load per device.
 //
-// Its towers are fixed, not read from the file's header (a user's own model
-// derives them from its header on every load: `resolveTowers`): the vision
-// tower on the CPU, no audio tower. `GEMMA_MODEL_PATH` runs are the
+// Its towers are fixed, not read from the file: the vision tower on, no
+// audio tower; the engine places the vision encoder (the CPU for Gemma 4 E2B,
+// whose encoder is not compiled for an NPU). `GEMMA_MODEL_PATH` runs are the
 // integration tests' Gemma 4 E2B, which expect images on and voice questions
 // transcribed first (integration_test/voice_loop_test.dart), and the
 // self-test's "the app's Gemma 4 E2B settings".
@@ -46,7 +46,7 @@ const kLlmConfig = LlmConfig(
   maxTokens: 8192,
   backend: PreferredBackend.gpu,
   maxNumImages: 1,
-  towers: ModelTowers(vision: TowerPlacement(PreferredBackend.cpu)),
+  supportImage: true,
 );
 
 /// The Gemma 4 E2B file earlier builds downloaded into the model store
@@ -194,9 +194,12 @@ final class const EmbedderConfig({
 /// with the embedder alone): declaring images raises the RSS after load and
 /// warm-up from 648 MB to 1055 MB and the load from 1.4 s to 2.2 s; the
 /// first image adds 75–175 MB more (`EmbedderService.embedImage` logs the
-/// RSS around it). A user who never opens the camera demo, or turns its
-/// visual memory off, never pays that. Text vectors do not depend on it, so
-/// the knowledge base's index and profile are unchanged.
+/// RSS around it). Re-measured 2026-10-14 (same machine and test) for the
+/// widening itself: the reload 1.9 s and +327 MB process RSS, then the first
+/// image +227 MB more (`docs/design/eg2-multimodal.md`). A user who never
+/// opens the camera demo, or turns its visual memory off, never pays that.
+/// Text vectors do not depend on it, so the knowledge base's index and
+/// profile are unchanged.
 const kEmbedderModelFile = 'embeddinggemma-2-740m.litertlm';
 
 /// Vision tokens per image for EmbeddingGemma 2
@@ -294,69 +297,43 @@ const kVoiceChatProfile = ConversationProfile(
   skillsTemplate: kSkillsTemplate,
 );
 
-/// Demo 1's agent system prompt. The skill list goes where
-/// `__SKILLS__` is (name: description per skill).
+/// Demo 1's agent system prompt: the agent package's
+/// `onDemandAgentSystemPrompt` (flutter_edge_ai_agent 0.3.0: call `loadSkill`
+/// only when a request needs a listed skill, answer everything else with no
+/// tool call), then the app's own two lines. The skill list goes where the
+/// package's `__SKILLS__` placeholder is (name: description per skill).
 ///
-/// Shorter (−29 tokens of prefill on every fresh chat with the
-/// tool wording below) and explicit about when NOT to call a tool. Measured
-/// over 6 rounds (a fresh chat per turn, macOS): spurious tool calls on
-/// plain and photo questions fell from 7/18 to 3/18 (text questions
-/// 2/6 → 0/6), each one an extra generation; skill requests still call
-/// their intents (12/12). The last
-/// sentence is the retrieval policy; live skill questions skip
-/// retrieval altogether (`SkillQuestionRouter`).
+/// The package's text is the wording this app measured and handed upstream:
+/// over 6 rounds (a fresh chat per turn, macOS), spurious tool calls on plain
+/// and photo questions fell from 7/18 to 3/18 (text questions 2/6 → 0/6), each
+/// one an extra generation; skill requests still called their intents (12/12).
+/// Differences from that measured setup, none measured yet, include these: its
+/// first line is now the package's ("You are a helpful assistant.", where the
+/// app had "You are a helpful on-device voice assistant." with the read-aloud
+/// sentence); the read-aloud sentence comes after the package's text; the tool
+/// declarations are now the package's own ([kAgentTools]; the measured run had
+/// the app's shorter wording); a photo turn's hint has new wording
+/// (`PromptBuilder.directAnswerHint`; the measured run's was "(A picture is
+/// attached. Answer directly; no tool is needed.)"); and the measured chat also
+/// listed the camera-watch and timer skills, since removed.
+///
+/// The last line is the retrieval policy, also not measured yet: the measured
+/// one named the bundled skills' facts ("Live facts about this device and app
+/// (models, backends, accelerators, memory), the time, timers and the camera
+/// come only from skills, …"), so a skill added at run time had no such claim
+/// on its facts. No skill, intent or topic is named here: the list at
+/// `__SKILLS__` is the only place skills appear.
 const kSkillsTemplate =
-    'You are a helpful on-device voice assistant. Replies are read aloud: a '
-    'few short sentences, plain text.\n'
-    'Skills:\n'
-    '__SKILLS__\n'
-    'Only when a request needs one of these skills, call loadSkill with its '
-    'name and follow its instructions. Answer everything else directly with '
-    'no tool call: general questions, questions about a picture, chat.\n'
-    'Live facts about this device and app (models, backends, accelerators, '
-    'memory) and the time come only from skills, never from knowledge-base '
+    '$onDemandAgentSystemPrompt\n'
+    'Replies are read aloud: a few short sentences, plain text.\n'
+    'Facts a skill provides come from that skill, never from knowledge-base '
     'excerpts.';
 
-/// The tool declarations of Demo 1's agent chat: `loadSkill` and
-/// `runIntent` only, with the agent package's names and parameters
-/// (the loop dispatches on the name) but our own descriptions: the
-/// package's `runIntent` ("Run a native intent … to interact with
-/// the device") invited calls with invented intents for plain questions.
-const List<Tool> kAgentTools = [
-  Tool(
-    name: AgentToolNames.loadSkill,
-    description:
-        "Returns a listed skill's instructions. Call it only when the "
-        'request needs that skill.',
-    parameters: {
-      'type': 'object',
-      'properties': {
-        'skillName': {
-          'type': 'string',
-          'description': 'The name of the skill to load.',
-        },
-      },
-      'required': ['skillName'],
-    },
-  ),
-  Tool(
-    name: AgentToolNames.runIntent,
-    description:
-        "Runs an intent that a loaded skill's instructions name. Never call "
-        'it for anything else.',
-    parameters: {
-      'type': 'object',
-      'properties': {
-        'intent': {'type': 'string', 'description': 'The intent to run.'},
-        'parameters': {
-          'type': 'string',
-          'description': 'The intent parameters as a JSON string.',
-        },
-      },
-      'required': ['intent', 'parameters'],
-    },
-  ),
-];
+/// The tool declarations of Demo 1's agent chat: the agent package's
+/// `loadSkillTool` and `runIntentTool`, as the package words them. The app
+/// registers no JS or MCP executor, so it declares neither `runSkill` nor
+/// `runMcp` (the package's `agentTools` has all four).
+const List<Tool> kAgentTools = [loadSkillTool, runIntentTool];
 
 /// Generations per agent turn (`maxIterations` counts generations). A skill
 /// call takes three: loadSkill, runIntent, the answer.
@@ -373,8 +350,12 @@ const kToolCallTokens = 96;
 /// Per tool round: a `runIntent` result (one or two sentences).
 const kToolResultTokens = 96;
 
-/// The two tool declarations (`loadSkill`, `runIntent`) the runtime renders
-/// into the first prefill.
+/// The two tool declarations ([kAgentTools]) the runtime renders into the
+/// first prefill. 256 is the figure set for these same package declarations
+/// when Demo 1 first declared them (Inc 6), kept: on Gemma 4 E2B (macOS GPU,
+/// 2026-10-17) the first prefill with them was 177 tokens longer than without
+/// them, the voice-chat system prompt and skill list the same (the app's
+/// former shorter wording: 160).
 const kToolDeclarationTokens = 256;
 
 /// The largest SKILL.md the scan accepts, in tokens: `loadSkill`

@@ -125,4 +125,37 @@ void main() {
           'text 2.60 s',
     ]);
   });
+
+  test('a retry after an empty answer is a timing of its own', () {
+    final lines = skillLines(
+      const DiagnosticsSnapshot(
+        lastGeneration: GenerationMetrics(
+          timeToFirstToken: Duration(milliseconds: 3100),
+          chunks: 3,
+          tokensPerSecond: 30,
+          tokensPerSecondSource: TokenRateSource.native,
+          total: Duration(milliseconds: 3300),
+          stopped: false,
+          toolRounds: 1,
+          skillSteps: [
+            SkillLoaded(
+              'kid-clock',
+              found: true,
+              at: Duration(milliseconds: 840),
+            ),
+            EmptyAnswerRetried(
+              'kid-clock',
+              attempt: 1,
+              nudge: 'Go on.',
+              at: Duration(milliseconds: 1240),
+            ),
+          ],
+        ),
+      ),
+    );
+
+    expect(lines, [
+      'tools 1 · loadSkill(kid-clock) 0.84 s → retry 1.24 s → text 3.10 s',
+    ]);
+  });
 }

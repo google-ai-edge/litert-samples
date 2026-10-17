@@ -196,7 +196,8 @@ class LiveDetectionRepository {
   ValueListenable<LiveState> get state => _state;
 
   /// The newest detection, ≤ [kLiveDetectFps] updates per second; null when
-  /// stopped.
+  /// stopped and while paused (boxes that no longer move would sit over the
+  /// moving video): the first detection after the resume brings them back.
   ValueListenable<DetectionFrame?> get frames => _frames;
 
   /// What the live view shows under the boxes; null when stopped.
@@ -292,10 +293,11 @@ class LiveDetectionRepository {
     // Paused, nothing is expected of the detector or the source: a frame in
     // flight may wait behind Gemma on the GPU. The summary window describes
     // the scene before the pause; a capture during or after it must not be
-    // outvoted by it.
+    // outvoted by it. The boxes go too: the video keeps moving under them.
     if (duty == DetectorDuty.paused) {
       _disarmWatchdogs();
       _scene.clearWindow();
+      _frames.value = null;
     }
     switch ((_state.value, duty)) {
       case (LiveRunning(:final source), DetectorDuty.paused):
@@ -668,12 +670,15 @@ class LiveDetectionRepository {
     }
   }
 
+  /// [frame] into the window and the stats, and onto [frames] unless paused:
+  /// a frame that lands during a pause (the one in flight, a question's
+  /// capture) would be one still set of boxes over the moving video.
   void _publish(
     DetectionFrame frame, {
     required int latencyMicros,
     required int copyMicros,
   }) {
-    _frames.value = frame;
+    if (_duty == DetectorDuty.live) _frames.value = frame;
     final now = _clock();
     _scene.record(frame, atMicros: now);
     _statsTracker.processed(

@@ -187,6 +187,16 @@ final class VoiceChatReducer {
         );
       case MicUnavailable(:final message):
         return VoiceChatUpdate(state: state.showingError(message));
+      case TurnInterrupted(:final cause):
+        // After the reply's commit (interrupted, when cut short): a notice
+        // says what ended it.
+        return VoiceChatUpdate(
+          state: state
+              .copyWith(clearTurnRetrieval: true, turnSteps: const [])
+              .adding(
+                ChatEntry(role: ChatRole.notice, text: interruptedText(cause)),
+              ),
+        );
       case TurnFailed(:final error):
         // The steps show how far a failed skill call got.
         return VoiceChatUpdate(

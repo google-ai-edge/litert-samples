@@ -85,9 +85,10 @@ final class const SelfTestReport({
 /// bit-identical; 6a a tone on the default output (recorded from the sink's
 /// monitor where possible), 6b one second from the default microphone
 /// (without `--skip-audio`); 7a EmbeddingGemma 2 ready with audio, 7b a
-/// bundled spoken "What time is it?" against its words, above a calibrated
-/// cosine. Memory (available, the process's RSS and peak RSS) is sampled
-/// around each step. Closes the models and the audio at the end.
+/// bundled spoken "What time is it?" against its words, 7c the bundled cats
+/// photo against "two cats", each above a calibrated cosine. Memory
+/// (available, the process's RSS and peak RSS) is sampled around each step.
+/// Closes the models and the audio at the end.
 ///
 /// The orchestrator: it runs step 1 (the hardware probe) itself; steps 2 to 7
 /// are [DetectorSteps], [ChatModelSteps], [AudioSteps] and [EmbedderSteps].
