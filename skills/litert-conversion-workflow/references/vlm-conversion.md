@@ -44,6 +44,17 @@ Consequences:
     with `INVALID_ARGUMENT: Vision executor should not be null, please
     TryLoadingVisionExecutor() first`. A load-time smoke test will not
     catch it.
+  - the same gotcha with the Android binary (`litert_lm_advanced_main`):
+    a process without `--vision_backend` builds no vision executor, so an
+    `[image:…]` prompt fails with InvalidArgument — and its peak memory is
+    the decoder's alone (MiniCPM-V-4.7-1B int8 bundle, Galaxy S26 CPU:
+    1,984 MB without the flag, 4,268 MB with the fp16 encoder), so a
+    memory number from a run without the flag is not the VLM's. Write the
+    image first (`--input_prompt='[image:/data/local/tmp/x.png]Question'`;
+    text before `[image:…]` becomes a part placed before the image) and
+    add `--benchmark=true`, which prints the prefill token count (the proof
+    the image was read), the time to first token and the vision encode
+    time (`Mark Durations: vision_executor`).
   - the **scoring path is text-only**: `Session.run_prefill` is typed
     `list[str]`, so a choice-output VLM gets the generated verdict but no
     continuous score for image documents. Say so on the card rather than
