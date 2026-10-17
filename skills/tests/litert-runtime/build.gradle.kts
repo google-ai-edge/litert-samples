@@ -36,9 +36,7 @@ val extractSkillCode =
     tasks.register<ExtractSkillCode>("extractSkillCode") {
         val skills = rootProject.layout.projectDirectory.dir(skillsDir)
         val skill = skills.map { it.dir("litert-runtime") }
-        sources.from(skill.map { it.file("references/imports.md") })
         sources.from(skill.map { it.file("SKILL.md") })
-        sources.from(skill.map { it.file("references/preprocess.md") })
         header.set(layout.projectDirectory.file("skill-header.txt"))
         outputDir.set(layout.buildDirectory.dir("generated/skill"))
     }
@@ -49,6 +47,22 @@ val copyAppModel =
     tasks.register<Copy>("copyAppModel") {
         from(layout.projectDirectory.file("fixtures/model.tflite"))
         into(layout.buildDirectory.dir("generated/assets"))
+    }
+
+// -PprobeModels=<path>,<path> packs .tflite files into the test APK's assets under their file
+// names, for MemoryProbeTest. Without it the test APK has none and those tests are skipped.
+val probeModels =
+    providers
+        .gradleProperty("probeModels")
+        .map { paths -> paths.split(",").map { it.trim() }.filter { it.isNotEmpty() } }
+        .orElse(emptyList())
+val probeAssets = layout.buildDirectory.dir("generated/probe-assets")
+val copyProbeModels =
+    tasks.register<Copy>("copyProbeModels") {
+        from(probeModels)
+        into(probeAssets)
+        // Otherwise a build without the property would still pack the models of an earlier one.
+        doFirst { probeAssets.get().asFile.deleteRecursively() }
     }
 
 android {
@@ -62,6 +76,7 @@ android {
         versionCode = 1
         versionName = "1.0"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+        testInstrumentationRunnerArguments["litertVersion"] = litertVersion.get()
     }
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_11
@@ -73,10 +88,11 @@ android {
     sourceSets.getByName("main").kotlin.directories += "build/generated/skill"
     sourceSets.getByName("main").assets.directories += "build/generated/assets"
     sourceSets.getByName("androidTest").assets.directories += "fixtures"
+    sourceSets.getByName("androidTest").assets.directories += "build/generated/probe-assets"
 }
 
 tasks.named("preBuild") {
-    dependsOn(extractSkillCode, copyAppModel)
+    dependsOn(extractSkillCode, copyAppModel, copyProbeModels)
 }
 
 dependencies {
