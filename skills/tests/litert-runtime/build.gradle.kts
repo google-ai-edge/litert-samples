@@ -36,11 +36,28 @@ val extractSkillCode =
     tasks.register<ExtractSkillCode>("extractSkillCode") {
         val skills = rootProject.layout.projectDirectory.dir(skillsDir)
         val skill = skills.map { it.dir("litert-runtime") }
-        sources.from(skill.map { it.file("references/imports.md") })
         sources.from(skill.map { it.file("SKILL.md") })
-        sources.from(skill.map { it.file("references/preprocess.md") })
         header.set(layout.projectDirectory.file("skill-header.txt"))
         outputDir.set(layout.buildDirectory.dir("generated/skill"))
+    }
+
+// The Kotlin of the skill's migration reference, compiled into the test APK, and the tests in
+// src/migrationTest that run it. It uses LiteRT Support, whose com.google.ai.edge.litert.support
+// package starts with 2.3.0, so it is built from that version on, and only from a copy of the skill
+// that has the reference.
+val migrationReference =
+    rootProject.layout.projectDirectory.dir(skillsDir).map {
+        it.file("litert-runtime/references/migration.md")
+    }
+val migrationTests = litertHasGpuArtifact.get() && migrationReference.get().asFile.isFile
+val extractMigrationCode =
+    tasks.register<ExtractSkillCode>("extractMigrationCode") {
+        enabled = migrationTests
+        sources.from(migrationReference)
+        header.set(layout.projectDirectory.file("skill-header.txt"))
+        // Not SkillCode.kt: the test APK's SkillCodeKt would shadow the app's.
+        fileName.set("MigrationCode.kt")
+        outputDir.set(layout.buildDirectory.dir("generated/migration"))
     }
 
 // The app's own model, under the asset name the skill's Classifier opens. The other fixtures are
@@ -73,10 +90,14 @@ android {
     sourceSets.getByName("main").kotlin.directories += "build/generated/skill"
     sourceSets.getByName("main").assets.directories += "build/generated/assets"
     sourceSets.getByName("androidTest").assets.directories += "fixtures"
+    if (migrationTests) {
+        sourceSets.getByName("androidTest").kotlin.directories +=
+            listOf("build/generated/migration", "src/migrationTest/java")
+    }
 }
 
 tasks.named("preBuild") {
-    dependsOn(extractSkillCode, copyAppModel)
+    dependsOn(extractSkillCode, copyAppModel, extractMigrationCode)
 }
 
 dependencies {
@@ -95,4 +116,7 @@ dependencies {
     }
     androidTestImplementation("androidx.test.ext:junit:1.3.0")
     androidTestImplementation("androidx.test:runner:1.7.0")
+    if (migrationTests) {
+        androidTestImplementation("com.google.ai.edge.litert:litert-support:${litertVersion.get()}")
+    }
 }
