@@ -8,6 +8,8 @@ Keep the output of one fixed input from the source model in its own framework, o
 
 Run the same input with `Accelerator.CPU` first and compare with the reference; a difference here is in the model file, not in the device. Then run `Accelerator.GPU` and compare twice: the numbers (max abs diff, correlation) and the task result (argmax, mask, text). The GPU computes in fp16, so the last digits move; the task result should not.
 
+When the app builds the input from a picture, a CPU difference can also be the input: compare the array the app writes with the input the reference got. Check its length against the input's element count (`writeFloat` writes a shorter array without an error, [step 2](../SKILL.md#2-write-the-inference-class)), the bitmap's config (`ImageDecoder` returns `HARDWARE` bitmaps, which `getPixels` cannot read; copy to `ARGB_8888` first, [preprocess](preprocess.md)), then the size, mean/std, channel order and layout.
+
 ## Tells
 
 - First run slow: shader compilation. The constructor's warm-up takes it; never quote the first run.

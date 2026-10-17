@@ -15,7 +15,8 @@
 
 Each one makes a different step of the skill's code throw. The outputs are
 checked in as litert-runtime/fixtures/*.tflite (that directory's .gitignore
-re-includes them), so run this only to change one.
+re-includes them), so run this only to change one. audio.tflite, one second
+of 16 kHz samples in, is the audio model of the evals (skills/evals/).
 
   pip install litert-torch   # brings torch, ai-edge-litert and flatbuffers
   python make_fixtures.py ../litert-runtime/fixtures
@@ -51,10 +52,28 @@ class SixDims(Head):
     return y.reshape(1, 10)
 
 
+class AudioHead(torch.nn.Module):
+  """[1, 16000] float32 -> [1, 8] float32."""
+
+  def __init__(self):
+    super().__init__()
+    torch.manual_seed(0)
+    self.fc = torch.nn.Linear(8, 8)
+
+  def forward(self, x):
+    return self.fc(x.reshape(1, 8, 2000).mean(dim=2))
+
+
 def convert(module, height, path):
   """Converts a module that takes one [1, height, height, 3] input."""
   sample = (torch.zeros(1, height, height, 3),)
   litert_torch.convert(module.eval(), sample).export(path)
+
+
+def convert_audio(path):
+  """Converts AudioHead, which takes one [1, 16000] input."""
+  sample = (torch.zeros(1, 16000),)
+  litert_torch.convert(AudioHead().eval(), sample).export(path)
 
 
 def redeclare(source, path, tensor, element_type):
@@ -93,6 +112,8 @@ def main():
   # Not a model: create throws.
   with open(os.path.join(out, "not_a_model.tflite"), "wb") as f:
     f.write(b"TFL3" + bytes(60))
+  # One second of 16 kHz mono samples in, one score per event out.
+  convert_audio(os.path.join(out, "audio.tflite"))
 
 
 if __name__ == "__main__":

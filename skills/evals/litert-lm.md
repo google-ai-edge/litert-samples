@@ -1,6 +1,6 @@
 # Prompts for the litert-lm skill
 
-Six prompts for the [`litert-lm`](../litert-lm/SKILL.md) skill ([LiteRT-LM](https://github.com/google-ai-edge/LiteRT-LM); vision and audio models are the [`litert-runtime` prompts](litert-runtime.md), [LiteRT](https://github.com/google-ai-edge/litert)). Each prompt is what a developer would type to a coding agent in a fresh checkout of [android/architecture-templates](https://github.com/android/architecture-templates) (branch `base`, commit `5467a8dc`). The prompt says what the developer wants and names no API. The label is the experience the task takes. The checks are the ones of the [README](README.md): whether the project builds, what the changed files (or the answer) contain and do not contain, and one sentence read against the diff. The results are in [results-litert-lm.md](results-litert-lm.md).
+Seven prompts for the [`litert-lm`](../litert-lm/SKILL.md) skill ([LiteRT-LM](https://github.com/google-ai-edge/LiteRT-LM); vision and audio models are the [`litert-runtime` prompts](litert-runtime.md), [LiteRT](https://github.com/google-ai-edge/litert)). Each prompt is what a developer would type to a coding agent in a fresh checkout of [android/architecture-templates](https://github.com/android/architecture-templates) (branch `base`, commit `5467a8dc`). The prompt says what the developer wants and names no API. The label is the experience the task takes. A `fix the app` prompt starts from the files under `fixtures/<id>/`, copied over the project before the prompt. The checks are the ones of the [README](README.md): whether the project builds, what the changed files (or the answer) contain and do not contain, and one sentence read against the diff. The results are in [results-litert-lm.md](results-litert-lm.md).
 
 ## L1 · beginner · build the app
 Prompt: Build a chat screen in this app that answers using a small open-weight LLM running entirely on the phone, no server, with the reply appearing as it is generated.
@@ -44,3 +44,12 @@ Builds: yes.
 Contains: `ConversationConfig` with `systemInstruction`, `SamplerConfig` set for a deterministic output, a new conversation per text.
 Does not contain: `org.tensorflow`, the persona only in the user's message.
 Read: every text goes through a fresh conversation (a kept one would carry the previous texts); the sampler is fixed; the style sits in the system instruction. The check is the configuration, not two identical outputs: the GPU computes in fp16.
+
+## L7 · intermediate · fix the app
+Prompt: The chat screen in this project answers with an on-device LLM, but every reply takes several seconds to start, the app's memory grows with each message until Android kills it, and the second message does not remember the first. Fix it.
+Fixture: the files under [fixtures/L7/](fixtures/L7/) over the project: a chat screen whose send handler builds a new engine and a new conversation for every message and closes neither; the model file is `model.litertlm` in the app's `filesDir`, put there with `run-as`.
+Builds: yes.
+Contains: one `Engine` created and initialized once, off the main thread, kept in the ViewModel; one conversation kept across messages; `cancelProcess` and then `close()` on the conversation and on the engine in `onCleared`; `sendMessageAsync` collected chunk by chunk.
+Does not contain: an engine or a conversation created in the send path, `org.tensorflow`, a `.litertlm` under `assets/`.
+Read: the engine initializes once and is reused; the conversation keeps the history, so the second message sees the first; the close runs once, on the ViewModel's own thread, after the reply is stopped.
+Device: three messages on a phone with one engine: the second reply starts without a new load and knows the first message.
