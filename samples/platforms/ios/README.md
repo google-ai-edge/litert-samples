@@ -2,14 +2,13 @@
 
 How to build the Flutter sample in [`samples/litert/flutter`](../../litert/flutter/) for an iPhone, sign it with your own Apple account,
 and run its two demos: a voice chat with Gemma and a live camera assistant. Everything runs on the phone. iOS
-installs only apps signed for your own devices, so there is no ready-made build: you build it on a Mac (about 15
-minutes the first time).
+installs only apps signed for your own devices, so there is no ready-made build: you build it on a Mac.
 
 ## What runs where
 
 | Model | Runs on |
 |---|---|
-| Chat model, Gemma 4 E2B (`gemma-4-E2B-it.litertlm`) | GPU (Metal); its vision and audio towers on the CPU (the file sets it) |
+| Chat model, Gemma 4 E2B (`gemma-4-E2B-it.litertlm`) | GPU (Metal); its vision and audio towers on the CPU (the engine places them) |
 | YOLO26n detector (Live camera) | GPU (Metal); CPU when chosen in the Live camera settings |
 | EmbeddingGemma 2 (knowledge base, visual memory), Whisper base and moonshine tiny (speech to text), Inflect-nano-v2 (spoken replies) | CPU |
 
@@ -21,7 +20,7 @@ The app has no NPU path on iOS.
 |---|---|
 | Mac | Apple silicon, **Xcode 26** with the iOS platform, **CocoaPods** (`brew install cocoapods`: one plugin has no Swift Package Manager support), Flutter 3.47.3 (`flutter doctor` shows no errors for Xcode and CocoaPods), and the sample set up once: [Set up](../../litert/flutter/README.md#set-up-once-per-checkout) in the sample's README (Python 3.10+, `tool/flutter_litert/vendor.sh`, `tool/fetch_models.sh`, `flutter pub get`) |
 | iPhone | **iOS 26 or newer** (a dependency of the agent package links a system library that older iOS lacks), **8 GB of RAM or more** (iPhone 15 Pro or newer), about 4 GB free |
-| Apple account | signed in to Xcode (**Xcode › Settings › Accounts**). A paid Apple Developer Program team keeps the two memory capabilities of step 2. A free Personal Team works too, but it cannot use them, and its builds stop launching after 7 days (run step 3 again) |
+| Apple account | signed in to Xcode (**Xcode › Settings › Accounts**). A paid Apple Developer Program team keeps the two memory capabilities of step 2. A free Personal Team works too, but it may not be able to use them, and its builds stop launching after 7 days (run step 3 again) |
 | Chat model | one `.litertlm` file for the GPU: Gemma 4 E2B, `gemma-4-E2B-it.litertlm` (2.6 GB) from [litert-community/gemma-4-E2B-it-litert-lm](https://huggingface.co/litert-community/gemma-4-E2B-it-litert-lm), no login needed. |
 
 ## 1. Prepare the iPhone
@@ -50,9 +49,9 @@ The app has no NPU path on iOS.
 3. The memory capabilities, **Increased Memory Limit** and **Extended Virtual Addressing**
    (`ios/Runner/Runner.entitlements`), let iOS give the app the memory a 2.6 GB model needs:
    - **Paid team:** keep both.
-   - **Free Personal Team:** Xcode reports that personal teams do not support Extended Virtual Addressing. Remove it,
-     and Increased Memory Limit if Xcode flags that too (the ✕ on each). The app still runs (the status above was
-     measured without them), but iOS may stop a model run under memory pressure.
+   - **Free Personal Team:** if Xcode reports that a personal team does not support Extended Virtual Addressing,
+     remove it, and Increased Memory Limit if Xcode flags that too (the ✕ on each). Without them iOS may stop a model run under memory
+     pressure.
 4. Close Xcode. If you contribute back, do not commit the team, bundle identifier or capability changes.
 
 ## 3. Build and install
@@ -62,7 +61,7 @@ flutter run --release -d "<your iPhone>"     # the name or id from `flutter devi
 ```
 
 Use a release build: the models run at full speed, and the app keeps working after you unplug the phone. The first
-build downloads the native libraries (a few hundred MB) and takes several minutes; later builds take about two.
+build downloads the native libraries and takes longer than later ones.
 
 With a free account the first launch fails and the phone shows *Untrusted Developer*: **Settings › General › VPN &
 Device Management** › your account › **Trust**, then run the command again.
@@ -91,17 +90,23 @@ models**. Any of these works:
 ## 5. First launch
 
 1. Open **LiteRT Demos**. On **Set up models**, the **Chat model** card lists the files in the models folder (tap
-   **Rescan** if yours is missing). With exactly one file there and nothing chosen yet, it is already selected.
-2. Select **GPU**, check the **Towers** rows (read from the file: Gemma 4 E2B has vision and audio), then **Use this
-   model**. The first load on the GPU compiles GPU programs once (up to a minute); later starts take a few seconds.
+   **Rescan** if yours is missing). With exactly one file there and nothing chosen yet, the app selects it and loads
+   it on the GPU by itself; then go on with step 3.
+2. Otherwise tap the file (it starts on the **GPU**), check that the **Towers** block lists vision and audio (read
+   from the file: Gemma 4 E2B has both), then **Use this model**; a tapped file changes nothing until then. Once it is
+   loaded, each tower's row says where the engine runs it (the CPU). The first load on the GPU compiles GPU programs
+   once and is slower than later ones.
 3. Allow the microphone and the camera when a demo asks.
 
 ## 6. Use it
 
 - **Voice chat:** hold the mic button, speak, release; or type. Try "What is the input size of the YOLO26 nano
-  detector?" (answered from the knowledge base, with sources), "Which accelerator are you running on?", or attach a
-  photo and ask about it. Gemma 4 E2B has an audio tower, so the question goes to it as audio. Tap the mic
-  while it speaks to interrupt it.
+  detector?" (answered from the knowledge base, with sources) or "What time is it?", or attach a photo and ask about
+  it. Gemma 4 E2B has an audio tower, so a spoken question goes to it as audio, and the model decides whether to call
+  a skill. Type "Which accelerator are you running on?": the app answers it and names where each model runs. Reminders
+  do not work in this app (the agent package's notification intent is not set up); its mail, SMS and calendar
+  intents are described in the sample's [README](../../litert/flutter/README.md#using-the-demos). Tap the mic while
+  it speaks to interrupt it.
 - **Live camera:** boxes appear around objects. Hold the mic and ask, within 5 seconds, "What do you see?" or "How
   many people are there?" (answered from the detector at once), or "Describe the scene" (the frame goes to Gemma).
   It also remembers what it saw: "Where was the yellow sign?" shows the frame and how long ago it was.
@@ -115,11 +120,12 @@ models**. Any of these works:
 | `CocoaPods not installed or not in valid state` | `brew install cocoapods`, then `flutter build ios --config-only --no-codesign` |
 | `No Accounts` or `No profiles for '…' were found` | Sign in to Xcode, choose your team and change the bundle identifier (step 2) |
 | `… cannot be registered to your development team because it is not available` | Change the bundle identifier to your own (step 2) |
-| `Personal development teams … do not support the Extended Virtual Addressing capability` | Remove the memory capabilities (step 2.3) |
+| Xcode says a personal team does not support a memory capability | Remove the memory capabilities (step 2.3) |
 | The phone is not listed, or the install drops | Use the cable, unlock the phone, turn on Developer Mode; `flutter devices --device-timeout 20` |
 | *Untrusted Developer* | **Settings › General › VPN & Device Management** › **Trust**, then run step 3 again |
 | The app stops opening after a week | Free account: its profile expired; run step 3 again |
 | The app stops at launch | iOS 18 or older: the app needs iOS 26 (Xcode installs it anyway, because the deployment target is 15.0) |
 | The model is not listed | Tap **Rescan**; check that it is in **On My iPhone › LiteRT Demos › models** and ends in `.litertlm` |
-| A reply stops with `LiteRtRunCompiledModel … (status=3)` after a memory warning | Seen in a build without the memory capabilities: close other apps and retry; with a paid team, keep them (step 2) |
+| GPU and CPU are greyed out and **Use this model** stays off | The file is a Qualcomm NPU build (`…_qualcomm_…`), which runs only on an NPU: use `gemma-4-E2B-it.litertlm` |
+| A reply stops with `LiteRtRunCompiledModel … (status=3)` after a memory warning | Memory pressure in a build without the memory capabilities: close other apps and retry; with a paid team, keep them (step 2) |
 | You need the app's log | `flutter run --release` prints it while the phone is attached |
