@@ -43,7 +43,7 @@ enum EvidenceSource {
 /// One model's accelerator: requested → actual backend, the GPU API and the
 /// adapter, each with its own [EvidenceSource].
 final class const AcceleratorEvidence({
-  /// `gpu` or `cpu`, as the app asked.
+  /// `gpu`, `cpu` or `npu`, as the app asked.
   required final String requested,
 
   /// What it runs on; equal to [requested] when only that is known.

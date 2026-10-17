@@ -15,9 +15,9 @@
 // Demo 1's voice loop on the real app (macOS): Gemma 4 E2B on the GPU,
 // Whisper base int8 and Inflect-nano-v2 on the CPU, soloud playback, in both
 // modes: the Whisper path (GEMMA_MODEL_PATH, no audio tower loaded: Voice →
-// Whisper → Gemma) and audio mode (the same file as your own model, its audio
-// tower loaded as its header has it: Voice → Gemma, the model hears the
-// question).
+// Whisper → Gemma) and audio mode (the same file as your own model, which
+// loads every tower the file has, the engine placing each: Voice → Gemma, the
+// model hears the question).
 //
 //   flutter test integration_test/voice_loop_test.dart -d macos \
 //     --dart-define=GEMMA_MODEL_PATH=<path/to/gemma-4-E2B-it.litertlm>
@@ -44,7 +44,7 @@
 // 5. Real mic probe, only if the app is already authorized (never prompts):
 //    1.5 s of capture, `MIC real …` with its loudness and all-zero check.
 // 6. Audio mode: back home, GEMMA_MODEL_PATH as a local file, its audio
-//    tower on as its header sets it (the Models screen's flow:
+//    tower on because the file has one (the Models screen's flow:
 //    useLocalFile, apply, reload), Demo 1 again; the mode line says
 //    Voice → Gemma. Prints `LLM_RSS` for both loads (step 1's
 //    GEMMA_MODEL_PATH load is the audio-off one: kLlmConfig has no audio
@@ -522,18 +522,15 @@ void main() {
     // 6. Audio mode: the same file in place, its audio tower on (the Models
     //    screen's flow), then Demo 1 again.
     await leaveVoiceChat(tester);
-    final local = await deps.chatModels.useLocalFile(kGemmaModelPath);
-    final CustomChatModel adopted;
-    switch (local) {
-      case Ok(:final value):
-        adopted = value;
-      case Error(:final error):
-        fail('GEMMA_MODEL_PATH as a local file: $error');
-    }
+    // Picked, then applied below: a pick alone saves and loads nothing.
+    final (model: adopted, :bundle) = await pickInPlace(
+      deps.chatModels,
+      kGemmaModelPath,
+    );
     expect(
-      adopted.towersOf(deps.chatModels.state.value.header!).supportAudio,
-      isTrue,
-      reason: 'its header has audio',
+      bundle.audioEncoder,
+      isNotNull,
+      reason: 'the file has an audio encoder',
     );
     Future<void> applyAndReload(CustomChatModel model, String label) async {
       expect(await deps.chatModels.apply(model), isA<Ok<void>>());

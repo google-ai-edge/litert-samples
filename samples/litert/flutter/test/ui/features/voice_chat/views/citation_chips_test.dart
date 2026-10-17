@@ -196,6 +196,38 @@ void main() {
     expect(find.byKey(KnowledgeChipKeys.status), findsOneWidget);
   });
 
+  testWidgets('excerpts left out for the context window: the chips of the '
+      'ones in the prompt, then one saying how many fit', (tester) async {
+    final three = [...passages, passage(3, similarity: 0.45)];
+    final fitted = Retrieval(
+      outcome: RetrievalOutcome.used,
+      passages: three,
+      candidates: three,
+      gate: 0.4,
+    ).keeping(2);
+
+    await tester.pumpWidget(
+      bubble(ReplyKnowledge(retrieval: fitted, cited: const {1})),
+    );
+
+    expect(find.byKey(KnowledgeChipKeys.citation(1)), findsOneWidget);
+    expect(find.byKey(KnowledgeChipKeys.citation(2)), findsOneWidget);
+    expect(find.byKey(KnowledgeChipKeys.citation(3)), findsNothing);
+    expect(
+      find.descendant(
+        of: find.byKey(KnowledgeChipKeys.status),
+        matching: find.text('2 of 3 excerpts (context)'),
+      ),
+      findsOneWidget,
+    );
+  });
+
+  testWidgets('every excerpt in the prompt: no such chip', (tester) async {
+    await tester.pumpWidget(bubble(ReplyKnowledge(retrieval: used)));
+
+    expect(find.byKey(KnowledgeChipKeys.status), findsNothing);
+  });
+
   testWidgets('a reply without a retrieval has no chips', (tester) async {
     await tester.pumpWidget(bubble(null, text: 'Hello.'));
 

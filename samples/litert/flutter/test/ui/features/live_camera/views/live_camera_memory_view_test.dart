@@ -97,7 +97,8 @@ void main() {
       liveState: live.state,
       capturePending: () => live.capturePending,
       tickInterval: null,
-      clockMicros: () => now,
+      wallClockMicros: () => now,
+      monotonicMicros: () => now,
     );
   });
 
@@ -277,7 +278,7 @@ void main() {
     expect(
       find.text(
         'Off by default on this device (4.0 GB RAM): the visual memory '
-        'loads ~300 MB more.',
+        'loads about 300–450 MB more.',
       ),
       findsOneWidget,
     );

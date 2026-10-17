@@ -20,12 +20,17 @@
     <uses-permission android:name="android.permission.INTERNET"/>
     <uses-permission android:name="android.permission.CAMERA"/>
     <uses-permission android:name="android.permission.RECORD_AUDIO"/>
-    <!-- The app posts no notifications: it has no timer skill and never registers
-         flutter_edge_ai_agent's NativeIntentExecutor, so its schedule_notification cannot run,
-         and no foreground download notification (flutter_edge_ai configures one only for
-         foreground: true, which the app never asks for).
-         flutter_local_notifications (via flutter_edge_ai_agent) merges POST_NOTIFICATIONS itself:
-         removed here so Android never offers a notification permission. -->
+    <!-- The app posts no notifications of its own: it has no timer skill, and no foreground
+         download notification (flutter_edge_ai configures one only for foreground: true, which
+         the app never asks for).
+         flutter_edge_ai_agent 0.3.0's NativeIntentExecutor, which runs the app's intents, keeps
+         its built-in schedule_notification (it cannot be removed), and a SKILL.md added at run
+         time can call it. It does not work in this app: the package never initializes
+         flutter_local_notifications and documents no Android setup for it beyond desugaring, and
+         the app adds none (no exact-alarm permission, no receivers), so expect an error back or a
+         notification that never shows. flutter_local_notifications (via flutter_edge_ai_agent)
+         merges POST_NOTIFICATIONS itself: removed here so Android never offers a notification
+         permission for it. -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" tools:node="remove"/>
     <application
         android:label="LiteRT Demos"
@@ -68,6 +73,29 @@
         <intent>
             <action android:name="android.intent.action.PROCESS_TEXT"/>
             <data android:mimeType="text/plain"/>
+        </intent>
+        <!-- flutter_edge_ai_agent's built-in send_email and send_text open the mail and SMS
+             composers through url_launcher, after canLaunchUrl, which sees only the apps declared
+             here (url_launcher's README, Android 11+): an ACTION_VIEW of a mailto: or sms: URI. -->
+        <intent>
+            <action android:name="android.intent.action.VIEW"/>
+            <data android:scheme="mailto"/>
+        </intent>
+        <intent>
+            <action android:name="android.intent.action.VIEW"/>
+            <data android:scheme="sms"/>
+        </intent>
+        <!-- Its built-in create_calendar_event opens the calendar's event editor through
+             add_2_calendar, whose ACTION_INSERT of CalendarContract.Events.CONTENT_URI starts only
+             if resolveActivity finds a calendar: add_2_calendar's README declares the item type;
+             the dir type is the type of that URI. -->
+        <intent>
+            <action android:name="android.intent.action.INSERT"/>
+            <data android:mimeType="vnd.android.cursor.item/event"/>
+        </intent>
+        <intent>
+            <action android:name="android.intent.action.INSERT"/>
+            <data android:mimeType="vnd.android.cursor.dir/event"/>
         </intent>
     </queries>
 </manifest>

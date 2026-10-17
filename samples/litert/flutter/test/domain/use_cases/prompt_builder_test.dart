@@ -13,14 +13,128 @@
 // limitations under the License.
 
 import 'package:flutter_edge_ai_agent/flutter_edge_ai_agent.dart'
-    show AgentToolNames;
+    show onDemandAgentSystemPrompt;
 import 'package:flutter_test/flutter_test.dart';
+import 'package:litert_edge_demos/config/model_catalog.dart';
 import 'package:litert_edge_demos/domain/skills/app_intents.dart';
 import 'package:litert_edge_demos/domain/use_cases/prompt_builder.dart';
 
 import '../../fakes/fake_knowledge.dart';
 
+/// The loaded skills a hint names: one bundled, one dropped in at run time.
+const _skills = ['current-time', 'kid-clock'];
+
+/// What a skill-agnostic prompt must never contain: the app's intents, the
+/// bundled skills' names and the topics they cover, and
+/// a direct `runIntent` instruction (a skill is reached through `loadSkill`
+/// and its own instructions).
+final _named = RegExp(
+  [
+    for (final intent in AppIntent.all) RegExp.escape(intent),
+    'current-time',
+    'device-info',
+    r'\btime\b',
+    r'\bdate\b',
+    r'\bclock\b',
+    r'\bdevice\b',
+    r'\bhardware\b',
+    r'\baccelerators?\b',
+    r'\bbackends?\b',
+    r'\b[cgn]pu\b',
+    r'\bmemory\b',
+    r'\bmodels?\b',
+    'runIntent',
+    'run_intent',
+  ].join('|'),
+  caseSensitive: false,
+);
+
 void main() {
+  group('agent prompts name no skill, intent or topic of their own', () {
+    test('every hint, with no skill names given', () {
+      for (final text in [
+        PromptBuilder.excerptSkills(const []),
+        PromptBuilder.directAnswerHint(const []),
+        PromptBuilder.spokenQuestionWithSkills(const []),
+        PromptBuilder.spokenImageHint,
+      ]) {
+        expect(_named.hasMatch(text), isFalse, reason: text);
+      }
+    });
+
+    test('the skill names come from the loaded skills, in their order, and '
+        'nothing else is added', () {
+      const runtime = ['recipe-finder', 'weather-now'];
+      for (final hint in [
+        PromptBuilder.excerptSkills,
+        PromptBuilder.directAnswerHint,
+        PromptBuilder.spokenQuestionWithSkills,
+      ]) {
+        final text = hint(runtime);
+        expect(text, contains('your skills (recipe-finder, weather-now)'));
+        expect(_named.hasMatch(text), isFalse, reason: text);
+        expect(
+          hint(const []),
+          isNot(contains('skills (')),
+          reason: 'no empty list',
+        );
+      }
+    });
+
+    test('whole prompts on an agent chat: typed and spoken, with excerpts, '
+        'a picture, or neither', () {
+      const runtime = ['recipe-finder'];
+      for (final prompt in [
+        PromptBuilder.build('q', [passage(1)], skills: runtime),
+        PromptBuilder.buildSpoken(const [], skills: runtime),
+        PromptBuilder.buildSpoken(const [], skills: runtime, image: true),
+        PromptBuilder.buildSpoken([passage(1)], skills: runtime),
+        PromptBuilder.buildSpoken([passage(1)], skills: runtime, image: true),
+      ]) {
+        // The excerpts' own text is the knowledge base's, not the app's.
+        final own = prompt.replaceAll(passage(1).content, '');
+        expect(_named.hasMatch(own), isFalse, reason: own);
+      }
+    });
+
+    test("the system template is the agent package's "
+        "onDemandAgentSystemPrompt, then the app's read-aloud and retrieval "
+        'lines', () {
+      expect(kSkillsTemplate, startsWith(onDemandAgentSystemPrompt));
+      expect('__SKILLS__'.allMatches(kSkillsTemplate), hasLength(1));
+      expect(
+        kSkillsTemplate.substring(onDemandAgentSystemPrompt.length),
+        '\nReplies are read aloud: a few short sentences, plain text.\n'
+        'Facts a skill provides come from that skill, never from '
+        'knowledge-base excerpts.',
+      );
+      // The rules the app measured and sent before 0.3.0, word for word.
+      expect(
+        kSkillsTemplate,
+        contains(
+          'Skills:\n__SKILLS__\nOnly when a request needs one of these '
+          'skills, call loadSkill with its name and follow its instructions. '
+          'Answer everything else directly with no tool call: general '
+          'questions, questions about a picture, chat.\n',
+        ),
+      );
+    });
+
+    test('the system template: the skill list is the only place skills '
+        'appear', () {
+      final [_, after] = kSkillsTemplate.split('__SKILLS__');
+      expect(_named.hasMatch(after), isFalse, reason: after);
+      expect(after, contains('call loadSkill with its name'));
+      expect(
+        after,
+        contains(
+          'Facts a skill provides come from that skill, never from '
+          'knowledge-base excerpts.',
+        ),
+      );
+    });
+  });
+
   group('build', () {
     test('without passages the question goes out unchanged', () {
       expect(
@@ -60,11 +174,10 @@ void main() {
       expect(two, isNot(contains('[3]')));
     });
 
-    test('on an agent chat: excerpts as reference and an explicit '
-        '"no tool call" for this turn — live skill questions never get '
-        'excerpts (SkillQuestionRouter), so one that does is a knowledge '
-        'question; without excerpts the question is still unchanged', () {
-      final prompt = PromptBuilder.build('q', [passage(1)], skills: true);
+    test('on an agent chat: excerpts as reference, and a request one of the '
+        "skills serves goes to that skill (a run-time skill's request may "
+        'clear the gate); without excerpts the question is unchanged', () {
+      final prompt = PromptBuilder.build('q', [passage(1)], skills: _skills);
       expect(
         prompt,
         startsWith(
@@ -72,15 +185,33 @@ void main() {
           'documentation):\n\n[1] ',
         ),
       );
-      expect(prompt, contains(PromptBuilder.noToolCall));
-      expect(prompt, isNot(contains('call the skill')));
+      expect(
+        prompt,
+        contains(
+          'If the request matches one of your skills (current-time, '
+          'kid-clock), load it and follow it instead of the excerpts; '
+          'otherwise answer from the excerpts with no tool call. Use the '
+          'excerpts only if they are relevant',
+        ),
+      );
       expect(prompt, contains('cite each one you use as [1]'));
       expect(prompt, endsWith('Question: q'));
-      expect(PromptBuilder.build('q', const [], skills: true), 'q');
+      expect(PromptBuilder.build('q', const [], skills: _skills), 'q');
       expect(
         PromptBuilder.build('q', [passage(1)]),
-        isNot(contains(PromptBuilder.noToolCall)),
+        isNot(contains('skills')),
         reason: 'a plain chat has no tools',
+      );
+    });
+  });
+
+  group('directAnswerHint (a typed picture turn on an agent chat)', () {
+    test('leaves the skills open: the picture alone takes no tool', () {
+      expect(
+        PromptBuilder.directAnswerHint(_skills),
+        '\n\n(A picture is attached. Use one of your skills (current-time, '
+        'kid-clock) only when the request matches its description; otherwise '
+        'answer about the picture directly with no tool call.)',
       );
     });
   });
@@ -124,13 +255,13 @@ void main() {
     test('without excerpts: the minimal prompt, never empty', () {
       expect(PromptBuilder.buildSpoken(const []), PromptBuilder.spokenQuestion);
       expect(
-        PromptBuilder.buildSpoken(const [], skills: true),
-        PromptBuilder.spokenQuestionWithSkills,
+        PromptBuilder.buildSpoken(const [], skills: _skills),
+        PromptBuilder.spokenQuestionWithSkills(_skills),
       );
       expect(PromptBuilder.spokenQuestion, isNotEmpty);
       expect(
-        PromptBuilder.buildSpoken(const [], skills: true, image: true),
-        '${PromptBuilder.spokenQuestionWithSkills}'
+        PromptBuilder.buildSpoken(const [], skills: _skills, image: true),
+        '${PromptBuilder.spokenQuestionWithSkills(_skills)}'
         '${PromptBuilder.spokenImageHint}',
       );
       expect(
@@ -140,17 +271,17 @@ void main() {
       );
     });
 
-    test('on an agent chat without excerpts: a task as well as a question, '
-        'and only the time and this device or app take a tool', () {
-      const prompt = PromptBuilder.spokenQuestionWithSkills;
+    test('on an agent chat without excerpts: a task as well as a question, a '
+        'skill only when the request matches its description, and no tool '
+        'for anything else', () {
+      final prompt = PromptBuilder.spokenQuestionWithSkills(_skills);
       expect(
         prompt,
-        startsWith('Answer the question asked in this audio, or '),
+        'Answer the question asked in this audio, or do what it asks. Use one '
+        'of your skills (current-time, kid-clock) only when the request '
+        'matches its description; otherwise reply directly with no tool '
+        'call.',
       );
-      expect(prompt, contains('do what it asks'));
-      expect(prompt, contains('current-time only for the time'));
-      expect(prompt, contains('device-info only for this device or app'));
-      expect(prompt, endsWith('reply directly with no tool call.'));
       // The measured regression: a generic "use a skill if needed" made
       // Gemma call invented intents for stories, capitals and jokes.
       expect(prompt, isNot(contains('Use a skill only if')));
@@ -164,40 +295,23 @@ void main() {
       expect(prompt, contains('The question is in this audio. Answer it.'));
       expect(prompt, contains('cite each one you use as [1] or [2]'));
       expect(prompt, isNot(contains('Question:')));
-      expect(prompt, isNot(contains(PromptBuilder.noToolCall)));
+      expect(prompt, isNot(contains('skills')));
     });
 
-    test('on an agent chat the excerpts never forbid a skill: a live device '
-        'or time question is told which intent answers it', () {
-      final prompt = PromptBuilder.buildSpoken(passages, skills: true);
+    test('on an agent chat the excerpts never forbid a skill: the same '
+        'instruction as a typed turn', () {
+      final prompt = PromptBuilder.buildSpoken(passages, skills: _skills);
       expect(prompt, startsWith('Reference excerpts from the knowledge base'));
       expect(
         prompt,
         contains(
-          'The question is in this audio. ${PromptBuilder.spokenExcerptSkills}'
+          'The question is in this audio. '
+          '${PromptBuilder.excerptSkills(_skills)}'
           'Use the excerpts only if they are relevant',
         ),
       );
       expect(
-        PromptBuilder.spokenExcerptSkills,
-        contains(
-          'call ${AgentToolNames.runIntent} with ${AppIntent.deviceInfo} '
-          'instead of using the excerpts',
-        ),
-        reason: 'the tool and intent names the chat really has',
-      );
-      expect(
-        PromptBuilder.spokenExcerptSkills,
-        contains(
-          'call ${AgentToolNames.runIntent} with ${AppIntent.currentTime}',
-        ),
-      );
-      expect(
-        prompt,
-        contains('Otherwise answer it directly with no tool call'),
-      );
-      expect(
-        PromptBuilder.buildSpoken(passages, skills: true, image: true),
+        PromptBuilder.buildSpoken(passages, skills: _skills, image: true),
         endsWith(PromptBuilder.spokenImageHint),
       );
     });

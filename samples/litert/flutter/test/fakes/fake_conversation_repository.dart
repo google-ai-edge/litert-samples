@@ -74,6 +74,25 @@ class FakeConversationRepository implements ConversationRepository {
     return historyHasTurn;
   }
 
+  /// The candidate prompts of every [firstFittingPrompt] call, in order.
+  final List<List<String>> fitCalls = [];
+
+  /// What [firstFittingPrompt] answers for the candidates: the first one by
+  /// default (a roomy window holds every excerpt). The real fit is tested
+  /// in conversation_repository_context_fit_test.dart.
+  Result<int?> Function(List<String> prompts) promptFit = (_) =>
+      const Result.ok(0);
+
+  @override
+  Future<Result<int?>> firstFittingPrompt(
+    List<String> prompts, {
+    Uint8List? image,
+    Uint8List? audioWav,
+  }) async {
+    fitCalls.add(prompts);
+    return promptFit(prompts);
+  }
+
   /// The fake keeps no mirror: the real one is tested in
   /// conversation_repository_history_test.dart.
   @override
@@ -90,6 +109,11 @@ class FakeConversationRepository implements ConversationRepository {
   /// When set, [stop] waits for it before ending the turn, like a turn that
   /// takes a while to drain after a stop.
   Completer<void>? stopGate;
+
+  /// A failed [open] leaves the previous chat (and its profile) in place,
+  /// like the real one when the stopped turn still generates past the stop
+  /// timeout. Off: a failed open leaves no chat.
+  bool failedOpenKeepsChat = false;
 
   /// Plays "another demo left the chat open with [profile]".
   void leaveOpen(ConversationProfile profile) {
@@ -111,7 +135,7 @@ class FakeConversationRepository implements ConversationRepository {
   ConversationProfile? get profile => _profile;
 
   /// Like the real one: stops a running turn first; a failed open leaves no
-  /// chat.
+  /// chat (or, with [failedOpenKeepsChat], the previous one).
   @override
   Future<Result<void>> open(
     ConversationProfile profile, {
@@ -123,12 +147,14 @@ class FakeConversationRepository implements ConversationRepository {
     await openGate?.future;
     if (_turn != null) await stop();
     final ok = openResult is Ok<void>;
+    if (!ok && failedOpenKeepsChat) return openResult;
     _profile = ok ? profile : null;
     _chatTakesImages = ok && capabilities.images;
     _chatTakesAudio = ok && capabilities.audio;
     final wantsSkills = profile.skillsTemplate != null && skills.isNotEmpty;
     _hasSkills = ok && wantsSkills && capabilities.tools;
     _skillsNeedTools = ok && wantsSkills && !capabilities.tools;
+    _skills = List.unmodifiable(skills);
     return openResult;
   }
 
@@ -139,6 +165,13 @@ class FakeConversationRepository implements ConversationRepository {
 
   @override
   bool get hasSkills => _hasSkills;
+
+  /// The skills of the last [open], while it built an agent chat (like the
+  /// real one: none on a plain chat, tools off included).
+  List<Skill> _skills = const [];
+
+  @override
+  List<Skill> get skills => _hasSkills ? _skills : const [];
 
   /// What the loaded chat model allows; Gemma 4 E2B's by default. A test
   /// sets images or tools off to play a custom model without them.

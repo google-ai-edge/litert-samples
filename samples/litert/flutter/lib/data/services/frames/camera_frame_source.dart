@@ -110,41 +110,64 @@ int cameraFrameRotation({
   CameraFrameRotation.cw270 => 270,
 };
 
-/// The `CameraException` codes for "the user or a policy denied the camera"
-/// (camera_desktop: `permission_denied`; camera_avfoundation and
-/// camera_android_camerax: `CameraAccess*`).
-const _accessDeniedCodes = {
-  'permission_denied',
-  'CameraAccessDenied',
-  'CameraAccessDeniedWithoutPrompt',
-  'CameraAccessRestricted',
-};
+/// The `CameraException` codes for "the user or a policy denied the camera",
+/// and whether Retry can bring the system's dialog back:
+///
+/// - camera_android_camerax 0.7.5+1: `CameraAccessDenied` for every denial.
+///   Retry asks again; after a second denial Android shows no dialog any
+///   more, and only Settings can allow it (the plugin cannot tell the two
+///   apart).
+/// - camera_avfoundation 0.10.3+1 (iOS): `CameraAccessDenied` when the user
+///   declines the prompt just shown. iOS asks once: from then on the status
+///   is denied and a Retry gets `CameraAccessDeniedWithoutPrompt`, so both
+///   need Settings. `CameraAccessRestricted`: Screen Time or a device policy,
+///   which the app's own switch cannot lift.
+/// - camera_desktop 2.0.0 (macOS): `permission_denied` for every denial;
+///   macOS asks once, so it needs System Settings.
+const _accessDenied = 'CameraAccessDenied';
+const _accessDeniedWithoutPrompt = 'CameraAccessDeniedWithoutPrompt';
+const _accessRestricted = 'CameraAccessRestricted';
+const _desktopPermissionDenied = 'permission_denied';
 
-/// A camera failure as the message the user sees. Access denied says how to
-/// grant it; Retry is on the screen.
+/// A camera failure as the message the user sees. Access denied says what
+/// brings it back (Retry asks again where the platform shows its dialog
+/// again, otherwise the Settings path); Retry is on the screen.
 FrameSourceUnavailableException cameraFailure(
   CameraException error,
   TargetPlatform platform,
 ) {
-  if (_accessDeniedCodes.contains(error.code)) {
-    return FrameSourceUnavailableException(switch (platform) {
+  final code = error.code;
+  final message = switch (code) {
+    _accessRestricted =>
+      'Camera access is restricted on this device (Screen Time or a device '
+          "policy), so this app's own setting cannot allow it. Lift the "
+          "restriction (or ask the device's administrator), then press "
+          'Retry.',
+    _accessDenied when platform == TargetPlatform.android =>
+      'Camera access was denied. Press Retry to be asked again. If no dialog '
+          'appears (Android stops asking after a second denial), open '
+          'Settings > Apps > LiteRT Demos > Permissions > Camera, allow it, '
+          'then press Retry.',
+    _accessDenied ||
+    _accessDeniedWithoutPrompt ||
+    _desktopPermissionDenied => switch (platform) {
       TargetPlatform.macOS =>
         'Camera access is off for this app. Open System Settings > Privacy & '
             'Security > Camera, turn on LiteRT Demos, then press Retry.',
       TargetPlatform.iOS =>
-        'Camera access is off for this app. Open Settings > Privacy & '
-            'Security > Camera, turn it on, then press Retry.',
+        'Camera access is off for this app, and iOS asks only once. Open '
+            'Settings > Privacy & Security > Camera, turn it on, then press '
+            'Retry.',
       TargetPlatform.android =>
         'Camera access is off for this app. Open Settings > Apps > '
             'LiteRT Demos > Permissions > Camera, allow it, then press '
             'Retry.',
-      _ =>
-        'Camera access was denied (${error.code}). Allow it, then press '
-            'Retry.',
-    });
-  }
+      _ => 'Camera access was denied ($code). Allow it, then press Retry.',
+    },
+    _ => null,
+  };
   return FrameSourceUnavailableException(
-    'Camera error (${error.code}): ${error.description ?? 'no details'}',
+    message ?? 'Camera error ($code): ${error.description ?? 'no details'}',
   );
 }
 

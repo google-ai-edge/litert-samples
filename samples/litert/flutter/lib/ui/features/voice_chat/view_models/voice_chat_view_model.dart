@@ -31,9 +31,11 @@ import '../../../../domain/models/model_state.dart' show SttActivation;
 import '../../../../domain/models/skill_catalog.dart';
 import '../../../../domain/models/skill_step.dart';
 import '../../../../domain/models/voice.dart';
+import '../../../../domain/skills/app_intents.dart';
 import '../../../../domain/use_cases/voice_assistant.dart';
 import '../../../../utils/command.dart';
 import '../../../../utils/result.dart';
+import '../../../core/app_foreground.dart';
 import 'skills_applier.dart';
 import 'voice_chat_reducer.dart';
 
@@ -119,12 +121,20 @@ class VoiceChatViewModel extends ChangeNotifier {
   /// How long entering waits at most for the access requests.
   final Duration _accessSettleCap;
 
-  /// False while the app is out of the foreground on Android and iOS
-  /// (`AppForeground`): a held push-to-talk press then ends without a turn.
-  /// Null: always in the foreground (desktop keeps the microphone).
-  final ValueListenable<bool>? _foreground;
+  /// Out of the foreground on Android and iOS ([AppForeground]) a held
+  /// push-to-talk press ends without a turn; on iOS, once the app is hidden,
+  /// a running turn stops too. Null: always in the foreground (desktop keeps
+  /// the microphone).
+  final AppForeground? _foreground;
   Timer? _accessCap;
   bool _accessSettled = false;
+
+  /// This view model's own [open], [newConversation] or [applySkills] has
+  /// opened the chat. The shared chat's profile alone does not say whose it
+  /// is: an open that fails because the previous visit's reply is still
+  /// stopping leaves that visit's chat, with this demo's profile and a
+  /// history this screen does not show.
+  bool _chatOpened = false;
 
   late final StreamSubscription<VoiceAssistantEvent<ChatSideEvent>> _events;
   LlmImage? _attachment;
@@ -294,23 +304,42 @@ class VoiceChatViewModel extends ChangeNotifier {
     );
   }
 
-  /// Why the skills that need tool calls are off (the chat model has tools
-  /// off); null when they are on or no skill is installed. The questions
-  /// the app recognizes itself (the time, device facts) still work.
-  String? get skillsOffReason => _conversation.skillsNeedTools
-      ? 'Skills that need tool calls are off: '
-            '${_conversation.capabilities.modelName} has tools off. The '
-            'time and device facts still work.'
-      : null;
+  /// Why the model cannot use the skills (the chat model has tools off, and
+  /// every skill is reached through a tool call); null when it can or no
+  /// skill is installed. Its second sentence only while an installed intent
+  /// skill names an intent the app runs itself ([intentsOfferedBy], the
+  /// responder's gate): then the questions the app recognizes still get that
+  /// intent's answer. In audio mode a spoken question reaches the model as
+  /// audio, with no words to recognize, so only typed questions do.
+  String? get skillsOffReason {
+    if (!_conversation.skillsNeedTools) return null;
+    final chat = _conversation.capabilities;
+    final off =
+        'Skills are off: ${chat.modelName} has tools off, so it cannot call '
+        'them.';
+    final installed = skillCatalog?.agentSkills ?? const [];
+    if (intentsOfferedBy(installed).isEmpty) return off;
+    return chat.audio
+        ? "$off Typed questions the app recognizes still get an installed "
+              "skill's intent."
+        : "$off The app still answers the questions it recognizes for an "
+              "installed skill's intent.";
+  }
 
-  /// This demo's chat exists: opened, or reopened by [newConversation] after
-  /// a failed [open]. Not while [open] still runs: the shared chat is then
-  /// the previous demo's, possibly still draining a stopped turn.
+  /// This demo's chat exists: opened, or reopened by [newConversation] (or
+  /// a skills apply) after a failed [open], by this view model
+  /// ([_chatOpened]). Not while [open] still runs: the shared chat is then
+  /// the previous demo's, possibly still draining a stopped turn. Not after
+  /// a failed [open] either, even when the chat left open has this demo's
+  /// profile (a previous visit's, whose reply was still stopping): the error
+  /// shows, and New conversation opens the chat again.
   ///
-  /// Also not before the entry access requests have settled (or the
-  /// cap passed), so the camera probe never shares the GPU with a prefill.
+  /// Also not before the microphone access request made on entry has
+  /// settled (or the cap passed), so the OS dialog never opens inside the
+  /// first press or turn.
   bool get isReady =>
       _accessSettled &&
+      _chatOpened &&
       !open.running &&
       !applySkills.running &&
       _conversation.profile == kVoiceChatProfile;
@@ -347,11 +376,18 @@ class VoiceChatViewModel extends ChangeNotifier {
     await _assistant.micUp(image: _attachment?.png);
   }
 
-  /// Leaving the app (Android, iOS) ends a held press without a turn; a
-  /// turn past its capture goes on.
+  /// Leaving the app (Android, iOS) ends a held press without a turn. A turn
+  /// past its capture goes on, except on iOS once the app is hidden: there
+  /// it stops like Stop (the partial reply kept as interrupted) and says
+  /// why.
   void _onForeground() {
-    if (_disposed || (_foreground?.value ?? true)) return;
-    unawaited(_assistant.cancelCapture());
+    final foreground = _foreground;
+    if (_disposed || foreground == null || foreground.value) return;
+    if (foreground.mustStopTurns) {
+      unawaited(_assistant.interrupt(InterruptionCause.background));
+    } else {
+      unawaited(_assistant.cancelCapture());
+    }
   }
 
   /// Detaches the picture: the next turns go without it (the model may still
@@ -380,8 +416,11 @@ class VoiceChatViewModel extends ChangeNotifier {
     // retries.
     final result = await _applier.open(rescan: true);
     if (_disposed) return result;
-    if (result case Error(:final error)) {
-      _showError('Could not open the chat: $error');
+    switch (result) {
+      case Ok():
+        _chatOpened = true;
+      case Error(:final error):
+        _showError('Could not open the chat: $error');
     }
     return result;
   }
@@ -465,10 +504,12 @@ class VoiceChatViewModel extends ChangeNotifier {
     await sttRetry;
     if (_disposed) return result;
     _setChat(VoiceChatState.empty);
-    if (result case Error(:final error)) {
-      _showError('Could not start a new conversation: $error');
-    } else {
-      _notify();
+    switch (result) {
+      case Ok():
+        _chatOpened = true;
+        _notify();
+      case Error(:final error):
+        _showError('Could not start a new conversation: $error');
     }
     return result;
   }
@@ -482,6 +523,7 @@ class VoiceChatViewModel extends ChangeNotifier {
     if (!_disposed) {
       switch (applied) {
         case Ok(value: final catalog?):
+          _chatOpened = true;
           _setChat(
             _chat
                 .copyWith(clearTurnRetrieval: true, turnSteps: const [])
@@ -575,9 +617,8 @@ class VoiceChatViewModel extends ChangeNotifier {
   }
 }
 
-/// Whether audio mode has skills: an agent chat reaches the time and device
-/// intents through its tools; without one a spoken question gets no skill,
-/// because the rules that route a transcript have no words to read.
+/// Whether audio mode has skills: an agent chat reaches its skills through
+/// its tools; without one a spoken question gets no skill.
 enum AudioModeSkills { on, toolsOff, noneLoaded }
 
 /// The voice chat's mode line for a chat model named [modelName]

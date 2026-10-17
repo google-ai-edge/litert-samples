@@ -20,6 +20,7 @@ import 'dart:typed_data';
 import 'package:flutter_edge_ai/flutter_edge_ai.dart'
     show
         EmbeddingInputTooLongException,
+        EmbeddingLoadException,
         EmbeddingModality,
         EmbeddingModel,
         PreferredBackend,
@@ -202,6 +203,33 @@ void main() {
       expect(result.toString(), contains('an unknown backend'));
       expect(model.closeCalls, 1);
     });
+
+    test(
+      'a load that wrote no weight cache (requireWeightCache) fails '
+      "the load with the plugin's EmbeddingLoadException, passed on as it is",
+      () async {
+        // The opening of flutter_edge_ai_litertlm 1.14.0's message
+        // (`litert_lm_embedding_pass.dart`); its list of causes is left out.
+        const refusal = EmbeddingLoadException(
+          'LiteRT-LM wrote no weight cache to /cache while loading '
+          '/m/embeddinggemma-2-740m.litertlm, and '
+          'LiteRtEmbeddingBackend(requireWeightCache: true) refuses to run it '
+          'without one (slower to load; about 290 MB more memory for the '
+          '270m). The cache file path is about 271 characters long.',
+          engine: 'LiteRT-LM',
+        );
+        final embedder = EmbedderService(
+          install: (config, source, onProgress) async => 'eg',
+          load: (config) async => throw refusal,
+        );
+
+        final result = await embedder.load();
+
+        expect((result as Error<EmbedderInfo>).error, same(refusal));
+        expect('${result.error}', contains('wrote no weight cache'));
+        expect(embedder.isLoaded, isFalse);
+      },
+    );
 
     test('another dimension fails and closes the model', () async {
       final (result, model) = await loadWith(

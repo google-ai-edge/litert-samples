@@ -26,7 +26,7 @@ step 7c PASS: cosine 0.700 (≥ 0.63) · the bundled cats photo as a memory fram
 result     PASS · 11 pass · exit 0
 started    2026-10-06T00:00:00Z · took <time>
 build      app 0.1.0+1 release · flutter 3.47.3 · Dart 3.13.3 · flutter_edge_ai 2.1.0
-chat model Gemma 4 E2B (the app's Gemma 4 E2B settings) · /models/file (model store) · gpu · ctx 8192 · vision cpu · tools on · type gemma4
+chat model Gemma 4 E2B (the app's Gemma 4 E2B settings) · /models/file (model store) · gpu · ctx 8192 · towers vision · tools on · type gemma4
 sha256     abc123
 detector   /models/file (model store) · backend gpu
 image      bundled cats
@@ -53,7 +53,7 @@ PASS  3   cats golden                                      <time>
 PASS  4a  chat model load + warm-up (gpu)                  <time>
            Gemma 4 E2B (gemma-4-E2B-it) · maxTokens 8192 · vision cpu · tools on · type gemma4 · load 3.60 s · warm-up 2.20 s
            gpu → gpu (confirmed: API) · api Metal (inferred) · adapter Apple M4 Pro (inferred)
-           vision encoder on the CPU (requested)
+           vision encoder on the CPU (activeVisionBackend)
 PASS  4b  chat model generate 64 tokens                    <time>
            64 chunks · 64 tokens (engine) · first chunk 0.18 s · 74.1 tok/s decode (measured) · 73.3 tok/s (engine)
            "Elias lived on the edge of the world."

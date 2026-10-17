@@ -349,6 +349,45 @@ void main() {
       expect(android.message, contains('Permissions > Camera'));
     });
 
+    test('Settings only where Retry cannot bring the dialog back', () {
+      String text(String code, TargetPlatform platform) =>
+          cameraFailure(CameraException(code, null), platform).message;
+
+      // camera_android_camerax: one code for every denial; the dialog comes
+      // back on Retry until a second denial.
+      final android = text('CameraAccessDenied', TargetPlatform.android);
+      expect(
+        android,
+        startsWith('Camera access was denied. Press Retry to be asked again.'),
+      );
+      expect(android, contains('If no dialog appears'));
+      expect(android, contains('Permissions > Camera'));
+
+      // camera_avfoundation: iOS asks once, so declining the prompt just
+      // shown needs Settings as much as an earlier denial does.
+      for (final code in [
+        'CameraAccessDenied',
+        'CameraAccessDeniedWithoutPrompt',
+      ]) {
+        final ios = text(code, TargetPlatform.iOS);
+        expect(ios, contains('iOS asks only once'), reason: code);
+        expect(ios, contains('Settings > Privacy & Security > Camera'));
+        expect(ios, isNot(contains('asked again')), reason: code);
+      }
+
+      // A policy, not the app's switch: the privacy page cannot lift it.
+      final restricted = text('CameraAccessRestricted', TargetPlatform.iOS);
+      expect(restricted, contains('restricted on this device'));
+      expect(restricted, isNot(contains('Privacy & Security')));
+      expect(restricted, contains('Retry'));
+
+      // camera_desktop on macOS: asked once, System Settings.
+      expect(
+        text('permission_denied', TargetPlatform.macOS),
+        contains('System Settings > Privacy & Security > Camera'),
+      );
+    });
+
     test('other camera errors keep their code and description', () {
       final error = cameraFailure(
         CameraException('initialization_timeout', 'no frames received'),

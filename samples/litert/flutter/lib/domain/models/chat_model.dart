@@ -14,12 +14,14 @@
 
 import 'package:flutter_edge_ai/flutter_edge_ai.dart'
     show ModelType, PreferredBackend;
+import 'package:flutter_edge_ai_litertlm/flutter_edge_ai_litertlm.dart'
+    show LiteRtLmBundleException, LiteRtLmBundleInfo;
 
 import '../../utils/redact_url.dart';
 import 'chat_model_config.dart';
-import 'model_towers.dart';
 
-export 'model_towers.dart' show LitertlmSection;
+export 'package:flutter_edge_ai_litertlm/flutter_edge_ai_litertlm.dart'
+    show LiteRtLmBundleException, LiteRtLmBundleInfo, LiteRtLmBundleProblem;
 
 /// Why a model link with a user name or password in it is refused: it
 /// would be saved, logged and shown with them.
@@ -98,7 +100,7 @@ final class const CustomModelFile({
 /// Context lengths the Models screen accepts (`maxTokens`, the whole
 /// context window). flutter_edge_ai_litertlm passes an NPU value through
 /// untouched (NPU bundles are compiled for one `cache_length`) but raises a
-/// GPU/CPU value below 1024 to 1024 (1.9.0 `clampLitertlmContextTokens`,
+/// GPU/CPU value below 1024 to 1024 (1.14.0 `clampLitertlmContextTokens`,
 /// `lib/src/litert_lm_engine.dart`), so GPU/CPU
 /// start at 1024 here instead of being silently raised.
 const kMinNpuContextTokens = 128;
@@ -107,7 +109,7 @@ const kMaxContextTokens = 131072;
 
 /// The model types offered for a custom `.litertlm`, in menu order. On
 /// `.litertlm` LiteRT-LM applies the file's own chat template whatever the
-/// type (flutter_edge_ai `core/extensions.dart`); the type picks the
+/// type (flutter_edge_ai 2.4.0 `lib/src/extensions.dart`); the type picks the
 /// tool-call format and the thinking-channel parsing. `functionGemma` is
 /// left out: its chat wipes the history after every reply.
 const kCustomModelTypes = [
@@ -164,8 +166,8 @@ final class const ModelsFolderListing({
   final List<LocalModelEntry> files = const [],
 });
 
-/// The file is not a usable `.litertlm` (missing, unreadable, not the
-/// format); [message] names the path.
+/// The file cannot be used: it is missing or unreadable, or it is a
+/// `.litertlm` a load refuses as incomplete; [message] names the path.
 final class LocalModelException implements Exception {
   const LocalModelException(this.message, {this.permissionDenied = false});
 
@@ -177,6 +179,47 @@ final class LocalModelException implements Exception {
 
   @override
   String toString() => message;
+}
+
+/// What flutter_edge_ai_litertlm's `readLiteRtLmBundleInfo` made of a
+/// `.litertlm` a load would not refuse: what the file says about itself
+/// ([BundleRead]), or why the plugin could not read its header
+/// ([BundleNotRead]). flutter_edge_ai_litertlm 1.14.0 loads such a file
+/// "without reading the file" (`LiteRtLmEngine._readBundle`): only an
+/// incomplete file is refused, so only that one is refused at the pick.
+sealed class const BundleReading() {
+  /// What the file says about itself; null when its header was not read.
+  LiteRtLmBundleInfo? get info => switch (this) {
+    BundleRead(:final bundle) => bundle,
+    BundleNotRead() => null,
+  };
+}
+
+/// The plugin read the file: [bundle] is what it says about itself.
+final class const BundleRead(final LiteRtLmBundleInfo bundle)
+    extends BundleReading;
+
+/// The plugin could not read the file's header ([reason]: not a container
+/// it knows, a container version it does not read, a header or compiler
+/// stamp out of range). The engine loads it with the rules that need no
+/// file; the app asks for no tower (it cannot know which ones the file has),
+/// so it loads text only.
+final class const BundleNotRead(final LiteRtLmBundleException reason)
+    extends BundleReading;
+
+/// `compiled for the Qualcomm SM8750 NPU: runs only on the NPU`: why the GPU
+/// and the CPU are not offered for a build compiled for an NPU
+/// ([LiteRtLmBundleInfo.isCompiledForNpu]), in the app's own words for the
+/// plugin's refusal: its load refuses such a build on the GPU and the CPU
+/// before any engine (`LiteRtLmBundleProblem.wrongBackend`;
+/// flutter_edge_ai_litertlm's README, "Where a model runs"). It says which
+/// backend, not which SoC. Null for any other file and for one whose header
+/// was not read.
+String? npuOnlyReason(LiteRtLmBundleInfo? bundle) {
+  if (bundle == null || !bundle.isCompiledForNpu) return null;
+  final target = bundle.npuTarget;
+  return 'compiled for the ${target == null ? 'NPU' : '$target NPU'}: runs '
+      'only on the NPU';
 }
 
 /// The user's own chat model: the file and how to run it. Persisted as
@@ -198,18 +241,6 @@ final class const CustomChatModel({
   /// Send tool declarations (skills); off for models whose template has no
   /// tool calls.
   final bool tools = false,
-
-  /// Where the vision tower runs when the file's header says nothing about
-  /// it and [backend] is the NPU: the user's choice, `cpu` or `npu`; null
-  /// is the NPU (the default). A tower the header places (a
-  /// `backend_constraint`) ignores it, and off the NPU it means nothing
-  /// (kept for a return to the NPU). Reset when the file changes. With
-  /// [audioChoice], the only saved settings about the towers: which ones
-  /// load, and where, follows from the header ([towersOf]).
-  final PreferredBackend? visionChoice,
-
-  /// The same for the audio tower.
-  final PreferredBackend? audioChoice,
 }) {
   /// Why [maxTokens] is not usable with [backend]; null when it is.
   static String? contextProblem(int maxTokens, PreferredBackend backend) {
@@ -244,39 +275,15 @@ final class const CustomChatModel({
     backend: backend ?? this.backend,
     maxTokens: maxTokens ?? this.maxTokens,
     tools: tools ?? this.tools,
-    visionChoice: visionChoice,
-    audioChoice: audioChoice,
   );
 
-  /// This model with [vision] and [audio] as the towers' choices (null:
-  /// none, the NPU by default).
-  CustomChatModel withTowerChoices({
-    required PreferredBackend? vision,
-    required PreferredBackend? audio,
-  }) => CustomChatModel(
-    displayName: displayName,
-    source: source,
-    file: file,
-    modelType: modelType,
-    backend: backend,
-    maxTokens: maxTokens,
-    tools: tools,
-    visionChoice: vision,
-    audioChoice: audio,
-  );
-
-  /// The towers this model loads from a file whose header has [header]:
-  /// [resolveTowers] on [backend] with [visionChoice] and [audioChoice].
-  ModelTowers towersOf(List<LitertlmSection> header) =>
-      resolveTowers(header, backend, vision: visionChoice, audio: audioChoice);
-
-  /// One line: `npu · ctx 1280 · vision cpu · audio npu · tools off ·
-  /// gemma4`, each tower of [towers] with where it runs (none for a
-  /// text-only file).
-  String settingsLine(ModelTowers towers) => [
+  /// One line: `npu · ctx 1280 · towers vision+audio · tools off · gemma4`,
+  /// with the towers [bundle] (the file as `readLiteRtLmBundleInfo` read it)
+  /// has; without [bundle] none are named.
+  String settingsLine([BundleReading? bundle]) => [
     backend.name,
     'ctx $maxTokens',
-    ...towers.parts,
+    if (bundle != null) towersLine(bundle),
     'tools ${tools ? 'on' : 'off'}',
     modelType.name,
   ].join(' · ');
@@ -288,6 +295,20 @@ final class const CustomChatModel({
     UrlModelSource(:final url) => 'downloaded from ${redactUrl(url)}',
     LocalModelSource(:final path) => 'in place: $path',
   };
+}
+
+/// `towers vision+audio`, `towers vision`, `towers none`: the encoders
+/// [reading] has beside its text model (`LiteRtLmBundleInfo.visionEncoder`,
+/// `audioEncoder`); `towers not read` for a header the plugin could not
+/// read. Where each runs is the engine's choice at the load.
+String towersLine(BundleReading reading) {
+  final bundle = reading.info;
+  if (bundle == null) return 'towers not read';
+  final towers = [
+    if (bundle.visionEncoder != null) 'vision',
+    if (bundle.audioEncoder != null) 'audio',
+  ];
+  return 'towers ${towers.isEmpty ? 'none' : towers.join('+')}';
 }
 
 final _sha256Hex = RegExp(r'^[0-9a-f]{64}$');
@@ -346,21 +367,18 @@ sealed class const ChatModelPlan();
 /// `kDefineChatModel` when it is set, and is unavailable otherwise.
 final class const NoChatModelPlan({final String? note}) extends ChatModelPlan;
 
-/// The user's own model: its verified store file, its settings and its
-/// file's header.
+/// The user's own model: its verified store file, its settings and what the
+/// file says about itself.
 final class const CustomChatPlan({
   required final String path,
   required final CustomChatModel model,
 
-  /// The sections of the file's header as last read (a file whose header
-  /// cannot be read is never planned).
-  required final List<LitertlmSection> header,
+  /// What `readLiteRtLmBundleInfo` last made of the file (one that cannot
+  /// be opened, or is incomplete, is never planned).
+  required final BundleReading bundle,
 }) extends ChatModelPlan {
-  /// The towers the load takes: the header's, on the model's backend
-  /// ([CustomChatModel.towersOf]).
-  ModelTowers get towers => model.towersOf(header);
-
-  /// What `LlmService` loads.
+  /// What `LlmService` loads: each tower the file has, placed by the engine;
+  /// none for a header the plugin could not read ([BundleNotRead]).
   ChatModelConfig get config => ChatModelConfig(
     name: model.displayName,
     modelType: model.modelType,
@@ -368,7 +386,8 @@ final class const CustomChatPlan({
       maxTokens: model.maxTokens,
       backend: model.backend,
       maxNumImages: 1,
-      towers: towers,
+      supportImage: bundle.info?.visionEncoder != null,
+      supportAudio: bundle.info?.audioEncoder != null,
     ),
     tools: model.tools,
   );

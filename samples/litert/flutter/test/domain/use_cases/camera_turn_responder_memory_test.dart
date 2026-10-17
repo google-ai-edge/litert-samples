@@ -20,6 +20,8 @@ import 'package:litert_edge_demos/config/model_catalog.dart';
 import 'package:litert_edge_demos/data/repositories/diagnostics_repository.dart';
 import 'package:litert_edge_demos/domain/models/camera_side_event.dart';
 import 'package:litert_edge_demos/domain/models/chat_capabilities.dart';
+import 'package:litert_edge_demos/domain/models/detection.dart';
+import 'package:litert_edge_demos/domain/models/detection_summary.dart';
 import 'package:litert_edge_demos/domain/models/model_id.dart';
 import 'package:litert_edge_demos/domain/models/model_state.dart';
 import 'package:litert_edge_demos/domain/models/route_decision.dart';
@@ -38,24 +40,50 @@ import '../../fakes/fake_speech.dart';
 
 Future<void> settle() => pumpEventQueue();
 
-MemoryHit hitOf({Map<int, int> counts = const {}, bool ambiguous = false}) =>
-    MemoryHit(
-      entry: MemoryEntry(
-        id: 3,
-        frameId: 77,
-        atMicros: 0,
-        png: Uint8List.fromList([0x89, 0x50, 0x4E, 0x47, 77]),
-        width: 320,
-        height: 180,
-        counts: counts,
-        vector: Float32List(3),
-        grey: Uint8List(1024),
-      ),
-      cosine: 0.76,
-      rival: 0.67,
-      age: const Duration(seconds: 12),
-      ambiguous: ambiguous,
-    );
+MemoryHit hitOf({
+  Map<int, int> counts = const {},
+  bool ambiguous = false,
+  bool unmirrored = false,
+}) => MemoryHit(
+  entry: MemoryEntry(
+    id: 3,
+    frameId: 77,
+    atMicros: 0,
+    png: Uint8List.fromList([0x89, 0x50, 0x4E, 0x47, 77]),
+    width: 320,
+    height: 180,
+    unmirrored: unmirrored,
+    counts: counts,
+    vector: Float32List(3),
+    grey: Uint8List(1024),
+  ),
+  cosine: 0.76,
+  rival: 0.67,
+  age: const Duration(seconds: 12),
+  ambiguous: ambiguous,
+);
+
+/// The frame at the release (id 9), for a question the frame now answers.
+SceneSnapshot nowSnapshot() {
+  final frame = DetectionFrame(
+    frameId: 9,
+    width: 640,
+    height: 480,
+    boxes: Float32List(0),
+    preMicros: 1000,
+    runMicros: 4000,
+    postMicros: 1000,
+    backend: DetectorBackend.gpu,
+  );
+  return SceneSnapshot(
+    frameId: 9,
+    detections: frame,
+    summary: DetectionSummary.fromWindow([frame], minScore: 0.4),
+    pixels: RgbaPixels(width: 2, height: 1, bytes: Uint8List(8)),
+    mirrored: false,
+    latency: const Duration(milliseconds: 14),
+  );
+}
 
 void main() {
   late List<String> log;
@@ -75,6 +103,10 @@ void main() {
   late StreamSubscription<VoiceAssistantEvent<CameraSideEvent>> sub;
   late int encodes;
 
+  /// Set by a test whose question the frame now answers (the detailed
+  /// path); false: encoding a snapshot fails the turn.
+  late bool frameNow;
+
   Future<VoiceAssistant<CameraSideEvent>> build({
     bool withMemory = true,
   }) async {
@@ -93,7 +125,19 @@ void main() {
         conversation: conversation,
         encode: (s) async {
           encodes++;
-          throw StateError('a memory turn never encodes a snapshot');
+          if (!frameNow) {
+            throw StateError('a memory turn never encodes a snapshot');
+          }
+          return Result.ok(
+            EncodedSnapshot(
+              png: Uint8List.fromList([0x89, 0x50, 0x4E, 0x47, s.frameId]),
+              frameId: s.frameId,
+              width: 640,
+              height: 480,
+              unmirrored: false,
+              encodeTime: const Duration(milliseconds: 9),
+            ),
+          );
         },
         recall: withMemory
             ? (phrase) async {
@@ -140,6 +184,7 @@ void main() {
       ),
     );
     encodes = 0;
+    frameNow = false;
     assistant = await build();
     events = [];
     sub = assistant.events.listen(events.add);
@@ -201,10 +246,35 @@ void main() {
     expect(result.outcome, TurnOutcome.completed);
     expect(answer(), 'On the desk, next to the mug.');
     expect(sides().whereType<SnapshotTaken>(), isEmpty);
-    expect(sides().whereType<FrameSentToGemma>(), isEmpty);
+    // The overlay's frame is the recalled one, not the previous turn's:
+    // sent after the recall, the very PNG Gemma got.
+    final sent = sides().whereType<FrameSentToGemma>().single.image;
+    expect(sent.frameId, 77);
+    expect(conversation.images.single, same(sent.png));
+    expect((sent.width, sent.height), (320, 180));
+    expect(sent.encodeTime, Duration.zero, reason: 'encoded when stored');
+    expect(
+      sides().indexOf(sides().whereType<MemoryRecalled>().single),
+      lessThan(sides().indexOf(sides().whereType<FrameSentToGemma>().single)),
+    );
     expect(encodes, 0);
     expect(sides().whereType<DetailedAnswered>(), hasLength(1));
     expect(conversation.resetCalls, 1);
+  });
+
+  test('a remembered frame mirrored back says so in FrameSentToGemma (the '
+      'overlay\'s "unmirrored")', () async {
+    recall = Result.ok(hitOf(unmirrored: true));
+    await assistant.micDown();
+    final turn = assistant.micUp();
+    await untilAsked(1);
+    expect(
+      sides().whereType<FrameSentToGemma>().single.image.unmirrored,
+      isTrue,
+    );
+    conversation.emit('On the desk.');
+    await conversation.finish();
+    expect((await turn).outcome, TurnOutcome.completed);
   });
 
   test(
@@ -260,6 +330,77 @@ void main() {
     expect(route.rule, 'memory-empty');
     snapshot.completeError(StateError('the test ends at the snapshot'));
     await turn;
+  });
+
+  group('nothing to search for with the memory switched off or off: the '
+      'frame now answers it (the detailed path), the rule says why', () {
+    /// "What did you see?" with [newest] from the memory (null: an app
+    /// without one) goes to Gemma with the frame at the release.
+    Future<void> answeredFromTheFrameNow(
+      String rule, {
+      Result<MemoryRecall>? newest,
+    }) async {
+      frameNow = true;
+      if (newest == null) {
+        await sub.cancel();
+        await assistant.dispose();
+        assistant = await build(withMemory: false);
+        events = [];
+        sub = assistant.events.listen(events.add);
+      } else {
+        latest = newest;
+      }
+      recognizer.text = 'What did you see?';
+      snapshot.complete(Result.ok(nowSnapshot()));
+      await assistant.micDown();
+      final turn = assistant.micUp();
+      await untilAsked(1);
+
+      final route = sides().whereType<RouteChosen>().single.route;
+      expect(route, isA<DetailedRoute>());
+      expect(route.rule, rule);
+      expect(sides().whereType<MemoryRecalled>(), isEmpty);
+      expect(recalled, isEmpty);
+      expect(encodes, 1);
+      expect(sides().whereType<SnapshotTaken>().single.snapshot.frameId, 9);
+      expect(sides().whereType<FrameSentToGemma>().single.image.frameId, 9);
+      expect(conversation.images.single?.last, 9, reason: 'the frame now');
+      expect(conversation.prompts.single, endsWith('What did you see?'));
+      conversation.emit('A desk with a mug.');
+      await conversation.finish();
+      final result = await turn;
+      expect(result.outcome, TurnOutcome.completed);
+      expect(answer(), 'A desk with a mug.');
+    }
+
+    test('switched off (the default below 6.5 GiB of RAM)', () async {
+      await answeredFromTheFrameNow(
+        'memory-disabled',
+        newest: const Result.ok(MemoryDisabled()),
+      );
+      expect(latestCalls, 1);
+    });
+
+    test('off (the embedder failed)', () async {
+      await answeredFromTheFrameNow(
+        'memory-off',
+        newest: const Result.ok(MemoryOff('EmbeddingGemma failed to load')),
+      );
+    });
+
+    test('an app without a visual memory', () async {
+      await answeredFromTheFrameNow('memory-off');
+    });
+
+    test('a question with something to search for is still told the memory '
+        'is switched off, without the LLM', () async {
+      recall = const Result.ok(MemoryDisabled());
+      await assistant.micDown();
+      await assistant.micUp();
+      expect(answer(), MemoryAnswers.disabled);
+      expect(sides().whereType<RouteChosen>().single.route, isA<MemoryRoute>());
+      expect(conversation.prompts, isEmpty);
+    });
   });
 
   test('a hit with images off: a template with the time and that frame\'s '

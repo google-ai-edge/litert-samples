@@ -82,8 +82,8 @@ typedef _ErrorStrC = Pointer<Utf8> Function(Pointer<Void>);
 /// Where libturbojpeg is looked for, in order, for [operatingSystem]:
 /// - Linux: the copy shipped in the bundle's `lib/` (next to the
 ///   executable, installed by `linux/CMakeLists.txt` from the build
-///   machine), then the system's `libturbojpeg.so.0` (Debian/Ubuntu
-///   package `libturbojpeg`; Raspberry Pi OS `libturbojpeg0`).
+///   machine), then the system's `libturbojpeg.so.0` (Ubuntu package
+///   `libturbojpeg`; Debian and Raspberry Pi OS `libturbojpeg0`).
 /// - macOS: Homebrew's `jpeg-turbo` (readable from tests and unsandboxed
 ///   runs; the sandboxed app falls back to the engine decoder).
 /// - Elsewhere: none (Android and iOS use the engine decoder).

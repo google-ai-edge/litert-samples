@@ -19,19 +19,36 @@ import 'dart:typed_data';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter_edge_ai/flutter_edge_ai.dart' hide ModelSpec;
+import 'package:flutter_edge_ai_litertlm/flutter_edge_ai_litertlm.dart'
+    show
+        BackendInitAttemptFailure,
+        BackendInitException,
+        LiteRtLmBundleException,
+        LiteRtLmBundleProblem,
+        LiteRtLmEngineCreateException,
+        NpuDispatchUnavailableException;
 
 import '../../../config/model_catalog.dart';
 import '../../../domain/models/chat_model_config.dart';
-import '../../../domain/models/npu_availability.dart';
 import '../../../utils/result.dart';
 import '../../../utils/wav.dart';
 import '../images/image_normalizer.dart';
-import 'npu_availability.dart';
 
 /// What [LlmService.load] reports.
 final class const LlmInfo({
   required final String modelId,
-  required final PreferredBackend backend,
+
+  /// `InferenceModel.activeBackend`: the backend the engine runs on. The
+  /// strict engine either comes up on the requested one or fails the load;
+  /// null when the engine does not report one (the web engine, not built
+  /// here).
+  required final PreferredBackend? backend,
+
+  /// `InferenceModel.activeVisionBackend` / `activeAudioBackend`: where the
+  /// engine put each encoder (its own choice: the app asks for none); null
+  /// for one that was not loaded or that the engine does not report.
+  final PreferredBackend? visionBackend,
+  final PreferredBackend? audioBackend,
   required final Duration loadTime,
 
   /// The context window the engine was built with (`InferenceModel
@@ -47,73 +64,57 @@ final class const LlmInfo({
   final int? rssAfterBytes,
 });
 
-/// The engine came up on a different backend than requested. Never a silent
-/// fallback: setup stops and the UI shows this, with why the requested
-/// backend failed when flutter_edge_ai said so ([nativeReasons]).
-final class BackendMismatchException implements Exception {
-  const BackendMismatchException({
-    required this.requested,
-    required this.active,
-    this.modelName = 'Gemma',
-    this.nativeReasons = const [],
-  });
-
-  final PreferredBackend requested;
-  final PreferredBackend? active;
-  final String modelName;
-
-  /// flutter_edge_ai's own lines about the failed attempts (`npu backend
-  /// failed, trying the next candidate: …`).
-  final List<String> nativeReasons;
-
-  @override
-  String toString() =>
-      '$modelName: requested ${requested.name} but the engine loaded on '
-      '${active?.name ?? 'an unknown backend'}. Fallback is disabled, so it '
-      'was closed.${_reasons(requested, nativeReasons)}';
-}
-
-/// `PreferredBackend.npu` on a device where flutter_edge_ai would not offer
-/// it ([NpuUnavailable]): fails before anything loads, instead of loading on
-/// the GPU or CPU flutter_edge_ai would put it on.
-final class NpuUnavailableException implements Exception {
-  const NpuUnavailableException({
-    required this.modelName,
-    required this.reason,
-  });
-
-  final String modelName;
-  final String reason;
-
-  @override
-  String toString() =>
-      '$modelName: the NPU is not available on this device ($reason). Run '
-      'it on the GPU or CPU, or use a Snapdragon phone with an NPU build for '
-      'its SoC.';
-}
-
-/// The load itself failed: wrong SoC, a context the build does not have, no
-/// vision encoder, a broken file. [cause] is the engine's error;
-/// [nativeReasons] what flutter_edge_ai printed about each attempt. (With
-/// a tower the header leaves open on the NPU, `ModelRepository` adds how to
-/// set it to the CPU, whichever step failed.)
+/// The chat model did not load: [cause] is the plugin's typed error, and
+/// [reason] says what it says. The engine is registered with
+/// `LiteRtLmEngine(backendFallback: false)` (`initEdgeAi`), so a load makes
+/// one attempt, on [requested], and never comes up on another backend:
+/// - a [LiteRtLmBundleException]: the file cannot run as asked, said before
+///   any engine exists (its [LiteRtLmBundleProblem]: an NPU build asked for
+///   the GPU or the CPU, an incomplete file, an NPU this package has no
+///   dispatch for, …);
+/// - a [BackendInitException]: the attempt failed; each
+///   [BackendInitAttemptFailure.error] is a [LiteRtLmEngineCreateException]
+///   (with LiteRT-LM's own [LiteRtLmEngineCreateException.nativeMessage]) or
+///   a [NpuDispatchUnavailableException] (the NPU cannot be reached here);
+/// - anything else as it was thrown.
 final class ChatModelLoadException implements Exception {
   const ChatModelLoadException({
     required this.modelName,
     required this.requested,
     required this.cause,
-    this.nativeReasons = const [],
   });
 
   final String modelName;
   final PreferredBackend requested;
   final Object cause;
-  final List<String> nativeReasons;
+
+  /// The plugin's reason, in its own words.
+  String get reason => switch (cause) {
+    LiteRtLmBundleException(:final problem, :final message) =>
+      '$message (${problem.name})',
+    BackendInitException(:final attempts) => [
+      for (final attempt in attempts)
+        '${attempt.backend.name}: ${_attemptReason(attempt.error)}',
+    ].join('; '),
+    final other => '$other',
+  };
+
+  /// An attempt's error in the plugin's words. Its engine-create message
+  /// usually has LiteRT-LM's own reason in it already:
+  /// `Failed to create engine on gpu: {nativeMessage}. Model: {path}`. One
+  /// that does not (a declared `section_backend_constraint`) gets it
+  /// appended.
+  static String _attemptReason(Object error) => switch (error) {
+    LiteRtLmEngineCreateException(:final message, :final nativeMessage?)
+        when !message.contains(nativeMessage) =>
+      '$message (LiteRT-LM: $nativeMessage)',
+    LiteRtLmEngineCreateException(:final message) => message,
+    NpuDispatchUnavailableException(:final message) => message,
+    final other => '$other',
+  };
 
   @override
-  String toString() =>
-      '$modelName did not load on ${requested.name}: $cause'
-      '${_reasons(requested, nativeReasons)}';
+  String toString() => '$modelName did not load on ${requested.name}: $reason';
 }
 
 /// A 1 s 16 kHz mono PCM16 WAV of a quiet 440 Hz tone: what an audio warm-up
@@ -127,25 +128,6 @@ Uint8List warmUpWav() {
   return wavFromPcm16(samples.buffer.asUint8List(), sampleRate: rate);
 }
 
-String _reasons(PreferredBackend requested, List<String> reasons) =>
-    reasons.isEmpty ? '' : ' flutter_edge_ai reported: ${reasons.join(' | ')}';
-
-/// flutter_edge_ai's warnings during a model build: its fallback notices go
-/// through `print` (`[flutter_edge_ai] WARNING: …`, flutter_edge_ai_litertlm
-/// 1.9.0 `lib/src/ffi/backend_preference.dart`), the only place the reason a
-/// requested backend failed shows up when another one loads.
-@visibleForTesting
-List<String> nativeReasonsIn(List<String> printed) => [
-  for (final line in printed)
-    if (line.contains('[flutter_edge_ai] WARNING:'))
-      _clip(
-        line.substring(line.indexOf('WARNING:') + 'WARNING:'.length).trim(),
-      ),
-];
-
-String _clip(String line) =>
-    line.length > 400 ? '${line.substring(0, 400)}…' : line;
-
 /// The Gemma file to install is not there: `GEMMA_MODEL_PATH` points at a
 /// file the app cannot see, or a store file vanished after verification.
 final class ModelFileMissingException implements Exception {
@@ -156,8 +138,9 @@ final class ModelFileMissingException implements Exception {
   @override
   String toString() =>
       'Model file not found or not readable: $path (check GEMMA_MODEL_PATH; '
-      'a sandboxed macOS build reads only its own container), or choose the '
-      'model again on the Models screen.';
+      'a sandboxed macOS build reads its own container, debug builds also '
+      '~/Downloads, and files chosen in the app), or choose the model again '
+      'on the Models screen.';
 }
 
 /// Builds the model for a [LlmConfig]. The app uses [getActiveModelFor];
@@ -176,17 +159,20 @@ typedef ActiveModelGetter = Future<InferenceModel> Function({
   bool? supportAudio,
 });
 
-/// `FlutterEdgeAi.getActiveModel` with exactly the [LlmConfig] arguments. A
-/// tower's backend goes only with the tower (null when it is not loaded);
-/// flutter_edge_ai runs a tower without one on the CPU.
+/// `FlutterEdgeAi.getActiveModel` with exactly the [LlmConfig] arguments.
+/// No tower backend is asked for: with `preferredVisionBackend` and
+/// `preferredAudioBackend` null the engine places each encoder from the file
+/// (flutter_edge_ai_litertlm 1.14.0: its declared `backend_constraint`, the
+/// NPU for an encoder compiled for one, else the CPU) and reports where
+/// (`InferenceModel.activeVisionBackend` / `activeAudioBackend`).
 Future<InferenceModel> getActiveModelFor(
   LlmConfig config, {
   ActiveModelGetter getActiveModel = FlutterEdgeAi.getActiveModel,
 }) => getActiveModel(
   maxTokens: config.maxTokens,
   preferredBackend: config.backend,
-  preferredVisionBackend: config.visionBackend,
-  preferredAudioBackend: config.audioBackend,
+  preferredVisionBackend: null,
+  preferredAudioBackend: null,
   supportImage: config.supportImage,
   maxNumImages: config.maxNumImages,
   supportAudio: config.supportAudio,
@@ -209,7 +195,6 @@ class LlmService {
     this._loadModel = getActiveModelFor,
     this._warmUpImage = warmUpPng,
     this._warmUpAudio = warmUpWav,
-    this._npu = probeNpu,
   });
 
   final ModelLoader _loadModel;
@@ -219,9 +204,6 @@ class LlmService {
 
   /// The short WAV an audio warm-up sends ([warmUpWav] in the app).
   final Uint8List Function() _warmUpAudio;
-
-  /// Whether flutter_edge_ai would accept the NPU here ([probeNpu]).
-  final NpuAvailability Function() _npu;
 
   InferenceModel? _model;
   String? _modelId;
@@ -244,11 +226,12 @@ class LlmService {
   /// model; returns the model id. Nothing is downloaded here: the model store
   /// does that, with resume and verification.
   ///
-  /// flutter_edge_ai builds the active spec's own path, but reuses a loaded
-  /// model of the same file name with the same arguments (flutter_edge_ai
-  /// 2.1.0 `createModel` in `lib/mobile/flutter_edge_ai_mobile.dart` and
-  /// `lib/desktop/flutter_edge_ai_desktop.dart`): [unload] before installing
-  /// another file. [modelType] is the install-time type every chat inherits.
+  /// flutter_edge_ai 2.4.0 reuses a loaded model only for the same spec
+  /// (name, source path, type) and the same arguments, and closes it
+  /// otherwise (`InferenceModelCache._whyRebuild`,
+  /// `lib/src/lifecycle/inference_model_cache.dart`); [unload] before
+  /// installing another file anyway. [modelType] is the install-time type
+  /// every chat inherits.
   Future<Result<String>> install({
     required String path,
     ModelType modelType = ModelType.gemma4,
@@ -271,43 +254,25 @@ class LlmService {
     }
   }
 
-  /// Loads the installed model with [model]'s [LlmConfig]. Fails, and closes
-  /// what was loaded, when the engine comes up on another backend than
-  /// requested; an NPU request where flutter_edge_ai would not offer the NPU
-  /// fails before loading. flutter_edge_ai's prints during the build are
-  /// captured (and still printed) so the error can say why the requested
-  /// backend failed.
+  /// Loads the installed model with [model]'s [LlmConfig], on exactly its
+  /// backend: the engine is strict (`LiteRtLmEngine(backendFallback: false)`),
+  /// so a backend that cannot run it fails the load with the plugin's typed
+  /// error, wrapped in a [ChatModelLoadException]. No other check is made
+  /// here: an NPU this device cannot reach is the plugin's
+  /// [NpuDispatchUnavailableException], an NPU build asked for the GPU its
+  /// [LiteRtLmBundleException].
   Future<Result<LlmInfo>> load(ChatModelConfig model) async {
     final config = model.llm;
-    if (config.backend == PreferredBackend.npu) {
-      if (_npu() case NpuUnavailable(:final reason)) {
-        final error = NpuUnavailableException(
-          modelName: model.name,
-          reason: reason,
-        );
-        debugPrint('[LlmService] $error');
-        return Result.error(error);
-      }
-    }
-    // A model still loaded is closed first: flutter_edge_ai would close it
-    // anyway when the arguments differ, and reuse it (the old file) when
-    // they do not.
+    // A model still loaded is closed first: flutter_edge_ai 2.4.0 would
+    // close it anyway when the spec or the arguments differ, and reuse it
+    // when neither does.
     await unload();
     final rssBefore = _rss();
     final watch = Stopwatch()..start();
-    final printed = <String>[];
     try {
       final InferenceModel loaded;
       try {
-        loaded = await runZoned(
-          () => _loadModel(config),
-          zoneSpecification: ZoneSpecification(
-            print: (self, parent, zone, line) {
-              printed.add(line);
-              parent.print(zone, line);
-            },
-          ),
-        );
+        loaded = await _loadModel(config);
       } catch (e, st) {
         debugPrint('[LlmService] load failed: $e\n$st');
         return Result.error(
@@ -315,7 +280,6 @@ class LlmService {
             modelName: model.name,
             requested: config.backend,
             cause: e,
-            nativeReasons: nativeReasonsIn(printed),
           ),
         );
       }
@@ -326,35 +290,32 @@ class LlmService {
         await _closeQuietly(loaded);
         return const Result.error(LlmServiceClosedException());
       }
-      final active = loaded.activeBackend;
-      if (active != config.backend) {
-        final error = BackendMismatchException(
-          requested: config.backend,
-          active: active,
-          modelName: model.name,
-          nativeReasons: nativeReasonsIn(printed),
-        );
-        debugPrint('[LlmService] $error');
-        _model = null;
-        await _closeQuietly(loaded);
-        return Result.error(error);
-      }
       _model = loaded;
       _loaded = model;
+      final active = loaded.activeBackend;
       final rssAfter = _rss();
       final info = LlmInfo(
         modelId: _modelId ?? model.name,
-        backend: active!,
+        backend: active,
+        visionBackend: loaded.activeVisionBackend,
+        audioBackend: loaded.activeAudioBackend,
         loadTime: watch.elapsed,
         contextTokens: loaded.maxTokens,
         rssBeforeBytes: rssBefore,
         rssAfterBytes: rssAfter,
       );
+      final towers = [
+        if (config.supportImage)
+          'vision:${info.visionBackend?.name ?? 'not reported'}',
+        if (config.supportAudio)
+          'audio:${info.audioBackend?.name ?? 'not reported'}',
+      ];
       debugPrint(
         '[LlmService] loaded ${model.name} (${info.modelId}) '
-        'backend=${active.name} load=${watch.elapsedMilliseconds}ms '
+        'backend=${active?.name ?? 'not reported'} '
+        'load=${watch.elapsedMilliseconds}ms '
         'maxTokens=${loaded.maxTokens} (requested ${config.maxTokens}) '
-        'towers=${config.towers.parts.isEmpty ? 'none' : config.towers.parts.map((p) => p.replaceFirst(' ', ':')).join(',')} '
+        'towers=${towers.isEmpty ? 'none' : towers.join(',')} '
         'tools=${model.tools} '
         'type=${model.modelType.name} '
         'rss ${_mb(rssBefore)} -> ${_mb(rssAfter)}'

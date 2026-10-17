@@ -25,7 +25,6 @@ import '../config/model_catalog.dart';
 import '../data/services/detector/frame_message.dart';
 import '../data/services/frames/frame_source.dart' show FrameView;
 import '../domain/models/audio_devices.dart' show DeviceReady;
-import '../domain/models/chat_model.dart' show CustomChatModel, LitertlmSection;
 import '../domain/models/chat_model_config.dart';
 import '../domain/models/detection.dart';
 import '../domain/models/detector_spec.dart' show kDetModelAsset;
@@ -81,20 +80,10 @@ final class const SelfTestChatModel({
   /// The file's SHA-256 when known (computed when it was stored or hashed in
   /// place; pinned for an adopted earlier Gemma 4 E2B download).
   final String? sha256,
-
-  /// The user's own `.litertlm` (the app's plan): its towers follow from
-  /// [header], the backend and its saved choices, as in the app. Null for
-  /// the app's fixed Gemma 4 E2B settings (`--gemma`, `GEMMA_MODEL_PATH`:
-  /// [kDefineChatModel]), whose towers stay as they are on any backend.
-  final CustomChatModel? custom,
-
-  /// The sections of [custom]'s file header as the app last read them (the
-  /// plan's); null when it could not be read (no tower loads).
-  final List<LitertlmSection>? header,
 }) {
   /// [config] on [backend] instead (`--gemma-backend`); itself when null.
-  /// The towers of [custom] are placed again for that backend
-  /// ([CustomChatModel.towersOf]); fixed ones stay.
+  /// The towers stay: they are the file's whatever the backend, and the
+  /// engine places them.
   SelfTestChatModel withBackend(PreferredBackend? backend) =>
       backend == null || backend == config.llm.backend
       ? this
@@ -102,8 +91,6 @@ final class const SelfTestChatModel({
           file: file,
           settingsSource: '$settingsSource, backend from --gemma-backend',
           sha256: sha256,
-          custom: custom,
-          header: header,
           config: ChatModelConfig(
             name: config.name,
             modelType: config.modelType,
@@ -112,37 +99,48 @@ final class const SelfTestChatModel({
               maxTokens: config.llm.maxTokens,
               backend: backend,
               maxNumImages: config.llm.maxNumImages,
-              towers: switch ((custom, header)) {
-                (final custom?, final header?) =>
-                  custom.copyWith(backend: backend).towersOf(header),
-                _ => config.llm.towers,
-              },
+              supportImage: config.llm.supportImage,
+              supportAudio: config.llm.supportAudio,
             ),
           ),
         );
 
-  /// `npu · ctx 1280 · vision cpu · audio npu · tools off · type gemmaIt`:
-  /// each loaded tower with where it runs.
+  /// `npu · ctx 1280 · towers vision+audio · tools off · type gemmaIt`: the
+  /// towers that load (where each runs is the engine's choice, reported
+  /// after the load).
   String get settingsLine => [
     config.llm.backend.name,
     'ctx ${config.llm.maxTokens}',
-    ...config.llm.towers.parts,
+    _towersAsked(config.llm),
     'tools ${config.tools ? 'on' : 'off'}',
     'type ${config.modelType.name}',
   ].join(' · ');
 }
 
+String _towersAsked(LlmConfig llm) {
+  final towers = [
+    if (llm.supportImage) 'vision',
+    if (llm.supportAudio) 'audio',
+  ];
+  return 'towers ${towers.isEmpty ? 'none' : towers.join('+')}';
+}
+
 /// [GemmaLoad.config] for [config] on an engine built with [engineContext]
-/// tokens: `maxTokens 8192 (engine 4096) · vision cpu · tools on · type
-/// gemma4` (the engine's context only when it differs; each loaded tower
-/// with where it runs).
+/// tokens whose encoders run on [vision] and [audio]
+/// (`InferenceModel.activeVisionBackend` / `activeAudioBackend`):
+/// `maxTokens 512 (engine 1024) · vision cpu · tools on · type gemma4` (the
+/// engine's context only when it differs; each tower that loaded with where
+/// the engine put it, `not reported` when it does not say).
 String gemmaLoadConfigLine(
   ChatModelConfig config, {
   required int engineContext,
+  PreferredBackend? vision,
+  PreferredBackend? audio,
 }) => [
   'maxTokens ${config.llm.maxTokens}'
       '${engineContext == config.llm.maxTokens ? '' : ' (engine $engineContext)'}',
-  ...config.llm.towers.parts,
+  if (config.llm.supportImage) 'vision ${vision?.name ?? 'not reported'}',
+  if (config.llm.supportAudio) 'audio ${audio?.name ?? 'not reported'}',
   'tools ${config.tools ? 'on' : 'off'}',
   'type ${config.modelType.name}',
 ].join(' · ');
@@ -151,8 +149,13 @@ String gemmaLoadConfigLine(
 final class const GemmaLoad({
   required final String modelId,
 
-  /// `InferenceModel.activeBackend`.
-  required final PreferredBackend backend,
+  /// `InferenceModel.activeBackend`; null when the engine reports none.
+  required final PreferredBackend? backend,
+
+  /// `InferenceModel.activeVisionBackend` / `activeAudioBackend`: where the
+  /// engine put each encoder; null for one not loaded or not reported.
+  final PreferredBackend? visionBackend,
+  final PreferredBackend? audioBackend,
   required final Duration loadTime,
   required final Duration warmUpTime,
 

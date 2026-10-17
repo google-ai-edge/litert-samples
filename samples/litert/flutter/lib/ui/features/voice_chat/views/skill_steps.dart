@@ -72,6 +72,7 @@ class SkillStepsPanel extends StatelessWidget {
     SkillLoaded() => Icons.help_outline,
     IntentCalled() => Icons.play_arrow,
     IntentSucceeded() => Icons.check,
+    EmptyAnswerRetried() => Icons.replay,
     IntentFailed() => Icons.error_outline,
   };
 
@@ -84,6 +85,9 @@ class SkillStepsPanel extends StatelessWidget {
         'runIntent($intent${parameters.isEmpty ? '' : ', $parameters'}) · $at',
       IntentSucceeded(:final result, :final elapsed) =>
         '$result (${elapsed.inMilliseconds} ms)',
+      EmptyAnswerRetried(:final skill, :final attempt) =>
+        'no answer after loadSkill($skill): asked again'
+            '${attempt == 1 ? '' : ' ($attempt)'} · $at',
       IntentFailed(:final intent, :final message) =>
         '${intent ?? 'tool'} failed: $message',
     };

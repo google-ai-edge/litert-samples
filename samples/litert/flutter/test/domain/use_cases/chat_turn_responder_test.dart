@@ -251,4 +251,98 @@ void main() {
       expect(sides.whereType<ChatContextReset>(), hasLength(1));
     });
   });
+
+  group('fitting the excerpts to the context window', () {
+    final passages = [
+      passage(1, similarity: 0.8),
+      passage(2, similarity: 0.7),
+      passage(3, similarity: 0.6),
+    ];
+    String prompt(int keep) =>
+        PromptBuilder.build('What is LiteRT?', passages.sublist(0, keep));
+
+    test('the candidates go most excerpts first, down to none; the one that '
+        'fits is sent, and the retrieval keeps only its excerpts', () async {
+      conversation.promptFit = (_) => const Result.ok(1);
+
+      await turn(
+        responderWith(FakeRetriever(Result.ok(used(passages)))),
+        'What is LiteRT?',
+      );
+
+      expect(conversation.fitCalls.single, [
+        prompt(3),
+        prompt(2),
+        prompt(1),
+        prompt(0),
+      ]);
+      expect(conversation.prompts.single, prompt(2));
+      final shown = sides.whereType<ChatRetrieval>().single.retrieval;
+      expect(shown.passages, passages.sublist(0, 2));
+      expect(shown.detail, '2 of 3 excerpts (context)');
+    });
+
+    test('measured only once the previous reply has ended: the chat it may '
+        'still be replacing is not the one the turn goes to', () async {
+      final previous = conversation.ask('Earlier question').listen((_) {});
+      await pumpEventQueue();
+      expect(conversation.isGenerating.value, isTrue);
+
+      final text = StringBuffer();
+      final done = responderWith(FakeRetriever(Result.ok(used(passages))))
+          .respond('What is LiteRT?')
+          .listen(text.write)
+          .asFuture<void>();
+      await pumpEventQueue();
+      expect(conversation.fitCalls, isEmpty, reason: 'still waiting');
+      expect(sides, isEmpty);
+
+      await conversation.finish();
+      await previous.cancel();
+      await pumpEventQueue();
+      expect(conversation.fitCalls, hasLength(1));
+      conversation.emit('It is a runtime [1].');
+      await conversation.finish();
+      await done;
+      expect(conversation.prompts.last, prompt(3));
+    });
+
+    test('a fit that cannot be measured sends every excerpt (the ask then '
+        'says what is wrong), and the retrieval keeps them all', () async {
+      conversation.promptFit = (_) =>
+          Result.error(Exception('the tokenizer is gone'));
+
+      await turn(
+        responderWith(FakeRetriever(Result.ok(used(passages)))),
+        'What is LiteRT?',
+      );
+
+      expect(conversation.fitCalls, hasLength(1));
+      expect(conversation.prompts.single, prompt(3));
+      final shown = sides.whereType<ChatRetrieval>().single.retrieval;
+      expect(shown.passages, passages);
+      expect(shown.detail, isNull);
+    });
+
+    test('none fits, not even the question alone: every excerpt is sent, so '
+        'the ask fails as too long as before', () async {
+      conversation.promptFit = (_) => const Result.ok(null);
+
+      await turn(
+        responderWith(FakeRetriever(Result.ok(used(passages)))),
+        'What is LiteRT?',
+      );
+
+      expect(conversation.prompts.single, prompt(3));
+      expect(
+        sides.whereType<ChatRetrieval>().single.retrieval.passages,
+        passages,
+      );
+    });
+
+    test('nothing to fit without excerpts: no measuring', () async {
+      await turn(responderWith(null), 'Hi');
+      expect(conversation.fitCalls, isEmpty);
+    });
+  });
 }

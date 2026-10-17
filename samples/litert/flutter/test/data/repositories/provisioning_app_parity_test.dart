@@ -35,6 +35,7 @@ import '../../fakes/fake_detector_runtime.dart';
 import '../../fakes/fake_knowledge.dart';
 import '../../fakes/fake_llm_service.dart';
 import '../../fakes/fake_speech.dart';
+import '../../support/fake_bundles.dart';
 
 /// The Models screen says present exactly what setup loads: for the same
 /// choice and define, `ProvisioningRepository.presenceOf` (which gates
@@ -75,7 +76,7 @@ void main() {
 
   CustomChatPlan custom({bool inPlace = false}) => CustomChatPlan(
     path: customFile,
-    header: const [],
+    bundle: BundleRead(bundleInfo()),
     model: CustomChatModel(
       displayName: 'My Gemma 3',
       source: inPlace
@@ -130,7 +131,7 @@ void main() {
         in cases.entries) {
       test(name, () async {
         final define = withDefine ? defineFile : '';
-        final llm = FakeLlmService()..followRequested = true;
+        final llm = FakeLlmService();
         final planned = plan();
         final planner = planned == null ? null : _Planner(planned);
         final models = ModelRepository(
@@ -204,7 +205,7 @@ void main() {
         },
         load: (config) async => FakeEmbeddingModel(),
       ),
-      llm: FakeLlmService()..followRequested = true,
+      llm: FakeLlmService(),
       stt: fakeSttService(),
       tts: fakeTtsService(),
     );

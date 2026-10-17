@@ -286,6 +286,29 @@ void main() {
     );
     expect(live, contains('camq reset 95 ms'));
     expect(live, contains('view frozen on #77 · det live'));
+
+    // A memory turn's frame was encoded when it was stored: no encode time.
+    final remembered = debugOverlayLines(
+      snapshot.copyWith(
+        lastCameraTurn: CameraTurnMetrics(
+          route: const MemoryRoute('keys', 'memory:where-was'),
+          routeTime: _ms(1),
+          image: EncodedSnapshot(
+            png: Uint8List(2048),
+            frameId: 12,
+            width: 320,
+            height: 180,
+            unmirrored: false,
+            encodeTime: Duration.zero,
+          ),
+        ),
+      ),
+      now: _now,
+    );
+    expect(
+      remembered,
+      contains('camq frame #12 320×180 PNG 2 KB · memory frame · TTFT –'),
+    );
   });
 
   test('detection without a backend label, before its first frame: '
@@ -417,5 +440,40 @@ void main() {
       now: _now,
     );
     expect(lines, contains('RAG audio 172 ms · top 0.61 · below gate 0.69'));
+  });
+
+  test('RAG: excerpts that cleared the gate but did not all fit the context '
+      'window say how many went in', () {
+    const hit = Passage(
+      id: 'a#1',
+      doc: 'a.md',
+      title: 'A',
+      section: 'S',
+      content: 'c',
+      similarity: 0.836,
+    );
+    List<String> lines(Retrieval r) => debugOverlayLines(
+      DiagnosticsSnapshot(
+        knowledge: const KnowledgeWaiting(),
+        lastRetrieval: r,
+      ),
+      now: _now,
+    );
+    final used = Retrieval(
+      outcome: RetrievalOutcome.used,
+      passages: const [hit, hit, hit],
+      candidates: const [hit, hit, hit],
+      gate: 0.70,
+      latency: _ms(120),
+    );
+
+    expect(
+      lines(used),
+      contains('RAG 120 ms · top 0.84 · 3 excerpts (gate 0.70)'),
+    );
+    expect(
+      lines(used.keeping(2)),
+      contains('RAG 120 ms · top 0.84 · 2 of 3 excerpts (context) (gate 0.70)'),
+    );
   });
 }

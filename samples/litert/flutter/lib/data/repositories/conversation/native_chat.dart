@@ -41,8 +41,9 @@ final class ChatFactory {
   final SamplerConfig _sampler;
 
   /// What runs the skills' tool calls on an agent chat (the app
-  /// passes `AppIntentExecutor` and `TextSkillExecutor`). Explicit, so the
-  /// global executor registry is never consulted (`agent_session.dart:27`).
+  /// passes `NativeIntentExecutor` and `TextSkillExecutor`). Explicit, so the
+  /// global executor registry is never consulted (`_resolveExecutors` in
+  /// flutter_edge_ai_agent's `agent_session.dart`).
   final List<SkillExecutor> _executors;
   final int _maxIterations;
 
@@ -84,15 +85,17 @@ final class ChatFactory {
   ///
   /// Every skill is added selected: `addAll` defaults to unselected, which
   /// would leave the prompt's skill list empty. Built over our own `createChat`
-  /// (not `AgentSession.fromModel`, whose sampler defaults are
-  /// `topK: 1, temperature: .8`) with only the two tools Demo 1 uses and the
-  /// chat model's image support. No `modelType` here: the native session takes
-  /// its tool format from the type the model was installed with
-  /// (flutter_edge_ai_litertlm 1.9.0 `FfiInferenceModel._nativeToolsJson` reads
-  /// the model's type, not the chat's), and a chat-only type would disagree
-  /// with it. Its chat has the chat model's audio support too, which
-  /// `AgentSession.ask(audioBytes:)` requires. A chat model with tools off
-  /// always gets the plain chat.
+  /// with the shared [kSampler], only the two tools Demo 1 uses
+  /// ([kAgentTools]) and the chat model's image and audio support (audio is
+  /// what `AgentSession.ask(audioBytes:)` requires). `AgentSession.fromModel`
+  /// (flutter_edge_ai_agent 0.3.0) takes the sampler too, but it always
+  /// declares all four `agentTools` (`runSkill` and `runMcp` as well, which no
+  /// executor here runs) and always passes a `modelType` to the chat
+  /// (`gemma4` unless told). No `modelType` here: the native session takes its
+  /// tool format from the type the model was installed with
+  /// (flutter_edge_ai_litertlm 1.14.0 `FfiInferenceModel._nativeToolsJson`
+  /// reads the model's type, not the chat's), and a chat-only type would
+  /// disagree with it. A chat model with tools off always gets the plain chat.
   Future<(InferenceChat, AgentChat?)> build(
     ConversationProfile profile,
     List<Skill> skills,
@@ -118,6 +121,9 @@ final class ChatFactory {
       toolChoice: ToolChoice.auto,
       systemInstruction: systemPrompt,
     );
+    // The package's own answer to an empty generation right after
+    // `loadSkill`: one retry with its nudge (`emptyAfterSkillRetries` 1, the
+    // default), then an `EmptyAnswerEvent`. No retry of the app's own.
     final session = AgentSession(
       chat: chat,
       registry: registry,

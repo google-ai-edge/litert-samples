@@ -1,6 +1,6 @@
 ---
 title: EmbeddingGemma 2 embedding model
-source: https://huggingface.co/google/embeddinggemma-2/blob/914f7f89142e33e77833254d9c9b90c3cef7303b/README.md ; https://huggingface.co/litert-community/embeddinggemma-2-740m-litert-lm/blob/24d962e906c7d332c6428e71c9676855024569e2/README.md ; https://huggingface.co/litert-community/embeddinggemma-2-740m-litert-lm/tree/24d962e906c7d332c6428e71c9676855024569e2 ; https://huggingface.co/litert-community/embeddinggemma-2-text-vision-440m-litert-lm/blob/e301f74d5551b0c2641bd5cb4652a76239d5c5f8/README.md ; https://huggingface.co/litert-community/embeddinggemma-2-text-270m-litert-lm/blob/9be6e8b90982095dc05c2bd162e4b954ee4dbac7/README.md ; https://pub.dev/packages/flutter_edge_ai_litertlm/versions/1.13.2 (README.md, "Embeddings" and the EmbeddingGemma 2 sections)
+source: https://huggingface.co/google/embeddinggemma-2/blob/914f7f89142e33e77833254d9c9b90c3cef7303b/README.md ; https://huggingface.co/litert-community/embeddinggemma-2-740m-litert-lm/blob/24d962e906c7d332c6428e71c9676855024569e2/README.md ; https://huggingface.co/litert-community/embeddinggemma-2-740m-litert-lm/tree/24d962e906c7d332c6428e71c9676855024569e2 ; https://huggingface.co/litert-community/embeddinggemma-2-text-vision-440m-litert-lm/blob/e301f74d5551b0c2641bd5cb4652a76239d5c5f8/README.md ; https://huggingface.co/litert-community/embeddinggemma-2-text-270m-litert-lm/blob/9be6e8b90982095dc05c2bd162e4b954ee4dbac7/README.md ; https://pub.dev/packages/flutter_edge_ai_litertlm/versions/1.14.0 (README.md, "Embeddings" and the EmbeddingGemma 2 sections)
 license: Apache-2.0 (google/embeddinggemma-2 and the litert-community cards) ; MIT (flutter_edge_ai_litertlm)
 ---
 
@@ -46,18 +46,18 @@ The litert-community organization on Hugging Face publishes EmbeddingGemma 2 for
 | Input sizes | text signatures of 128, 256, 512, 1024, 2048 or 8192 tokens | text, plus 70 or 140 image soft tokens | text and images, plus audio |
 | Output sizes | 128, 256, 512 or 768 values | same | same |
 
-The 440m carries the 270m's text tower, so its text vectors are the same; the 740m carries the 440m's text and vision towers, so its text and image vectors are the same as the 440m's. For text alone the 270m is the one to use: a 440m loaded for text still loads its vision tower (flutter_edge_ai_litertlm README). The 740m loads only the media declared when the embedder is created; this app declares audio at setup and adds images the first time the visual memory runs, which reloads the model.
+The 440m carries the 270m's text tower, so its text vectors are the same; the 740m carries the 440m's text and vision towers, so its text and image vectors are the same as the 440m's. For text alone the 270m is the one to use: a 440m loaded for text still loads its vision tower (flutter_edge_ai_litertlm README). The 740m accepts only the media declared when the embedder is created, although the engine writes the weight caches of all its towers, also for text-only use (flutter_edge_ai_litertlm README). This sample app declares audio at setup and adds images the first time the camera's visual memory runs, which reloads the model. Measured for this sample on an M4 Pro Mac in a test process holding only the embedder, declaring images at load raised that process's memory after load and warm-up from 648 MB to 1055 MB and the load time from 1.4 s to 2.2 s; a re-run of that test the next day measured the widening reload the app does at 1.9 s, adding 327 MB.
 
 ## Inputs, outputs and Matryoshka embedding sizes
 
 - In: text, an image, a video, an audio clip, or several of them in one input. In the reference model all parts share one 8,192-token context. The flutter_edge_ai_litertlm package embeds at most 1024 tokens per input (task prefix, BOS and EOS included) and never truncates: a longer input fails with `EmbeddingInputTooLongException`, which carries the exact token count, after a full embedding has been paid for. Split long text before embedding.
 - Out: one vector of 768 numbers (3072 bytes as float32).
 
-EmbeddingGemma 2 is trained with Matryoshka Representation Learning (MRL): keep only the first 512, 256 or 128 values of the 768 and the shorter vector still works, with up to 6 times less storage and faster comparisons. Two rules: normalize the shortened vector again before computing cosine similarity (skipping this degrades ranking silently), and give queries and documents the same dimension. Quality stays close to lossless down to 256 dimensions; 128 suits text-only workloads and degrades multimodal quality noticeably.
+EmbeddingGemma 2 is trained with Matryoshka Representation Learning (MRL): keep only the first 512, 256 or 128 values of the 768 and the shorter vector still works, with up to 6 times less storage and faster comparisons. Two rules: normalize the shortened vector again before computing cosine similarity (skipping this degrades ranking silently), and give queries and documents the same dimension. Quality stays close to lossless down to 256 dimensions. The card calls 128 dimensions best suited to text-only workloads: it degrades multimodal quality substantially (MMEB v2 overall drops from 59.01 at 768 dimensions to 45.65) and should be validated against your own workload before adoption.
 
 EmbeddingGemma 1 and EmbeddingGemma 2 both produce 768-dimensional vectors, but in different embedding spaces: never mix them in one vector store.
 
-Run the model in `bfloat16` or `float32`, never in `float16`: its activations exceed the `float16` range, and the result is NaN or silently degraded vectors rather than an error.
+The model card says to run the reference model in `bfloat16` or `float32`, never in `float16`: its activations exceed the `float16` range, and the result is NaN or silently degraded vectors rather than an error.
 
 ## Task prefixes for queries and documents
 
@@ -144,7 +144,7 @@ The 270m and 440m cards report the same text and text + image numbers. Audio is 
 
 ## EmbeddingGemma 2 memory use on LiteRT-LM
 
-Peak CPU memory from the same 740m card, taken at the second load (which reads the weight caches). Each platform uses its own metric (`ru_maxrss` on Android and Linux, `phys_footprint` on iOS and macOS), so the numbers are not comparable across operating systems, and accelerator memory is not included except in `phys_footprint`.
+CPU memory from the same 740m card, taken at the second load (which reads the weight caches); memory at the first load may vary. Each platform uses its own metric (`ru_maxrss` on Android and Linux, `phys_footprint` on iOS and macOS), so the numbers are not comparable across operating systems, and accelerator memory is not included except in `phys_footprint`.
 
 | Device | Backend | Text | Text + image | Text + audio | Text + image + audio |
 | --- | --- | --- | --- | --- | --- |
@@ -159,9 +159,9 @@ flutter_edge_ai_litertlm adds its own measurements on the CPU: memory grows with
 
 ## CPU, GPU and per-SoC NPU bundles
 
-Each of the three repositories holds the generic `.litertlm` for the CPU and GPU and the same model compiled ahead of time for one chip's NPU: Google Tensor G5 and G6, Intel Panther Lake (`_Intel_PTL`), MediaTek MT6991 and MT6993, and Qualcomm QCS8275, SM8550, SM8650, SM8750 and SM8850, for example `embeddinggemma-2-740m_Qualcomm_SM8650.litertlm`. A per-SoC bundle runs only on that chip's NPU.
+Each of the three repositories holds the generic `.litertlm` for the CPU and GPU and the same model compiled ahead of time for one chip's NPU: Google Tensor G5 and G6, Intel Panther Lake (`_Intel_PTL`), MediaTek MT6991 and MT6993, and Qualcomm QCS8275, SM8550, SM8650, SM8750 and SM8850, for example `embeddinggemma-2-740m_Qualcomm_SM8650.litertlm`. A per-SoC bundle is compiled for that chip's NPU.
 
-flutter_edge_ai_litertlm runs the generic bundle on the CPU natively (`activeBackend` is `cpu` on Android, iOS and desktop) and on WebGPU in the browser. It runs the Qualcomm per-SoC bundles on Qualcomm Android and Linux arm64 with `PreferredBackend.npu` (verified on SM8850, SM8650 and QCS8275, with `qualcomm_npu: true` in the app's build hooks), and the Intel ones on Windows x64. On an SM8650 (Galaxy S24) a text takes about 9 ms on the NPU against 53 ms on its CPU, and an image about 0.31 s. The 740m's per-SoC bundles embed audio with their audio encoder on the CPU.
+flutter_edge_ai_litertlm runs the generic bundle on the CPU natively (`activeBackend` is `cpu` on Android, iOS and desktop) and on WebGPU in the browser. It runs the Qualcomm per-SoC bundles on Qualcomm Android and Linux arm64 with `PreferredBackend.npu` (verified on SM8850, SM8650 and QCS8275, with `qualcomm_npu: true` in the app's build hooks), and the Intel ones on Windows x64. On an SM8650 (Galaxy S24) a text takes about 9 ms on the NPU against 53 ms on its CPU, and an image about 0.31 s. The 740m's per-SoC bundles embed audio with their audio encoder on the CPU (verified on SM8850, a Galaxy S26+).
 
 NPU and CPU vectors are close but not equal: cosine 0.79–0.86 for sentences of a few words, 0.92 at about 50 words and 0.99 from about 200 words, and 0.86–0.88 for images. Retrieval within the NPU's own space holds, but an index built with one bundle must not take queries from the other: give an NPU index its own profile id. Nothing switches backend by itself; every mismatch fails at load with `EmbeddingLoadException`.
 
@@ -189,7 +189,7 @@ final clip = await embedder.embed(
 
 `supportImage: true` on the 270m fails with `EmbeddingLoadException` naming the 440m, and `supportAudio: true` on the 270m or the 440m fails naming the 740m; the package reads this from the bundle's header before it builds an engine.
 
-Disk: at every load the engine writes weight caches into the app's cache directory, also for text-only use: 71 MB for the 270m, plus a 218 MB vision cache for the 440m, and 385 MB in total for the 740m (text 71 MB, vision 218 MB, audio 95 MB). The cache is never backed up; if the OS clears it, the next load writes it again.
+Disk: the engine writes weight caches into the app's cache directory at the first load, and again whenever they are missing, also for text-only use: 71 MB for the 270m, plus a 218 MB vision cache for the 440m, and 385 MB in total for the 740m (text 71 MB, vision 218 MB, audio 95 MB). The cache is never backed up; if the OS clears it, the next load writes it again. When the engine cannot create a tower's cache file (a path too long for the platform, a directory the app cannot write to), that tower runs anyway, slower to load and, measured by the package on the 270m, with about 290 MB more memory, and the package only prints a warning. `LiteRtEmbeddingBackend(requireWeightCache: true)` turns a load that wrote no weight cache at all into an `EmbeddingLoadException`; one tower's cache missing beside the others stays a printed warning, and the check runs on the CPU, and on the NPU only for a load with declared audio. A disk that fills while the cache is being written aborts the process in native code.
 
 ## Intended uses of EmbeddingGemma 2
 
@@ -203,4 +203,4 @@ Disk: at every load the engine writes weight caches into the app's cache directo
 
 The pre-training data, with a cutoff of January 2025, covers web documents in more than 140 languages, code, images, video, speech recordings in many languages with environmental sounds, and paired text, image, video and audio samples that align the modalities. Google filtered it for CSAM, certain personal and sensitive information, and low-quality or unsafe content.
 
-EmbeddingGemma 2 is a pre-trained embedding model with no post-training alignment, safety tuning or output moderation; its risks show up in how its vectors are used downstream, so applications need their own safeguards, such as retrieval filtering and fairness testing. Its quality depends on the training data: performance is not equal across its 100+ languages, subtle wording, sarcasm and figurative language can be misread, and omitting the task prefix gives weaker text vectors. Use must follow the Gemma Prohibited Use Policy.
+EmbeddingGemma 2 is a pre-trained embedding model with no post-training alignment, safety tuning or output moderation; its risks show up in how its vectors are used downstream, so applications need their own safeguards, such as retrieval filtering and fairness testing. Its quality depends on the training data: performance may not be equal across its 100+ languages, subtle wording, sarcasm and figurative language can be misread, and omitting the task prefix gives weaker text vectors. Use must follow the Gemma Prohibited Use Policy.

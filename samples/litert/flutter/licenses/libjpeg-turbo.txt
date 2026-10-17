@@ -1,12 +1,13 @@
 libjpeg-turbo (lib/libturbojpeg.so.0 in the Linux bundle)
 
-On Linux the network camera decodes JPEG frames with libjpeg-turbo's TurboJPEG library (lib/libturbojpeg.so.0 in the bundle, copied unmodified from the build machine's Debian/Ubuntu package libturbojpeg, or the system's copy).
+On Linux the network camera decodes JPEG frames with libjpeg-turbo's TurboJPEG library (lib/libturbojpeg.so.0 in the bundle, copied unmodified from the build machine's package, Ubuntu's libturbojpeg or Debian's libturbojpeg0, or the system's copy).
 
 This software is based in part on the work of the Independent JPEG Group.
 
-libjpeg-turbo is covered by the IJG License (the libjpeg API library) and the Modified (3-clause) BSD License (the TurboJPEG API library): https://github.com/libjpeg-turbo/libjpeg-turbo/blob/main/LICENSE.md
+libjpeg-turbo is covered by the IJG License (the libjpeg API library), the Modified (3-clause) BSD License (the TurboJPEG API library) and the zlib License (the SIMD extensions). The copyright years are those of the release the package carries: 2009-2021 in libjpeg-turbo 2.1.2 (Ubuntu 22.04, https://github.com/libjpeg-turbo/libjpeg-turbo/blob/2.1.2/LICENSE.md), 2009-2023 in 2.1.5 (Ubuntu 24.04 and Debian 12, https://github.com/libjpeg-turbo/libjpeg-turbo/blob/2.1.5/LICENSE.md).
 
-Copyright (C) 2009-2023 D. R. Commander. All Rights Reserved.
+libjpeg-turbo 2.1.2: Copyright (C) 2009-2021 D. R. Commander. All Rights Reserved.
+libjpeg-turbo 2.1.5: Copyright (C) 2009-2023 D. R. Commander. All Rights Reserved.
 Copyright (C) 2015 Viktor Szathmáry. All Rights Reserved.
 
 Redistribution and use in source and binary forms, with or without modification, are permitted provided that the following conditions are met:

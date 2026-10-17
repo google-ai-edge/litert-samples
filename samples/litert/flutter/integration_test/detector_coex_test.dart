@@ -41,9 +41,10 @@ import 'dart:ui' as ui;
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart' show rootBundle;
 import 'package:flutter_edge_ai/flutter_edge_ai.dart';
-import 'package:flutter_edge_ai_litertlm/flutter_edge_ai_litertlm.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:integration_test/integration_test.dart';
+import 'package:litert_edge_demos/config/bootstrap.dart'
+    show kStrictLiteRtLmEngine;
 import 'package:litert_edge_demos/config/env.dart';
 import 'package:litert_edge_demos/data/services/detector/detector_service.dart';
 import 'package:litert_edge_demos/data/services/detector/frame_message.dart';
@@ -168,7 +169,7 @@ void main() {
     // 3. Gemma next to the loaded detector, on exactly the requested backend.
     final (backendOut, tokps, chunks) = (await tester.runAsync(() async {
       await FlutterEdgeAi.initialize(
-        inferenceEngines: [const LiteRtLmEngine()],
+        inferenceEngines: const [kStrictLiteRtLmEngine],
       );
       await FlutterEdgeAi.installModel(
         modelType: ModelType.gemma4,

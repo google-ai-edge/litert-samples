@@ -213,6 +213,25 @@ final class CameraExchangeReducer {
                   ),
           ),
         );
+      case TurnInterrupted(:final cause):
+        // As a failure: before its question only the notice; after it the
+        // question, the route and the answer committed just before (as
+        // interrupted when cut short) stay with the notice.
+        final notice = interruptedText(cause);
+        return CameraExchangeUpdate(
+          unfreeze: true,
+          state: state.copyWith(
+            exchange: state.questionPending
+                ? CameraExchange(notice: notice)
+                : CameraExchange(
+                    question: exchange.question,
+                    answer: exchange.answer,
+                    route: exchange.route,
+                    detailed: exchange.detailed,
+                    notice: notice,
+                  ),
+          ),
+        );
       case UserSpoke() || TranscriptArrived() || TranscriptFailed():
         // Audio turns are Demo 1's: the camera's responder always takes the
         // transcript (moonshine routes the question first).
@@ -340,18 +359,23 @@ final class CameraExchangeReducer {
           turn: _turn(next, chatError: message),
         );
       case FrameSentToGemma(:final image):
-        final rule = state.route?.route.rule ?? '?';
+        final route = state.route?.route;
         final next = state.copyWith(
           sentImage: image,
           turnImage: image,
-          exchange: CameraExchange(
-            question: exchange.question,
-            route:
-                'detailed ($rule) — frame #${image.frameId} '
-                '${image.width}×${image.height} → Gemma',
-            detailed: true,
-            notice: exchange.notice,
-          ),
+          // A memory turn keeps its chip (when the frame was seen, its
+          // cosine); the frame goes to the overlay and the turn's record.
+          exchange: route is MemoryRoute
+              ? exchange
+              : CameraExchange(
+                  question: exchange.question,
+                  route:
+                      'detailed (${route?.rule ?? '?'}) — frame '
+                      '#${image.frameId} ${image.width}×${image.height} → '
+                      'Gemma',
+                  detailed: true,
+                  notice: exchange.notice,
+                ),
         );
         return CameraExchangeUpdate(state: next, turn: _turn(next));
       case DetailedAnswered(:final metrics):

@@ -277,7 +277,10 @@ class EmbedderService implements VisualMemoryEmbedder {
 
   /// Loads the active embedder with the catalog's media. Fails, and closes
   /// what was loaded, unless it reports the catalog's backend, dimension,
-  /// input limit and every declared medium.
+  /// input limit and every declared medium. A load the plugin refuses fails
+  /// with its `EmbeddingLoadException` as it is: among them a load that wrote
+  /// no weight cache at all, which the app's registration makes a failure
+  /// (`kStrictEmbeddingBackend`, `requireWeightCache`).
   Future<Result<EmbedderInfo>> load() async {
     final rssBefore = _rss();
     final watch = Stopwatch()..start();
@@ -495,9 +498,14 @@ class EmbedderService implements VisualMemoryEmbedder {
   /// A memory frame's vector: the encoded image (PNG or JPEG) as it is,
   /// with the `retrievalDocument` task type (a prefix reaches text only, so
   /// it changes nothing for an image). Checked like the warm-up's. The
-  /// first image since the load logs the process's RSS before and after (on
-  /// an M4 Pro Mac 75–175 MB more; declaring images had already added about
-  /// 400 MB at the load).
+  /// first image since the load logs the process's RSS before and after.
+  /// Measured (`docs/design/eg2-multimodal.md`): with images declared at the
+  /// load (M4 Pro Mac, a test app with the embedder alone, 2026-10-13) the
+  /// load itself added 407 MB (648 → 1055 MB) and the first image 75–175 MB
+  /// more; as the app does it (the [enableImages] widening reload, the same
+  /// Mac, 2026-10-14) the reload added 327 MB and the first image 227 MB;
+  /// on phones the first image added 280 MB (Galaxy S24) and 311 MB (S25
+  /// Ultra).
   @override
   Future<Result<List<double>>> embedImage(Uint8List encoded) =>
       _use('embedImage', (model) => _embedImage(model, encoded));

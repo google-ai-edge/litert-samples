@@ -201,11 +201,22 @@ void main() {
     final prompt = conversation.prompts.single;
     expect(
       prompt,
-      PromptBuilder.buildSpoken([passage(1)], skills: true, image: true),
+      PromptBuilder.buildSpoken(
+        [passage(1)],
+        skills: const ['current-time'],
+        image: true,
+      ),
     );
-    expect(prompt, contains(PromptBuilder.spokenExcerptSkills));
+    expect(
+      prompt,
+      contains(PromptBuilder.excerptSkills(const ['current-time'])),
+      reason: 'the chat\'s own skills, by name',
+    );
     expect(prompt, endsWith(PromptBuilder.spokenImageHint));
-    expect(prompt, isNot(contains(PromptBuilder.directAnswerHint)));
+    expect(
+      prompt,
+      isNot(contains(PromptBuilder.directAnswerHint(const ['current-time']))),
+    );
     expect(conversation.images.single, same(cats));
   });
 

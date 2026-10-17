@@ -41,7 +41,7 @@ import 'package:litert_edge_demos/utils/result.dart';
 import '../fakes/fake_bundled_files.dart';
 import '../fakes/fake_knowledge.dart';
 import '../fakes/fake_llm_service.dart';
-import '../support/litertlm_header.dart';
+import '../support/fake_bundles.dart';
 
 /// The self-test loads exactly what the app would (GEMMA_MODEL_PATH must
 /// not override the user's own model), except for an explicit
@@ -64,10 +64,10 @@ void main() {
   });
   tearDown(() => tmp.deleteSync(recursive: true));
 
-  CustomChatPlan custom({List<HeaderSection> header = const []}) =>
+  CustomChatPlan custom({FakeBundle bundle = FakeBundle.textOnly}) =>
       CustomChatPlan(
         path: customFile,
-        header: litertlmSections(header),
+        bundle: BundleRead(bundle.info(4096)),
         model: CustomChatModel(
           displayName: 'My Gemma',
           source: ImportedModelSource(customFile),
@@ -103,7 +103,7 @@ void main() {
     final chosen = await resolve(
       CustomChatPlan(
         path: customFile,
-        header: local.header,
+        bundle: local.bundle,
         model: local.model.copyWith(source: LocalModelSource(customFile)),
       ),
     );
@@ -140,83 +140,62 @@ void main() {
     expect(chosen.file.source, '--gemma');
   });
 
-  group('--gemma-backend places the towers of your own model as the app '
-      'does', () {
-    test('towers declared by the file (the official qcs8275 build): they '
-        'stay on the CPU (the file sets them)', () async {
-      final chosen = await resolve(custom(header: kQualcommQcs8275Sections));
-      final onNpu = chosen.withBackend(PreferredBackend.npu);
-
-      expect(onNpu.config.llm.backend, PreferredBackend.npu);
-      expect(onNpu.config.llm.visionBackend, PreferredBackend.cpu);
-      expect(onNpu.config.llm.audioBackend, PreferredBackend.cpu);
-      expect(onNpu.custom, same(chosen.custom), reason: 'carried over');
-      expect(onNpu.header, same(chosen.header));
-    });
-
-    test(
-      'undeclared towers (the official sm8750 build): both towers go to the '
-      'NPU with it, as the app places them; the saved choices still apply',
-      () async {
-        final chosen = await resolve(custom(header: kQualcommSm8750Sections));
-        expect(
-          chosen.config.llm.visionBackend,
-          PreferredBackend.cpu,
-          reason: 'saved on the GPU: off the NPU',
-        );
-        final onNpu = chosen.withBackend(PreferredBackend.npu).config.llm;
-        expect(onNpu.visionBackend, PreferredBackend.npu);
-        expect(onNpu.audioBackend, PreferredBackend.npu);
-
-        final plan = custom(header: kQualcommSm8750Sections);
-        final cpuChoices = CustomChatPlan(
-          path: plan.path,
-          header: plan.header,
-          model: plan.model.withTowerChoices(
-            vision: PreferredBackend.cpu,
-            audio: PreferredBackend.cpu,
-          ),
-        );
-        final sm8750 = (await resolve(cpuChoices))
-            .withBackend(PreferredBackend.npu)
-            .config
-            .llm;
-        expect(sm8750.visionBackend, PreferredBackend.cpu);
-        expect(sm8750.audioBackend, PreferredBackend.cpu);
-      },
+  test('--gemma-backend changes the backend only: the towers are the '
+      "file's (or the app's fixed Gemma 4 E2B ones) on any backend, and the "
+      'engine places them', () async {
+    final own = await resolve(custom(bundle: FakeBundle.npuWithTowers));
+    final onNpu = own.withBackend(PreferredBackend.npu);
+    expect(onNpu.config.llm.backend, PreferredBackend.npu);
+    expect(
+      onNpu.config.llm.supportImage && onNpu.config.llm.supportAudio,
+      isTrue,
+    );
+    expect(onNpu.settingsSource, endsWith('backend from --gemma-backend'));
+    expect(
+      onNpu.settingsLine,
+      'npu · ctx 4096 · towers vision+audio · tools off · type gemma4',
     );
 
-    test("--gemma and GEMMA_MODEL_PATH keep the app's fixed Gemma 4 E2B "
-        'towers (vision on the CPU, no audio) on any backend', () async {
-      for (final chosen in [
-        await resolve(custom(), argument: argumentFile),
-        await resolve(const NoChatModelPlan(), define: defineFile),
-      ]) {
-        expect(chosen.custom, isNull);
-        final onNpu = chosen.withBackend(PreferredBackend.npu).config.llm;
-        expect(onNpu.backend, PreferredBackend.npu);
-        expect(onNpu.visionBackend, PreferredBackend.cpu);
-        expect(onNpu.audioBackend, isNull);
-      }
-    });
+    for (final chosen in [
+      await resolve(custom(), argument: argumentFile),
+      await resolve(const NoChatModelPlan(), define: defineFile),
+    ]) {
+      final llm = chosen.withBackend(PreferredBackend.npu).config.llm;
+      expect(llm.backend, PreferredBackend.npu);
+      expect(llm.supportImage, isTrue);
+      expect(llm.supportAudio, isFalse);
+    }
   });
 
-  test('the chat model load warms its towers up as the app does: the image '
-      'and, with kLlmAudioWarmUp, the audio tower', () async {
-    final llm = FakeLlmService()..followRequested = true;
+  test('the chat model load warms its towers up as the app does (the image '
+      'and, with kLlmAudioWarmUp, the audio tower) and reports where the '
+      'engine put each', () async {
+    // Encoders that declare their backends: the plugin runs vision on the
+    // GPU and audio on the CPU.
+    final llm = FakeLlmService()
+      ..visionBackend = PreferredBackend.gpu
+      ..audioBackend = PreferredBackend.cpu;
     final gemma = AppSelfTestGemma(llm: llm);
-    final plan = custom(header: kGemma4E2bSections);
+    final plan = custom(bundle: FakeBundle.constrainedTowers);
 
     final loaded = await gemma.load(plan.path, plan.config);
 
-    expect(loaded, isA<Ok<GemmaLoad>>(), reason: '$loaded');
+    final load = (loaded as Ok<GemmaLoad>).value;
     expect(llm.warmUpsWithImage.single, isTrue);
     expect(llm.warmUpsWithAudio.single, kLlmAudioWarmUp);
+    expect(load.visionBackend, PreferredBackend.gpu);
+    expect(load.audioBackend, PreferredBackend.cpu);
+    expect(load.config, contains('vision gpu · audio cpu'));
 
-    final textOnly = custom(header: kTextOnlyNpuSections);
-    await gemma.load(textOnly.path, textOnly.config);
+    final textOnly = custom(bundle: FakeBundle.textOnlyNpu);
+    final text = (await gemma.load(
+      textOnly.path,
+      textOnly.config,
+    ) as Ok<GemmaLoad>).value;
     expect(llm.warmUpsWithImage.last, isFalse);
     expect(llm.warmUpsWithAudio.last, isFalse);
+    expect(text.visionBackend, isNull);
+    expect(text.audioBackend, isNull);
   });
 
   test('an explicit --detector wins over the built-in one; without it, the '
@@ -238,17 +217,21 @@ void main() {
     expect(builtIn.problem, isNull);
   });
 
-  test('the load line says what was asked for, and the engine\'s context '
-      'when it differs', () {
+  test("the load line says what was loaded, the engine's context when it "
+      'differs, and where the engine put each tower', () {
     expect(
-      gemmaLoadConfigLine(kDefineChatModel, engineContext: 8192),
+      gemmaLoadConfigLine(
+        kDefineChatModel,
+        engineContext: 8192,
+        vision: PreferredBackend.cpu,
+      ),
       'maxTokens 8192 · vision cpu · tools on · type gemma4',
     );
     expect(
       gemmaLoadConfigLine(kDefineChatModel, engineContext: 4096),
-      'maxTokens 8192 (engine 4096) · vision cpu · tools on · type gemma4',
+      'maxTokens 8192 (engine 4096) · vision not reported · tools on · type '
+      'gemma4',
     );
-    // Each loaded tower is named with where it runs.
     const npu = ChatModelConfig(
       name: 'Gemma 4 E2B NPU',
       modelType: ModelType.gemma4,
@@ -256,21 +239,18 @@ void main() {
         maxTokens: 4096,
         backend: PreferredBackend.npu,
         maxNumImages: 1,
-        towers: ModelTowers(
-          vision: TowerPlacement(
-            PreferredBackend.npu,
-            reason: TowerReason.choice,
-          ),
-          audio: TowerPlacement(
-            PreferredBackend.cpu,
-            reason: TowerReason.declared,
-          ),
-        ),
+        supportImage: true,
+        supportAudio: true,
       ),
       tools: false,
     );
     expect(
-      gemmaLoadConfigLine(npu, engineContext: 4096),
+      gemmaLoadConfigLine(
+        npu,
+        engineContext: 4096,
+        vision: PreferredBackend.npu,
+        audio: PreferredBackend.cpu,
+      ),
       'maxTokens 4096 · vision npu · audio cpu · tools off · type gemma4',
     );
   });

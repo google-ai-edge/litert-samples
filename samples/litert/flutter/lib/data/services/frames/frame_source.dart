@@ -30,8 +30,9 @@ final class const FramePlane({
 
 /// A frame as a source delivers it.
 ///
-/// Valid only during the `onFrame` callback: a camera may recycle the buffer
-/// (camera_desktop's FFI path does), so anything kept must be copied there.
+/// Valid only during the `onFrame` callback: a camera plugin may reuse the
+/// buffer (the camera platform interface promises no more), so anything kept
+/// must be copied there.
 abstract interface class FrameView {
   int get width;
   int get height;

@@ -34,8 +34,8 @@ typedef SynthesizerLoader = Future<SpeechSynthesizer> Function(
 );
 
 /// `installTts().fromFile`: the bundle built into the app, used where it is
-/// (flutter_edge_ai 2.1.0 `tts_installation_builder.dart:57`; no network,
-/// no copy). Never uninstalled: that would delete the files.
+/// (flutter_edge_ai 2.4.0 `TtsInstallationBuilder.fromFile`: no network, no
+/// copy; uninstalling the model would leave the files where they are).
 Future<String> installTtsFromFiles(
   TtsConfig config,
   String directory,

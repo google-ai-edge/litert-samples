@@ -118,7 +118,7 @@ int _srcY(int ux, int uy, int srcH, int rot) => switch (rot) {
 };
 
 /// The gather tables for one (format, size, strides, rotation), built once
-/// per stream (about 2 ms) and reused for every frame: per output pixel, its
+/// per stream and reused for every frame: per output pixel, its
 /// offset in one 640×640 plane and its source byte offsets (nearest
 /// neighbour). Rotation and letterbox are folded into the tables.
 final class GatherPlan {
@@ -264,7 +264,7 @@ final class FrameGatherer {
   final int maxPlans;
   final LinkedHashMap<GatherKey, GatherPlan> _plans = LinkedHashMap();
 
-  /// Number of plans built so far (each costs about 2 ms).
+  /// Number of plans built so far.
   int plansBuilt = 0;
 
   /// Gathers [frame] (whose packed planes are [data]) into [dst]; returns the
@@ -403,8 +403,8 @@ final class FrameGatherer {
 /// [frame] (whose packed planes are [data]) as upright, tightly packed RGBA
 /// with alpha 255 (a question's snapshot): rotation applied, the same
 /// orientation and mirroring as its detections. Runs in the detector worker on
-/// the frame the detector just took, once per question (about 1–3 ms per 720p
-/// frame in AOT). YUV uses the gather's integer BT.601.
+/// the frame the detector just took, once per question. YUV uses the
+/// gather's integer BT.601.
 RgbaPixels uprightRgba(FrameMessage frame, Uint8List data) {
   final rot = frame.rotationDeg;
   if (rot != 0 && rot != 90 && rot != 180 && rot != 270) {

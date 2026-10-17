@@ -121,8 +121,9 @@ void echoUnhandledErrorsToStdout(NativeLogTap tap) {
 
 /// The tap this build can have. Release builds on Linux and macOS redirect
 /// native stderr into [path] (nothing else captures it there). Debug builds do
-/// not: flutter_edge_ai redirects stderr to its own file at the first engine
-/// load and truncates it after every dump (litert_lm_client.dart), so a tap
+/// not: flutter_edge_ai_litertlm redirects stderr to its own file at the
+/// first engine load and truncates it after every dump (its
+/// litert_lm_client.dart), so a tap
 /// would go silent mid-run. Android, iOS and Windows have no tap.
 ///
 /// Prints where the log goes before redirecting, so a terminal user knows.
@@ -136,8 +137,8 @@ NativeLogTap nativeLogTapFor({
   }
   if (!release) {
     return const NoNativeLogTap(
-      'off: debug build (flutter_edge_ai redirects native stderr to its own '
-      'file and truncates it)',
+      'off: debug build (flutter_edge_ai_litertlm redirects native stderr to '
+      'its own file and truncates it)',
     );
   }
   debugPrint('[Hardware] native stderr → $path');

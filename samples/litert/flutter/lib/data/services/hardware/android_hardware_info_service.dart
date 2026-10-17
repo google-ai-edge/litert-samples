@@ -123,19 +123,14 @@ HardwareProfile androidProfileFrom(
         SocSpec(vendor: SocVendor.qualcomm, :final npu?) => npu,
         _ => 'Hexagon',
       };
-      npuHints.add(
-        NpuHint(
-          'Qualcomm $hexagon · libcdsprpc.so opens · a chat model compiled '
-          'for this SoC can use it',
-        ),
-      );
+      npuHints.add(NpuHint('Qualcomm $hexagon · libcdsprpc.so opens'));
     case NpuUnavailable(:final reason):
       if (spec case SocSpec(:final npu?, :final vendor)
           when vendor != SocVendor.qualcomm) {
         npuHints.add(
           NpuHint(
-            "$npu (not used: flutter_edge_ai's NPU path needs Qualcomm "
-            'FastRPC)',
+            "$npu (not used: flutter_edge_ai_litertlm's NPU path needs "
+            'Qualcomm FastRPC)',
           ),
         );
       }

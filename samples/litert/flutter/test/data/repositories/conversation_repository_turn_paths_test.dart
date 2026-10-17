@@ -345,10 +345,8 @@ void main() {
             maxTokens: 4096,
             backend: PreferredBackend.gpu,
             maxNumImages: 1,
-            towers: ModelTowers(
-              vision: TowerPlacement(PreferredBackend.cpu),
-              audio: TowerPlacement(PreferredBackend.cpu),
-            ),
+            supportImage: true,
+            supportAudio: true,
           ),
           tools: true,
         );

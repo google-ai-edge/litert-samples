@@ -28,6 +28,7 @@ import 'package:litert_edge_demos/selftest/self_test_runner.dart';
 import 'package:litert_edge_demos/utils/result.dart';
 
 import '../fakes/fake_hardware.dart';
+import '../fakes/fake_llm_service.dart' show engineCreateFailure;
 import '../fakes/fake_self_test_adapters.dart';
 
 /// Characterization of the self-test's observable output, against
@@ -357,17 +358,23 @@ void main() {
         _matchSteps('chat_load_fails', t);
       });
 
-      test('the engine comes up on the CPU: a failure, never a CPU '
-          'retry', () async {
+      test('the strict engine cannot create the engine on the GPU: the '
+          "plugin's reason, never a CPU retry", () async {
         final t = await _transcript(
           (progress) => fakeSelfTestRunner(
             detector: FakeSelfTestDetector(),
-            gemma: FakeSelfTestGemma(active: PreferredBackend.cpu),
+            // The fixture is a Mac: a reason LiteRT's Metal accelerator
+            // carries.
+            gemma: FakeSelfTestGemma(
+              loadError: engineCreateFailure(
+                nativeMessage: 'Metal delegate kernel initialization failed',
+              ),
+            ),
             progress: progress,
           ),
         );
         expect(t.statuses['4a'], StepStatus.fail);
-        _matchSteps('chat_backend_mismatch', t);
+        _matchSteps('chat_engine_create_fails', t);
       });
 
       test('generation fails', () async {
@@ -442,7 +449,7 @@ void main() {
           t.header('chat model'),
           'chat model Gemma 3 1B NPU (your own .litertlm, saved settings) · '
           '/store/custom/g3_ekv1280.litertlm (model store, custom/) · npu · '
-          'ctx 1280 · tools off · type gemmaIt',
+          'ctx 1280 · towers none · tools off · type gemmaIt',
         );
         expect(t.header('sha256'), 'sha256     feedface');
         _matchSteps('chat_own_npu', t);

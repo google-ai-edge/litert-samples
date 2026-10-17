@@ -76,8 +76,32 @@ void main() {
         foreground.onStateChange(state);
         expect(foreground.value, isTrue, reason: state.name);
         expect(foreground.hidden, isFalse, reason: state.name);
+        expect(foreground.mustStopTurns, isFalse, reason: state.name);
       }
       expect(notified, 0);
     });
   }
+
+  test('turns must stop only on iOS, and only once the app is out of sight '
+      '(hidden, paused, detached), not merely covered (inactive)', () {
+    final expected = {
+      AppLifecycleState.resumed: false,
+      AppLifecycleState.inactive: false,
+      AppLifecycleState.hidden: true,
+      AppLifecycleState.paused: true,
+      AppLifecycleState.detached: true,
+    };
+    for (final platform in TargetPlatform.values) {
+      final foreground = AppForeground(platform: platform);
+      addTearDown(foreground.dispose);
+      for (final MapEntry(key: state, value: stops) in expected.entries) {
+        foreground.onStateChange(state);
+        expect(
+          foreground.mustStopTurns,
+          platform == TargetPlatform.iOS && stops,
+          reason: '${platform.name} ${state.name}',
+        );
+      }
+    }
+  });
 }

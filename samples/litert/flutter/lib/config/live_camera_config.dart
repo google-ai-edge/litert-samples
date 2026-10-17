@@ -157,8 +157,10 @@ const kMemoryMinInterval = Duration(seconds: 3);
 /// that needs 1 s per frame embeds at most every 4 s).
 const kMemoryEmbedSpacing = 4;
 
-/// A frame is stored without a scene change once this much time has passed
-/// since the last stored one (a static scene still gets a fresh frame).
+/// Once this much time has passed since the last stored or refreshed frame,
+/// an unchanged scene refreshes the newest frame's time in place (a static
+/// scene stays "seen just now" without a duplicate frame;
+/// `VisualMemoryRepository`).
 const kMemoryMaxInterval = Duration(seconds: 10);
 
 /// How often the sampler checks whether a frame is due (its timer).
@@ -198,15 +200,18 @@ const kMemorySceneChange = 6.0;
 const kMemoryCellChange = 24.0;
 const kMemoryChangedCells = 2;
 
-/// The visual memory is on by default only where the OS reports at least
-/// this much RAM in all: a device with less than 8 GB fitted gets it off by
-/// default, with the reason on the camera settings switch (the user may
-/// turn it on). Its image encoder adds ~300 MB (spec "Resources: go /
-/// no-go"; widening measured +327 MB on the Mac, the first image +280 MB on
-/// the Galaxy S24, which peaks at 2.36 GB with it and keeps ≈ 1 GB for the
-/// system). The OS reports less than the RAM fitted: an 8 GB phone shows
-/// about 7–7.5 GiB, a 6 GB one under 6 GiB, so the line is drawn between
-/// them, at 6.5 GiB.
+/// The visual memory is on by default only where the OS reports at least this
+/// much RAM in all: a device sold with 6 GB or less gets it off by default,
+/// with the reason on the camera settings switch (the user may turn it on). Its
+/// image encoder adds memory in steps (spec "Resources: go / no-go";
+/// `docs/design/eg2-multimodal.md`): on an M4 Pro Mac (2026-10-14) the widening
+/// reload (`EmbedderService.enableImages`) +327 MB process RSS (533 → 860 MB),
+/// then the first image +227 MB (762 → 989 MB): from 533 to 989 MB, ≈ +450 MB
+/// net; on phones, with the encoder already loaded, the first image +280 MB
+/// (Galaxy S24, whose whole app peaks at 2.36 GB with images against 2.2 GB
+/// without) and +311 MB (S25 Ultra). The OS reports less than the RAM fitted:
+/// an 8 GB phone reports about 6.9 GiB (Galaxy S24), a 6 GB one less (not
+/// measured), so the line is drawn between them, at 6.5 GiB.
 const kMemoryDefaultOnMinRamBytes = 6979321856; // 6.5 GiB
 
 /// The scene-change thumbnail's side, in cells.

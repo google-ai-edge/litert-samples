@@ -15,19 +15,63 @@
 import 'dart:async';
 
 import 'package:flutter_edge_ai/flutter_edge_ai.dart' hide ModelSpec;
+import 'package:flutter_edge_ai_litertlm/flutter_edge_ai_litertlm.dart'
+    show
+        BackendInitAttemptFailure,
+        BackendInitException,
+        LiteRtLmEngineCreateException,
+        LiteRtLmNpuTarget;
 import 'package:litert_edge_demos/config/model_catalog.dart';
 import 'package:litert_edge_demos/data/services/llm/llm_service.dart';
 import 'package:litert_edge_demos/domain/models/chat_model_config.dart';
 import 'package:litert_edge_demos/utils/result.dart';
 
-/// [LlmService] whose engine reports [activeBackend] — set it to the CPU to
-/// play a silent GPU→CPU fallback. [activeBackend] null plays "the engine
-/// came up on the backend requested".
-class FakeLlmService implements LlmService {
-  PreferredBackend? activeBackend = PreferredBackend.gpu;
+/// What [LlmService.load] returns when the strict engine cannot create the
+/// engine on [backend]: the plugin's [BackendInitException] with LiteRT-LM's
+/// own [nativeMessage], wrapped as `LlmService` wraps it. The engine's
+/// message is the plugin's (flutter_edge_ai_litertlm 1.14.0
+/// `LiteRtLmFfiClient.initialize`):
+/// `Failed to create engine on {backend}: {nativeMessage}. Model: {path}`,
+/// with the SoC hint `LiteRtLmEngine` adds to an NPU attempt of a bundle
+/// compiled for [compiledFor]. The default [nativeMessage] is a string
+/// LiteRT's Android OpenCL accelerator carries.
+ChatModelLoadException engineCreateFailure({
+  String modelName = 'Gemma 4 E2B',
+  PreferredBackend backend = PreferredBackend.gpu,
+  String nativeMessage = 'Can not find OpenCL library on this device',
+  String modelPath = '/models/gemma-4-E2B-it.litertlm',
+  LiteRtLmNpuTarget? compiledFor,
+}) => ChatModelLoadException(
+  modelName: modelName,
+  requested: backend,
+  cause: BackendInitException(
+    attempts: [
+      BackendInitAttemptFailure(
+        backend: backend,
+        error: LiteRtLmEngineCreateException(
+          'Failed to create engine on ${backend.name}: $nativeMessage. '
+          'Model: $modelPath'
+          '${compiledFor == null || backend != PreferredBackend.npu ? '' : '. The bundle is compiled for the $compiledFor NPU; if this device is not a $compiledFor, that is the cause.'}',
+          nativeCode: 13,
+          nativeMessage: nativeMessage,
+        ),
+        stackTrace: StackTrace.empty,
+      ),
+    ],
+  ),
+);
 
-  /// Follow the requested backend instead of [activeBackend].
-  bool followRequested = false;
+/// [LlmService] on the strict engine (`LiteRtLmEngine(backendFallback:
+/// false)`): a load comes up on the backend it asks for, or fails with
+/// [loadError] (a strict failure: [engineCreateFailure]).
+class FakeLlmService implements LlmService {
+  /// False: the engine reports no backend (`activeBackend` null).
+  bool reportsBackend = true;
+
+  /// Where the engine puts each encoder that loads
+  /// (`activeVisionBackend` / `activeAudioBackend`): its own choice.
+  PreferredBackend? visionBackend = PreferredBackend.cpu;
+  PreferredBackend? audioBackend = PreferredBackend.cpu;
   final List<LlmConfig> loads = [];
 
   /// Every model config [load] was given.
@@ -94,21 +138,13 @@ class FakeLlmService implements LlmService {
       loadError = null;
       return Result.error(error);
     }
-    final active = followRequested ? config.backend : activeBackend;
-    if (active != config.backend) {
-      return Result.error(
-        BackendMismatchException(
-          requested: config.backend,
-          active: active,
-          modelName: model.name,
-        ),
-      );
-    }
     _loaded = model;
     return Result.ok(
       LlmInfo(
         modelId: 'gemma-4-E2B-it',
-        backend: config.backend,
+        backend: reportsBackend ? config.backend : null,
+        visionBackend: config.supportImage ? visionBackend : null,
+        audioBackend: config.supportAudio ? audioBackend : null,
         loadTime: const Duration(milliseconds: 2400),
         contextTokens: config.maxTokens,
       ),

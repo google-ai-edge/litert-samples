@@ -24,30 +24,31 @@ import '../../../utils/redact_url.dart';
 /// The persisted form of a [CustomChatModel] (`Settings.customChatModel`):
 /// versioned JSON, read strictly.
 ///
-/// Version 2 adds `supportAudio` (required). A version 1 record, saved before
-/// the app sent audio to the chat model, decodes with audio off: the user
-/// turns it on, and it is saved as version 2 with the next save.
+/// Version 1 had `supportImage`; version 2 added `supportAudio`, version 3
+/// `encoderBackend` (`cpu` or `npu`). Version 4 dropped the three and had
+/// `visionChoice` and `audioChoice` (optional, `cpu` or `npu`): a CPU | NPU
+/// choice for a tower the file's header said nothing about, on the NPU.
 ///
-/// Version 3 adds `encoderBackend` (required: `cpu` or `npu`, `npu` only with
-/// the NPU backend). Version 1 and 2 records, saved while the encoders always
-/// ran on the CPU, decode with `cpu`.
-///
-/// Version 4 drops `supportImage`, `supportAudio` and `encoderBackend`: which
-/// towers load, and where, follows from the file's header and the backend
-/// every time the configuration is built (`resolveTowers`). It adds
-/// `visionChoice` and `audioChoice` (optional, `cpu` or `npu`): the user's
-/// choice for a tower the header says nothing about, on the NPU.
-///
-/// Version 1 to 3 records still decode, their fields checked as their
-/// version required them (a damaged one is the same visible error as any
-/// other). Which towers load is the header's now (`supportImage` and
-/// `supportAudio` are ignored), but where they ran is kept as the choices:
-/// version 1 and 2 ran the encoders on the CPU, so on the NPU both choices
-/// are `cpu`; version 3's `encoderBackend: cpu` is both choices `cpu`, its
-/// `npu` no choice (the NPU by default). Off the NPU a choice means nothing,
-/// and none is kept.
+/// Nothing about the towers is saved now: which ones load follows from the
+/// file (`LiteRtLmBundleInfo.visionEncoder` / `audioEncoder`), and the engine
+/// places each one (flutter_edge_ai_litertlm 1.14.0; a tower backend asked
+/// for that the file does not allow is refused). So every tower setting an
+/// earlier build saved — version 1 to 3's `supportImage`, `supportAudio`,
+/// `encoderBackend`, version 4's `visionChoice` and `audioChoice` — is
+/// accepted whatever its value and ignored: never applied again, never a
+/// reason to refuse the record. Records are still written as version 4 (an
+/// earlier build reads them, without choices).
 abstract final class CustomChatModelCodec {
   static const version = 4;
+
+  /// The tower settings of earlier records, read and ignored.
+  static const _retiredTowerKeys = {
+    'supportImage',
+    'supportAudio',
+    'encoderBackend',
+    'visionChoice',
+    'audioChoice',
+  };
 
   static String encode(CustomChatModel model) => jsonEncode({
     'v': version,
@@ -56,8 +57,6 @@ abstract final class CustomChatModelCodec {
     'backend': model.backend.name,
     'maxTokens': model.maxTokens,
     'tools': model.tools,
-    'visionChoice': ?model.visionChoice?.name,
-    'audioChoice': ?model.audioChoice?.name,
     'source': switch (model.source) {
       ImportedModelSource(:final pickedPath) => {
         'kind': 'import',
@@ -105,14 +104,10 @@ abstract final class CustomChatModelCodec {
       'modelType',
       'backend',
       'maxTokens',
-      // Settings of versions 1 to 3 that the header now decides: ignored.
-      if (savedVersion <= 3) 'supportImage',
-      if (savedVersion == 2 || savedVersion == 3) 'supportAudio',
-      if (savedVersion == 3) 'encoderBackend',
       'tools',
-      if (savedVersion >= 4) ...['visionChoice', 'audioChoice'],
       'source',
       'file',
+      ..._retiredTowerKeys,
     }, 'the saved model');
     final name = _string(root, 'displayName');
     final type = _enum(root, 'modelType', ModelType.values);
@@ -203,18 +198,6 @@ abstract final class CustomChatModelCodec {
     if (tools is! bool) {
       throw const FormatException('tools must be a bool');
     }
-    const towerBackends = [PreferredBackend.cpu, PreferredBackend.npu];
-    final PreferredBackend? visionChoice;
-    final PreferredBackend? audioChoice;
-    if (savedVersion >= 4) {
-      // Absent: no choice, the NPU by default.
-      PreferredBackend? choice(String key) =>
-          root[key] == null ? null : _enum(root, key, towerBackends);
-      visionChoice = choice('visionChoice');
-      audioChoice = choice('audioChoice');
-    } else {
-      visionChoice = audioChoice = _legacyEncoders(root, savedVersion, backend);
-    }
     return CustomChatModel(
       displayName: name,
       source: parsedSource,
@@ -223,41 +206,7 @@ abstract final class CustomChatModelCodec {
       backend: backend,
       maxTokens: maxTokens,
       tools: tools,
-      visionChoice: visionChoice,
-      audioChoice: audioChoice,
     );
-  }
-
-  /// Checks the tower settings a version 1 to 3 record had to carry
-  /// (`supportImage`; `supportAudio` from version 2; `encoderBackend`, `cpu`
-  /// or `npu` and `npu` only on the NPU, in version 3) and returns where its
-  /// encoders ran as the choice for both towers: null off the NPU (a choice
-  /// means nothing there) and for version 3's `npu` (the default).
-  static PreferredBackend? _legacyEncoders(
-    Map<String, Object?> root,
-    int savedVersion,
-    PreferredBackend backend,
-  ) {
-    for (final key in ['supportImage', if (savedVersion >= 2) 'supportAudio']) {
-      if (root[key] is! bool) {
-        throw FormatException('$key must be a bool (version $savedVersion)');
-      }
-    }
-    final PreferredBackend encoders;
-    if (savedVersion == 3) {
-      encoders = _enum(root, 'encoderBackend', const [
-        PreferredBackend.cpu,
-        PreferredBackend.npu,
-      ]);
-      if (encoders == PreferredBackend.npu && backend != PreferredBackend.npu) {
-        throw const FormatException('encoderBackend npu needs the NPU backend');
-      }
-    } else {
-      // Versions 1 and 2 always ran the encoders on the CPU.
-      encoders = PreferredBackend.cpu;
-    }
-    if (backend != PreferredBackend.npu) return null;
-    return encoders == PreferredBackend.cpu ? PreferredBackend.cpu : null;
   }
 
   static Map<String, Object?> _object(Object? value, String where) =>

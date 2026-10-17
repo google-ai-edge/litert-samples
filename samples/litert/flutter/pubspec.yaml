@@ -37,10 +37,10 @@ dependencies:
   file_selector: ^1.1.0
   flutter:
     sdk: flutter
-  flutter_edge_ai: ^2.3.2
-  flutter_edge_ai_agent: ^0.2.10
-  flutter_edge_ai_litertlm: ^1.13.2
-  flutter_edge_ai_rag: ^1.1.0
+  flutter_edge_ai: ^2.4.0
+  flutter_edge_ai_agent: ^0.3.0
+  flutter_edge_ai_litertlm: ^1.14.0
+  flutter_edge_ai_rag: ^1.1.1
   flutter_edge_ai_speech: ^0.5.7
   flutter_edge_ai_sqlite: ^2.1.0
   flutter_litert: ^3.9.3
@@ -111,9 +111,9 @@ flutter:
     # The knowledge base, chunked and indexed at first launch.
     - assets/kb/
     # The prebuilt index of assets/kb (tool/build_kb_index.sh): the sqlite-vec
-    # kb.db (3.6 MB, ~0.9 MB compressed) and its manifest. Installed on first
-    # launch when its key matches, instead of embedding 297 chunks on the
-    # device (29 s on an M4 Pro Mac's CPU, minutes on a phone).
+    # kb.db (3.7 MB, ~1.1 MB compressed) and its manifest. Installed on first
+    # launch when its key matches, instead of embedding its 344 chunks on the
+    # device (about 30 s on an M-series Mac's CPU, tool/build_kb_index.sh).
     - assets/kb_index/
     # Retrieval golden set for integration_test/kb_retrieval_test.dart
     # (19 on-topic, 12 off-topic questions; the test speaks them with the
@@ -152,7 +152,8 @@ flutter:
     # tokenizer (77 012 960 + 2 480 466 B, Apache-2.0), moonshine-tiny f32
     # and its tokenizer (109 373 140 + 1 985 534 B, MIT), and the Inflect-
     # nano-v2 TTS bundle (six files, 35 710 101 B: its two models,
-    # Apache-2.0, and the four Matcha G2P files it reuses, MIT), laid out as
+    # Apache-2.0, and the four Matcha G2P files it reuses: g2p_dict.txt.gz
+    # under the BSD 3-Clause Clear licence, the other three MIT), laid out as
     # installTts().fromFile reads it. Sizes and SHA-256 in
     # lib/data/services/model_store/bundled_model_files.dart.
     - assets/models/whisper_base_30s_i8.tflite

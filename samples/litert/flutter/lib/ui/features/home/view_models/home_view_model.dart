@@ -90,8 +90,9 @@ class HomeViewModel extends ChangeNotifier {
       final state = states[id] ?? const ModelPending();
       // Demo 3 still opens when the detector failed on its backend: its
       // screen shows why and the way out (run it on the CPU, or back on the
-      // GPU). A Pi 5's GPU may refuse YOLO26n; the camera and voice still
-      // work. A bad file keeps the tile disabled: no backend helps.
+      // GPU). A GPU may refuse YOLO26n (a Pi 5's has not been tried); the
+      // camera and voice still work. A bad file keeps the tile disabled: no
+      // backend helps.
       if (demo == Demo.liveCamera && id == ModelId.yolo26n) {
         if (state case ModelFailed(:final message, :final backend?)) {
           detectorFailure = (message: message, backend: backend);

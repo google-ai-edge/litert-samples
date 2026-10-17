@@ -14,13 +14,18 @@
 
 import 'dart:io';
 
+import 'package:flutter_edge_ai_agent/flutter_edge_ai_agent.dart'
+    show NativeIntentExecutor, SkillType, parseSkillMd;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:litert_edge_demos/config/model_catalog.dart';
 import 'package:litert_edge_demos/data/repositories/skill_repository.dart';
 import 'package:litert_edge_demos/data/services/skills/skill_store_service.dart';
 import 'package:litert_edge_demos/domain/models/skill_catalog.dart';
+import 'package:litert_edge_demos/domain/skills/app_intents.dart';
 
 import '../../../../integration_test/support/skill_fixtures.dart';
+import '../../../support/app_intent_executor.dart';
+import '../../../support/package_skill_fixtures.dart';
 
 final class FixedBundle implements BundledSkillSource {
   FixedBundle(this.skills);
@@ -57,6 +62,7 @@ void main() {
       'device-info': bundledText('device-info'),
     });
     store = SkillStoreService(
+      intents: appIntentExecutor(),
       directory: () async => skillsDir,
       bundled: bundle,
     );
@@ -247,7 +253,7 @@ void main() {
       String why(String path) =>
           catalog.errors.singleWhere((e) => e.path == path).message;
       expect(why('broken/SKILL.md'), contains("expected a '---' fenced"));
-      expect(why('numeric/SKILL.md'), contains('quote name and description'));
+      expect(why('numeric/SKILL.md'), contains("'name' in the frontmatter"));
       expect(why('binary/SKILL.md'), 'Not valid UTF-8 text');
       expect(why('huge/SKILL.md'), contains('Larger than 4 KB'));
       expect(
@@ -255,10 +261,137 @@ void main() {
         contains('Duplicate name "Current-Time"'),
       );
       expect(why('zz-dupe/SKILL.md'), contains('current-time/SKILL.md'));
-      expect(why('typo/SKILL.md'), contains('Unknown intent `current_tme`'));
-      expect(why('vague/SKILL.md'), contains('names no intent'));
+      final runnable = appIntentExecutor().whitelistedIntents.join(', ');
+      expect(
+        why('typo/SKILL.md'),
+        allOf(
+          contains('Unknown intent `current_tme`'),
+          contains('the executor accepts $runnable'),
+        ),
+      );
+      expect(
+        why('vague/SKILL.md'),
+        allOf(
+          contains('names no intent'),
+          contains('one of the intents the executor accepts: $runnable'),
+        ),
+      );
       expect(why('js/SKILL.md'), contains('run_js'));
       expect(why('empty/'), 'This folder has no SKILL.md');
+    });
+
+    test('every SKILL.md the scan accepted before the intent syntax widened '
+        '(a87e998: intent `name` only) still loads, prose about "intent" '
+        'included', () async {
+      // a87e998's rule for an intent skill: at least one intent `name`, and
+      // every one of them an app intent.
+      final before = RegExp(r'\bintent\s+`([^`\n]+)`');
+      bool acceptedBefore(String text) {
+        final skill = parseSkillMd(text);
+        if (skill.type != SkillType.intent) return true;
+        final named = {
+          for (final m in before.allMatches(skill.instructions)) m[1]!.trim(),
+        };
+        return named.isNotEmpty && AppIntent.all.containsAll(named);
+      }
+
+      String skill(String name, String body) =>
+          '---\nname: $name\ndescription: A test skill.\n---\n$body';
+      final corpus = {
+        'current-time': bundledText('current-time'),
+        'device-info': bundledText('device-info'),
+        'kid-clock': kidClockSkillMd,
+        'heading': skill(
+          'heading',
+          '## Intent: tell the user the time\n'
+              'Call the `run_intent` tool with intent `current_time` and '
+              'parameters {}.',
+        ),
+        'guess': skill(
+          'guess',
+          "Figure out the user's intent: they may want the time. Then call "
+              'the `run_intent` tool with intent `current_time`.',
+        ),
+        'plain-word': skill(
+          'plain-word',
+          'Intent: Weather. Call the `run_intent` tool with intent '
+              '`device_info`.',
+        ),
+        'notes': skill(
+          'notes',
+          'Intent: answer briefly. The user intent: keep it short.',
+        ),
+        'hyphens': skill(
+          'hyphens',
+          '## Intent: real-time clock for kids\n'
+              'Intent: kid-friendly time telling. The user\'s intent: '
+              'up-to-date facts. Call the `run_intent` tool with intent '
+              '`current_time`.',
+        ),
+      };
+      for (final MapEntry(:key, :value) in corpus.entries) {
+        expect(acceptedBefore(value), isTrue, reason: '$key was valid then');
+        write('$key/SKILL.md', value);
+      }
+
+      final catalog = await store.scan();
+
+      expect(catalog.errors.map((e) => '${e.path}: ${e.message}'), isEmpty);
+      expect(
+        catalog.agentSkills.map((s) => s.name),
+        unorderedEquals(corpus.keys),
+      );
+    });
+
+    test('skills written for the agent package (`- intent: name`) load: '
+        'their intents are built-ins of the package executor the app runs '
+        '(its own get-current-time and another)', () async {
+      write('get-current-time/SKILL.md', packageGetCurrentTimeSkillMd);
+      write(
+        'create-calendar-event/SKILL.md',
+        '---\nname: create-calendar-event\ndescription: Create an event.\n'
+            '---\nCall the `run_intent` tool with the following exact '
+            'parameters:\n\n- intent: create_calendar_event\n'
+            '- parameters: A JSON string',
+      );
+
+      final catalog = await store.scan();
+
+      expect(catalog.errors, isEmpty);
+      expect(
+        catalog.agentSkills.map((s) => s.name),
+        unorderedEquals(['get-current-time', 'create-calendar-event']),
+      );
+      expect(
+        appIntentExecutor().isWhitelisted(packageGetCurrentTimeIntent),
+        isTrue,
+      );
+      expect(
+        packageGetCurrentTimeIntent,
+        NativeIntentExecutor.getCurrentDateAndTime,
+      );
+    });
+
+    test('an intent is checked by its exact name, as the executor runs it: '
+        'Current-Time and current-time are not current_time', () async {
+      write(
+        'shouty/SKILL.md',
+        '---\nname: shouty\ndescription: x\n---\nCall the `run_intent` tool '
+            'with intent `Current-Time`.',
+      );
+      write(
+        'kebab/SKILL.md',
+        '---\nname: kebab\ndescription: x\n---\nCall the `run_intent` tool '
+            'with intent: "current-time".',
+      );
+
+      final catalog = await store.scan();
+
+      expect(catalog.agentSkills, isEmpty);
+      String why(String path) =>
+          catalog.errors.singleWhere((e) => e.path == path).message;
+      expect(why('shouty/SKILL.md'), contains('Unknown intent `Current-Time`'));
+      expect(why('kebab/SKILL.md'), contains('Unknown intent `current-time`'));
     });
 
     test('a skill must stay small: over 4 KB is refused, and so is one over '
@@ -332,6 +465,7 @@ void main() {
       'an unusable directory is a catalog with the error, not a throw',
       () async {
         final broken = SkillStoreService(
+          intents: appIntentExecutor(),
           directory: () async => throw const SkillStoreException(
             'External storage is not available',
           ),

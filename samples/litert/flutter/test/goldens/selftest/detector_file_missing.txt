@@ -9,7 +9,7 @@ SKIP  3   cats golden                                      0.00 s
 PASS  4a  chat model load + warm-up (gpu)                  <time>
            Gemma 4 E2B (gemma-4-E2B-it) · maxTokens 8192 · vision cpu · tools on · type gemma4 · load 3.60 s · warm-up 2.20 s
            gpu → gpu (confirmed: API) · api Metal (inferred) · adapter Apple M4 Pro (inferred)
-           vision encoder on the CPU (requested)
+           vision encoder on the CPU (activeVisionBackend)
 PASS  4b  chat model generate 64 tokens                    <time>
            64 chunks · 64 tokens (engine) · first chunk 0.18 s · 74.1 tok/s decode (measured) · 73.3 tok/s (engine)
            "Elias lived on the edge of the world."

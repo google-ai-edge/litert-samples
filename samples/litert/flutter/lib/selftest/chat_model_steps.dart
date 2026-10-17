@@ -13,9 +13,9 @@
 // limitations under the License.
 
 import '../data/services/hardware/native_log_tap.dart';
-import '../domain/hardware/diagnostics_report.dart' show evidenceText, seconds;
+import '../domain/hardware/diagnostics_report.dart'
+    show encoderDetails, evidenceText, seconds;
 import '../domain/models/hardware_profile.dart';
-import '../domain/models/model_towers.dart' show visionTowerDetail;
 import '../utils/result.dart';
 import 'evidence_judge.dart';
 import 'self_test_ports.dart';
@@ -110,7 +110,7 @@ final class ChatModelSteps {
       case Ok(:final value):
         final evidence = load.evidence(
           requested: backend.name,
-          reported: value.backend.name,
+          reported: value.backend?.name,
           hardware: _hardware(),
         );
         final verdict = _judge.accelerator(
@@ -125,8 +125,10 @@ final class ChatModelSteps {
                 '${seconds(value.loadTime)} · warm-up '
                 '${seconds(value.warmUpTime)}',
             evidenceText(evidence),
-            if (config.llm.visionBackend case final v?)
-              visionTowerDetail(v.name),
+            ...encoderDetails(
+              vision: value.visionBackend?.name,
+              audio: value.audioBackend?.name,
+            ),
             ...verdict.errors,
             ...load.logLines,
           ],

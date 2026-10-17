@@ -30,8 +30,10 @@ final class const HistoryTurn({
   /// The reply as far as it streamed (an interrupted reply is partial).
   required final String assistant,
 
-  /// The voice turn's number (`TurnRequest.turn`); the transcript finds its
-  /// entry by it. Null for a turn asked without one.
+  /// The voice turn's number (`TurnRequest.turn`, never reused in the
+  /// process, so turns of different visits of a demo on one chat never share
+  /// it); the transcript finds its entry by it. Null for a turn asked
+  /// without one.
   final int? turn,
 
   /// The question went to the model as audio.

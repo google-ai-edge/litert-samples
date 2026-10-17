@@ -125,7 +125,7 @@ AssistantDone? stoppedBeforeSending(
 /// cannot see it — and the text in its prefill, for the image-token
 /// estimate: the [promptTokens], plus [systemTokens] when an image goes into
 /// a conversation still empty (LiteRT-LM prefills the system prompt with
-/// the first message).
+/// the first message, as `GenerationMetrics.promptTokens` says).
 Future<SendStart> startSend(
   LiveChat live,
   InferenceChat chat,

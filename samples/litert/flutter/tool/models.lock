@@ -38,7 +38,9 @@ hf whisper_base_tokenizer.json 2480466 27fc476bfe7f17299480be2273fc0608e4d5a99ab
 hf moonshine_tiny_5s_f32.tflite 109373140 16f281f1d3d23124e6adbdead8730d46f97cd105c299a9b94608d033c1151b12 public litert-community/moonshine-tiny 4d0fd016df005c889aaa738b4765ede92736424f moonshine_tiny_5s_f32.tflite
 hf moonshine_tiny_tokenizer.json 1985534 ed2324b3f699d8ba18a4030f33ba205d50b30ff46ff73f2b7d22661cc850efb4 public moonshine-ai/moonshine 48b4e427b587bcf67797a5be706d6ddc4a298149 ctranslate2/tiny/tokenizer.json
 
-# Inflect-nano-v2 (Apache-2.0) and the four Matcha G2P files it reuses (MIT).
+# Inflect-nano-v2 (Apache-2.0) and the four Matcha G2P files it reuses: g2p_dict.txt.gz is OpenPhonemizer's
+# dictionary under the BSD 3-Clause Clear licence (licenses/OpenPhonemizer-BSD-3-Clause-Clear.txt), the
+# other three MIT.
 hf inflect/inflect_text_encoder_fp16.tflite 1782268 c778f516b8557c69734f4d4308084c411b8d3a4575566385d163209bf504f083 public litert-community/Inflect-Nano-v2 5c184d02d4d1a7aacfa1e54f791f1e495cf52124 inflect_text_encoder_fp16.tflite
 hf inflect/inflect_decoder_fp16.tflite 6375948 155d5072f104248983015e82d1b90968ab2e87bd7f96c4016928fc83231efbd0 public litert-community/Inflect-Nano-v2 5c184d02d4d1a7aacfa1e54f791f1e495cf52124 inflect_decoder_fp16.tflite
 hf inflect/config.json 2071 7363e9e4dda1613aebff7005f2e8c0c76d9b0a1cac31de0f3483bef3089c6906 public litert-community/Matcha-TTS ee32148115e2dd25913f70b1d71b587c73e0866e config.json

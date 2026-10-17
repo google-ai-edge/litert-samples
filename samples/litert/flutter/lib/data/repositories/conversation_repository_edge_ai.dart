@@ -23,6 +23,7 @@ import '../../domain/models/chat_capabilities.dart';
 import '../../domain/models/conversation_history.dart';
 import '../../domain/models/skill_step.dart';
 import '../../utils/result.dart';
+import '../../utils/wav.dart';
 import '../services/llm/llm_service.dart';
 import 'conversation/live_chat.dart';
 import 'conversation/native_chat.dart';
@@ -45,7 +46,7 @@ import 'conversation_repository.dart';
 /// `askAgent`), and [ChatFactory] builds the native chats.
 final class EdgeAiConversationRepository implements ConversationRepository {
   /// [executors] run the skills' tool calls on an agent chat (the app
-  /// passes `AppIntentExecutor` and `TextSkillExecutor`); [agentTools] are
+  /// passes `NativeIntentExecutor` and `TextSkillExecutor`); [agentTools] are
   /// an agent chat's tool declarations.
   EdgeAiConversationRepository({
     required LlmService llm,
@@ -77,6 +78,9 @@ final class EdgeAiConversationRepository implements ConversationRepository {
 
   @override
   bool get hasSkills => _live.agent != null;
+
+  @override
+  List<Skill> get skills => _live.agent?.skills ?? const [];
 
   @override
   bool get skillsNeedTools => _live.skillsNeedTools;
@@ -123,6 +127,28 @@ final class EdgeAiConversationRepository implements ConversationRepository {
     historyText: historyText,
     turn: turn,
   );
+
+  @override
+  Future<Result<int?>> firstFittingPrompt(
+    List<String> prompts, {
+    Uint8List? image,
+    Uint8List? audioWav,
+  }) async {
+    try {
+      final audio = audioWav == null ? null : wavDuration(audioWav);
+      return Result.ok(
+        await _live.firstFitting(prompts, image: image, audio: audio),
+      );
+    } on Exception catch (e) {
+      // Not open, a turn runs, or not a 16 kHz mono PCM16 WAV: the ask says
+      // so too.
+      debugPrint('[Conversation] fitting the prompt failed: $e');
+      return Result.error(e);
+    } catch (e, st) {
+      debugPrint('[Conversation] fitting the prompt failed: $e\n$st');
+      return Result.error(asException(e));
+    }
+  }
 
   @override
   bool setHistoryText(int turn, String text) {

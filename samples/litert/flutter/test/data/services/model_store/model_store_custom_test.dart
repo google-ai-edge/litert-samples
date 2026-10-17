@@ -80,8 +80,9 @@ void main() {
 
   File customFile(String file) => File('${root.path}/custom/$file');
 
-  File pick(String file, Uint8List content) =>
-      File('${picked.path}/$file')..writeAsBytesSync(content);
+  File pick(String file, Uint8List content) => File('${picked.path}/$file')
+    ..createSync(recursive: true)
+    ..writeAsBytesSync(content);
 
   group('import', () {
     test('stores the file, computes and records its checksum', () async {
@@ -236,6 +237,70 @@ void main() {
         ),
         name,
       );
+    });
+  });
+
+  group('the chat model\'s file is reserved', () {
+    // Other bytes under the same name.
+    final other = testBytes(300 * 1024 + 7, seed: 12);
+    final otherSha = sha256Hex(other);
+    final beside = ModelStore.renamedFor(name, otherSha);
+
+    test('other bytes of its name are stored beside it '
+        '(<stem>-<sha8>.litertlm), by import and by download; the reserved '
+        'file and its record stay as they were', () async {
+      final store = newStore();
+      await store.importCustomFile(pick(name, bytes).path);
+      final record = customFile('$name.sha256').readAsStringSync();
+      expect(
+        beside,
+        'gemma3-1b_ekv1280_sm8750-${otherSha.substring(0, 8)}'
+        '.litertlm',
+      );
+
+      final imported = await store.importCustomFile(
+        pick('o/$name', other).path,
+        reserved: name,
+      );
+
+      expect((imported as Ok<CustomModelFile>).value.name, beside);
+      expect(imported.value.sha256, otherSha);
+      expect(customFile(beside).readAsBytesSync(), other);
+      expect(
+        customFile('$beside.sha256').readAsStringSync(),
+        startsWith('$otherSha  $beside'),
+      );
+      expect(customFile(name).readAsBytesSync(), bytes, reason: 'untouched');
+      expect(customFile('$name.sha256').readAsStringSync(), record);
+
+      customFile(beside).deleteSync();
+      customFile('$beside.sha256').deleteSync();
+      server.files[name] = ServedFile(other);
+      final downloaded = await store.downloadCustomFile(
+        server.url(name),
+        reserved: name,
+      );
+      expect((downloaded as Ok<CustomModelFile>).value.name, beside);
+      expect(customFile(name).readAsBytesSync(), bytes, reason: 'untouched');
+    });
+
+    test('the same bytes keep the name; an unreserved name is replaced as '
+        'before', () async {
+      final store = newStore();
+      await store.importCustomFile(pick(name, bytes).path);
+
+      final again = await store.importCustomFile(
+        pick('again/$name', bytes).path,
+        reserved: name,
+      );
+      expect((again as Ok<CustomModelFile>).value.name, name);
+      expect(customFile(beside).existsSync(), isFalse);
+
+      final replaced = await store.importCustomFile(
+        pick('o/$name', other).path,
+      );
+      expect((replaced as Ok<CustomModelFile>).value.name, name);
+      expect(customFile(name).readAsBytesSync(), other);
     });
   });
 

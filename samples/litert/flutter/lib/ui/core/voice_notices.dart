@@ -24,3 +24,15 @@ String notHeardText(NotHeardReason reason) => switch (reason) {
   NotHeardReason.emptyTranscript =>
     "Didn't catch that — no words were recognized.",
 };
+
+/// The notice both voice demos show when something outside the app ended a
+/// press or a turn.
+String interruptedText(InterruptionCause cause) => switch (cause) {
+  InterruptionCause.audioTaken =>
+    'Stopped: a call, Siri, an alarm or another app took the audio. Ask '
+        'again when it is over.',
+  InterruptionCause.outputRemoved =>
+    'Stopped: the headphones were disconnected. Ask again to hear the reply '
+        'on the speaker.',
+  InterruptionCause.background => 'Stopped: the app went to the background.',
+};

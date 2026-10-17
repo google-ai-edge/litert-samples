@@ -19,12 +19,9 @@ under that licence here.
 - `showcase/sign_do_not_feed.jpg`, `showcase/sign_wifi.jpg`: drawn by `tool/make_showcase_signs.py`.
 - `images/`: synthetic JPEGs for the image normalizer tests (a grey gradient; a red/blue block with an EXIF
   orientation).
-- `litertlm/*.header.bin`: only the header (the first 0.3-2 KB, no weights) of six `.litertlm` files, for the
-  header-parsing and tower tests: Gemma 4 E2B for the GPU (`gemma4_e2b_gpu`, and the newer one with its MTP drafter,
-  `gemma4_e2b_mtp`), the text-only Qualcomm SM8850 NPU build (`gemma4_2b_sm8850_npu`), two official per-SoC builds
-  from litert-community/gemma-4-E2B-it-litert-lm @b3ca0d2f — `gemma-4-E2B-it_qualcomm_qcs8275` (towers declared by the
-  file: both on the CPU, prefill on the NPU; `gemma4_e2b_qualcomm_qcs8275`) and `gemma-4-E2B-it_qualcomm_sm8750` (no
-  constraint anywhere, towers left undeclared; `gemma4_e2b_qualcomm_sm8750`) — and Qwen3 0.6B (`qwen3_0_6b`).
+- No `.litertlm` bytes: the app reads a `.litertlm` only through flutter_edge_ai_litertlm's
+  `readLiteRtLmBundleInfo`, and the tests describe their files with hand-built `LiteRtLmBundleInfo`s
+  (`test/support/fake_bundles.dart`).
 
 ## Audio
 

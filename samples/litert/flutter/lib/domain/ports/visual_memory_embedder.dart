@@ -34,6 +34,8 @@ abstract interface class VisualMemoryEmbedder {
   Future<Result<List<double>>> embedImage(Uint8List encoded);
 
   /// The vector of a memory question's phrase, embedded raw (no task
-  /// prefix: a text query over images works best that way). Never throws.
+  /// prefix, as `docs/design/eg2-multimodal.md` chose and
+  /// flutter_edge_ai_litertlm's README embeds a text query over media; not
+  /// compared with a prefixed query). Never throws.
   Future<Result<List<double>>> embedText(String text);
 }

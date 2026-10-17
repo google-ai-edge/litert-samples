@@ -22,8 +22,10 @@ import '../../../config/live_camera_config.dart';
 /// - [due]: at least [_minInterval], and at least [_spacing] × the last
 ///   frame embedding's time, after the previous attempt ended (the first
 ///   attempt is due at once);
-/// - [forced]: [_maxInterval] since the last stored frame (or none stored
-///   yet): store even without a scene change.
+/// - [forced]: [_maxInterval] since the last stored or refreshed frame (or
+///   none stored yet): an unchanged scene then refreshes the newest frame's
+///   time in place (the repository does; an unchanged scene is never stored).
+///   A changed scene is stored whether or not this holds.
 ///
 /// Whether the demo is idle, the frame black or the scene changed is the
 /// caller's and the worker's to say; this only keeps the times.
@@ -61,7 +63,9 @@ final class MemorySampler {
     return last == null || now - last >= gap.inMicroseconds;
   }
 
-  /// A frame taken at [now] is stored even if the scene did not change.
+  /// [_maxInterval] has passed since the last store or refresh (or nothing is
+  /// stored yet): an unchanged frame taken at [now] refreshes the newest
+  /// frame's time.
   bool forced(int now) {
     final last = _lastStored;
     return last == null || now - last >= _maxInterval.inMicroseconds;
@@ -74,7 +78,8 @@ final class MemorySampler {
     if (embedTime != null) _lastEmbed = embedTime;
   }
 
-  /// A frame taken at [at] was stored.
+  /// A frame taken at [at] was stored, or the newest frame's time was
+  /// refreshed to it.
   void stored(int at) => _lastStored = at;
 
   /// Forgets the attempt and store times (a cleared memory starts at once).

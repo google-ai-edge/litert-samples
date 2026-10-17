@@ -16,6 +16,7 @@ import 'dart:async';
 import 'dart:io';
 import 'dart:typed_data';
 
+import 'package:fake_async/fake_async.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:litert_edge_demos/config/model_catalog.dart';
 import 'package:litert_edge_demos/data/services/model_store/http_file_downloader.dart'
@@ -170,8 +171,10 @@ void main() {
     PartOpener? openPart,
     ModelFileOps? fileOps,
     Duration closeWait = const Duration(seconds: 5),
+    Duration Function()? clock,
   }) {
     final store = ModelStore(
+      clock: clock,
       closeWait: closeWait,
       root: () async => root,
       ops: fileOps ?? ops,
@@ -526,18 +529,53 @@ void main() {
       expect(await running, isA<Error<CustomModelFile>>());
     });
 
-    test('a stalled connection is cut by the watchdog and resumed', () async {
+    test('a stalled connection is cut by the watchdog and resumed (fake '
+        'time, real I/O)', () async {
+      const stall = Duration(milliseconds: 600);
       serve(file: ServedFile(bytes, stallAfter: 64 * 1024));
-      final store = newStore(stallTimeout: const Duration(milliseconds: 600));
-      // The first response stalls; the resume is served in full.
-      store.customFile.addListener(() {
-        if (store.customFile.value case StoreFileDownloading(attempt: 2)) {
-          server.files[name] = ServedFile(bytes);
-        }
-      });
+      final async = FakeAsync();
+      final store = newStore(stallTimeout: stall, clock: () => async.elapsed);
 
-      expect(await download(store), isA<Ok<CustomModelFile>>());
-      expect(server.requestsFor(name).last.range, 'bytes=${64 * 1024}-');
+      /// Real I/O, then the fake zone's microtasks and due timers (the I/O
+      /// callbacks land there), until [condition] holds; fake time stays.
+      Future<void> pump(bool Function() condition, String what) async {
+        final watch = Stopwatch()..start();
+        while (true) {
+          async
+            ..flushMicrotasks()
+            ..elapse(Duration.zero);
+          if (condition()) return;
+          if (watch.elapsed > const Duration(seconds: 10)) fail('No $what');
+          await Future<void>.delayed(const Duration(milliseconds: 5));
+        }
+      }
+
+      Result<CustomModelFile>? result;
+      async.run((_) => unawaited(download(store).then((r) => result = r)));
+      await pump(
+        () => parts().singleOrNull?.lengthSync() == 64 * 1024,
+        'the first 64 KB',
+      );
+      // Whatever was going to happen in real time has: the connection is
+      // silent; nothing retries before the timeout on the fake clock.
+      final watch = Stopwatch()..start();
+      await pump(
+        () => watch.elapsed > const Duration(milliseconds: 100),
+        'time',
+      );
+      expect(server.requestsFor(name), hasLength(1));
+
+      // The resume is served in full; the watchdog fires at the timeout.
+      server.files[name] = ServedFile(bytes);
+      async.elapse(stall);
+      await pump(() => result != null, 'the end of the download');
+
+      expect(result, isA<Ok<CustomModelFile>>());
+      expect(server.requestsFor(name).map((r) => r.range), [
+        null,
+        'bytes=${64 * 1024}-',
+      ]);
+      expect(customFile(name).readAsBytesSync(), bytes);
     });
 
     test('a server that ignores Range restarts the file from zero', () async {

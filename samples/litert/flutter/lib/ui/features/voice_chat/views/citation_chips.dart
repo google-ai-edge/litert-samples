@@ -22,7 +22,8 @@ abstract final class KnowledgeChipKeys {
   static ValueKey<String> citation(int number) =>
       ValueKey('kb-citation-$number');
 
-  /// The chip that says the knowledge base was unavailable or failed.
+  /// The chip that says the knowledge base was unavailable or failed, or
+  /// how many excerpts fit the chat model's context window.
   static const status = ValueKey('kb-status');
 }
 
@@ -59,9 +60,11 @@ List<String> citationLabels(List<Passage> passages) {
 /// Under an assistant reply: one chip per excerpt the prompt
 /// carried, "Title › Section · 0.62" ([citationLabels]), the cited ones
 /// highlighted and the uncited dimmed; a tap opens the excerpt and its
-/// source. An unavailable knowledge base or a failed search is one chip
-/// saying so. Below the gate there is nothing to show here (the overlay says
-/// "below gate").
+/// source; when not every excerpt that cleared the gate fit the chat model's
+/// context window, one more chip says how many did ("2 of 3 excerpts
+/// (context)", [Retrieval.detail]). An unavailable knowledge base or a failed
+/// search is one chip saying so. Below the gate there is nothing to show here
+/// (the overlay says "below gate").
 class KnowledgeChips extends StatelessWidget {
   const KnowledgeChips({super.key, required this.knowledge});
 
@@ -95,6 +98,12 @@ class KnowledgeChips extends StatelessWidget {
               passage: retrieval.passages[i],
               label: label,
               cited: knowledge.cited.contains(i + 1),
+            ),
+          if (retrieval.detail case final detail?)
+            _StatusChip(
+              icon: Icons.content_cut,
+              text: detail,
+              foreground: colors.onSurfaceVariant,
             ),
         ],
       ),

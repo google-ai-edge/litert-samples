@@ -1,7 +1,7 @@
 ---
 title: YOLO26n object detector for LiteRT
-source: tool/prune_yolo26n_head.py ; tool/models.lock ; tool/fetch_models.sh ; lib/data/services/detector/detector_codec.dart ; lib/data/services/detector/detector_engine.dart ; lib/domain/models/detector_spec.dart ; lib/config/live_camera_config.dart
-license: Apache-2.0
+source: https://huggingface.co/Arm/yolo26n-fp16-litert/blob/f6904ac4435412eea96d75d7c1b36f83a395b3d4/README.md ; docs/architecture.md ; tool/prune_yolo26n_head.py ; tool/models.lock ; tool/fetch_models.sh ; lib/data/services/detector/detector_codec.dart ; lib/data/services/detector/detector_engine.dart ; lib/domain/models/detector_spec.dart ; lib/config/live_camera_config.dart ; measurements made in this sample on an Apple M4 Pro, macOS 26.5.1, 2026-10-02
+license: Apache-2.0 (this sample's code and docs/architecture.md) ; AGPL-3.0 (Arm/yolo26n-fp16-litert, the model and the file derived from it)
 ---
 
 # YOLO26n object detector for LiteRT
@@ -14,7 +14,7 @@ YOLO26n is the nano size of Ultralytics YOLO26, a real-time object detector trai
 
 The weights come from Arm's LiteRT conversion of YOLO26n, published on Hugging Face as `Arm/yolo26n-fp16-litert` (file `yolo26n_conv2d_f16_weights.tflite`). The model is licensed under the GNU Affero General Public License v3.0 (AGPL-3.0), and so is the file the app derives from it. An app that distributes the file must make its corresponding source available under AGPL-compatible terms, including the script that derives the file.
 
-YOLO26 is trained with one-to-one label assignment, so it predicts at most one box per object and needs no non-maximum suppression (NMS).
+YOLO26 is trained with one-to-one label assignment, so it is designed to give one box per object and needs no non-maximum suppression (NMS). One box per object is the training target, not a guarantee: in this sample's tests on an Apple M4 Pro, a same-class duplicate pair appeared once in 8 runs over test images and model variants, and that pair came from an int8-weight variant, not from the fp16 file the app's model is derived from.
 
 ## Input size of the YOLO26 nano detector
 
@@ -35,13 +35,13 @@ The file the app runs has a single output of shape `[1, 8400, 84]`, float32. Eac
 
 The app decodes this in Dart. It keeps every (anchor, class) pair whose score is at least 0.25, sorts them by score, keeps the best 100, and maps each box back from the letterboxed square to the upright frame: subtract the padding, divide by the scale, and clamp to the frame, because the coordinates can overshoot the edge slightly. It applies no NMS. Boxes drawn on the live view need a score of at least 0.35.
 
-On the CPU this decode gives the same detections as the selection head it replaces. It takes about 0.75 ms per frame in AOT-compiled Dart on an Apple M4 Pro.
+Measured in this sample, on the CPU this decode gave the same detections as the selection head it replaces on 4 test images, and it takes about 0.75 ms per frame in AOT-compiled Dart on an Apple M4 Pro.
 
 ## Why the app cuts off the model's selection head
 
 Arm's file ends in an in-graph selection head that turns the 8,400 candidates into a fixed list of 300 detections, shaped `[1, 300, 6]`. That head uses TopK and GatherND and works on int64 tensors, and the LiteRT GPU delegate supports neither. The file also declares its ADD operator at version 4 because of the int64 head, and the Metal GPU delegate in the LiteRT build that `flutter_litert` uses on macOS accepts ADD only up to version 2.
 
-As a result the original file never runs fully on the GPU. Compiled for the GPU alone, it fails to build. Compiled for GPU plus CPU, it builds, but only 54 of its 461 operations go to the GPU on macOS, and it runs at CPU speed with no error — a silent fallback.
+As a result the original file never runs fully on the GPU. Compiled for the GPU alone, it fails to build. Compiled for GPU plus CPU, it builds, but in this sample's measurement on macOS only 54 of its 461 operations went to the GPU, and it ran at CPU speed with no error — a silent fallback.
 
 The app therefore derives its own file, `yolo26n_fp16_rawhead.tflite`, with `tool/prune_yolo26n_head.py`:
 
@@ -62,11 +62,11 @@ The detector runs through `flutter_litert`'s `CompiledModel` with exactly the ac
 5. One run on a test input is compared against a plain CPU reference, within 1% of the output range.
 6. One warm-up run on an all-padding frame.
 
-The precision is fp32 because fp16 failed the comparison: on the GPU at fp16 the output deviated by 1.47% of its range, above the 1% tolerance, and boxes moved by up to 0.84 px. At fp32 the largest deviation was about 0.002 on an output range of about 864, and the detections matched the CPU reference within 0.1 px.
+The precision is fp32 because fp16 failed the comparison when this sample measured it on an Apple M4 Pro: on the GPU at fp16 the output deviated by 1.47% of its range, above the 1% tolerance, and boxes moved by up to 0.84 px. At fp32 the largest deviation was about 0.002 on an output range of about 864, and the detections matched the CPU reference within 0.1 px.
 
 ## Measured detector latency on an Apple M4 Pro
 
-These figures were measured on an Apple M4 Pro Mac under macOS, as median and 90th percentile over repeated runs after warm-up:
+These figures were measured in this sample on an Apple M4 Pro Mac under macOS 26.5.1 on 2026-10-02, as median and 90th percentile over 60 runs in Dart or 100 in Python, after 10 warm-up runs:
 
 | Configuration | Median | p90 |
 | --- | --- | --- |
@@ -76,7 +76,7 @@ These figures were measured on an Apple M4 Pro Mac under macOS, as median and 90
 | Raw-head file, Python LiteRT 2.2.0, strict GPU fp32 | 3.47 ms | — |
 | Whole frame in Dart (gather, run, decode; JIT) | 9.3 ms | 11.0 ms |
 
-The GPU makes the raw-head file about 5.5 times faster than the CPU on this machine. Creating the compiled model for the GPU takes about 296 ms the first time in a process and about 50 ms after that. The live camera feeds the detector at most 15 frames per second, and a frame that arrives while the detector is busy is dropped rather than queued, so the detector always works on the newest frame.
+In this sample's measurement on the M4 Pro, the GPU made the raw-head file about 5.5 times faster than the CPU, and creating the compiled model for the GPU took about 296 ms the first time in a process and about 50 ms after that. The live camera feeds the detector at most 15 frames per second, and a frame that arrives while the detector is busy is dropped rather than queued, so the detector always works on the newest frame.
 
 ## Where the YOLO26n model file comes from
 

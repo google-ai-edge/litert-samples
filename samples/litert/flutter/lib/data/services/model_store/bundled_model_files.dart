@@ -86,7 +86,9 @@ const kBundledSttFiles =
 /// Inflect-nano-v2, the TTS bundle laid out as `installTts().fromFile`
 /// reads it: its two models (litert-community/Inflect-Nano-v2 @5c184d02,
 /// Apache-2.0) and the four Matcha G2P files it reuses
-/// (litert-community/Matcha-TTS @ee321481, MIT), built in (NOTICE.md).
+/// (litert-community/Matcha-TTS @ee321481: `g2p_dict.txt.gz` under the BSD
+/// 3-Clause Clear licence, from OpenPhonemizer; the other three MIT), built
+/// in (NOTICE.md).
 const kBundledInflectFiles = [
   BundledFile(
     asset: 'assets/models/inflect/inflect_text_encoder_fp16.tflite',
@@ -248,9 +250,9 @@ String relativePath(String path, {required String from}) {
 /// the old file's space before it needs the new one's.
 ///
 /// flutter_edge_ai's own asset install would copy on every platform, into
-/// memory first on desktop, and verify nothing (flutter_edge_ai 2.1.0
+/// memory first on desktop, and verify nothing (flutter_edge_ai 2.4.0
 /// `AssetSourceHandler.install` in
-/// `lib/core/handlers/asset_source_handler.dart`).
+/// `lib/src/handlers/asset_source_handler.dart`).
 class BundledModelFiles {
   BundledModelFiles({
     String? operatingSystem,

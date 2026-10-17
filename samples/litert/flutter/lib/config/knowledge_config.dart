@@ -23,7 +23,10 @@ import '../domain/models/knowledge_query.dart';
 /// (`integration_test/kb_retrieval_test.dart`, 2026-10-13): the best match of
 /// the 19 on-topic questions scores 0.789–0.874, of the 12 off-topic ones
 /// 0.573–0.623; every gate from 0.625 to 0.775 keeps 19/19 and rejects 12/12,
-/// and 0.70 is the middle of that range. Through Whisper (with the voice
+/// and 0.70 is the middle of that range. Measured again on 2026-10-17 (308
+/// chunks): off-topic 0.573–0.633 ("How many players are on a basketball
+/// team?" 0.633, against embeddinggemma.md), so the clean gates start at 0.650
+/// and 0.70 stays inside them. Through Whisper (with the voice
 /// chat's corrections) the on-topic questions' expected documents score
 /// 0.740–0.848 and the 12 lines of everyday chat (the golden file's
 /// `everyday_chat`: "Can you help me?", "What did I just say?", …) 0.600–0.680,
@@ -56,7 +59,7 @@ double kbMinSimilarityFor(KnowledgeQueryKind kind) => switch (kind) {
 
 /// EmbeddingGemma 2's input limit in tokens, task prefix, BOS and EOS
 /// included (the bundle's metadata, set explicitly by
-/// flutter_edge_ai_litertlm 1.13.2). The embedder must report exactly this at
+/// flutter_edge_ai_litertlm 1.14.0). The embedder must report exactly this at
 /// load, or setup fails: [kKbMaxTextQueryUtf8Bytes] is derived from it.
 const kEmbedderMaxInputTokens = 1024;
 
@@ -83,7 +86,12 @@ const kKbMaxAudioQuery = Duration(seconds: 30);
 /// spoken "What time is it?" (2 s, 16 kHz mono PCM16 WAV, the app's own TTS).
 const kKbAudioWarmUpAsset = 'assets/selftest/what_time_is_it.wav';
 
-/// Excerpts per turn: ~650–950 prompt tokens at the chunker's sizes.
+/// Excerpts per turn, at most: ~650–950 prompt tokens at the chunker's sizes.
+/// A turn whose excerpts do not all fit the chat model's context window beside
+/// it (with the reply allowance and the headroom: a 1280-token NPU build has
+/// room for a prompt of ~600) keeps the best that do, lowest score dropped
+/// first (`ChatTurnResponder`), and its retrieval says so ("2 of 3 excerpts
+/// (context)").
 const kKbTopK = 3;
 
 /// The bundled documents (`assets/kb/*.md`).

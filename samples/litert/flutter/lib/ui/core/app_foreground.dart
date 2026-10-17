@@ -31,6 +31,9 @@ import 'package:flutter/foundation.dart';
 /// the foreground, and [state] tells an overlay (inactive: the app's own
 /// permission dialog among them) from an app that is no longer seen.
 ///
+/// On iOS a hidden app also stops a running voice turn ([mustStopTurns]);
+/// on Android a turn past its capture goes on in the background.
+///
 /// Owned by the root widget, which feeds it [onStateChange] from its
 /// `AppLifecycleListener` and disposes it.
 final class AppForeground extends ChangeNotifier
@@ -39,10 +42,15 @@ final class AppForeground extends ChangeNotifier
     : _releasesDevices = switch (platform ?? defaultTargetPlatform) {
         TargetPlatform.android || TargetPlatform.iOS => true,
         _ => false,
-      };
+      },
+      _stopsTurnsWhenHidden =
+          (platform ?? defaultTargetPlatform) == TargetPlatform.iOS;
 
   /// Android and iOS: leaving the app releases the devices.
   final bool _releasesDevices;
+
+  /// iOS: a hidden app stops its turns.
+  final bool _stopsTurnsWhenHidden;
   AppLifecycleState _state = AppLifecycleState.resumed;
 
   @override
@@ -60,6 +68,13 @@ final class AppForeground extends ChangeNotifier
     AppLifecycleState.paused ||
     AppLifecycleState.detached => true,
   };
+
+  /// iOS, out of sight ([hidden]): the app may not use the GPU there (Metal
+  /// refuses command buffers from background apps) and, without
+  /// `UIBackgroundModes`, is suspended within seconds, so a running voice
+  /// turn must stop. Never on Android (a turn goes on in the background) or
+  /// desktop.
+  bool get mustStopTurns => _stopsTurnsWhenHidden && hidden;
 
   /// The app's lifecycle moved to [state].
   void onStateChange(AppLifecycleState state) {

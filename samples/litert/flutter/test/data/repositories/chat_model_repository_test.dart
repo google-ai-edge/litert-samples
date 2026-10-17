@@ -14,7 +14,6 @@
 
 import 'dart:async';
 import 'dart:io';
-import 'dart:typed_data';
 
 import 'package:flutter_edge_ai/flutter_edge_ai.dart'
     show ModelType, PreferredBackend;
@@ -22,20 +21,21 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:litert_edge_demos/config/model_catalog.dart';
 import 'package:litert_edge_demos/data/repositories/chat_model/custom_chat_model_codec.dart';
 import 'package:litert_edge_demos/data/repositories/chat_model_repository.dart';
+import 'package:litert_edge_demos/data/repositories/provisioning_repository.dart';
 import 'package:litert_edge_demos/data/services/model_store/model_file_ops.dart';
 import 'package:litert_edge_demos/data/services/model_store/model_store.dart';
 import 'package:litert_edge_demos/data/services/model_store/models_folder.dart';
 import 'package:litert_edge_demos/data/services/settings/settings_store.dart';
 import 'package:litert_edge_demos/data/services/settings/typed_settings.dart';
 import 'package:litert_edge_demos/domain/models/chat_model.dart';
-import 'package:litert_edge_demos/domain/models/chat_model_config.dart'
-    show ModelTowers;
+import 'package:litert_edge_demos/domain/models/model_id.dart';
 import 'package:litert_edge_demos/domain/models/npu_availability.dart';
+import 'package:litert_edge_demos/domain/models/provisioning.dart';
 import 'package:litert_edge_demos/utils/result.dart';
 
 import '../../fakes/fake_settings_store.dart';
+import '../../support/fake_bundles.dart';
 import '../../support/fake_model_server.dart';
-import '../../support/litertlm_header.dart';
 import '../../support/test_bytes.dart';
 import '../../support/until.dart';
 
@@ -102,12 +102,13 @@ void main() {
   final repos = <ChatModelRepository>[];
 
   const fileName = 'Gemma3-1B-IT_q4_ekv1280_sm8750.litertlm';
-  // A text-only NPU build: its header marks the NPU (as the name does), no
+  // A text-only NPU build: compiled for the NPU (as the name says), no
   // towers.
-  final bytes = Uint8List.fromList([
-    ...litertlmHeaderBytes(kTextOnlyNpuSections),
-    ...testBytes(64 * 1024, seed: 5),
-  ]);
+  final bytes = fakeLitertlmBytes(
+    FakeBundle.textOnlyNpu,
+    filler: 64 * 1024,
+    seed: 5,
+  );
 
   setUp(() {
     root = Directory.systemTemp.createTempSync('chat_model_root');
@@ -138,6 +139,7 @@ void main() {
     stores.add(store);
     final repo = ChatModelRepository(
       settings: TypedSettings(store: prefs),
+      readBundle: fakeReadBundle,
       store: store,
       persistMigration: persistMigration,
       npu: () => npu,
@@ -159,29 +161,32 @@ void main() {
   String pick([String name = fileName]) =>
       (File('${picked.path}/$name')..writeAsBytesSync(bytes)).path;
 
+  /// The file picked and not applied, with the settings it starts from.
+  CustomChatModel candidateOf(ChatModelRepository repo) =>
+      repo.state.value.candidate!.model;
+
+  /// What its file says about itself, read when it was picked.
+  LiteRtLmBundleInfo candidateBundle(ChatModelRepository repo) =>
+      repo.state.value.candidate!.bundle.info!;
+
   group('a .litertlm used in place (the models folder)', () {
-    final npuHeader = File(
-      'test_assets/litertlm/gemma4_2b_sm8850_npu.header.bin',
-    ).readAsBytesSync();
-    final gpuHeader = File('test_assets/litertlm/gemma4_e2b_gpu.header.bin')
-        .readAsBytesSync();
+    File inPlace(String name, FakeBundle kind) =>
+        writeFakeLitertlm('${picked.path}/$name', kind);
 
-    File inPlace(String name, List<int> header) =>
-        File('${picked.path}/$name')
-          ..writeAsBytesSync([...header, ...testBytes(8192, seed: 3)]);
-
+    /// The background SHA-256 of the saved model's file in place (a
+    /// candidate is never hashed).
     Future<void> hashed(ChatModelRepository repo) => untilNotified(
       repo.state,
       () => repo.state.value.custom?.file?.sha256 != null,
       what: 'the background SHA-256',
     );
 
-    test('used where it is: no copy into the store; an NPU-only build '
-        'defaults to the NPU, with no towers in its header; the SHA-256 '
+    test('used where it is: no copy into the store; a build compiled for the '
+        'NPU defaults to the NPU, with no towers in the file; the SHA-256 '
         'follows in the background', () async {
-      final repo = newRepo(npu: const NpuAvailable(soc: 'QTI SM8850'));
+      final repo = newRepo(npu: const NpuAvailable(soc: 'QTI SM8750'));
       await repo.load();
-      final file = inPlace('gemma4_2b_SM8850.litertlm', npuHeader);
+      final file = inPlace('gemma4_2b_npu.litertlm', FakeBundle.textOnlyNpu);
 
       final result = await repo.useLocalFile(file.path);
 
@@ -189,10 +194,12 @@ void main() {
       expect(model.source, isA<LocalModelSource>());
       expect((model.source as LocalModelSource).path, file.path);
       expect(model.backend, PreferredBackend.npu);
+      final bundle = candidateBundle(repo);
+      expect(bundle.isCompiledForNpu, isTrue);
       expect(
-        model.towersOf(repo.state.value.header!),
-        ModelTowers.none,
-        reason: 'no vision or audio section',
+        bundle.visionEncoder ?? bundle.audioEncoder,
+        isNull,
+        reason: 'no vision or audio encoder',
       );
       expect(model.maxTokens, 4096);
       expect(model.tools, isFalse, reason: 'an NPU build: off until known');
@@ -204,13 +211,22 @@ void main() {
         isEmpty,
         reason: 'nothing copied',
       );
+      await pumpEventQueue();
+      expect(
+        candidateOf(repo).file!.sha256,
+        isNull,
+        reason: 'a file only looked at is not read whole',
+      );
+      expect(repo.hashing.value, isFalse);
+      expect(prefs.values, isEmpty, reason: 'a pick saves nothing');
+
+      expect(await repo.apply(candidateOf(repo)), isA<Ok<void>>());
+      expect(repo.state.value.candidate, isNull, reason: 'applied');
       await hashed(repo);
       expect(
         repo.state.value.custom!.file!.sha256,
         sha256Hex(file.readAsBytesSync()),
       );
-
-      expect(await repo.apply(repo.state.value.custom!), isA<Ok<void>>());
       final plan = repo.plan as CustomChatPlan;
       expect(plan.path, file.path);
       expect(plan.config.llm.backend, PreferredBackend.npu);
@@ -222,10 +238,10 @@ void main() {
       Future<File> chosenThenMoved({required List<String> into}) async {
         final repo = newRepo();
         await repo.load();
-        final file = inPlace('gemma-4-E2B-it.litertlm', gpuHeader);
+        final file = inPlace('gemma-4-E2B-it.litertlm', FakeBundle.gemma4E2b);
         await repo.useLocalFile(file.path);
+        expect(await repo.apply(candidateOf(repo)), isA<Ok<void>>());
         await hashed(repo);
-        expect(await repo.apply(repo.state.value.custom!), isA<Ok<void>>());
         File? last;
         for (final dir in into) {
           Directory(dir).createSync(recursive: true);
@@ -280,270 +296,371 @@ void main() {
       });
     });
 
-    test(
-      'a GPU file with towers: the GPU, both towers on the CPU as its header '
-      'sets them',
-      () async {
-        final repo = newRepo(npu: const NpuAvailable());
-        await repo.load();
+    test('a file with towers not compiled for the NPU: the GPU (also where '
+        'the NPU is offered), both towers loaded, tools on', () async {
+      final repo = newRepo(npu: const NpuAvailable());
+      await repo.load();
 
-        final result = await repo.useLocalFile(
-          inPlace('gemma-4-E2B-it.litertlm', gpuHeader).path,
-        );
+      final result = await repo.useLocalFile(
+        inPlace('gemma-4-E2B-it.litertlm', FakeBundle.gemma4E2b).path,
+      );
 
-        final model = (result as Ok<CustomChatModel>).value;
-        expect(model.backend, PreferredBackend.gpu);
-        final towers = model.towersOf(repo.state.value.header!);
-        expect(towers.visionBackend, PreferredBackend.cpu);
-        expect(towers.audioBackend, PreferredBackend.cpu);
-        expect(model.maxTokens, 8192, reason: 'the app\'s GPU context');
-        expect(model.tools, isTrue, reason: 'not an NPU build: skills work');
-      },
-    );
+      final model = (result as Ok<CustomChatModel>).value;
+      expect(model.backend, PreferredBackend.gpu);
+      final bundle = candidateBundle(repo);
+      expect(bundle.visionEncoder, isNotNull);
+      expect(bundle.audioEncoder, isNotNull);
+      expect(model.maxTokens, 8192, reason: 'the app\'s GPU context');
+      expect(model.tools, isTrue, reason: 'not an NPU build: skills work');
+      expect(await repo.apply(model), isA<Ok<void>>());
+      final llm = (repo.plan as CustomChatPlan).config.llm;
+      expect(llm.supportImage && llm.supportAudio, isTrue);
+    });
 
-    test('the towers follow the file: a replacement without towers loads '
-        'none, whatever the previous file had', () async {
-      final repo = newRepo();
+    test('the towers follow the file: another file starts from its own '
+        'defaults, never from the settings of the previous one; one without '
+        'towers loads none', () async {
+      final repo = newRepo(npu: const NpuAvailable(soc: 'QTI SM8750'));
       await repo.load();
       final gemma = (await repo.useLocalFile(
-        inPlace('gemma-4-E2B-it.litertlm', gpuHeader).path,
+        inPlace('gemma-4-E2B-it.litertlm', FakeBundle.gemma4E2b).path,
       ) as Ok<CustomChatModel>).value;
-      expect(await repo.apply(gemma), isA<Ok<void>>());
+      expect(
+        await repo.apply(gemma.copyWith(displayName: 'Mine', maxTokens: 2048)),
+        isA<Ok<void>>(),
+      );
       final before = (repo.plan as CustomChatPlan).config.llm;
       expect(before.supportImage && before.supportAudio, isTrue);
 
       final npu = (await repo.useLocalFile(
-        inPlace('mine_sm8850.litertlm', npuHeader).path,
+        inPlace('mine_sm8850.litertlm', FakeBundle.textOnlyNpu).path,
       ) as Ok<CustomChatModel>).value;
 
-      expect(
-        npu.backend,
-        gemma.backend,
-        reason: 'a replacement keeps the rest',
-      );
+      expect(npu.backend, PreferredBackend.npu, reason: 'compiled for the NPU');
+      expect(npu.maxTokens, 4096, reason: 'not the GPU file\'s 2048');
+      expect(npu.displayName, 'mine_sm8850');
+      expect(npu.tools, isFalse);
+      final still = (repo.plan as CustomChatPlan).config;
+      expect(still.name, 'Mine', reason: 'only picked: Gemma still loads');
+      expect(still.llm.maxTokens, 2048);
       expect(await repo.apply(npu), isA<Ok<void>>());
       final after = (repo.plan as CustomChatPlan).config.llm;
+      expect(after.backend, PreferredBackend.npu);
       expect(after.supportImage || after.supportAudio, isFalse);
     });
 
-    group('towers: placed per tower from the header', () {
+    group('a file picked and not applied (the candidate)', () {
+      test('nothing is saved and nothing loads it: the plan, the next '
+          'reload, Run on GPU and a restart keep the applied model', () async {
+        final repo = newRepo(npu: const NpuAvailable(soc: 'QTI SM8750'));
+        await repo.load();
+        final gemmaFile = inPlace(
+          'gemma-4-E2B-it.litertlm',
+          FakeBundle.gemma4E2b,
+        );
+        final gemma = (await repo.useLocalFile(
+          gemmaFile.path,
+        ) as Ok<CustomChatModel>).value;
+        expect(await repo.apply(gemma), isA<Ok<void>>());
+        await hashed(repo);
+        final savedBefore = Map.of(prefs.values);
+
+        // Picked just to see its towers: an NPU-only build.
+        final npuFile = inPlace(
+          'gemma4_2b_npu.litertlm',
+          FakeBundle.textOnlyNpu,
+        );
+        final npu = (await repo.useLocalFile(
+          npuFile.path,
+        ) as Ok<CustomChatModel>).value;
+
+        final state = repo.state.value;
+        expect(state.candidate?.model.sourceLine, npu.sourceLine);
+        expect(state.candidate?.bundle.info?.isCompiledForNpu, isTrue);
+        expect(state.custom?.sourceLine, gemma.sourceLine);
+        expect(prefs.values, savedBefore, reason: 'nothing saved');
+        final plan = repo.plan as CustomChatPlan;
+        expect(plan.path, gemmaFile.path);
+        expect(plan.config.llm.backend, PreferredBackend.gpu);
+        expect(plan.config.llm.supportAudio, isTrue, reason: "Gemma's file");
+
+        // "Run on CPU" acts on the applied model, the candidate stays.
+        expect(await repo.runOn(PreferredBackend.cpu), isA<Ok<void>>());
+        expect((repo.plan as CustomChatPlan).path, gemmaFile.path);
+        expect(repo.state.value.candidate?.model.sourceLine, npu.sourceLine);
+
+        final relaunched = newRepo(npu: const NpuAvailable(soc: 'QTI SM8750'));
+        await relaunched.load();
+        expect((relaunched.plan as CustomChatPlan).path, gemmaFile.path);
+        expect(relaunched.state.value.candidate, isNull);
+      });
+
+      test('Apply saves it and makes it the plan; dropping it (leaving the '
+          'Models screen) shows the applied model again', () async {
+        final repo = newRepo(npu: const NpuAvailable(soc: 'QTI SM8750'));
+        await repo.load();
+        final gemmaFile = inPlace(
+          'gemma-4-E2B-it.litertlm',
+          FakeBundle.gemma4E2b,
+        );
+        await repo.useLocalFile(gemmaFile.path);
+        expect(await repo.apply(candidateOf(repo)), isA<Ok<void>>());
+
+        final npuFile = inPlace(
+          'gemma4_2b_npu.litertlm',
+          FakeBundle.textOnlyNpu,
+        );
+        await repo.useLocalFile(npuFile.path);
+        await repo.dropInPlaceCandidate();
+        expect(repo.state.value.candidate, isNull);
+        expect((repo.plan as CustomChatPlan).path, gemmaFile.path);
+
+        final again = (await repo.useLocalFile(
+          npuFile.path,
+        ) as Ok<CustomChatModel>).value;
+        expect(await repo.apply(again), isA<Ok<void>>());
+        expect(repo.state.value.candidate, isNull);
+        expect(repo.state.value.custom?.sourceLine, again.sourceLine);
+        final plan = repo.plan as CustomChatPlan;
+        expect(plan.path, npuFile.path);
+        expect(plan.config.llm.backend, PreferredBackend.npu);
+        final stored = CustomChatModelCodec.decode(
+          prefs.values[Settings.customChatModel.key]! as String,
+        );
+        expect((stored.source as LocalModelSource).path, npuFile.path);
+        expect(prefs.values[Settings.chatModel.key], 'custom');
+
+        final relaunched = newRepo(npu: const NpuAvailable(soc: 'QTI SM8750'));
+        await relaunched.load();
+        expect((relaunched.plan as CustomChatPlan).path, npuFile.path);
+      });
+
+      test('without the NPU here, a build compiled for the NPU still starts '
+          'on the NPU (the plugin refuses it anywhere else), tools off; it '
+          'cannot be applied, and the card says why', () async {
+        final repo = newRepo();
+        await repo.load();
+        final npu = (await repo.useLocalFile(
+          inPlace('gemma4_2b_npu.litertlm', FakeBundle.npuWithTowers).path,
+        ) as Ok<CustomChatModel>).value;
+
+        expect(npu.backend, PreferredBackend.npu, reason: 'the file says so');
+        expect(npu.tools, isFalse, reason: 'an NPU build: off until known');
+        expect(
+          repo.problemWith(npu),
+          'The NPU is not available here: no NPU dispatch stack ships for '
+          'macos.',
+        );
+        expect(
+          (await repo.apply(npu) as Error<void>).error,
+          isA<InvalidChatModelException>(),
+        );
+      });
+
+      test('an imported candidate stays when the Models screen closes (one in '
+          'place does not) and its copy through every prune while it is the '
+          'candidate; the next pick replaces it and its copy goes', () async {
+        final repo = newRepo(npu: const NpuAvailable());
+        await repo.load();
+        final first =
+            (await repo.importFile(pick()) as Ok<CustomChatModel>).value;
+        expect(await repo.apply(first), isA<Ok<void>>());
+        final saved = File('${root.path}/custom/$fileName');
+        final other = File('${picked.path}/other_ekv2048.litertlm')
+          ..writeAsBytesSync(
+            fakeLitertlmBytes(
+              FakeBundle.textOnlyNpu,
+              filler: 32 * 1024,
+              seed: 11,
+            ),
+          );
+
+        await repo.importFile(other.path);
+        final candidate = File('${root.path}/custom/other_ekv2048.litertlm');
+        expect(candidate.existsSync(), isTrue);
+        expect(
+          (repo.plan as CustomChatPlan).path,
+          saved.path,
+          reason: 'the plan follows the saved file, not the store\'s slot',
+        );
+
+        await repo.pruneUnused();
+        expect(candidate.existsSync(), isTrue, reason: 'the candidate');
+        expect(saved.existsSync(), isTrue, reason: 'the saved model');
+
+        await repo.dropInPlaceCandidate(); // the Models screen closes
+        expect(
+          candidateOf(repo).file?.name,
+          'other_ekv2048.litertlm',
+          reason: 'a stored candidate stays for the app session',
+        );
+        await repo.pruneUnused();
+        expect(candidate.existsSync(), isTrue);
+
+        await repo.useLocalFile(
+          inPlace('in_place.litertlm', FakeBundle.textOnlyNpu).path,
+        );
+        expect(candidate.existsSync(), isFalse, reason: 'replaced by a pick');
+        expect(saved.existsSync(), isTrue);
+        expect((repo.plan as CustomChatPlan).path, saved.path);
+
+        await repo.dropInPlaceCandidate();
+        expect(repo.state.value.candidate, isNull, reason: 'in place: dropped');
+      });
+
+      test('the plan and the setup\'s chat row stay on the saved model while '
+          'a candidate downloads', () async {
+        final server = await FakeModelServer.start();
+        addTearDown(server.close);
+        const name = 'slow.litertlm';
+        server.files[name] = ServedFile(
+          fakeLitertlmBytes(
+            FakeBundle.npuWithTowers,
+            filler: 64 * 1024,
+            seed: 12,
+          ),
+          stallAfter: 1024,
+        );
+        final repo = newRepo(npu: const NpuAvailable());
+        await repo.load();
+        final first =
+            (await repo.importFile(pick()) as Ok<CustomChatModel>).value;
+        expect(await repo.apply(first), isA<Ok<void>>());
+        final savedPath = '${root.path}/custom/$fileName';
+        final provisioning = ProvisioningRepository(
+          store: stores.last,
+          gemmaModelPath: '',
+          chatModels: repo,
+        );
+
+        final downloading = repo.download(server.url(name));
+        await untilNotified(
+          repo.customFile,
+          () => repo.customFile.value is StoreFileDownloading,
+          what: 'the candidate\'s download to start',
+        );
+
+        expect((repo.plan as CustomChatPlan).path, savedPath);
+        expect(
+          provisioning.presenceOf(ModelId.chat),
+          isA<PresentAsCustomChatModel>().having(
+            (p) => p.where,
+            'where',
+            'model store (custom/) · verified',
+          ),
+        );
+        repo.cancel();
+        expect(await downloading, isA<Error<CustomChatModel>>());
+        expect((repo.plan as CustomChatPlan).path, savedPath);
+      });
+    });
+
+    group('Retry checks the saved file again', () {
+      test('a file put back after "Copy it back" loads without a restart; '
+          'one still missing stays blocked', () async {
+        final first = newRepo(npu: const NpuAvailable());
+        await first.load();
+        final file = inPlace('mine.litertlm', FakeBundle.textOnlyNpu);
+        await first.useLocalFile(file.path);
+        expect(await first.apply(candidateOf(first)), isA<Ok<void>>());
+        await hashed(first);
+        final content = file.readAsBytesSync();
+        file.deleteSync();
+
+        final relaunched = newRepo(npu: const NpuAvailable());
+        await relaunched.load();
+        expect(
+          (relaunched.plan as ChatPlanBlocked).reason,
+          contains('Copy it back'),
+        );
+        await relaunched.recheck();
+        expect(relaunched.plan, isA<ChatPlanBlocked>(), reason: 'still gone');
+
+        file.writeAsBytesSync(content);
+        expect(
+          relaunched.plan,
+          isA<ChatPlanBlocked>(),
+          reason: 'the last check stands until the next one',
+        );
+        await relaunched.recheck();
+
+        final plan = relaunched.plan as CustomChatPlan;
+        expect(plan.path, file.path);
+        expect(plan.config.llm.backend, PreferredBackend.npu);
+        expect(relaunched.state.value.bundle, isNotNull);
+      });
+
+      test('a saved file whose header the plugin cannot read at launch is '
+          'planned text-only by the app (the engine loads such a file without '
+          "reading it, with the towers it is asked for), with the plugin's "
+          'reason; fixed, Use this model (an apply of the saved file) reads it '
+          'again and its towers load', () async {
+        final first = newRepo(npu: const NpuAvailable());
+        await first.load();
+        final file = inPlace('mine.litertlm', FakeBundle.npuWithTowers);
+        await first.useLocalFile(file.path);
+        expect(await first.apply(candidateOf(first)), isA<Ok<void>>());
+        await hashed(first);
+        final good = file.readAsBytesSync();
+        file.writeAsBytesSync(List.filled(good.length, 0));
+
+        final relaunched = newRepo(npu: const NpuAvailable());
+        await relaunched.load();
+        final unread = relaunched.plan as CustomChatPlan;
+        expect(
+          unread.bundle,
+          isA<BundleNotRead>().having(
+            (b) => b.reason.problem,
+            'problem',
+            LiteRtLmBundleProblem.notLitertlm,
+          ),
+        );
+        expect(unread.config.llm.supportImage, isFalse);
+        expect(unread.config.llm.supportAudio, isFalse);
+        expect(relaunched.state.value.bundle, isA<BundleNotRead>());
+
+        file.writeAsBytesSync(good);
+        expect(
+          await relaunched.apply(relaunched.state.value.custom!),
+          isA<Ok<void>>(),
+        );
+        final read = (relaunched.plan as CustomChatPlan).config.llm;
+        expect(read.supportImage && read.supportAudio, isTrue);
+        expect(relaunched.state.value.bundle, isA<BundleRead>());
+      });
+    });
+
+    group("towers and defaults: what the plugin reads (LiteRtLmBundleInfo)", () {
       const npu = NpuAvailable(soc: 'QTI SM8750');
 
-      test('towers declared by the file (the official qcs8275 build: prefill '
-          'npu, audio encoder and adapter and vision adapter cpu): the NPU, '
-          'both towers on the CPU as the file sets them; the plan loads them '
-          'there', () async {
+      test('a per-SoC build compiled for the NPU, with towers: the NPU, tools '
+          'off; the plan loads both towers and leaves their backends to the '
+          'engine', () async {
         final repo = newRepo(npu: npu);
         await repo.load();
 
         final model = (await repo.useLocalFile(
           inPlace(
-            'gemma-4-E2B-it_qualcomm_qcs8275.litertlm',
-            litertlmHeaderBytes(kQualcommQcs8275Sections),
+            'gemma-4-E2B-it_qualcomm_sm8750.litertlm',
+            FakeBundle.npuWithTowers,
           ).path,
         ) as Ok<CustomChatModel>).value;
 
-        expect(model.backend, PreferredBackend.npu, reason: 'prefill npu');
+        expect(model.backend, PreferredBackend.npu, reason: 'isCompiledForNpu');
+        expect(model.tools, isFalse);
+        expect(model.maxTokens, 4096);
         expect(await repo.apply(model), isA<Ok<void>>());
         final llm = (repo.plan as CustomChatPlan).config.llm;
         expect(llm.supportImage && llm.supportAudio, isTrue);
-        expect(llm.visionBackend, PreferredBackend.cpu);
-        expect(llm.audioBackend, PreferredBackend.cpu);
-        expect(llm.undeclaredTowersOnNpu, isFalse);
+        expect(llm.backend, PreferredBackend.npu);
       });
 
-      test(
-        'no constraint on any section (the official sm8750 build): on the '
-        'NPU both towers on the NPU by default; on the GPU both on the CPU',
-        () async {
-          final repo = newRepo(npu: npu);
-          await repo.load();
-
-          final model = (await repo.useLocalFile(
-            inPlace(
-              'gemma-4-E2B-it_qualcomm_sm8750.litertlm',
-              litertlmHeaderBytes(kQualcommSm8750Sections),
-            ).path,
-          ) as Ok<CustomChatModel>).value;
-
-          expect(
-            model.backend,
-            PreferredBackend.gpu,
-            reason:
-                'nothing marks it NPU-only: the GPU until the user picks NPU',
-          );
-          expect(await repo.apply(model), isA<Ok<void>>());
-          final gpu = (repo.plan as CustomChatPlan).config.llm;
-          expect(gpu.visionBackend, PreferredBackend.cpu);
-          expect(gpu.audioBackend, PreferredBackend.cpu);
-
-          expect(
-            await repo.apply(model.copyWith(backend: PreferredBackend.npu)),
-            isA<Ok<void>>(),
-          );
-          final onNpu = (repo.plan as CustomChatPlan).config.llm;
-          expect(onNpu.visionBackend, PreferredBackend.npu);
-          expect(onNpu.audioBackend, PreferredBackend.npu);
-          expect(onNpu.undeclaredTowersOnNpu, isTrue);
-        },
-      );
-
-      test('the choices for open towers are saved and reach the plan; a '
-          'tower the file sets ignores a saved choice', () async {
-        final repo = newRepo(npu: npu);
-        await repo.load();
-        final sm8750 = (await repo.useLocalFile(
-          inPlace(
-            'gemma-4-E2B-it_qualcomm_sm8750.litertlm',
-            litertlmHeaderBytes(kQualcommSm8750Sections),
-          ).path,
-        ) as Ok<CustomChatModel>).value;
-
-        final cpu = sm8750
-            .copyWith(backend: PreferredBackend.npu, maxTokens: 4096)
-            .withTowerChoices(
-              vision: PreferredBackend.cpu,
-              audio: PreferredBackend.cpu,
-            );
-        expect(await repo.apply(cpu), isA<Ok<void>>());
-
-        final llm = (repo.plan as CustomChatPlan).config.llm;
-        expect(llm.visionBackend, PreferredBackend.cpu);
-        expect(llm.audioBackend, PreferredBackend.cpu);
-        expect(llm.undeclaredTowersOnNpu, isFalse);
-        final stored = CustomChatModelCodec.decode(
-          prefs.values['chat.custom']! as String,
-        );
-        expect(stored.visionChoice, PreferredBackend.cpu);
-        expect(stored.audioChoice, PreferredBackend.cpu);
-
-        // The same choices on a file that sets its towers: the file wins.
-        final towers = (await repo.useLocalFile(
-          inPlace(
-            'gemma-4-E2B-it_qualcomm_qcs8275.litertlm',
-            litertlmHeaderBytes(kQualcommQcs8275Sections),
-          ).path,
-        ) as Ok<CustomChatModel>).value;
-        expect(
-          await repo.apply(
-            towers.withTowerChoices(
-              vision: PreferredBackend.npu,
-              audio: PreferredBackend.npu,
-            ),
-          ),
-          isA<Ok<void>>(),
-        );
-        final pinned = (repo.plan as CustomChatPlan).config.llm;
-        expect(pinned.visionBackend, PreferredBackend.cpu);
-        expect(pinned.audioBackend, PreferredBackend.cpu);
-      });
-
-      test('another file resets the choices; Run on GPU keeps them (they '
-          'apply again back on the NPU)', () async {
-        final repo = newRepo(npu: npu);
-        await repo.load();
-        final first = (await repo.useLocalFile(
-          inPlace(
-            'a.litertlm',
-            litertlmHeaderBytes(kQualcommSm8750Sections),
-          ).path,
-        ) as Ok<CustomChatModel>).value;
-        final chosen = first
-            .copyWith(backend: PreferredBackend.npu, maxTokens: 4096)
-            .withTowerChoices(vision: PreferredBackend.cpu, audio: null);
-        expect(await repo.apply(chosen), isA<Ok<void>>());
-
-        expect(await repo.runOn(PreferredBackend.gpu), isA<Ok<void>>());
-        final onGpu = repo.state.value.custom!;
-        expect(onGpu.visionChoice, PreferredBackend.cpu, reason: 'kept');
-        final gpuLlm = (repo.plan as CustomChatPlan).config.llm;
-        expect(gpuLlm.visionBackend, PreferredBackend.cpu);
-        expect(gpuLlm.audioBackend, PreferredBackend.cpu, reason: 'off NPU');
-
-        final replaced = (await repo.useLocalFile(
-          inPlace(
-            'b.litertlm',
-            litertlmHeaderBytes(kQualcommSm8750Sections),
-          ).path,
-        ) as Ok<CustomChatModel>).value;
-        expect(replaced.visionChoice, isNull, reason: 'another file');
-        expect(replaced.audioChoice, isNull);
-        expect(
-          CustomChatModelCodec.decode(prefs.values['chat.custom']! as String)
-              .visionChoice,
-          isNull,
-        );
-      });
-
-      test('the same file picked again keeps the choices (the official '
-          'SM8750 build works only with them): in place by its path and size, '
-          'imported by its SHA-256; another file drops them', () async {
-        final repo = newRepo(npu: npu);
-        await repo.load();
-        final file = inPlace(
-          'gemma-4-E2B-it_qualcomm_sm8750.litertlm',
-          litertlmHeaderBytes(kQualcommSm8750Sections),
-        );
-        final first =
-            (await repo.useLocalFile(file.path) as Ok<CustomChatModel>).value;
-        final cpu = first
-            .copyWith(backend: PreferredBackend.npu, maxTokens: 4096)
-            .withTowerChoices(
-              vision: PreferredBackend.cpu,
-              audio: PreferredBackend.cpu,
-            );
-        expect(await repo.apply(cpu), isA<Ok<void>>());
-
-        final again =
-            (await repo.useLocalFile(file.path) as Ok<CustomChatModel>).value;
-        expect(again.visionChoice, PreferredBackend.cpu);
-        expect(again.audioChoice, PreferredBackend.cpu);
-
-        // Imported into the store: the same bytes (its SHA-256, once the
-        // in-place hash is known), so the same file.
-        await hashed(repo);
-        final imported =
-            (await repo.importFile(file.path) as Ok<CustomChatModel>).value;
-        expect(imported.source, isA<ImportedModelSource>());
-        expect(imported.visionChoice, PreferredBackend.cpu, reason: 'same');
-
-        final other = (await repo.useLocalFile(
-          inPlace(
-            'other.litertlm',
-            litertlmHeaderBytes(kQualcommSm8750Sections),
-          ).path,
-        ) as Ok<CustomChatModel>).value;
-        expect(other.visionChoice, isNull, reason: 'another file');
-        expect(other.audioChoice, isNull);
-      });
-
-      test('a choice that is not the CPU or the NPU is refused', () async {
-        final repo = newRepo(npu: npu);
-        await repo.load();
-        final model = (await repo.useLocalFile(
-          inPlace(
-            'a.litertlm',
-            litertlmHeaderBytes(kQualcommSm8750Sections),
-          ).path,
-        ) as Ok<CustomChatModel>).value;
-
-        expect(
-          repo.problemWith(
-            model.withTowerChoices(vision: PreferredBackend.gpu, audio: null),
-          ),
-          contains('the CPU or the NPU'),
-        );
-      });
-
-      test('the header is read again at launch: the plan has it after a '
+      test('the file is read again at launch: the plan has it after a '
           'restart', () async {
         final first = newRepo(npu: npu);
         await first.load();
         final model = (await first.useLocalFile(
-          inPlace(
-            'towers.litertlm',
-            litertlmHeaderBytes(kQualcommQcs8275Sections),
-          ).path,
+          inPlace('towers.litertlm', FakeBundle.npuWithTowers).path,
         ) as Ok<CustomChatModel>).value;
         expect(await first.apply(model), isA<Ok<void>>());
 
@@ -551,15 +668,121 @@ void main() {
         await relaunched.load();
 
         final llm = (relaunched.plan as CustomChatPlan).config.llm;
-        expect(llm.visionBackend, PreferredBackend.cpu);
-        expect(llm.audioBackend, PreferredBackend.cpu);
-        expect(relaunched.state.value.header, isNotNull);
+        expect(llm.supportImage && llm.supportAudio, isTrue);
+        expect(relaunched.state.value.bundle?.info?.isCompiledForNpu, isTrue);
       });
 
-      test('an imported or downloaded file whose header cannot be read is '
-          'refused with the inspection error, as a file in place is, before '
-          'the store copies it: nothing adopted or stored, the chosen model '
-          'and its file kept, also under the same name', () async {
+      test('the CPU | NPU tower choices an earlier build saved are ignored: '
+          'the record loads, every tower the file has loads, and nothing '
+          'about the towers is written again', () async {
+        final file = inPlace('towers.litertlm', FakeBundle.npuWithTowers);
+        final size = file.lengthSync();
+        prefs.values['chat.model'] = ChatModelKind.custom.name;
+        final v4 =
+            '{"v":4,"displayName":"towers","modelType":"gemma4",'
+            '"backend":"npu","maxTokens":4096,"tools":false,'
+            '"visionChoice":"cpu","audioChoice":"npu",'
+            '"source":{"kind":"local","path":"${file.path}"},'
+            '"file":{"name":"towers.litertlm","sizeBytes":$size,'
+            '"checksumMatched":false}}';
+        prefs.values['chat.custom'] = v4;
+        final repo = newRepo(npu: npu, persistMigration: false);
+
+        expect(await repo.load(), isA<Ok<void>>());
+
+        final llm = (repo.plan as CustomChatPlan).config.llm;
+        expect(llm.supportImage && llm.supportAudio, isTrue);
+        expect(prefs.values['chat.custom'], v4, reason: 'read only');
+
+        expect(
+          await repo.apply(
+            repo.state.value.custom!.copyWith(displayName: 'renamed'),
+          ),
+          isA<Ok<void>>(),
+        );
+        final saved = prefs.values['chat.custom']! as String;
+        expect(saved, contains('"renamed"'));
+        expect(saved, isNot(contains('Choice')));
+      });
+
+      test('a version 3 record with images off and the encoders on the NPU '
+          'loads, and the file wins: both towers load; nothing is '
+          'repaired', () async {
+        final file = inPlace('towers.litertlm', FakeBundle.npuWithTowers);
+        prefs.values['chat.model'] = ChatModelKind.custom.name;
+        final v3 =
+            '{"v":3,"displayName":"towers","modelType":"gemma4",'
+            '"backend":"npu","maxTokens":4096,"supportImage":false,'
+            '"supportAudio":true,"encoderBackend":"npu","tools":false,'
+            '"source":{"kind":"local","path":"${file.path}"},'
+            '"file":{"name":"towers.litertlm","sizeBytes":${file.lengthSync()},'
+            '"checksumMatched":false}}';
+        prefs.values['chat.custom'] = v3;
+        final repo = newRepo(npu: npu, persistMigration: false);
+
+        expect(await repo.load(), isA<Ok<void>>());
+
+        final llm = (repo.plan as CustomChatPlan).config.llm;
+        expect(llm.supportImage, isTrue, reason: 'the file has vision');
+        expect(llm.supportAudio, isTrue);
+        expect(prefs.values['chat.custom'], v3, reason: 'read only');
+      });
+
+      test('an incomplete file (LiteRtLmBundleInfo.isComplete false) is '
+          'unusable at pick time, with the lengths the plugin reports: in '
+          'place, imported and downloaded alike, never stored', () async {
+        final repo = newRepo(npu: npu);
+        await repo.load();
+        final cut = inPlace('cut.litertlm', FakeBundle.incomplete);
+        final length = cut.lengthSync();
+
+        final inPlaceResult = await repo.useLocalFile(cut.path);
+
+        final error =
+            (inPlaceResult as Error<CustomChatModel>).error
+                as LocalModelException;
+        expect(
+          error.message,
+          '${cut.path} is incomplete: it is $length bytes and its sections '
+          'end at ${length * 2} (a copy or download that stopped early). '
+          'Copy or download it again.',
+        );
+        expect(repo.state.value.candidate, isNull, reason: 'nothing picked');
+
+        expect(
+          (await repo.importFile(cut.path) as Error<CustomChatModel>).error,
+          isA<LocalModelException>().having(
+            (e) => e.message,
+            'message',
+            contains('is incomplete'),
+          ),
+        );
+        expect(
+          File('${root.path}/custom/cut.litertlm').existsSync(),
+          isFalse,
+          reason: 'never stored',
+        );
+
+        final server = await FakeModelServer.start();
+        addTearDown(server.close);
+        server.files['cut.litertlm'] = ServedFile(cut.readAsBytesSync());
+        expect(
+          (await repo.download(
+            server.url('cut.litertlm'),
+          ) as Error<CustomChatModel>).error.toString(),
+          allOf(
+            contains('is not a usable .litertlm'),
+            contains('the downloaded file is incomplete'),
+          ),
+        );
+        expect(repo.state.value.candidate, isNull);
+      });
+
+      test('an imported or downloaded file whose header the plugin cannot '
+          'read is not refused (the engine loads it without reading it): it '
+          "is stored and becomes the candidate with the plugin's reason, the "
+          'GPU and no tower; the chosen model and its file are kept, also '
+          'under the same name', () async {
         final repo = newRepo(npu: npu);
         await repo.load();
         final first =
@@ -572,66 +795,64 @@ void main() {
 
         final imported = await repo.importFile(noHeader.path);
 
+        final model = (imported as Ok<CustomChatModel>).value;
+        expect(model.backend, PreferredBackend.gpu);
+        final stored = File('${root.path}/custom/no_header.litertlm');
+        expect(stored.existsSync(), isTrue);
         expect(
-          (imported as Error<CustomChatModel>).error,
-          isA<LocalModelException>().having(
-            (e) => e.message,
-            'message',
-            '${noHeader.path} is not a .litertlm file (it does not start '
-                'with "LITERTLM").',
-          ),
-          reason: 'it names the file the user picked',
+          repo.state.value.candidate?.bundle,
+          isA<BundleNotRead>()
+              .having(
+                (b) => b.reason.problem,
+                'problem',
+                LiteRtLmBundleProblem.notLitertlm,
+              )
+              .having(
+                (b) => b.reason.message,
+                'message',
+                '${stored.path} is not a .litertlm container (no LITERTLM '
+                    'magic)',
+              ),
         );
         expect(
-          File('${root.path}/custom/no_header.litertlm').existsSync(),
-          isFalse,
-          reason: 'never stored',
+          towersLine(repo.state.value.candidate!.bundle),
+          'towers not read',
         );
 
-        // The same name as the chosen model's file: that file is untouched.
+        // The same name as the chosen model's file: stored beside it, that
+        // file is untouched.
         final sameName = File('${picked.path}/other/$fileName')
           ..createSync(recursive: true)
           ..writeAsBytesSync(testBytes(8192, seed: 7));
         expect(
           await repo.importFile(sameName.path),
-          isA<Error<CustomChatModel>>(),
+          isA<Ok<CustomChatModel>>(),
         );
         expect(File(plan.path).readAsBytesSync(), chosen);
 
         final server = await FakeModelServer.start();
         addTearDown(server.close);
-        server.files[fileName] = ServedFile(testBytes(4096, seed: 6));
-        final downloaded = await repo.download(server.url(fileName));
-        expect(
-          (downloaded as Error<CustomChatModel>).error.toString(),
-          allOf(
-            contains('is not a usable .litertlm'),
-            contains('the downloaded file is not a .litertlm file'),
-          ),
-        );
+        server.files['page.litertlm'] = ServedFile(testBytes(4096, seed: 6));
+        final downloaded = await repo.download(server.url('page.litertlm'));
+        expect(downloaded, isA<Ok<CustomChatModel>>());
+        expect(repo.state.value.candidate?.bundle, isA<BundleNotRead>());
         expect(File(plan.path).readAsBytesSync(), chosen);
-        expect(
-          Directory('${root.path}/custom')
-              .listSync()
-              .map((e) => e.path.split('/').last)
-              .where((n) => n.endsWith('.part')),
-          isEmpty,
-          reason: 'the refused download\'s bytes are deleted',
-        );
 
         expect(repo.state.value.custom?.file?.name, fileName);
         expect(prefs.values['chat.custom'], contains(fileName));
         expect((repo.plan as CustomChatPlan).path, plan.path);
       });
 
-      test('a stored file whose header cannot be read at launch is the '
-          'visible problem, not loaded with its towers off', () async {
+      test('a stored file whose header the plugin cannot read at launch is '
+          'planned text-only by the app (the engine loads such a file without '
+          "reading it), with the plugin's reason; picked again, its settings "
+          'stay', () async {
         final first = newRepo(npu: npu);
         await first.load();
         final model =
             (await first.importFile(pick()) as Ok<CustomChatModel>).value;
         expect(await first.apply(model), isA<Ok<void>>());
-        // The header turns unreadable; size and checksum record unchanged.
+        // The file turns unreadable; size and checksum record unchanged.
         final stored = File('${root.path}/custom/$fileName');
         final damaged = stored.readAsBytesSync()..fillRange(0, 8, 0);
         stored.writeAsBytesSync(damaged);
@@ -642,14 +863,19 @@ void main() {
         await relaunched.load();
         expect(
           relaunched.plan,
-          isA<ChatPlanBlocked>().having(
-            (p) => p.reason,
-            'reason',
-            contains(
-              'the header of $fileName in the model store cannot be '
-              'read',
+          isA<CustomChatPlan>().having(
+            (p) => p.bundle,
+            'bundle',
+            isA<BundleNotRead>().having(
+              (b) => b.reason.message,
+              'message',
+              contains('is not a .litertlm container'),
             ),
           ),
+        );
+        expect(
+          (relaunched.plan as CustomChatPlan).config.llm.supportImage,
+          isFalse,
         );
         expect(relaunched.state.value.problem, isNull, reason: 'settings ok');
         expect(prefs.values['chat.custom'], saved, reason: 'settings kept');
@@ -662,45 +888,38 @@ void main() {
         expect(relaunched.plan, isA<CustomChatPlan>());
       });
 
-      test('an imported build with towers declared by the file (qcs8275): '
-          'its header is read from the '
-          'store\'s copy (and again at launch), so its towers load on the '
-          'CPU like the same file in place', () async {
+      test('an imported build with towers: read from the store\'s copy (and '
+          'again at launch), so its towers load like the same file in '
+          'place', () async {
         final repo = newRepo(npu: npu);
         await repo.load();
         final towers = inPlace(
-          'gemma-4-E2B-it_qualcomm_qcs8275.litertlm',
-          litertlmHeaderBytes(kQualcommQcs8275Sections),
+          'gemma-4-E2B-it_qualcomm_sm8750.litertlm',
+          FakeBundle.npuWithTowers,
         );
 
         final model =
             (await repo.importFile(towers.path) as Ok<CustomChatModel>).value;
 
         expect(model.source, isA<ImportedModelSource>());
-        expect(model.backend, PreferredBackend.npu, reason: 'prefill npu');
+        expect(model.backend, PreferredBackend.npu);
         expect(await repo.apply(model), isA<Ok<void>>());
         final llm = (repo.plan as CustomChatPlan).config.llm;
-        expect(llm.visionBackend, PreferredBackend.cpu);
-        expect(llm.audioBackend, PreferredBackend.cpu);
+        expect(llm.supportImage && llm.supportAudio, isTrue);
 
         final relaunched = newRepo(npu: npu);
         await relaunched.load();
         final again = (relaunched.plan as CustomChatPlan).config.llm;
-        expect(again.visionBackend, PreferredBackend.cpu);
-        expect(again.audioBackend, PreferredBackend.cpu);
+        expect(again.supportImage && again.supportAudio, isTrue);
       });
 
-      test('a downloaded build with towers declared by the file (qcs8275): '
-          'the same, from the store\'s '
+      test('a downloaded build with towers: the same, from the store\'s '
           'copy', () async {
         final server = await FakeModelServer.start();
         addTearDown(server.close);
-        const name = 'gemma-4-E2B-it_qualcomm_qcs8275.litertlm';
+        const name = 'gemma-4-E2B-it_qualcomm_sm8750.litertlm';
         server.files[name] = ServedFile(
-          Uint8List.fromList([
-            ...litertlmHeaderBytes(kQualcommQcs8275Sections),
-            ...testBytes(8192, seed: 9),
-          ]),
+          fakeLitertlmBytes(FakeBundle.npuWithTowers, seed: 9),
         );
         final repo = newRepo(npu: npu);
         await repo.load();
@@ -711,40 +930,9 @@ void main() {
 
         expect(model.source, isA<UrlModelSource>());
         expect(model.backend, PreferredBackend.npu);
-        final towers = model.towersOf(repo.state.value.header!);
-        expect(towers.supportAudio, isTrue, reason: 'its header has audio');
-        expect(towers.visionBackend, PreferredBackend.cpu);
-        expect(towers.audioBackend, PreferredBackend.cpu);
-      });
-
-      test('a saved version 3 record with images off and the encoders on the '
-          'NPU, for a file whose header pins its towers to the CPU: it loads, '
-          'and the header wins (both towers, on the CPU); nothing is '
-          'repaired', () async {
-        final bytes = [
-          ...litertlmHeaderBytes(kQualcommQcs8275Sections),
-          ...testBytes(8192, seed: 3),
-        ];
-        final file = File('${picked.path}/towers.litertlm')
-          ..writeAsBytesSync(bytes);
-        prefs.values['chat.model'] = ChatModelKind.custom.name;
-        final v3 =
-            '{"v":3,"displayName":"towers","modelType":"gemma4",'
-            '"backend":"npu","maxTokens":4096,"supportImage":false,'
-            '"supportAudio":true,"encoderBackend":"npu","tools":false,'
-            '"source":{"kind":"local","path":"${file.path}"},'
-            '"file":{"name":"towers.litertlm","sizeBytes":${bytes.length},'
-            '"checksumMatched":false}}';
-        prefs.values['chat.custom'] = v3;
-        final repo = newRepo(npu: npu, persistMigration: false);
-
-        expect(await repo.load(), isA<Ok<void>>());
-
-        final llm = (repo.plan as CustomChatPlan).config.llm;
-        expect(llm.supportImage, isTrue, reason: 'the header has vision');
-        expect(llm.visionBackend, PreferredBackend.cpu);
-        expect(llm.audioBackend, PreferredBackend.cpu);
-        expect(prefs.values['chat.custom'], v3, reason: 'read only');
+        final bundle = candidateBundle(repo);
+        expect(bundle.visionEncoder, isNotNull);
+        expect(bundle.audioEncoder, isNotNull, reason: 'the file has audio');
       });
     });
 
@@ -754,7 +942,7 @@ void main() {
       await repo.load();
 
       final qwen = (await repo.useLocalFile(
-        inPlace('Qwen3-0.6B.litertlm', gpuHeader).path,
+        inPlace('Qwen3-0.6B.litertlm', FakeBundle.gemma4E2b).path,
       ) as Ok<CustomChatModel>).value;
       expect(qwen.modelType, ModelType.qwen3);
       expect(qwen.tools, isFalse);
@@ -768,6 +956,7 @@ void main() {
       stores.add(store);
       final repo = ChatModelRepository(
         settings: TypedSettings(store: writes),
+        readBundle: fakeReadBundle,
         store: store,
         npu: () => const NpuUnavailable('none here'),
         folders: [ModelsFolder(directory: () async => root)],
@@ -775,13 +964,15 @@ void main() {
       );
       repos.add(repo);
       await repo.load();
-      final file = inPlace('gemma-4-E2B-it.litertlm', gpuHeader);
+      final file = inPlace('gemma-4-E2B-it.litertlm', FakeBundle.gemma4E2b);
       final picked =
           (await repo.useLocalFile(file.path) as Ok<CustomChatModel>).value;
-      await hashing.started.future;
+      expect(hashing.started.isCompleted, isFalse, reason: 'only picked');
+      expect(await repo.apply(picked), isA<Ok<void>>());
+      await hashing.started.future; // the saved file is hashed
 
-      // Apply saves the custom settings, then the choice; the hash ends
-      // between the two.
+      // Another apply saves the custom settings, then the choice; the hash
+      // ends between the two.
       final hold = Completer<void>();
       writes
         ..holdKey = Settings.chatModel.key
@@ -814,43 +1005,76 @@ void main() {
       expect(plan.config.llm.maxTokens, 2048);
     });
 
-    test('the app quitting in the middle of a pick: no background SHA-256 '
-        'starts on the disposed repository', () async {
+    test('a SHA-256 of a file replaced while it was hashed (another size '
+        'now) is never saved', () async {
       final hashing = _GatedHashOps(Completer<void>());
-      final writes = _HeldWrites(prefs);
       final store = ModelStore(root: () async => root);
       stores.add(store);
       final repo = ChatModelRepository(
-        settings: TypedSettings(store: writes),
+        settings: TypedSettings(store: prefs),
+        readBundle: fakeReadBundle,
+        store: store,
+        npu: () => const NpuUnavailable('none here'),
+        folders: [ModelsFolder(directory: () async => root)],
+        ops: hashing,
+      );
+      repos.add(repo);
+      await repo.load();
+      final file = inPlace('gemma-4-E2B-it.litertlm', FakeBundle.gemma4E2b);
+      final picked =
+          (await repo.useLocalFile(file.path) as Ok<CustomChatModel>).value;
+      expect(await repo.apply(picked), isA<Ok<void>>());
+      await hashing.started.future;
+
+      file.writeAsBytesSync([
+        ...fakeLitertlmBytes(FakeBundle.gemma4E2b, filler: 9000, seed: 4),
+      ]);
+      hashing.gate.complete();
+      await untilNotified(
+        repo.hashing,
+        () => !repo.hashing.value,
+        what: 'the hash to end',
+      );
+
+      final stored = CustomChatModelCodec.decode(
+        prefs.values[Settings.customChatModel.key]! as String,
+      );
+      expect(stored.file?.sha256, isNull, reason: 'the bytes it hashed went');
+      expect(repo.state.value.custom!.file!.sha256, isNull);
+    });
+
+    test('the app quitting in the middle of a pick: no background SHA-256 '
+        'starts on the disposed repository', () async {
+      final hashing = _GatedHashOps(Completer<void>());
+      final store = ModelStore(root: () async => root);
+      stores.add(store);
+      final repo = ChatModelRepository(
+        settings: TypedSettings(store: prefs),
+        readBundle: fakeReadBundle,
         store: store,
         npu: () => const NpuUnavailable('none here'),
         folders: [ModelsFolder(directory: () async => root)],
         ops: hashing,
       );
       await repo.load();
-      final file = inPlace('gemma-4-E2B-it.litertlm', gpuHeader);
-      final hold = Completer<void>();
-      writes
-        ..holdKey = Settings.customChatModel.key
-        ..gate = hold;
+      final file = inPlace('gemma-4-E2B-it.litertlm', FakeBundle.gemma4E2b);
       final picking = repo.useLocalFile(file.path);
-      await writes.held.future;
 
-      repo.dispose(); // the app quits while the pick saves
-      hold.complete();
+      repo.dispose(); // the app quits while the header is read
 
       await expectLater(picking, completes);
       await pumpEventQueue();
       expect(hashing.started.isCompleted, isFalse);
+      expect(prefs.values, isEmpty);
     });
 
     test('the choice persists across a restart', () async {
       final first = newRepo(npu: const NpuAvailable());
       await first.load();
-      final file = inPlace('mine.litertlm', npuHeader);
+      final file = inPlace('mine.litertlm', FakeBundle.textOnlyNpu);
       await first.useLocalFile(file.path);
+      await first.apply(candidateOf(first));
       await hashed(first);
-      await first.apply(first.state.value.custom!);
 
       final second = newRepo(npu: const NpuAvailable());
       expect(await second.load(), isA<Ok<void>>());
@@ -864,10 +1088,10 @@ void main() {
         'another model', () async {
       final first = newRepo(npu: const NpuAvailable());
       await first.load();
-      final file = inPlace('mine.litertlm', npuHeader);
+      final file = inPlace('mine.litertlm', FakeBundle.textOnlyNpu);
       await first.useLocalFile(file.path);
+      await first.apply(candidateOf(first));
       await hashed(first);
-      await first.apply(first.state.value.custom!);
       file.deleteSync();
 
       final second = newRepo(npu: const NpuAvailable());
@@ -888,7 +1112,9 @@ void main() {
         await repo.load();
         final dir = Directory('${root.path}/m')..createSync(recursive: true);
         final locked = File('${dir.path}/locked.litertlm')
-          ..writeAsBytesSync([...gpuHeader, ...testBytes(64)]);
+          ..writeAsBytesSync(
+            fakeLitertlmBytes(FakeBundle.gemma4E2b, filler: 64),
+          );
         Process.runSync('chmod', ['000', locked.path]);
         addTearDown(() => Process.runSync('chmod', ['644', locked.path]));
 
@@ -908,10 +1134,12 @@ void main() {
       await first.load();
       final dir = Directory('${root.path}/m')..createSync(recursive: true);
       final file = File('${dir.path}/mine.litertlm')
-        ..writeAsBytesSync([...npuHeader, ...testBytes(64)]);
+        ..writeAsBytesSync(
+          fakeLitertlmBytes(FakeBundle.textOnlyNpu, filler: 64),
+        );
       await first.useLocalFile(file.path);
+      await first.apply(candidateOf(first));
       await hashed(first);
-      await first.apply(first.state.value.custom!);
 
       final folder = ModelsFolder(
         directory: () async => dir,
@@ -919,6 +1147,7 @@ void main() {
       );
       final denied = ChatModelRepository(
         settings: TypedSettings(store: prefs),
+        readBundle: fakeReadBundle,
         store: ModelStore(root: () async => root),
         npu: () => const NpuAvailable(),
         folders: [folder],
@@ -950,7 +1179,7 @@ void main() {
       Directory('${root.path}/tmp-models').createSync();
       inPlace(
         'x.litertlm',
-        npuHeader,
+        FakeBundle.textOnlyNpu,
       ).copySync('${root.path}/tmp-models/x.litertlm');
       final listed = (await repo.listFolders())[1].files;
       expect(listed.single.name, 'x.litertlm');
@@ -962,6 +1191,7 @@ void main() {
       stores.add(store);
       final repo = ChatModelRepository(
         settings: TypedSettings(store: prefs),
+        readBundle: fakeReadBundle,
         store: store,
         folders: [
           ModelsFolder(directory: () async => Directory('${root.path}/m')),
@@ -985,8 +1215,8 @@ void main() {
       expect(broken.files, isEmpty);
     });
 
-    test('not a .litertlm, or missing: an error naming the path, nothing '
-        'saved', () async {
+    test('missing: an error naming the path, nothing saved; not a .litertlm: '
+        "the candidate with the plugin's reason, nothing saved", () async {
       final repo = newRepo();
       await repo.load();
       final bogus = File('${picked.path}/bogus.litertlm')
@@ -995,7 +1225,11 @@ void main() {
       final notModel = await repo.useLocalFile(bogus.path);
       final missing = await repo.useLocalFile('${picked.path}/none.litertlm');
 
-      expect('${(notModel as Error).error}', contains('not a .litertlm'));
+      expect(notModel, isA<Ok<CustomChatModel>>());
+      expect(
+        '${(repo.state.value.candidate?.bundle as BundleNotRead).reason}',
+        contains('not a .litertlm'),
+      );
       expect('${(missing as Error).error}', contains('none.litertlm'));
       expect(repo.state.value.custom, isNull);
     });
@@ -1004,7 +1238,7 @@ void main() {
         'LocalModelException naming the path, nothing saved', () async {
       final repo = newRepo();
       await repo.load();
-      final file = inPlace('gemma4_e2b.litertlm', gpuHeader);
+      final file = inPlace('gemma4_e2b.litertlm', FakeBundle.gemma4E2b);
 
       final result = await IOOverrides.runZoned(
         () => repo.useLocalFile(file.path),
@@ -1029,7 +1263,7 @@ void main() {
         'size -1) is an error, never saved with that size', () async {
       final repo = newRepo();
       await repo.load();
-      final file = inPlace('gemma4_e2b.litertlm', gpuHeader);
+      final file = inPlace('gemma4_e2b.litertlm', FakeBundle.gemma4E2b);
 
       final result = await IOOverrides.runZoned(
         () => repo.useLocalFile(file.path),
@@ -1084,15 +1318,12 @@ void main() {
   });
 
   group('an upgrade over a Gemma 4 E2B the app downloaded earlier', () {
-    final gpuHeader = File('test_assets/litertlm/gemma4_e2b_gpu.header.bin')
-        .readAsBytesSync();
-
     /// The earlier build's verified download (a small stand-in: its length
     /// is reported as the real one's).
     String earlierGemma() {
       final dir = Directory('${root.path}/$kRetiredGemmaFolder')..createSync();
       final file = File('${dir.path}/$kRetiredGemmaFile')
-        ..writeAsBytesSync([...gpuHeader, ...testBytes(64)]);
+        ..writeAsBytesSync(fakeLitertlmBytes(FakeBundle.gemma4E2b, filler: 64));
       File('${file.path}.sha256')
           .writeAsStringSync('$kRetiredGemmaSha256  $kRetiredGemmaFile\n');
       return file.path;
@@ -1103,6 +1334,7 @@ void main() {
       stores.add(store);
       final repo = ChatModelRepository(
         settings: TypedSettings(store: prefs),
+        readBundle: fakeReadBundle,
         store: store,
         npu: () =>
             const NpuUnavailable('no NPU dispatch stack ships for macos'),
@@ -1137,7 +1369,7 @@ void main() {
         expect(
           plan.config.llm.supportAudio,
           isTrue,
-          reason: 'its header has the audio encoder',
+          reason: 'its file has the audio encoder',
         );
         expect(plan.config.tools, isTrue);
         expect(repo.state.value.note, kEarlierGemmaAdoptedNote);
@@ -1203,8 +1435,9 @@ void main() {
     expect((relaunched.plan as NoChatModelPlan).note, isNull);
   });
 
-  test('an import gets defaults from the device and the file name, is saved, '
-      'and does not switch the chat model by itself', () async {
+  test('an import gets defaults from the file and its name, is the '
+      'candidate, saves nothing and does not switch the chat model by '
+      'itself', () async {
     final repo = newRepo(npu: const NpuAvailable(soc: 'QTI SM8750'));
     await repo.load();
 
@@ -1212,37 +1445,38 @@ void main() {
 
     final model = (result as Ok<CustomChatModel>).value;
     expect(model.displayName, 'Gemma3-1B-IT_q4_ekv1280_sm8750');
-    expect(model.backend, PreferredBackend.npu, reason: 'the NPU is offered');
+    expect(model.backend, PreferredBackend.npu, reason: 'compiled for the NPU');
     expect(model.maxTokens, 1280, reason: 'from ekv1280 in the name');
     expect(model.modelType, ModelType.gemmaIt, reason: 'Gemma3 in the name');
     expect(
-      model.towersOf(repo.state.value.header!),
-      ModelTowers.none,
+      towersLine(repo.state.value.candidate!.bundle),
+      'towers none',
       reason: 'a text-only build',
     );
     expect(model.tools, isFalse, reason: 'an NPU build');
     expect(model.file?.sha256, sha256Hex(bytes));
     expect(model.file?.checksumMatched, isFalse);
     expect(model.source, isA<ImportedModelSource>());
+    expect(candidateOf(repo).sourceLine, model.sourceLine);
+    expect(repo.state.value.custom, isNull);
     expect(repo.state.value.kind, ChatModelKind.none);
     expect(repo.plan, isA<NoChatModelPlan>());
-    expect(prefs.values['chat.custom'], isA<String>());
+    expect(prefs.values['chat.custom'], isNull);
   });
 
-  test(
-    'without an NPU the default is the GPU, with at least 1024 tokens',
-    () async {
-      final repo = newRepo();
-      await repo.load();
+  test('a file not compiled for the NPU defaults to the GPU, with at least '
+      '1024 tokens (an ekv512 name or not)', () async {
+    final repo = newRepo(npu: const NpuAvailable());
+    await repo.load();
+    final tiny = File('${picked.path}/tiny_ekv512.litertlm')
+      ..writeAsBytesSync(fakeLitertlmBytes(FakeBundle.textOnly));
 
-      final model = (await repo.importFile(
-        pick('tiny_ekv512.litertlm'),
-      ) as Ok<CustomChatModel>).value;
+    final model =
+        (await repo.importFile(tiny.path) as Ok<CustomChatModel>).value;
 
-      expect(model.backend, PreferredBackend.gpu);
-      expect(model.maxTokens, 1024);
-    },
-  );
+    expect(model.backend, PreferredBackend.gpu);
+    expect(model.maxTokens, 1024);
+  });
 
   test('apply saves the settings and the choice; a new launch reads them and '
       'finds the verified file without hashing', () async {
@@ -1275,13 +1509,12 @@ void main() {
   });
 
   group('a choice that cannot be saved', () {
-    test('first apply: the custom settings are put back; a restart loads '
-        'what the screen still shows', () async {
-      final repo = newRepo();
+    test('first apply: nothing is left half saved; the candidate stays to '
+        'apply again; a restart loads what was saved before', () async {
+      final repo = newRepo(npu: const NpuAvailable());
       await repo.load();
       final imported =
           (await repo.importFile(pick()) as Ok<CustomChatModel>).value;
-      final savedBefore = prefs.values['chat.custom'];
       prefs.failWritesOf.add('chat.model');
 
       final result = await repo.apply(
@@ -1289,21 +1522,22 @@ void main() {
       );
 
       expect(result, isA<Error<void>>());
-      expect(prefs.values['chat.custom'], savedBefore);
+      expect(prefs.values.containsKey('chat.custom'), isFalse);
       expect(prefs.values.containsKey('chat.model'), isFalse);
       expect(repo.state.value.kind, isNot(ChatModelKind.custom));
-      expect(repo.state.value.custom?.displayName, imported.displayName);
+      expect(repo.state.value.custom, isNull);
+      expect(candidateOf(repo).displayName, imported.displayName);
 
       prefs.failWritesOf.clear();
-      final relaunched = newRepo();
+      final relaunched = newRepo(npu: const NpuAvailable());
       await relaunched.load();
-      expect(relaunched.state.value.kind, repo.state.value.kind);
-      expect(relaunched.state.value.custom?.displayName, imported.displayName);
+      expect(relaunched.state.value.kind, ChatModelKind.none);
+      expect(relaunched.state.value.custom, isNull);
     });
 
     test('custom chosen already: a failed save keeps the running '
         'settings, not the edited ones', () async {
-      final repo = newRepo();
+      final repo = newRepo(npu: const NpuAvailable());
       await repo.load();
       final imported =
           (await repo.importFile(pick()) as Ok<CustomChatModel>).value;
@@ -1316,7 +1550,7 @@ void main() {
       expect(result, isA<Error<void>>());
       expect(prefs.values['chat.custom'], savedBefore);
       prefs.failWritesOf.clear();
-      final relaunched = newRepo();
+      final relaunched = newRepo(npu: const NpuAvailable());
       await relaunched.load();
       expect(
         (relaunched.plan as CustomChatPlan).config.llm.maxTokens,
@@ -1325,8 +1559,8 @@ void main() {
     });
   });
 
-  test('NPU is refused where flutter_edge_ai would not offer it, with the '
-      'reason', () async {
+  test("NPU is refused where the app's copy of the plugin's NPU check "
+      'finds none, with the reason', () async {
     final repo = newRepo();
     await repo.load();
     final imported =
@@ -1342,12 +1576,20 @@ void main() {
     expect(prefs.values['chat.model'], isNot('custom'));
   });
 
-  test('Run on GPU raises a small NPU context to 1024', () async {
+  test('Run on GPU raises a small NPU context to 1024 (a generic file asked '
+      'for the NPU)', () async {
     final repo = newRepo(npu: const NpuAvailable());
     await repo.load();
-    final imported =
-        (await repo.importFile(pick()) as Ok<CustomChatModel>).value;
-    await repo.apply(imported.copyWith(maxTokens: 896));
+    final generic = File('${picked.path}/qwen3_0.6b.litertlm')
+      ..writeAsBytesSync(fakeLitertlmBytes(FakeBundle.textOnly));
+    final picked0 =
+        (await repo.useLocalFile(generic.path) as Ok<CustomChatModel>).value;
+    expect(
+      await repo.apply(
+        picked0.copyWith(backend: PreferredBackend.npu, maxTokens: 896),
+      ),
+      isA<Ok<void>>(),
+    );
 
     expect(await repo.runOn(PreferredBackend.gpu), isA<Ok<void>>());
     final onGpu = (repo.plan as CustomChatPlan).config.llm;
@@ -1356,17 +1598,55 @@ void main() {
     expect(prefs.values['chat.model'], 'custom');
   });
 
+  test('a build compiled for the NPU: Apply and Run on GPU / CPU refuse the '
+      'GPU and the CPU in the plugin\'s terms (its load would refuse them '
+      'after the running model was unloaded); nothing is saved', () async {
+    final repo = newRepo(npu: const NpuAvailable());
+    await repo.load();
+    final imported =
+        (await repo.importFile(pick()) as Ok<CustomChatModel>).value;
+    expect(
+      repo.problemWith(imported.copyWith(backend: PreferredBackend.gpu)),
+      'GPU: not for this file (compiled for the Qualcomm SM8750 NPU: runs '
+      'only on the NPU). Choose NPU.',
+      reason: 'the candidate\'s file',
+    );
+    expect(await repo.apply(imported), isA<Ok<void>>());
+    final saved = prefs.values['chat.custom'];
+
+    for (final backend in [PreferredBackend.gpu, PreferredBackend.cpu]) {
+      final result = await repo.runOn(backend);
+      expect(
+        '${(result as Error<void>).error}',
+        '${backend.name.toUpperCase()}: not for this file (compiled for the '
+            'Qualcomm SM8750 NPU: runs only on the NPU). Choose NPU.',
+        reason: 'the saved file',
+      );
+    }
+    expect(prefs.values['chat.custom'], saved);
+    expect(
+      (repo.plan as CustomChatPlan).config.llm.backend,
+      PreferredBackend.npu,
+    );
+  });
+
   test(
     'a custom choice whose file is gone is blocked, never another model',
     () async {
-      final repo = newRepo();
+      final repo = newRepo(npu: const NpuAvailable());
       await repo.load();
       final imported =
           (await repo.importFile(pick()) as Ok<CustomChatModel>).value;
-      await repo.apply(imported);
+      expect(await repo.apply(imported), isA<Ok<void>>());
       File('${root.path}/custom/$fileName').deleteSync();
 
-      final relaunched = newRepo();
+      expect(
+        (repo.plan as ChatPlanBlocked).reason,
+        contains('not in the model store any more'),
+        reason: 'its size is checked on every use',
+      );
+
+      final relaunched = newRepo(npu: const NpuAvailable());
       await relaunched.load();
 
       final plan = relaunched.plan as ChatPlanBlocked;
@@ -1375,33 +1655,35 @@ void main() {
     },
   );
 
-  test(
-    'unreadable saved settings are a visible problem and block the slot',
-    () async {
-      prefs.values['chat.model'] = 'custom';
-      prefs.values['chat.custom'] = '{"v":1}';
-      final repo = newRepo();
+  test('unreadable saved settings are a visible problem and block the slot; '
+      'a file picked is the candidate, and Apply repairs it', () async {
+    prefs.values['chat.model'] = 'custom';
+    prefs.values['chat.custom'] = '{"v":1}';
+    final repo = newRepo(npu: const NpuAvailable());
 
-      final result = await repo.load();
+    final result = await repo.load();
 
-      expect(result, isA<Error<void>>());
-      expect(
-        repo.state.value.problem,
-        contains('the saved custom model is invalid'),
-      );
-      expect(repo.plan, isA<ChatPlanBlocked>());
+    expect(result, isA<Error<void>>());
+    expect(
+      repo.state.value.problem,
+      contains('the saved custom model is invalid'),
+    );
+    expect(repo.plan, isA<ChatPlanBlocked>());
 
-      // Importing again repairs it; the choice stays custom.
-      final imported =
-          (await repo.importFile(pick()) as Ok<CustomChatModel>).value;
-      expect(repo.state.value.problem, isNull);
-      expect(repo.state.value.kind, ChatModelKind.custom);
-      expect(
-        (repo.plan as CustomChatPlan).model.displayName,
-        imported.displayName,
-      );
-    },
-  );
+    final imported =
+        (await repo.importFile(pick()) as Ok<CustomChatModel>).value;
+    expect(repo.state.value.problem, isNotNull, reason: 'not applied yet');
+    expect(repo.plan, isA<ChatPlanBlocked>());
+    expect(prefs.values['chat.custom'], '{"v":1}', reason: 'nothing saved');
+
+    expect(await repo.apply(imported), isA<Ok<void>>());
+    expect(repo.state.value.problem, isNull);
+    expect(repo.state.value.kind, ChatModelKind.custom);
+    expect(
+      (repo.plan as CustomChatPlan).model.displayName,
+      imported.displayName,
+    );
+  });
 
   test('a storage failure on load is shown, not defaulted', () async {
     prefs.failWith = Exception('disk');
@@ -1412,29 +1694,101 @@ void main() {
     expect(repo.plan, isA<ChatPlanBlocked>());
   });
 
-  test('a replacement file keeps the settings; the old file stays while it may '
-      'run (the custom model is chosen) and goes after a reload', () async {
+  test('another file starts from its own defaults, not the saved settings; '
+      'the old file stays while it may run (the custom model is chosen) and '
+      'goes after the reload that applies the new one', () async {
     final repo = newRepo(npu: const NpuAvailable());
     await repo.load();
     final first = (await repo.importFile(pick()) as Ok<CustomChatModel>).value;
     await repo.apply(first.copyWith(displayName: 'Mine', tools: true));
+    final other = File('${picked.path}/other_ekv2048.litertlm')
+      ..writeAsBytesSync(
+        fakeLitertlmBytes(FakeBundle.textOnlyNpu, filler: 32 * 1024, seed: 11),
+      );
 
-    final second = (await repo.importFile(
-      pick('other_ekv2048.litertlm'),
-    ) as Ok<CustomChatModel>).value;
+    final second =
+        (await repo.importFile(other.path) as Ok<CustomChatModel>).value;
 
-    expect(second.displayName, 'Mine');
-    expect(second.tools, isTrue);
+    expect(second.displayName, 'other_ekv2048');
+    expect(second.tools, isFalse, reason: 'an NPU build, by its file');
+    expect(second.maxTokens, 2048, reason: 'its name');
     expect(second.file?.name, 'other_ekv2048.litertlm');
     final old = File('${root.path}/custom/$fileName');
     expect(old.existsSync(), isTrue, reason: 'the engine may run it');
 
+    await repo.pruneUnused();
+    expect(old.existsSync(), isTrue, reason: 'still the saved model');
+
+    expect(await repo.apply(second), isA<Ok<void>>());
     await repo.pruneUnused();
     expect(old.existsSync(), isFalse);
     expect(
       File('${root.path}/custom/other_ekv2048.litertlm').existsSync(),
       isTrue,
     );
+  });
+
+  test('a candidate of the saved file\'s store name with other bytes (the '
+      'same size) is stored beside it as <stem>-<sha8>.litertlm: the saved '
+      'model keeps its file and still loads; Apply makes the copy the chat '
+      'model; the same bytes keep the name (the saved file again)', () async {
+    final repo = newRepo(npu: const NpuAvailable());
+    await repo.load();
+    final first = (await repo.importFile(pick()) as Ok<CustomChatModel>).value;
+    expect(await repo.apply(first), isA<Ok<void>>());
+    final savedPath = '${root.path}/custom/$fileName';
+    final sameName = File('${picked.path}/other/$fileName')
+      ..createSync(recursive: true)
+      ..writeAsBytesSync(
+        fakeLitertlmBytes(FakeBundle.textOnlyNpu, filler: 64 * 1024, seed: 99),
+      );
+    expect(sameName.lengthSync(), bytes.length);
+    final otherSha = sha256Hex(sameName.readAsBytesSync());
+
+    final candidate =
+        (await repo.importFile(sameName.path) as Ok<CustomChatModel>).value;
+
+    final beside = ModelStore.renamedFor(fileName, otherSha);
+    expect(
+      beside,
+      'Gemma3-1B-IT_q4_ekv1280_sm8750-${otherSha.substring(0, 8)}'
+      '.litertlm',
+    );
+    expect(candidate.file?.name, beside);
+    expect(candidate.displayName, 'Gemma3-1B-IT_q4_ekv1280_sm8750');
+    expect(File(savedPath).readAsBytesSync(), bytes, reason: 'untouched');
+    expect(
+      File('$savedPath.sha256').readAsStringSync(),
+      startsWith(sha256Hex(bytes)),
+    );
+    expect((repo.plan as CustomChatPlan).path, savedPath);
+
+    final relaunched = newRepo(npu: const NpuAvailable());
+    await relaunched.load();
+    expect((relaunched.plan as CustomChatPlan).path, savedPath);
+    relaunched.dispose();
+
+    expect(await repo.apply(candidate), isA<Ok<void>>());
+    final plan = repo.plan as CustomChatPlan;
+    expect(plan.path, '${root.path}/custom/$beside');
+    expect(plan.model.file?.sha256, otherSha);
+
+    // The applied copy's own bytes again: no copy beside it.
+    final same = File('${picked.path}/same/$beside')
+      ..createSync(recursive: true)
+      ..writeAsBytesSync(sameName.readAsBytesSync());
+    final again =
+        (await repo.importFile(same.path) as Ok<CustomChatModel>).value;
+    expect(again.file?.name, beside, reason: 'the same bytes keep the name');
+    expect(
+      Directory('${root.path}/custom')
+          .listSync()
+          .map((e) => e.uri.pathSegments.last)
+          .where((n) => n.endsWith('.litertlm')),
+      [beside],
+      reason: 'no copy beside the applied one; the first file pruned',
+    );
+    expect((repo.plan as CustomChatPlan).path, '${root.path}/custom/$beside');
   });
 
   test('with no model chosen, a replaced custom file is not running and goes '

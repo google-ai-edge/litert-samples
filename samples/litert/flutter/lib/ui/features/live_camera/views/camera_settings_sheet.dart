@@ -183,7 +183,8 @@ class _CameraSettingsSheetState extends State<CameraSettingsSheet> {
             Text(
               backendLock != null
                   ? 'Fixed by the build: $backendLock'
-                  : 'The GPU runs YOLO26n in a few ms per frame. Choose the '
+                  : 'The GPU runs YOLO26n in about 4 ms per frame on a Mac, '
+                        'about 20 ms on recent phones. Choose the '
                         'CPU only when the GPU fails (e.g. on a Raspberry '
                         'Pi): it is much slower, and it is never chosen for '
                         'you.',
@@ -254,8 +255,8 @@ class _MemorySettings extends StatelessWidget {
           'question like "Where was the yellow mug?" can find them. Kept in '
           'memory only, and forgotten when you leave this demo or change '
           'the camera. Turning it on the first time loads the embedder\'s '
-          'image encoder (a few seconds, about 400 MB more memory) until the '
-          'app closes.',
+          'image encoder (a few seconds, about 300–450 MB more memory) until '
+          'the app closes.',
           style: theme.textTheme.bodySmall,
         ),
         if (vm.memorySettingError case final String error)

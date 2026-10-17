@@ -1,6 +1,6 @@
 ---
 title: Gemma 4 E2B model card
-source: https://huggingface.co/google/gemma-4-E2B-it/blob/3e22461f65e89153144f8adb70e3b8c2cc9845a7/README.md ; https://huggingface.co/litert-community/gemma-4-E2B-it-litert-lm/blob/b3ca0d2f076785a8f4b2219ddbd2bdb99954eae1/README.md
+source: https://huggingface.co/google/gemma-4-E2B-it/blob/3e22461f65e89153144f8adb70e3b8c2cc9845a7/README.md ; https://huggingface.co/litert-community/gemma-4-E2B-it-litert-lm/blob/b3ca0d2f076785a8f4b2219ddbd2bdb99954eae1/README.md ; https://huggingface.co/litert-community/gemma-4-E2B-it-litert-lm/tree/b3ca0d2f076785a8f4b2219ddbd2bdb99954eae1
 license: Apache-2.0
 ---
 
@@ -125,11 +125,11 @@ The card identifies risks such as harmful content generation, misuse, privacy vi
 
 The Hugging Face repo `litert-community/gemma-4-E2B-it-litert-lm` provides Gemma 4 E2B ready for deployment on Android, iOS, Desktop, IoT and Web, in the `.litertlm` format for the LiteRT-LM framework. This Gemma 4 model is small, so it is ideal for on-device use cases: by running it on device, users can have private access to generative AI technology without even requiring an internet connection.
 
-LiteRT-LM uses a Gemma 4 mobile quantization scheme that uses a mixture of 2-bit, 4-bit and 8-bit weights. For text-only use cases the weight footprint in memory can be as low as 0.8 GB, while the runtime uses memory mapping to support the 1.12 GB of embedding parameters. This gives significant working memory savings on some platforms. Additionally, the vision and audio models are loaded on demand to further reduce memory consumption. The model file on disk is 2583 MB. Web uses a specially optimized model, `gemma-4-E2B-it-web.litertlm` (2008 MB), because of its unique memory constraints; it is currently text-only.
+LiteRT-LM uses a Gemma 4 mobile quantization scheme that uses a mixture of 2-bit, 4-bit and 8-bit weights. For text-only use cases the weight footprint in memory can be as low as 0.8 GB, while the runtime uses memory mapping to support the 1.12 GB of embedding parameters. This gives significant working memory savings on some platforms. Additionally, the vision and audio models are loaded on demand to further reduce memory consumption. The card's tables give the model size as 2583 MB; in the repo's file listing at revision b3ca0d2f, the file `gemma-4-E2B-it.litertlm` is 2,588,147,712 bytes, about 2.6 GB. Web uses a specially optimized model, `gemma-4-E2B-it-web.litertlm` (2008 MB), because of its unique memory constraints; it is currently text-only.
 
 ## Gemma 4 E2B performance on phones
 
-All benchmarks used 1024 prefill tokens and 256 decode tokens with a context length of 2048 tokens via LiteRT-LM; the litert-lm card states that the model can support up to 32k context length. CPU inference is accelerated via the LiteRT XNNPACK delegate with 4 threads. Time-to-first-token does not include load time, and benchmarks ran with caches enabled and initialized.
+All benchmarks used 1024 prefill tokens and 256 decode tokens with a context length of 2048 tokens via LiteRT-LM; the litert-lm card states that the model can support up to 32k context length. CPU inference is accelerated via the LiteRT XNNPACK delegate with 4 threads. Time-to-first-token does not include load time, and benchmarks ran with caches enabled and initialized; during the first run, latency and memory use may differ.
 
 | Device | Backend | Prefill (tokens/s) | Decode (tokens/s) | Time to first token (s) | Memory (MB) |
 | --- | --- | --- | --- | --- | --- |
@@ -142,12 +142,14 @@ CPU memory was measured with `rusage::ru_maxrss` on Android, Linux and Raspberry
 
 ## Speculative decoding speedups for Gemma 4 E2B
 
-Speculative decoding accelerates LLMs by using a small, fast draft model to quickly predict multiple upcoming tokens, while a larger target model verifies those tokens in parallel. Its effectiveness is task dependent. It is available on CPU and GPU on mobile and desktop; a model downloaded before May 5, 2026 must be re-downloaded to use it. Decode speed on a Samsung S26 Ultra:
+Speculative decoding accelerates LLMs by using a small, fast draft model to quickly predict multiple upcoming tokens, while a larger target model verifies those tokens in parallel. Its effectiveness is task dependent. It is available on CPU and GPU on mobile and desktop; a model downloaded before May 5, 2026 must be re-downloaded to use it. The card's metrics come from sample prompts of varying input and output length grouped by task type, and the baseline is an average across all task types. Decode speed on a Samsung S26 Ultra:
 
 | Backend | Task type | Speculative decoding | Decode (tokens/s) | CPU memory (MB) |
 | --- | --- | --- | --- | --- |
 | CPU | Baseline | No | 40.7 | 1362 |
 | CPU | Summarize text | Yes | 47.5 | 1582 |
+| CPU | Code snippet | Yes | 36.3 | 1440 |
+| CPU | Rewrite tone | Yes | 47.1 | 1408 |
 | CPU | Free form | Yes | 38.1 | 1459 |
 | GPU | Baseline | No | 51.5 | 791 |
 | GPU | Summarize text | Yes | 91.7 | 817 |
@@ -170,4 +172,4 @@ Speculative decoding accelerates LLMs by using a small, fast draft model to quic
 | Jetson Orin Nano | GPU | 1,142 | 24.2 | 0.9 | 2739 |
 | Qualcomm Dragonwing IQ8 (IQ-8275) | NPU | 3,747 | 31.7 | 0.3 | 1869 |
 
-The NPU model was benchmarked with a 4096 context length and is 2967 MB on disk. Gemma 4 E2B can also run on the web through the MediaPipe LLM Inference Engine with the `gemma-4-E2B-it-web.task` file, but that route is currently in maintenance mode.
+The NPU model was benchmarked with a 4096 context length. The card's table gives its size as 2967 MB; in the repo's file listing at revision b3ca0d2f, the file for that board, `gemma-4-E2B-it_qualcomm_qcs8275.litertlm`, is 3,294,593,024 bytes, about 3.3 GB. Gemma 4 E2B can also run on the web through the MediaPipe LLM Inference Engine with the `gemma-4-E2B-it-web.task` file, but that route is currently in maintenance mode.

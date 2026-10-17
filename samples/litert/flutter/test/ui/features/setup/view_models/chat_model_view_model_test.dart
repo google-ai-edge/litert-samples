@@ -33,7 +33,6 @@ import 'package:litert_edge_demos/domain/models/chat_model.dart';
 import 'package:litert_edge_demos/domain/models/model_id.dart';
 import 'package:litert_edge_demos/domain/models/model_source_resolver.dart';
 import 'package:litert_edge_demos/domain/models/model_state.dart';
-import 'package:litert_edge_demos/domain/models/model_towers.dart';
 import 'package:litert_edge_demos/domain/models/npu_availability.dart';
 import 'package:litert_edge_demos/domain/ports/model_file_picker.dart';
 import 'package:litert_edge_demos/domain/use_cases/chat_model_switcher.dart';
@@ -47,8 +46,8 @@ import '../../../../fakes/fake_llm_service.dart';
 import '../../../../fakes/fake_model_file_picker.dart';
 import '../../../../fakes/fake_settings_store.dart';
 import '../../../../fakes/fake_speech.dart';
+import '../../../../support/fake_bundles.dart';
 import '../../../../support/fake_model_server.dart';
-import '../../../../support/litertlm_header.dart';
 import '../../../../support/test_bytes.dart';
 import '../../../../support/until.dart';
 
@@ -67,11 +66,9 @@ void main() {
 
   const fileName = 'gemma3_ekv1280_sm8750.litertlm';
 
-  /// A text-only NPU build (its header marks the NPU, as the name does).
-  Uint8List litertlm(int seed) => Uint8List.fromList([
-    ...litertlmHeaderBytes(kTextOnlyNpuSections),
-    ...testBytes(48 * 1024, seed: seed),
-  ]);
+  /// A text-only NPU build (compiled for the NPU, as the name says).
+  Uint8List litertlm(int seed) =>
+      fakeLitertlmBytes(FakeBundle.textOnlyNpu, filler: 48 * 1024, seed: seed);
   final bytes = litertlm(9);
 
   Future<void> build({
@@ -79,6 +76,7 @@ void main() {
     ImportSupport support = const ImportFromFolder(),
     String gemmaModelPath = '',
     bool prepare = true,
+    bool autoApplyTheOnlyFile = true,
     Future<void> Function(TypedSettings settings)? seed,
   }) async {
     store = ModelStore(root: () async => root);
@@ -88,6 +86,7 @@ void main() {
       settings: settings,
       store: store,
       npu: () => npu,
+      readBundle: fakeReadBundle,
       folders: [
         ModelsFolder(
           directory: () async => Directory('${root.path}/models_folder'),
@@ -124,6 +123,7 @@ void main() {
       switcher: switcher,
       picker: picker,
       sources: ModelSourceResolver(gemmaModelPath: gemmaModelPath),
+      autoApplyTheOnlyFile: autoApplyTheOnlyFile,
     );
     if (!prepare) return;
     // Setup ran once with no chat model: everything else is ready.
@@ -135,7 +135,7 @@ void main() {
     root = Directory.systemTemp.createTempSync('chat_vm_root');
     picked = Directory.systemTemp.createTempSync('chat_vm_picked');
     server = await FakeModelServer.start();
-    llm = FakeLlmService()..followRequested = true;
+    llm = FakeLlmService();
     conversation = FakeConversationRepository();
   });
 
@@ -224,134 +224,299 @@ void main() {
     expect(vm.canApply, isFalse, reason: 'nothing changed since');
   });
 
-  /// A `.litertlm` whose header has [sections], picked in place.
-  Future<void> useInPlace(String name, List<HeaderSection> sections) async {
+  /// A test `.litertlm` of [kind], picked in place.
+  Future<void> useInPlace(String name, FakeBundle kind) async {
     await vm.useLocal.execute(
-      pick(name, [
-        ...litertlmHeaderBytes(sections),
-        ...testBytes(4096, seed: 3),
-      ]),
+      pick(name, fakeLitertlmBytes(kind, filler: 4096)),
     );
     expect(vm.useLocal.completed, isTrue, reason: '${vm.useLocal.result}');
   }
 
-  /// [row] as the card shows it: `fixed CPU · the file sets it`, `choice
-  /// npu`, `missing not in this file: …`, `-` for none.
-  String shown(TowerRow? row) => switch (row) {
-    TowerFixed(:final text) => 'fixed $text',
-    TowerChoice(:final selected) => 'choice ${selected.name}',
-    TowerMissing(:final text) => 'missing $text',
-    null => '-',
-  };
+  /// [tower]'s row as the card shows it; `-` for none.
+  String row(Tower tower) => vm.towerRow(tower)?.text ?? '-';
 
-  test('towers: on automatically from the header and only shown, each with '
-      'where it runs; the standard Gemma 4 E2B on the GPU: Text GPU, '
-      'Vision CPU and Audio CPU, set by the file; nothing to switch', () async {
+  test('towers: every one the file has loads, nothing to choose; before the '
+      'load each row says it is in the file, after it where the engine put '
+      'it (activeVisionBackend / activeAudioBackend)', () async {
     await build();
-    await useInPlace('gemma-4-E2B-it.litertlm', kGemma4E2bSections);
+    await useInPlace('gemma-4-E2B-it.litertlm', FakeBundle.gemma4E2b);
 
     expect(vm.draftBackend, PreferredBackend.gpu);
-    expect(vm.towerTextLine, 'GPU');
     expect(vm.towersShown, isTrue);
-    expect(shown(vm.towerRow(Tower.vision)), 'fixed CPU · the file sets it');
-    expect(shown(vm.towerRow(Tower.audio)), 'fixed CPU · the file sets it');
-    expect(vm.towerChoiceShown, isFalse);
+    expect(vm.npuBuildLine, isNull, reason: 'not compiled for the NPU');
+    expect(
+      row(Tower.vision),
+      'in the file (where it runs shows once it is loaded)',
+    );
+    expect(row(Tower.audio), row(Tower.vision));
 
     await vm.apply.execute();
     expect(vm.apply.completed, isTrue, reason: '${vm.apply.result}');
     final loaded = llm.models.last.llm;
     expect(loaded.supportImage && loaded.supportAudio, isTrue);
-    expect(loaded.visionBackend, PreferredBackend.cpu);
-    expect(loaded.audioBackend, PreferredBackend.cpu);
+    expect(row(Tower.vision), 'in the file · runs on the CPU');
+    expect(row(Tower.audio), 'in the file · runs on the CPU');
     expect(vm.activeLine, contains('vision cpu · audio cpu'));
     expect(vm.canApply, isFalse);
   });
 
-  test('towers declared by the file on the NPU (the official qcs8275 build: '
-      'prefill npu, towers pinned to the CPU): Text NPU, Vision CPU and Audio '
-      'CPU, read-only', () async {
+  test('a build compiled for the NPU: the NPU by default, the block says '
+      'which NPU its text model is compiled for; after the load each tower '
+      'shows where the engine put it, nothing the app guessed', () async {
     await build();
+    llm
+      ..visionBackend = PreferredBackend.npu
+      ..audioBackend = PreferredBackend.npu;
     await useInPlace(
-      'gemma-4-E2B-it_qualcomm_qcs8275.litertlm',
-      kQualcommQcs8275Sections,
+      'gemma-4-E2B-it_qualcomm_sm8750.litertlm',
+      FakeBundle.npuWithTowers,
     );
 
     expect(vm.draftBackend, PreferredBackend.npu);
-    expect(vm.towerTextLine, 'NPU');
-    expect(shown(vm.towerRow(Tower.vision)), 'fixed CPU · the file sets it');
-    expect(shown(vm.towerRow(Tower.audio)), 'fixed CPU · the file sets it');
-    expect(vm.towerChoiceShown, isFalse);
+    expect(vm.draftTools, isFalse);
+    expect(vm.npuBuildLine, 'Text model: compiled for the Qualcomm SM8750 NPU');
+    expect(
+      row(Tower.vision),
+      'in the file (where it runs shows once it is loaded)',
+    );
+
+    await vm.apply.execute();
+    expect(vm.apply.completed, isTrue, reason: '${vm.apply.result}');
+    expect(row(Tower.vision), 'in the file · runs on the NPU');
+    expect(row(Tower.audio), 'in the file · runs on the NPU');
+    expect(vm.activeLine, contains('vision npu · audio npu'));
   });
 
-  test(
-    'qcs8275 (towers pinned to the CPU) on the NPU: no control; sm8750 '
-    '(nothing declared) on the NPU: two controls, the NPU by default',
-    () async {
-      await build();
-      await useInPlace(
-        'gemma-4-E2B-it_qualcomm_qcs8275.litertlm',
-        kQualcommQcs8275Sections,
-      );
-      expect(vm.draftBackend, PreferredBackend.npu, reason: 'prefill npu');
-      expect(shown(vm.towerRow(Tower.vision)), 'fixed CPU · the file sets it');
-      expect(shown(vm.towerRow(Tower.audio)), 'fixed CPU · the file sets it');
-      expect(vm.towerChoiceShown, isFalse);
-
-      await useInPlace(
-        'gemma-4-E2B-it_qualcomm_sm8750.litertlm',
-        kQualcommSm8750Sections,
-      );
-      vm.setBackend(PreferredBackend.npu);
-      expect(shown(vm.towerRow(Tower.vision)), 'choice npu');
-      expect(shown(vm.towerRow(Tower.audio)), 'choice npu');
-      expect(vm.towerChoiceShown, isTrue);
-    },
-  );
-
-  test('undeclared towers (the official sm8750 build): on the GPU both '
-      'towers run on the CPU (read-only); on the NPU each is a choice, the NPU '
-      'by default; a choice is a load setting: Apply reloads with it and '
-      'saves it', () async {
+  test('the official per-SoC NPU build (its encoders carry no NPU stamp): '
+      'the NPU for the text model, and after the load the towers where the '
+      'engine put them, the CPU', () async {
     await build();
     await useInPlace(
       'gemma-4-E2B-it_qualcomm_sm8750.litertlm',
-      kQualcommSm8750Sections,
+      FakeBundle.officialNpu,
     );
-    expect(vm.draftBackend, PreferredBackend.gpu, reason: 'not marked NPU');
-    expect(shown(vm.towerRow(Tower.vision)), 'fixed CPU');
-    expect(shown(vm.towerRow(Tower.audio)), 'fixed CPU');
-    expect(vm.towerChoiceShown, isFalse);
+
+    expect(vm.draftBackend, PreferredBackend.npu);
+    expect(vm.npuBuildLine, isNotNull);
+
+    await vm.apply.execute();
+    expect(vm.apply.completed, isTrue, reason: '${vm.apply.result}');
+    expect(row(Tower.vision), 'in the file · runs on the CPU');
+    expect(row(Tower.audio), 'in the file · runs on the CPU');
+    expect(vm.activeLine, contains('npu → npu'));
+  });
+
+  test('a build for an NPU this package has no dispatch for (Google '
+      'Tensor): the NPU only; where it is offered, its load is the '
+      "plugin's unsupportedNpu refusal, and no backend is offered", () async {
+    await build();
+    await useInPlace('gemma-4-E2B-it_tensor_g5.litertlm', FakeBundle.tensorNpu);
+    expect(vm.draftBackend, PreferredBackend.npu);
+    expect(
+      vm.gpuCpuUnavailableReason,
+      'GPU and CPU: not for this file (compiled for the Google Tensor_G5 NPU: '
+      'runs only on the NPU).',
+    );
+    llm.loadError = const ChatModelLoadException(
+      modelName: 'gemma-4-E2B-it_tensor_g5',
+      requested: PreferredBackend.npu,
+      cause: LiteRtLmBundleException(
+        LiteRtLmBundleProblem.unsupportedNpu,
+        '/m/gemma-4-E2B-it_tensor_g5.litertlm is compiled for the Google '
+        'Tensor_G5 NPU. flutter_edge_ai_litertlm runs Qualcomm and Intel NPU '
+        'bundles only; install the generic bundle of this model to run it on '
+        'the GPU or the CPU.',
+      ),
+    );
+
+    await vm.apply.execute();
+
+    expect(vm.loadError, endsWith('(unsupportedNpu)'));
+    expect(vm.failureActions, isEmpty);
+  });
+
+  test("another file picked while one runs shows its own towers, never the "
+      "running model's backends: also another build pushed over the same "
+      'path', () async {
+    await build();
+    await useInPlace('gemma-4-E2B-it.litertlm', FakeBundle.gemma4E2b);
+    await vm.apply.execute();
+    expect(row(Tower.vision), 'in the file · runs on the CPU');
+
+    await useInPlace('other.litertlm', FakeBundle.gemma4E2b);
+
+    expect(vm.candidate, isNotNull);
+    expect(
+      row(Tower.vision),
+      'in the file (where it runs shows once it is loaded)',
+    );
+
+    // An NPU build written over the running file's path, then picked.
+    await useInPlace('gemma-4-E2B-it.litertlm', FakeBundle.npuWithTowers);
+
+    expect(vm.candidate?.backend, PreferredBackend.npu);
+    expect(
+      row(Tower.vision),
+      'in the file (where it runs shows once it is loaded)',
+      reason: 'the engine runs the old file',
+    );
+    expect(
+      row(Tower.audio),
+      'in the file (where it runs shows once it is loaded)',
+    );
+
+    // Dropped (the Models screen closes): the saved file at that path is
+    // not the one that runs either (it changed since it was chosen).
+    await chatModels.dropInPlaceCandidate();
+    expect(vm.candidate, isNull);
+    expect(vm.localProblem, contains('changed since it was chosen'));
+    expect(
+      row(Tower.vision),
+      'in the file (where it runs shows once it is loaded)',
+    );
+  });
+
+  test('a candidate with the very bytes that run (the same file imported '
+      'again from elsewhere) shows no tower backend: a candidate is never '
+      'what runs, whatever its checksum', () async {
+    await build();
+    final same = fakeLitertlmBytes(FakeBundle.gemma4E2b, filler: 4096);
+    picker.modelFile = pick('gemma-4-E2B-it.litertlm', same);
+    await vm.importFile.execute();
+    await vm.apply.execute();
+    expect(vm.apply.completed, isTrue, reason: '${vm.apply.result}');
+    expect(row(Tower.vision), 'in the file · runs on the CPU');
+
+    final copy = File('${picked.path}/copy/gemma-4-E2B-it.litertlm')
+      ..createSync(recursive: true)
+      ..writeAsBytesSync(same);
+    picker.modelFile = copy.path;
+    await vm.importFile.execute();
+
+    expect(vm.candidate, isNotNull, reason: 'another source: a candidate');
+    expect(vm.candidate?.file?.sha256, vm.saved?.file?.sha256);
+    expect(vm.localProblem, isNull, reason: 'nothing else hides the rows');
+    expect(
+      row(Tower.vision),
+      'in the file (where it runs shows once it is loaded)',
+    );
+    expect(
+      row(Tower.audio),
+      'in the file (where it runs shows once it is loaded)',
+    );
+  });
+
+  test(
+    'a text-only file: Vision and Audio say what is off without them',
+    () async {
+      await build();
+      await useInPlace('gemma4_2b_npu.litertlm', FakeBundle.textOnlyNpu);
+
+      expect(
+        row(Tower.vision),
+        'not in this file: photos in Voice chat and detailed answers in Live '
+        'camera are off',
+      );
+      expect(
+        row(Tower.audio),
+        'not in this file: voice questions are transcribed first',
+      );
+      expect(vm.towerRow(Tower.vision)?.inFile, isFalse);
+    },
+  );
+
+  test('an imported file whose header the plugin cannot read is adopted as '
+      "a file in place is: the plugin's reason in the Towers block, no tower "
+      'rows', () async {
+    await build();
+    picker.modelFile = pick(fileName, testBytes(48 * 1024, seed: 9));
+    await vm.importFile.execute();
+
+    expect(vm.importFile.completed, isTrue);
+    expect(vm.transferError, isNull);
+    expect(vm.candidate, isNotNull);
+    expect(vm.headerNotRead, contains('is not a .litertlm container'));
+    expect(vm.towerRow(Tower.vision), isNull);
+    expect(vm.canApply, isTrue);
+  });
+
+  test('an incomplete file picked in place is shown as unusable with the '
+      'lengths the plugin reports: no candidate, nothing to apply', () async {
+    await build();
+    final cut = pick(
+      'cut.litertlm',
+      fakeLitertlmBytes(FakeBundle.incomplete, filler: 4096),
+    );
+    final length = File(cut).lengthSync();
+
+    await vm.useLocal.execute(cut);
+
+    expect(vm.useLocal.error, isTrue);
+    expect(
+      vm.localError,
+      '$cut is incomplete: it is $length bytes and its sections end at '
+      '${length * 2} (a copy or download that stopped early). Copy or '
+      'download it again.',
+    );
+    expect(vm.candidate, isNull);
+    expect(vm.towersShown, isFalse);
+    expect(vm.canApply, isFalse);
+  });
+
+  test('a build compiled for the NPU: GPU and CPU are not offered (the '
+      'plugin refuses it there), and Apply and Run on GPU / CPU refuse them '
+      'before the running model is unloaded', () async {
+    await build();
+    await useInPlace(
+      'gemma-4-E2B-it_qualcomm_sm8750.litertlm',
+      FakeBundle.npuWithTowers,
+    );
+    await vm.apply.execute();
+    expect(vm.apply.completed, isTrue, reason: '${vm.apply.result}');
+    expect(llm.models, hasLength(1));
+    final unloads = llm.unloadCalls;
+
+    expect(
+      vm.gpuCpuUnavailableReason,
+      'GPU and CPU: not for this file (compiled for the Qualcomm SM8750 NPU: '
+      'runs only on the NPU).',
+    );
+    vm.setBackend(PreferredBackend.gpu);
+    expect(
+      vm.draftProblem,
+      'GPU: not for this file (compiled for the Qualcomm SM8750 NPU: runs '
+      'only on the NPU). Choose NPU.',
+    );
+    expect(vm.canApply, isFalse);
+
+    await vm.apply.execute();
+    expect(vm.apply.error, isTrue);
+    expect(vm.actionError, vm.draftProblem);
+
+    await vm.runOn.execute(PreferredBackend.cpu);
+    expect(vm.runOn.error, isTrue);
+    expect(
+      '${(vm.runOn.result! as Error<void>).error}',
+      'CPU: not for this file (compiled for the Qualcomm SM8750 NPU: runs '
+          'only on the NPU). Choose NPU.',
+    );
+
+    expect(llm.models, hasLength(1), reason: 'nothing loaded again');
+    expect(llm.unloadCalls, unloads, reason: 'the running model kept');
+    expect(models.states.value[ModelId.chat], isA<ModelReady>());
+    expect(vm.saved?.backend, PreferredBackend.npu, reason: 'nothing saved');
 
     vm.setBackend(PreferredBackend.npu);
-    expect(vm.towerTextLine, 'NPU');
-    expect(shown(vm.towerRow(Tower.vision)), 'choice npu');
-    expect(shown(vm.towerRow(Tower.audio)), 'choice npu');
-    await vm.apply.execute();
-    expect(vm.apply.completed, isTrue, reason: '${vm.apply.result}');
-    expect(llm.models.last.llm.visionBackend, PreferredBackend.npu);
-    expect(llm.models.last.llm.audioBackend, PreferredBackend.npu);
-    expect(vm.activeLine, contains('vision npu · audio npu'));
-    expect(vm.canApply, isFalse);
-    final loads = llm.models.length;
+    expect(vm.draftProblem, isNull);
+  });
 
-    vm.setTowerBackend(Tower.vision, PreferredBackend.cpu);
-    expect(shown(vm.towerRow(Tower.vision)), 'choice cpu');
-    expect(shown(vm.towerRow(Tower.audio)), 'choice npu', reason: 'its own');
-    expect(vm.canApply, isTrue, reason: 'the running vision tower is on NPU');
-    await vm.apply.execute();
-    expect(vm.apply.completed, isTrue, reason: '${vm.apply.result}');
-    expect(llm.models, hasLength(loads + 1), reason: 'reloaded');
-    expect(llm.models.last.llm.visionBackend, PreferredBackend.cpu);
-    expect(llm.models.last.llm.audioBackend, PreferredBackend.npu);
-    expect(vm.saved!.visionChoice, PreferredBackend.cpu, reason: 'saved');
-    expect(vm.saved!.audioChoice, isNull, reason: 'the default');
-    expect(vm.canApply, isFalse);
+  test('a generic file: GPU and CPU are offered', () async {
+    await build();
+    await useInPlace('gemma-4-E2B-it.litertlm', FakeBundle.gemma4E2b);
 
-    // Back to the default: no choice is saved for it.
-    vm.setTowerBackend(Tower.vision, PreferredBackend.npu);
-    expect(vm.canApply, isTrue);
-    await vm.apply.execute();
-    expect(vm.saved!.visionChoice, isNull);
+    expect(vm.gpuCpuUnavailableReason, isNull);
+    vm.setBackend(PreferredBackend.cpu);
+    expect(vm.draftProblem, isNull);
   });
 
   /// A second card on the same repositories, as when the Models screen is
@@ -373,225 +538,27 @@ void main() {
     return vm;
   }
 
-  group("the towers' choices", () {
-    test('kept across a Backend change: off the NPU the tower runs on the '
-        'CPU, back on the NPU the choice applies again (also on a reopened '
-        'card)', () async {
-      await build();
-      await useInPlace('undeclared_towers.litertlm', kQualcommSm8750Sections);
-      vm
-        ..setBackend(PreferredBackend.npu)
-        ..setTowerBackend(Tower.audio, PreferredBackend.cpu);
-      await vm.apply.execute();
-      expect(vm.saved!.audioChoice, PreferredBackend.cpu);
-
-      final card = await reopened();
-      expect(shown(card.towerRow(Tower.audio)), 'choice cpu');
-      card.setBackend(PreferredBackend.gpu);
-      expect(shown(card.towerRow(Tower.audio)), 'fixed CPU');
-      expect(shown(card.towerRow(Tower.vision)), 'fixed CPU');
-      card.setBackend(PreferredBackend.npu);
-      expect(shown(card.towerRow(Tower.audio)), 'choice cpu', reason: 'kept');
-      expect(shown(card.towerRow(Tower.vision)), 'choice npu');
-      expect(card.canApply, isFalse, reason: 'nothing changed');
-    });
-
-    test('a choice made on the NPU and left there (the draft back on the GPU) '
-        'neither enables Apply nor is saved by another change', () async {
-      await build();
-      await useInPlace('undeclared_towers.litertlm', kQualcommSm8750Sections);
-      expect(vm.draftBackend, PreferredBackend.gpu);
-      await vm.apply.execute();
-      expect(vm.apply.completed, isTrue, reason: '${vm.apply.result}');
-      expect(vm.canApply, isFalse);
-
-      vm
-        ..setBackend(PreferredBackend.npu)
-        ..setTowerBackend(Tower.vision, PreferredBackend.cpu);
-      expect(vm.canApply, isTrue);
-      vm.setBackend(PreferredBackend.gpu);
-      expect(vm.canApply, isFalse, reason: 'nothing the card shows differs');
-
-      vm.setContext('4096');
-      await vm.apply.execute();
-      expect(vm.saved!.maxTokens, 4096);
-      expect(vm.saved!.visionChoice, isNull, reason: 'hidden off the NPU');
-      vm.setBackend(PreferredBackend.npu);
-      expect(
-        shown(vm.towerRow(Tower.vision)),
-        'choice cpu',
-        reason: 'the card still has it',
-      );
-    });
-
-    test('another file resets them to the default', () async {
-      await build();
-      await useInPlace('a.litertlm', kQualcommSm8750Sections);
-      vm
-        ..setBackend(PreferredBackend.npu)
-        ..setTowerBackend(Tower.vision, PreferredBackend.cpu)
-        ..setTowerBackend(Tower.audio, PreferredBackend.cpu);
-      await vm.apply.execute();
-      expect(vm.saved!.visionChoice, PreferredBackend.cpu);
-
-      await useInPlace('b.litertlm', kQualcommSm8750Sections);
-
-      expect(vm.saved!.visionChoice, isNull);
-      expect(vm.saved!.audioChoice, isNull);
-      expect(vm.draftBackend, PreferredBackend.npu, reason: 'kept');
-      expect(shown(vm.towerRow(Tower.vision)), 'choice npu');
-      expect(shown(vm.towerRow(Tower.audio)), 'choice npu');
-    });
-
-    test('a file the header sets: the saved choices change nothing on the '
-        'card or in the load', () async {
-      await build();
-      await useInPlace('towers.litertlm', kQualcommQcs8275Sections);
-      await chatModels.apply(
-        vm.saved!.withTowerChoices(
-          vision: PreferredBackend.npu,
-          audio: PreferredBackend.npu,
-        ),
-      );
-      final card = await reopened();
-      expect(
-        shown(card.towerRow(Tower.vision)),
-        'fixed CPU · the file sets it',
-      );
-      expect(card.draftTowers?.audioBackend, PreferredBackend.cpu);
-    });
-  });
-
-  test(
-    'a text-only file: Vision and Audio say what is off without them',
-    () async {
-      await build();
-      await useInPlace('gemma4_2b_SM8850.litertlm', kTextOnlyNpuSections);
-
-      expect(vm.towerTextLine, 'NPU');
-      expect(
-        shown(vm.towerRow(Tower.vision)),
-        'missing not in this file: photos in Voice chat and detailed answers '
-        'in Live camera are off',
-      );
-      expect(
-        shown(vm.towerRow(Tower.audio)),
-        'missing not in this file: voice questions are transcribed first',
-      );
-      expect(vm.towerChoiceShown, isFalse);
-    },
-  );
-
-  test('an imported file whose header cannot be read is refused with the '
-      'inspection error, as a file in place is: nothing adopted, no Towers '
-      'block, nothing to apply', () async {
+  test('a file picked while the custom model runs: the card says it is not '
+      'applied yet and Apply is on; the old file is kept until the reload, '
+      'then deleted', () async {
     await build();
-    picker.modelFile = pick(fileName, testBytes(48 * 1024, seed: 9));
-    await vm.importFile.execute();
-
-    expect(vm.importFile.error, isTrue);
-    expect(vm.transferError, contains('is not a .litertlm file'));
-    expect(vm.saved, isNull);
-    expect(vm.towersShown, isFalse);
-    expect(vm.towerRow(Tower.vision), isNull);
-    expect(vm.canApply, isFalse);
-  });
-
-  group('a failed load with a tower the header leaves open on the NPU', () {
-    const hint =
-        "If this build's towers are not compiled for the NPU, set Vision/Audio "
-        'to CPU on the card.';
-
-    Future<void> sm8750OnNpu() async {
-      await build();
-      await useInPlace(
-        'gemma-4-E2B-it_qualcomm_sm8750.litertlm',
-        kQualcommSm8750Sections,
-      );
-      vm.setBackend(PreferredBackend.npu);
-    }
-
-    test('in the warm-up ("Failed to create conversation"): the error adds '
-        'the line; the ways out are only Run on GPU / CPU (no tower button); '
-        'set both towers to CPU on the card, Apply, and it loads', () async {
-      await sm8750OnNpu();
-      llm.warmUpError = Exception('Failed to create conversation');
-
-      await vm.apply.execute();
-
-      expect(vm.loadError, contains('Failed to create conversation'));
-      expect(vm.loadError, endsWith('\n$hint'));
-      expect(vm.failureActions, [
-        ChatModelAction.runOnGpu,
-        ChatModelAction.runOnCpu,
-      ]);
-      expect(llm.models, hasLength(1), reason: 'no retry');
-
-      llm.warmUpError = null;
-      vm
-        ..setTowerBackend(Tower.vision, PreferredBackend.cpu)
-        ..setTowerBackend(Tower.audio, PreferredBackend.cpu);
-      expect(vm.canApply, isTrue);
-      await vm.apply.execute();
-
-      expect(vm.apply.completed, isTrue, reason: '${vm.apply.result}');
-      expect(llm.models, hasLength(2), reason: 'one reload');
-      final reloaded = llm.models.last.llm;
-      expect(reloaded.backend, PreferredBackend.npu, reason: 'kept');
-      expect(reloaded.visionBackend, PreferredBackend.cpu);
-      expect(reloaded.audioBackend, PreferredBackend.cpu);
-      expect(vm.loadError, isNull);
-      expect(vm.failureActions, isEmpty);
-    });
-
-    test('when the engine fails to come up: the line too', () async {
-      await sm8750OnNpu();
-      llm.loadError = ChatModelLoadException(
-        modelName: 'gemma-4-E2B-it_qualcomm_sm8750',
-        requested: PreferredBackend.npu,
-        cause: Exception('Failed to create engine'),
-      );
-
-      await vm.apply.execute();
-
-      expect(vm.loadError, contains('Failed to create engine'));
-      expect(vm.loadError, endsWith(hint));
-    });
-
-    test('with both open towers on the CPU, or towers the file sets: no '
-        'line', () async {
-      await sm8750OnNpu();
-      vm
-        ..setTowerBackend(Tower.vision, PreferredBackend.cpu)
-        ..setTowerBackend(Tower.audio, PreferredBackend.cpu);
-      llm.warmUpError = Exception('Failed to create conversation');
-      await vm.apply.execute();
-      expect(vm.loadError, isNot(contains('Vision/Audio')));
-
-      await useInPlace('towers.litertlm', kQualcommQcs8275Sections);
-      llm.warmUpError = Exception('Failed to create conversation');
-      await vm.apply.execute();
-      expect(vm.loadError, contains('Failed to create conversation'));
-      expect(vm.loadError, isNot(contains('Vision/Audio')));
-    });
-  });
-
-  test('a replacement file while the custom model runs: Apply is on and the '
-      'card says the old file still runs; the old file is kept until the '
-      'reload, then deleted', () async {
-    await build(npu: const NpuUnavailable('no FastRPC'));
     picker.modelFile = pick('first.litertlm');
     await vm.importFile.execute();
     await vm.apply.execute();
     expect(vm.canApply, isFalse);
-    expect(vm.replacementPending, isFalse);
+    expect(vm.candidateNotice, isNull);
     final first = File('${root.path}/custom/first.litertlm');
 
     picker.modelFile = pick('second.litertlm', litertlm(10));
     await vm.importFile.execute();
 
-    expect(vm.replacementPending, isTrue);
-    expect(vm.canApply, isTrue, reason: 'the saved file is not what runs');
+    expect(
+      vm.candidateNotice,
+      'Not applied yet: press "Apply and reload" to use this file. Until '
+      'then the chat model stays first.',
+    );
+    expect(vm.replacementPending, isFalse, reason: 'nothing saved');
+    expect(vm.canApply, isTrue, reason: 'a candidate waits');
     expect(first.existsSync(), isTrue, reason: 'the engine still runs it');
     final loadsBefore = llm.models.length;
 
@@ -599,22 +566,33 @@ void main() {
 
     expect(llm.models, hasLength(loadsBefore + 1));
     expect(llm.installs.last, '${root.path}/custom/second.litertlm');
-    expect(vm.replacementPending, isFalse);
+    expect(vm.candidateNotice, isNull);
     expect(vm.canApply, isFalse);
     expect(first.existsSync(), isFalse, reason: 'pruned after the reload');
 
     // The same name with other bytes (a file re-exported under its old
-    // name): the checksum, not the name, decides.
-    picker.modelFile = pick('second.litertlm', litertlm(11));
+    // name): the checksum, not the name, decides. It is stored beside the
+    // saved file, which still loads.
+    final reexported = litertlm(11);
+    picker.modelFile = pick('second.litertlm', reexported);
     await vm.importFile.execute();
-    expect(vm.replacementPending, isTrue);
+    expect(vm.candidateNotice, isNotNull);
     expect(vm.canApply, isTrue);
+    expect(
+      vm.candidate?.file?.name,
+      ModelStore.renamedFor('second.litertlm', sha256Hex(reexported)),
+    );
+    expect(vm.draftName, 'second');
+    expect(
+      (chatModels.plan as CustomChatPlan).path,
+      '${root.path}/custom/second.litertlm',
+    );
   });
 
   test('Apply while the previous reply is still stopping: the card says so, '
       'the engine keeps running the old file, which is not pruned; Apply '
       'stays on and works once the reply has ended', () async {
-    await build(npu: const NpuUnavailable('no FastRPC'));
+    await build();
     picker.modelFile = pick('first.litertlm');
     await vm.importFile.execute();
     await vm.apply.execute();
@@ -661,7 +639,7 @@ void main() {
 
   test('while the self-test holds the chat model, nothing here can switch '
       'it; Apply holds it from the tap', () async {
-    await build(npu: const NpuUnavailable('no FastRPC'));
+    await build();
     picker.modelFile = pick();
     await vm.importFile.execute();
     expect(vm.canApply, isTrue);
@@ -715,7 +693,8 @@ void main() {
     await vm.download.execute(request);
 
     expect(vm.download.completed, isTrue, reason: '${vm.download.result}');
-    expect(vm.saved, isNotNull);
+    expect(vm.candidate, isNotNull);
+    expect(vm.saved, isNull, reason: 'not applied yet');
     expect(vm.fileLine, contains('(matches the one entered)'));
     expect(vm.fileLine, contains('downloaded from ${server.url(fileName)}'));
   });
@@ -764,33 +743,37 @@ void main() {
     expect(server.requestsFor(fileName), isNotEmpty);
     expect(vm.fileLine, contains('downloaded from ${server.url(fileName)}'));
     expect(vm.fileLine, isNot(contains('hf_secret')));
-    expect((vm.saved!.source as UrlModelSource).url, server.url(fileName));
+    expect((vm.candidate!.source as UrlModelSource).url, server.url(fileName));
     expect(logs, isNotEmpty);
     expect(logs.where((line) => line.contains('hf_secret')), isEmpty);
   });
 
-  test(
-    'NPU unavailable here: the option is off with flutter_edge_ai\'s reason, '
-    'and an NPU draft cannot be applied',
-    () async {
-      await build(
-        npu: const NpuUnavailable('no NPU dispatch stack ships for macos'),
-      );
-      picker.modelFile = pick();
-      await vm.importFile.execute();
+  test("NPU unavailable here: the option is off with the app's NPU check's "
+      'reason, and an NPU draft cannot be applied', () async {
+    await build(
+      npu: const NpuUnavailable('no NPU dispatch stack ships for macos'),
+    );
+    picker.modelFile = pick();
+    await vm.importFile.execute();
 
-      expect(vm.npuOffered, isFalse);
-      expect(vm.npuUnavailableReason, contains('no NPU dispatch stack ships'));
-      expect(vm.draftBackend, PreferredBackend.gpu, reason: 'the default here');
+    expect(vm.npuOffered, isFalse);
+    expect(vm.npuUnavailableReason, contains('no NPU dispatch stack ships'));
+    expect(
+      vm.draftBackend,
+      PreferredBackend.npu,
+      reason: 'the file is compiled for the NPU',
+    );
+    expect(vm.draftProblem, contains('no NPU dispatch stack ships for macos'));
+    expect(vm.canApply, isFalse);
 
-      vm.setBackend(PreferredBackend.npu);
-      expect(
-        vm.draftProblem,
-        contains('no NPU dispatch stack ships for macos'),
-      );
-      expect(vm.canApply, isFalse);
-    },
-  );
+    vm.setBackend(PreferredBackend.gpu);
+    expect(
+      vm.draftProblem,
+      contains('GPU: not for this file'),
+      reason: 'it runs only on the NPU: no way to apply it here',
+    );
+    expect(vm.canApply, isFalse);
+  });
 
   test('a GPU context below 1024 is explained, not silently raised', () async {
     await build();
@@ -809,20 +792,28 @@ void main() {
   test('a failed load shows the engine\'s reason and the explicit ways out; '
       'Run on GPU reloads on the GPU', () async {
     await build();
-    picker.modelFile = pick();
+    // A file not compiled for an NPU, asked for the NPU.
+    picker.modelFile = pick(
+      fileName,
+      fakeLitertlmBytes(FakeBundle.textOnly, filler: 48 * 1024, seed: 9),
+    );
     await vm.importFile.execute();
-    llm.loadError = ChatModelLoadException(
+    vm.setBackend(PreferredBackend.npu);
+    llm.loadError = engineCreateFailure(
       modelName: 'gemma3_ekv1280_sm8750',
-      requested: PreferredBackend.npu,
-      cause: Exception('Failed to create engine'),
-      nativeReasons: const ['npu backend failed: wrong SoC'],
+      backend: PreferredBackend.npu,
+      // A string LiteRT's Qualcomm dispatch library carries.
+      nativeMessage: 'Failed to set up QNN manager',
     );
 
     await vm.apply.execute();
 
     expect(models.states.value[ModelId.chat], isA<ModelFailed>());
     expect(vm.loadError, contains('did not load on npu'));
-    expect(vm.loadError, contains('wrong SoC'));
+    expect(
+      vm.loadError,
+      contains('Failed to create engine on npu: Failed to set up QNN manager'),
+    );
     expect(vm.failureActions, [
       ChatModelAction.runOnGpu,
       ChatModelAction.runOnCpu,
@@ -838,13 +829,172 @@ void main() {
     expect(llm.models.last.llm.backend, PreferredBackend.gpu);
     expect(llm.models.last.llm.maxTokens, 1280);
     expect(
-      llm.models.last.llm.towers,
-      ModelTowers.none,
+      llm.models.last.llm.supportImage || llm.models.last.llm.supportAudio,
+      isFalse,
       reason: 'a text-only build: no towers on any backend',
     );
     expect(vm.loadError, isNull);
     expect(vm.failureActions, isEmpty);
     expect(vm.draftBackend, PreferredBackend.gpu);
+  });
+
+  group('an NPU build an earlier build saved on the GPU (its old default)', () {
+    const npuFile = 'gemma-4-E2B-it_qualcomm_sm8750.litertlm';
+
+    /// The saved record of [version] for [path] on the GPU.
+    String record(int version, String path, int size) {
+      final towers = version == 3
+          ? '"supportImage":true,"supportAudio":true,"encoderBackend":"cpu",'
+          : '"visionChoice":"cpu","audioChoice":"cpu",';
+      return '{"v":$version,"displayName":"sm8750","modelType":"gemma4",'
+          '"backend":"gpu","maxTokens":4096,$towers"tools":false,'
+          '"source":{"kind":"local","path":"$path"},'
+          '"file":{"name":"$npuFile","sizeBytes":$size,'
+          '"checksumMatched":false}}';
+    }
+
+    /// The plugin's refusal of an NPU build asked for the GPU
+    /// (`planLiteRtLmLoad`'s wrongBackend message).
+    ChatModelLoadException wrongBackend(String path) => ChatModelLoadException(
+      modelName: 'sm8750',
+      requested: PreferredBackend.gpu,
+      cause: LiteRtLmBundleException(
+        LiteRtLmBundleProblem.wrongBackend,
+        '$path is compiled for the Qualcomm SM8750 NPU and runs only there, '
+        'not on gpu. Load it with preferredBackend: PreferredBackend.npu, or '
+        'omit preferredBackend; to run on the gpu, install the generic bundle '
+        'of this model.',
+        path: path,
+      ),
+    );
+
+    /// Builds the card over [version]'s record and runs setup once: the
+    /// load the plugin refuses.
+    Future<String> launch(int version, {NpuAvailability? npu}) async {
+      final file = File(pick(npuFile, litertlm(4)));
+      final path = file.path;
+      // The official SM8750 build's shape: both towers, the encoders not
+      // compiled for the NPU.
+      file.writeAsBytesSync(
+        fakeLitertlmBytes(FakeBundle.officialNpu, filler: 4096),
+      );
+      await build(
+        npu: npu ?? const NpuAvailable(soc: 'QTI SM8750'),
+        prepare: false,
+        seed: (settings) async {
+          await settings.write(Settings.chatModel, ChatModelKind.custom.name);
+          await settings.write(
+            Settings.customChatModel,
+            record(version, path, file.lengthSync()),
+          );
+        },
+      );
+      llm.loadError = wrongBackend(path);
+      expect(await models.prepareAll(), isA<Error<void>>());
+      return path;
+    }
+
+    for (final version in [3, 4]) {
+      test('version $version: the load fails with wrongBackend, not '
+          'retryable; the card offers Run on NPU (what the plugin '
+          'advises), which loads it', () async {
+        final path = await launch(version);
+
+        final failed = models.states.value[ModelId.chat]! as ModelFailed;
+        expect(failed.bundleProblem, LiteRtLmBundleProblem.wrongBackend);
+        expect(failed.retryable, isFalse, reason: 'the same load: refused');
+        expect(
+          vm.loadError,
+          'sm8750 did not load on gpu: $path is compiled for the Qualcomm '
+          'SM8750 NPU and runs only there, not on gpu. Load it with '
+          'preferredBackend: PreferredBackend.npu, or omit preferredBackend; '
+          'to run on the gpu, install the generic bundle of this model. '
+          '(wrongBackend)',
+        );
+        expect(vm.failureActions, [ChatModelAction.runOnNpu]);
+        expect(vm.draftBackend, PreferredBackend.gpu, reason: 'as saved');
+        expect(vm.draftProblem, contains('GPU: not for this file'));
+
+        vm.runAction(ChatModelAction.runOnNpu);
+        await untilNotified(
+          vm.runOn,
+          () => vm.runOn.completed || vm.runOn.error,
+          what: 'Run on NPU',
+        );
+
+        expect(vm.runOn.completed, isTrue, reason: '${vm.runOn.result}');
+        final loaded = llm.models.last.llm;
+        expect(loaded.backend, PreferredBackend.npu);
+        expect(loaded.maxTokens, 4096, reason: 'the saved context kept');
+        expect(loaded.supportImage && loaded.supportAudio, isTrue);
+        expect(models.states.value[ModelId.chat], isA<ModelReady>());
+        expect(vm.loadError, isNull);
+        expect(vm.failureActions, isEmpty);
+        expect(vm.saved?.backend, PreferredBackend.npu, reason: 'saved');
+        expect(vm.draftBackend, PreferredBackend.npu);
+        expect(vm.draftProblem, isNull);
+      });
+    }
+
+    test('where the NPU is not offered: no action (no backend here runs '
+        'it), and the card says why', () async {
+      await launch(
+        4,
+        npu: const NpuUnavailable('no NPU dispatch stack ships for macos'),
+      );
+
+      expect(vm.loadError, contains('(wrongBackend)'));
+      expect(vm.failureActions, isEmpty);
+      expect(vm.npuUnavailableReason, contains('no NPU dispatch stack'));
+      expect(vm.gpuCpuUnavailableReason, contains('runs only on the NPU'));
+    });
+  });
+
+  for (final problem in [
+    LiteRtLmBundleProblem.incomplete,
+    LiteRtLmBundleProblem.unsupportedNpu,
+  ]) {
+    test("the plugin's refusal before an engine as ${problem.name} is not "
+        'retryable and offers no backend', () async {
+      await build();
+      await useInPlace('gemma-4-E2B-it.litertlm', FakeBundle.gemma4E2b);
+      llm.loadError = ChatModelLoadException(
+        modelName: 'gemma-4-E2B-it',
+        requested: PreferredBackend.gpu,
+        cause: LiteRtLmBundleException(problem, 'refused (${problem.name})'),
+      );
+
+      await vm.apply.execute();
+
+      final failed = models.states.value[ModelId.chat]! as ModelFailed;
+      expect(failed.bundleProblem, problem);
+      expect(failed.retryable, isFalse);
+      expect(vm.failureActions, isEmpty);
+    });
+  }
+
+  test('the draft follows the file shown: a candidate picked elsewhere (a '
+      'download that ended after its screen closed) starts from its own '
+      'settings; dropped, the draft is the saved model again', () async {
+    await build();
+    await useInPlace('gemma-4-E2B-it.litertlm', FakeBundle.gemma4E2b);
+    await vm.apply.execute();
+    expect(vm.draftBackend, PreferredBackend.gpu);
+    expect(vm.draftContext, '8192');
+
+    final picked = await chatModels.useLocalFile(
+      pick('npu.litertlm', litertlm(12)),
+    );
+    expect(picked, isA<Ok<CustomChatModel>>());
+    expect(vm.draftBackend, PreferredBackend.npu);
+    expect(vm.draftContext, '4096');
+    expect(vm.canApply, isTrue);
+
+    await chatModels.dropInPlaceCandidate();
+    expect(vm.candidate, isNull);
+    expect(vm.draftBackend, PreferredBackend.gpu);
+    expect(vm.draftContext, '8192');
+    expect(vm.canApply, isFalse);
   });
 
   /// The models folders listed: the rescan the view model starts with
@@ -878,32 +1028,37 @@ void main() {
   });
 
   test(
-    'the models folder: listed with Rescan; a file picked there is used '
+    'the models folder: listed with Rescan; a file tapped there is used '
     'in place and becomes selected; Use this model loads that path',
     () async {
-      await build(npu: const NpuAvailable(soc: 'QTI SM8850'));
+      await build(npu: const NpuAvailable(soc: 'QTI SM8750'));
       await listed();
       expect(vm.localFiles, isEmpty);
       final folder = Directory(vm.folderPath!);
-      final header = File(
-        'test_assets/litertlm/gemma4_2b_sm8850_npu.header.bin',
-      ).readAsBytesSync();
-      final file = File('${folder.path}/gemma4_2b_SM8850.litertlm')
-        ..writeAsBytesSync([...header, ...bytes]);
+      final file = File('${folder.path}/gemma4_2b_npu.litertlm')
+        ..writeAsBytesSync(bytes);
+      // Two files: none is used by itself, the user taps one.
+      File('${folder.path}/other.litertlm').writeAsBytesSync(litertlm(3));
 
       await vm.rescan.execute();
-      expect(vm.localFiles.map((e) => e.name), ['gemma4_2b_SM8850.litertlm']);
+      expect(vm.localFiles.map((e) => e.name).toSet(), {
+        'gemma4_2b_npu.litertlm',
+        'other.litertlm',
+      });
+      final entry = vm.localFiles.firstWhere((e) => e.path == file.path);
       expect(
-        ChatModelViewModel.entryLine(vm.localFiles.single),
+        ChatModelViewModel.entryLine(entry),
         matches(RegExp(r'^0\.\d MB · \d{4}-\d\d-\d\d \d\d:\d\d$')),
       );
       await vm.useLocal.execute(file.path);
 
       expect(vm.useLocal.completed, isTrue, reason: '${vm.localError}');
-      expect(vm.isSelected(vm.localFiles.single), isTrue);
+      expect(vm.isSelected(entry), isTrue);
+      expect(vm.candidate, isNotNull, reason: 'tapped: Apply loads it');
+      expect(llm.models, isEmpty);
       expect(vm.fileLine, contains('in place: ${file.path}'));
       expect(vm.draftBackend, PreferredBackend.npu);
-      expect(vm.towerRow(Tower.vision), isA<TowerMissing>());
+      expect(vm.towerRow(Tower.vision)?.inFile, isFalse);
       expect(vm.draftContext, '4096');
 
       await vm.apply.execute();
@@ -916,12 +1071,7 @@ void main() {
   group('nothing chosen and one file already in the models folder', () {
     late List<int> npuFile;
 
-    setUp(() {
-      final header = File(
-        'test_assets/litertlm/gemma4_2b_sm8850_npu.header.bin',
-      ).readAsBytesSync();
-      npuFile = [...header, ...bytes];
-    });
+    setUp(() => npuFile = bytes);
 
     File putInFolder(String name) {
       final folder = Directory('${root.path}/models_folder')
@@ -929,24 +1079,82 @@ void main() {
       return File('${folder.path}/$name')..writeAsBytesSync(npuFile);
     }
 
-    test('it is selected at start with its own settings; nothing loads '
-        'before Use this model', () async {
-      final file = putInFolder('gemma4_2b_SM8850.litertlm');
-      await build(npu: const NpuAvailable(soc: 'QTI SM8850'));
+    test(
+      'a desktop or a board (auto-apply off): the file is listed, '
+      'nothing is picked or loaded until the user taps it and applies',
+      () async {
+        putInFolder('gemma4_2b_npu.litertlm');
+        await build(
+          npu: const NpuAvailable(soc: 'QTI SM8750'),
+          autoApplyTheOnlyFile: false,
+        );
+        await listed();
+
+        expect(vm.localFiles, hasLength(1));
+        expect(vm.useLocal.result, isNull, reason: 'not picked by itself');
+        expect(vm.candidate, isNull);
+        expect(vm.active, ChatModelKind.none);
+        expect(llm.installs, isEmpty);
+      },
+    );
+
+    test('nothing applied yet: it is used at start with its own settings, '
+        'saved and loaded (an adb push is all a tester does); the next visit '
+        'neither picks nor hashes it again', () async {
+      final file = putInFolder('gemma4_2b_npu.litertlm');
+      await build(npu: const NpuAvailable(soc: 'QTI SM8750'));
       await listed();
 
       expect(vm.useLocal.completed, isTrue, reason: '${vm.localError}');
       expect(vm.isSelected(vm.localFiles.single), isTrue);
-      expect(vm.fileLine, contains('in place: ${file.path}'));
-      expect(vm.draftBackend, PreferredBackend.npu);
-      expect(vm.draftContext, '4096');
-      expect(vm.active, ChatModelKind.none, reason: 'selected, not switched');
-      expect(vm.canApply, isTrue);
-      expect(llm.models, isEmpty, reason: 'loading waits for the user');
-
-      await vm.apply.execute();
-      expect(vm.apply.completed, isTrue, reason: '${vm.apply.result}');
+      expect(vm.candidate, isNull, reason: 'applied at once');
+      expect(vm.active, ChatModelKind.custom);
       expect(llm.installs.last, file.path);
+      expect(llm.models.last.llm.backend, PreferredBackend.npu);
+      expect(llm.models.last.llm.maxTokens, 4096);
+      expect(vm.canApply, isFalse);
+      await untilNotified(
+        chatModels.state,
+        () => chatModels.state.value.custom?.file?.sha256 != null,
+        what: 'the saved file\'s SHA-256',
+      );
+
+      final card = await reopened();
+      expect(card.useLocal.result, isNull, reason: 'not picked again');
+      expect(chatModels.hashing.value, isFalse, reason: 'not hashed again');
+      expect(llm.installs, hasLength(1));
+    });
+
+    test('nothing applied yet and no NPU here: a build compiled for the NPU '
+        'starts on the NPU (the plugin runs it nowhere else), so it is picked '
+        'but not applied, the card says why, and nothing loads', () async {
+      final file = putInFolder('gemma4_2b_npu.litertlm');
+      await build(npu: const NpuUnavailable('no FastRPC'));
+      await listed();
+
+      expect(vm.isSelected(vm.localFiles.single), isTrue);
+      expect(vm.candidate?.sourceLine, 'in place: ${file.path}');
+      expect(vm.draftBackend, PreferredBackend.npu);
+      expect(vm.draftProblem, 'The NPU is not available here: no FastRPC.');
+      expect(vm.active, ChatModelKind.none);
+      expect(llm.installs, isEmpty);
+    });
+
+    test('nothing applied yet and no NPU here: a file not compiled for the '
+        'NPU is used with its defaults (the GPU)', () async {
+      final folder = Directory('${root.path}/models_folder')
+        ..createSync(recursive: true);
+      final file = writeFakeLitertlm(
+        '${folder.path}/gemma-4-E2B-it.litertlm',
+        FakeBundle.gemma4E2b,
+      );
+      await build(npu: const NpuUnavailable('no FastRPC'));
+      await listed();
+
+      expect(vm.candidate, isNull, reason: 'applied at once');
+      expect(vm.active, ChatModelKind.custom);
+      expect(llm.installs.last, file.path);
+      expect(llm.models.last.llm.backend, PreferredBackend.gpu);
     });
 
     test('a file added later is selected by Rescan', () async {
@@ -954,7 +1162,7 @@ void main() {
       await listed();
       expect(vm.saved, isNull);
 
-      final file = putInFolder('gemma4_2b_SM8850.litertlm');
+      final file = putInFolder('gemma4_2b_npu.litertlm');
       await vm.rescan.execute();
 
       expect(vm.fileLine, contains('in place: ${file.path}'));
@@ -972,7 +1180,7 @@ void main() {
     });
 
     test('a developer define (GEMMA_MODEL_PATH) keeps its model', () async {
-      putInFolder('gemma4_2b_SM8850.litertlm');
+      putInFolder('gemma4_2b_npu.litertlm');
       await build(gemmaModelPath: pick('define.litertlm'), prepare: false);
       await listed();
 
@@ -980,28 +1188,31 @@ void main() {
       expect(vm.useLocal.result, isNull);
     });
 
-    test('selected mid-copy: the row can be picked again, and Rescan after '
-        'the copy picks it at its full size', () async {
-      final folder = Directory('${root.path}/models_folder')
-        ..createSync(recursive: true);
-      final file = File('${folder.path}/gemma4_2b_SM8850.litertlm')
-        ..writeAsBytesSync(npuFile.sublist(0, npuFile.length ~/ 2));
-      await build(npu: const NpuAvailable(soc: 'QTI SM8850'));
+    test('a saved choice that cannot load, its file now another size: the '
+        'only file is not used by itself (a re-pushed build keeps its '
+        'settings until the user applies)', () async {
+      final file = putInFolder('gemma4_2b_npu.litertlm');
+      await build(npu: const NpuAvailable(soc: 'QTI SM8750'));
       await listed();
-      expect(vm.saved?.file?.sizeBytes, npuFile.length ~/ 2);
+      expect(vm.active, ChatModelKind.custom, reason: 'used at first');
+      final chosen = vm.saved!.copyWith(displayName: 'Mine', maxTokens: 2048);
+      expect(await chatModels.apply(chosen), isA<Ok<void>>());
+      final installs = llm.installs.length;
 
-      file.writeAsBytesSync(npuFile);
+      file.writeAsBytesSync([...npuFile, 0, 0]);
+      expect(chatModels.plan, isA<ChatPlanBlocked>(), reason: 'changed');
       await vm.rescan.execute();
 
-      expect(vm.saved?.file?.sizeBytes, npuFile.length);
-      expect(vm.isSelected(vm.localFiles.single), isTrue);
-      expect(vm.canPick(vm.localFiles.single), isFalse, reason: 'same size');
-      expect(vm.canApply, isTrue, reason: '${vm.draftProblem}');
+      expect(vm.candidate, isNull, reason: 'not picked by itself');
+      expect(vm.saved!.file!.sizeBytes, npuFile.length, reason: 'as saved');
+      expect(vm.saved!.displayName, 'Mine', reason: 'kept');
+      expect(vm.saved!.maxTokens, 2048);
+      expect(llm.installs, hasLength(installs));
     });
 
     test('Rescan while a download runs selects nothing: the download keeps '
         'its own settings', () async {
-      await build(npu: const NpuAvailable(soc: 'QTI SM8850'));
+      await build(npu: const NpuAvailable(soc: 'QTI SM8750'));
       await listed();
       server.files[fileName] = ServedFile(
         bytes,
@@ -1023,19 +1234,19 @@ void main() {
         what: 'the download to start',
       );
 
-      putInFolder('gemma4_2b_SM8850.litertlm');
+      putInFolder('gemma4_2b_npu.litertlm');
       await vm.rescan.execute();
       expect(vm.useLocal.result, isNull, reason: 'not while downloading');
 
       await downloading;
       expect(vm.download.completed, isTrue, reason: '${vm.transferError}');
-      expect(vm.saved?.file?.name, fileName);
-      expect(vm.saved?.maxTokens, 1280, reason: 'from its own name');
+      expect(vm.candidate?.file?.name, fileName);
+      expect(vm.candidate?.maxTokens, 1280, reason: 'from its own name');
     });
 
     test('a saved choice that cannot load (blocked) is not replaced, and '
         'nothing loads by itself', () async {
-      putInFolder('gemma4_2b_SM8850.litertlm');
+      putInFolder('gemma4_2b_npu.litertlm');
       await build(
         prepare: false,
         seed: (settings) => settings.write(Settings.chatModel, 'custom'),
@@ -1048,7 +1259,7 @@ void main() {
     });
 
     test('unreadable saved settings: the problem stays to be read', () async {
-      putInFolder('gemma4_2b_SM8850.litertlm');
+      putInFolder('gemma4_2b_npu.litertlm');
       await build(
         prepare: false,
         seed: (settings) =>
@@ -1060,16 +1271,18 @@ void main() {
       expect(vm.useLocal.result, isNull);
     });
 
-    test('the only file cannot be used: its reason shows, nothing is '
-        'selected', () async {
+    test('the only file cannot be used (a load refuses it: incomplete): its '
+        'reason shows, nothing is selected', () async {
       final folder = Directory('${root.path}/models_folder')
         ..createSync(recursive: true);
-      File('${folder.path}/notes.litertlm').writeAsStringSync('hello');
+      File('${folder.path}/cut.litertlm')
+          .writeAsBytesSync(fakeLitertlmBytes(FakeBundle.incomplete));
       await build();
       await listed();
 
-      expect(vm.localError, contains('not a .litertlm'));
+      expect(vm.localError, contains('is incomplete'));
       expect(vm.saved, isNull);
+      expect(vm.candidate, isNull);
     });
 
     test('a model chosen before stays chosen', () async {
@@ -1078,7 +1291,7 @@ void main() {
       await vm.importFile.execute();
       expect(vm.importFile.completed, isTrue);
 
-      putInFolder('gemma4_2b_SM8850.litertlm');
+      putInFolder('gemma4_2b_npu.litertlm');
       await vm.rescan.execute();
 
       expect(vm.fileLine, contains(fileName));
@@ -1086,7 +1299,9 @@ void main() {
     });
   });
 
-  test('a path that is not a .litertlm is refused with the reason', () async {
+  test('a path whose header the plugin cannot read is no refusal (the engine '
+      "loads such a file): the card shows the plugin's reason, no tower "
+      'rows, and it can be applied, text only', () async {
     await build();
     await listed();
     final bogus = File('${picked.path}/notes.litertlm')
@@ -1094,7 +1309,25 @@ void main() {
 
     await vm.useLocal.execute(bogus.path);
 
-    expect(vm.localError, contains('not a .litertlm'));
-    expect(vm.saved, isNull);
+    expect(vm.localError, isNull);
+    expect(vm.candidate, isNotNull);
+    expect(vm.towersShown, isTrue);
+    expect(
+      vm.headerNotRead,
+      'The plugin could not read its header (notLitertlm): ${bogus.path} is '
+      'not a .litertlm container (no LITERTLM magic). The plugin loads such a '
+      'file without reading its header; the app asks for no tower (none is '
+      'known), so it loads text only.',
+    );
+    expect(vm.towerRow(Tower.vision), isNull);
+    expect(vm.npuBuildLine, isNull);
+    expect(vm.draftBackend, PreferredBackend.gpu);
+    expect(vm.canApply, isTrue);
+
+    await vm.apply.execute();
+
+    expect(vm.apply.completed, isTrue, reason: '${vm.apply.result}');
+    final loaded = llm.models.last.llm;
+    expect(loaded.supportImage || loaded.supportAudio, isFalse);
   });
 }

@@ -35,7 +35,8 @@ final class const SocSpec({
 });
 
 /// Qualcomm parts by `ro.soc.model` (`SM8650`; a `-AC` suffix is ignored).
-/// Hexagon versions match flutter_litert's `libQnnHtpV*` (V69–V81). The
+/// Hexagon V69–V81 match flutter_litert's `libQnnHtpV*` libraries; V66
+/// (SM8250) and V68 (SM8350) have none there. The
 /// SM8850's Adreno 840 is from Qualcomm's launch coverage (Sept 2025), not
 /// from a device.
 const _qualcomm = {
