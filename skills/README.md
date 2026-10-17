@@ -17,7 +17,7 @@ Each skill is a self-contained `SKILL.md` playbook covering one stage of taking 
 
 Two skills written in the form of [android/skills](https://github.com/android/skills) (frontmatter, prerequisites, numbered steps, `references/`), for an Android developer's agent that starts from a model file rather than for a conversion engineer's. They cover an app on the CPU and the GPU; NPU, multimodal input and tools are not covered.
 
-* [`litert-runtime/`](litert-runtime/) — Create an Android app that runs a `.tflite` model on the CPU or the GPU with the CompiledModel API: the dependency, where the model file goes, the inference class, the ViewModel and screen, and checking the output on a device. Its migration section moves an existing app from the TensorFlow Lite Interpreter, LiteRT 1.x, or LiteRT in Google Play services to that code, with a golden-output test.
+* [`litert-runtime/`](litert-runtime/) — Create an Android app that runs a `.tflite` model on the CPU or the GPU with the CompiledModel API: the dependency, where the model file goes, the inference class, the ViewModel and screen, and checking the output on a device. Its migration section moves an existing app from the TensorFlow Lite Interpreter or LiteRT 1.x to that code, with a golden-output check on a device.
 * [`litert-lm/`](litert-lm/) — Create an Android app that runs an open text LLM on the CPU or the GPU with the LiteRT-LM Kotlin API: the dependency and manifest entries, getting a `.litertlm` model from litert-community onto the device, engine initialization, a streamed multi-turn conversation, the ViewModel and screen.
 
 [`tests/`](tests/) builds the Kotlin of these two skills into apps and runs it on a device, including the paths where a step fails.

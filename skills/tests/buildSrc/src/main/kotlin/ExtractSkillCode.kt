@@ -18,6 +18,8 @@ import org.gradle.api.DefaultTask
 import org.gradle.api.file.ConfigurableFileCollection
 import org.gradle.api.file.DirectoryProperty
 import org.gradle.api.file.RegularFileProperty
+import org.gradle.api.provider.Property
+import org.gradle.api.tasks.Input
 import org.gradle.api.tasks.InputFile
 import org.gradle.api.tasks.InputFiles
 import org.gradle.api.tasks.OutputDirectory
@@ -31,7 +33,9 @@ import org.gradle.api.tasks.TaskAction
  * gives those; a file with no ``` at all gives its indented code blocks, the form android/skills
  * publishes. A block that starts with `android {`, `dependencies {`, `plugins {` or
  * `repositories {` is the Gradle setup and is left out: the module's build file has the app's
- * dependencies. The `import` lines of every block are hoisted to the top of the file, each once.
+ * dependencies. A block whose first line is a shell command (`grep`, `sed`, `adb`, `./gradlew`, and
+ * the like) is left out too: the migration reference shows its searches that way. The `import`
+ * lines of every block are hoisted to the top of the file, each once.
  */
 abstract class ExtractSkillCode : DefaultTask() {
     /**
@@ -48,16 +52,30 @@ abstract class ExtractSkillCode : DefaultTask() {
     @get:PathSensitive(PathSensitivity.NONE)
     abstract val header: RegularFileProperty
 
+    /**
+     * The name of the generated file, `SkillCode.kt` by default. Two extractions that end in the
+     * same APK process need two names: Kotlin puts a file's top-level functions in a class named
+     * after the file, and a test APK's class shadows the app's class of the same name.
+     */
+    @get:Input
+    abstract val fileName: Property<String>
+
     @get:OutputDirectory
     abstract val outputDir: DirectoryProperty
+
+    init {
+        fileName.convention("SkillCode.kt")
+    }
 
     @TaskAction
     fun extract() {
         val gradle = Regex("^(android|dependencies|plugins|repositories)\\s*\\{")
+        val shell = Regex("^(grep|sed|adb|\\./gradlew|gradlew|unzip|python3?|pip|curl)\\b")
         val blocksByFile =
             sources.files.associateWith { file ->
                 codeBlocks(file.readText().replace("\r\n", "\n")).filterNot { block ->
-                    gradle.containsMatchIn(block.lines().firstOrNull { it.isNotBlank() }.orEmpty())
+                    val first = block.lines().firstOrNull { it.isNotBlank() }.orEmpty()
+                    gradle.containsMatchIn(first) || shell.containsMatchIn(first)
                 }
             }
         val blocks = blocksByFile.values.flatten()
@@ -75,8 +93,11 @@ abstract class ExtractSkillCode : DefaultTask() {
                 block.lines().filterNot(importLine::matches).joinToString("\n").trim()
             }
         val head = header.get().asFile.readText().trimEnd()
-        val out = outputDir.get().file("SkillCode.kt").asFile
-        out.parentFile.mkdirs()
+        // Only this file lives here, so a block removed from the skill leaves the app too.
+        val dir = outputDir.get().asFile
+        dir.deleteRecursively()
+        dir.mkdirs()
+        val out = dir.resolve(fileName.get())
         val body = code.filter { it.isNotEmpty() }.joinToString("\n\n")
         out.writeText(head + "\n\n" + imports.joinToString("\n") + "\n\n" + body + "\n")
     }

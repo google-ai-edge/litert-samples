@@ -13,14 +13,15 @@
 # limitations under the License.
 """Writes the golden output that the migration tests compare with.
 
-MigrationValidationTest (litert-runtime/references/migration) runs a fixed
-pattern bitmap through its placeholder preprocessing and the app's model on the
-CPU, and compares the output with golden/output.txt in the test APK's assets.
-This script computes that output for the same input on the workstation, with
-the CompiledModel API of ai-edge-litert on the CPU, and writes it to
-<fixtures>/golden/output.txt. It also writes output_wrong.txt, the same values
-with the first one moved by 0.01, for the test that the gate fails on a wrong
-golden. The outputs are checked in, so run this only when model.tflite changes.
+MigrationCodeTest (litert-runtime/src/migrationTest) runs a fixed pattern
+bitmap through NormalizeOp(127.5, 127.5) of LiteRT Support and through the
+skill's preprocess, then through the app's model on the CPU, and compares the
+output with golden/output.txt in the test APK's assets. This script computes
+that output for the same input on the workstation, with the CompiledModel API
+of ai-edge-litert on the CPU, and writes it to <fixtures>/golden/output.txt. It
+also writes output_wrong.txt, the same values with the first one moved by 0.01,
+for the test that the gate fails on a wrong golden. The outputs are checked in,
+so run this only when model.tflite changes.
 
   pip install ai-edge-litert
   python make_golden.py ../litert-runtime/fixtures
@@ -33,14 +34,14 @@ from ai_edge_litert import schema_py_generated as schema
 from ai_edge_litert.compiled_model import CompiledModel
 import numpy as np
 
-# The input of MigrationValidationTest: fixedBitmap(224), then toInput(224).
+# The input of MigrationCodeTest: pattern(224), then (channel - 127.5) / 127.5.
 SIZE = 224
 # Ten times the gate's bound of 1e-3.
 SHIFT = 0.01
 
 
 def pattern(size):
-  """The RGB pattern of fixedBitmap in the templates, [1, size, size, 3]."""
+  """The RGB pattern of MigrationCodeTest.pattern, [1, size, size, 3]."""
   y, x = np.mgrid[0:size, 0:size]
   r = (17 * x + 3 * y) & 0xFF
   g = (5 * x + 11 * y) & 0xFF
@@ -74,7 +75,7 @@ def main():
     sys.exit(f"output type {out_type}: expected FLOAT32")
   count = int(np.prod(out_shape))
 
-  # The template's placeholder preprocessing in float32: (channel - 127.5) / 127.5.
+  # The test's normalization in float32: (channel - 127.5) / 127.5.
   half = np.float32(127.5)
   data = (pattern(SIZE).astype(np.float32) - half) / half
 

@@ -41,30 +41,23 @@ val extractSkillCode =
         outputDir.set(layout.buildDirectory.dir("generated/skill"))
     }
 
-// The skill's migration templates, compiled into the test APK as they are, with the app's package
-// in place of the template's, and the tests in src/migrationTest that run them. They use LiteRT
-// Support, whose com.google.ai.edge.litert.support package starts with 2.3.0, so they are built
-// from that version on, and only from a copy of the skill that has the templates.
-val migrationTemplates =
+// The Kotlin of the skill's migration reference, compiled into the test APK, and the tests in
+// src/migrationTest that run it. It uses LiteRT Support, whose com.google.ai.edge.litert.support
+// package starts with 2.3.0, so it is built from that version on, and only from a copy of the skill
+// that has the reference.
+val migrationReference =
     rootProject.layout.projectDirectory.dir(skillsDir).map {
-        it.dir("litert-runtime/references/migration")
+        it.file("litert-runtime/references/migration.md")
     }
-val migrationTests = litertHasGpuArtifact.get() && migrationTemplates.get().asFile.isDirectory
-val migrationSources = layout.buildDirectory.dir("generated/migration")
-val copyMigrationTemplates =
-    tasks.register<Copy>("copyMigrationTemplates") {
-        if (migrationTests) {
-            from(migrationTemplates) { include("MigrationValidationTest.kt", "SupportBridge.kt") }
-        }
-        into(migrationSources)
-        filter { line ->
-            line.replace(
-                "package com.example.validation",
-                "package com.google.ai.edge.examples.litertruntime",
-            )
-        }
-        // Otherwise a template removed from the skill would stay in the test APK.
-        doFirst { migrationSources.get().asFile.deleteRecursively() }
+val migrationTests = litertHasGpuArtifact.get() && migrationReference.get().asFile.isFile
+val extractMigrationCode =
+    tasks.register<ExtractSkillCode>("extractMigrationCode") {
+        enabled = migrationTests
+        sources.from(migrationReference)
+        header.set(layout.projectDirectory.file("skill-header.txt"))
+        // Not SkillCode.kt: the test APK's SkillCodeKt would shadow the app's.
+        fileName.set("MigrationCode.kt")
+        outputDir.set(layout.buildDirectory.dir("generated/migration"))
     }
 
 // The app's own model, under the asset name the skill's Classifier opens. The other fixtures are
@@ -104,7 +97,7 @@ android {
 }
 
 tasks.named("preBuild") {
-    dependsOn(extractSkillCode, copyAppModel, copyMigrationTemplates)
+    dependsOn(extractSkillCode, copyAppModel, extractMigrationCode)
 }
 
 dependencies {

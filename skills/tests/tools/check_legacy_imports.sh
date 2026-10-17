@@ -15,11 +15,11 @@
 #
 # The source search of stage 1 of the litert-runtime migration (step 6 of
 # litert-runtime/references/migration.md): lists every reference to the legacy
-# TensorFlow Lite runtime, its delegates, the Support Model class and LiteRT in
-# Google Play services left in the Kotlin, Java, Gradle and R8 / ProGuard files
-# under a directory. The litert 2.3.0 artifacts still contain
-# org.tensorflow.lite.Interpreter and InterpreterApi, so leftover Interpreter
-# code compiles and only a search finds it.
+# TensorFlow Lite runtime, its delegates, the Support Model class and any
+# org.tensorflow.lite class left in the Kotlin, Java, Gradle and R8 / ProGuard
+# files under a directory. The litert 2.3.0 artifacts still contain
+# org.tensorflow.lite.Interpreter, InterpreterApi and DataType, so leftover
+# Interpreter code compiles and only a search finds it.
 #
 #   check_legacy_imports.sh <directory>
 #
@@ -34,9 +34,8 @@ if [ $# -ne 1 ] || [ ! -d "$1" ]; then
 fi
 
 # The pattern of the search in references/migration.md.
-pattern='org\.tensorflow\.lite\.(Interpreter|support)|GpuDelegate|NnApiDelegate'
-pattern+='|FlexDelegate|support\.model\.Model|com\.google\.android\.gms\.tflite'
-pattern+='|play-services-tflite|org\.tensorflow:tensorflow-lite'
+pattern='org\.tensorflow\.lite\.|GpuDelegate|NnApiDelegate|FlexDelegate'
+pattern+='|support\.model\.Model|org\.tensorflow:tensorflow-lite'
 
 hits=$(grep -rnE "$pattern" \
   --include='*.kt' --include='*.java' --include='*.kts' --include='*.gradle' \
