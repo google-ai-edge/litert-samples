@@ -1,0 +1,6 @@
+{
+  "MODEL_PATH": "/absolute/path/to/gemma-4-E2B-it.litertlm",
+  "NPU_MODEL_PATH": "",
+  "MAX_TOKENS": 4096,
+  "BACKENDS": "cpu,gpu,npu"
+}

@@ -1,0 +1,166 @@
+[00:00] Maya: Good morning everyone, this is the weekly platform sync. Let us start with quick updates and then go through the agenda.
+[00:24] Priya: On the test flakiness in CI,  My suggestion is to revisit the rollback procedure unless the client objects.
+[00:33] Jonas: On the quarterly roadmap,  I think we should simplify the cost estimate before the end of the sprint.
+[00:49] Maya: Honestly we need to prototype the dependency on the legacy gateway unless the client objects.
+[00:58] Jonas: On the on-call rotation,  It would help to postpone the API versioning because the last time it took three weeks.
+[01:16] Jonas: On the on-call rotation,  It would help to prototype the data retention policy and check the numbers again on Thursday.
+[01:34] Jonas: On the customer feedback from the beta,  Honestly we need to escalate the cost estimate and check the numbers again on Thursday. My suggestion is to prototype the handover notes and check the numbers again on Thursday.
+[01:53] Jonas: It would help to measure the schema change because the last time it took three weeks.
+[02:13] Jonas: One administrative thing before I forget: finance gave us a new cost centre for this project, the code is 7413-QX, please use it on every purchase order from now on.
+[02:31] Maya: On the vendor contract renewal,  It would help to simplify the alerting thresholds and check the numbers again on Thursday.
+[02:46] Maya: It would help to prioritise the load test results and write it down in the runbook. Let us prototype the handover notes unless the client objects. My suggestion is to document the rollback procedure and check the numbers again on Thursday.
+[03:05] Maya: On the on-call rotation,  Honestly we need to measure the customer SLA and write it down in the runbook. My suggestion is to measure the cost estimate and write it down in the runbook. Let us revisit the handover notes and check the numbers again on Thursday.
+[03:22] Jonas: We could split the cost estimate because the last time it took three weeks. My suggestion is to document the alerting thresholds because the last time it took three weeks.
+[03:35] Jonas: On the customer feedback from the beta,  It would help to measure the cost estimate and check the numbers again on Thursday. Honestly we need to simplify the data retention policy so nobody is surprised later.
+[03:47] Jonas: On the customer feedback from the beta,  My suggestion is to prototype the alerting thresholds and check the numbers again on Thursday.
+[04:03] Priya: It would help to prioritise the alerting thresholds and write it down in the runbook. It would help to prototype the dependency on the legacy gateway because the last time it took three weeks. Honestly we need to escalate the cost estimate because the last time it took three weeks.
+[04:13] Tom: On the outage from last Tuesday,  We could document the data retention policy because the last time it took three weeks.
+[04:31] Maya: It would help to postpone the schema change before the end of the sprint.
+[04:49] Maya: On the outage from last Tuesday,  It would help to simplify the alerting thresholds and write it down in the runbook.
+[05:07] Tom: I think we should automate the handover notes because the last time it took three weeks.
+[05:18] Maya: Let us measure the handover notes and write it down in the runbook. We could escalate the dependency on the legacy gateway so nobody is surprised later. It would help to prioritise the alerting thresholds and write it down in the runbook.
+[05:27] Priya: On the migration of the analytics pipeline,  I think we should measure the schema change and check the numbers again on Thursday. We could prioritise the data retention policy unless the client objects. It would help to escalate the load test results and write it down in the runbook.
+[05:48] Tom: We could split the schema change because the last time it took three weeks. Let us revisit the dependency on the legacy gateway and check the numbers again on Thursday. My suggestion is to measure the data retention policy and write it down in the runbook.
+[06:02] Priya: I think we should split the rollback procedure so nobody is surprised later. My suggestion is to split the load test results so nobody is surprised later.
+[06:26] Maya: Honestly we need to prioritise the rollback procedure and write it down in the runbook. I think we should simplify the data retention policy because the last time it took three weeks.
+[06:42] Priya: Honestly we need to simplify the handover notes because the last time it took three weeks.
+[06:52] Jonas: We could revisit the alerting thresholds unless the client objects.
+[07:13] Jonas: It would help to automate the load test results so nobody is surprised later. It would help to escalate the alerting thresholds before the end of the sprint. I think we should document the schema change and write it down in the runbook.
+[07:28] Jonas: I think we should measure the data retention policy and check the numbers again on Thursday.
+[07:49] Priya: It would help to simplify the alerting thresholds before the end of the sprint. Honestly we need to prioritise the handover notes and write it down in the runbook.
+[08:12] Tom: On the test flakiness in CI,  We could escalate the alerting thresholds unless the client objects. It would help to revisit the handover notes so nobody is surprised later. It would help to revisit the alerting thresholds so nobody is surprised later.
+[08:31] Maya: On the hiring plan for the platform team,  Honestly we need to escalate the schema change unless the client objects. My suggestion is to document the schema change before the end of the sprint.
+[08:41] Maya: On the quarterly roadmap,  My suggestion is to escalate the dependency on the legacy gateway before the end of the sprint. My suggestion is to prioritise the customer SLA unless the client objects. It would help to escalate the data retention policy and write it down in the runbook.
+[08:58] Tom: On the migration of the analytics pipeline,  We could escalate the API versioning unless the client objects. We could automate the alerting thresholds because the last time it took three weeks. I think we should simplify the handover notes and check the numbers again on Thursday.
+[09:13] Jonas: Let us document the alerting thresholds and write it down in the runbook. Honestly we need to prioritise the alerting thresholds and check the numbers again on Thursday. We could automate the data retention policy and write it down in the runbook.
+[09:28] Tom: Honestly we need to split the alerting thresholds and write it down in the runbook.
+[09:45] Priya: We could prioritise the load test results before the end of the sprint. Honestly we need to prioritise the dependency on the legacy gateway and check the numbers again on Thursday.
+[10:01] Maya: Let us escalate the customer SLA and check the numbers again on Thursday. It would help to document the rollback procedure so nobody is surprised later.
+[10:11] Priya: I think we should postpone the API versioning so nobody is surprised later. My suggestion is to measure the cost estimate so nobody is surprised later.
+[10:28] Tom: On the migration of the analytics pipeline,  Let us document the API versioning before the end of the sprint. Honestly we need to postpone the cost estimate before the end of the sprint. Let us revisit the rollback procedure and check the numbers again on Thursday.
+[10:38] Maya: I think we should prioritise the schema change because the last time it took three weeks. Let us prototype the alerting thresholds before the end of the sprint.
+[10:51] Maya: Let us revisit the alerting thresholds so nobody is surprised later.
+[11:09] Jonas: On the quarterly roadmap,  My suggestion is to escalate the alerting thresholds and check the numbers again on Thursday. Let us revisit the API versioning before the end of the sprint.
+[11:26] Jonas: On the migration of the analytics pipeline,  My suggestion is to split the handover notes before the end of the sprint. Honestly we need to simplify the handover notes unless the client objects. My suggestion is to escalate the API versioning and write it down in the runbook.
+[11:40] Jonas: On the design review for the mobile app,  Let us revisit the alerting thresholds before the end of the sprint. I think we should measure the cost estimate so nobody is surprised later.
+[12:03] Priya: We could measure the dependency on the legacy gateway because the last time it took three weeks. We could postpone the API versioning because the last time it took three weeks. I think we should measure the load test results and check the numbers again on Thursday.
+[12:20] Jonas: On the design review for the mobile app,  Let us split the load test results so nobody is surprised later.
+[12:30] Priya: Honestly we need to split the data retention policy unless the client objects. I think we should document the API versioning before the end of the sprint. We could simplify the customer SLA before the end of the sprint.
+[12:43] Jonas: It would help to escalate the alerting thresholds and write it down in the runbook.
+[13:04] Tom: Honestly we need to automate the alerting thresholds and check the numbers again on Thursday. Honestly we need to prototype the alerting thresholds before the end of the sprint.
+[13:24] Tom: On the outage from last Tuesday,  Honestly we need to escalate the alerting thresholds unless the client objects. It would help to prototype the dependency on the legacy gateway and write it down in the runbook. It would help to split the rollback procedure before the end of the sprint.
+[13:47] Tom: On the on-call rotation,  It would help to revisit the dependency on the legacy gateway and write it down in the runbook. It would help to split the handover notes and check the numbers again on Thursday.
+[14:08] Maya: It would help to document the handover notes and check the numbers again on Thursday. I think we should measure the data retention policy and write it down in the runbook. We could split the handover notes because the last time it took three weeks.
+[14:18] Priya: On the hiring plan for the platform team,  It would help to split the rollback procedure unless the client objects.
+[14:37] Priya: It would help to postpone the dependency on the legacy gateway because the last time it took three weeks. I think we should automate the API versioning and write it down in the runbook. I think we should split the handover notes and check the numbers again on Thursday.
+[14:50] Tom: I think we should escalate the data retention policy and check the numbers again on Thursday. I think we should automate the dependency on the legacy gateway and check the numbers again on Thursday.
+[15:11] Tom: My suggestion is to split the data retention policy before the end of the sprint. It would help to document the alerting thresholds and write it down in the runbook.
+[15:34] Jonas: On the vendor contract renewal,  Honestly we need to escalate the API versioning before the end of the sprint. Honestly we need to prioritise the data retention policy because the last time it took three weeks. My suggestion is to simplify the dependency on the legacy gateway so nobody is surprised later.
+[15:54] Tom: On the outage from last Tuesday,  Honestly we need to postpone the cost estimate and check the numbers again on Thursday. My suggestion is to prioritise the rollback procedure and check the numbers again on Thursday.
+[16:15] Maya: Honestly we need to revisit the API versioning and check the numbers again on Thursday.
+[16:30] Maya: My suggestion is to measure the dependency on the legacy gateway and check the numbers again on Thursday. I think we should revisit the API versioning and write it down in the runbook.
+[16:43] Priya: It would help to prioritise the data retention policy and check the numbers again on Thursday. My suggestion is to revisit the cost estimate unless the client objects.
+[17:03] Maya: My suggestion is to automate the customer SLA so nobody is surprised later. Honestly we need to measure the handover notes before the end of the sprint. It would help to postpone the alerting thresholds because the last time it took three weeks.
+[17:16] Priya: Honestly we need to measure the cost estimate and write it down in the runbook. We could measure the handover notes unless the client objects. Honestly we need to simplify the rollback procedure so nobody is surprised later.
+[17:26] Tom: We could automate the load test results because the last time it took three weeks. My suggestion is to postpone the schema change so nobody is surprised later. We could document the alerting thresholds and check the numbers again on Thursday.
+[17:40] Priya: It would help to split the dependency on the legacy gateway and write it down in the runbook. My suggestion is to simplify the cost estimate and write it down in the runbook.
+[17:54] Priya: On the quarterly roadmap,  My suggestion is to measure the customer SLA and check the numbers again on Thursday.
+[18:11] Jonas: Let us split the cost estimate because the last time it took three weeks.
+[18:27] Priya: We could revisit the cost estimate and write it down in the runbook.
+[18:48] Tom: I think we should simplify the schema change because the last time it took three weeks.
+[19:01] Maya: On the vendor contract renewal,  We could postpone the schema change and write it down in the runbook.
+[19:11] Maya: We could split the customer SLA before the end of the sprint.
+[19:24] Jonas: On the test flakiness in CI,  Let us escalate the cost estimate and write it down in the runbook. I think we should document the rollback procedure and check the numbers again on Thursday. It would help to prototype the data retention policy because the last time it took three weeks.
+[19:33] Priya: On the design review for the mobile app,  Let us prioritise the data retention policy because the last time it took three weeks. It would help to split the schema change so nobody is surprised later.
+[19:53] Priya: I think we should split the handover notes and write it down in the runbook.
+[20:03] Jonas: My suggestion is to prioritise the data retention policy because the last time it took three weeks. I think we should prioritise the cost estimate and check the numbers again on Thursday. Honestly we need to simplify the data retention policy before the end of the sprint.
+[20:23] Maya: On the migration of the analytics pipeline,  My suggestion is to split the API versioning so nobody is surprised later.
+[20:36] Priya: It would help to automate the customer SLA so nobody is surprised later.
+[20:53] Maya: We could simplify the dependency on the legacy gateway so nobody is surprised later. I think we should prototype the alerting thresholds because the last time it took three weeks. I think we should revisit the alerting thresholds because the last time it took three weeks.
+[21:12] Priya: I think we should document the alerting thresholds and check the numbers again on Thursday. We could postpone the schema change and write it down in the runbook. My suggestion is to revisit the API versioning and write it down in the runbook.
+[21:34] Priya: We could document the dependency on the legacy gateway before the end of the sprint. Let us document the load test results because the last time it took three weeks.
+[21:45] Jonas: Let us measure the cost estimate before the end of the sprint. I think we should automate the data retention policy and check the numbers again on Thursday.
+[22:00] Priya: Honestly we need to automate the dependency on the legacy gateway and write it down in the runbook. My suggestion is to split the cost estimate before the end of the sprint.
+[22:16] Maya: On the outage from last Tuesday,  We could document the customer SLA and check the numbers again on Thursday. Let us measure the load test results unless the client objects.
+[22:39] Priya: Honestly we need to prototype the rollback procedure before the end of the sprint.
+[22:50] Tom: Let us simplify the handover notes so nobody is surprised later. My suggestion is to postpone the dependency on the legacy gateway and write it down in the runbook.
+[23:09] Jonas: We could prioritise the load test results because the last time it took three weeks. Let us prototype the rollback procedure unless the client objects. We could simplify the alerting thresholds so nobody is surprised later.
+[23:28] Tom: It would help to prioritise the alerting thresholds because the last time it took three weeks. I think we should document the API versioning unless the client objects. I think we should split the rollback procedure because the last time it took three weeks.
+[23:48] Tom: We could postpone the cost estimate because the last time it took three weeks.
+[24:07] Maya: Let us measure the customer SLA and check the numbers again on Thursday. Let us measure the API versioning so nobody is surprised later.
+[24:19] Jonas: On the hiring plan for the platform team,  Let us prototype the data retention policy and check the numbers again on Thursday.
+[24:42] Jonas: On the migration of the analytics pipeline,  I think we should automate the dependency on the legacy gateway before the end of the sprint. I think we should automate the data retention policy because the last time it took three weeks. Let us revisit the API versioning so nobody is surprised later.
+[25:00] Jonas: Let us escalate the alerting thresholds because the last time it took three weeks.
+[25:21] Maya: On the outage from last Tuesday,  Honestly we need to prototype the customer SLA and check the numbers again on Thursday.
+[25:35] Maya: Let us revisit the customer SLA and write it down in the runbook.
+[25:47] Maya: My suggestion is to prioritise the alerting thresholds unless the client objects. Let us document the data retention policy before the end of the sprint.
+[26:04] Maya: On the hiring plan for the platform team,  I think we should simplify the schema change so nobody is surprised later. Honestly we need to escalate the rollback procedure and write it down in the runbook.
+[26:20] Priya: On the design review for the mobile app,  Let us simplify the dependency on the legacy gateway and check the numbers again on Thursday. Honestly we need to prototype the load test results because the last time it took three weeks. My suggestion is to revisit the load test results and write it down in the runbook.
+[26:32] Maya: We could simplify the rollback procedure before the end of the sprint. My suggestion is to prototype the load test results because the last time it took three weeks.
+[26:43] Maya: We could simplify the rollback procedure unless the client objects. It would help to prioritise the schema change so nobody is surprised later. We could prioritise the API versioning so nobody is surprised later.
+[27:05] Maya: My suggestion is to split the API versioning so nobody is surprised later. I think we should automate the load test results before the end of the sprint.
+[27:24] Maya: It would help to postpone the data retention policy unless the client objects. My suggestion is to prototype the data retention policy because the last time it took three weeks. We could prototype the data retention policy before the end of the sprint.
+[27:41] Tom: On the outage from last Tuesday,  I think we should postpone the data retention policy and write it down in the runbook. We could revisit the schema change and write it down in the runbook.
+[27:52] Tom: Honestly we need to measure the cost estimate and check the numbers again on Thursday. It would help to split the cost estimate because the last time it took three weeks. Honestly we need to prioritise the handover notes unless the client objects.
+[28:01] Tom: On the outage from last Tuesday,  We could automate the customer SLA because the last time it took three weeks. We could automate the cost estimate before the end of the sprint.
+[28:16] Maya: It would help to escalate the dependency on the legacy gateway before the end of the sprint. Honestly we need to postpone the rollback procedure and write it down in the runbook.
+[28:36] Maya: It would help to simplify the alerting thresholds before the end of the sprint.
+[29:00] Maya: We could automate the API versioning so nobody is surprised later.
+[29:20] Jonas: Let us prototype the API versioning so nobody is surprised later.
+[29:38] Tom: Let us escalate the handover notes so nobody is surprised later.
+[29:56] Jonas: Let us revisit the data retention policy so nobody is surprised later. My suggestion is to postpone the API versioning and write it down in the runbook.
+[30:11] Priya: It would help to revisit the load test results because the last time it took three weeks.
+[30:29] Maya: It would help to simplify the load test results and check the numbers again on Thursday. My suggestion is to prioritise the customer SLA so nobody is surprised later.
+[30:49] Tom: We could prototype the dependency on the legacy gateway and check the numbers again on Thursday.
+[31:02] Priya: I think we should revisit the data retention policy so nobody is surprised later. Let us prototype the cost estimate because the last time it took three weeks. It would help to prioritise the dependency on the legacy gateway so nobody is surprised later.
+[31:20] Maya: I think we should revisit the customer SLA and check the numbers again on Thursday.
+[31:37] Jonas: On the rollout schedule for the new billing service,  It would help to measure the customer SLA so nobody is surprised later. We could prioritise the customer SLA because the last time it took three weeks.
+[32:00] Jonas: We could automate the rollback procedure before the end of the sprint. Honestly we need to postpone the API versioning because the last time it took three weeks. Let us revisit the dependency on the legacy gateway and write it down in the runbook.
+[32:22] Tom: On the on-call rotation,  It would help to automate the data retention policy so nobody is surprised later. I think we should revisit the dependency on the legacy gateway unless the client objects. I think we should simplify the alerting thresholds so nobody is surprised later.
+[32:32] Jonas: My suggestion is to split the schema change unless the client objects.
+[32:50] Tom: We could escalate the API versioning before the end of the sprint. Let us revisit the handover notes and write it down in the runbook. It would help to revisit the cost estimate because the last time it took three weeks.
+[33:06] Tom: We could document the API versioning so nobody is surprised later.
+[33:17] Priya: On the hiring plan for the platform team,  I think we should measure the schema change and write it down in the runbook. My suggestion is to escalate the API versioning and check the numbers again on Thursday. Honestly we need to split the rollback procedure unless the client objects.
+[33:40] Jonas: Honestly we need to prioritise the data retention policy because the last time it took three weeks.
+[33:52] Tom: It would help to revisit the dependency on the legacy gateway because the last time it took three weeks. Honestly we need to split the customer SLA and check the numbers again on Thursday.
+[34:07] Maya: On the rollout schedule for the new billing service,  We could postpone the dependency on the legacy gateway before the end of the sprint. I think we should document the customer SLA so nobody is surprised later. Let us postpone the dependency on the legacy gateway before the end of the sprint.
+[34:27] Maya: It would help to prioritise the data retention policy unless the client objects.
+[34:37] Tom: On the on-call rotation,  We could split the data retention policy before the end of the sprint.
+[34:58] Priya: I think we should postpone the rollback procedure and write it down in the runbook. We could measure the load test results and check the numbers again on Thursday.
+[35:07] Priya: I think we should prioritise the load test results unless the client objects. It would help to automate the API versioning unless the client objects.
+[35:28] Maya: On the on-call rotation,  It would help to document the load test results because the last time it took three weeks. Honestly we need to revisit the schema change unless the client objects.
+[35:46] Priya: On the rollout schedule for the new billing service,  My suggestion is to revisit the schema change so nobody is surprised later.
+[35:55] Tom: My suggestion is to postpone the handover notes unless the client objects.
+[36:16] Priya: We could measure the data retention policy and write it down in the runbook. We could automate the alerting thresholds before the end of the sprint. Honestly we need to document the handover notes and write it down in the runbook.
+[36:27] Priya: On the hiring plan for the platform team,  I think we should simplify the cost estimate and write it down in the runbook. I think we should simplify the dependency on the legacy gateway and check the numbers again on Thursday.
+[36:42] Jonas: On the test flakiness in CI,  Honestly we need to split the handover notes so nobody is surprised later. It would help to prototype the customer SLA and write it down in the runbook.
+[36:56] Jonas: On the outage from last Tuesday,  Honestly we need to escalate the load test results so nobody is surprised later. My suggestion is to automate the API versioning unless the client objects.
+[37:12] Jonas: We could measure the API versioning and write it down in the runbook. It would help to postpone the alerting thresholds so nobody is surprised later. Honestly we need to prioritise the customer SLA unless the client objects.
+[37:25] Jonas: Honestly we need to document the alerting thresholds and write it down in the runbook. I think we should split the cost estimate so nobody is surprised later.
+[37:46] Priya: Let us split the rollback procedure and write it down in the runbook. I think we should measure the data retention policy because the last time it took three weeks.
+[37:55] Tom: On the design review for the mobile app,  We could escalate the API versioning because the last time it took three weeks. I think we should postpone the API versioning unless the client objects. Honestly we need to simplify the dependency on the legacy gateway and write it down in the runbook.
+[38:14] Tom: On the on-call rotation,  Honestly we need to prototype the data retention policy and write it down in the runbook.
+[38:30] Priya: Honestly we need to document the cost estimate so nobody is surprised later. My suggestion is to postpone the API versioning because the last time it took three weeks.
+[38:39] Tom: Honestly we need to postpone the load test results before the end of the sprint. My suggestion is to automate the rollback procedure before the end of the sprint. Let us escalate the data retention policy so nobody is surprised later.
+[39:03] Jonas: Let us document the customer SLA because the last time it took three weeks. It would help to split the handover notes unless the client objects. I think we should prioritise the schema change and check the numbers again on Thursday.
+[39:26] Jonas: We could simplify the schema change before the end of the sprint. Honestly we need to prototype the load test results and write it down in the runbook. I think we should measure the API versioning because the last time it took three weeks.
+[39:35] Tom: Honestly we need to prioritise the customer SLA and check the numbers again on Thursday. I think we should split the API versioning and write it down in the runbook.
+[39:58] Jonas: My suggestion is to split the alerting thresholds so nobody is surprised later. I think we should split the handover notes and write it down in the runbook.
+[40:11] Jonas: Honestly we need to simplify the handover notes and check the numbers again on Thursday. It would help to postpone the handover notes and check the numbers again on Thursday.
+[40:23] Tom: Let us simplify the alerting thresholds because the last time it took three weeks. I think we should measure the load test results so nobody is surprised later. Honestly we need to measure the load test results because the last time it took three weeks.
+[40:42] Maya: Let us postpone the API versioning because the last time it took three weeks. I think we should document the customer SLA and check the numbers again on Thursday. We could escalate the load test results and write it down in the runbook.
+[41:00] Jonas: On the customer feedback from the beta,  Honestly we need to measure the API versioning unless the client objects.
+[41:22] Jonas: Let us postpone the data retention policy because the last time it took three weeks. It would help to postpone the customer SLA and write it down in the runbook.
+[41:43] Priya: My suggestion is to split the schema change before the end of the sprint.
+[41:59] Maya: I think we should measure the cost estimate so nobody is surprised later. We could automate the handover notes unless the client objects. I think we should automate the handover notes so nobody is surprised later.
+[42:11] Jonas: It would help to revisit the alerting thresholds and check the numbers again on Thursday. My suggestion is to prototype the handover notes and write it down in the runbook. Let us automate the load test results because the last time it took three weeks.
+[42:35] Maya: Honestly we need to prioritise the dependency on the legacy gateway before the end of the sprint.
+[42:54] Priya: On the design review for the mobile app,  It would help to automate the handover notes so nobody is surprised later.
+[43:12] Priya: Honestly we need to prioritise the load test results because the last time it took three weeks.
+[43:30] Jonas: My suggestion is to prioritise the cost estimate and check the numbers again on Thursday. It would help to revisit the API versioning and check the numbers again on Thursday.
+[43:46] Priya: Let us escalate the load test results so nobody is surprised later. Honestly we need to automate the rollback procedure and check the numbers again on Thursday. We could prioritise the API versioning so nobody is surprised later.
+[44:05] Maya: On the rollout schedule for the new billing service,  Honestly we need to escalate the cost estimate unless the client objects. It would help to revisit the cost estimate and check the numbers again on Thursday.
+[44:16] Tom: On the vendor contract renewal,  Honestly we need to revisit the schema change unless the client objects. It would help to simplify the customer SLA so nobody is surprised later. Honestly we need to prototype the rollback procedure so nobody is surprised later.
+[44:35] Jonas: Honestly we need to postpone the dependency on the legacy gateway because the last time it took three weeks.
+[44:57] Maya: On the rollout schedule for the new billing service,  We could measure the schema change and write it down in the runbook. Let us measure the alerting thresholds because the last time it took three weeks.
+[45:00] Maya: That is all for today, thanks everyone.
