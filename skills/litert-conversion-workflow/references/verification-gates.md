@@ -267,6 +267,10 @@ mitigation; note the context-growth caveat on the card.
   gate on the GPU backend (CPU pass ≠ GPU pass; fp16 accumulation flips
   marginal answers). On failure, grep the log for the named op and route
   through `architecture-walls.md`.
+  Read one free-form GPU reply as well: a one-word answer and a short
+  prompt-length sweep can pass on a GPU path whose state handling is
+  broken, as with the GPU-composite graph on a hybrid under litert-lm
+  ≤ 0.18.0 (`architecture-walls.md`, Runtime / engine walls).
 - **Gate the GPU backend with the model's *default* activation dtype, and
   on a thinking model watch the thought close, not just the answer.** The
   GPU executor runs activations in fp16 unless the bundle declares
