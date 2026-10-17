@@ -77,6 +77,16 @@ means `results.pb` could not be decoded, usually a missing `protoc`: install it 
 - **A new `benchmark_model` release is a new row, not an edit.** The row id carries the runtime version; the board shows the newest per model,
   platform, device and accelerator, and earlier rows stay in `measurements.jsonl`.
 - **DDP device names come from the matrix.** An id it does not list renders as the id; add it under `platforms.android.devices.measured` first. A Mac names itself from `system_profiler`.
+- **A session's jobs run at once, each on its own lab unit.** Two jobs of one session are two phones (the session report names only the device id;
+  `getprop ro.serialno` in the job tells the units apart): compare runs inside one job, and read a row from another job as another phone's.
+- **Some lab units start with lowered CPU clock ceilings.** All 8 m1q-36 units of a 2026-10-15 session sat below their hardware maximum before the first run
+  (policy0 3187 of 3629 MHz, policy6 3398 of 4742 MHz, `scaling_max_freq` against `cpuinfo_max_freq`), so a CPU number from such a unit is the lowered clock's.
+- **Job arguments are split at spaces.** 13 arguments, the last a command line with five spaces, reached the binary as 18 (`argc: 18`); a wrapper of your own
+  takes such a command line last and joins it, or passes no spaces.
+- **Pulled logcats carry the lab network's identifiers** (Wi-Fi network names and their hashes, access-point and device MAC addresses, private IPv4 and IPv6
+  addresses): keep `logcat.txt` out of a public commit, or replace those strings first.
+- **A LiteRT-LM run with a real prompt file** (chat template, text check) is outside this CLI's DDP target (fixed benchmark flags, no prompt push);
+  [edge-llm-bench](https://github.com/john-rocky/edge-llm-bench)'s `bench matrix <cells> --ddp <id>` runs those with its own LiteRT-LM build.
 - **Never edit a row by hand.** Re-collect the session; the drivers are the only writers.
 
 ## Tested on
