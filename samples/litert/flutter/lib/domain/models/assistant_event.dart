@@ -87,9 +87,7 @@ final class const GenerationMetrics({
 
   /// The text in this turn's prefill, counted by the model's tokenizer: the
   /// prompt, plus the system instruction on a chat's first turn with an
-  /// image (LiteRT-LM prefills it with the first message: an agent chat's
-  /// first prefill was 416 tokens with its system prompt and tools against
-  /// 63 without, macOS, 2026-10-02).
+  /// image (LiteRT-LM prefills it with the first message).
   final int? promptTokens,
 
   /// Tool calls in this agent turn (loadSkill and runIntent each

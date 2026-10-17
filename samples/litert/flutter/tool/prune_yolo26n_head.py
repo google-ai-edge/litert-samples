@@ -48,7 +48,7 @@ def main(src, dst):
     sg.tensors[cut].name = b"detections_raw"
     # The ADD opcode is shared by every ADD and carries v4 because the head had int64 ADDs.
     # LiteRT 2.1.5's Metal GPU delegate (flutter_litert 3.9.x on macOS) rejects ADD > v2, which
-    # capped Arm's original file at 54 of its 461 ops on the GPU (docs/design/detector-yolo26n.md).
+    # capped Arm's original file at 54 of its 461 ops on the GPU.
     # All remaining ADDs are float32 -> v1 is exact.
     FLOAT32 = 0
     for k, oc in enumerate(m.operatorCodes):

@@ -1318,8 +1318,8 @@ void main() {
   });
 
   group('an upgrade over a Gemma 4 E2B the app downloaded earlier', () {
-    /// The earlier build's verified download (a small stand-in: its length
-    /// is reported as the real one's).
+    /// A verified Gemma 4 E2B download in the retired folder (a small
+    /// stand-in: its length is reported as the real one's).
     String earlierGemma() {
       final dir = Directory('${root.path}/$kRetiredGemmaFolder')..createSync();
       final file = File('${dir.path}/$kRetiredGemmaFile')

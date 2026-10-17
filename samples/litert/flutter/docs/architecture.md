@@ -406,18 +406,15 @@ error the UI shows, with an explicit way out (Run on NPU / GPU / CPU, Run detect
   for the Qualcomm SM8750 NPU: runs only on the NPU"), and `ChatModelRepository.problemWith` refuses them, so Apply and Run on GPU /
   CPU never unload the running model for a load the plugin would refuse. The card's NPU line names the SoC the OS
   reports ("available (SoC QTI SM8750)") and the Towers block the NPU the file is compiled for ("Text model:
-  compiled for the Qualcomm SM8750 NPU"); neither says whether
-  that pair runs: only the load tells. A refusal before any
-  engine (`LiteRtLmBundleException`) is a `ModelFailed` with `retryable: false` and its
-  `bundleProblem`: no Retry. For `wrongBackend` over a build compiled for an NPU (an earlier build saved it on the
-  GPU), the card offers Run on NPU while the NPU is offered. For a generic file, a `wrongBackend` refusal or a
-  retryable engine failure offers Run on GPU / Run on CPU, whichever it is not on; the other refusals (an incomplete
+  compiled for the Qualcomm SM8750 NPU"); neither says whether that pair runs: only the load tells. A refusal before
+  any engine (`LiteRtLmBundleException`) is a `ModelFailed` with `retryable: false` and its `bundleProblem`: no
+  Retry. For `wrongBackend` over a build compiled for an NPU, the card offers Run on NPU while the NPU is offered. For
+  a generic file, a `wrongBackend` refusal or a retryable engine failure offers Run on GPU / Run on CPU, whichever it is not on; the other refusals (an incomplete
   file, an NPU this package has no dispatch for) and a failure that is not retryable offer none.
   `lib/data/services/llm/npu_availability.dart` mirrors flutter_edge_ai_litertlm 1.14.0's private NPU gate
   (`hostShipsNpuDispatch` / `npuDispatchShipsFor` in `lib/src/ffi/backend_preference.dart`: on Android only when
-  `libcdsprpc.so` opens, on Linux arm64 when the Qualcomm probe passes) because the plugin has no public API for it
-  (a plugin gap); it offers the NPU on the card, and Apply refuses an NPU it says is not there. The Android NPU
-  stack is bundled only because `pubspec.yaml` sets `qualcomm_npu: true` for `flutter_edge_ai_litertlm` under
+  `libcdsprpc.so` opens, on Linux arm64 when the Qualcomm probe passes) because the plugin has no public API for it;
+  it offers the NPU on the card, and Apply refuses an NPU it says is not there. The Android NPU stack is bundled only because `pubspec.yaml` sets `qualcomm_npu: true` for `flutter_edge_ai_litertlm` under
   `hooks: user_defines`.
 - **Chat model towers.** The towers (vision, audio) are not settings, and the app never says where one will run:
   every tower the file has is loaded (`supportImage` / `supportAudio` from `LiteRtLmBundleInfo.visionEncoder` /
@@ -427,13 +424,7 @@ error the UI shows, with an explicit way out (Run on NPU / GPU / CPU, Run detect
   file does not allow would be refused). After the load `InferenceModel.activeVisionBackend` / `activeAudioBackend`
   say where each went (`LlmInfo`, `ChatModelFacts.visionBackend` / `audioBackend`): the card's Towers block shows them
   for the loaded file, and before a load only which towers the file has (and, for a build compiled for an NPU, the
-  chip). A CPU | NPU tower choice an earlier build saved (codec v4 `visionChoice` / `audioChoice`) is read and ignored.
-  The official `…_qualcomm_sm8750` build and the standard Gemma 4 E2B got both towers on the CPU, Google's all-NPU
-  builds both on the NPU; the `…_qualcomm_qcs8275` build's header
-  declares the CPU for its towers. `GEMMA_MODEL_PATH` keeps fixed towers
-  (`kLlmConfig`: vision on, no audio). On Developer Device Platform a spoken question's first token came in
-  0.27–0.32 s with the all-NPU builds on a Galaxy S24, S25 Ultra and S26, against 0.86 s on the S24 with Gemma on the
-  GPU and the towers on the CPU.
+  chip). `GEMMA_MODEL_PATH` keeps fixed towers (`kLlmConfig`: vision on, no audio).
 - **Detector:** the strict accelerator set and the load checks above. **Embedder:** requested on the CPU (the generic
   EmbeddingGemma 2 bundle runs only there; the per-SoC NPU bundles are not used), registered with
   `requireWeightCache: true` (`kStrictEmbeddingBackend`): a load that could write no weight cache at all fails with

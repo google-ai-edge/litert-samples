@@ -35,13 +35,13 @@ const kSelfTestAudioQuestionText = 'What time is it?';
 
 /// Step 7b passes when the clip and its words embed at least this close
 /// (cosine), each mapped as the knowledge base maps a question (the clip as
-/// audio, the words with the `retrievalQuery` prefix). Measured by
-/// integration_test/kb_retrieval_test.dart on an M4 Pro Mac's CPU
-/// (2026-10-13, EmbeddingGemma 2 740m): 0.8525 for this clip and its words;
-/// 0.516–0.606 for unrelated pairs (the clip against other questions' words,
-/// other spoken questions against its words), which is what a broken audio
-/// path looks like. 0.73 is the middle of that gap (0.12 on either side). The
-/// clip is fixed, so another device only moves the value by its numerics.
+/// audio, the words with the `retrievalQuery` prefix). The middle of the gap
+/// integration_test/kb_retrieval_test.dart checks (`KB_SELFTEST_COSINE`,
+/// `KB_SELFTEST_NEGATIVE`) between this clip and its words, above, and
+/// unrelated pairs (the clip against other questions' words, other spoken
+/// questions against its words), below: what a broken audio path looks
+/// like. The clip is fixed, so another device only moves the value by its
+/// numerics.
 const kSelfTestAudioTextMinCosine = 0.73;
 
 /// The words step 7c embeds against the bundled cats photo
@@ -51,15 +51,14 @@ const kSelfTestImageText = 'two cats';
 /// Step 7c passes when the photo and [kSelfTestImageText] embed at least
 /// this close (cosine), each embedded as the visual memory embeds a frame
 /// (the photo made into a memory frame, [memoryFramePng]: ≤ 320 px, filter-0
-/// PNG, 70 vision tokens) and a question (raw text). Measured by
-/// integration_test/visual_memory_test.dart on an M4 Pro Mac's CPU
-/// (2026-10-14, EmbeddingGemma 2 740m widened to images as the camera demo
-/// widens it, `MEMORY_SELFTEST`): 0.733 for the memory frame and "two cats"
-/// (the photo as it is: 0.737); 0.474–0.533 for the memory frame and
-/// unrelated captions ("a red bicycle", "a yellow taxi", "a bowl of soup", "a
-/// laptop on a desk", "a street sign"), which is what a broken image path
-/// looks like. 0.63 is the middle of that gap (0.10 on either side). The
-/// photo is fixed, so another device only moves the value by its numerics.
+/// PNG, 70 vision tokens) and a question (raw text). The middle of the gap
+/// integration_test/visual_memory_test.dart prints (`MEMORY_SELFTEST`, the
+/// embedder widened to images as the camera demo widens it) between the
+/// memory frame and "two cats", above, and the memory frame and unrelated
+/// captions ("a red bicycle", "a yellow taxi", "a bowl of soup", "a laptop
+/// on a desk", "a street sign"), below: what a broken image path looks like.
+/// The photo is fixed, so another device only moves the value by its
+/// numerics.
 const kSelfTestImageTextMinCosine = 0.63;
 
 /// Steps 7a–7c through [SelfTestEmbedder]: EmbeddingGemma 2 ready as setup

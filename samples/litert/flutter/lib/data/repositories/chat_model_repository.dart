@@ -207,7 +207,7 @@ class ChatModelRepository implements ChatModelPlanner {
 
   /// The writes of the chat model settings, each with the state it
   /// publishes, one after another: one never lands between another's read
-  /// and its save (the background SHA-256 used to save the old settings over
+  /// and its save (the background SHA-256 never saves the old settings over
   /// an apply's). With none queued a write starts at once.
   final SerialQueue _settingsWrites = SerialQueue.atOnceWhenIdle();
 
@@ -271,7 +271,7 @@ class ChatModelRepository implements ChatModelPlanner {
     String? note;
     switch (await _settings.read(Settings.chatModel)) {
       case Ok(value: kRetiredBundledChoice):
-        // An earlier build's "Gemma 4 E2B, downloaded by the app": its
+        // The retired choice "Gemma 4 E2B, downloaded by the app": its
         // verified download is adopted in place; without one it is said
         // once, then saved as no choice.
         if (await _adoptEarlierGemma() case final adopted?) return adopted;
@@ -306,8 +306,8 @@ class ChatModelRepository implements ChatModelPlanner {
         } on FormatException catch (e) {
           problems.add('the saved custom model is invalid (${e.message})');
         }
-        // An earlier build saved a download's whole link: decoding dropped
-        // its query and fragment (a signed link's token); so does the file.
+        // A download's link saved whole: decoding dropped its query and
+        // fragment (a signed link's token); so does the file.
         if (custom case final CustomChatModel model?
             when model.source is UrlModelSource && _persistMigration) {
           final redacted = CustomChatModelCodec.encode(model);
@@ -363,11 +363,10 @@ class ChatModelRepository implements ChatModelPlanner {
         : Result.error(InvalidChatModelException(problem));
   }
 
-  /// After an upgrade: the Gemma 4 E2B an earlier build downloaded and
-  /// verified (`<store>/gemma4E2b/`, its `.sha256` record matching), made
-  /// the chat model in place with Gemma 4 E2B's settings (GPU, 8192, tools
-  /// on; the towers the file has) and a one-time note. Null when there is
-  /// none.
+  /// The Gemma 4 E2B the retired choice downloaded and verified
+  /// (`<store>/gemma4E2b/`, its `.sha256` record matching), made the chat
+  /// model in place with Gemma 4 E2B's settings (GPU, 8192, tools on; the
+  /// towers the file has) and a one-time note. Null when there is none.
   Future<Result<void>?> _adoptEarlierGemma() async {
     final String path;
     try {
@@ -1075,13 +1074,11 @@ class ChatModelRepository implements ChatModelPlanner {
   /// GPU too); the model type the name announces
   /// ([modelTypeFromFileName]); the context an NPU build's name announces
   /// (`…_ekv1280_…`), else 4096 on the NPU (the published Gemma 4 E2B NPU
-  /// builds are benchmarked at a 4096 context on their model card, and the
-  /// SM8750 build ran at 4096 on an SM8750 phone) and the app's 8192 on
-  /// GPU/CPU (agent turns, excerpts and a picture outgrow 4096 in two or
-  /// three turns); tools on for a Gemma-family file
-  /// that is not compiled for the NPU (what Gemma 4 E2B gets: its skills
-  /// work as with the old built-in setting), off for other types and NPU
-  /// builds, until the user knows the file has them. Nothing about the
+  /// builds are benchmarked at a 4096 context on their model card) and the
+  /// app's 8192 on GPU/CPU (agent turns, excerpts and a picture soon outgrow
+  /// 4096); tools on for a Gemma-family file that is not compiled for the
+  /// NPU (what Gemma 4 E2B gets: its skills work), off for other types and
+  /// NPU builds, until the user knows the file has them. Nothing about the
   /// towers: the engine places them. A file in place, an imported and a
   /// downloaded one alike (the last two read from the store's copy). An NPU
   /// build starts on the NPU also where this device offers none: the card

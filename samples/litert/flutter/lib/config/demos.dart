@@ -50,7 +50,7 @@ enum Demo {
 
   /// The speech recognizer this demo makes active on entry: Whisper base for
   /// Demo 1 (a multilingual model run in English, 30 s window),
-  /// moonshine-tiny for Demo 3 (~65 ms per question on a Mac, so a fast
+  /// moonshine-tiny for Demo 3 (it transcribes a question quickly, so a fast
   /// answer reaches the ear in well under a second).
   final ModelId stt;
   final Set<ModelId> models;

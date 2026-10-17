@@ -76,8 +76,7 @@ typedef JpegDecoderFactory = Future<JpegFrameDecoder> Function();
 
 /// The engine's codecs ([decodeEncodedImage]): the decode and the RGBA
 /// read-back go through the engine's IO and raster threads and a GPU
-/// texture. Fast with a real GPU (macOS: 4–9 ms per frame), very slow under
-/// a software GL (Xvfb: ~900 ms per 640×480 frame).
+/// texture. Fast with a real GPU, very slow under a software GL (Xvfb).
 final class EngineJpegDecoder implements JpegFrameDecoder {
   const EngineJpegDecoder({this.slow = false, this.fallbackReason});
 

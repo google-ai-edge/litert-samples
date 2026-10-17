@@ -49,7 +49,7 @@ typedef RecallMemory = Future<Result<MemoryRecall>> Function(String phrase);
 typedef RecallLatestMemory = Future<Result<MemoryRecall>> Function();
 
 /// How long a detailed question waits for the previous turn's chat reset
-/// (normally well under 150 ms) before it checks the chat anyway.
+/// (normally far shorter) before it checks the chat anyway.
 const kCameraResetWait = Duration(seconds: 3);
 
 /// Demo 3's LLM step.

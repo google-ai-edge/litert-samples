@@ -18,7 +18,7 @@ import 'package:litert_edge_demos/domain/hardware/native_log_parser.dart';
 import 'package:litert_edge_demos/domain/models/accelerator_evidence.dart';
 import 'package:litert_edge_demos/domain/models/hardware_profile.dart';
 
-// Captured by the macOS release self-test (Gemma 4 E2B on an M4 Pro).
+// Native log lines of the macOS release self-test (Gemma 4 E2B).
 const _macGemma = [
   'INFO: [accelerator_registry.cc:54] RegisterAccelerator: ptr=0xb4dc50300, name=GPU Metal',
   'INFO: [gpu_registry.cc:144] Dynamically loaded GPU accelerator(@executable_path/../Frameworks/LiteRtMetalAccelerator.framework/LiteRtMetalAccelerator) registered.',
@@ -30,7 +30,7 @@ const _macGemma = [
   'INFO: [litert_lm_loader.cc:120] unrelated line',
 ];
 
-// From runs on a Tesla T4 VM.
+// A Linux log's adapter line: an NVIDIA GPU over Vulkan.
 const _t4 =
     'I0000 00:00:1759700000.000000 12345 environment.cc:526] Selected adapter: '
     'Tesla T4, arch=turing, vendor=nvidia, backend=Vulkan, '

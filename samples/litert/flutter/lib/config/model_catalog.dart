@@ -33,8 +33,9 @@ import 'knowledge_config.dart' show kEmbedderMaxInputTokens;
 //
 // 8192, not 4096: agent turns (skills system prompt + tool rounds) plus RAG
 // excerpts (~1k tokens kept in history) and images (~283) reset the chat every
-// 2–3 turns at 4096. Measured on macOS: +~200 MB GPU (IOAccelerator), similar
-// TTFT, one-time ~8 s GPU program cache rebuild on the first load per device.
+// few turns at 4096. The larger window takes more GPU memory at a similar
+// time to first token, and the first load on a device rebuilds the GPU
+// program cache once.
 //
 // Its towers are fixed, not read from the file: the vision tower on, no
 // audio tower; the engine places the vision encoder (the CPU for Gemma 4 E2B,
@@ -49,11 +50,11 @@ const kLlmConfig = LlmConfig(
   supportImage: true,
 );
 
-/// The Gemma 4 E2B file earlier builds downloaded into the model store
-/// (`<store>/gemma4E2b/gemma-4-E2B-it.litertlm`, verified against the
-/// manifest and recorded in `.sha256`). After an upgrade it is adopted in
-/// place as the chat model ([kDefineChatModel]'s settings) instead of being
-/// asked for again; its folder is kept while it is the chosen file.
+/// A Gemma 4 E2B file already in the model store
+/// (`<store>/gemma4E2b/gemma-4-E2B-it.litertlm`, of this size, its `.sha256`
+/// record matching) is adopted in place as the chat model
+/// ([kDefineChatModel]'s settings) instead of being asked for again; its
+/// folder is kept while it is the chosen file.
 const kRetiredGemmaFolder = 'gemma4E2b';
 const kRetiredGemmaFile = 'gemma-4-E2B-it.litertlm';
 const kRetiredGemmaBytes = 2538799104;
@@ -124,12 +125,9 @@ const kSttConfigs = <ModelId, SttConfig>{
   ModelId.moonshineTiny: kMoonshineSttConfig,
 };
 
-/// A recognizer switch on demo entry warms the model up too. Off, measured
-/// in profile on an M4 Pro: back to Whisper without a warm-up switches in
-/// 83–176 ms and its first question takes 1794–1813 ms (steady state
-/// 1774–1816); with one the switch takes 1706 ms and the first question is
-/// no faster. Each model still warms up
-/// once at setup.
+/// Whether a recognizer switch on demo entry warms the model up too. Off: a
+/// warm-up makes the switch much slower, and the first question after it is
+/// no faster than without one. Each model still warms up once at setup.
 const kSttWarmUpOnSwitch = false;
 
 /// Text-to-speech install and load arguments. The bundle is built into the
@@ -187,24 +185,20 @@ final class const EmbedderConfig({
 /// visual memory. Setup declares audio only ([kEmbedderConfig]); the image
 /// encoder is declared the first time the camera demo starts its visual
 /// memory ([kEmbedderMemoryMedia], `EmbedderService.enableImages`): one
-/// reload of about 2 s, during which the knowledge base's embeddings wait.
-/// It then stays declared until the app exits: flutter_edge_ai's embedder
-/// media only widen (narrowing back would be another reload, and the next
-/// camera visit a third). Measured on an M4 Pro Mac (2026-10-13, a test app
-/// with the embedder alone): declaring images raises the RSS after load and
-/// warm-up from 648 MB to 1055 MB and the load from 1.4 s to 2.2 s; the
-/// first image adds 75–175 MB more (`EmbedderService.embedImage` logs the
-/// RSS around it). Re-measured 2026-10-14 (same machine and test) for the
-/// widening itself: the reload 1.9 s and +327 MB process RSS, then the first
-/// image +227 MB more (`docs/design/eg2-multimodal.md`). A user who never
-/// opens the camera demo, or turns its visual memory off, never pays that.
+/// reload, during which the knowledge base's embeddings wait. It then stays
+/// declared until the app exits: flutter_edge_ai's embedder media only widen
+/// (narrowing back would be another reload, and the next camera visit a
+/// third). Declaring images makes the load longer and raises the memory
+/// after it, and the first image adds more (`EmbedderService.embedImage`
+/// logs the RSS around it). A user who never opens the camera demo, or turns
+/// its visual memory off, never pays that.
 /// Text vectors do not depend on it, so the knowledge base's index and
 /// profile are unchanged.
 const kEmbedderModelFile = 'embeddinggemma-2-740m.litertlm';
 
 /// Vision tokens per image for EmbeddingGemma 2
 /// (`LiteRtEmbeddingBackend(visionTokensPerImage:)`, 140 or 70): 70 is about
-/// half the time of 140 and kept caption → image top-1 at 6/6 in the spike.
+/// half the time of 140 and keeps caption → image top-1 retrieval.
 /// Only the visual memory embeds images, and its vectors live in memory for
 /// one session, so no stored index depends on it.
 const kEmbedderVisionTokensPerImage = 70;
@@ -229,11 +223,10 @@ const kSampler = SamplerConfig(temperature: 0.6, topK: 40);
 
 /// Whether the chat model's warm-up also sends a 1 s WAV when it is loaded
 /// with its audio encoder, so the first spoken question does not pay for the
-/// encoder's first use. Measured by integration_test/gemma_audio_test.dart
-/// (M4 Pro, GPU, Gemma 4 E2B, 2026-10-13): without it the first audio turn's
-/// time to first token was 355 ms and the second's 185 ms; with it the first
-/// was 184 ms, and the warm-up took 1816 ms against 1945 ms without the WAV
-/// (no cost above the run-to-run spread). A failed warm-up fails the load.
+/// encoder's first use. integration_test/gemma_audio_test.dart compares the
+/// two: with it the first audio turn's time to first token is that of a
+/// later one, and the warm-up costs no more than the run-to-run spread. A
+/// failed warm-up fails the load.
 const kLlmAudioWarmUp = true;
 
 /// Long side of every image sent to Gemma, in pixels: picked photos and
@@ -243,7 +236,7 @@ const kLlmAudioWarmUp = true;
 const kLlmImageMaxSide = 1024;
 
 /// Context budget guard. Tokens reserved for an image sent this turn:
-/// Gemma 4 measured ~270; flutter_edge_ai's `InferenceChat` counts 257.
+/// Gemma 4 uses about 270; flutter_edge_ai's `InferenceChat` counts 257.
 const kImageTokenAllowance = 288;
 
 /// Context budget guard. Tokens a recording sent to the chat model counts,
@@ -303,26 +296,13 @@ const kVoiceChatProfile = ConversationProfile(
 /// tool call), then the app's own two lines. The skill list goes where the
 /// package's `__SKILLS__` placeholder is (name: description per skill).
 ///
-/// The package's text is the wording this app measured and handed upstream:
-/// over 6 rounds (a fresh chat per turn, macOS), spurious tool calls on plain
-/// and photo questions fell from 7/18 to 3/18 (text questions 2/6 → 0/6), each
-/// one an extra generation; skill requests still called their intents (12/12).
-/// Differences from that measured setup, none measured yet, include these: its
-/// first line is now the package's ("You are a helpful assistant.", where the
-/// app had "You are a helpful on-device voice assistant." with the read-aloud
-/// sentence); the read-aloud sentence comes after the package's text; the tool
-/// declarations are now the package's own ([kAgentTools]; the measured run had
-/// the app's shorter wording); a photo turn's hint has new wording
-/// (`PromptBuilder.directAnswerHint`; the measured run's was "(A picture is
-/// attached. Answer directly; no tool is needed.)"); and the measured chat also
-/// listed the camera-watch and timer skills, since removed.
+/// The package's wording is meant to cut spurious tool calls on plain and
+/// photo questions, each one an extra generation, while skill requests still
+/// call their intents.
 ///
-/// The last line is the retrieval policy, also not measured yet: the measured
-/// one named the bundled skills' facts ("Live facts about this device and app
-/// (models, backends, accelerators, memory), the time, timers and the camera
-/// come only from skills, …"), so a skill added at run time had no such claim
-/// on its facts. No skill, intent or topic is named here: the list at
-/// `__SKILLS__` is the only place skills appear.
+/// The last line is the retrieval policy. No skill, intent or topic is named
+/// here: the list at `__SKILLS__` is the only place skills appear, so a
+/// skill added at run time has the same claim on its facts as a bundled one.
 const kSkillsTemplate =
     '$onDemandAgentSystemPrompt\n'
     'Replies are read aloud: a few short sentences, plain text.\n'
@@ -351,11 +331,9 @@ const kToolCallTokens = 96;
 const kToolResultTokens = 96;
 
 /// The two tool declarations ([kAgentTools]) the runtime renders into the
-/// first prefill. 256 is the figure set for these same package declarations
-/// when Demo 1 first declared them (Inc 6), kept: on Gemma 4 E2B (macOS GPU,
-/// 2026-10-17) the first prefill with them was 177 tokens longer than without
-/// them, the voice-chat system prompt and skill list the same (the app's
-/// former shorter wording: 160).
+/// first prefill, estimated: above what they add to Gemma 4 E2B's first
+/// prefill (the same voice-chat system prompt and skill list with and
+/// without them).
 const kToolDeclarationTokens = 256;
 
 /// The largest SKILL.md the scan accepts, in tokens: `loadSkill`

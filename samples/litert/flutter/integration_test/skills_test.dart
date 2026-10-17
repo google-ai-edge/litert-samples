@@ -162,8 +162,8 @@ void main() {
     );
     final names = catalog.skills.map((s) => s.skill.name);
     expect(names, containsAll(['device-info', 'current-time']));
-    // A user folder seeded by an older build may still hold the removed
-    // skills: they are listed but name intents the app no longer has.
+    // A user folder may hold skills that name intents the app does not
+    // have: they are listed, and printed here as leftovers.
     for (final removed in ['timer', 'camera-watch']) {
       if (names.contains(removed)) debugPrint('SKILLS leftover: $removed');
     }

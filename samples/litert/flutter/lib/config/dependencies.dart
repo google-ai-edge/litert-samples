@@ -452,7 +452,7 @@ final class AppDependencies {
 
   /// The app went out of sight: on iOS the next turn prepares the audio
   /// again (another app may take the session meanwhile without this one
-  /// hearing of it; a precaution, not observed on a device).
+  /// hearing of it; a precaution).
   void onHidden() {
     if (_disposing != null) return;
     _audio.appHidden();

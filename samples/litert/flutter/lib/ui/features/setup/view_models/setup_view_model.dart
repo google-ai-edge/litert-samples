@@ -125,7 +125,7 @@ class SetupViewModel extends ChangeNotifier {
       null => _checkThenPrepare(),
       final switcher => switcher.exclusive((_) => _checkThenPrepare()),
     };
-    // A successful start: what earlier builds downloaded goes.
+    // A successful start: the store's unused model folders go.
     if (result is Ok<void>) unawaited(_provisioning.pruneOldModelFolders());
     return result;
   }

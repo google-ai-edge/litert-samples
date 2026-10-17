@@ -108,7 +108,7 @@ void main() {
         'Facts a skill provides come from that skill, never from '
         'knowledge-base excerpts.',
       );
-      // The rules the app measured and sent before 0.3.0, word for word.
+      // The skill rules the template must carry, word for word.
       expect(
         kSkillsTemplate,
         contains(
@@ -282,8 +282,8 @@ void main() {
         'matches its description; otherwise reply directly with no tool '
         'call.',
       );
-      // The measured regression: a generic "use a skill if needed" made
-      // Gemma call invented intents for stories, capitals and jokes.
+      // A generic "use a skill if needed" makes Gemma call invented intents
+      // for stories, capitals and jokes.
       expect(prompt, isNot(contains('Use a skill only if')));
     });
 

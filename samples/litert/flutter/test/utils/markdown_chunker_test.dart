@@ -50,8 +50,8 @@ void main() {
     // over-long chunk fails tool/build_kb_index.sh and on-device indexing.
     test('16 documents give about 340 chunks within the budget', () {
       expect(files, hasLength(16));
-      // 344 today (2026-10-17, after the review fixes); the range
-      // leaves room for edits to the documents.
+      // The range sits around the current count and leaves room for edits
+      // to the documents.
       expect(all.length, inInclusiveRange(310, 380));
       for (final chunk in all) {
         expect(

@@ -74,8 +74,8 @@ compiled for one, else the CPU). The chat model card's **Towers** rows show whic
 once it is loaded, where each one runs ([The chat model](#the-chat-model)).
 
 Measured on [Developer Device Platform](https://docs.cloud.google.com/developer-device-platform/overview), Google
-Cloud's lab of real phones (2026-10-17): the first token of a spoken question sent as audio and of a typed question
-about a photo, from the moment the app hands the question to the chat.
+Cloud's lab of real phones: the first token of a spoken question sent as audio and of a typed question about a
+photo, from the moment the app hands the question to the chat.
 
 | Phone | Chat model | Text | Towers | Spoken question, first token | Photo, first token |
 |---|---|---|---|---|---|
@@ -87,8 +87,7 @@ The app never moves a model to another backend on its own. The chat model's engi
 backend fallback (`LiteRtLmEngine(backendFallback: false)`): a load runs on the backend asked for or fails, and the
 card shows the plugin's reason (the file cannot run there, LiteRT-LM's own message, or an NPU this device cannot
 reach) and offers another backend as an explicit choice. A build compiled for an NPU runs nowhere else: its card
-never offers the GPU or the CPU, and when an earlier app version saved it on the GPU the card offers **Run on NPU**,
-what the plugin's message advises. A refusal the plugin makes before any engine (the file cannot run there, or is
+never offers the GPU or the CPU. A refusal the plugin makes before any engine (the file cannot run there, or is
 incomplete) has no Retry: the same load would be refused again. A GPU that is a software rasterizer (llvmpipe and the like, on a Linux machine without a GPU driver) counts as
 unusable for the detector: Live camera says so and offers **Run detector on CPU**. **This device** (on Home) and the
 diagnostics overlay show the backend each model asked for and, where the runtime reports it, the one it got.
@@ -326,8 +325,6 @@ regenerates them on a Mac.
 - **Half-duplex audio by design:** the microphone is closed while a reply plays; pressing it interrupts the reply.
   There is no echo cancellation.
 - **iOS 26 or newer:** a dependency of the agent package (`flutter_inappwebview_ios`) links a system library that
-  first ships in iOS 26. On an iOS 18.5 simulator the app stops at launch; older iPhones are expected to do the same
-  (not tried on a device).
+  first ships in iOS 26, so the app stops at launch on older iOS.
 - **Visual memory costs RAM:** the camera demo's first visit loads EmbeddingGemma 2's image encoder, and it stays
-  loaded until the app exits (on a Galaxy S24 on 2026-10-14, with flutter_edge_ai 2.3.2, the app's peak was 2.36 GB
-  with the encoder against 2.2 GB without). Turn **Visual memory** off in the camera settings to never load it.
+  loaded until the app exits. Turn **Visual memory** off in the camera settings to never load it.

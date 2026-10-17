@@ -94,9 +94,8 @@ Wi-Fi). Android has no file import: the system picker would load the whole multi
    chose and makes one attempt; it never switches on its own. If the load fails, the card shows the plugin's reason
    and, for most failures of a file that is not an NPU build, offers **Run on GPU** or **Run on CPU** (none when the
    plugin refuses the file itself, for example an incomplete download). An NPU build has no other backend: use
-   a build for this phone's chip, or Gemma 4 E2B. An NPU build that an earlier version of the app saved on the GPU
-   fails there and offers **Run on NPU**. With no model chosen yet and only this one file in the folders, the app
-   applies it by itself as soon as it lists it, on the settings it starts from (the NPU for an NPU build, else the
+   a build for this phone's chip, or Gemma 4 E2B. With no model chosen yet and only this one file in the folders, the
+   app applies it by itself as soon as it lists it, on the settings it starts from (the NPU for an NPU build, else the
    GPU), so let the copy finish before you open the app or tap **Rescan**. The first load on the GPU is slower than
    later ones (GPU programs are compiled once and cached), and the first start also unpacks the built-in models.
 
@@ -139,7 +138,6 @@ adb logcat -d > litert-demos-log.txt
 | "cannot be read (Permission denied)" | Push it to `/data/local/tmp/litert-models/` (step 3); if it still fails: `adb shell chmod 644 /data/local/tmp/litert-models/*` |
 | NPU not offered, or the NPU load fails | The card says why: the phone's NPU cannot be reached, or the plugin's reason for the load. Use a build compiled for this phone's chip, or Gemma 4 E2B on the GPU |
 | GPU and CPU are greyed out | The file is compiled for an NPU and runs only there: for the GPU or CPU use `gemma-4-E2B-it.litertlm` |
-| **Run on NPU** after updating the app | An earlier version saved this NPU build on the GPU: tap it |
 | The app closes while loading the model | Not enough free memory: close other apps; 8 GB of RAM is recommended |
 | No voice reply | Check the media volume; the reply also appears as text |
 

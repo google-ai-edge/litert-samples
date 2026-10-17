@@ -52,13 +52,13 @@ typedef EnableMemoryImages = Future<Result<void>> Function();
 ///   never loaded for it and a question gets [MemoryDisabled].
 /// - **Image encoder**: setup loads EmbeddingGemma with audio only; the
 ///   first time an owner starts the memory (switch on, embedder ready) it
-///   asks for the image encoder ([EnableMemoryImages]: one reload of about
-///   2 s, during which the knowledge base's embeddings wait rather than
-///   fail). Until it is loaded the status says [VisualMemoryStatus.preparing]
-///   and nothing is sampled; a failed load turns the memory off with the
-///   reason (the knowledge base keeps its text and audio embedder) until
-///   [clear] or a new owner. It stays loaded until the app exits (the
-///   embedder's media only widen).
+///   asks for the image encoder ([EnableMemoryImages]: one reload, during
+///   which the knowledge base's embeddings wait rather than fail). Until it
+///   is loaded the status says [VisualMemoryStatus.preparing] and nothing is
+///   sampled; a failed load turns the memory off with the reason (the
+///   knowledge base keeps its text and audio embedder) until [clear] or a
+///   new owner. It stays loaded until the app exits (the embedder's media
+///   only widen).
 /// - **Sampler** (every [kMemoryTick]): a frame is asked for only when it is
 ///   due ([MemorySampler], on a monotonic clock; the frames' times and ages
 ///   are the wall clock's), live detection runs (not paused), the frames are
@@ -194,7 +194,7 @@ class VisualMemoryRepository {
   Future<void>? _widening;
 
   /// Why loading the image encoder failed; kept until [clear] or a new
-  /// owner (a new source session does not retry a 2 s reload).
+  /// owner (a new source session does not retry the reload).
   String? _imagesFailure;
 
   /// Bumped by every clear: an attempt that started before is dropped.

@@ -233,7 +233,7 @@ class ModelRepository implements ModelStates {
     await _prepareOptional(ModelId.yolo26n, _prepareDetector);
     if (_closed) return _closedError();
     // Demo 3's recognizer: downloaded, loaded and warmed up once so a switch
-    // on entry only reloads it (~0.8 s). It stays the active one after setup.
+    // on entry only reloads it. It stays the active one after setup.
     await _prepareOptional(ModelId.moonshineTiny, () async {
       await _prepareStt(ModelId.moonshineTiny);
       return _states.value[ModelId.moonshineTiny] ?? const ModelPending();
@@ -571,10 +571,10 @@ class ModelRepository implements ModelStates {
   }
 
   /// Adds EmbeddingGemma's image encoder for the visual memory
-  /// ([EmbedderService.enableImages]): one reload of about 2 s, the first
-  /// time the camera demo starts its memory; the knowledge base's embeddings
-  /// wait meanwhile. The embedder's row then lists image among its media. A
-  /// failed reload that also lost the text and audio embedder fails the row
+  /// ([EmbedderService.enableImages]): one reload, the first time the camera
+  /// demo starts its memory; the knowledge base's embeddings wait meanwhile.
+  /// The embedder's row then lists image among its media. A failed reload
+  /// that also lost the text and audio embedder fails the row
   /// (the knowledge base says so); one that kept it leaves the row ready.
   /// Never narrowed back: the images stay until the app exits.
   Future<Result<EmbedderImagesLoad>> enableEmbedderImages() async {

@@ -437,8 +437,7 @@ SceneChange sceneChange(
 }
 
 /// The mean absolute difference of two grey thumbnails of the same size, on
-/// 0–255, as they are (no brightness match): 0 for the same scene, 30 and
-/// more for a new one.
+/// 0–255, as they are (no brightness match): 0 for the same scene.
 double greyDifference(Uint8List a, Uint8List b) {
   if (a.length != b.length || a.isEmpty) {
     throw ArgumentError('thumbnails of ${a.length} and ${b.length} cells');

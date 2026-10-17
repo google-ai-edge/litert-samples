@@ -22,26 +22,20 @@ import '../../../domain/models/chat_model.dart';
 import '../../../utils/redact_url.dart';
 
 /// The persisted form of a [CustomChatModel] (`Settings.customChatModel`):
-/// versioned JSON, read strictly.
+/// versioned JSON, read strictly. Versions 1 to 4 are read; records are
+/// written as version 4.
 ///
-/// Version 1 had `supportImage`; version 2 added `supportAudio`, version 3
-/// `encoderBackend` (`cpu` or `npu`). Version 4 dropped the three and had
-/// `visionChoice` and `audioChoice` (optional, `cpu` or `npu`): a CPU | NPU
-/// choice for a tower the file's header said nothing about, on the NPU.
-///
-/// Nothing about the towers is saved now: which ones load follows from the
-/// file (`LiteRtLmBundleInfo.visionEncoder` / `audioEncoder`), and the engine
+/// Nothing about the towers is saved: which ones load follows from the file
+/// (`LiteRtLmBundleInfo.visionEncoder` / `audioEncoder`), and the engine
 /// places each one (flutter_edge_ai_litertlm 1.14.0; a tower backend asked
-/// for that the file does not allow is refused). So every tower setting an
-/// earlier build saved — version 1 to 3's `supportImage`, `supportAudio`,
-/// `encoderBackend`, version 4's `visionChoice` and `audioChoice` — is
-/// accepted whatever its value and ignored: never applied again, never a
-/// reason to refuse the record. Records are still written as version 4 (an
-/// earlier build reads them, without choices).
+/// for that the file does not allow is refused). So every tower key a record
+/// may hold — `supportImage`, `supportAudio`, `encoderBackend`,
+/// `visionChoice`, `audioChoice` — is accepted whatever its value and
+/// ignored: never applied, never a reason to refuse the record.
 abstract final class CustomChatModelCodec {
   static const version = 4;
 
-  /// The tower settings of earlier records, read and ignored.
+  /// The tower keys a record may hold, read and ignored.
   static const _retiredTowerKeys = {
     'supportImage',
     'supportAudio',
@@ -143,8 +137,8 @@ abstract final class CustomChatModelCodec {
           throw const FormatException('source.sizeBytes is not positive');
         }
         parsedSource = UrlModelSource(
-          // An earlier build saved the whole link: its secrets are dropped
-          // here and with the next save.
+          // A link saved whole has its secrets dropped here and with the
+          // next save.
           Uri.parse(redactUrl(url)),
           sha256: sha as String?,
           sizeBytes: size as int?,

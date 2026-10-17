@@ -40,10 +40,10 @@ typedef QueryEmbedder = Future<Result<List<double>>> Function(
 ///
 /// - [open] opens (or creates) the database at a path, bound to the
 ///   knowledge base's embedding profile ([kKbEmbeddingProfileId]). A
-///   database bound to another profile, or one an earlier build wrote
-///   before the RAG package had profiles (EmbeddingGemma-300M vectors, the
-///   same 768 dimensions but another space), is refused: the repository
-///   deletes it and indexes again, never searching foreign vectors.
+///   database bound to another profile, or to none (another model's vectors
+///   may have the same 768 dimensions but another space), is refused: the
+///   repository deletes it and indexes again, never searching foreign
+///   vectors.
 /// - [search] embeds the question (text or audio) through [QueryEmbedder]
 ///   and returns
 ///   similarity = 1 − cosine distance, best first. No threshold: the

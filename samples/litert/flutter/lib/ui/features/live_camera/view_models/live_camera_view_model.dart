@@ -183,7 +183,7 @@ class LiveCameraViewModel extends ChangeNotifier {
     _assistant.phase.addListener(_onPhase);
     unawaited(_startMemory());
     unawaited(_applier.load());
-    // The chat and the recognizer switch in parallel (~0.8 s for moonshine).
+    // The chat and the recognizer switch in parallel.
     unawaited(open.execute());
     unawaited(selectStt.execute());
     // Microphone access right after the camera's.

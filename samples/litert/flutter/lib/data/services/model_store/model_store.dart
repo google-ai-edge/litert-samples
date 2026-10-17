@@ -48,8 +48,8 @@ final class _Job {
 /// The suffix every custom chat model file must have.
 const kCustomModelExtension = '.litertlm';
 
-/// The store's folder for the custom chat model (beside the `<ModelId.name>`
-/// folders earlier builds downloaded into, none of which is called this).
+/// The store's folder for the custom chat model (beside the retired
+/// `<ModelId.name>` download folders, none of which is called this).
 const _customDir = 'custom';
 
 /// The user's own chat model on disk, in `<app support>/models/custom/`;
@@ -355,13 +355,13 @@ class ModelStore {
     }
   });
 
-  /// Deletes the folders earlier builds downloaded models into, none of
-  /// which is used any more: one per model (`<ModelId.name>/`, from the
-  /// retired model manifest; every model but the chat model is built in now)
-  /// and the retired Gemma 4 E2B download ([kRetiredGemmaFolder]); a folder
-  /// holding one of [keepPaths] (a file used in place) is kept. `custom/`,
-  /// `bundled/` and files at the root are never touched; nothing runs while
-  /// an operation does. Returns the folders deleted.
+  /// Deletes the retired download folders, none of which is used: one per
+  /// model (`<ModelId.name>/`, from the retired model manifest; every model
+  /// but the chat model is built in) and the retired Gemma 4 E2B download
+  /// ([kRetiredGemmaFolder]); a folder holding one of [keepPaths] (a file
+  /// used in place) is kept. `custom/`, `bundled/` and files at the root are
+  /// never touched; nothing runs while an operation does. Returns the
+  /// folders deleted.
   Future<List<String>> pruneOldModelFolders({
     Set<String> keepPaths = const {},
   }) async {

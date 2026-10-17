@@ -197,10 +197,10 @@ EmbedderService appEmbedderService({
 ///
 /// Setup loads text and audio ([kEmbedderConfig]); [enableImages] adds the
 /// image encoder when the visual memory first needs it: flutter_edge_ai
-/// closes the loaded embedder and builds one with the wider media (about
-/// 2 s). Meanwhile every embedding call waits for the swap and then runs on
-/// the new model (none fails for it); the calls already running finish on
-/// the old one first. The images stay until [close] (media only widen).
+/// closes the loaded embedder and builds one with the wider media.
+/// Meanwhile every embedding call waits for the swap and then runs on the
+/// new model (none fails for it); the calls already running finish on the
+/// old one first. The images stay until [close] (media only widen).
 class EmbedderService implements VisualMemoryEmbedder {
   /// [warmUpAudio]: the spoken clip [warmUp] embeds when the catalog
   /// declares audio (the app: [kKbAudioWarmUpAsset]); null skips that part.
@@ -499,13 +499,6 @@ class EmbedderService implements VisualMemoryEmbedder {
   /// with the `retrievalDocument` task type (a prefix reaches text only, so
   /// it changes nothing for an image). Checked like the warm-up's. The
   /// first image since the load logs the process's RSS before and after.
-  /// Measured (`docs/design/eg2-multimodal.md`): with images declared at the
-  /// load (M4 Pro Mac, a test app with the embedder alone, 2026-10-13) the
-  /// load itself added 407 MB (648 → 1055 MB) and the first image 75–175 MB
-  /// more; as the app does it (the [enableImages] widening reload, the same
-  /// Mac, 2026-10-14) the reload added 327 MB and the first image 227 MB;
-  /// on phones the first image added 280 MB (Galaxy S24) and 311 MB (S25
-  /// Ultra).
   @override
   Future<Result<List<double>>> embedImage(Uint8List encoded) =>
       _use('embedImage', (model) => _embedImage(model, encoded));
@@ -573,7 +566,7 @@ class EmbedderService implements VisualMemoryEmbedder {
   }
 
   /// Runs [body] on the loaded model, after an [enableImages] reload in
-  /// flight (so a knowledge-base question waits ~2 s instead of failing on a
+  /// flight (so a knowledge-base question waits instead of failing on a
   /// closing model); counted, so the next reload waits for it to end.
   Future<Result<T>> _use<T>(
     String what,

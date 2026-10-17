@@ -69,10 +69,9 @@ abstract interface class AudioRepository {
 
   /// The app went out of sight. iOS: another app may take the session while
   /// this one is suspended, and that interruption comes marked as such
-  /// (`audio_session` drops it) or not at all (read from the sources, not
-  /// observed on a device), so as a precaution a playback still running is
-  /// stopped and the next [prepare] activates the session again and
-  /// restarts the output engine. Elsewhere nothing changes.
+  /// (`audio_session` drops it) or not at all, so as a precaution a playback
+  /// still running is stopped and the next [prepare] activates the session
+  /// again and restarts the output engine. Elsewhere nothing changes.
   void appHidden();
 
   /// Opens the mic for one push-to-talk press ([activate]s first). At most

@@ -32,14 +32,13 @@ final class BoolSetting extends Setting<bool> {
   const BoolSetting(super.key);
 }
 
-/// Every setting the app persists. Installs upgraded from an earlier build
-/// may still hold `models.manifestUrl` (a remote model manifest that earlier
-/// builds read): nothing reads it.
+/// Every setting the app persists. A store may still hold
+/// `models.manifestUrl` (a retired remote model manifest): nothing reads it.
 abstract final class Settings {
   /// Which chat model the demos use: `none` or `custom`
-  /// (`ChatModelKind.name`). Unset is `none`. An earlier build's `bundled`
-  /// adopts that build's verified Gemma 4 E2B download in place when there
-  /// is one; otherwise it is read and saved as `none`.
+  /// (`ChatModelKind.name`). Unset is `none`. A saved `bundled` (a retired
+  /// choice) adopts its verified Gemma 4 E2B download in place when there is
+  /// one; otherwise it is read and saved as `none`.
   static const chatModel = StringSetting('chat.model');
 
   /// The user's own chat model (`CustomChatModelCodec.encode`).

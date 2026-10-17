@@ -703,7 +703,7 @@ class LiveDetectionRepository {
   ///
   /// Only while a source runs: during a stop the state is still Running or
   /// Paused while the frame in flight lands, but the source is already gone
-  /// and nothing would disarm checks armed now (a resume then failed the
+  /// and nothing would disarm checks armed now (a resume would then fail the
   /// stopped pipeline a timeout later).
   void _armWatchdogs(int session) {
     if (_closed || _source == null || session != _session) return;

@@ -52,7 +52,7 @@ const kFakeSelfTestFile = ModelFileChoice(
   source: 'model store',
 );
 
-/// A Linux box with a real GPU that Vulkan names (a T4 VM).
+/// A Linux box with a real GPU that Vulkan names (a Tesla T4).
 const kFakeLinuxT4Profile = HardwareProfile(
   platform: HostPlatform.linux,
   os: 'Ubuntu 24.04.3 LTS',

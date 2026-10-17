@@ -23,32 +23,29 @@ import 'package:litert_edge_demos/domain/use_cases/prompt_builder.dart';
 import '../../fakes/fake_knowledge.dart';
 
 /// Retrieval runs before every Demo 1 turn, so a skill question can arrive
-/// with knowledge-base excerpts. Measured with the app's own embedding
-/// pipeline (real EmbeddingGemma 2 numbers in
+/// with knowledge-base excerpts. The scores come from the app's own
+/// embedding pipeline (EmbeddingGemma 2 numbers in
 /// `test_assets/skill_trigger_similarity.json`, printed by
 /// `integration_test/kb_retrieval_test.dart`):
 ///
-/// - time triggers score 0.62–0.64: below the 0.70 gate, so their prompts
-///   carry no excerpts;
-/// - device questions score 0.68–0.77 against the GPU/backend docs: 5 of 6
-///   DO get excerpts (with EmbeddingGemma-300M it was all 6, at 0.40–0.56
-///   against a 0.40 gate). Routing by "skill description beats the best
-///   excerpt" did not fix it with 300M either (4 of 6 device phrases scored
-///   higher against the docs), so the policy is in the prompts: on an agent
-///   chat the excerpts are reference only and live device facts come from
-///   skills.
+/// - time triggers score below the text gate, so their prompts carry no
+///   excerpts;
+/// - device questions can clear it against the GPU/backend docs and then
+///   get excerpts, so the policy is in the prompts: on an agent chat the
+///   excerpts are reference only and live device facts come from skills.
 ///
-/// The policy alone was not enough (at temperature 0.6 Gemma still answered
-/// some device questions from the docs), so on an agent chat whose skills
-/// name `device_info` or `current_time`, `SkillQuestionRouter` skips
-/// retrieval for live device and time questions
-/// (`skill_question_router_test.dart` covers every phrase here). The prompt
-/// policy stays as the backstop for phrasings the rules miss.
+/// The policy alone is not enough (Gemma can still answer some device
+/// questions from the docs), so on an agent chat whose skills name
+/// `device_info` or `current_time`, `SkillQuestionRouter` skips retrieval
+/// for live device and time questions (`skill_question_router_test.dart`
+/// covers every phrase here). The prompt policy stays as the backstop for
+/// phrasings the rules miss.
 ///
 /// The golden also lists phrases for timer and camera-watch skills, which the
 /// app does not have; the router test uses them as negatives.
 ///
-/// Re-measure after changing the gate, the documents or the skills.
+/// Print the golden again with that integration test after changing the
+/// gate, the documents or the skills.
 void main() {
   final golden = jsonDecode(
     File('test_assets/skill_trigger_similarity.json').readAsStringSync(),
@@ -99,8 +96,7 @@ void main() {
     // An agent prompt that carries excerpts may still be a skill request
     // (the router acts only for skills that name its intents, and a skill
     // added at run time has no rule at all): the skills come first, and
-    // anything else takes no tool call (a KB question was once pulled into
-    // a tool call).
+    // anything else takes no tool call.
     expect(prompt, contains(PromptBuilder.excerptSkills(skills)));
     expect(kSkillsTemplate, contains('never from knowledge-base excerpts'));
   });

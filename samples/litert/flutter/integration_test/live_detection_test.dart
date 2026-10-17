@@ -23,7 +23,7 @@
 //     --dart-define=ARM_DETECTOR_PATH=<path/to/yolo26n_conv2d_f16_weights.tflite>
 //
 // The detector is the one built into the app. FIXTURE_DIR is a folder of
-// still images (e.g. 30 COCO val2017 photos); the cats image is the app's
+// still images (e.g. COCO val2017 photos); the cats image is the app's
 // test_assets/cats.jpg, copied where the sandboxed app may read it. Step 4
 // needs Arm's original yolo26n_conv2d_f16_weights.tflite (tool/fetch_models.sh
 // keeps it in build/fetch_models/yolo26n/) and is skipped without
@@ -376,9 +376,8 @@ void main() {
     final genMs = genWatch.elapsedMilliseconds;
     final genEnd = log.clock.elapsed;
     final sawPausedState = pausedAt != null;
-    // The frame in flight at the pause may still land (about 10 ms); any
-    // later frame while still paused would have been detected during the
-    // generation.
+    // The frame in flight at the pause may still land; any later frame
+    // while still paused would have been detected during the generation.
     final framesDuringGeneration = sawPausedState
         ? log.entries
               .where(
@@ -464,8 +463,7 @@ void main() {
     );
     // The gate holds detection at kLiveDetectFps (15) and never above, and
     // `fps` counts arrivals on the wall clock over ~6 s, so load on the
-    // machine (a late source tick, a slower frame) only ever lowers it:
-    // 14.33 was seen on a busy Mac, under a 14.5 bound with 3 % headroom.
+    // machine (a late source tick, a slower frame) only ever lowers it.
     // 90 % of the cap leaves room for that and still fails a detector that
     // cannot keep up (one that misses every other frame shows 7.5).
     expect(

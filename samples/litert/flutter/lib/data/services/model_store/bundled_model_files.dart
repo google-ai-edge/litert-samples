@@ -244,10 +244,9 @@ String relativePath(String path, {required String from}) {
 /// checked in a worker isolate, renamed into place, recorded in `.sha256`),
 /// so later launches skip the copy; a copy interrupted before its rename is
 /// started again, never used, and a failed one (a full disk) leaves no
-/// `.extract` behind. Before an extraction, files of earlier builds (names
-/// not in [known]) are deleted from `bundled/`, so an upgrade that replaces
-/// a model (EmbeddingGemma-300M's 184 MB by EmbeddingGemma 2's 485 MB) frees
-/// the old file's space before it needs the new one's.
+/// `.extract` behind. Before an extraction, files this build does not ship
+/// (names not in [known]) are deleted from `bundled/`, so a replaced model
+/// frees the old file's space before the new one needs it.
 ///
 /// flutter_edge_ai's own asset install would copy on every platform, into
 /// memory first on desktop, and verify nothing (flutter_edge_ai 2.4.0
@@ -350,8 +349,8 @@ class BundledModelFiles {
       debugPrint('[Bundled] ${file.name}: extracted before, verified');
       return target.path;
     }
-    // What earlier builds left goes first: on a nearly full device the old
-    // file's space is what the new copy needs.
+    // Files this build does not ship go first: on a nearly full device
+    // their space is what the new copy needs.
     await _pruneStale(dir, keeping: file);
     final temp = File('${target.path}.extract');
     if (await temp.exists()) await temp.delete();
@@ -385,10 +384,10 @@ class BundledModelFiles {
     return target.path;
   }
 
-  /// Deletes what earlier builds extracted (a renamed or replaced model):
-  /// every file in [dir] that is not one of [known] (or [keeping], the file
-  /// about to be extracted), its `.sha256` record or its `.extract` in
-  /// progress. A failure to delete is logged, not fatal (the copy then
+  /// Deletes extracted files this build does not ship (a renamed or replaced
+  /// model): every file in [dir] that is not one of [known] (or [keeping],
+  /// the file about to be extracted), its `.sha256` record or its `.extract`
+  /// in progress. A failure to delete is logged, not fatal (the copy then
   /// reports a full disk itself).
   Future<void> _pruneStale(
     Directory dir, {

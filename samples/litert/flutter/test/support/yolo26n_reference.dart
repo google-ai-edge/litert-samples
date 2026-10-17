@@ -14,10 +14,8 @@
 
 // A standalone reference implementation of YOLO26n's pre- and
 // post-processing (letterbox, normalize, NCHW gather; raw-head decode),
-// written and verified before the app's codec and kept here unchanged in
-// behaviour (reformatted for the lints) so the app's GatherPlan and decode are
-// tested against it. Its BGRA path matched the Python pipeline's input tensor
-// with maxAbsDiff 0.0.
+// checked against the Python pipeline; the app's GatherPlan and decode are
+// tested against it.
 import 'dart:math' as math;
 import 'dart:typed_data';
 

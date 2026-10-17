@@ -382,18 +382,16 @@ final class ChatTurnResponder implements TurnResponderFactory<ChatSideEvent> {
   /// A live question the app recognizes (device facts, the time;
   /// [SkillQuestionRouter]) is not searched at all while an installed intent
   /// skill names its intent ([offered]): device questions clear the gate
-  /// against the GPU docs, and with excerpts in the prompt Gemma was seen
-  /// answering from them instead of calling the skill (observed, not
-  /// counted). The overlay shows it as [RetrievalOutcome.skipped]. Without
-  /// such a skill the question retrieves like any other. (With a direct
-  /// runner, the app's case, such a question has already run its intent
-  /// before this.)
+  /// against the GPU docs, and with excerpts in the prompt the model can
+  /// answer from them instead of calling the skill. The overlay shows it as
+  /// [RetrievalOutcome.skipped]. Without such a skill the question retrieves
+  /// like any other. (With a direct runner, the app's case, such a question
+  /// has already run its intent before this.)
   ///
   /// An image turn on an agent chat that is not such a question ends with
-  /// [PromptBuilder.directAnswerHint]. Without a hint Gemma called
-  /// `runIntent` (an invented intent, or the camera-watch skill's, since
-  /// removed) for photo questions in 5 of 6 first turns, an extra generation
-  /// each.
+  /// [PromptBuilder.directAnswerHint]. Without a hint the model tends to call
+  /// `runIntent` (with an invented intent) for photo questions, an extra
+  /// generation each.
   Future<_Draft> _augment(
     String question, {
     required Uint8List? image,
@@ -499,7 +497,8 @@ final class ChatTurnResponder implements TurnResponderFactory<ChatSideEvent> {
   /// first, and the retrieval says how many stayed ([Retrieval.keeping]).
   /// Every excerpt stays when all fit, and also when not even the question
   /// without any fits or the fit cannot be measured: the ask then fails as
-  /// it did before (too long, or why the chat cannot take the turn).
+  /// it would without the fitting (too long, or why the chat cannot take the
+  /// turn).
   Future<({String prompt, Retrieval? retrieval})> _fit(
     _Draft draft, {
     required Uint8List? image,

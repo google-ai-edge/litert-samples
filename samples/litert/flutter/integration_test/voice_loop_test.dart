@@ -54,15 +54,14 @@
 //    (after the playback drained) fills it with words containing "france",
 //    and the conversation's text history gets them. Prints `AUDIO …` per
 //    turn (first-turn TTFT vs the second's: the audio warm-up decision).
-// 8. Barge-in in audio mode: the spoken lighthouse question, a press while it is
-//    speaking and Gemma generating: silent ≤150 ms, generation stopped; the
+// 8. Barge-in in audio mode: the spoken lighthouse question, a press while it
+//    is speaking and Gemma generating: silent ≤150 ms, generation stopped; the
 //    follow-up audio turn (the fixture mic plays the France question) is
 //    answered with "paris", on a chat rebuilt from the text history.
 //    Prints `STORY_PARTIAL …` (the reply so far, before the press) and
 //    `AUDIO_BARGE …`.
-// (Audio is no longer a setting: a file with an audio tower always loads it,
-// so there is no "audio off with the same file" step; step 1 measured the
-// audio-off RSS.)
+// (A file with an audio tower always loads it, so there is no "audio off
+// with the same file" step; step 1 prints the audio-off RSS.)
 
 import 'dart:async';
 import 'dart:io';
@@ -279,7 +278,7 @@ void main() {
       ),
     );
 
-    // 1. Setup (downloads STT/TTS on the first run), home, Demo 1.
+    // 1. Setup, home, Demo 1.
     final setupWatch = Stopwatch()..start();
     await pumpUntil(
       tester,
@@ -375,8 +374,8 @@ void main() {
       reason: 'the long reply to start speaking',
       describe: () => describeChat(vm),
     );
-    // Press while Gemma is still generating (~400 tokens at ~80 tok/s), so
-    // the barge-in has to stop the generation, not just the audio.
+    // Press while Gemma is still generating, so the barge-in has to stop
+    // the generation, not just the audio.
     await pumpFor(tester, const Duration(milliseconds: 300));
     expect(vm.phase, TurnPhase.speaking, reason: 'still speaking');
     expect(

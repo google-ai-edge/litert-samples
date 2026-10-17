@@ -53,13 +53,12 @@ final class const SkillRoute(final SkillTopic topic, final String rule) {
 /// installed intent skill names its intent, with tools on or off (a skill
 /// that is deleted or replaced turns the shortcut off).
 ///
-/// Why: retrieval runs before every turn, and live device questions clear
-/// the knowledge-base gate against the GPU and backend docs (EmbeddingGemma
-/// 2: 5 of 6 at 0.68–0.77 against 0.70,
-/// `test_assets/skill_trigger_similarity.json`); at temperature 0.6 Gemma
-/// was then seen answering "which accelerator is running" from the docs
-/// instead of calling `device_info` (observed, not counted). Rules, not
-/// similarity, so the outcome is deterministic. Like Demo 3's
+/// Why: retrieval runs before every turn, and live device questions can
+/// clear the knowledge-base gate against the GPU and backend docs
+/// (`test_assets/skill_trigger_similarity.json`); with those excerpts the
+/// model can answer "which accelerator is running" from the docs instead of
+/// calling `device_info`. Rules, not similarity, so the outcome is
+/// deterministic. Like Demo 3's
 /// `QuestionRouter`, it prefers a miss (the question retrieves; the agent
 /// prompt still puts skills first) to a false hit (a documentation question
 /// loses its excerpts).
@@ -72,12 +71,12 @@ final class const SkillRoute(final SkillTopic topic, final String rule) {
 ///    "is running", "this device", "loaded"), and no documentation cue
 ///    ("how do I", "why", "should I", "my", "LiteRT", a phone model, …).
 /// "What GPU does LiteRT use" retrieves; "which accelerator is running right
-/// now" goes to the skill. About 0.1 ms.
+/// now" goes to the skill.
 final class SkillQuestionRouter {
   const SkillQuestionRouter();
 
   /// The requests the app runs itself: the time and live device facts.
-  /// Null for everything else, which goes to the model as before.
+  /// Null for everything else, which goes to the model.
   /// Deliberately narrow: a missed phrasing still works through the skill; a
   /// false hit would answer something nobody asked.
   DirectAction? action(String question) {
@@ -91,8 +90,8 @@ final class SkillQuestionRouter {
       );
     }
     // Live device questions: device_info's text is the answer (the model
-    // skipped the skill for "What device am I on?", and its phrasing of the
-    // facts left out Gemma's GPU).
+    // can skip the skill, as for "What device am I on?", and its own
+    // phrasing of the facts can leave some out).
     if (classify(question) case SkillRoute(
       topic: SkillTopic.deviceFacts,
       :final rule,

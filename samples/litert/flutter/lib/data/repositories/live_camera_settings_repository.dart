@@ -68,11 +68,12 @@ class LiveCameraSettingsRepository {
 
   /// The visual memory with nothing saved: off where the OS reports less
   /// than 6.5 GiB of RAM ([kMemoryDefaultOnMinRamBytes]), i.e. on devices
-  /// sold with 6 GB or less (an 8 GB one reports about 6.9 GiB, the Galaxy
-  /// S24, and keeps it on); on otherwise. RAM that is not measured (a
-  /// platform without a probe, or an unreadable one) leaves the spec's
-  /// default, on: the gate turns a feature off on evidence of a small
-  /// device, and no reading is none; the log says the RAM was not measured.
+  /// sold with 6 GB or less (the OS reports less RAM than is fitted; an 8 GB
+  /// device stays above the line and keeps it on); on otherwise. RAM that is
+  /// not measured (a platform without a probe, or an unreadable one) leaves
+  /// the spec's default, on: the gate turns a feature off on evidence of a
+  /// small device, and no reading is none; the log says the RAM was not
+  /// measured.
   bool get _memoryOnByDefault => switch (_physicalMemoryBytes) {
     final bytes? => bytes >= kMemoryDefaultOnMinRamBytes,
     null => true,

@@ -32,9 +32,9 @@ typedef EdgeAiInitialize = Future<void> Function({
 /// backends and the LiteRT embedding backend, with EmbeddingGemma 2's images
 /// at [kEmbedderVisionTokensPerImage] tokens. No embedding tokenizer is
 /// registered: the built-in EmbeddingGemma 2 `.litertlm` carries its own. The
-/// sqlite-vec store is no longer registered here: since flutter_edge_ai 2.0
-/// RAG is `flutter_edge_ai_rag`, opened by `VectorStoreService`. Registering
-/// loads nothing; models load in `getActive*`. Keep this the only
+/// sqlite-vec store is not registered here: RAG is `flutter_edge_ai_rag`,
+/// opened by `VectorStoreService`. Registering loads nothing; models load in
+/// `getActive*`. Keep this the only
 /// `initialize` call: a second one keeps the first one's service settings
 /// (flutter_edge_ai 2.4.0 `ServiceRegistry.initialize` returns early) and
 /// appends the engines and backends not yet registered, after the first

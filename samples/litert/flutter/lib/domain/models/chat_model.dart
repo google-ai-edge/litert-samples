@@ -40,17 +40,17 @@ enum ChatModelKind {
   custom,
 }
 
-/// What an earlier build saved for "Gemma 4 E2B, downloaded by the app"; read
-/// as [ChatModelKind.none] with [kBundledChoiceRetiredNote].
+/// The saved value of the retired choice "Gemma 4 E2B, downloaded by the
+/// app"; read as [ChatModelKind.none] with [kBundledChoiceRetiredNote].
 const kRetiredBundledChoice = 'bundled';
 
-/// Shown once when the Gemma 4 E2B an earlier build downloaded is adopted
-/// in place after an upgrade.
+/// Shown once when the Gemma 4 E2B download of a saved
+/// [kRetiredBundledChoice] is adopted in place.
 const kEarlierGemmaAdoptedNote =
     'Using the Gemma 4 E2B you downloaded earlier, where it is: the app no '
     'longer downloads it.';
 
-/// Shown once after a saved "Gemma 4 E2B" choice of an earlier build is read.
+/// Shown once after a saved [kRetiredBundledChoice] is read.
 const kBundledChoiceRetiredNote =
     'Gemma 4 E2B is no longer downloaded by the app: choose a .litertlm (for '
     'example gemma-4-E2B-it.litertlm) from the models folder, a path or a '

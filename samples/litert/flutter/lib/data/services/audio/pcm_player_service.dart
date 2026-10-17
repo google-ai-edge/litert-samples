@@ -28,8 +28,7 @@ abstract interface class PcmPlayerService {
   /// Shuts the engine down (if it runs) and starts it again on the session as
   /// it is now, with a new output device. iOS, after the app was hidden: an
   /// interruption while it was suspended may never have reached the engine,
-  /// which then counts its stopped device as started and plays in silence
-  /// (read from soloud's source, not observed on a device).
+  /// which then counts its stopped device as started and plays in silence.
   /// (After a reported interruption the engine starts the device again by
   /// itself at the next play.) Call with no output open.
   Future<void> restart();
@@ -94,11 +93,9 @@ final class SoloudPcmPlayerService implements PcmPlayerService {
   /// soloud is a second activator of the session on iOS, next to the
   /// session owner, though it only re-activates what the owner configured
   /// (it never sets the category: `sessionCategory =
-  /// ma_ios_session_category_none`). Its resume
-  /// starts only a device it knows is stopped: one stopped by an
-  /// interruption it never heard of stays silent, and only a new engine
-  /// (a new device) helps (read from the source, not observed on a
-  /// device).
+  /// ma_ios_session_category_none`). Its resume starts only a device it
+  /// knows is stopped: one stopped by an interruption it never heard of
+  /// stays silent, and only a new engine (a new device) helps.
   @override
   Future<void> restart() async {
     if (_soloud.isInitialized) await _soloud.deinitAsync();

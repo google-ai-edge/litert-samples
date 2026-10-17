@@ -17,9 +17,9 @@
 // EmbeddingGemma 2 740m on the CPU loaded as setup loads it (audio declared)
 // and widened to images as the camera demo widens it (70 vision tokens),
 // the real LiveDetectionRepository playing a FixtureFrameSource sequence,
-// and the real VisualMemoryRepository sampling it. The questions are typed (the router's phrase, as moonshine's text would
-// give it); integration_test/visual_memory_app_test.dart asks them aloud in
-// the app.
+// and the real VisualMemoryRepository sampling it. The questions are typed
+// (the router's phrase, as moonshine's text would give it);
+// integration_test/visual_memory_app_test.dart asks them aloud in the app.
 //
 //   flutter test integration_test/visual_memory_test.dart -d macos \
 //     --dart-define=MEMORY_FIXTURE_DIR=<a copy of test_assets/showcase>
@@ -31,10 +31,9 @@
 // timings keep the test app out of App Nap:
 //   defaults write com.google.ai.edge.examples.litertEdgeDemos NSAppSleepDisabled -bool YES
 //
-// The RSS figures (`MEMORY_WIDEN`, `MEMORY_RSS`) are measurements for the
-// spec's resource table, not gates: nothing is asserted on them. The one
-// limit the spec sets is asserted: a frame embed within 3 s
-// (docs/design/eg2-multimodal.md, "Resources: go / no-go").
+// The RSS figures (`MEMORY_WIDEN`, `MEMORY_RSS`) are printed, not gates:
+// nothing is asserted on them. One limit is asserted: a frame embed within
+// 3 s.
 //
 // 0. The image encoder added to setup's embedder (`MEMORY_WIDEN`: the
 //    reload's time and the process RSS before and after, measured), with a
@@ -102,8 +101,8 @@ import 'package:litert_edge_demos/selftest/self_test_runner.dart'
 import 'package:litert_edge_demos/utils/cosine.dart';
 import 'package:litert_edge_demos/utils/result.dart';
 
-/// The spec's limit on one frame embed ("Resources: go / no-go": a device
-/// over it gets the visual memory off by default).
+/// The limit on one frame embed (a device over it gets the visual memory
+/// off by default).
 const _frameEmbedLimit = Duration(seconds: 3);
 
 const kMemoryFixtureDir = String.fromEnvironment('MEMORY_FIXTURE_DIR');
@@ -595,7 +594,7 @@ void main() {
     final firstAt = memory.entries.single.atMicros;
     final firstBytes = memory.status.value.bytes;
     // The forced store comes at the first attempt ≥ 10 s after the frame
-    // (attempts about every 3.5 s): about 10.5 s.
+    // (attempts are a few seconds apart).
     await Future<void>.delayed(const Duration(seconds: 14));
     sampling = false;
     await Future<void>.delayed(const Duration(seconds: 1));

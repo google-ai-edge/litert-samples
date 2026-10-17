@@ -206,9 +206,8 @@ class ModelsFolder {
 const kAndroidTmpModelsDir = '/data/local/tmp/litert-models';
 
 /// Why a file in the app's own Android folder can be unreadable, and the
-/// two ways out (measured on a Galaxy S26: a push made before the app had
-/// created its folder left it owned by the shell, "Permission denied" for
-/// the app).
+/// two ways out (a push made before the app has created its folder leaves
+/// it owned by the shell: "Permission denied" for the app).
 const kAndroidDataPushAdvice =
     'A folder or file pushed before the app created this folder belongs to '
     'the shell and the app cannot read it: launch the app first, then '

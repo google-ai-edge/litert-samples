@@ -8,7 +8,7 @@ voice chat with Gemma and a live camera assistant. Everything runs on the Pi.
 | Model | Runs on |
 |---|---|
 | Chat model, Gemma 4 E2B (`gemma-4-E2B-it.litertlm`) | CPU (select it on the card, step 5); its vision and audio towers on the CPU |
-| YOLO26n detector (Live camera) | GPU by default (the Pi's GPU is not verified); CPU when chosen in the Live camera settings (**Detector › CPU (slower)**), or with **Run detector on CPU** if the GPU load fails (step 5) |
+| YOLO26n detector (Live camera) | GPU by default; CPU when chosen in the Live camera settings (**Detector › CPU (slower)**), or with **Run detector on CPU** if the GPU load fails (step 5) |
 | EmbeddingGemma 2 (knowledge base, visual memory), Whisper base and moonshine tiny (speech to text), Inflect-nano-v2 (spoken replies) | CPU |
 
 The app offers no NPU on the Pi.

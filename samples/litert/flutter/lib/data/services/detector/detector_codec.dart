@@ -13,11 +13,11 @@
 // limitations under the License.
 
 /// YOLO26n pre/post-processing (`Letterbox`, `GatherPlan`, `selectRaw`,
-/// `unletterbox`), ported from a standalone reference implementation verified
-/// against the Python pipeline (kept as test/support/yolo26n_reference.dart,
-/// which the tests compare against), plus the RGBA gather and plane resolution
-/// for every [FramePixelFormat]. Pure Dart: runs in the detector worker isolate
-/// and in unit tests.
+/// `unletterbox`), tested against the standalone reference implementation in
+/// test/support/yolo26n_reference.dart (itself checked against the Python
+/// pipeline), plus the RGBA gather and plane resolution for every
+/// [FramePixelFormat]. Pure Dart: runs in the detector worker isolate and in
+/// unit tests.
 library;
 
 import 'dart:collection';

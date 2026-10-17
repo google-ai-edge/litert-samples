@@ -39,16 +39,14 @@ final class const ModelSpec({
 const kChatSpec = ModelSpec(id: ModelId.chat, displayName: 'Chat model');
 
 /// Whisper base int8, Demo 1's speech recognizer: multilingual, a
-/// 30 s window, ~1.8 s per question on an M4 Pro (padded to 30 s).
+/// 30 s window (a question is padded to 30 s).
 const kWhisperSpec = ModelSpec(
   id: ModelId.whisperBase,
   displayName: 'Whisper base (STT)',
 );
 
 /// moonshine-tiny f32, Demo 3's speech recognizer: English only, a 5 s
-/// window, ~65 ms per question on an M4 Pro (Whisper base: 1.8 s); router
-/// 96/98 and must-detailed 43/43 on its transcripts of the router's golden
-/// questions (2026-10-02, the 98-question golden set of then).
+/// window, much faster per question than Whisper base.
 /// Optional: without it Demo 3 is unavailable and says why; Demo 1 is not
 /// affected.
 const kMoonshineSpec = ModelSpec(

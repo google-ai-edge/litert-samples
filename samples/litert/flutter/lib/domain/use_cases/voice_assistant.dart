@@ -257,9 +257,9 @@ class VoiceAssistant<S> {
   Future<Result<void>> requestMicAccess() => _audio.requestMicAccess();
 
   /// Starts the audio session and the output engine now, so the first turn
-  /// does not pay for it (on macOS the output device start took 50 ms to
-  /// 2.6 s). A failure is logged here and surfaces on the first turn, which
-  /// prepares again.
+  /// does not pay for it (on macOS starting the output device can be slow).
+  /// A failure is logged here and surfaces on the first turn, which prepares
+  /// again.
   Future<void> prepareAudio() async {
     if (_disposed) return;
     if (await _audio.prepare() case Error(:final error)) {

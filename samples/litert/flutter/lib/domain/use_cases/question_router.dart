@@ -79,7 +79,7 @@ import '../vision/coco_vocabulary.dart';
 /// question that are not neutral filler — a qualifier ("sleeping", "on the
 /// table", "or a cat") or a prefix ("besides the cat, …") — send it to
 /// Gemma (`qualifier`, `prefix`). A fast answer to a different question
-/// than the one asked is worse than a slower right one. About 0.1 ms.
+/// than the one asked is worse than a slower right one.
 final class QuestionRouter {
   const QuestionRouter([this._vocabulary = kCocoVocabulary]);
 

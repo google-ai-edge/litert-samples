@@ -111,10 +111,10 @@ final class const SeedReport({
   /// Bundled skills seeded before that the user deleted: not re-created.
   final List<String> stayedDeleted = const [],
 
-  /// Skills an earlier version bundled and this one does not (camera-watch
-  /// and timer), still as seeded: deleted, so they do
-  /// not linger as broken files naming intents the app no longer has. An
-  /// edited one is kept (and listed with its errors).
+  /// Skills a previous bundle seeded and this one does not have, still as
+  /// seeded: deleted, so they do not linger as broken files naming intents
+  /// the app does not have. An edited one is kept (and listed with its
+  /// errors).
   final List<String> retired = const [],
 
   /// The bundle was the one seeded last time: nothing was touched.
@@ -215,7 +215,7 @@ class SkillStoreService {
       if (onDisk == bundledHash) {
         next[name] = bundledHash;
       } else if (seededHash != null && onDisk == seededHash) {
-        // Still what an earlier version seeded: not an edit, so update.
+        // Still what a previous bundle seeded: not an edit, so update.
         await file.writeAsString(text, flush: true);
         updated.add(name);
         next[name] = bundledHash;
@@ -431,7 +431,7 @@ class SkillStoreService {
       final Object? json = jsonDecode(await file.readAsString());
       if (json case {'seeded': final Map<String, Object?> seeded}) {
         return _SeedRecord(
-          // Version 1 records had no bundle hash: a changed bundle.
+          // A record without a bundle hash (version 1): a changed bundle.
           bundle: switch (json) {
             {'bundle': final String bundle} => bundle,
             _ => null,

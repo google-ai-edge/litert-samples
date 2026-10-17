@@ -163,9 +163,9 @@ void main() {
 
   test('ambiguous needs the best at the floor plus the margin: a faint best '
       'that does not stand out from its rival is rejected', () {
-    // The measured ambiguous cases (visual_memory_test.dart, 2026-10-14):
-    // "Where was the sign?" (street sign 0.712, GATE 42 0.694) and "Did you
-    // see some text?" (Wi-Fi 0.648, street sign 0.637).
+    // Ambiguous cases of integration_test/visual_memory_test.dart: "Where
+    // was the sign?" (the street sign against GATE 42) and "Did you see some
+    // text?" (the Wi-Fi note against the street sign).
     for (final (best, rival) in [(0.712, 0.694), (0.648, 0.637)]) {
       final v = judge([best, rival], [0, 10]);
       expect(v.outcome, MemoryOutcome.ambiguous, reason: '$best/$rival');
@@ -207,8 +207,8 @@ void main() {
   });
 
   test('a NaN score is never the best, a rival or the reported frame', () {
-    // First: it used to stay the best (every comparison with NaN is false)
-    // and pass every test, an accepted NaN.
+    // First: not the best, although every comparison with NaN is false (a
+    // NaN kept as the best would pass every test, an accepted NaN).
     final first = judge([double.nan, 0.76, 0.67], [0, 10, 20]);
     expect(first.accepted, isTrue);
     expect(first.best, 1);

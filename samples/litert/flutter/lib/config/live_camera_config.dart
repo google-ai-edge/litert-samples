@@ -54,7 +54,7 @@ const kCountScore = 0.4;
 
 /// A question's snapshot (the next frame after release) must be
 /// detected within this, or the turn says the camera isn't running. Normal:
-/// one frame interval plus ~10 ms.
+/// one frame interval plus the detection.
 const kCaptureTimeout = Duration(milliseconds: 1500);
 
 /// What the detector does while Gemma generates.
@@ -67,7 +67,8 @@ const kLiveStatsInterval = Duration(milliseconds: 250);
 const kLiveStatsWindow = 30;
 
 /// A frame the detector has not answered within this is a failure the UI
-/// shows (a stuck GPU call), never a silent 0 fps. Normal frames take ~10 ms.
+/// shows (a stuck GPU call), never a silent 0 fps. A normal frame takes a
+/// small fraction of it.
 const kDetectorStallTimeout = Duration(seconds: 2);
 
 /// While Running with the detector live, no source frame for this long fails
@@ -89,9 +90,8 @@ const kLiveWatchdogInterval = Duration(seconds: 1);
 /// are auto-exposure warm-up.
 const kBlackFramesAfter = Duration(seconds: 2);
 
-/// Above the 16 of limited-range YUV black (a phone camera in a dark rack
-/// reported black=false at 3.0: its frames sit at video black plus noise,
-/// not 0), and far below a lit scene.
+/// Above the 16 of limited-range YUV black (a camera in the dark delivers
+/// video black plus noise, not 0), and far below a lit scene.
 const kBlackFrameLuma = 24.0;
 
 /// A dim real scene still has edges and texture; a black frame is flat
@@ -145,9 +145,8 @@ const kNetworkLogInterval = Duration(seconds: 5);
 /// The painter draws at most this many boxes.
 const kMaxPaintedBoxes = 50;
 
-// Visual memory (docs/design/eg2-multimodal.md, "Live camera: visual
-// memory"): frames EmbeddingGemma 2 embeds while the camera demo is idle, and
-// a spoken question searches by meaning.
+// Visual memory: frames EmbeddingGemma 2 embeds while the camera demo is idle,
+// and a spoken question searches by meaning.
 
 /// The sampler asks for a memory frame no sooner than this after the end of
 /// its previous attempt…
@@ -174,28 +173,16 @@ const kMemoryTick = Duration(milliseconds: 500);
 /// [kMemoryChangedCells] cells that differ by at least [kMemoryCellChange].
 /// Each cell averages ~900 pixels of a 720p frame, so sensor noise stays
 /// well under 1, and the brightness match takes out an exposure or lighting
-/// change of the whole view; a new view gives a mean of 30 and more. A small
-/// object moves the mean by well under 6 but changes a few cells a lot,
-/// which the cell test catches.
+/// change of the whole view; a new view gives a mean far above
+/// [kMemorySceneChange]. A small object moves the mean by well under it but
+/// changes a few cells a lot, which the cell test catches.
 ///
-/// Measured by test/data/services/detector/memory_shot_test.dart on a
-/// synthetic 720p desk (2026-10-14; `SCENE_CHANGE`): keys put down or taken
-/// away give a mean of 0.27 with 3 cells ≥ 24 (up to 39); a phone 1.31 (21
-/// cells, up to 92), a mug 2.06 (21, up to 123), a book 2.49 (56), a laptop
-/// 11.7 (177); the same with the camera moved 4 px: keys 1.16 (3–4 cells),
-/// phone 2.2 (21), mug 2.9 (21), book 3.1–3.3 (52–56), laptop 12.3 (178).
-/// The camera moved 3, 4 or 8 px (sensor noise ±3, empty desk, mug, book and
-/// mug, laptop) leaves a mean of 0.18–1.13 and a largest cell of 3–10 (no
-/// cell ≥ 24); a black phone on white paper (contrast 200) moved 5–15 px
-/// leaves a largest cell of 0.1–10.4, and taking it away changes 16 cells
-/// (up to 200). Without the re-alignment 4 px changed 4–5 cells and 8 px up
-/// to 60 (a new frame each time the hand shook); with whole pixels only, the
-/// phone on paper moved 5 px changed 12 cells. Sensor noise
-/// of ±3–8 per pixel leaves every cell within 1, noise of ±4 per cell within
-/// 4; 10 % darker or brighter is a raw mean of 14.1 (a change under the old
-/// mean-only test) and, matched, a largest cell of 0.5–1.7. The five
-/// fixture scenes of integration_test/visual_memory_test.dart differ by
-/// 39–56 (548–767 cells; measured before the re-alignment).
+/// Checked by test/data/services/detector/memory_shot_test.dart on a
+/// synthetic 720p desk (`SCENE_CHANGE`): an object put down or taken away is
+/// a change, with the camera still or moved a few pixels; the camera moved
+/// alone, sensor noise, and the whole view darker or brighter are not. The
+/// re-alignment keeps a hand-held camera's shake from storing a new frame
+/// each time.
 const kMemorySceneChange = 6.0;
 const kMemoryCellChange = 24.0;
 const kMemoryChangedCells = 2;
@@ -203,15 +190,10 @@ const kMemoryChangedCells = 2;
 /// The visual memory is on by default only where the OS reports at least this
 /// much RAM in all: a device sold with 6 GB or less gets it off by default,
 /// with the reason on the camera settings switch (the user may turn it on). Its
-/// image encoder adds memory in steps (spec "Resources: go / no-go";
-/// `docs/design/eg2-multimodal.md`): on an M4 Pro Mac (2026-10-14) the widening
-/// reload (`EmbedderService.enableImages`) +327 MB process RSS (533 → 860 MB),
-/// then the first image +227 MB (762 → 989 MB): from 533 to 989 MB, ≈ +450 MB
-/// net; on phones, with the encoder already loaded, the first image +280 MB
-/// (Galaxy S24, whose whole app peaks at 2.36 GB with images against 2.2 GB
-/// without) and +311 MB (S25 Ultra). The OS reports less than the RAM fitted:
-/// an 8 GB phone reports about 6.9 GiB (Galaxy S24), a 6 GB one less (not
-/// measured), so the line is drawn between them, at 6.5 GiB.
+/// image encoder adds memory in steps: the widening reload
+/// (`EmbedderService.enableImages`), then the first image. The OS reports
+/// less than the RAM fitted, so the line is drawn between what an 8 GB and a
+/// 6 GB device report, at 6.5 GiB.
 const kMemoryDefaultOnMinRamBytes = 6979321856; // 6.5 GiB
 
 /// The scene-change thumbnail's side, in cells.
@@ -254,18 +236,14 @@ const kMemoryCaptureTimeout = Duration(seconds: 2);
 /// when the best clears the floor plus the margin (both sightings then at or
 /// above the floor), and a miss when it does not.
 ///
-/// Set by integration_test/visual_memory_test.dart (M4 Pro Mac, CPU,
-/// EmbeddingGemma 2 740m at 70 vision tokens, 2026-10-13; the spike's
-/// starting values were 0.60 and 0.03): over five scenes (the Wi-Fi note, the
-/// street sign, the pirate mug, the cats, the GATE 42 sign) the five scene
-/// questions' frames score 0.713–0.770 and beat their best rival by
-/// 0.037–0.185 (the least: the street sign over the GATE 42 sign, both
-/// signs); the six questions about things never shown best-match 0.566–0.612
-/// with margins of 0.003–0.015. The floor 0.62 rejects every negative by
-/// itself and leaves 0.09 below the weakest positive for real camera frames;
-/// the margin 0.025 is the middle of (0.015, 0.037). Two frames of one scene
-/// (10 % darker, shifted 24 px) score 0.994–0.998 against each other,
-/// different scenes 0.605–0.746: 0.88 is the middle of that gap.
+/// Set by integration_test/visual_memory_test.dart over its fixture scenes
+/// (EmbeddingGemma 2 740m at 70 vision tokens): the floor alone rejects
+/// every question about a thing never shown and leaves room below the
+/// weakest right frame for real camera frames; the margin is about the
+/// middle of the gap between the never-shown questions' margins and the
+/// smallest margin of a right frame over its best rival (two different
+/// signs). [kMemorySameSceneCosine] is the middle of the gap between two
+/// frames of one scene (darker, shifted) and frames of different scenes.
 const kMemoryMinCosine = 0.62;
 const kMemoryMinMargin = 0.025;
 const kMemoryMarginSeparation = Duration(seconds: 5);
@@ -276,12 +254,11 @@ const kMemorySameSceneCosine = 0.88;
 /// of them is reported: "seen 12 s ago" comes from the latest sighting, not
 /// from whichever copy won by noise. A frame whose grey thumbnail shows a
 /// change from the best's (the sampler's scene-change test: keys put down or
-/// taken away hardly move the image vector) is never a tie.
-/// integration_test/visual_memory_test.dart
-/// prints the spread (`MEMORY_TIE`, M4 Pro Mac, 2026-10-14): the Wi-Fi
-/// question scores 0.761 / 0.755 / 0.755 against its frame, the frame 10 %
-/// darker and the frame shifted 24 px (spread 0.006); the smallest margin of
-/// a right frame over a different scene is 0.036.
+/// taken away hardly move the image vector) is never a tie. Above the spread
+/// one question scores against a frame, the same frame darker and the same
+/// frame shifted (integration_test/visual_memory_test.dart prints it,
+/// `MEMORY_TIE`), and below the smallest margin of a right frame over a
+/// different scene.
 const kMemoryTieCosine = 0.01;
 
 /// Failed frame embeddings in a row that turn the visual memory off (with

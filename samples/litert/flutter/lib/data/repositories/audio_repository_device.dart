@@ -47,9 +47,8 @@ import 'audio_repository.dart';
 /// itself at the next play (it re-activates the session for that, see
 /// [PcmPlayerService]); after a stay in the background, where an
 /// interruption may never be reported and the device may look started but
-/// play nothing, soloud is restarted (a precaution read from the sources,
-/// not observed on a device). macOS (no-op calls) and Linux (no
-/// session) activate at [prepare] too.
+/// play nothing, soloud is restarted (a precaution). macOS (no-op calls)
+/// and Linux (no session) activate at [prepare] too.
 class DeviceAudioRepository implements AudioRepository {
   DeviceAudioRepository({
     required this._session,
@@ -129,8 +128,7 @@ class DeviceAudioRepository implements AudioRepository {
   /// iOS, after the app was hidden: soloud's output device may have been
   /// stopped by an interruption miniaudio never heard of (it then counts
   /// the device as started, and its own resume at play does nothing); the
-  /// next prepare starts a new engine. A precaution: not observed on a
-  /// device.
+  /// next prepare starts a new engine. A precaution.
   bool _restartEngine = false;
 
   /// Android: the turn's audio focus, as wanted (from [activate] to

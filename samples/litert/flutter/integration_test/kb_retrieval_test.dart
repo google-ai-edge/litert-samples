@@ -16,8 +16,8 @@
 // EmbeddingGemma 2 740m on the CPU, loaded as setup loads it (audio
 // declared; its .litertlm found as setup finds it), the real sqlite-vec store
 // and the real KnowledgeRepository indexing the bundled assets/kb, then the
-// golden set (test_assets/kb_golden.json: 19 on-topic, 12 off-topic
-// questions, and 12 lines of everyday chat) typed, spoken (by the app's own
+// golden set (test_assets/kb_golden.json: on-topic and off-topic
+// questions, and lines of everyday chat) typed, spoken (by the app's own
 // TTS, Inflect-nano-v2, into memory at start-up: support/question_audio.dart,
 // the code that makes the shipped clips) and transcribed by the app's Whisper
 // with the voice chat's corrections.
@@ -37,22 +37,22 @@
 //    golden set gets the same answers: the same top document for every
 //    on-topic question, the same gate decision (top hit at or above
 //    kKbMinSimilarityText, or not) for every question, and scores within
-//    1e-2 of the device's. The prebuilt vectors come from the build machine's CPU, so
-//    on another architecture near-equal chunks can swap places (Linux arm64:
-//    same_top=24/31, max_delta=3.90e-3); identical ranked lists are printed
-//    as information only.
+//    1e-2 of the device's. The prebuilt vectors come from the build
+//    machine's CPU, so on another architecture near-equal chunks can swap
+//    places; identical ranked lists are printed as information only.
 // 4. Typed (prebuilt index): an on-topic question is answered only when its
 //    expected document is among the hits at or above the gate, as the app
-//    gates each hit (KnowledgeRepository.retrieve): 19/19 at
-//    kKbMinSimilarityText. Off-topic: the best hit below the gate for
-//    12/12 (what lib/config/knowledge_config.dart says was measured).
+//    gates each hit (KnowledgeRepository.retrieve): every one at
+//    kKbMinSimilarityText. Off-topic: the best hit below the gate for every
+//    one (as lib/config/knowledge_config.dart states).
 // 5. The skill trigger phrases of test_assets/skill_trigger_similarity.json
 //    against the prebuilt index: their best match, printed as that file's
 //    JSON (`KB_SKILL_TRIGGERS {...}`) to paste back after changing the
 //    embedder, the gate, the documents or the skills.
 // 6. Spoken, embedded as audio (KnowledgeQuery.audio, the clip's WAV as it
-//    is): 19/19 answered at kKbMinSimilarityAudio and 12/12 off-topic
-//    below it (as knowledge_config.dart says). The sweep prints the clean range the gate was chosen from.
+//    is): every on-topic question answered at kKbMinSimilarityAudio and
+//    every off-topic one below it (as knowledge_config.dart states). The
+//    sweep prints the clean range the gate was chosen from.
 //    Then the everyday chat, spoken the same way: every line's best hit below
 //    kKbMinSimilarityAudio; `KB audio clean_range=…` prints the gates that
 //    answer every on-topic question and reject every negative (off-topic and
@@ -60,8 +60,8 @@
 // 7. Spoken, transcribed by the app's Whisper (SttService as setup loads it),
 //    corrected as the voice chat corrects a transcript
 //    (correctVoiceTranscript), then searched as text at kKbMinSimilarityText:
-//    19/19 on-topic answered, 12/12 off-topic and 12/12 everyday chat
-//    rejected (as knowledge_config.dart says).
+//    every on-topic question answered, every off-topic one and every
+//    everyday chat line rejected (as knowledge_config.dart states).
 // 8. The self-test's clip (assets/selftest/what_time_is_it.wav) against its
 //    words: the cosine kSelfTestAudioTextMinCosine is calibrated from
 //    (`KB_SELFTEST_COSINE`), above it, and every unrelated pair (the clip
@@ -74,11 +74,12 @@
 // the Whisper path).
 //
 // Prints `KB_EMBEDDER load=<ms>ms rss=<before>-><after> media=<m>`,
-// `KB_PREBUILT install=<ms>ms device_index=<ms>ms same_top=<n>/31
-// same_doc=<n>/19 same_gate=<n>/31 max_delta=<x>`, per path the gate sweep
+// `KB_PREBUILT install=<ms>ms device_index=<ms>ms same_top=<n>/<all>
+// same_doc=<n>/<on> same_gate=<n>/<all> max_delta=<x>`, per path the gate sweep
 // 0.50–0.90 (step 0.025), `KB <path> scores on=<min>..<max> off=<min>..<max>
 // gap=<x>` (the expected document's score on topic, the best hit's off
-// topic) and `KB <path> on=<a>/19 off=<b>/12 gate=<g> query_p50=<ms>ms`, and
+// topic) and `KB <path> on=<a>/<on> off=<b>/<off> gate=<g>
+// query_p50=<ms>ms`, and
 // `KB index=<ms>ms chunks=<n> reuse=<ms>ms prebuilt=<ms>ms`.
 
 import 'dart:convert';
@@ -122,14 +123,10 @@ import 'support/question_audio.dart';
 typedef _Answer = ({List<Passage> top, Duration latency});
 
 // The Whisper path's on-topic result depends on the voice chat's transcript
-// corrections (kVoiceTranscriptCorrections). Without them it was 17/19 at
-// 0.70 (2026-10-13, M4 Pro): Whisper base writes "LiteRT" as "littered", so
-// on_06 ("…look inside a littered and file…") ranked its document first at
-// 0.6994, just under the gate, and on_01 ("What is littered? And how is it
-// related to tents or flow light?") did not find its document in the top 3.
-// With the phrase-level corrections ("what is littered", "runs on
-// littered", "littered and file", "tents or flow light"; never "littered"
-// alone) it is 19/19, the expected documents at 0.740–0.848, as asserted.
+// corrections (kVoiceTranscriptCorrections): Whisper base writes "LiteRT" as
+// "littered", which keeps on-topic questions from their documents. The
+// corrections are phrase-level ("what is littered", "runs on littered",
+// "littered and file", "tents or flow light"; never "littered" alone).
 
 /// The golden set's answers from one index.
 typedef _On = ({
@@ -736,7 +733,8 @@ void main() {
 
     expect(prebuilt.on, hasLength(19));
     expect(prebuilt.off, hasLength(12));
-    // Exactly what lib/config/knowledge_config.dart says was measured.
+    // What lib/config/knowledge_config.dart states: every golden question on
+    // its side of the gate.
     expect(text.on, 19, reason: 'typed on-topic');
     expect(text.off, 12, reason: 'typed off-topic');
     expect(audio.on, 19, reason: 'spoken on-topic');

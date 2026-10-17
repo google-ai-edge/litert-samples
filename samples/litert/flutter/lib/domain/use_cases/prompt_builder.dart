@@ -39,36 +39,16 @@ abstract final class PromptBuilder {
   /// `toolChoice` is a final field and `tools` a fixed view of the final
   /// `_tools`).
   ///
-  /// This wording is new and not measured yet (a probe follows). It replaces
-  /// two that named things: the typed "Answer this question directly with no
-  /// tool call." (fine while every skill question skipped retrieval; it
-  /// silenced a run-time skill whose request cleared the gate) and the spoken
-  /// one that named the intents. Their history:
-  ///
-  /// Typed: without an instruction a knowledge question was pulled into a
-  /// `runIntent` call, a ~2.8 s detour with a failed step on screen.
-  ///
-  /// Spoken, measured 2026-10-14 (audio-prompt probe, macOS, Gemma 4 E2B on
-  /// the GPU, agent chat with current-time and device-info, questions spoken
-  /// by the app's Inflect voice, a fresh chat per turn) on the questions that
-  /// clear the audio gate (live device questions clear it against the
-  /// accelerator, backend and memory docs at 0.72–0.79 against 0.69; a KB
-  /// question 0.77): the YOLO26n input size (answered from the excerpts,
-  /// cited, no call) and five device questions (device_info called):
-  ///
-  /// | instruction | KB ok | device ok | turns with a wrong call |
-  /// |---|---|---|---|
-  /// | "… live facts about this device or app, or for the time, use your skills instead of the excerpts" | 0/3 | 7/15 | 8/18 |
-  /// | the same, the time named first | 2/3 | 3/15 | 7/18 |
-  /// | skills named ("use the device-info skill …") | 2/7 | 24/35 | 6/42 |
-  /// | device-info skill named, no time | 1/4 | 14/20 | 4/24 |
-  /// | intents named ("call runIntent with device_info … current_time"; replaced) | 3/4 | 17/20 | 1/24 |
-  ///
-  /// Naming the skills helped against the generic "use your skills", so this
-  /// one names them too, from the chat's own list. Empty replies came with
-  /// every wording: 1 of 15, 3 of 15, 9 of 35, 3 of 20 and 3 of 20 device
-  /// turns ended with an empty reply, 18 of the 19 right after a `loadSkill`
-  /// (three of those loaded the current-time skill).
+  /// It names the skills, from the chat's own list, and no intent: named
+  /// skills are followed better than a generic "use your skills", and a
+  /// skill added at run time whose request clears the gate stays reachable,
+  /// where an instruction to answer with no tool call would silence it.
+  /// Spoken device questions can clear the audio gate against the
+  /// accelerator, backend and memory docs, so they reach this instruction
+  /// with excerpts. Without any instruction a knowledge question can be
+  /// pulled into a `runIntent` call: a detour with a failed step on screen.
+  /// With any wording a turn can end with an empty reply, most often right
+  /// after a `loadSkill`.
   static String excerptSkills(List<String> skills) =>
       'If the request matches one of your skills${_named(skills)}, load it '
       'and follow it instead of the excerpts; otherwise answer from the '
@@ -78,11 +58,9 @@ abstract final class PromptBuilder {
   /// app recognizes: the picture alone takes no tool, a request one of
   /// [skills] serves still does.
   ///
-  /// New wording, not measured yet. It replaces "(A picture is attached.
-  /// Answer directly; no tool is needed.)", which silenced every skill on a
-  /// picture turn; without any hint Gemma called `runIntent` (an invented
-  /// intent, or the camera-watch skill's, since removed) for photo questions
-  /// in 5 of 6 first turns.
+  /// Without any hint the model tends to call `runIntent` (with an invented
+  /// intent) for photo questions; a hint that says no tool is needed would
+  /// silence every skill on a picture turn.
   static String directAnswerHint(List<String> skills) =>
       '\n\n(A picture is attached. Use one of your skills${_named(skills)} '
       'only when the request matches its description; otherwise answer about '
@@ -177,33 +155,12 @@ abstract final class PromptBuilder {
   /// a question, one of [skills] is used only when the request matches its
   /// description, and everything else takes no tool.
   ///
-  /// This wording is new and not measured yet (a probe follows): the one it
-  /// replaces named the bundled skills and what each was for ("Use
-  /// current-time only for the time and device-info only for this device or
-  /// app …"), which kept a run-time skill out. Measured 2026-10-14
-  /// (audio-prompt probe, macOS, Gemma 4 E2B on the GPU, agent chat with
-  /// current-time and device-info, questions spoken by the app's Inflect
-  /// voice, a fresh chat per turn). Turns with a spurious tool call among
-  /// the story, France, "how are you" and joke requests (3 rounds each),
-  /// refusals without a call ("I can't tell jokes"), and the time and device
-  /// questions:
-  ///
-  /// | wording | spurious | refusals | time / device |
-  /// |---|---|---|---|
-  /// | "Answer the question asked in this audio. Use a skill only if the question needs one." | 4/12 | 1/12 | 3/3 / – |
-  /// | "Answer the question asked in this audio." | 5/12 | 5/12 | 3/3 / – |
-  /// | "Respond to what the user says in this audio." | 5/12 | 3/12 | 3/3 / – |
-  /// | "… If it asks for the time or for live facts about this device or app, use your skills; otherwise answer it directly with no tool call." | 3/12 | 1/12 | 3/3 / – |
-  /// | "Respond to … Call a tool only if they ask for the time or for live facts about this device or app; otherwise reply directly with no tool call." (2 runs) | 0/24 | 5/24 | 6/6 / 3/3 |
-  /// | "Do what the user asks …, or answer their question. Use a skill only if …" | 0/12 | 3/12 | 3/3 / 3/3 |
-  /// | skills named, "Respond to …" form | 3/12 | 1/12 | 3/3 / 3/3 |
-  /// | "… Use current-time only for the time and device-info only for this device or app …" (replaced) | 0/12 | 2/12 | 3/3 / 3/3 |
-  ///
-  /// The generic "Use a skill only if …" made Gemma call `runIntent` with
+  /// A generic "Use a skill only if …" lets the model call `runIntent` with
   /// invented intents (`storytelling`, `geographical_capital`) for a story,
-  /// a generation each (~1–3 s before the first word); what kept them out
-  /// was saying when a skill applies and that everything else takes no tool.
-  /// This one says that against each skill's own description.
+  /// a generation each before the first word; saying when a skill applies
+  /// and that everything else takes no tool keeps them out. This one says
+  /// that against each skill's own description: naming the bundled skills
+  /// and what each is for would keep a skill added at run time out.
   static String spokenQuestionWithSkills(List<String> skills) =>
       'Answer the question asked in this audio, or do what it asks. Use one '
       'of your skills${_named(skills)} only when the request matches its '

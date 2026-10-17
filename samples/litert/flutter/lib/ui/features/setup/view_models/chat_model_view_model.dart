@@ -174,7 +174,7 @@ class ChatModelViewModel extends ChangeNotifier {
   /// Android and iOS only: there a tester pushes one file and the defaults
   /// fit (the GPU, or the NPU for a build compiled for it); on a
   /// desktop or a board the guide picks the backend first (the Raspberry Pi
-  /// guide runs Gemma on the CPU; its GPU is not verified).
+  /// guide runs Gemma on the CPU).
   final bool _autoApplyTheOnlyFile;
   bool _disposed = false;
 
@@ -227,8 +227,8 @@ class ChatModelViewModel extends ChangeNotifier {
   /// The saved custom settings could not be read.
   String? get problem => _state.problem;
 
-  /// Said once (a retired saved choice: Gemma 4 E2B is no longer
-  /// downloaded).
+  /// Said once (a saved choice the app does not offer: it downloads no
+  /// Gemma 4 E2B).
   String? get note => _state.note;
 
   /// No chat model chosen and none running: the card leads with how to
@@ -575,9 +575,8 @@ class ChatModelViewModel extends ChangeNotifier {
   }
 
   /// [model] (the saved model's file) is what the chat slot runs: the same
-  /// file (by SHA-256: every nameless link used to land under one name; a
-  /// file in place by its path, its hash may still be computing), read, and
-  /// the same settings.
+  /// file (by SHA-256; a file in place by its path, its hash may still be
+  /// computing), read, and the same settings.
   bool _runs(CustomChatModel model) {
     if (_state.bundle == null) return false;
     return switch (_slot) {
@@ -689,9 +688,9 @@ class ChatModelViewModel extends ChangeNotifier {
   /// The ways out after a failed load of the user's (saved) model: never
   /// taken on its own.
   /// - A build compiled for an NPU (`LiteRtLmBundleInfo.isCompiledForNpu`)
-  ///   the plugin refused as `wrongBackend` (saved on the GPU or the CPU,
-  ///   as earlier builds did): Run on NPU, what the plugin's message
-  ///   advises, where the NPU is offered.
+  ///   the plugin refused as `wrongBackend` (saved on the GPU or the CPU):
+  ///   Run on NPU, what the plugin's message advises, where the NPU is
+  ///   offered.
   /// - Any other refusal before an engine (`ModelFailed.bundleProblem`:
   ///   incomplete, unsupportedNpu): none, no backend changes it; for a
   ///   generic file's `wrongBackend` (a text model that declares its
