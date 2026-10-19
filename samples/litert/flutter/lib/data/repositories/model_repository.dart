@@ -19,11 +19,14 @@ import 'package:flutter_edge_ai/flutter_edge_ai.dart' show EmbeddingModality;
 
 import '../../config/env.dart';
 import '../../config/model_catalog.dart';
+import '../../domain/hardware/accelerator_inference.dart';
+import '../../domain/hardware/native_log_parser.dart';
 import '../../domain/models/chat_model.dart';
 import '../../domain/models/chat_model_config.dart';
 import '../../domain/models/detection.dart';
 import '../../domain/models/detector_choice.dart';
 import '../../domain/models/detector_spec.dart';
+import '../../domain/models/hardware_profile.dart';
 import '../../domain/models/model_id.dart';
 import '../../domain/models/model_source_resolver.dart';
 import '../../domain/models/model_state.dart';
@@ -77,25 +80,6 @@ final class ChatModelBlockedException implements Exception {
   String toString() => reason;
 }
 
-/// A chat model load that failed, at any step (the engine, its first
-/// conversation in the warm-up), with a tower the header says nothing about
-/// on the NPU: [cause]'s message, then a line with the way out. Never
-/// retried that way by itself: the user sets the tower to the CPU on the
-/// Chat model card.
-final class TowersOnNpuLoadException implements Exception {
-  const TowersOnNpuLoadException(this.cause);
-
-  final Exception cause;
-
-  /// The line the message adds to [cause]'s.
-  static const hint =
-      "If this build's towers are not compiled for the NPU, set Vision/Audio "
-      'to CPU on the card.';
-
-  @override
-  String toString() => '$cause\n$hint';
-}
-
 /// Installs, loads and warms up every model, the largest (the chat model) first
 /// so it fails first, and publishes each model's state. Required models first;
 /// a required failure stops setup. Optional models ([ModelSpec.required] false)
@@ -122,6 +106,7 @@ class ModelRepository implements ModelStates {
     this._bundledDetector = loadBundledDetector,
     required this._embedder,
     this._logTap = const NoNativeLogTap(),
+    this._hardwareProfile,
     this._chatModels,
     Set<ModelId>? requiredModels,
     this._closeWait = const Duration(seconds: 5),
@@ -163,6 +148,12 @@ class ModelRepository implements ModelStates {
   /// Each GPU-capable load (Gemma, the detector) reads its own window of the
   /// native log, kept in [LoadedModelInfo.nativeLog].
   final NativeLogTap _logTap;
+
+  /// The probed device (`HardwareRepository`: probed once, never throws;
+  /// null when the probe failed), read with the native log after a GPU
+  /// detector load: a software rasterizer fails it. Null: only the log is
+  /// read.
+  final Future<HardwareProfile?> Function()? _hardwareProfile;
 
   /// What the chat model slot ([ModelId.chat]) loads: the user's own
   /// `.litertlm`. Null: none chosen (`GEMMA_MODEL_PATH` still loads).
@@ -242,7 +233,7 @@ class ModelRepository implements ModelStates {
     await _prepareOptional(ModelId.yolo26n, _prepareDetector);
     if (_closed) return _closedError();
     // Demo 3's recognizer: downloaded, loaded and warmed up once so a switch
-    // on entry only reloads it (~0.8 s). It stays the active one after setup.
+    // on entry only reloads it. It stays the active one after setup.
     await _prepareOptional(ModelId.moonshineTiny, () async {
       await _prepareStt(ModelId.moonshineTiny);
       return _states.value[ModelId.moonshineTiny] ?? const ModelPending();
@@ -398,22 +389,22 @@ class ModelRepository implements ModelStates {
     }
   }
 
+  /// The detector row's software-GPU refusal ([_softwareGpuFailure]) while
+  /// it is still the row. Setup runs ([prepareAll]: a Retry, a chat model
+  /// reload) keep it rather than load on the same GPU again (seconds on a
+  /// software rasterizer, refused again); a CPU choice, or [reloadDetector]
+  /// (it resets the row first), loads again.
+  ModelFailed? _softwareGpuRefusal;
+
   /// YOLO26n in its worker isolate, with its load checks (strict GPU, or the
-  /// explicit CPU mode; see `DetectorEngine.load`). Any failure is this row's,
-  /// shown on the Demo 3 tile; it never falls back to another backend.
+  /// explicit CPU mode; see `DetectorEngine.load`), then, on the GPU, the
+  /// check that the GPU is not a software rasterizer
+  /// ([_softwareGpuFailure]). Any failure is this row's, shown on the Demo 3
+  /// tile; it never falls back to another backend.
   ///
   /// The model: the asset built into the app.
   Future<ModelState> _prepareDetector() async {
     const id = ModelId.yolo26n;
-    final DetectorModelSource source;
-    try {
-      source = DetectorBytes(await _bundledDetector());
-    } catch (e, st) {
-      debugPrint('[ModelRepository] the bundled detector: $e\n$st');
-      return ModelFailed(
-        'The built-in detector ($kDetModelAsset) could not be read: $e',
-      );
-    }
     final DetectorBackend backend;
     switch (await (_detectorBackendChoice?.call() ??
         Future.value(resolveDetectorBackend(define: _detectorBackend)))) {
@@ -423,6 +414,24 @@ class ModelRepository implements ModelStates {
         return ModelUnavailable(error.toString());
       case Error(:final error):
         return ModelFailed(error.toString());
+    }
+    if (_softwareGpuRefusal case final refusal?
+        when backend == DetectorBackend.gpu &&
+            identical(_states.value[id], refusal)) {
+      debugPrint(
+        '[ModelRepository] detector: the GPU was refused as a software '
+        'rasterizer; not loading on it again',
+      );
+      return refusal;
+    }
+    final DetectorModelSource source;
+    try {
+      source = DetectorBytes(await _bundledDetector());
+    } catch (e, st) {
+      debugPrint('[ModelRepository] the bundled detector: $e\n$st');
+      return ModelFailed(
+        'The built-in detector ($kDetModelAsset) could not be read: $e',
+      );
     }
     final outcome = await _pipeline.run(
       id,
@@ -442,6 +451,22 @@ class ModelRepository implements ModelStates {
         nativeLog: nativeLog,
       ),
     );
+    if (outcome case LoadReady(:final info)
+        when backend == DetectorBackend.gpu) {
+      if (await _softwareGpuFailure(info) case final reason?) {
+        debugPrint('[ModelRepository] detector refused: $reason');
+        // Released at once, the service stays usable for "Run detector on
+        // CPU". After close() the service is closed already.
+        await _detector.unload();
+        // No Retry on the row: the same GPU is refused again. Its message
+        // says what helps; Demo 3 offers the CPU.
+        return _softwareGpuRefusal = ModelFailed(
+          reason,
+          backend: backend.name,
+          retryable: false,
+        );
+      }
+    }
     return _finalState(
       outcome,
       failed: (failure) => ModelFailed(
@@ -452,6 +477,27 @@ class ModelRepository implements ModelStates {
             : backend.name,
       ),
     );
+  }
+
+  /// Why a GPU detector load ([info]) is refused: its evidence shows a
+  /// software rasterizer (llvmpipe & co.). Read as the "This device" card
+  /// reads it ([inferEvidence]): the adapter line in the load's native log,
+  /// else the probe's likely adapter. Such a "GPU" takes seconds per frame,
+  /// so the live pipeline's stall watchdog would fail it with no way out:
+  /// a GPU failure instead, and Demo 3 offers the CPU. Null otherwise.
+  Future<String?> _softwareGpuFailure(LoadedModelInfo info) async {
+    final evidence = inferEvidence(
+      requested: DetectorBackend.gpu.name,
+      reported: info.backend,
+      hardware: await _hardwareProfile?.call(),
+      log: parseNativeLog(info.nativeLog),
+    );
+    return switch (softwareGpuReason(evidence)) {
+      final reason? =>
+        '$reason No fallback: install the GPU driver, or run the detector '
+            "on the CPU (Live camera's settings, or DETECTOR_BACKEND=cpu).",
+      null => null,
+    };
   }
 
   /// Loads the detector again from the current backend choice (Demo 3's
@@ -525,10 +571,10 @@ class ModelRepository implements ModelStates {
   }
 
   /// Adds EmbeddingGemma's image encoder for the visual memory
-  /// ([EmbedderService.enableImages]): one reload of about 2 s, the first
-  /// time the camera demo starts its memory; the knowledge base's embeddings
-  /// wait meanwhile. The embedder's row then lists image among its media. A
-  /// failed reload that also lost the text and audio embedder fails the row
+  /// ([EmbedderService.enableImages]): one reload, the first time the camera
+  /// demo starts its memory; the knowledge base's embeddings wait meanwhile.
+  /// The embedder's row then lists image among its media. A failed reload
+  /// that also lost the text and audio embedder fails the row
   /// (the knowledge base says so); one that kept it leaves the row ready.
   /// Never narrowed back: the images stay until the app exits.
   Future<Result<EmbedderImagesLoad>> enableEmbedderImages() async {
@@ -650,8 +696,8 @@ class ModelRepository implements ModelStates {
           requestedBackend: model.backend.name,
           requestedContext: model.maxTokens,
           contextTokens: info.contextTokens,
-          visionBackend: config.llm.visionBackend?.name,
-          audioBackend: config.llm.audioBackend?.name,
+          visionBackend: info.visionBackend?.name,
+          audioBackend: info.audioBackend?.name,
           tools: model.tools,
           modelType: model.modelType.name,
           rssBeforeBytes: info.rssBeforeBytes,
@@ -667,8 +713,8 @@ class ModelRepository implements ModelStates {
           requestedBackend: config.llm.backend.name,
           requestedContext: config.llm.maxTokens,
           contextTokens: info.contextTokens,
-          visionBackend: config.llm.visionBackend?.name,
-          audioBackend: config.llm.audioBackend?.name,
+          visionBackend: info.visionBackend?.name,
+          audioBackend: info.audioBackend?.name,
           tools: config.tools,
           modelType: config.modelType.name,
           rssBeforeBytes: info.rssBeforeBytes,
@@ -697,42 +743,30 @@ class ModelRepository implements ModelStates {
       logTap: _logTap,
       describe: (info, warmUpTime, nativeLog) => LoadedModelInfo(
         modelId: info.modelId,
-        backend: info.backend.name,
+        // The strict engine runs on the backend asked for or fails the load;
+        // one that reports none shows the request, marked as such.
+        backend: (info.backend ?? config.llm.backend).name,
+        backendReported: info.backend != null,
         loadTime: info.loadTime,
         warmUpTime: warmUpTime,
         nativeLog: nativeLog,
         chat: facts(info),
       ),
     );
-    return _settle(id, _withTowersHint(outcome, config.llm));
+    // A file the plugin refused before any engine (incomplete, wrongBackend,
+    // unsupportedNpu) is refused again by the same load: no Retry; the
+    // Models screen offers what the plugin's message advises.
+    if (outcome case LoadFailed(
+      error: ChatModelLoadException(
+            cause: LiteRtLmBundleException(:final problem),
+          ) &&
+          final error,
+    )) {
+      _set(id, ModelFailed('$error', retryable: false, bundleProblem: problem));
+      return Result.error(error);
+    }
+    return _settle(id, outcome);
   }
-
-  /// [outcome] with the towers hint when it failed while [llm] runs a
-  /// tower the header says nothing about on the NPU
-  /// ([LlmConfig.undeclaredTowersOnNpu]), whichever step failed: a tower the
-  /// NPU cannot run fails at the engine's creation or only at its first
-  /// conversation (the warm-up: the official SM8750 build declares no
-  /// constraint and its towers are not compiled for the NPU). A tower the
-  /// header places gets no hint: nothing on the card moves it. Only for
-  /// failures the towers' backend can cause ([_towersCanCause]).
-  static LoadOutcome _withTowersHint(LoadOutcome outcome, LlmConfig llm) =>
-      switch (outcome) {
-        LoadFailed(:final step, :final error)
-            when llm.undeclaredTowersOnNpu && _towersCanCause(step, error) =>
-          LoadFailed(step, TowersOnNpuLoadException(error)),
-        _ => outcome,
-      };
-
-  /// Whether [error] at [step] can come from where the towers run: not the
-  /// install (it only registers the file; a missing or vanished file is a
-  /// [ModelFileMissingException] there), not a missing file at any step,
-  /// not an unavailable NPU (refused before anything loads) and not a closed
-  /// service. Moving the towers to the CPU changes none of these.
-  static bool _towersCanCause(LoadStep step, Exception error) =>
-      step != LoadStep.install &&
-      error is! ModelFileMissingException &&
-      error is! NpuUnavailableException &&
-      error is! LlmServiceClosedException;
 
   /// Install (every launch: it restores the active spec), load, warm up one
   /// speech model; [unload] releases it after a failed warm-up, or when

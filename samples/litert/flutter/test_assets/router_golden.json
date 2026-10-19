@@ -1,5 +1,5 @@
 {
- "description": "Demo 3 question router golden set. Whisper-styled transcripts; route fast|detailed|memory; fast items name the intent and the Darknet class; memory items ask about the past (the visual memory); must=true marks questions whose route must be exactly right: a fast answer would be wrong, or a memory answer would be about the past when the question is about the frame (or the reverse). Kinds of a class (kids, women, kittens), numbers in the noun phrase, past tense without a memory cue and follow-ups are detailed; words for any person (someone, anybody) stay fast. A memory cue (where was, where is my, did/have you see(n), do you remember, where did I leave) is not memory when the words after it mark the present (now, right now, currently, at the moment; here or in the/this picture/frame/image/photo unless earlier, ago, before, last, was, were or just now puts them in the past; just now itself is the past), name a body part (hand, face, head, arm, finger; a trailing -ing word is skipped: where is my finger pointing), start an embedded wh-question in the present, with is/are/am or a third-person present verb or a demonstrative subject (did you see how many people are here, what color the car is, which cup is mine, what this sign says, where the cat goes), hold a relative clause in the present (the cat that is on the table), end in an -ing word after where is my X (where is my dog going), or are only the speaker or the listener (where was I, where were we, did you see where I was): those stay detailed. An embedded wh-question in the past is memory (did you see where I put my keys, who took my cup, where the cat went), and so is where with my and no present marker (have you seen where my glasses are), like where are my glasses. A cue with nothing to search for after it (what did you see, what have you seen, what I just put down) is memory: the newest stored frame.",
+ "description": "Demo 3 question router golden set. Whisper-styled transcripts; route fast|detailed|memory; fast items name the intent and the Darknet class; memory items ask about the past (the visual memory); must=true marks questions whose route must be exactly right: a fast answer would be wrong, or a memory answer would be about the past when the question is about the frame (or the reverse). Kinds of a class (kids, women, kittens), numbers in the noun phrase, past tense without a memory cue and follow-ups are detailed; words for any person (someone, anybody) stay fast. A memory cue (where was, where is my, did/have you see(n), do you remember, where did I leave) is not memory when the words after it mark the present (now, right now, currently, at the moment; here, in front of me/you or in the/this picture/frame/image/photo unless earlier, ago, before, last, was, were or just now puts them in the past; just now itself is the past), name a body part (hand, face, head, arm, finger; a trailing -ing word is skipped: where is my finger pointing), start an embedded wh-question in the present, with is/are/am or a third-person present verb or a demonstrative subject (did you see how many people are here, what color the car is, which cup is mine, what this sign says, where the cat goes), hold a relative clause in the present (the cat that is on the table), end in an -ing word after where is my X (where is my dog going), or are only the speaker or the listener (where was I, where were we, did you see where I was): those stay detailed. An embedded wh-question in the past is memory (did you see where I put my keys, who took my cup, where the cat went), and so is where with my and no present marker (have you seen where my glasses are), like where are my glasses. A cue with nothing to search for after it (what did you see, what have you seen, what I just put down, did you see anything) is memory: the newest stored frame. What was/were before a place word (what was on the table; next only before to, to only before left or right; above, below, over, under, underneath, beneath alike) is memory, and a place with no thing in it (what was on the left, behind me) asks for the newest stored frame; its present (what is on the table) and what was with no place (what was that) are detailed. Contractions are read expanded (where'd I put = where did I put, what'd you see, what've you seen) and just, ever, already, recently inside a cue do not break it (what did you just see, have you ever seen).",
  "items": [
   {
    "q": " How many cats do you see?",
@@ -893,6 +893,121 @@
   },
   {
    "q": " Did you see what I just put down?",
+   "route": "memory",
+   "must": true
+  },
+  {
+   "q": " Where'd I put my keys?",
+   "route": "memory",
+   "must": true
+  },
+  {
+   "q": " What'd you see?",
+   "route": "memory",
+   "must": true
+  },
+  {
+   "q": " What did you just see?",
+   "route": "memory",
+   "must": true
+  },
+  {
+   "q": " What've you seen?",
+   "route": "memory",
+   "must": true
+  },
+  {
+   "q": " Have you ever seen a giraffe?",
+   "route": "memory",
+   "must": true
+  },
+  {
+   "q": " What was on the table?",
+   "route": "memory",
+   "must": true
+  },
+  {
+   "q": " What was in front of me?",
+   "route": "memory",
+   "must": true
+  },
+  {
+   "q": " Did you see anything?",
+   "route": "memory",
+   "must": true
+  },
+  {
+   "q": " Did you see anyone?",
+   "route": "memory",
+   "must": true
+  },
+  {
+   "q": " What is on the table?",
+   "route": "detailed",
+   "must": true
+  },
+  {
+   "q": " What was that?",
+   "route": "detailed",
+   "must": true
+  },
+  {
+   "q": " What was on the table right now?",
+   "route": "detailed",
+   "must": true
+  },
+  {
+   "q": " What'd you see right now?",
+   "route": "detailed",
+   "must": true
+  },
+  {
+   "q": " Did you see anybody here?",
+   "route": "detailed",
+   "must": true
+  },
+  {
+   "q": " What was on the left?",
+   "route": "memory",
+   "must": true
+  },
+  {
+   "q": " What was behind me?",
+   "route": "memory",
+   "must": true
+  },
+  {
+   "q": " Where did you last see my keys?",
+   "route": "memory",
+   "must": true
+  },
+  {
+   "q": " Did you see anything unusual?",
+   "route": "memory",
+   "must": true
+  },
+  {
+   "q": " What was next?",
+   "route": "detailed",
+   "must": true
+  },
+  {
+   "q": " Have you seen a cat in front of you?",
+   "route": "detailed",
+   "must": true
+  },
+  {
+   "q": " What was above the sink?",
+   "route": "memory",
+   "must": true
+  },
+  {
+   "q": " What was below the window?",
+   "route": "memory",
+   "must": true
+  },
+  {
+   "q": " What was to the left of the laptop?",
    "route": "memory",
    "must": true
   }

@@ -34,7 +34,7 @@ final class const PcmStats({
 
 /// [PcmStats] of [pcm], with RMS taken over frames of [frameSamples] samples
 /// (320 = 20 ms at 16 kHz). Reads through [ByteData] so any buffer offset
-/// works; about 1 ms per second of audio.
+/// works.
 PcmStats analyzePcm16(Uint8List pcm, {int frameSamples = 320}) {
   final view = ByteData.sublistView(pcm);
   final samples = pcm.length ~/ 2;

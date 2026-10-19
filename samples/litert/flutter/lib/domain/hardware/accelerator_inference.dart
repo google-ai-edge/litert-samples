@@ -132,3 +132,19 @@ AcceleratorEvidence inferEvidence({
     logLines: log.lines,
   );
 }
+
+/// Why a load on the GPU must count as failed: its [evidence] shows a
+/// software rasterizer ([AcceleratorEvidence.softwareGpu]: llvmpipe,
+/// lavapipe, SwiftShader, softpipe, or a WebGPU adapter of type CPU), a GPU
+/// API drawn by the CPU and far slower than the CPU backend. Names the
+/// adapter and how it is known. Null when the evidence shows no software
+/// GPU, or the load is not on the GPU.
+String? softwareGpuReason(AcceleratorEvidence evidence) {
+  if (evidence.actual != 'gpu' || !evidence.softwareGpu) return null;
+  final adapter = switch (evidence.adapter) {
+    final name? => '$name (${evidence.adapterSource.label})',
+    null => 'unnamed',
+  };
+  return 'The GPU is a software rasterizer: $adapter. It runs on the CPU, '
+      'far slower than the CPU backend.';
+}

@@ -17,7 +17,7 @@ import 'dart:io';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter_edge_ai_agent/flutter_edge_ai_agent.dart'
-    show TextSkillExecutor;
+    show NativeIntentExecutor, TextSkillExecutor;
 import 'package:path_provider/path_provider.dart';
 import 'package:provider/provider.dart';
 import 'package:provider/single_child_widget.dart';
@@ -75,7 +75,6 @@ import '../domain/models/model_state.dart' show ModelReady;
 import '../domain/ports/model_file_picker.dart';
 import '../domain/ports/model_states.dart';
 import '../domain/ports/self_test_launcher.dart';
-import '../domain/skills/app_intent_executor.dart';
 import '../domain/skills/app_intent_handlers.dart';
 import '../domain/use_cases/chat_model_switcher.dart';
 import '../domain/use_cases/gpu_arbiter.dart';
@@ -275,6 +274,9 @@ final class AppDependencies {
       // The visual memory's default follows the RAM.
       physicalMemoryBytes: memoryProbe.totalBytes(),
     );
+    // Built below (it follows the model states); the detector's GPU load
+    // waits for its probe, which starts at once and is shared.
+    late final HardwareRepository hardware;
     final models = ModelRepository(
       bundled: bundled,
       llm: llm,
@@ -284,13 +286,18 @@ final class AppDependencies {
       detectorBackendChoice: liveSettings.readBackend,
       embedder: embedder,
       logTap: nativeLog,
+      // A software rasterizer as the GPU fails the detector's GPU load.
+      hardwareProfile: () async {
+        await hardware.probe();
+        return hardware.profile;
+      },
       chatModels: chatModels,
     );
     // The voice demos' mic and speaker. An injected mic (integration tests'
     // fixture audio) has no OS device to check.
     final audio = DeviceAudioRepository(
       session: audioSessionServiceFor(platform),
-      mic: mic ?? RecordMicService(),
+      mic: mic ?? RecordMicService(platform: platform),
       player: SoloudPcmPlayerService(),
       deviceService: mic == null
           ? audioDeviceServiceFor(platform)
@@ -300,7 +307,7 @@ final class AppDependencies {
     // Chip, GPU and RAM, probed once in the background; the "This device"
     // card and Copy diagnostics read it (and the audio devices once a voice
     // demo checked them).
-    final hardware = HardwareRepository(
+    hardware = HardwareRepository(
       service: hardwareInfoServiceForPlatform(),
       models: models.states,
       memory: memoryProbe,
@@ -341,32 +348,26 @@ final class AppDependencies {
       input: imageInput ?? PlatformImageInputService(),
     );
 
-    // The runtime skills, app-scoped.
-    final skills = SkillRepository(store: SkillStoreService());
-
-    // 3. Skill executors: device_info reads the hardware
-    //    report when called.
-    final appIntents = AppIntentExecutor(
-      skillNamed: (name) {
-        final loaded = skills.catalog.value?.agentSkills;
-        if (loaded == null) return null;
-        for (final skill in loaded) {
-          if (skill.name == name) return skill;
-        }
-        return null;
-      },
-      buildAppIntents(
+    // 3. Skill executors: the agent package's intent executor with the
+    //    app's intents added (device_info reads the hardware report when
+    //    called) next to its built-in ones, and the text-only one.
+    final intents = NativeIntentExecutor(
+      handlers: buildAppIntents(
         deviceFacts: () => describeHardware(
           hardware: hardware.profile,
           models: hardware.modelDiagnostics(),
         ),
       ),
     );
+    // The runtime skills, app-scoped. The scan checks the intents a skill
+    // names against what the executor runs.
+    final skills = SkillRepository(store: SkillStoreService(intents: intents));
+
     // 4. The conversation; it knows the LLM service and the executors, no
     //    other repository.
     final conversation = EdgeAiConversationRepository(
       llm: llm,
-      executors: [appIntents, TextSkillExecutor()],
+      executors: [intents, TextSkillExecutor()],
     );
     final diagnostics = DiagnosticsRepository(
       models: models.states,
@@ -396,7 +397,7 @@ final class AppDependencies {
       speech: speech,
       images: images,
       skills: skills,
-      intents: appIntents,
+      intents: intents,
       conversation: conversation,
       diagnostics: diagnostics,
     );
@@ -436,15 +437,25 @@ final class AppDependencies {
   /// The runtime skills (app-scoped).
   final SkillRepository _skills;
 
-  /// The app intents, also run directly for the requests Demo 1
-  /// recognizes itself (the time, device facts).
-  final AppIntentExecutor intents;
+  /// The intent executor (the package's built-in intents and the app's),
+  /// also run directly ([NativeIntentExecutor.handleIntent]) for the
+  /// requests Demo 1 recognizes itself (the time, device facts), while an
+  /// installed intent skill names the intent.
+  final NativeIntentExecutor intents;
 
   /// The app came back to the foreground: dropped-in skills are rescanned
   /// (Demo 1 applies a change when idle).
   void onResumed() {
     if (_disposing != null) return;
     unawaited(_skills.refresh());
+  }
+
+  /// The app went out of sight: on iOS the next turn prepares the audio
+  /// again (another app may take the session meanwhile without this one
+  /// hearing of it; a precaution).
+  void onHidden() {
+    if (_disposing != null) return;
+    _audio.appHidden();
   }
 
   /// Which models are present for loading (the Models screen).
@@ -583,7 +594,7 @@ typedef _Services = ({
 });
 
 /// What [AppDependencies._createRepositories] builds: the repositories, and
-/// the app intents the conversation runs.
+/// the intent executor the conversation runs.
 typedef _Repositories = ({
   ProvisioningRepository provisioning,
   ChatModelRepository chatModels,
@@ -597,7 +608,7 @@ typedef _Repositories = ({
   SpeechRepository speech,
   ImageRepository images,
   SkillRepository skills,
-  AppIntentExecutor intents,
+  NativeIntentExecutor intents,
   EdgeAiConversationRepository conversation,
   DiagnosticsRepository diagnostics,
 });

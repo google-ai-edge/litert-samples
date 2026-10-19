@@ -13,13 +13,18 @@
 // limitations under the License.
 
 import 'package:flutter_edge_ai_agent/flutter_edge_ai_agent.dart'
-    show Skill, SkillResult, SkillType, TextResult;
+    show
+        ErrorResult,
+        NativeIntentExecutor,
+        Skill,
+        SkillResult,
+        SkillType,
+        TextResult;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:litert_edge_demos/domain/hardware/diagnostics_report.dart';
 import 'package:litert_edge_demos/domain/models/accelerator_evidence.dart';
 import 'package:litert_edge_demos/domain/models/hardware_profile.dart';
 import 'package:litert_edge_demos/domain/models/model_state.dart';
-import 'package:litert_edge_demos/domain/skills/app_intent_executor.dart';
 import 'package:litert_edge_demos/domain/skills/app_intent_handlers.dart';
 import 'package:litert_edge_demos/domain/skills/app_intents.dart';
 
@@ -32,12 +37,12 @@ Skill intent(String name) => Skill(
 
 void main() {
   late DateTime now;
-  late AppIntentExecutor executor;
+  late NativeIntentExecutor executor;
 
   setUp(() {
     now = DateTime(2026, 10, 2, 14, 3, 7);
-    executor = AppIntentExecutor(
-      buildAppIntents(deviceFacts: () => 'facts', now: () => now),
+    executor = NativeIntentExecutor(
+      handlers: buildAppIntents(deviceFacts: () => 'facts', now: () => now),
     );
   });
 
@@ -50,8 +55,42 @@ void main() {
     return (result as TextResult).text;
   }
 
-  test('the app has exactly these intents', () {
+  test('the app adds exactly these intents, next to the package built-ins', () {
     expect(AppIntent.all, {'device_info', 'current_time'});
+    expect(buildAppIntents(deviceFacts: () => '').keys.toSet(), AppIntent.all);
+    expect(
+      executor.whitelistedIntents.toSet(),
+      containsAll([
+        ...AppIntent.all,
+        NativeIntentExecutor.getCurrentDateAndTime,
+        NativeIntentExecutor.sendEmail,
+      ]),
+    );
+  });
+
+  test('an app intent with parameters it does not read still runs: it has '
+      'no validator', () async {
+    expect(
+      await text(AppIntent.currentTime, '{"timezone": "UTC"}'),
+      startsWith('It is '),
+    );
+  });
+
+  test('a handler that throws is an error result, from the executor', () async {
+    final failing = NativeIntentExecutor(
+      handlers: buildAppIntents(
+        deviceFacts: () => throw StateError('no probe'),
+      ),
+    );
+    final result = await failing.handleIntent(AppIntent.deviceInfo, '{}');
+    expect(
+      result,
+      isA<ErrorResult>().having(
+        (r) => r.message,
+        'message',
+        allOf(contains('device_info'), contains('no probe')),
+      ),
+    );
   });
 
   test('current_time: the app\'s clock, in the spec\'s format', () async {

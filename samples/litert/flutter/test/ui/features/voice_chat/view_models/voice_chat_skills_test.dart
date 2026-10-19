@@ -38,6 +38,7 @@ import '../../../../fakes/fake_audio_repository.dart';
 import '../../../../fakes/fake_conversation_repository.dart';
 import '../../../../fakes/fake_image_input.dart';
 import '../../../../fakes/fake_speech.dart';
+import '../../../../support/app_intent_executor.dart';
 import '../../../../support/until.dart';
 
 final class FixedBundle implements BundledSkillSource {
@@ -102,6 +103,7 @@ void main() {
     root = Directory.systemTemp.createTempSync('voice_chat_skills');
     skills = SkillRepository(
       store: SkillStoreService(
+        intents: appIntentExecutor(),
         directory: () async => Directory('${root.path}/skills'),
         bundled: FixedBundle(),
       ),
@@ -376,8 +378,9 @@ void main() {
     },
   );
 
-  test('a skill turn whose final reply is empty shows and '
-      'speaks the intent result instead of failing', () async {
+  test('a skill turn whose final reply is empty fails visibly like any empty '
+      'reply: an error that keeps the turn\'s steps, the intent result is '
+      'neither shown as the reply nor spoken', () async {
     final sending = viewModel.send.execute('What time is it?');
     await turnStarted();
     conversation.emitStep(
@@ -390,14 +393,18 @@ void main() {
     );
     await conversation.finish();
     await sending;
-    await turnEnded();
+    await untilVm(
+      () => viewModel.phase == TurnPhase.error && !viewModel.send.running,
+      'the turn to fail',
+    );
 
-    expect(viewModel.send.error, isFalse, reason: '${viewModel.error}');
-    expect(viewModel.error, isNull);
-    final reply = viewModel.entries.last;
-    expect(reply.role, ChatRole.assistant);
-    expect(reply.text, 'It is 2:03 PM on Friday, October 2, 2026.');
-    expect(reply.steps.single, isA<IntentSucceeded>());
-    expect(audio.playbacks, isNotEmpty, reason: 'spoken');
+    expect(viewModel.send.error, isTrue);
+    expect(viewModel.error, contains('empty reply'));
+    expect(viewModel.entries.map((e) => e.role), [
+      ChatRole.user,
+      ChatRole.error,
+    ]);
+    expect(viewModel.entries.last.steps.single, isA<IntentSucceeded>());
+    expect(audio.playbacks, isEmpty, reason: 'nothing spoken');
   });
 }

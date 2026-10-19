@@ -59,13 +59,14 @@ final class const SceneSnapshot({
   required final Duration latency,
 });
 
-/// The PNG of one snapshot as sent to Gemma: at most
-/// `kLlmImageMaxSide` on the long side, mirrored back when the source
-/// mirrors.
+/// A PNG as sent to Gemma: a snapshot's (at most `kLlmImageMaxSide` on the
+/// long side, mirrored back when the source mirrors), or a remembered
+/// frame's on the memory path (its thumbnail, encoded when it was stored).
 final class const EncodedSnapshot({
   required final Uint8List png,
 
-  /// The snapshot this was encoded from (the frozen frame's id).
+  /// The frame this was encoded from: the snapshot's (the frozen frame's
+  /// id), or the remembered frame's.
   required final int frameId,
   required final int width,
   required final int height,
@@ -73,7 +74,8 @@ final class const EncodedSnapshot({
   /// The PNG was mirrored back (the source mirrors its frames).
   required final bool unmirrored,
 
-  /// Raw pixels → scaled image → (flip) → PNG.
+  /// Raw pixels → scaled image → (flip) → PNG; zero for a remembered frame
+  /// (nothing was encoded for the turn; the overlay says "memory frame").
   required final Duration encodeTime,
 });
 

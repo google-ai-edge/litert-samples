@@ -15,10 +15,9 @@
 // The prebuilt knowledge-base index shipped in assets/kb_index/ still
 // matches this checkout: built from these assets/kb documents, this chunker,
 // the built-in embedder file and the resolved flutter_edge_ai_sqlite, and
-// bound to this build's RAG profile (kKbEmbeddingProfileId). When
-// this fails, the app would ignore the prebuilt index and embed on every
-// device (29 s on an M4 Pro Mac, minutes on a phone): rebuild it with
-// tool/build_kb_index.sh.
+// bound to this build's RAG profile (kKbEmbeddingProfileId). When this
+// fails, the app would ignore the prebuilt index and embed on every device:
+// rebuild it with tool/build_kb_index.sh.
 import 'dart:convert';
 import 'dart:io';
 

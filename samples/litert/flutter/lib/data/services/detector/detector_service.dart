@@ -304,17 +304,39 @@ class DetectorService implements Detector {
   Future<void> close() async {
     if (_closed) return;
     _closed = true;
-    final loadSettled = await _bounded(_loading, 'the model load');
+    final loadSettled = await _bounded(_loading, 'the model load', 'close');
     final frameSettled = await _bounded(
       _detectDone?.future,
       'the frame in flight',
+      'close',
     );
     await _shutdownWorker(graceful: loadSettled && frameSettled);
   }
 
+  /// Ends the loaded detector's worker, after the frame in flight (bounded by
+  /// the close timeout), and keeps the service usable: the next [load]
+  /// spawns a new one. For a load its caller refuses after the fact
+  /// (`ModelRepository`: the GPU is a software rasterizer). A no-op when
+  /// nothing is loaded or after [close].
+  Future<void> unload() async {
+    if (_closed) return;
+    final frameSettled = await _bounded(
+      _detectDone?.future,
+      'the frame in flight',
+      'unload',
+    );
+    if (_closed) return;
+    await _shutdownWorker(graceful: frameSettled);
+  }
+
   /// Whether [pending] finished within the close timeout (true when there
-  /// was nothing to wait for).
-  Future<bool> _bounded(Future<Object?>? pending, String what) async {
+  /// was nothing to wait for); [operation] (`close`, `unload`) names the
+  /// call that waits, for the log.
+  Future<bool> _bounded(
+    Future<Object?>? pending,
+    String what,
+    String operation,
+  ) async {
     if (pending == null) return true;
     try {
       await pending.timeout(_closeTimeout);
@@ -322,7 +344,7 @@ class DetectorService implements Detector {
     } on TimeoutException {
       debugPrint(
         '[DetectorService] $what did not finish within '
-        '${_closeTimeout.inMilliseconds} ms of close; ending the worker',
+        '${_closeTimeout.inMilliseconds} ms of $operation; ending the worker',
       );
       return false;
     }

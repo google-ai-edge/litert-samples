@@ -292,7 +292,7 @@ void main() {
     );
     expect(stats.sourceWidth, greaterThan(0));
     // The bar on every platform: the camera's frames reach the detector at
-    // more than 10 fps (the in-test server sends ~20-30, IP Webcam 15-30).
+    // more than 10 fps (the in-test server and IP Webcam send more).
     expect(
       stats.sourceFps,
       greaterThan(10),

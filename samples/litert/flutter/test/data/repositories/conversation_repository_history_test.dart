@@ -55,10 +55,8 @@ const _audioGemma = ChatModelConfig(
     maxTokens: 8192,
     backend: PreferredBackend.gpu,
     maxNumImages: 1,
-    towers: ModelTowers(
-      vision: TowerPlacement(PreferredBackend.cpu),
-      audio: TowerPlacement(PreferredBackend.cpu),
-    ),
+    supportImage: true,
+    supportAudio: true,
   ),
   tools: false,
 );
@@ -275,7 +273,7 @@ void main() {
         expect(next.events.last, isA<AssistantDone>());
 
         // The rebuilt chat holds no audio: a further stop leaves the rebuild to
-        // LiteRT-LM again.
+        // flutter_edge_ai_litertlm again.
         await stopped('Tell me more', historyText: 'Tell me more');
         final created = model.created.length;
         await answer('Thanks', historyText: 'Thanks');
@@ -372,8 +370,8 @@ void main() {
     });
   });
 
-  test('a stopped text turn leaves the rebuild to LiteRT-LM (its text history '
-      'is complete): no clearHistory', () async {
+  test('a stopped text turn leaves the rebuild to flutter_edge_ai_litertlm '
+      '(its text history is complete): no clearHistory', () async {
     await answer('What is LiteRT?', historyText: 'What is LiteRT?');
     await stopped('Tell me more', historyText: 'Tell me more');
     final created = model.created.length;
@@ -565,10 +563,8 @@ void _agentPath() {
               maxTokens: 8192,
               backend: PreferredBackend.gpu,
               maxNumImages: 1,
-              towers: ModelTowers(
-                vision: TowerPlacement(PreferredBackend.cpu),
-                audio: TowerPlacement(PreferredBackend.cpu),
-              ),
+              supportImage: true,
+              supportAudio: true,
             ),
             tools: true,
           ),

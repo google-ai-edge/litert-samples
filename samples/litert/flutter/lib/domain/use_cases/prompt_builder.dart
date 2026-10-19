@@ -14,42 +14,73 @@
 
 import '../../utils/citations.dart';
 import '../models/knowledge.dart';
-import '../skills/app_intents.dart';
 
 /// Builds a Demo 1 turn's prompt from the question and the excerpts that
 /// cleared the gate, and reads the citations back out of the
 /// reply. One place owns the `[n]` format both ways.
+///
+/// On an agent chat the turn hints name the chat's skills, taken from the
+/// skills its system prompt lists (`skills`: their names), and nothing else:
+/// no intent, no topic, no tool to call. A skill the app has never seen
+/// (dropped into the skills folder at run time) is worded exactly like a
+/// bundled one, and a skill is always reached through `loadSkill` and its
+/// own instructions.
 abstract final class PromptBuilder {
-  /// On an agent chat, the instruction for a turn with excerpts,
-  /// worded like the agent template ("answer … directly with no tool call").
-  /// Live skill questions never get excerpts (`SkillQuestionRouter` skips
-  /// retrieval for them), so a turn that has some is a knowledge question:
-  /// without this line one was pulled into a `runIntent` call, a ~2.8 s
-  /// detour with a failed step on screen. A per-turn tool restriction does
-  /// not exist: `InferenceChat.tools` and `toolChoice`
-  /// are fixed at creation (final fields of flutter_edge_ai 2.1.0's
-  /// `InferenceChat`, `lib/core/chat.dart`).
-  static const noToolCall = 'Answer this question directly with no tool call. ';
+  /// ` (a, b, c)`: the skill names for a hint; empty without any.
+  static String _named(List<String> skills) =>
+      skills.isEmpty ? '' : ' (${skills.join(', ')})';
 
-  /// Appended to an image turn on an agent chat that is not a
-  /// live skill question.
-  static const directAnswerHint =
-      '\n\n(A picture is attached. Answer directly; no tool is needed.)';
+  /// On an agent chat, the instruction of a turn with excerpts, typed or
+  /// spoken (after "The question is in this audio."): a request one of
+  /// [skills] serves goes to that skill, anything else is answered from the
+  /// excerpts without a tool call. A per-turn tool restriction does not
+  /// exist: `InferenceChat.tools` and `toolChoice` are fixed at creation
+  /// (in flutter_edge_ai 2.4.0's `InferenceChat`, `lib/src/chat.dart`,
+  /// `toolChoice` is a final field and `tools` a fixed view of the final
+  /// `_tools`).
+  ///
+  /// It names the skills, from the chat's own list, and no intent: named
+  /// skills are followed better than a generic "use your skills", and a
+  /// skill added at run time whose request clears the gate stays reachable,
+  /// where an instruction to answer with no tool call would silence it.
+  /// Spoken device questions can clear the audio gate against the
+  /// accelerator, backend and memory docs, so they reach this instruction
+  /// with excerpts. Without any instruction a knowledge question can be
+  /// pulled into a `runIntent` call: a detour with a failed step on screen.
+  /// With any wording a turn can end with an empty reply, most often right
+  /// after a `loadSkill`.
+  static String excerptSkills(List<String> skills) =>
+      'If the request matches one of your skills${_named(skills)}, load it '
+      'and follow it instead of the excerpts; otherwise answer from the '
+      'excerpts with no tool call. ';
+
+  /// Appended to an image turn on an agent chat that is not a question the
+  /// app recognizes: the picture alone takes no tool, a request one of
+  /// [skills] serves still does.
+  ///
+  /// Without any hint the model tends to call `runIntent` (with an invented
+  /// intent) for photo questions; a hint that says no tool is needed would
+  /// silence every skill on a picture turn.
+  static String directAnswerHint(List<String> skills) =>
+      '\n\n(A picture is attached. Use one of your skills${_named(skills)} '
+      'only when the request matches its description; otherwise answer about '
+      'the picture directly with no tool call.)';
 
   /// [question] unchanged without [passages]; otherwise the excerpts
   /// numbered from 1, the instruction, then the question.
   ///
-  /// [skills]: the chat has agent skills, so the excerpts are framed
-  /// as reference documentation and the turn is told it needs no tool call
-  /// ([noToolCall]).
+  /// [skills]: the names of the agent chat's skills (empty: a plain chat).
+  /// With some, the excerpts are framed as reference documentation and the
+  /// skills come first ([excerptSkills]).
   static String build(
     String question,
     List<Passage> passages, {
-    bool skills = false,
+    List<String> skills = const [],
   }) {
     if (passages.isEmpty) return question;
+    final agent = skills.isNotEmpty;
     final prompt = StringBuffer(
-      skills
+      agent
           ? 'Reference excerpts from the knowledge base (general '
                 'documentation):\n\n'
           : 'Excerpts from the knowledge base:\n\n',
@@ -59,8 +90,8 @@ abstract final class PromptBuilder {
     }
     prompt
       ..write(
-        '${skills ? noToolCall : 'Answer the question. '}Use the excerpts '
-        'only if they are relevant and cite each one you use as '
+        '${agent ? excerptSkills(skills) : 'Answer the question. '}Use the '
+        'excerpts only if they are relevant and cite each one you use as '
         '${_markers(passages.length)}.\n',
       )
       ..write(
@@ -78,23 +109,23 @@ abstract final class PromptBuilder {
   ///
   /// Without [passages]: [spokenQuestion] (on an agent chat
   /// [spokenQuestionWithSkills]). With them: the excerpts numbered from 1, then
-  /// the instruction. On an agent chat ([skills]) a spoken question cannot be
-  /// routed to a skill before the reply (there are no words yet), so the
-  /// excerpts never forbid a tool call: a question about live device facts or
-  /// the time is told which intent answers it instead of them
-  /// ([spokenExcerptSkills]). [image]: a picture goes with the turn
-  /// ([spokenImageHint] on an agent chat).
+  /// the instruction. On an agent chat ([skills]: the names of its skills) a
+  /// spoken question cannot be routed before the reply (there are no words
+  /// yet), so the excerpts never forbid a skill ([excerptSkills]). [image]: a
+  /// picture goes with the turn ([spokenImageHint] on an agent chat).
   static String buildSpoken(
     List<Passage> passages, {
-    bool skills = false,
+    List<String> skills = const [],
     bool image = false,
   }) {
-    final hint = skills && image ? spokenImageHint : '';
+    final agent = skills.isNotEmpty;
+    final hint = agent && image ? spokenImageHint : '';
     if (passages.isEmpty) {
-      return '${skills ? spokenQuestionWithSkills : spokenQuestion}$hint';
+      return '${agent ? spokenQuestionWithSkills(skills) : spokenQuestion}'
+          '$hint';
     }
     final prompt = StringBuffer(
-      skills
+      agent
           ? 'Reference excerpts from the knowledge base (general '
                 'documentation):\n\n'
           : 'Excerpts from the knowledge base:\n\n',
@@ -104,7 +135,7 @@ abstract final class PromptBuilder {
     }
     prompt
       ..write('The question is in this audio. ')
-      ..write(skills ? spokenExcerptSkills : 'Answer it. ')
+      ..write(agent ? excerptSkills(skills) : 'Answer it. ')
       ..write(
         'Use the excerpts only if they are relevant and cite each one you use '
         'as ${_markers(passages.length)}.\n',
@@ -117,74 +148,25 @@ abstract final class PromptBuilder {
     return prompt.toString();
   }
 
-  /// The instruction of a spoken question with excerpts on an agent chat,
-  /// after "The question is in this audio.": it names the intent that
-  /// answers a device or time question, because live device questions clear
-  /// the audio gate against the accelerator, backend and memory docs
-  /// (0.72–0.79 against 0.69; a KB question 0.77), so most of them reach the
-  /// model with excerpts.
-  ///
-  /// Measured 2026-10-14 (audio-prompt probe, macOS, Gemma 4 E2B on the GPU,
-  /// agent chat with current-time and device-info, questions spoken by the
-  /// app's Inflect voice, a fresh chat per turn) on the questions that clear
-  /// the gate: the YOLO26n input size (answered from the excerpts, cited, no
-  /// call) and five device questions (device_info called):
-  ///
-  /// | instruction | KB ok | device ok | turns with a wrong call |
-  /// |---|---|---|---|
-  /// | "… live facts about this device or app, or for the time, use your skills instead of the excerpts" (before) | 0/3 | 7/15 | 8/18 |
-  /// | the same, the time named first | 2/3 | 3/15 | 7/18 |
-  /// | skills named ("use the device-info skill …") | 2/7 | 24/35 | 6/42 |
-  /// | device-info skill named, no time | 1/4 | 14/20 | 4/24 |
-  /// | this one (intents named) | 3/4 | 17/20 | 1/24 |
-  ///
-  /// The old wording sent device questions to current_time and added a
-  /// current-time call to the KB answer. Left: 3 of 20 device turns load the
-  /// skill and then end with an empty reply (an agent-loop issue, seen with
-  /// every wording), and one KB turn still called current_time.
-  static const spokenExcerptSkills =
-      'If it asks about this device or app itself (its models, backends, '
-      'accelerators or memory), call runIntent with ${AppIntent.deviceInfo} '
-      'instead of using the excerpts; if it asks for the time, call runIntent '
-      'with ${AppIntent.currentTime}. Otherwise answer it directly with no '
-      'tool call. ';
-
   /// A spoken question's whole prompt when no excerpt cleared the gate.
   static const spokenQuestion = 'Answer the question asked in this audio.';
 
-  /// [spokenQuestion] on an agent chat: it says the request may be a task as
-  /// well as a question, names the only requests that take a tool, and says
-  /// that everything else takes none.
+  /// [spokenQuestion] on an agent chat: the request may be a task as well as
+  /// a question, one of [skills] is used only when the request matches its
+  /// description, and everything else takes no tool.
   ///
-  /// Measured 2026-10-14 (audio-prompt probe, macOS, Gemma 4 E2B on the GPU,
-  /// agent chat with current-time and device-info, questions spoken by the
-  /// app's Inflect voice, a fresh chat per turn). Turns with a spurious tool
-  /// call among the story, France, "how are you" and joke requests (3 rounds
-  /// each), refusals without a call ("I can't tell jokes"), and the time and
-  /// device questions:
-  ///
-  /// | wording | spurious | refusals | time / device |
-  /// |---|---|---|---|
-  /// | "Answer the question asked in this audio. Use a skill only if the question needs one." (before) | 4/12 | 1/12 | 3/3 / – |
-  /// | "Answer the question asked in this audio." | 5/12 | 5/12 | 3/3 / – |
-  /// | "Respond to what the user says in this audio." | 5/12 | 3/12 | 3/3 / – |
-  /// | "… If it asks for the time or for live facts about this device or app, use your skills; otherwise answer it directly with no tool call." | 3/12 | 1/12 | 3/3 / – |
-  /// | "Respond to … Call a tool only if they ask for the time or for live facts about this device or app; otherwise reply directly with no tool call." (2 runs) | 0/24 | 5/24 | 6/6 / 3/3 |
-  /// | "Do what the user asks …, or answer their question. Use a skill only if …" | 0/12 | 3/12 | 3/3 / 3/3 |
-  /// | skills named, "Respond to …" form | 3/12 | 1/12 | 3/3 / 3/3 |
-  /// | this one | 0/12 | 2/12 | 3/3 / 3/3 |
-  ///
-  /// The old line made Gemma call `runIntent` with invented intents
-  /// (`storytelling`, `geographical_capital`) or current_time for a story,
-  /// a generation each (~1–3 s before the first word). What is left are
-  /// refusals without a call: one story and one joke in 12 turns.
-  static const spokenQuestionWithSkills =
-      'Answer the question asked in this audio, or do what it asks. Use '
-      'current-time only for the time and device-info only for this device or '
-      'app (models, backends, accelerators, memory); for anything else reply '
-      'directly with no tool call.';
+  /// A generic "Use a skill only if …" lets the model call `runIntent` with
+  /// invented intents (`storytelling`, `geographical_capital`) for a story,
+  /// a generation each before the first word; saying when a skill applies
+  /// and that everything else takes no tool keeps them out. This one says
+  /// that against each skill's own description: naming the bundled skills
+  /// and what each is for would keep a skill added at run time out.
+  static String spokenQuestionWithSkills(List<String> skills) =>
+      'Answer the question asked in this audio, or do what it asks. Use one '
+      'of your skills${_named(skills)} only when the request matches its '
+      'description; otherwise reply directly with no tool call.';
 
-  /// Appended to a spoken question with a picture on an agent chat: unlike
+  /// Appended to a spoken question with a picture on an agent chat: like
   /// [directAnswerHint] it leaves the skills open, because the question has
   /// not been routed.
   static const spokenImageHint =

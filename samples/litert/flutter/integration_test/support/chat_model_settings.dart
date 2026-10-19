@@ -14,11 +14,15 @@
 
 // The chat model choice saved in the app's shared preferences, for tests that
 // change it (a manual run on the same machine, same bundle id, shares it).
+// A file picked on the Models screen is saved only by Apply
+// (`ChatModelRepository.apply`): a test that picks one applies it.
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:litert_edge_demos/data/repositories/chat_model_repository.dart';
 import 'package:litert_edge_demos/data/services/settings/settings_store.dart';
 import 'package:litert_edge_demos/data/services/settings/typed_settings.dart';
+import 'package:litert_edge_demos/domain/models/chat_model.dart';
 import 'package:litert_edge_demos/utils/result.dart';
 
 /// The saved chat model choice and custom model, as they were.
@@ -29,7 +33,7 @@ TypedSettings _settings() =>
 
 /// Reads the saved choice and custom model, then clears both: the next
 /// launch loads `GEMMA_MODEL_PATH` with the app's settings for it, and a
-/// local file used in place starts from its header's defaults. Put them back
+/// local file used in place starts from its own defaults. Put them back
 /// with [restoreChatModelSettings].
 Future<SavedChatModel> takeChatModelSettings() async {
   final settings = _settings();
@@ -53,6 +57,27 @@ Future<SavedChatModel> takeChatModelSettings() async {
     'custom ${saved.custom == null ? 'none' : 'saved'})',
   );
   return saved;
+}
+
+/// Picks the `.litertlm` at [path] in place, as the Models screen's models
+/// folder and Path… do: it becomes the candidate, which nothing saves or
+/// loads until `ChatModelRepository.apply`. Returns it with what the plugin
+/// read of it (`readLiteRtLmBundleInfo`; the saved model's own file picked
+/// again is no candidate: its saved settings and file then). Fails the test
+/// when it cannot be used.
+Future<({CustomChatModel model, LiteRtLmBundleInfo bundle})> pickInPlace(
+  ChatModelRepository chatModels,
+  String path,
+) async {
+  switch (await chatModels.useLocalFile(path)) {
+    case Ok(:final value):
+      final state = chatModels.state.value;
+      final bundle = (state.candidate?.bundle ?? state.bundle)?.info;
+      if (bundle == null) fail('$path: the plugin did not read the file');
+      return (model: value, bundle: bundle);
+    case Error(:final error):
+      fail('$path as a local file: $error');
+  }
 }
 
 /// Writes back what [takeChatModelSettings] read (clearing what was unset).

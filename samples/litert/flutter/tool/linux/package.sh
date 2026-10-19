@@ -19,7 +19,8 @@
 #     run.sh                          pre-flight launcher (tool/linux/run.sh)
 #     README.md                       how to start it
 #     licenses/                       app licence (Apache-2.0), model notices, AGPL-3.0 text + the YOLO26n
-#                                     derivation script (the "source" of the bundled AGPL model), and
+#                                     derivation script (the "source" of the bundled AGPL model),
+#                                     OpenPhonemizer's Clear BSD licence (the G2P dictionary), and
 #                                     libjpeg-turbo's licences when lib/libturbojpeg.so.0 is shipped
 #   + a .tar.gz of that folder and its SHA-256 line.
 #
@@ -59,6 +60,7 @@ EOF
 cp "$ROOT/LICENSE" "$DEST/licenses/LICENSE-app-Apache-2.0.txt"
 cp "$ROOT/assets/models/NOTICE.md" "$DEST/licenses/MODELS-NOTICE.md"
 cp "$ROOT/licenses/AGPL-3.0.txt" "$DEST/licenses/AGPL-3.0.txt"
+cp "$ROOT/licenses/OpenPhonemizer-BSD-3-Clause-Clear.txt" "$DEST/licenses/OpenPhonemizer-BSD-3-Clause-Clear.txt"
 cp "$ROOT/tool/prune_yolo26n_head.py" "$DEST/licenses/prune_yolo26n_head.py"
 turbojpeg_note=''
 if [ -e "$DEST/lib/libturbojpeg.so.0" ]; then
@@ -70,9 +72,9 @@ if [ -e "$DEST/lib/libturbojpeg.so.0" ]; then
   if [ -n "$copyright" ]; then
     cp "$copyright" "$DEST/licenses/libjpeg-turbo-debian-copyright.txt"
   fi
-  turbojpeg_note='- `lib/libturbojpeg.so.0` (the network camera'"'"'s JPEG decoder) is libjpeg-turbo, under the IJG License and
-  the Modified (3-clause) BSD License (`libjpeg-turbo-copyright.txt`). This software is based in part on the work of
-  the Independent JPEG Group.'
+  turbojpeg_note='- `lib/libturbojpeg.so.0` (the network camera'"'"'s JPEG decoder) is libjpeg-turbo, under the IJG License,
+  the Modified (3-clause) BSD License and the zlib License (`libjpeg-turbo-copyright.txt`). This software is based in
+  part on the work of the Independent JPEG Group.'
 fi
 cat > "$DEST/licenses/README.md" <<'EOF'
 # Licences
@@ -83,6 +85,8 @@ cat > "$DEST/licenses/README.md" <<'EOF'
   from Arm's `yolo26n_conv2d_f16_weights.tflite` (https://huggingface.co/Arm/yolo26n-fp16-litert, itself derived from
   Ultralytics YOLO26) by `prune_yolo26n_head.py` in this folder: it cuts the in-graph selection head and keeps the
   raw [1, 8400, 84] output. Weights are unchanged.
+- The speech synthesizer's G2P dictionary `g2p_dict.txt.gz` (from OpenPhonemizer) is under the Clear BSD License
+  (`OpenPhonemizer-BSD-3-Clause-Clear.txt`); the other Matcha G2P files are MIT (`MODELS-NOTICE.md`).
 - The app's full list of package licences is in the app: home screen ⋮ (More) → Licences.
 EOF
 if [ -n "$turbojpeg_note" ]; then

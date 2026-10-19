@@ -20,7 +20,12 @@ import 'package:crypto/crypto.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_edge_ai_agent/flutter_edge_ai_agent.dart'
-    show Skill, SkillMdParseException, SkillType, parseSkillMd;
+    show
+        NativeIntentExecutor,
+        Skill,
+        SkillMdParseException,
+        SkillType,
+        parseSkillMd;
 import 'package:path_provider/path_provider.dart';
 
 import '../../../config/model_catalog.dart';
@@ -106,10 +111,10 @@ final class const SeedReport({
   /// Bundled skills seeded before that the user deleted: not re-created.
   final List<String> stayedDeleted = const [],
 
-  /// Skills an earlier version bundled and this one does not (camera-watch
-  /// and timer), still as seeded: deleted, so they do
-  /// not linger as broken files naming intents the app no longer has. An
-  /// edited one is kept (and listed with its errors).
+  /// Skills a previous bundle seeded and this one does not have, still as
+  /// seeded: deleted, so they do not linger as broken files naming intents
+  /// the app does not have. An edited one is kept (and listed with its
+  /// errors).
   final List<String> retired = const [],
 
   /// The bundle was the one seeded last time: nothing was touched.
@@ -119,18 +124,21 @@ final class const SeedReport({
 /// Reads and seeds the runtime skills directory. No state:
 /// [SkillRepository] holds the latest scan.
 class SkillStoreService {
+  /// [intents]: the executor the agent chat runs `run_intent` calls with; an
+  /// intent skill loads only when it can run every intent it names
+  /// ([NativeIntentExecutor.isWhitelisted]).
   SkillStoreService({
+    required this._intents,
     Future<Directory> Function()? directory,
     BundledSkillSource? bundled,
     this.maxBytes = 4 * 1024,
     this.maxTokens = kMaxSkillTokens,
-    this._knownIntents = AppIntent.all,
   }) : _directory = directory ?? defaultSkillsDirectory,
        _bundled = bundled ?? AssetBundledSkills();
 
   final Future<Directory> Function() _directory;
   final BundledSkillSource _bundled;
-  final Set<String> _knownIntents;
+  final NativeIntentExecutor _intents;
 
   /// Larger files are refused unread (a skill is a short page).
   final int maxBytes;
@@ -207,7 +215,7 @@ class SkillStoreService {
       if (onDisk == bundledHash) {
         next[name] = bundledHash;
       } else if (seededHash != null && onDisk == seededHash) {
-        // Still what an earlier version seeded: not an edit, so update.
+        // Still what a previous bundle seeded: not an edit, so update.
         await file.writeAsString(text, flush: true);
         updated.add(name);
         next[name] = bundledHash;
@@ -237,7 +245,8 @@ class SkillStoreService {
   /// usable skill becomes a [SkillLoadError]: a parse error (also a
   /// non-text front-matter value), bad UTF-8, over [maxBytes], a
   /// duplicate name, a JS or MCP skill (no executor here), or an intent
-  /// skill naming no intent or one outside [AppIntent.all]. Never throws.
+  /// skill naming no intent or one the intent executor does not run. Never
+  /// throws.
   Future<SkillCatalog> scan() async {
     final Directory dir;
     try {
@@ -343,12 +352,6 @@ class SkillStoreService {
       skill = parseSkillMd(text);
     } on SkillMdParseException catch (e) {
       return (null, e.errors.join(' '));
-    } catch (e) {
-      // `name: 123` is a TypeError inside the parser, not a parse error.
-      return (
-        null,
-        'Unreadable front matter: quote name and description as text ($e)',
-      );
     }
     if (byName[_normalized(skill.name)] case final other?) {
       return (null, 'Duplicate name "${skill.name}" (also in $other)');
@@ -362,19 +365,24 @@ class SkillStoreService {
         );
       case SkillType.intent:
         final named = intentsNamedIn(skill.instructions);
+        final runnable = _intents.whitelistedIntents.join(', ');
         if (named.isEmpty) {
           return (
             null,
-            'Calls run_intent but names no intent: write intent `current_time` '
-                '(one of ${_knownIntents.join(', ')})',
+            'Calls run_intent but names no intent: write intent `name` or '
+                'intent: name, with one of the intents the executor accepts: '
+                '$runnable',
           );
         }
-        final unknown = named.difference(_knownIntents);
+        final unknown = [
+          for (final intent in named)
+            if (!_intents.isWhitelisted(intent)) intent,
+        ];
         if (unknown.isNotEmpty) {
           return (
             null,
-            'Unknown intent ${unknown.map((i) => '`$i`').join(', ')}; this app '
-                'has ${_knownIntents.join(', ')}',
+            'Unknown intent ${unknown.map((i) => '`$i`').join(', ')}; the '
+                'executor accepts $runnable',
           );
         }
       case SkillType.textOnly:
@@ -423,7 +431,7 @@ class SkillStoreService {
       final Object? json = jsonDecode(await file.readAsString());
       if (json case {'seeded': final Map<String, Object?> seeded}) {
         return _SeedRecord(
-          // Version 1 records had no bundle hash: a changed bundle.
+          // A record without a bundle hash (version 1): a changed bundle.
           bundle: switch (json) {
             {'bundle': final String bundle} => bundle,
             _ => null,

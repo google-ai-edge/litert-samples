@@ -287,34 +287,34 @@ packages:
     dependency: "direct main"
     description:
       name: flutter_edge_ai
-      sha256: "1be99ff7d86c68332571ea3252844457dfc3f69afda0f6f2da7622ce4a7787ec"
+      sha256: "0c1613367913ef55b68418b2224927f359bb19ab915f482631a1a40333c05e53"
       url: "https://pub.dev"
     source: hosted
-    version: "2.3.2"
+    version: "2.4.0"
   flutter_edge_ai_agent:
     dependency: "direct main"
     description:
       name: flutter_edge_ai_agent
-      sha256: f2674393be89670234bd15fbdc4ee79e6d5d23b4cae23bde9b73badf8cca8972
+      sha256: a0b716a1ce559863c7194d75bb36e64d6b6719b7e28366700e0844b70126c0ec
       url: "https://pub.dev"
     source: hosted
-    version: "0.2.10"
+    version: "0.3.0"
   flutter_edge_ai_litertlm:
     dependency: "direct main"
     description:
       name: flutter_edge_ai_litertlm
-      sha256: a804f2b0eea6f7d4446b1bc1ef76af0acdd7a3c77e0b3d2040eaacfc335b1c7a
+      sha256: a42259b1a01f9226fc219b7ac2aafa7f163dd1ac9cba90cc92552c864a5f6e6f
       url: "https://pub.dev"
     source: hosted
-    version: "1.13.2"
+    version: "1.14.0"
   flutter_edge_ai_rag:
     dependency: "direct main"
     description:
       name: flutter_edge_ai_rag
-      sha256: b8da27f483cc13cd626ec866b30842ec8ad4622b55bd51a8dd670b54e3d10322
+      sha256: fdba45ee6857ad1d34bdf24234d874a79f6cdbb77f408aff735d6bbd18af42fe
       url: "https://pub.dev"
     source: hosted
-    version: "1.1.0"
+    version: "1.1.1"
   flutter_edge_ai_speech:
     dependency: "direct main"
     description:

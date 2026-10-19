@@ -342,7 +342,7 @@ void main() {
       expect(
         r.visualMemoryDefaultReason,
         'Off by default on this device (5.5 GB RAM): the visual memory loads '
-        '~300 MB more.',
+        'about 300–450 MB more.',
       );
       expect(await r.saveVisualMemory(enabled: true), isA<Ok<void>>());
       expect((await r.readVisualMemory() as Ok<bool>).value, isTrue);
@@ -358,8 +358,8 @@ void main() {
       expect(kMemoryDefaultOnMinRamBytes, (6.5 * (1 << 30)).round());
     });
 
-    test('RAM not measured on this device (iOS has no probe): on, as the '
-        'spec defaults it; a gate needs a measurement', () async {
+    test('RAM not measured on this device (no probe, e.g. Windows): on, as '
+        'the spec defaults it; a gate needs a measurement', () async {
       final r = repo(physicalMemoryBytes: null);
       expect((await r.readVisualMemory() as Ok<bool>).value, isTrue);
       expect(r.visualMemoryDefaultReason, isNull);

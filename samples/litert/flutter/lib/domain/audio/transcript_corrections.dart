@@ -14,14 +14,14 @@
 
 import 'package:flutter/foundation.dart';
 
-/// Whisper base's measured misses of the knowledge base's product names, as
+/// Whisper base's observed misses of the knowledge base's product names, as
 /// the voice chat's transcripts write them (the spoken golden set,
-/// integration_test/kb_retrieval_test.dart, 2026-10-13): what it heard →
-/// what was said. Matched as whole words, ignoring case; a longer phrase wins
-/// over a shorter one it contains, and a match that starts with a capital
-/// letter keeps it. Phrases only, each one ordinary speech does not produce:
-/// "littered" on its own is an English word ("The beach was littered with
-/// plastic") and stays as it was heard.
+/// integration_test/kb_retrieval_test.dart): what it heard → what was said.
+/// Matched as whole words, ignoring case; a longer phrase wins over a shorter
+/// one it contains, and a match that starts with a capital letter keeps it.
+/// Phrases only, each one ordinary speech does not produce: "littered" on its
+/// own is an English word ("The beach was littered with plastic") and stays
+/// as it was heard.
 const kVoiceTranscriptCorrections = <String, String>{
   // "What is LiteRT, and how is it related to TensorFlow Lite?" → "What is
   // littered? And how is it related to tents or flow light?" (on_01).

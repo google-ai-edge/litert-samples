@@ -20,16 +20,55 @@ import 'package:litert_edge_demos/data/services/audio/audio_session_service.dart
 import 'package:litert_edge_demos/data/services/audio/mic_service.dart';
 import 'package:litert_edge_demos/data/services/audio/pcm_player_service.dart';
 import 'package:litert_edge_demos/domain/models/audio_devices.dart';
+import 'package:litert_edge_demos/domain/models/audio_interruption.dart';
 
+/// Records every call in [calls] (`configure`, `activate`, `deactivate`);
+/// the test raises interruptions with [interrupt].
 class FakeAudioSession implements AudioSessionService {
   int configureCalls = 0;
   Exception? error;
 
+  /// What [activate] answers (Android refuses during a call); [activateError]
+  /// is thrown instead when set (iOS `setActive` during a call).
+  bool activateResult = true;
+  Exception? activateError;
+
+  /// When set, [activate] waits for it (a slow activation).
+  Completer<void>? activateGate;
+
+  final List<String> calls = [];
+  final StreamController<AudioInterruption> _interruptions =
+      StreamController.broadcast(sync: true);
+
+  int get activations => calls.where((c) => c == 'activate').length;
+  int get deactivations => calls.where((c) => c == 'deactivate').length;
+
   @override
   Future<void> configureHalfDuplex() async {
     configureCalls++;
+    calls.add('configure');
     if (error case final e?) throw e;
   }
+
+  @override
+  Future<bool> activate() async {
+    calls.add('activate');
+    await activateGate?.future;
+    if (activateError case final e?) throw e;
+    return activateResult;
+  }
+
+  @override
+  Future<void> deactivate() async => calls.add('deactivate');
+
+  @override
+  Stream<AudioInterruption> get interruptions => _interruptions.stream;
+
+  /// Whether the repository listens to the interruptions.
+  bool get hasListener => _interruptions.hasListener;
+
+  /// The OS reports [what], as audio_session does.
+  void interrupt(AudioInterruption what) => _interruptions.add(what);
 }
 
 /// Answers [input] (and [system]) and counts the input checks.
@@ -200,6 +239,15 @@ class FakePcmPlayer implements PcmPlayerService {
     calls.add('init');
     await initGate?.future;
     calls.add('init done');
+    if (initError case final e?) throw e;
+  }
+
+  int restarts = 0;
+
+  @override
+  Future<void> restart() async {
+    restarts++;
+    calls.add('restart');
     if (initError case final e?) throw e;
   }
 

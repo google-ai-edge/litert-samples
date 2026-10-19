@@ -14,7 +14,6 @@
 
 import 'dart:typed_data';
 
-import 'package:flutter_edge_ai/flutter_edge_ai.dart' show PreferredBackend;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:litert_edge_demos/config/demos.dart';
 import 'package:litert_edge_demos/data/repositories/model_repository.dart';
@@ -200,7 +199,7 @@ void main() {
   });
 
   test('a Gemma failure disables both tiles with its reason', () async {
-    llm.activeBackend = PreferredBackend.cpu;
+    llm.loadError = engineCreateFailure();
     final (:models, :home) = build();
 
     await models.prepareAll();
@@ -208,8 +207,11 @@ void main() {
     for (final demo in Demo.values) {
       final tile = tileOf(home, demo);
       expect(tile.available, isFalse);
-      expect(tile.status, startsWith('The chat model: Gemma 4 E2B: '));
-      expect(tile.status, contains('Fallback is disabled'));
+      expect(
+        tile.status,
+        startsWith('The chat model: Gemma 4 E2B did not load on gpu: '),
+      );
+      expect(tile.status, contains('Can not find OpenCL library'));
     }
   });
 }

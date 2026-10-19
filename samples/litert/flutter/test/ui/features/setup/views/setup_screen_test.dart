@@ -15,7 +15,6 @@
 import 'dart:io';
 
 import 'package:flutter/material.dart';
-import 'package:flutter_edge_ai/flutter_edge_ai.dart' show PreferredBackend;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:litert_edge_demos/data/repositories/chat_model_repository.dart';
 import 'package:litert_edge_demos/data/repositories/model_repository.dart';
@@ -125,10 +124,9 @@ void main() {
     embedder: EmbedderService(),
   );
 
-  testWidgets('a non-GPU backend blocks setup with the error and a Retry', (
-    tester,
-  ) async {
-    final llm = FakeLlmService()..activeBackend = PreferredBackend.cpu;
+  testWidgets('a GPU the strict engine cannot create blocks setup with the '
+      "plugin's reason and a Retry", (tester) async {
+    final llm = FakeLlmService()..loadError = engineCreateFailure();
     final models = fakeModels(llm: llm);
     var readyCalls = 0;
 
@@ -144,14 +142,14 @@ void main() {
     expect(
       find.descendant(
         of: find.byKey(SetupKeys.row(ModelId.chat)),
-        matching: find.textContaining('Fallback is disabled'),
+        matching: find.textContaining('Can not find OpenCL library'),
       ),
       findsOneWidget,
     );
     expect(find.byKey(SetupKeys.retry), findsOneWidget);
-    expect(readyCalls, 0, reason: 'never moves on to the chat on a CPU load');
+    expect(readyCalls, 0, reason: 'never moves on to the chat after a failure');
 
-    llm.activeBackend = PreferredBackend.gpu;
+    // The next load (the Retry) comes up on the GPU.
     await tester.tap(find.byKey(SetupKeys.retry));
     await tester.pump(); // prepare runs
     await tester.pump(); // post-frame hand-over

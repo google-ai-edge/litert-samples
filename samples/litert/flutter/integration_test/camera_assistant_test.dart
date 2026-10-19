@@ -525,12 +525,13 @@ void main() {
         lessThanOrEqualTo(kLlmImageMaxSide),
       );
       expect(timeline.pausedAt, isNotNull, reason: 'paused during generation');
-      // The frame already in flight when the pause began still lands;
-      // nothing new is sent while paused.
+      // No boxes while paused: the pause clears them, and the frame already
+      // in flight when it began lands in the summary window, not on the
+      // boxes (nothing new is sent meanwhile).
       expect(
         timeline.framesWhilePaused,
-        lessThanOrEqualTo(1),
-        reason: 'no new frames while paused',
+        0,
+        reason: 'no boxes published while paused',
       );
       expect(
         timeline.recover,

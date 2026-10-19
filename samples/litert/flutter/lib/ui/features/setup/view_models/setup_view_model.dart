@@ -122,12 +122,19 @@ class SetupViewModel extends ChangeNotifier {
 
   Future<Result<void>> _prepare() async {
     final result = await switch (_switcher) {
-      null => _prepareModels(),
-      final switcher => switcher.exclusive((_) => _prepareModels()),
+      null => _checkThenPrepare(),
+      final switcher => switcher.exclusive((_) => _checkThenPrepare()),
     };
-    // A successful start: what earlier builds downloaded goes.
+    // A successful start: the store's unused model folders go.
     if (result is Ok<void>) unawaited(_provisioning.pruneOldModelFolders());
     return result;
+  }
+
+  /// The setup run, after checking the chat model's file again when its last
+  /// check found a problem (Retry after "copy it back": no restart needed).
+  Future<Result<void>> _checkThenPrepare() async {
+    if (_chatModels case final chatModels?) await chatModels.recheck();
+    return _prepareModels();
   }
 
   /// The "This device" card; null when there is no hardware repository.

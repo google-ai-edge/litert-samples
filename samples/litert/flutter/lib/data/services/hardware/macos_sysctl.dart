@@ -40,8 +40,8 @@ typedef _SysctlByNameDart = int Function(
   int,
 );
 
-/// The real `sysctlbyname` over FFI. Works inside the App Sandbox (the
-/// design measured `hw.*` and `machdep.*` in a sandboxed bundle).
+/// The real `sysctlbyname` over FFI. Works inside the App Sandbox (`hw.*`
+/// and `machdep.*` alike).
 final class FfiSysctl implements Sysctl {
   const FfiSysctl();
 

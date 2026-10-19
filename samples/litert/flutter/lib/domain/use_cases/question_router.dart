@@ -25,20 +25,29 @@ import '../vision/coco_vocabulary.dart';
 ///
 /// 0. A memory cue goes to the visual memory (`memory:<cue>`): "where
 ///    was/were …", "where is/are my …", "when did you (last) see …",
-///    "have/did you see(n) …", "do you remember …", "where did I leave/put
-///    …". Before rule 1, whose detail cues include "where". The present
-///    "where is the dog?" stays a detail question about the frame: only the
-///    past tense or a possession ("my keys") is about something no longer in
-///    view. The query is the noun phrase after the cue ([memoryPhrase]); with
+///    "have/did you see(n) …", "where did you (last) see …", "do you
+///    remember …", "where did I leave/put …", "what was/were" before a
+///    place word ("what was on the table?";
+///    the present "what is on the table?" is the frame's). "Just", "ever",
+///    "already" and "recently" between a cue's words are skipped ("what did
+///    you just see?", "have you ever seen …"), and "'d"/"'ve" are expanded
+///    first ("where'd I put …", "what'd you see?", "what've you seen?";
+///    [normalizeQuestion]). Before rule 1, whose detail cues include
+///    "where". The present "where is the dog?" stays a detail question
+///    about the frame: only the past tense or a possession ("my keys") is
+///    about something no longer in view. The query is the noun phrase
+///    after the cue ([memoryPhrase]); with
 ///    nothing to search for after the cue ("what did you see?", "… what I
-///    just put down?") the route asks for the newest stored frame
-///    ([MemoryRoute.latest]). The earliest cue decides, and it is not a
-///    memory question — the later rules decide — when the words after it
+///    just put down?", "did you see anything?") the route asks for the
+///    newest stored frame ([MemoryRoute.latest]). The earliest cue decides,
+///    and it is not a memory question — the later rules decide — when the
+///    words after it
 ///    - mark the present: "now", "right now" (not "just now", which is the
 ///      past), "currently", "at the moment", or — unless a past marker
 ///      ("earlier", "ago", "before", "last", "just now", the past of "be":
 ///      "was", "were") overrides it —
-///      "here" or "in the/this picture/frame/image/photo": "where is my cup
+///      "here", "in front of me/us/you" or "in the/this
+///      picture/frame/image/photo": "where is my cup
 ///      right now?" is about the frame, "did you see a dog here earlier?"
 ///      is not;
 ///    - name a body part ("where is my hand?", "where is my finger
@@ -70,7 +79,7 @@ import '../vision/coco_vocabulary.dart';
 /// question that are not neutral filler — a qualifier ("sleeping", "on the
 /// table", "or a cat") or a prefix ("besides the cat, …") — send it to
 /// Gemma (`qualifier`, `prefix`). A fast answer to a different question
-/// than the one asked is worse than a slower right one. About 0.1 ms.
+/// than the one asked is worse than a slower right one.
 final class QuestionRouter {
   const QuestionRouter([this._vocabulary = kCocoVocabulary]);
 
@@ -79,7 +88,9 @@ final class QuestionRouter {
   RouteDecision classify(String transcript) {
     final words = normalizeQuestion(transcript);
     if (words.isEmpty) return const DetailedRoute('default');
-    if (_memoryRoute(words, transcript) case final memory?) return memory;
+    if (_memoryRoute(words, transcript, _vocabulary) case final memory?) {
+      return memory;
+    }
     final padded = ' ${words.join(' ')} ';
     for (final cue in _detailCues) {
       if (padded.contains(' $cue ')) return DetailedRoute('detail:$cue');
@@ -119,19 +130,27 @@ final class QuestionRouter {
   /// Rule 0: the earliest memory cue (the longest at that position) and the
   /// phrase after it; null when there is none, or when the words after it
   /// make it a question about the frame ([_aboutTheFrame]).
-  static MemoryRoute? _memoryRoute(List<String> words, String transcript) {
+  static MemoryRoute? _memoryRoute(
+    List<String> words,
+    String transcript,
+    CocoVocabulary vocabulary,
+  ) {
     for (var i = 0; i < words.length; i++) {
       _MemoryCue? best;
+      var bestEnd = i;
       for (final cue in _memoryCues) {
-        if (_startsWith(words, i, cue.words) &&
-            (best == null || cue.words.length > best.words.length)) {
+        final end = _cueEnd(words, i, cue.words);
+        if (end < 0) continue;
+        if (cue.before case final before? when !before(words, end)) continue;
+        if (best == null || cue.words.length > best.words.length) {
           best = cue;
+          bestEnd = end;
         }
       }
       if (best == null) continue;
-      final rest = words.sublist(i + best.words.length);
-      if (_aboutTheFrame(best.words, rest)) return null;
-      final phrase = memoryPhrase(rest);
+      final rest = words.sublist(bestEnd);
+      if (_aboutTheFrame(best.words, rest, vocabulary)) return null;
+      final phrase = memoryPhrase(rest, vocabulary: vocabulary);
       // Nothing to search for ("what did you see?"): an embedding of the
       // question would match a frame by chance; the newest frame answers it.
       return phrase.isEmpty
@@ -147,8 +166,13 @@ final class QuestionRouter {
   /// place marker only when no past marker (in the cue too: "when did you
   /// last see the remote here?") overrides it; an embedded wh-question in
   /// the present ([_presentEmbedded]) or about the speaker or the listener
-  /// alone; a body part as the phrase's noun.
-  static bool _aboutTheFrame(List<String> cue, List<String> rest) {
+  /// alone; a body part as the phrase's noun (the phrase as [memoryPhrase]
+  /// makes it with the router's [vocabulary]).
+  static bool _aboutTheFrame(
+    List<String> cue,
+    List<String> rest,
+    CocoVocabulary vocabulary,
+  ) {
     if (rest.isEmpty) return false;
     if (rest.every(_selfOrListener.contains)) return true;
     var clause = rest.indexWhere(_memoryClauseWords.contains);
@@ -181,7 +205,7 @@ final class QuestionRouter {
         return true;
       }
     }
-    final phrase = memoryPhrase(rest).split(' ');
+    final phrase = memoryPhrase(rest, vocabulary: vocabulary).split(' ');
     // "where is my dog going?": the present progressive, about the frame.
     if (cue.length > 1 &&
         cue.first == 'where' &&
@@ -282,17 +306,32 @@ final class QuestionRouter {
   /// it). "the sign about the wifi password" → "sign about the wifi
   /// password". An embedded wh-question names its thing
   /// ([_embeddedSpan]): "where I put my keys" → "keys", "where the cat
-  /// went" → "cat". Empty when nothing is left, or only the speaker or the
-  /// listener.
+  /// went" → "cat". "Anything", "something" and "everything" name no thing
+  /// and are dropped at the start ("did you see anything?" has nothing to
+  /// search for; "anything red" → "red", "anything on the table" → "on the
+  /// table"), and so is one word after them that is neither a colour nor a
+  /// COCO noun of [vocabulary] ("anything unusual", "something moving");
+  /// "anyone", "someone", "anybody" and "somebody" are searched as
+  /// "person". Empty when nothing is left, only the speaker or the
+  /// listener, or only a place with no thing in it ([_onlyAPlace]: "on the
+  /// left", "behind me", "in front of the camera"): such a query names
+  /// nothing a frame can match, and the newest frame answers.
   @visibleForTesting
-  static String memoryPhrase(List<String> rest) {
+  static String memoryPhrase(
+    List<String> rest, {
+    CocoVocabulary vocabulary = kCocoVocabulary,
+  }) {
     var end = rest.indexWhere(_memoryClauseWords.contains);
     if (end < 0) end = rest.length;
     var start = 0;
     if (end > 0 && _whWords.contains(rest.first)) {
       (start, end) = _embeddedSpan(rest, end);
     }
-    while (start < end && _memoryLeading.contains(rest[start])) {
+    var anyThing = false;
+    while (start < end &&
+        (_memoryLeading.contains(rest[start]) ||
+            _anyThing.contains(rest[start]))) {
+      anyThing = anyThing || _anyThing.contains(rest[start]);
       start++;
     }
     var trimmed = true;
@@ -320,8 +359,32 @@ final class QuestionRouter {
     }
     final words = rest.sublist(start, end);
     if (words.every(_selfOrListener.contains)) return '';
-    return words.join(' ');
+    if (_onlyAPlace(words)) return '';
+    if (anyThing &&
+        words.length == 1 &&
+        !_colours.contains(words.single) &&
+        vocabulary.resolveNoun(words.single) == null) {
+      return '';
+    }
+    return [for (final w in words) _anyPerson.contains(w) ? 'person' : w]
+        .join(' ');
   }
+
+  /// Whether [words] are a place with no thing in it: a place word
+  /// ([_placeAt]), then only positions ("left", "corner", "camera"…), the
+  /// speaker or the listener, and determiners ("on the left", "behind me",
+  /// "next to you", "to the left", "in front of the camera", "in the top
+  /// left corner").
+  static bool _onlyAPlace(List<String> words) =>
+      _placeAt(words, 0) &&
+      words
+          .skip(1)
+          .every(
+            (w) =>
+                _positions.contains(w) ||
+                _selfOrListener.contains(w) ||
+                _placeFiller.contains(w),
+          );
 
   /// The earliest trigger, the longest one at that position.
   static (int, _Trigger)? _findTrigger(List<String> words) {
@@ -344,6 +407,25 @@ final class QuestionRouter {
       if (words[at + j] != seq[j]) return false;
     }
     return true;
+  }
+
+  /// Where memory cue [cue] ends when it starts at [at] in [words], with
+  /// any [_cueAdverbs] between its words skipped ("did you just see", "have
+  /// you ever seen", "where did I just put"); -1 when it does not match.
+  /// Never before its first word, and never after its last: the words after
+  /// the cue are the phrase's.
+  static int _cueEnd(List<String> words, int at, List<String> cue) {
+    var i = at;
+    for (var j = 0; j < cue.length; j++) {
+      if (j > 0) {
+        while (i < words.length && _cueAdverbs.contains(words[i])) {
+          i++;
+        }
+      }
+      if (i >= words.length || words[i] != cue[j]) return -1;
+      i++;
+    }
+    return i;
   }
 
   /// The noun phrase after a trigger (leading determiners dropped, at most
@@ -387,12 +469,135 @@ final class QuestionRouter {
     _MemoryCue('seen', ['do', 'you', 'remember', 'seeing']),
     _MemoryCue('remember', ['do', 'you', 'remember']),
     _MemoryCue('seen', ['where', 'did', 'you', 'see']),
+    _MemoryCue('seen', ['where', 'did', 'you', 'last', 'see']),
     _MemoryCue('where-did-i', ['where', 'did', 'i', 'leave']),
     _MemoryCue('where-did-i', ['where', 'did', 'i', 'put']),
     _MemoryCue('where-did-i', ['where', 'have', 'i', 'left']),
     _MemoryCue('where-did-i', ['where', 'have', 'i', 'put']),
     _MemoryCue('where-did-i', ['where', 'did', 'i', 'last', 'see']),
+    // "What was on the table?": the past of "what is on the table?" (a
+    // question about the frame). Only before a place word, which stays in
+    // the phrase ("on the table"): "what was that?" is not about a place.
+    _MemoryCue('what-was', ['what', 'was'], before: _placeAt),
+    _MemoryCue('what-was', ['what', 'were'], before: _placeAt),
   ];
+
+  /// Skipped between a memory cue's words: "what did you just see?", "have
+  /// you ever seen …?", "where did I just put …?".
+  static const _cueAdverbs = {'just', 'ever', 'already', 'recently'};
+
+  /// Whether a place starts at [at] in [words]: one of [_placeWords], with
+  /// "next" only before "to" ("what was next?" is not about a place) and
+  /// "to" only before a side ("to the left", "to your right"; not "what was
+  /// to blame?"). The one definition of a place word, for the "what
+  /// was/were" cue and for a phrase that is only a place ([_onlyAPlace]).
+  static bool _placeAt(List<String> words, int at) {
+    String? word(int i) => i < words.length ? words[i] : null;
+    final first = word(at);
+    if (first == null || !_placeWords.contains(first)) return false;
+    return switch (first) {
+      'next' => word(at + 1) == 'to',
+      'to' =>
+        _sides.contains(word(at + 1)) ||
+            (_placeFiller.contains(word(at + 1)) &&
+                _sides.contains(word(at + 2))),
+      _ => true,
+    };
+  }
+
+  /// Start a place: "what was on the table?", "what were in the box?",
+  /// "what was above the sink?", "what was next to the laptop?", "what was
+  /// to the left of the laptop?" (see [_placeAt] for "next" and "to").
+  static const _placeWords = {
+    'above',
+    'at',
+    'behind',
+    'below',
+    'beneath',
+    'beside',
+    'by',
+    'in',
+    'inside',
+    'near',
+    'next',
+    'on',
+    'over',
+    'to',
+    'under',
+    'underneath',
+  };
+
+  /// What "to" must name to start a place ("to the left").
+  static const _sides = {'left', 'right'};
+
+  /// Where in the view, not what: "on the left", "in the corner", "in front
+  /// of the camera".
+  static const _positions = {
+    'back',
+    'background',
+    'bottom',
+    'camera',
+    'center',
+    'centre',
+    'corner',
+    'corners',
+    'edge',
+    'foreground',
+    'front',
+    'left',
+    'middle',
+    'right',
+    'screen',
+    'side',
+    'sides',
+    'top',
+  };
+
+  /// Between a place word and its position: "in the far left corner", "on
+  /// your right", "next to me".
+  static const _placeFiller = {
+    'a',
+    'far',
+    'lower',
+    'my',
+    'of',
+    'our',
+    'the',
+    'this',
+    'to',
+    'upper',
+    'your',
+  };
+
+  /// A colour after "anything"/"something" is searched ("anything red");
+  /// another word that is no COCO noun ("anything unusual") is not.
+  static const _colours = {
+    'beige',
+    'black',
+    'blue',
+    'brown',
+    'gold',
+    'golden',
+    'gray',
+    'green',
+    'grey',
+    'orange',
+    'pink',
+    'purple',
+    'red',
+    'silver',
+    'white',
+    'yellow',
+  };
+
+  /// A phrase that names no thing ("did you see anything?"): nothing to
+  /// search for, so the newest stored frame answers, as for "what did you
+  /// see?"; dropped at the start of a phrase ("anything red" → "red").
+  static const _anyThing = {'anything', 'something', 'everything'};
+
+  /// Any person: searched as "person", a noun a frame can match (the
+  /// pronoun itself names nothing a frame shows).
+  static const _anyPerson = {'anyone', 'someone', 'anybody', 'somebody'};
 
   /// Dropped at the start of a memory query (a pronoun alone leaves
   /// nothing to search with: the newest frame answers then), with the
@@ -508,6 +713,11 @@ final class QuestionRouter {
   static const _memoryTrailingPhrases = [
     ['just', 'now'],
     ['here'],
+    // Where the camera looks, not a thing: "what was in front of me?" has
+    // nothing to search for.
+    ['in', 'front', 'of', 'me'],
+    ['in', 'front', 'of', 'us'],
+    ['in', 'front', 'of', 'you'],
     ['in', 'the', 'picture'],
     ['in', 'the', 'frame'],
     ['in', 'the', 'image'],
@@ -524,10 +734,13 @@ final class QuestionRouter {
   static const _presentTimeMarkers = ['now', 'currently', 'at the moment'];
 
   /// After a memory cue, these mark the frame too ("have you seen a dog
-  /// here?"), unless a [_pastMarkers] word overrides them ("… here
-  /// earlier?").
+  /// here?", "… a cat in front of you?"), unless a [_pastMarkers] word
+  /// overrides them ("… here earlier?", "what was in front of me?").
   static const _presentPlaceMarkers = [
     'here',
+    'in front of me',
+    'in front of us',
+    'in front of you',
     'in the picture',
     'in the frame',
     'in the image',
@@ -981,18 +1194,27 @@ final class QuestionRouter {
   };
 }
 
-/// The transcript as lowercase words: contractions expanded, punctuation
-/// dropped, "right now" → "now" (so "right" stays a position cue).
+/// The transcript as lowercase words: contractions expanded ("'s" after a
+/// few words, "'re", "n't", "'m", "'ve" → "have" and "'d" by
+/// [_expandD]'s rule), punctuation dropped, "right now" → "now" (so
+/// "right" stays a position cue).
 List<String> normalizeQuestion(String transcript) {
   var text = transcript.toLowerCase().replaceAll('’', "'");
   text = text.replaceAllMapped(
     RegExp(r"\b(what|where|who|there|it|that|how|here)'s\b"),
     (m) => '${m[1]} is',
   );
+  // The word after "'d" decides what it stands for (a lookahead, so it is
+  // still there for the next contraction).
+  text = text.replaceAllMapped(
+    RegExp(r"\b([a-z]+)'d\b(?=(?:\s+([a-z]+))?)"),
+    (m) => _expandD(m[1]!, m[2]),
+  );
   text = text
       .replaceAll("'re", ' are')
       .replaceAll("n't", ' not')
       .replaceAll("'m", ' am')
+      .replaceAll("'ve", ' have')
       .replaceAll(RegExp('[^a-z0-9 ]'), ' ');
   text = ' ${text.split(RegExp(r'\s+')).where((w) => w.isNotEmpty).join(' ')} '
       .replaceAll(' right now ', ' now ')
@@ -1001,13 +1223,105 @@ List<String> normalizeQuestion(String transcript) {
   return text.split(' ').where((w) => w.isNotEmpty).toList();
 }
 
+/// "'d" expanded by the word it follows ([host]) and the word after it
+/// ([next]); decided: only where one reading is grammatical, or where both
+/// route alike.
+///
+/// - After a wh-word it is "did" ("where'd I put …", "what'd you see?"),
+///   or "had" before a past participle ("who'd seen my keys?"). "Would"
+///   ("what'd you like?") routes like "did": no rule reads either.
+/// - After a subject pronoun ("I", "you", "it", "that", "there"…) it is
+///   "had" before a past participle or a past form ("I'd left", "she'd
+///   seen") and "would" before a verb that only "would" takes ("I'd like",
+///   "it'd be", "I'd rather"). Otherwise it is dropped: "where I'd put my
+///   keys" may be either, and the bare verb keeps the clause's sense for
+///   the router ("where I put my keys").
+/// - After any other word it is left alone (a stray "d" after the
+///   punctuation is dropped).
+String _expandD(String host, String? next) {
+  final participle =
+      next != null &&
+      (QuestionRouter._isPastVerb(next) || _participles.contains(next));
+  if (_dWhWords.contains(host)) return '$host ${participle ? 'had' : 'did'}';
+  if (_dSubjects.contains(host)) {
+    if (participle) return '$host had';
+    if (_afterWould.contains(next)) return '$host would';
+    return host;
+  }
+  return "$host'd";
+}
+
+/// "'d" after these is "did" (or "had" before a participle).
+const _dWhWords = {'what', 'where', 'when', 'who', 'how', 'why', 'which'};
+
+/// "'d" after these is "had" or "would", by the word after it.
+const _dSubjects = {
+  'i',
+  'you',
+  'we',
+  'he',
+  'she',
+  'they',
+  'it',
+  'that',
+  'there',
+};
+
+/// Irregular past participles that are no verb's base form ("put" is one,
+/// so it is not here): "had" before them, as before a past form in
+/// `QuestionRouter._pastVerbs` or a regular "-ed" one.
+const _participles = {
+  'been',
+  'bought',
+  'broken',
+  'done',
+  'eaten',
+  'fallen',
+  'forgotten',
+  'found',
+  'given',
+  'gone',
+  'gotten',
+  'heard',
+  'hidden',
+  'kept',
+  'known',
+  'lost',
+  'seen',
+  'shown',
+  'stolen',
+  'taken',
+  'thrown',
+  'told',
+  'worn',
+  'written',
+};
+
+/// Verbs that follow "would" and never "had": "I'd like", "it'd be".
+const _afterWould = {
+  'be',
+  'guess',
+  'have',
+  'imagine',
+  'like',
+  'love',
+  'prefer',
+  'rather',
+  'say',
+  'think',
+};
+
 enum _Kind { inventory, count, presence }
 
 final class _MemoryCue {
-  const _MemoryCue(this.name, this.words);
+  const _MemoryCue(this.name, this.words, {this.before});
 
   final String name;
   final List<String> words;
+
+  /// Non-null: the cue counts only when this holds for the words and the
+  /// index right after it; that word is the phrase's first.
+  final bool Function(List<String> words, int at)? before;
 }
 
 final class _Trigger {

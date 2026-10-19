@@ -7,8 +7,8 @@ a voice chat with Gemma and a live camera assistant. Everything runs on the boar
 
 | Model | Runs on |
 |---|---|
-| Chat model, Gemma 4 E2B (`gemma-4-E2B-it.litertlm`) | GPU (LiteRT's WebGPU accelerator on Vulkan; checked on an NVIDIA T4, a physical Jetson's GPU is not verified), or CPU; its vision and audio towers on the CPU |
-| YOLO26n detector (Live camera) | GPU; CPU with **Run detector on CPU** (step 5) |
+| Chat model, Gemma 4 E2B (`gemma-4-E2B-it.litertlm`) | GPU (LiteRT's WebGPU accelerator on Vulkan), or CPU; its vision and audio towers on the CPU |
+| YOLO26n detector (Live camera) | GPU; CPU when chosen in the Live camera settings, or with **Run detector on CPU** if the GPU load fails (step 5) |
 | EmbeddingGemma 2 (knowledge base, visual memory), Whisper base and moonshine tiny (speech to text), Inflect-nano-v2 (spoken replies) | CPU |
 
 The app offers no NPU on a Jetson.
@@ -18,7 +18,7 @@ The app offers no NPU on a Jetson.
 | Board | System | Verdict |
 |---|---|---|
 | Orin Nano 8 GB / Orin Nano Super, Orin NX, AGX Orin | **JetPack 6** (L4T R36, Ubuntu 22.04) or newer | expected to work |
-| Orin Nano 4 GB | JetPack 6 | may need swap to build; Gemma 4 E2B took about 3.3 GB on its own (arm64 CPU, 8192-token context), so expect the GPU load to fail for memory |
+| Orin Nano 4 GB | JetPack 6 | may need swap to build; Gemma 4 E2B alone takes about 3.3 GB of RAM, so expect the GPU load to fail for memory |
 | Any Orin on JetPack 5 (Ubuntu 20.04) | | does not work: the runtime needs a newer glibc. Flash JetPack 6 |
 | Jetson Nano (2019), TX2, Xavier | JetPack 4/5 | does not work |
 
@@ -44,8 +44,10 @@ sudo apt install -y git curl unzip xz-utils patch clang cmake ninja-build pkg-co
 vulkaninfo --summary | grep deviceName     # expect the NVIDIA Tegra Orin GPU; an extra llvmpipe line is Mesa's CPU driver
 ```
 
-`libunwind-dev` is listed on purpose: GStreamer's build files need it, and on Ubuntu 22.04 apt may otherwise keep an
-LLVM `libunwind-*-dev` instead (installing `libunwind-dev` replaces it).
+`libunwind-dev` is listed on purpose: on Ubuntu 22.04 GStreamer's development package depends on it, and an LLVM
+`libunwind-*-dev` package also provides that name
+([libgstreamer1.0-dev](https://packages.ubuntu.com/jammy/libgstreamer1.0-dev)), so apt may keep the LLVM one
+instead; naming `libunwind-dev` installs the package itself.
 
 If `vulkaninfo` lists only `llvmpipe`, the NVIDIA Vulkan driver is missing: `dpkg -S nvidia_icd.json` names the L4T
 package to reinstall (`sudo apt install --reinstall <package>`). `pulseaudio-utils` gives the app `pactl` and
@@ -115,16 +117,16 @@ install it, then starts the app. Each run is logged to `run.log` next to `run.sh
 On **Set up models**, the **Chat model** card lists the files in `~/litert-demos/models/` (**Rescan** if needed,
 **Path…** for a file elsewhere). Choose `gemma-4-E2B-it.litertlm`, select **GPU**, then **Use this model**.
 
-- **The first start on the GPU is slow:** the runtime compiles its GPU programs once and caches them (minutes on an
-  Orin Nano). Later starts take seconds.
+- **The first start on the GPU is slow:** the runtime compiles its GPU programs once and caches them. Later starts
+  take seconds.
 - **The GPU shares the board's RAM.** On an 8 GB board, close the browser and other apps before loading Gemma.
 - If a model cannot load on the GPU, the app says so and offers the CPU (**Run on CPU**, **Run detector on CPU**);
   it never switches on its own. **This device** and the diagnostics overlay show where each model runs.
 
 ## 6. Use it and check it
 
-- **Voice chat:** hold the mic button, speak, release; or type. "Which accelerator are you running on?" names where
-  each model runs.
+- **Voice chat:** hold the mic button, speak, release; or type. Type "Which accelerator are you running on?": the
+  app answers it and names where each model runs.
 - **Live camera:** choose the camera with the **Camera** button at the top of the demo: a USB webcam, or a network
   camera such as a phone running IP Webcam. Hold the mic and ask "What do you see?", "Describe the scene".
   It also remembers what it saw: "Where was the yellow sign?" shows the frame and how long ago it was.
@@ -153,7 +155,7 @@ On **Set up models**, the **Chat model** card lists the files in `~/litert-demos
 | After a failed build, `file INSTALL cannot copy file … to "/usr/local/…": Permission denied` | CMake kept a default install prefix from the failed run: `rm -r build/linux` and build again |
 | The build stops with `Killed` | Out of memory: close other apps, or add swap (`sudo fallocate -l 4G /swapfile && sudo chmod 600 /swapfile && sudo mkswap /swapfile && sudo swapon /swapfile`) |
 | `package.sh: … exists; move it away first` | `rm -r build/dist/litert_edge_demos-v*`, then run it again |
-| The report says `llvmpipe` or `CPU / Software` | The NVIDIA Vulkan driver is missing (step 1), or use the CPU |
+| The report says `llvmpipe` or `SOFTWARE` | The NVIDIA Vulkan driver is missing (step 1), or use the CPU |
 | The first detector check fails once with `LiteRtLockTensorBuffer … RuntimeFailure` | Start again: the first GPU run compiles programs |
 | The app closes while loading Gemma on an Orin Nano | Out of memory: close other apps, run the detector on the CPU, or use the CPU for Gemma |
 | "No sound server" / "Microphone unavailable" | `pulseaudio --start` (JetPack 6 uses PulseAudio); `sudo apt install pulseaudio-utils` |

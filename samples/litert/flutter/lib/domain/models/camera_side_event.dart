@@ -46,8 +46,9 @@ final class const RouteChosen(final RouteDecision route, final Duration elapsed)
 final class const CameraChatUnavailable(final String message)
     extends CameraSideEvent;
 
-/// The snapshot went to Gemma as [image]: its frame id is
-/// the frozen frame's.
+/// A frame went to Gemma as [image]: on the detailed path the snapshot (its
+/// frame id is the frozen frame's), on the memory path the remembered frame
+/// (encoded when it was stored: no encode time).
 final class const FrameSentToGemma(final EncodedSnapshot image)
     extends CameraSideEvent;
 
@@ -105,8 +106,8 @@ final class const CameraTurnMetrics({
   /// Why no frame could be captured; null when one was.
   final String? snapshotError,
 
-  /// Detailed turns: the PNG sent to Gemma (frame id, size, encode time),
-  /// and Gemma's time to first token.
+  /// Detailed and memory turns: the PNG sent to Gemma (frame id, size,
+  /// encode time), and Gemma's time to first token.
   final EncodedSnapshot? image,
   final Duration? timeToFirstToken,
 

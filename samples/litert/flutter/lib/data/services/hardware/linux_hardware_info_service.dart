@@ -23,8 +23,8 @@ import 'system_access.dart';
 
 /// Linux: `/proc`, `/sys`, `/etc`, `vulkaninfo`, `nvpmodel`, `pactl` and glibc.
 /// Every read goes through [SystemFiles] / [ProcessRunner], so tests run on
-/// fake trees (a T4 VM, a Jetson, an arm64 VM, llvmpipe only, a Qualcomm board
-/// whose GPU only Vulkan names).
+/// fake trees (a VM with an NVIDIA GPU, a Jetson, an arm64 VM, llvmpipe only,
+/// a Qualcomm board whose GPU only Vulkan names).
 final class LinuxHardwareInfoService implements HardwareInfoService {
   LinuxHardwareInfoService({
     this._files = const LocalSystemFiles(),
@@ -538,7 +538,7 @@ GpuInfo pciGpu(int vendor, int device, {String? source, String? driver}) {
 /// [found] — no NVIDIA driver, no PCI or DRM GPU with vendor and device ids,
 /// no Jetson iGPU — each hardware device in [vulkan], inferred from
 /// `vulkaninfo`: an SoC's GPU is often a platform device with no ids in
-/// sysfs (the Adreno 623 of a Qualcomm QCS8275 board under Mesa turnip).
+/// sysfs (a Qualcomm board's Adreno under Mesa turnip).
 /// Software devices (llvmpipe, lavapipe, SwiftShader) never count, a device
 /// listed twice under the same name counts once, and a VM display adapter in
 /// [found] is no GPU. The API is plain `Vulkan`: the version is on the

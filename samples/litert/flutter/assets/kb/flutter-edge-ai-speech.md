@@ -1,16 +1,16 @@
 ---
 title: On-device speech with flutter_edge_ai_speech
-source: https://pub.dev/packages/flutter_edge_ai/versions/2.1.1 (skills/flutter-edge-ai-speech/SKILL.md) ; https://pub.dev/packages/flutter_edge_ai_speech/versions/0.5.4 (README.md, CHANGELOG.md, lib/src/voice/voice_session.dart, lib/src/voice/voice_event.dart, lib/src/voice/voice_responder.dart, lib/src/voice/clause_splitter.dart) ; https://github.com/DenisovAV/flutter_edge_ai/tree/main/packages/flutter_edge_ai_speech
+source: https://pub.dev/packages/flutter_edge_ai/versions/2.4.0 (skills/flutter-edge-ai-speech/SKILL.md, CHANGELOG.md, lib/src/api/flutter_edge_ai.dart) ; https://pub.dev/packages/flutter_edge_ai_speech/versions/0.5.7 (README.md, CHANGELOG.md, lib/src/voice/voice_session.dart, lib/src/voice/voice_event.dart, lib/src/voice/voice_responder.dart, lib/src/voice/clause_splitter.dart) ; https://github.com/DenisovAV/flutter_edge_ai/tree/d35c575ab91e078c47201131800cf33dd7630833/packages/flutter_edge_ai_speech
 license: MIT
 ---
 
 # On-device speech with flutter_edge_ai_speech
 
-This document explains flutter_edge_ai_speech (formerly flutter_gemma_speech), the opt-in package for on-device speech-to-text, text-to-speech and the VoiceSession voice loop. It covers the STT models (moonshine, Whisper, Parakeet), the 16 kHz PCM input contract, the Whisper output language, the TTS models (Matcha, Qwen3-TTS, Inflect-Nano-v2), streaming reply audio, barge-in and platform support.
+This document explains flutter_edge_ai_speech (formerly flutter_gemma_speech), the opt-in package for on-device speech-to-text, text-to-speech and the VoiceSession voice loop. It covers the STT models (moonshine, Whisper, Parakeet), the 16 kHz PCM input contract, the Whisper output language, the TTS models (Matcha, Qwen3-TTS, Inflect-Nano-v2), audio turns without speech-to-text, streaming reply audio, barge-in and platform support.
 
 ## What flutter_edge_ai_speech provides and where it runs
 
-flutter_edge_ai_speech is on-device speech for flutter_edge_ai — STT, TTS, and a VoiceSession voice loop — via the LiteRT C API and dart:ffi. It is an opt-in package: add it only if your app needs speech-to-text, text-to-speech, or a push-to-talk voice loop. It depends on flutter_edge_ai_litertlm, which owns the shared libLiteRtLm native bundle and exposes the LiteRT interpreter FFI used here; the package has no build hook of its own, and speech runs on the same native libraries as the .litertlm engine.
+flutter_edge_ai_speech is on-device speech for flutter_edge_ai — STT, TTS, and a VoiceSession voice loop — via the LiteRT C API and dart:ffi. It is an opt-in package: add it only if your app needs speech-to-text, text-to-speech, or a push-to-talk voice loop. It depends on flutter_edge_ai_litertlm, which owns the shared libLiteRtLm native bundle and exposes the LiteRT C API bindings (LiteRtBindings) used here; the package has no build hook of its own, and speech runs on the same native libraries as the .litertlm engine.
 
 STT works end-to-end for moonshine-tiny (raw-PCM seq2seq), Whisper and Parakeet (log-mel) via LiteRtSttBackend. TTS works end-to-end for Matcha, Qwen3-TTS and Inflect-Nano-v2 via LiteRtTtsBackend; kokoro and supertonic are follow-ons. Both backends are pure factories — the model is selected per install via SttModelType or TtsModelType, not by the backend.
 
@@ -104,7 +104,7 @@ Play synthesized audio at synth.sampleRate, because it differs per model; playin
 
 ## Shipping a text-to-speech voice inside the app
 
-A voice can ship with the app instead of being downloaded: swap fromNetwork for fromAsset, fromFile or fromBundled on the same installTts() builder. fromAsset('assets/tts/matcha/') takes a Flutter asset directory laid out like the Hugging Face repo — declare every subdirectory in pubspec.yaml, for example Qwen3's tables/ and voices/ — and copies it into app storage. fromFile('/abs/dir') takes a directory on disk with the same layout and uses it in place, so uninstallTts() deletes those files. fromBundled() takes native resources named <type>__<file>, for example matcha__config.json, from Android's assets/models/ or the iOS Runner target, on Android and iOS only.
+A voice can ship with the app instead of being downloaded: swap fromNetwork for fromAsset, fromFile or fromBundled on the same installTts() builder. fromAsset('assets/tts/matcha/') takes a Flutter asset directory laid out like the Hugging Face repo — declare every subdirectory in pubspec.yaml, for example Qwen3's tables/ and voices/ — and copies it into app storage. fromFile('/abs/dir') takes a directory on disk with the same layout and uses it in place; those files stay the app's own, and uninstallTts() leaves them where they are (since flutter_edge_ai 2.2.1, uninstalling deletes only core's copies). fromBundled() takes native resources named <type>__<file>, for example matcha__config.json, from Android's assets/models/ or the iOS Runner target, on Android and iOS only.
 
 Inflect's four Matcha grapheme-to-phoneme files go next to its own two model files. A missing file fails install() with the full list before the current voice is replaced; a switch that fails partway, for example on a lost connection, leaves no voice active, so getActiveTts throws until install() is run again. install() throws UnsupportedError on web. To ship a changed voice in an app update, use a new asset directory (a bundled voice refreshes itself); with fromFile on iOS, call install() at launch, because the app's data directory moves on update.
 
@@ -126,7 +126,13 @@ When the chat has no tools, this is the plain text-only path. A chat with tools 
 
 ## VoiceSession.custom and the VoiceResponder
 
-VoiceSession.custom is the general constructor — any LLM behind a VoiceResponder. Use it for an AgentSession or MCP responder. A VoiceResponder is the LLM step of a voice turn: it streams the reply's tokens for a user utterance through respond, and offers a portable stop for barge-in, for example chat.stopGeneration. Its contract is that stop() must cause the respond stream to terminate promptly. VoiceSession.interrupt drains with a timeout, so a stop() that does not end the stream will not hang the session, but it defers the interrupt and leaves generation running in the background.
+VoiceSession.custom is the general constructor — any LLM behind a VoiceResponder. Use it for an AgentSession or MCP responder. A VoiceResponder is the LLM step of a voice turn: it streams the reply's tokens for a user utterance through respond, optionally streams them for the recording itself through respondToAudio (the hook of runAudioTurn, below), and offers a portable stop for barge-in, for example chat.stopGeneration. Its contract is that stop() must cause the respond or respondToAudio stream to terminate promptly. VoiceSession.interrupt drains with a timeout, so a stop() that does not end the stream will not hang the session, but it defers the interrupt and leaves generation running in the background.
+
+## Audio turns: runAudioTurn without speech-to-text
+
+Since flutter_edge_ai_speech 0.5.7, VoiceSession.runAudioTurn sends the recording itself to a model that hears audio — Gemma 4 E2B or E4B as `.litertlm`, on native platforms — and skips speech-to-text. It takes the same 16 kHz mono 16-bit PCM as runTurn and wraps it in a WAV header, because a `.litertlm` model decodes an audio file. Load the model with getActiveModel(supportAudio: true), which loads the audio encoder; createChat takes supportAudio from the model unless it is passed, and VoiceSession.fromChat wires the audio path for a chat whose supportAudio is true. On a chat without it, runAudioTurn throws StateError.
+
+An audio turn emits the events of runTurn without the VoiceTranscriptEvent: the complete and interrupted events carry an empty transcript, and a recording under 2 bytes, a push-to-talk tap, completes without asking the model. Barge-in and the one-turn-in-flight rule are the same as in runTurn. One difference lies in the engine: after a barge-in a `.litertlm` chat rebuilds its conversation from the turns' text, so the model forgets what was said in earlier audio turns, while its own replies stay. With VoiceSession.custom the hook is VoiceResponder.respondToAudio: it receives that WAV and can pass it on as is, for example to AgentSession.ask(audioBytes:); without it, runAudioTurn throws StateError.
 
 ## Streaming reply audio sentence by sentence
 

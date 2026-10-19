@@ -1,5 +1,5 @@
 {
- "measured": "EmbeddingGemma 2 740m (embeddinggemma-2-740m.litertlm, text) over the 304 knowledge-base chunks: top cosine similarity per trigger phrase (integration_test/kb_retrieval_test.dart, macOS CPU, 2026-10-14)",
+ "measured": "EmbeddingGemma 2 740m (embeddinggemma-2-740m.litertlm, text) over the 308 knowledge-base chunks: top cosine similarity per trigger phrase (integration_test/kb_retrieval_test.dart, macOS CPU, 2026-10-17)",
  "gate": 0.7,
  "phrases": [
   {
@@ -29,8 +29,8 @@
   {
    "skill": "device-info",
    "q": "What models are loaded and how much memory do you use?",
-   "top": 0.766,
-   "doc": "gemma-4-e2b.md#13"
+   "top": 0.773,
+   "doc": "embeddinggemma.md#4"
   },
   {
    "skill": "device-info",
@@ -77,32 +77,32 @@
   {
    "skill": "timer",
    "q": "Cancel the tea timer",
-   "top": 0.645,
-   "doc": "flutter-edge-ai-agent-skills.md#17"
+   "top": 0.634,
+   "doc": "flutter-edge-ai-agent-skills.md#21"
   },
   {
    "skill": "timer",
    "q": "How long is left on my timers?",
-   "top": 0.613,
-   "doc": "flutter-edge-ai-agent-skills.md#17"
+   "top": 0.604,
+   "doc": "flutter-edge-ai-agent-skills.md#21"
   },
   {
    "skill": "current-time",
    "q": "What time is it?",
    "top": 0.643,
-   "doc": "flutter-edge-ai-agent-skills.md#19"
+   "doc": "flutter-edge-ai-agent-skills.md#23"
   },
   {
    "skill": "current-time",
    "q": "What's the date today?",
    "top": 0.635,
-   "doc": "flutter-edge-ai-agent-skills.md#19"
+   "doc": "flutter-edge-ai-agent-skills.md#23"
   },
   {
    "skill": "current-time",
    "q": "What day of the week is it?",
    "top": 0.624,
-   "doc": "flutter-edge-ai-agent-skills.md#19"
+   "doc": "flutter-edge-ai-agent-skills.md#23"
   },
   {
    "skill": "camera-watch",

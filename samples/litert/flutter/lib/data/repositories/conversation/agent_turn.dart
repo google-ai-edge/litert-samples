@@ -115,17 +115,14 @@ Future<void> _runAgentTurn(
   MirrorSlot? slot;
   final reply = StringBuffer();
   final fold = AgentTurnFold(clock: () => metrics.elapsed, onStep: onStep);
-  // The turn ended normally (AssistantDone): only then is an intent's result
-  // the answer the user heard.
-  var succeeded = false;
   // An interrupted skill call's rebuild, announced with the budget guard's
   // replay (how many turns the rebuilt chat keeps).
   ContextResetReason? staleReset;
   try {
-    // 0. The last agent turn ended with input staged (LiteRT-LM would prepend
-    //    it to the next user message). The model forgets the history while the
-    //    screen still shows it: announce it like a budget reset, with its own
-    //    reason.
+    // 0. The last agent turn ended with input staged
+    //    (flutter_edge_ai_litertlm's FFI session would prepend it to the next
+    //    user message). The model forgets the history while the screen still
+    //    shows it: announce it like a budget reset, with its own reason.
     if (live.staleToolTail) {
       debugPrint(
         '[Conversation] the last agent turn ended without a final '
@@ -229,15 +226,30 @@ Future<void> _runAgentTurn(
     // isCancelled poll, and every poll follows staged input (the prompt, a tool
     // response, or the `cancelled` answers it writes itself without an event),
     // or by running out of rounds after staging the last responses. A stop that
-    // cuts a generation ends with DoneEvent and stages nothing, so the chat is
-    // kept then.
+    // cuts a generation usually ends with DoneEvent and stages nothing, so the
+    // chat is kept then. Not right after a successful loadSkill (or a retry's
+    // nudge): flutter_edge_ai_agent 0.3.0 ends such a cut generation, when it
+    // has no text yet, with no event at all (with text it ends with a
+    // DoneEvent), as it ends a cancel seen at a poll, so the two cannot be
+    // told apart and the chat is rebuilt although nothing was staged (the
+    // next turn replays the text history and says so).
     if (!fold.finished) live.markStaleToolTail();
     if (fold.maxIterations > 0) {
       emit(AssistantFailed(SkillLoopException(fold.maxIterations)));
       return;
     }
+    // No answer after a loaded skill (the package's EmptyAnswerEvent: after
+    // its one retry, or with none when maxIterations left no generation for
+    // it): a failure the user sees, like the empty reply of any turn. A
+    // stopped turn ends as stopped instead.
+    if (fold.noAnswerAfter case final skill? when !stopped) {
+      debugPrint(
+        '[Conversation] no answer after loadSkill($skill) (EmptyAnswerEvent)',
+      );
+      emit(AssistantFailed(EmptyAnswerAfterSkillException(skill)));
+      return;
+    }
     final after = sessionMetricsOf(chat);
-    succeeded = true;
     emit(
       AssistantDone(
         metrics.finished(
@@ -271,16 +283,7 @@ Future<void> _runAgentTurn(
     }
     emit(AssistantFailed(asException(e)));
   } finally {
-    if (slot != null) {
-      final text = reply.toString();
-      // A final generation that came back empty after an intent: its result
-      // is what the user hears (ChatTurnResponder speaks it), so it is the
-      // reply a rebuilt chat replays.
-      final kept = text.trim().isEmpty && succeeded && !live.stopRequested
-          ? fold.lastIntentResult ?? text
-          : text;
-      live.mirror.reply(slot, kept);
-    }
+    if (slot != null) live.mirror.reply(slot, reply.toString());
     live.endTurn(done);
   }
 }

@@ -88,10 +88,19 @@ typedef ViewChangedOf = bool Function(int index, int best);
 ///   or with a rival within the margin (a faint best that does not stand out
 ///   from the rest is not a sighting, whichever side of the floor it is).
 ///
-/// [cosines] and [atMicros] are per frame, in the same order; [sceneCosine]
-/// gives the image cosine of frame `i` to the best frame, [viewChanged]
-/// whether its thumbnail shows a change from the best's (null: never). Null
-/// for an empty memory.
+/// [cosines] and [atMicros] are per frame, in the same order: the order of
+/// sightings, oldest first, as the store keeps them (it only refreshes the
+/// newest frame in place). "Newest" means the latest in that order, never
+/// the largest [atMicros]: those are wall-clock times, which a clock set
+/// back can reorder. The time separation is measured on [atMicros].
+/// [sceneCosine] gives the image cosine of frame `i` to the best frame,
+/// [viewChanged] whether its thumbnail shows a change from the best's
+/// (null: never). Null for an empty memory.
+///
+/// A score that is not a finite number (NaN from an unusable vector) is
+/// never the best, a rival or a reported frame; when no score is finite the
+/// verdict is rejected (`no score is a number`) with a NaN cosine. Of equal
+/// best scores the earliest frame is the best.
 MemoryVerdict? judgeMemory({
   required List<double> cosines,
   required List<int> atMicros,
@@ -109,29 +118,47 @@ MemoryVerdict? judgeMemory({
     );
   }
   if (cosines.isEmpty) return null;
-  var best = 0;
-  for (var i = 1; i < cosines.length; i++) {
-    if (cosines[i] > cosines[best]) best = i;
+  // A NaN compares false with everything: as the first score it would stay
+  // the best and pass every test below. Only finite scores take part.
+  var best = -1;
+  for (var i = 0; i < cosines.length; i++) {
+    if (!cosines[i].isFinite) continue;
+    if (best < 0 || cosines[i] > cosines[best]) best = i;
+  }
+  if (best < 0) {
+    return const MemoryVerdict(
+      best: 0,
+      cosine: double.nan,
+      outcome: MemoryOutcome.rejected,
+      reason: 'no score is a number',
+    );
   }
   final top = cosines[best];
   final apart = separation.inMicroseconds;
-  // The image cosines to the best frame, asked once per frame.
+  // The image cosines to the best frame, asked once per frame (not for a
+  // frame without a finite score, which takes no part).
   final scene = [
     for (var i = 0; i < cosines.length; i++)
-      i == best ? 1.0 : sceneCosine(i, best),
+      i == best
+          ? 1.0
+          : cosines[i].isFinite
+          ? sceneCosine(i, best)
+          : double.nan,
   ];
   double? rival;
   for (var i = 0; i < cosines.length; i++) {
-    if (i == best) continue;
+    if (i == best || !cosines[i].isFinite) continue;
     if ((atMicros[i] - atMicros[best]).abs() <= apart) continue;
     if (scene[i] >= sameScene) continue;
     if (rival == null || cosines[i] > rival) rival = cosines[i];
   }
-  // The newest frame [keep] admits; the best when none is newer.
+  // The newest frame [keep] admits; the best when none is newer. Newest by
+  // index (the order of sightings), not by time: a wall clock set back
+  // would make a later sighting look older.
   int newest(bool Function(int i) keep) {
     var pick = best;
     for (var i = 0; i < cosines.length; i++) {
-      if (keep(i) && atMicros[i] > atMicros[pick]) pick = i;
+      if (keep(i) && i > pick) pick = i;
     }
     return pick;
   }

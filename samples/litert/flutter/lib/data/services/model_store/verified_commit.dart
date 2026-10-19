@@ -21,6 +21,10 @@ import 'checksum_record.dart';
 import 'model_file_ops.dart';
 import 'store_operation.dart';
 
+/// Where a verified file whose SHA-256 is the argument goes, instead of the
+/// target it was written for (`VerifiedCommit.commit`).
+typedef PlaceFor = Future<File> Function(String hex);
+
 /// What a stored file must be: [name], [sizeBytes], and [sha256] when the
 /// user gave one; [source] is where it came from (a URL or a path), for
 /// the messages.
@@ -49,6 +53,9 @@ final class const ExpectedFile({
 ///
 /// State goes to a [FileStateReporter]: [StoreFileVerifying] at once, then
 /// as progress; [StoreFileReady] once committed. Logs as `[ModelStore]`.
+///
+/// Where the file goes can depend on its hash ([PlaceFor]): the model store
+/// keeps another file away from the one its chat model uses.
 final class VerifiedCommit {
   const VerifiedCommit(this._ops);
 
@@ -78,14 +85,15 @@ final class VerifiedCommit {
   }
 
   /// Checks [temp]'s size (a wrong one deletes it), hashes it and [commit]s
-  /// it onto [target]; returns the hash.
+  /// it onto [target] (or where [placeFor] says); returns the hash.
   Future<String> verifyAndCommit(
     ExpectedFile expected,
     File temp,
     File target,
     CancelToken cancel,
-    FileStateReporter reporter,
-  ) async {
+    FileStateReporter reporter, {
+    PlaceFor? placeFor,
+  }) async {
     final length = await temp.length();
     if (length != expected.sizeBytes) {
       await deleteQuietly(temp);
@@ -103,22 +111,23 @@ final class VerifiedCommit {
       cancel,
       reporter,
     );
-    await commit(expected, temp, target, hex, reporter);
+    await commit(expected, temp, target, hex, reporter, placeFor: placeFor);
     return hex;
   }
 
-  /// Puts [temp], whose SHA-256 is [hex], in place as [target]. A checksum
-  /// in [expected] must match (a mismatch deletes [temp]); without one,
-  /// [hex] is taken as it is (and recorded). An old record that cannot be
-  /// deleted deletes [temp] and throws [StoreWriteException] before the
-  /// rename.
+  /// Puts [temp], whose SHA-256 is [hex], in place as [target], or as the
+  /// file [placeFor] names for that hash. A checksum in [expected] must match
+  /// (a mismatch deletes [temp]); without one, [hex] is taken as it is (and
+  /// recorded). An old record that cannot be deleted deletes [temp] and
+  /// throws [StoreWriteException] before the rename.
   Future<void> commit(
     ExpectedFile expected,
     File temp,
     File target,
     String hex,
-    FileStateReporter reporter,
-  ) async {
+    FileStateReporter reporter, {
+    PlaceFor? placeFor,
+  }) async {
     if (expected.sha256 case final want? when hex != want) {
       await deleteQuietly(temp);
       throw ChecksumMismatchException(
@@ -128,11 +137,40 @@ final class VerifiedCommit {
         source: expected.source,
       );
     }
-    await _deleteOldRecord(expected.name, temp, target);
-    await temp.rename(target.path);
-    await ChecksumRecord.write(target, hex, expected.name);
-    reporter.report(StoreFileReady(target.path));
-    debugPrint('[ModelStore] ${expected.name}: verified and stored');
+    final into = placeFor == null ? target : await placeFor(hex);
+    final name = into.path == target.path
+        ? expected.name
+        : into.uri.pathSegments.last;
+    // Its record names these bytes already (a file picked again under the
+    // chat model's own name): the record stays, never deleted and written
+    // again, and the bytes are swapped in one rename (a copy damaged in
+    // place since, its size and record unchanged, is still repaired).
+    if (await _recordedAlready(into, temp, hex)) {
+      await temp.rename(into.path);
+      reporter.report(StoreFileReady(into.path));
+      debugPrint('[ModelStore] $name: verified and stored (its record kept)');
+      return;
+    }
+    await _deleteOldRecord(name, temp, into);
+    await temp.rename(into.path);
+    await ChecksumRecord.write(into, hex, name);
+    reporter.report(StoreFileReady(into.path));
+    debugPrint('[ModelStore] $name: verified and stored');
+  }
+
+  /// [target]'s record names [hex] and it is as long as [temp]. False when
+  /// either cannot be read.
+  static Future<bool> _recordedAlready(
+    File target,
+    File temp,
+    String hex,
+  ) async {
+    try {
+      return await ChecksumRecord.read(target) == hex &&
+          await target.length() == await temp.length();
+    } on FileSystemException {
+      return false;
+    }
   }
 
   /// Deletes [target]'s checksum record before [temp] is renamed onto it.

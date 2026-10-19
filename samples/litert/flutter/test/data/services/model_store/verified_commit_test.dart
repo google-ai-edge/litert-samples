@@ -219,6 +219,30 @@ void main() {
       expect(reporter.reported, [ready()]);
     });
 
+    test(
+      'a record that names these bytes already stays: never deleted and '
+      'written again (it cannot be deleted here); the bytes are swapped '
+      'in one rename, so a copy damaged in place is still repaired',
+      () async {
+        target().writeAsBytesSync([0, ...bytes.sublist(1)]); // damaged
+        record().writeAsStringSync('$sha  $name\n');
+        final recordBefore = record().readAsStringSync();
+        temp().writeAsBytesSync(bytes);
+        Process.runSync('chflags', ['uchg', record().path]);
+        addTearDown(
+          () => Process.runSync('chflags', ['nouchg', record().path]),
+        );
+
+        await commit.commit(expected(), temp(), target(), sha, reporter);
+
+        expect(target().readAsBytesSync(), bytes, reason: 'repaired');
+        expect(record().readAsStringSync(), recordBefore);
+        expect(temp().existsSync(), isFalse);
+        expect(reporter.reported, [ready()]);
+      },
+      skip: Platform.isMacOS ? false : 'chflags uchg is macOS only',
+    );
+
     test('the old record goes before the rename: a rename that fails leaves '
         'the file unrecorded, never vouched for', () async {
       storedBefore();

@@ -499,5 +499,290 @@ void main() {
       );
       expect(QuestionRouter.memoryPhrase(['where', 'i', 'was']), '');
     });
+
+    test('"\'d" and "\'ve" in common past-tense questions reach the memory '
+        'cues; an adverb between a cue\'s words is skipped', () {
+      for (final (q, query, rule) in [
+        (" Where'd I put my keys?", 'keys', 'memory:where-did-i'),
+        (' Where’d I leave my phone?', 'phone', 'memory:where-did-i'),
+        (" Where've I put my keys?", 'keys', 'memory:where-did-i'),
+        (" Where'd you see my keys?", 'keys', 'memory:seen'),
+        (" Did you see where I'd left my keys?", 'keys', 'memory:seen'),
+        // "'d put" is had or would: dropped, "where I put my keys".
+        (" Did you see where I'd put my keys?", 'keys', 'memory:seen'),
+        (' Have you ever seen a giraffe?', 'giraffe', 'memory:seen'),
+        (' Did you already see my keys?', 'keys', 'memory:seen'),
+        (' Have you recently seen my phone?', 'phone', 'memory:seen'),
+        (' Did you just see a dog?', 'dog', 'memory:seen'),
+        (' Where did I just put my glasses?', 'glasses', 'memory:where-did-i'),
+        (' When did you just see the remote?', 'remote', 'memory:when-seen'),
+      ]) {
+        final route = memory(q);
+        expect(route.query, query, reason: q);
+        expect(route.rule, rule, reason: q);
+        expect(route.latest, isFalse, reason: q);
+      }
+      for (final q in [
+        " What'd you see?",
+        ' What did you just see?',
+        " What've you seen?",
+        ' What have you already seen?',
+        ' What did you see just now?',
+      ]) {
+        final route = memory(q);
+        expect(route.latest, isTrue, reason: '$q → "${route.query}"');
+        expect(route.rule, 'memory:seen', reason: q);
+      }
+    });
+
+    test('"what was/were" before a place word is the past of "what is on '
+        'the table?": a memory, the place in the query', () {
+      for (final (q, query) in [
+        (' What was on the table?', 'on the table'),
+        (' What were in the box?', 'in the box'),
+        (" What was on the shelf when I left?", 'on the shelf'),
+        (' What was next to the laptop?', 'next to the laptop'),
+        (' What was under the chair 5 minutes ago?', 'under the chair'),
+      ]) {
+        final route = memory(q);
+        expect(route.query, query, reason: q);
+        expect(route.rule, 'memory:what-was', reason: q);
+      }
+      // Where the camera looked, not a thing: the newest stored frame.
+      for (final q in [
+        ' What was in front of me?',
+        ' What was in the picture?',
+        ' What was in this picture?',
+      ]) {
+        expect(memory(q).latest, isTrue, reason: q);
+      }
+    });
+
+    test('a place with no thing in it ("on the left", "behind me", "in the '
+        'corner") names nothing a frame can match: the newest stored frame, '
+        'never a search that falls below the floor', () {
+      for (final q in [
+        ' What was on the left?',
+        ' What was on the right side?',
+        ' What was behind me?',
+        ' What was next to me?',
+        ' What was in the middle?',
+        ' What was in the corner?',
+        ' What was in the top left corner?',
+        ' What was in the background?',
+        ' What was near you?',
+        ' What was in front of the camera?',
+        ' What was on your right?',
+        ' Did you see what was on the left?',
+        ' Did you see something behind me?',
+      ]) {
+        final route = memory(q);
+        expect(route.latest, isTrue, reason: '$q → "${route.query}"');
+      }
+      // A thing at the place is still searched.
+      expect(memory(' What was on the left shelf?').query, 'on the left shelf');
+      expect(
+        memory(' Did you see a cat on the left?').query,
+        'cat on the left',
+      );
+      expect(QuestionRouter.memoryPhrase(['behind', 'me']), '');
+      expect(
+        QuestionRouter.memoryPhrase(['in', 'front', 'of', 'the', 'camera']),
+        '',
+      );
+      // "Next" is a place only before "to".
+      final next = router.classify(' What was next?');
+      expect(next, isA<DetailedRoute>());
+      expect(next.rule, 'default');
+    });
+
+    test('one definition of a place word for the "what was" cue and a '
+        'place-only phrase: above, below, over, underneath, beneath like '
+        'under; "to" only before a side', () {
+      for (final (q, query) in [
+        (' What was above the sink?', 'above the sink'),
+        (' What was below the window?', 'below the window'),
+        (' What was under the sink?', 'under the sink'),
+        (' What was underneath the bed?', 'underneath the bed'),
+        (' What was beneath the desk?', 'beneath the desk'),
+        (' What was over the table?', 'over the table'),
+        (' What was to the left of the laptop?', 'to the left of the laptop'),
+        (' What was to the right of the door?', 'to the right of the door'),
+      ]) {
+        final route = memory(q);
+        expect(route.query, query, reason: q);
+        expect(route.rule, 'memory:what-was', reason: q);
+      }
+      for (final q in [
+        ' What was to the left?',
+        ' What was to my right?',
+        ' What was above me?',
+        ' What was below the camera?',
+      ]) {
+        expect(memory(q).latest, isTrue, reason: q);
+      }
+      // "To" before anything but a side starts no place.
+      expect(router.classify(' What was to blame?'), isA<DetailedRoute>());
+      // The present stays on the frame.
+      expect(router.classify(' What is above the sink?').rule, 'detail:above');
+      expect(QuestionRouter.memoryPhrase(['to', 'the', 'left']), '');
+      // "corner" is a position, but "to" starts a place only before a side.
+      expect(
+        QuestionRouter.memoryPhrase(['to', 'the', 'corner']),
+        'to the corner',
+      );
+    });
+
+    test('"where did you last see …" is a memory cue, also with "\'d"', () {
+      for (final (q, query) in [
+        (' Where did you last see my keys?', 'keys'),
+        (" Where'd you last see the remote?", 'remote'),
+      ]) {
+        final route = memory(q);
+        expect(route.query, query, reason: q);
+        expect(route.rule, 'memory:seen', reason: q);
+      }
+    });
+
+    test('"in front of me/us/you" marks the frame like "here", unless a past '
+        'marker overrides it', () {
+      for (final q in [
+        ' Have you seen a cat in front of you?',
+        ' Did you see a dog in front of me?',
+      ]) {
+        expect(router.classify(q), isA<DetailedRoute>(), reason: q);
+      }
+      expect(memory(' Did you see a dog in front of me earlier?').query, 'dog');
+      expect(memory(' What was in front of me?').latest, isTrue);
+    });
+
+    test('near misses stay on the live frame: the present, "what was" with '
+        'no place, a present marker, "here" with no past marker', () {
+      for (final (q, rule) in [
+        (' What is on the table?', 'default'),
+        (" What's on the table?", 'default'),
+        (' What are on the shelves?', 'default'),
+        (' What was that?', 'default'),
+        (' What was on the table right now?', 'default'),
+        (" What'd you see right now?", 'default'),
+        (' What did you just see here?', 'default'),
+        (' Did you just see a dog here?', 'default'),
+        (" I'd like to know what is on the table.", 'default'),
+        (" That'd be the cat on the right?", 'detail:right'),
+      ]) {
+        final route = router.classify(q);
+        expect(route, isA<DetailedRoute>(), reason: q);
+        expect(route.rule, rule, reason: q);
+      }
+      for (final q in [
+        ' What do you see?',
+        ' What is in front of me?',
+        ' Just tell me what you see.',
+      ]) {
+        expect(
+          router.classify(q),
+          isA<FastRoute>().having(
+            (r) => r.intent,
+            'intent',
+            FastIntent.inventory,
+          ),
+          reason: q,
+        );
+      }
+      // "'d" changes nothing a rule would not decide for the long form.
+      expect(
+        router.classify(" Where'd the dog go?").rule,
+        router.classify(' Where did the dog go?').rule,
+      );
+    });
+
+    test('"anything", "something", "everything" name nothing to search for: '
+        'the newest frame answers; "anyone" and the like search "person"', () {
+      for (final q in [
+        ' Did you see anything?',
+        ' Have you seen something?',
+        ' Did you notice everything?',
+        ' Have you seen anything today?',
+      ]) {
+        final route = memory(q);
+        expect(route.latest, isTrue, reason: '$q → "${route.query}"');
+        expect(route.query, q.trim(), reason: q);
+      }
+      for (final (q, query) in [
+        (' Did you see anyone?', 'person'),
+        (' Have you seen someone?', 'person'),
+        (' Did you see anybody earlier?', 'person'),
+        (' Have you noticed somebody?', 'person'),
+        (' Have you seen somebody with a hat?', 'person with a hat'),
+        // What follows "anything" is still searched: a colour, a COCO
+        // noun, or more than one word.
+        (' Did you see anything red?', 'red'),
+        (' Did you see anything grey?', 'grey'),
+        (' Have you seen something on the table?', 'on the table'),
+        (' Did you see anything cats?', 'cats'),
+      ]) {
+        final route = memory(q);
+        expect(route.latest, isFalse, reason: q);
+        expect(route.query, query, reason: q);
+      }
+      // One word that is neither ("unusual", "moving", "else") names no
+      // thing either.
+      for (final q in [
+        ' Did you see anything unusual?',
+        ' Have you seen something moving?',
+        ' Did you see anything else?',
+        ' Did you notice something strange earlier?',
+      ]) {
+        final route = memory(q);
+        expect(route.latest, isTrue, reason: '$q → "${route.query}"');
+      }
+      expect(QuestionRouter.memoryPhrase(['anything']), '');
+      expect(QuestionRouter.memoryPhrase(['someone']), 'person');
+      // The present stays fast, and "here" keeps it on the frame.
+      expect(
+        router.classify(' Do you see anything?'),
+        isA<FastRoute>().having(
+          (r) => r.intent,
+          'intent',
+          FastIntent.inventory,
+        ),
+      );
+      expect(
+        router.classify(' Do you see anybody?'),
+        isA<FastRoute>().having(
+          (r) => r.cls,
+          'cls',
+          kCocoNames.indexOf('person'),
+        ),
+      );
+      expect(
+        router.classify(' Did you see anybody here?'),
+        isA<DetailedRoute>(),
+      );
+    });
+  });
+
+  test('normalization: "\'d" is "did" after a wh-word ("had" before a '
+      'participle), "had" or "would" after a pronoun only where one is '
+      'grammatical, else dropped; "\'ve" is "have"', () {
+    for (final (q, words) in [
+      (" Where'd I put my keys?", 'where did i put my keys'),
+      (" What'd you see?", 'what did you see'),
+      (" How'd it fall?", 'how did it fall'),
+      (" Who'd seen my keys?", 'who had seen my keys'),
+      (" What'd happened?", 'what had happened'),
+      (" I'd left them here.", 'i had left them here'),
+      (" She'd seen it.", 'she had seen it'),
+      (" I'd like a coffee.", 'i would like a coffee'),
+      (" It'd be the red one.", 'it would be the red one'),
+      (" Where I'd put my keys", 'where i put my keys'),
+      (" Ted'd know.", 'ted d know'),
+      (" What've you seen?", 'what have you seen'),
+      (" I've lost my keys.", 'i have lost my keys'),
+      (" We’ve been here.", 'we have been here'),
+      (" Could've been a cat.", 'could have been a cat'),
+    ]) {
+      expect(normalizeQuestion(q).join(' '), words, reason: q);
+    }
   });
 }

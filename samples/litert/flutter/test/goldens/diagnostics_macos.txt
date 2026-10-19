@@ -20,7 +20,7 @@ Chat model
   api      Metal (confirmed: native log)
   adapter  Apple M4 Pro (inferred)
   note     GPU sampler unavailable: sampling on the CPU
-  detail   vision encoder on the CPU (requested)
+  detail   vision encoder on the CPU (activeVisionBackend)
   model    Gemma 4 E2B (GEMMA_MODEL_PATH, type gemma4)
   source   GEMMA_MODEL_PATH=/models/gemma-4-E2B-it.litertlm
   sha256   unknown (GEMMA_MODEL_PATH)

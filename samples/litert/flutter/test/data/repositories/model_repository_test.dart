@@ -15,7 +15,6 @@
 import 'dart:async';
 import 'dart:typed_data';
 
-import 'package:flutter_edge_ai/flutter_edge_ai.dart' show PreferredBackend;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:litert_edge_demos/config/model_catalog.dart';
 import 'package:litert_edge_demos/data/repositories/live_camera_settings_repository.dart';
@@ -23,11 +22,13 @@ import 'package:litert_edge_demos/data/repositories/model_repository.dart';
 import 'package:litert_edge_demos/data/services/detector/detector_engine.dart'
     show kDetectorNotRawHead;
 import 'package:litert_edge_demos/data/services/detector/detector_service.dart';
+import 'package:litert_edge_demos/data/services/hardware/native_log_tap.dart';
 import 'package:litert_edge_demos/data/services/knowledge/embedder_service.dart';
 import 'package:litert_edge_demos/data/services/settings/typed_settings.dart';
 import 'package:litert_edge_demos/domain/models/detection.dart';
 import 'package:litert_edge_demos/domain/models/detector_choice.dart';
 import 'package:litert_edge_demos/domain/models/frame_source_spec.dart';
+import 'package:litert_edge_demos/domain/models/hardware_profile.dart';
 import 'package:litert_edge_demos/domain/models/model_id.dart';
 import 'package:litert_edge_demos/domain/models/model_state.dart';
 import 'package:litert_edge_demos/utils/result.dart';
@@ -36,6 +37,8 @@ import '../../fakes/fake_bundled_files.dart';
 import '../../fakes/fake_detector_runtime.dart';
 import '../../fakes/fake_llm_service.dart';
 import '../../fakes/fake_model_files.dart';
+import '../../fakes/fake_self_test_adapters.dart'
+    show kFakeLinuxT4Profile, kFakeLlvmpipeProfile;
 import '../../fakes/fake_settings_store.dart';
 import '../../fakes/fake_speech.dart';
 import '../../support/until.dart';
@@ -84,19 +87,24 @@ void main() {
     expect(repo.requiredReady, isTrue);
   });
 
-  test('a CPU fallback is a blocking failure, and Retry recovers', () async {
-    llm.activeBackend = PreferredBackend.cpu;
+  test('a GPU the strict engine cannot create is a blocking failure with '
+      "the plugin's reason, and Retry recovers", () async {
+    llm.loadError = engineCreateFailure();
 
     final failed = await repo.prepareAll();
 
     expect(failed, isA<Error<void>>());
     final state = repo.states.value[ModelId.chat];
     expect(state, isA<ModelFailed>());
-    expect((state! as ModelFailed).message, contains('requested gpu'));
-    expect((state as ModelFailed).message, contains('loaded on cpu'));
+    expect(
+      (state! as ModelFailed).message,
+      'Gemma 4 E2B did not load on gpu: gpu: Failed to create engine on gpu: '
+      'Can not find OpenCL library on this device. Model: '
+      '/models/gemma-4-E2B-it.litertlm',
+    );
     expect(repo.requiredReady, isFalse);
 
-    llm.activeBackend = PreferredBackend.gpu;
+    // The next load comes up on the GPU.
     expect(await repo.prepareAll(), isA<Ok<void>>());
     expect(repo.requiredReady, isTrue);
     expect(llm.loads, hasLength(2));
@@ -166,6 +174,8 @@ void main() {
       String backend = 'gpu',
       Future<Result<DetectorBackendChoice>> Function()? choice,
       Future<Uint8List> Function() bundled = fakeBundledDetector,
+      NativeLogTap logTap = const NoNativeLogTap(),
+      HardwareProfile? hardware,
     }) {
       final detector = DetectorService(
         runtime: runtime,
@@ -182,6 +192,8 @@ void main() {
         detectorBackend: backend,
         detectorBackendChoice: choice,
         embedder: EmbedderService(),
+        logTap: logTap,
+        hardwareProfile: () async => hardware,
       );
       addTearDown(models.close);
       return (models: models, detector: detector);
@@ -276,6 +288,132 @@ void main() {
           (models.states.value[ModelId.yolo26n]! as ModelFailed).backend,
           'gpu',
         );
+      });
+
+      test('a GPU that is llvmpipe (probe: the only Vulkan device) fails the '
+          'GPU load naming it, with the CPU as the way out; choosing the CPU '
+          'loads it', () async {
+        final (:models, :detector) = build(
+          choice: settings.readBackend,
+          hardware: kFakeLlvmpipeProfile,
+        );
+
+        expect(await models.prepareAll(), isA<Ok<void>>());
+
+        final failed = models.states.value[ModelId.yolo26n]! as ModelFailed;
+        expect(failed.backend, 'gpu', reason: 'Demo 3 offers the CPU');
+        expect(
+          failed.retryable,
+          isFalse,
+          reason: 'a Retry would be refused again',
+        );
+        expect(
+          failed.message,
+          startsWith(
+            'The GPU is a software rasterizer: llvmpipe (LLVM 19.1.1, 256 '
+            'bits) (inferred).',
+          ),
+        );
+        expect(failed.message, contains('DETECTOR_BACKEND=cpu'));
+        expect(detector.isLoaded, isFalse, reason: 'released at once');
+
+        await settings.saveBackend(DetectorBackend.cpu);
+        expect(await models.reloadDetector(), isA<Ok<void>>());
+        final info = (models.states.value[ModelId.yolo26n]! as ModelReady).info;
+        expect(info.detail, 'CPU (chosen)');
+        expect(detector.isLoaded, isTrue);
+      });
+
+      test('setup keeps the refusal: a setup Retry or a chat model reload '
+          'does not load on the refused GPU again; reloadDetector does, and '
+          'a CPU choice loads in the next setup run', () async {
+        final (:models, :detector) = build(
+          choice: settings.readBackend,
+          hardware: kFakeLlvmpipeProfile,
+        );
+        await models.prepareAll();
+        final refusal = models.states.value[ModelId.yolo26n];
+        expect(refusal, isA<ModelFailed>());
+        final seen = <ModelState?>[];
+        models.states.addListener(
+          () => seen.add(models.states.value[ModelId.yolo26n]),
+        );
+
+        expect(await models.prepareAll(), isA<Ok<void>>());
+        expect(await models.reloadChatModel(), isA<Ok<void>>());
+
+        expect(seen, isNotEmpty);
+        expect(
+          seen,
+          everyElement(same(refusal)),
+          reason: 'never Loading: no run on the software GPU',
+        );
+        expect(detector.isLoaded, isFalse);
+
+        // Demo 3's explicit way back to the GPU loads (and refuses) again.
+        seen.clear();
+        expect(await models.reloadDetector(), isA<Error<void>>());
+        expect(
+          seen.map((state) => state.runtimeType),
+          containsAllInOrder([ModelPending, ModelLoading, ModelFailed]),
+        );
+
+        await settings.saveBackend(DetectorBackend.cpu);
+        await models.prepareAll();
+        expect(
+          (models.states.value[ModelId.yolo26n]! as ModelReady).info.detail,
+          'CPU (chosen)',
+        );
+      });
+
+      test("the load's native log naming a software adapter fails it too, "
+          'whatever the probe says', () async {
+        final (:models, :detector) = build(
+          choice: settings.readBackend,
+          logTap: const _FixedLog([
+            'I0000 environment.cc:526] Selected adapter: SwiftShader Device '
+                '(Subzero), arch=, vendor=google, backend=Vulkan, '
+                'adapterType=Integrated GPU',
+          ]),
+          hardware: kFakeLinuxT4Profile,
+        );
+
+        await models.prepareAll();
+
+        final failed = models.states.value[ModelId.yolo26n]! as ModelFailed;
+        expect(failed.backend, 'gpu');
+        expect(
+          failed.message,
+          contains(
+            'SwiftShader Device (Subzero) (Integrated GPU) (confirmed: native '
+            'log)',
+          ),
+        );
+        expect(detector.isLoaded, isFalse);
+      });
+
+      test('a real GPU (the T4 next to llvmpipe) stays Ready on the GPU, and '
+          'a CPU load on a llvmpipe-only box is not refused', () async {
+        final onT4 = build(
+          choice: settings.readBackend,
+          hardware: kFakeLinuxT4Profile,
+        );
+        await onT4.models.prepareAll();
+        expect(
+          (onT4.models.states.value[ModelId.yolo26n]! as ModelReady)
+              .info
+              .detail,
+          'GPU fp32 full',
+        );
+
+        await settings.saveBackend(DetectorBackend.cpu);
+        final onCpu = build(
+          runtime: const FakeDetectorRuntime(fullyAccelerated: false),
+          choice: settings.readBackend,
+          hardware: kFakeLlvmpipeProfile,
+        );
+        await onCpu.models.prepareAll();
+        expect(onCpu.models.states.value[ModelId.yolo26n], isA<ModelReady>());
       });
 
       test('bytes that are not the raw-head file are not a backend failure (no '
@@ -403,7 +541,7 @@ void main() {
   });
 
   test('a required failure stops setup before the optional models', () async {
-    llm.activeBackend = PreferredBackend.cpu;
+    llm.loadError = engineCreateFailure();
 
     expect(await repo.prepareAll(), isA<Error<void>>());
 
@@ -631,4 +769,21 @@ void main() {
       );
     });
   });
+}
+
+/// A native log whose every window holds [lines] (the detector's load
+/// window among them).
+final class _FixedLog implements NativeLogTap {
+  const _FixedLog(this.lines);
+
+  final List<String> lines;
+
+  @override
+  String get description => 'fixed test log';
+
+  @override
+  int mark() => 0;
+
+  @override
+  List<String> since(int mark) => lines;
 }

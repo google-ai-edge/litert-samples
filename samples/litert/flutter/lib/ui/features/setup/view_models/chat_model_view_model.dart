@@ -24,7 +24,6 @@ import '../../../../domain/models/chat_model.dart';
 import '../../../../domain/models/model_id.dart';
 import '../../../../domain/models/model_source_resolver.dart';
 import '../../../../domain/models/model_state.dart';
-import '../../../../domain/models/model_towers.dart';
 import '../../../../domain/models/npu_availability.dart';
 import '../../../../domain/models/provisioning.dart';
 import '../../../../domain/ports/model_file_picker.dart';
@@ -85,23 +84,39 @@ final class const ModelUrlRequest({
 }
 
 /// What the user can do after the chat model failed to load: run it on the
-/// GPU or the CPU. (A tower the header leaves open is set to the CPU on the
-/// card itself: the failure's message says so.)
-enum ChatModelAction { runOnGpu, runOnCpu }
+/// NPU (a build compiled for one, saved on another backend), the GPU or the
+/// CPU.
+enum ChatModelAction { runOnNpu, runOnGpu, runOnCpu }
 
-/// One tower's row in the card's Towers block (`ChatModelViewModel.towerRow`).
-sealed class const TowerRow();
+/// The towers a chat model file can have beside its text model.
+enum Tower { vision, audio }
 
-/// The file does not have the tower: [text] says what is off without it.
-final class const TowerMissing(final String text) extends TowerRow;
-
-/// Read-only: the header places the tower, or the model runs off the NPU
-/// (the CPU). [text]: `CPU · the file sets it`, `CPU`.
-final class const TowerFixed(final String text) extends TowerRow;
-
-/// The header says nothing about the tower and the model runs on the NPU:
-/// the user picks CPU or NPU ([selected]; the NPU by default).
-final class const TowerChoice(final PreferredBackend selected) extends TowerRow;
+/// One tower's row in the card's Towers block (`ChatModelViewModel.towerRow`):
+/// whether the shown file has the tower's encoder ([inFile]:
+/// `LiteRtLmBundleInfo.visionEncoder` / `audioEncoder`) and, once that file
+/// is loaded, where the engine put it ([runsOn]:
+/// `InferenceModel.activeVisionBackend` / `activeAudioBackend`, a
+/// `PreferredBackend` name). The app never says where a tower will run: the
+/// engine places it at the load.
+final class const TowerRow(
+  final Tower tower, {
+  required final bool inFile,
+  final String? runsOn,
+}) {
+  /// `in the file · runs on the CPU`, `in the file (where it runs shows once
+  /// it is loaded)`, or what is off without it.
+  String get text => switch ((inFile, runsOn)) {
+    (false, _) => switch (tower) {
+      Tower.vision =>
+        'not in this file: photos in Voice chat and detailed answers in '
+            'Live camera are off',
+      Tower.audio => 'not in this file: voice questions are transcribed first',
+    },
+    (true, final backend?) =>
+      'in the file · runs on the ${backend.toUpperCase()}',
+    (true, null) => 'in the file (where it runs shows once it is loaded)',
+  };
+}
 
 /// One models folder as the card shows it: its path (or why it has none),
 /// the `.litertlm` files in it and how to get one there.
@@ -116,9 +131,10 @@ final class const ModelsFolderView({
 /// The Models screen's "Chat model" section. The app ships no chat model:
 /// the user chooses a `.litertlm` — from a models folder, a path, an import
 /// or a link — and sets its backend, context and tools. Its towers (vision,
-/// audio) load as its header says, shown with where each runs; only a tower
-/// the header leaves open, on the NPU, is a choice. When a load fails, the
-/// explicit ways out. Never switches models by itself.
+/// audio) are the ones the file has (`readLiteRtLmBundleInfo`), all of them
+/// loaded; where the engine put each is shown after the load. When a load
+/// fails, the plugin's reason and the explicit ways out. Never switches
+/// models by itself.
 class ChatModelViewModel extends ChangeNotifier {
   ChatModelViewModel({
     required this._chatModels,
@@ -126,6 +142,7 @@ class ChatModelViewModel extends ChangeNotifier {
     required this._switcher,
     required this._picker,
     this._sources = const ModelSourceResolver(),
+    this._autoApplyTheOnlyFile = true,
   }) {
     importFile = Command0<CustomChatModel>(_importFile);
     download = Command1<CustomChatModel, ModelUrlRequest>(_download);
@@ -151,15 +168,25 @@ class ChatModelViewModel extends ChangeNotifier {
   /// What the chat slot loads for the saved choice: the rule setup loads by
   /// (the build's defines by default, like `ModelRepository`).
   final ModelSourceResolver _sources;
+
+  /// Whether the only file of the models folders is applied by itself when
+  /// nothing is chosen yet ([_selectTheOnlyFile]). The app turns it on for
+  /// Android and iOS only: there a tester pushes one file and the defaults
+  /// fit (the GPU, or the NPU for a build compiled for it); on a
+  /// desktop or a board the guide picks the backend first (the Raspberry Pi
+  /// guide runs Gemma on the CPU).
+  final bool _autoApplyTheOnlyFile;
   bool _disposed = false;
 
-  /// Picks and imports a `.litertlm` (desktop, iOS).
+  /// Picks and imports a `.litertlm` (desktop, iOS). Like every pick it only
+  /// shows the file ([candidate]); [apply] saves and loads it.
   late final Command0<CustomChatModel> importFile;
 
   /// Downloads a `.litertlm` from a link.
   late final Command1<CustomChatModel, ModelUrlRequest> download;
 
-  /// Saves the draft and makes it the chat model, then reloads it.
+  /// Saves the draft (the candidate's file, or the saved one's) and makes it
+  /// the chat model, then reloads it.
   late final Command0<void> apply;
 
   /// "Run on GPU" / "Run on CPU" after a failed load.
@@ -200,8 +227,8 @@ class ChatModelViewModel extends ChangeNotifier {
   /// The saved custom settings could not be read.
   String? get problem => _state.problem;
 
-  /// Said once (a retired saved choice: Gemma 4 E2B is no longer
-  /// downloaded).
+  /// Said once (a saved choice the app does not offer: it downloads no
+  /// Gemma 4 E2B).
   String? get note => _state.note;
 
   /// No chat model chosen and none running: the card leads with how to
@@ -218,17 +245,28 @@ class ChatModelViewModel extends ChangeNotifier {
 
   // ---- The file ----
 
+  /// The custom model as saved: the chat model once [active] is custom.
   CustomChatModel? get saved => _state.custom;
 
+  /// The file picked and not applied yet, with the settings it starts from
+  /// (`ChatModelCandidate`); null when there is none. Nothing loads it until
+  /// Apply.
+  CustomChatModel? get candidate => _state.candidate?.model;
+
+  /// What the card shows and edits: the [candidate], else the [saved] model.
+  CustomChatModel? get shown => candidate ?? saved;
+
   /// `mine.litertlm · 1.21 GB · sha256 1a2b3c4d… (computed) · imported from …`
-  /// (a file in place: `in place: /path`, the SHA-256 once computed).
+  /// (a file in place: `in place: /path`, the SHA-256 once computed) of the
+  /// [shown] file.
   String? get fileLine {
-    final model = saved;
+    final model = shown;
     final file = model?.file;
     if (model == null || file == null) return null;
-    final state = model.source is LocalModelSource
+    // The saved model's store copy as last found; a candidate's verified.
+    final state = model.source is LocalModelSource || candidate != null
         ? null
-        : switch (_chatModels.customFile.value) {
+        : switch (_chatModels.savedFile) {
             StoreFileReady() => null,
             StoreFileUnverified() => 'CHANGED ON DISK',
             StoreFileMissing() => 'MISSING',
@@ -238,6 +276,8 @@ class ChatModelViewModel extends ChangeNotifier {
       final hex? =>
         'sha256 ${hex.substring(0, 12)}… '
             '(${file.checksumMatched ? 'matches the one entered' : 'computed'})',
+      // A file only looked at is not read whole.
+      null when candidate != null => 'sha256 once applied',
       null when _chatModels.hashing.value => 'sha256 computing…',
       null => 'sha256 not computed',
     };
@@ -267,8 +307,8 @@ class ChatModelViewModel extends ChangeNotifier {
     for (final folder in _folders) ...folder.files,
   ];
 
-  /// [entry] is the saved custom model's file.
-  bool isSelected(LocalModelEntry entry) => switch (saved?.source) {
+  /// [entry] is the [shown] file: the candidate's, else the saved model's.
+  bool isSelected(LocalModelEntry entry) => switch (shown?.source) {
     LocalModelSource(:final path) => path == entry.path,
     _ => false,
   };
@@ -277,7 +317,7 @@ class ChatModelViewModel extends ChangeNotifier {
   /// selected one at another size than when it was chosen (chosen while it
   /// was still being copied).
   bool canPick(LocalModelEntry entry) =>
-      !isSelected(entry) || entry.sizeBytes != saved?.file?.sizeBytes;
+      !isSelected(entry) || entry.sizeBytes != shown?.file?.sizeBytes;
 
   /// `2.59 GB · 2026-10-06 21:42`.
   static String entryLine(LocalModelEntry e) {
@@ -328,8 +368,9 @@ class ChatModelViewModel extends ChangeNotifier {
   ImportSupport get importSupport => _picker.support;
 
   /// Why "Import file…" is not available here; null when it is. On
-  /// Android the models folder replaces it (the system picker reads whole
-  /// files into memory and breaks above 2 GB).
+  /// Android the models folder replaces it (file_selector_android 0.5.2+11
+  /// reads a picked file into one Java `byte[]` sized by an int: the whole
+  /// file goes into memory, and above 2 GB the size overflows).
   String? get importUnavailableReason => switch (_picker.support) {
     ImportUnsupported() =>
       'No import on Android: adb push the file into one of the folders '
@@ -371,12 +412,6 @@ class ChatModelViewModel extends ChangeNotifier {
   String _context = '';
   bool _tools = false;
 
-  /// The towers' choices (null: none, the NPU): they apply only on the NPU
-  /// to a tower the header says nothing about, and are kept across a
-  /// Backend change (back on the NPU they apply again).
-  PreferredBackend? _visionChoice;
-  PreferredBackend? _audioChoice;
-
   String get draftName => _name;
   ModelType get draftType => _type;
   PreferredBackend get draftBackend => _backend;
@@ -384,177 +419,199 @@ class ChatModelViewModel extends ChangeNotifier {
   bool get draftTools => _tools;
 
   /// The context an NPU build's file name announces, for the hint.
-  int? get contextHint =>
-      saved?.file == null ? null : contextHintFromFileName(saved!.file!.name);
+  int? get contextHint => switch (shown?.file) {
+    final file? => contextHintFromFileName(file.name),
+    null => null,
+  };
 
   void setName(String value) => _edit(() => _name = value);
   void setType(ModelType value) => _edit(() => _type = value);
-
-  /// The Towers block follows: on the NPU a tower the header leaves open
-  /// becomes a choice, elsewhere it runs on the CPU.
   void setBackend(PreferredBackend value) => _edit(() => _backend = value);
   void setContext(String value) => _edit(() => _context = value);
   void setTools({required bool enabled}) => _edit(() => _tools = enabled);
 
-  /// Where [tower] runs, for a tower the header leaves open on the NPU ([TowerChoice]);
-  /// a load setting: applying it reloads the chat model. The NPU is the
-  /// default, so choosing it saves no choice.
-  void setTowerBackend(Tower tower, PreferredBackend value) => _edit(() {
-    final choice = value == PreferredBackend.npu ? null : value;
-    switch (tower) {
-      case Tower.vision:
-        _visionChoice = choice;
-      case Tower.audio:
-        _audioChoice = choice;
-    }
-  });
+  // ---- The towers (what the file says about itself) ----
 
-  // ---- The towers (read from the file's header) ----
+  /// What `readLiteRtLmBundleInfo` made of the [shown] file: the
+  /// candidate's, read when it was picked, else the saved file's; null when
+  /// that has not been read (before the launch's check, or a saved file that
+  /// is gone, cannot be opened or is incomplete: the card shows that
+  /// problem, and no Towers block).
+  BundleReading? get _reading => _state.candidate?.bundle ?? _state.bundle;
 
-  /// The sections of the saved file's header; null when it has not been
-  /// read (before the launch's check, or a saved file that is gone or
-  /// unreadable: the card shows that problem, and no Towers block).
-  List<LitertlmSection>? get _header => _state.header;
+  /// What the [shown] file says about itself; null when it is not read or
+  /// its header could not be ([headerNotRead]).
+  LiteRtLmBundleInfo? get _bundle => _reading?.info;
 
-  /// The Towers block is shown: the file's header is read.
-  bool get towersShown => _header != null;
+  /// The Towers block is shown: the file is read, or its header could not
+  /// be and [headerNotRead] says so.
+  bool get towersShown => _reading != null;
 
-  /// The towers the draft loads: the header's, on the draft backend, with
-  /// the draft's choices (as [CustomChatModel.towersOf] places them); null
-  /// when the header is not read ([towersShown]).
-  ModelTowers? get draftTowers => switch (_header) {
-    final header? => resolveTowers(
-      header,
-      _backend,
-      vision: _visionChoice,
-      audio: _audioChoice,
-    ),
-    null => null,
+  /// The Towers block's line for a file whose header the plugin could not
+  /// read (`BundleNotRead`, the plugin's message): it loads text only; null
+  /// for any other file.
+  String? get headerNotRead => switch (_reading) {
+    BundleNotRead(:final reason) =>
+      'The plugin could not read its header (${reason.problem.name}): '
+          '${reason.message}. The plugin loads such a file without reading '
+          'its header; the app asks for no tower (none is known), so it '
+          'loads text only.',
+    _ => null,
   };
 
-  /// The Towers block's first row: where the text decoder runs (the draft
-  /// backend).
-  String get towerTextLine => _backend.name.toUpperCase();
+  /// The Towers block's first line for a build compiled for the NPU
+  /// (`LiteRtLmBundleInfo.isCompiledForNpu`): `Text model: compiled for the
+  /// Qualcomm SM8750 NPU`; null for any other file or none. It says nothing
+  /// about other SoCs: whether the file runs on this one only a load tells.
+  String? get npuBuildLine => switch (_bundle) {
+    final bundle? when bundle.isCompiledForNpu =>
+      'Text model: compiled for the '
+          '${bundle.npuTarget == null ? 'NPU' : '${bundle.npuTarget} NPU'}',
+    _ => null,
+  };
 
-  /// [tower]'s row; null when the header is not read ([towersShown]).
+  /// [tower]'s row: whether the shown file has it and, when that file is
+  /// the one loaded, where the engine put it; null when the file is not read
+  /// ([towersShown]).
   TowerRow? towerRow(Tower tower) {
-    final towers = draftTowers;
-    if (towers == null) return null;
-    return switch (towers.of(tower)) {
-      null => TowerMissing(switch (tower) {
-        Tower.vision =>
-          'not in this file: photos in Voice chat and detailed answers in '
-              'Live camera are off',
-        Tower.audio =>
-          'not in this file: voice questions are transcribed first',
-      }),
-      TowerPlacement(:final backend, reason: TowerReason.choice) => TowerChoice(
-        backend,
-      ),
-      TowerPlacement(:final backend, reason: TowerReason.declared) =>
-        TowerFixed('${backend.name.toUpperCase()} · the file sets it'),
-      TowerPlacement(:final backend, reason: TowerReason.offNpu) => TowerFixed(
-        backend.name.toUpperCase(),
-      ),
+    final bundle = _bundle;
+    if (bundle == null) return null;
+    final inFile = switch (tower) {
+      Tower.vision => bundle.visionEncoder != null,
+      Tower.audio => bundle.audioEncoder != null,
     };
+    final loaded = _shownLoaded;
+    return TowerRow(
+      tower,
+      inFile: inFile,
+      runsOn: !inFile || loaded == null
+          ? null
+          : switch (tower) {
+              Tower.vision => loaded.visionBackend,
+              Tower.audio => loaded.audioBackend,
+            },
+    );
   }
 
-  /// A tower row is a choice: the card explains it once.
-  bool get towerChoiceShown =>
-      Tower.values.any((t) => towerRow(t) is TowerChoice);
+  /// The chat slot's facts when it runs the [shown] file: the saved model
+  /// (a candidate is never what runs, even at the same path: another build
+  /// pushed over the file), the same file, unchanged since it was chosen (a
+  /// file in place replaced since blocks the plan: [localProblem]); null
+  /// otherwise, so a row never says where a file it does not run went.
+  ChatModelFacts? get _shownLoaded {
+    final model = shown;
+    if (candidate != null || model == null || localProblem != null) {
+      return null;
+    }
+    return switch (_slot) {
+      ModelReady(info: LoadedModelInfo(chat: final chat?))
+          when chat.custom && _sameFile(chat, model) =>
+        chat,
+      _ => null,
+    };
+  }
 
   void _edit(void Function() change) {
     change();
     _notify();
   }
 
+  /// The file the draft was made for ([_fileKey] of [shown]).
+  String? _draftFile;
+
+  /// A file by its source, name and size: a SHA-256 that came in since is
+  /// the same file.
+  static String? _fileKey(CustomChatModel? model) => model == null
+      ? null
+      : '${model.sourceLine}|${model.file?.name}|${model.file?.sizeBytes}';
+
   void _resetDraft() {
-    final model = saved;
+    final model = shown;
+    _draftFile = _fileKey(model);
     if (model == null) return;
     _name = model.displayName;
     _type = model.modelType;
     _backend = model.backend;
     _context = '${model.maxTokens}';
     _tools = model.tools;
-    _visionChoice = model.visionChoice;
-    _audioChoice = model.audioChoice;
   }
 
-  /// The draft as a model; null without a saved custom model or with a
-  /// context that is not a number. Off the NPU the towers' choices show
-  /// nowhere and mean nothing: the saved ones stay (a choice made on the
-  /// NPU and left there neither enables Apply nor reloads; back on the NPU
-  /// the card shows it again).
+  /// The draft as a model (the [shown] file with the editor's settings);
+  /// null without a file or with a context that is not a number.
   CustomChatModel? get _draft {
-    final model = saved;
+    final model = shown;
     final context = int.tryParse(_context.trim());
     if (model == null || context == null) return null;
-    final onNpu = _backend == PreferredBackend.npu;
-    return model
-        .copyWith(
-          displayName: _name.trim(),
-          modelType: _type,
-          backend: _backend,
-          maxTokens: context,
-          tools: _tools,
-        )
-        .withTowerChoices(
-          vision: onNpu ? _visionChoice : model.visionChoice,
-          audio: onNpu ? _audioChoice : model.audioChoice,
-        );
+    return model.copyWith(
+      displayName: _name.trim(),
+      modelType: _type,
+      backend: _backend,
+      maxTokens: context,
+      tools: _tools,
+    );
   }
 
   /// Why the draft cannot be applied; null when it can.
   String? get draftProblem {
-    if (saved == null) return 'Import or download a .litertlm first.';
+    if (shown == null) return 'Import or download a .litertlm first.';
     if (int.tryParse(_context.trim()) == null) {
       return 'The context length is a whole number of tokens.';
     }
     return _chatModels.problemWith(_draft!);
   }
 
-  /// The draft differs from what is saved, or from what the chat slot runs:
-  /// a replacement file adopted while the old one runs is saved already, so
-  /// comparing with the saved model alone would leave Apply off.
+  /// A candidate is waiting, or the draft differs from what is saved or
+  /// from what the chat slot runs (an apply whose reload was refused saved a
+  /// file the old engine does not run).
   bool get _changed {
     final model = saved;
     final draft = _draft;
-    if (model == null || draft == null) return false;
+    if (draft == null) return false;
+    if (candidate != null) return true;
+    if (model == null) return false;
     return !_chatModels.sameSaved(draft, model) ||
         active != ChatModelKind.custom ||
         !_runs(draft);
   }
 
-  /// [model] is what the chat slot runs: the same file (by SHA-256: every
-  /// nameless link used to land under one name; a file in place by its
-  /// path, its hash may still be computing), the same settings and the same
-  /// towers where they run.
+  /// [model] (the saved model's file) is what the chat slot runs: the same
+  /// file (by SHA-256; a file in place by its path, its hash may still be
+  /// computing), read, and the same settings.
   bool _runs(CustomChatModel model) {
-    final header = _header;
-    if (header == null) return false;
-    final towers = model.towersOf(header);
+    if (_state.bundle == null) return false;
     return switch (_slot) {
       ModelReady(info: LoadedModelInfo(chat: final chat?)) when chat.custom =>
         _sameFile(chat, model) &&
             chat.name == model.displayName &&
             chat.requestedBackend == model.backend.name &&
             chat.requestedContext == model.maxTokens &&
-            chat.visionBackend == towers.visionBackend?.name &&
-            chat.audioBackend == towers.audioBackend?.name &&
             chat.tools == model.tools &&
             chat.modelType == model.modelType.name,
       _ => false,
     };
   }
 
-  /// A new file is saved while the previous one still runs: it runs only
-  /// after Apply and reload.
+  /// Another file is saved than the one the chat slot runs (an apply whose
+  /// reload was refused): it runs only after Apply and reload. Not while a
+  /// candidate waits ([candidateNotice] says what to do then).
   bool get replacementPending => switch (_slot) {
     ModelReady(info: LoadedModelInfo(chat: final chat?))
-        when chat.custom && active == ChatModelKind.custom =>
+        when chat.custom &&
+            active == ChatModelKind.custom &&
+            candidate == null =>
       saved?.file != null && !_sameFile(chat, saved!),
     _ => false,
   };
+
+  /// What the card says about a picked file that is not applied yet; null
+  /// when there is none.
+  String? get candidateNotice {
+    if (candidate == null) return null;
+    final until = _planned is NoChatSource
+        ? 'Until then there is no chat model.'
+        : 'Until then the chat model stays ${_plannedName()}.';
+    return 'Not applied yet: press "$applyLabel" to use this file. $until';
+  }
 
   static bool _sameFile(ChatModelFacts chat, CustomChatModel model) =>
       switch (model.source) {
@@ -569,16 +626,27 @@ class ChatModelViewModel extends ChangeNotifier {
 
   // ---- The NPU ----
 
-  /// Whether flutter_edge_ai would accept the NPU here.
+  /// Whether the app's copy of flutter_edge_ai_litertlm's private NPU check
+  /// finds the NPU reachable here (the plugin is not asked).
   bool get npuOffered => _chatModels.npu is NpuAvailable;
 
-  /// `available (SoC QTI SM8750): …` or `unavailable: <reason>`.
+  /// `available (SoC QTI SM8750)` or `unavailable: <reason>`.
   String get npuLine => describeNpu(_chatModels.npu);
 
   /// Why the NPU option is disabled; null when it is offered.
   String? get npuUnavailableReason => switch (_chatModels.npu) {
     NpuUnavailable(:final reason) => 'NPU unavailable: $reason.',
     NpuAvailable() => null,
+  };
+
+  /// Why the GPU and CPU options are disabled for the [shown] file; null
+  /// when they are offered: a build compiled for an NPU
+  /// (`LiteRtLmBundleInfo.isCompiledForNpu`), which the plugin refuses on
+  /// the GPU and the CPU (`ChatModelRepository.problemWith` refuses them
+  /// too).
+  String? get gpuCpuUnavailableReason => switch (npuOnlyReason(_bundle)) {
+    final reason? => 'GPU and CPU: not for this file ($reason).',
+    null => null,
   };
 
   // ---- The chat slot's state ----
@@ -610,32 +678,52 @@ class ChatModelViewModel extends ChangeNotifier {
     ModelFailed() => 'Failed to load ${_plannedName()}',
   };
 
-  /// The load failure, as the engine and flutter_edge_ai said it.
+  /// The load failure, as the plugin said it (`ChatModelLoadException`: its
+  /// `LiteRtLmBundleException` or `BackendInitException` reason).
   String? get loadError => switch (_slot) {
     ModelFailed(:final message) => message,
     _ => null,
   };
 
-  /// The ways out after a failed load of the user's model: never taken
-  /// on its own. None when no load can help (a self-test that did not end).
-  /// A tower the header leaves open is set on the card itself (the
-  /// failure's message says so).
+  /// The ways out after a failed load of the user's (saved) model: never
+  /// taken on its own.
+  /// - A build compiled for an NPU (`LiteRtLmBundleInfo.isCompiledForNpu`)
+  ///   the plugin refused as `wrongBackend` (saved on the GPU or the CPU):
+  ///   Run on NPU, what the plugin's message advises, where the NPU is
+  ///   offered.
+  /// - Any other refusal before an engine (`ModelFailed.bundleProblem`:
+  ///   incomplete, unsupportedNpu): none, no backend changes it; for a
+  ///   generic file's `wrongBackend` (a text model that declares its
+  ///   backends) the other backends.
+  /// - Any other failure: the other backends, except for a build compiled
+  ///   for an NPU (it runs nowhere else) and for a failure no load can
+  ///   help (a self-test that did not end).
   List<ChatModelAction> get failureActions {
-    final retryable = switch (_slot) {
-      ModelFailed(:final retryable) => retryable,
-      _ => false,
-    };
+    final failed = _slot;
     final model = saved;
-    if (!retryable || active != ChatModelKind.custom || model == null) {
+    if (failed is! ModelFailed ||
+        active != ChatModelKind.custom ||
+        model == null) {
       return const [];
     }
-    return [
+    final npuBuild = _state.bundle?.info?.isCompiledForNpu ?? false;
+    final others = [
       if (model.backend != PreferredBackend.gpu) ChatModelAction.runOnGpu,
       if (model.backend != PreferredBackend.cpu) ChatModelAction.runOnCpu,
     ];
+    return switch (failed.bundleProblem) {
+      LiteRtLmBundleProblem.wrongBackend when npuBuild => [
+        if (npuOffered && model.backend != PreferredBackend.npu)
+          ChatModelAction.runOnNpu,
+      ],
+      LiteRtLmBundleProblem.wrongBackend => others,
+      null when failed.retryable && !npuBuild => others,
+      _ => const [],
+    };
   }
 
   void runAction(ChatModelAction action) => unawaited(switch (action) {
+    ChatModelAction.runOnNpu => runOn.execute(PreferredBackend.npu),
     ChatModelAction.runOnGpu => runOn.execute(PreferredBackend.gpu),
     ChatModelAction.runOnCpu => runOn.execute(PreferredBackend.cpu),
   });
@@ -688,7 +776,10 @@ class ChatModelViewModel extends ChangeNotifier {
     return result;
   }
 
+  /// Lists the folders, after checking the saved file again when its last
+  /// check found a problem (a file copied back).
   Future<Result<void>> _rescan() async {
+    await _chatModels.recheck();
     final listings = await _chatModels.listFolders();
     _folders = List.unmodifiable([
       for (final (index, folder) in listings.indexed)
@@ -708,26 +799,36 @@ class ChatModelViewModel extends ChangeNotifier {
     return const Result.ok(null);
   }
 
-  /// Nothing chosen yet (no saved model, no `GEMMA_MODEL_PATH`, nothing said
-  /// once still to read) and exactly one `.litertlm` in the models folders:
-  /// it is selected as if tapped, so the card opens on its settings. Loading
-  /// still waits for "Use this model"; a file that cannot be used shows its
-  /// reason like a tapped one. A selection made mid-copy (not applied yet) is
-  /// made again once the file's size changed. Never while an import or a
-  /// download runs: its own file is about to be adopted.
+  /// Nothing chosen yet (no choice saved, no candidate, no
+  /// `GEMMA_MODEL_PATH`, nothing said once still to read) and exactly one
+  /// `.litertlm` in the models folders: it is picked as if tapped and, as no
+  /// model is applied that a candidate could protect, saved and loaded at
+  /// once (a tester pushes one file with adb and expects it to run). One
+  /// that cannot be applied as it is stays on the card with the reason, and
+  /// is picked again by a Rescan once its size changed. A file that cannot
+  /// be used shows its reason like a tapped one. A saved choice, even one
+  /// that cannot load, is never replaced by itself (its settings would go),
+  /// and a file tapped by hand stays a candidate until Apply.
+  /// Never while an import or a download runs: its own file is about to be
+  /// adopted.
   Future<void> _selectTheOnlyFile() async {
+    if (!_autoApplyTheOnlyFile) return;
     if (importFile.running || download.running || _chatModels.busy.value) {
       return;
     }
     if (problem != null || note != null) return;
+    if (active != ChatModelKind.none || _planned is! NoChatSource) return;
     final files = localFiles;
     if (files.length != 1) return;
     final only = files.single;
-    final fresh = saved == null && _planned is NoChatSource;
-    final copiedSince =
-        active == ChatModelKind.none && isSelected(only) && canPick(only);
+    final fresh = shown == null;
+    final copiedSince = isSelected(only) && canPick(only);
     if (!fresh && !copiedSince) return;
     await useLocal.execute(only.path);
+    if (useLocal.result is! Ok<CustomChatModel>) return;
+    if (candidate == null || draftProblem != null) return;
+    debugPrint('[ChatModel] the only file in the models folder, used at once');
+    await apply.execute();
   }
 
   Future<Result<CustomChatModel>> _download(ModelUrlRequest request) async {
@@ -740,7 +841,8 @@ class ChatModelViewModel extends ChangeNotifier {
     return result;
   }
 
-  /// A new file is in: the editor shows its settings.
+  /// A file was picked: the editor shows its settings (those it starts
+  /// from).
   void _adopted() {
     _resetDraft();
     _notify();
@@ -806,8 +908,10 @@ class ChatModelViewModel extends ChangeNotifier {
   }
 
   void _onChanged() {
-    // The saved model changed under the editor (an import elsewhere):
-    // follow it unless the user is mid-edit of the same file.
+    // The shown file changed under the editor (a candidate picked, applied
+    // or dropped elsewhere, a download that ended after its screen closed):
+    // the draft follows it, unless it is the same file (mid-edit).
+    if (_fileKey(shown) != _draftFile) _resetDraft();
     _notify();
   }
 
@@ -839,6 +943,9 @@ class ChatModelViewModel extends ChangeNotifier {
         ..removeListener(notifyListeners)
         ..dispose();
     }
+    // Leaving the Models screen drops a file picked in place and not
+    // applied; an imported or downloaded one stays for this app session.
+    unawaited(_chatModels.dropInPlaceCandidate());
     super.dispose();
   }
 }

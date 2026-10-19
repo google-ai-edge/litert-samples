@@ -197,10 +197,10 @@ EmbedderService appEmbedderService({
 ///
 /// Setup loads text and audio ([kEmbedderConfig]); [enableImages] adds the
 /// image encoder when the visual memory first needs it: flutter_edge_ai
-/// closes the loaded embedder and builds one with the wider media (about
-/// 2 s). Meanwhile every embedding call waits for the swap and then runs on
-/// the new model (none fails for it); the calls already running finish on
-/// the old one first. The images stay until [close] (media only widen).
+/// closes the loaded embedder and builds one with the wider media.
+/// Meanwhile every embedding call waits for the swap and then runs on the
+/// new model (none fails for it); the calls already running finish on the
+/// old one first. The images stay until [close] (media only widen).
 class EmbedderService implements VisualMemoryEmbedder {
   /// [warmUpAudio]: the spoken clip [warmUp] embeds when the catalog
   /// declares audio (the app: [kKbAudioWarmUpAsset]); null skips that part.
@@ -277,7 +277,10 @@ class EmbedderService implements VisualMemoryEmbedder {
 
   /// Loads the active embedder with the catalog's media. Fails, and closes
   /// what was loaded, unless it reports the catalog's backend, dimension,
-  /// input limit and every declared medium.
+  /// input limit and every declared medium. A load the plugin refuses fails
+  /// with its `EmbeddingLoadException` as it is: among them a load that wrote
+  /// no weight cache at all, which the app's registration makes a failure
+  /// (`kStrictEmbeddingBackend`, `requireWeightCache`).
   Future<Result<EmbedderInfo>> load() async {
     final rssBefore = _rss();
     final watch = Stopwatch()..start();
@@ -495,9 +498,7 @@ class EmbedderService implements VisualMemoryEmbedder {
   /// A memory frame's vector: the encoded image (PNG or JPEG) as it is,
   /// with the `retrievalDocument` task type (a prefix reaches text only, so
   /// it changes nothing for an image). Checked like the warm-up's. The
-  /// first image since the load logs the process's RSS before and after (on
-  /// an M4 Pro Mac 75–175 MB more; declaring images had already added about
-  /// 400 MB at the load).
+  /// first image since the load logs the process's RSS before and after.
   @override
   Future<Result<List<double>>> embedImage(Uint8List encoded) =>
       _use('embedImage', (model) => _embedImage(model, encoded));
@@ -565,7 +566,7 @@ class EmbedderService implements VisualMemoryEmbedder {
   }
 
   /// Runs [body] on the loaded model, after an [enableImages] reload in
-  /// flight (so a knowledge-base question waits ~2 s instead of failing on a
+  /// flight (so a knowledge-base question waits instead of failing on a
   /// closing model); counted, so the next reload waits for it to end.
   Future<Result<T>> _use<T>(
     String what,

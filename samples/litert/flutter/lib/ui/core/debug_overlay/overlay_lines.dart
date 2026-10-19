@@ -207,9 +207,10 @@ List<String> _knowledgeLines(DiagnosticsSnapshot s) {
     final top = r.topSimilarity?.toStringAsFixed(2) ?? '–';
     final gate = r.gate?.toStringAsFixed(2) ?? '–';
     lines.add(switch (r.outcome) {
+      // `2 of 3 excerpts (context)` when not all fit the context window.
       RetrievalOutcome.used =>
-        'RAG $kind$time · top $top · ${r.passages.length} excerpts '
-            '(gate $gate)',
+        'RAG $kind$time · top $top · '
+            '${r.detail ?? '${r.passages.length} excerpts'} (gate $gate)',
       RetrievalOutcome.belowGate =>
         'RAG $kind$time · top $top · below gate $gate',
       RetrievalOutcome.unavailable => 'RAG unavailable: ${r.detail ?? '–'}',
@@ -250,6 +251,8 @@ List<String> _skillLines(DiagnosticsSnapshot s) {
         parts.last = '${parts.last} (+${elapsed.inMilliseconds} ms)';
       case IntentSucceeded():
         break;
+      case EmptyAnswerRetried(:final at):
+        parts.add('retry ${secs(at)}');
       case IntentFailed(:final intent, :final at):
         parts.add('${intent ?? 'tool'} failed ${secs(at)}');
     }
@@ -377,9 +380,13 @@ List<String> _cameraLines(DiagnosticsSnapshot s) {
         'snap $snap · llm turns ${s.llmTurns}',
   ];
   if (c.image case final EncodedSnapshot image?) {
+    // A remembered frame was encoded when it was stored, not for this turn.
+    final made = c.route is MemoryRoute
+        ? 'memory frame'
+        : 'enc ${_ms(image.encodeTime)}';
     lines.add(
       'camq frame #${image.frameId} ${image.width}×${image.height} PNG '
-      '${_size(image.png.length)} · enc ${_ms(image.encodeTime)}'
+      '${_size(image.png.length)} · $made'
       '${image.unmirrored ? ' · unmirrored' : ''} · TTFT '
       '${c.timeToFirstToken == null ? '–' : _ms(c.timeToFirstToken!)}',
     );

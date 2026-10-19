@@ -52,15 +52,16 @@ typedef EnableMemoryImages = Future<Result<void>> Function();
 ///   never loaded for it and a question gets [MemoryDisabled].
 /// - **Image encoder**: setup loads EmbeddingGemma with audio only; the
 ///   first time an owner starts the memory (switch on, embedder ready) it
-///   asks for the image encoder ([EnableMemoryImages]: one reload of about
-///   2 s, during which the knowledge base's embeddings wait rather than
-///   fail). Until it is loaded the status says [VisualMemoryStatus.preparing]
-///   and nothing is sampled; a failed load turns the memory off with the
-///   reason (the knowledge base keeps its text and audio embedder) until
-///   [clear] or a new owner. It stays loaded until the app exits (the
-///   embedder's media only widen).
+///   asks for the image encoder ([EnableMemoryImages]: one reload, during
+///   which the knowledge base's embeddings wait rather than fail). Until it
+///   is loaded the status says [VisualMemoryStatus.preparing] and nothing is
+///   sampled; a failed load turns the memory off with the reason (the
+///   knowledge base keeps its text and audio embedder) until [clear] or a
+///   new owner. It stays loaded until the app exits (the embedder's media
+///   only widen).
 /// - **Sampler** (every [kMemoryTick]): a frame is asked for only when it is
-///   due ([MemorySampler]), live detection runs (not paused), the frames are
+///   due ([MemorySampler], on a monotonic clock; the frames' times and ages
+///   are the wall clock's), live detection runs (not paused), the frames are
 ///   not black, no question capture is pending and the owner says the demo
 ///   is idle (no turn, no generation, no playback). A busy tick drops the
 ///   sample and restarts the gap, and so does the first idle tick after a
@@ -81,7 +82,9 @@ typedef EnableMemoryImages = Future<Result<void>> Function();
 ///   starts ([sourceStarts]: a source change, Retry; not the restart after
 ///   the camera was released in the background, nor a detector switch) and
 ///   by [clear] ("Clear memory"); never written to disk.
-/// - **Failures**: each failed frame embedding counts in [status]; after
+/// - **Failures**: each failed frame embedding counts in [status] (so does
+///   a vector no cosine can use, a NaN or infinite value or all zeros,
+///   which is never stored: [MemoryVectorException]); after
 ///   [kMemoryFailuresUntilOff] in a row the memory is off with the last
 ///   failure as its reason, until it is cleared. An embedder that is not
 ///   ready (loading, failed, closed) also turns it off, with that reason. A
@@ -111,10 +114,12 @@ class VisualMemoryRepository {
     this._separation = kMemoryMarginSeparation,
     this._sameScene = kMemorySameSceneCosine,
     this._tie = kMemoryTieCosine,
-    int Function()? clockMicros,
+    int Function()? wallClockMicros,
+    int Function()? monotonicMicros,
   }) : _sampler = sampler ?? MemorySampler(),
        _store = store ?? MemoryStore(),
-       _clock = clockMicros ?? _wallMicros {
+       _wallClock = wallClockMicros ?? _wallMicros,
+       _monotonic = monotonicMicros ?? _monotonicMicros {
     _sourceStarts.addListener(_onSourceStart);
     _models?.addListener(_onModels);
     _publish();
@@ -144,18 +149,29 @@ class VisualMemoryRepository {
   final Duration _separation;
   final double _sameScene;
   final double _tie;
-  final int Function() _clock;
 
-  /// The wall clock, not a monotonic one: the frames outlive a trip to the
+  /// When a frame was seen ([MemoryEntry.atMicros]) and how long ago: the
+  /// wall clock, not a monotonic one: the frames outlive a trip to the
   /// background (the camera released, the device maybe asleep), and
   /// Android's monotonic clock stops while the device sleeps, which would
   /// make "seen N ago" too short. A clock set back meanwhile gives an age of
   /// zero, never a negative one ([_ageOf]).
+  final int Function() _wallClock;
+
+  /// The sampler's times ([MemorySampler]: the gap between attempts, the
+  /// forced store): a monotonic clock, so a wall clock set back (a time-zone
+  /// or network time change) never stops sampling, nor does one set forward
+  /// make a frame due early.
+  final int Function() _monotonic;
+
   static int _wallMicros() => DateTime.now().microsecondsSinceEpoch;
 
-  /// How long ago [atMicros] was, never negative.
+  static final Stopwatch _monotonicWatch = Stopwatch()..start();
+  static int _monotonicMicros() => _monotonicWatch.elapsedMicroseconds;
+
+  /// How long ago [atMicros] (wall clock) was, never negative.
   Duration _ageOf(int atMicros) =>
-      Duration(microseconds: math.max(0, _clock() - atMicros));
+      Duration(microseconds: math.max(0, _wallClock() - atMicros));
 
   final ValueNotifier<VisualMemoryStatus> _status = ValueNotifier(
     const VisualMemoryStatus(),
@@ -178,7 +194,7 @@ class VisualMemoryRepository {
   Future<void>? _widening;
 
   /// Why loading the image encoder failed; kept until [clear] or a new
-  /// owner (a new source session does not retry a 2 s reload).
+  /// owner (a new source session does not retry the reload).
   String? _imagesFailure;
 
   /// Bumped by every clear: an attempt that started before is dropped.
@@ -276,7 +292,7 @@ class VisualMemoryRepository {
       _maybeLoadImages();
       return;
     }
-    final now = _clock();
+    final now = _monotonic();
     if (!_isIdle()) {
       // Dropped: busy now, nothing queues. The gap restarts, here and at
       // the first idle tick after, so the next frame waits a full gap
@@ -296,18 +312,20 @@ class VisualMemoryRepository {
     _busy = true;
     final generation = _generation;
     try {
-      await _attempt(now, generation);
+      await _attempt(now, _wallClock(), generation);
     } catch (e, st) {
       // _attempt reports through Results; a throw here is a bug, logged and
       // counted as a failed attempt rather than leaving the sampler wedged.
       debugPrint('[VisualMemory] sampling failed: $e\n$st');
-      if (generation == _generation) _sampler.attemptEnded(_clock());
+      if (generation == _generation) _sampler.attemptEnded(_monotonic());
     } finally {
       _busy = false;
     }
   }
 
-  Future<void> _attempt(int takenAt, int generation) async {
+  /// One attempt that started at [sampledAt] (the monotonic clock, for the
+  /// sampler) and [takenAt] (the wall clock, the frame's time).
+  Future<void> _attempt(int sampledAt, int takenAt, int generation) async {
     final shot = await _capture(reference: _store.newest?.grey);
     if (_closed || generation != _generation) return;
     final MemoryShot value;
@@ -316,12 +334,12 @@ class VisualMemoryRepository {
         // The worker detected the frame but could not make its memory
         // frame: a failure of the memory's own, counted like an embedding's.
         _countFailure('a memory frame could not be made', error);
-        _sampler.attemptEnded(_clock());
+        _sampler.attemptEnded(_monotonic());
         _publish();
         return;
       case Error(:final error):
         debugPrint('[VisualMemory] no frame this time: $error');
-        _sampler.attemptEnded(_clock());
+        _sampler.attemptEnded(_monotonic());
         return;
       case Ok(value: final v):
         value = v;
@@ -330,23 +348,26 @@ class VisualMemoryRepository {
     if (png == null) {
       // The scene has not changed since the last stored frame. Once a store
       // is due anyway, that frame was seen again now: its time is refreshed
-      // in place rather than a duplicate stored (and embedded).
-      if (_sampler.forced(takenAt) && _store.refreshNewest(takenAt)) {
-        _sampler.stored(takenAt);
+      // in place rather than a duplicate stored (and embedded). After a wall
+      // clock set back this moves its time back, which is right for its age
+      // (measured on that clock); which frame is newest is the store's
+      // order, never this time (judgeMemory).
+      if (_sampler.forced(sampledAt) && _store.refreshNewest(takenAt)) {
+        _sampler.stored(sampledAt);
         debugPrint(
           '[VisualMemory] frame #${_store.newest?.frameId} seen again '
           '(${_change(value)}): time refreshed',
         );
         _publish();
       }
-      _sampler.attemptEnded(_clock());
+      _sampler.attemptEnded(_monotonic());
       return;
     }
     if (!_isIdle()) {
       // A question started while the frame came back: it goes first.
       debugPrint('[VisualMemory] frame #${value.frameId} dropped: busy');
       _sawBusy = true;
-      _sampler.attemptEnded(_clock());
+      _sampler.attemptEnded(_monotonic());
       return;
     }
     final watch = Stopwatch()..start();
@@ -354,7 +375,18 @@ class VisualMemoryRepository {
     final took = watch.elapsed;
     if (_closed || generation != _generation) return;
     switch (embedded) {
-      case Ok(value: final vector):
+      case Ok(value: final values):
+        // Checked as stored (float32): a tiny vector may underflow to zeros.
+        final vector = Float32List.fromList(values);
+        if (vectorDefect(vector) case final defect?) {
+          // Never stored: a frame no question could be compared with (and a
+          // NaN score that would pass every acceptance test).
+          _countFailure(
+            'frame #${value.frameId} embedding is unusable',
+            MemoryVectorException('the image vector has $defect'),
+          );
+          break;
+        }
         final entry = MemoryEntry(
           id: _nextId++,
           frameId: value.frameId,
@@ -362,15 +394,16 @@ class VisualMemoryRepository {
           png: png,
           width: value.width,
           height: value.height,
+          unmirrored: value.unmirrored,
           counts: DetectionSummary.fromWindow([
             value.detections,
           ], minScore: _countScore).counts,
-          vector: Float32List.fromList(vector),
+          vector: vector,
           grey: value.grey,
         );
         final dropped = _store.add(entry);
         _failuresInARow = 0;
-        _sampler.stored(takenAt);
+        _sampler.stored(sampledAt);
         debugPrint(
           '[VisualMemory] frame #${value.frameId} stored '
           '${value.width}x${value.height} PNG ${png.length} B · worker '
@@ -382,7 +415,7 @@ class VisualMemoryRepository {
       case Error(:final error):
         _countFailure('frame #${value.frameId} embedding failed', error);
     }
-    _sampler.attemptEnded(_clock(), embedTime: took);
+    _sampler.attemptEnded(_monotonic(), embedTime: took);
     _publish();
   }
 
@@ -429,7 +462,10 @@ class VisualMemoryRepository {
   /// Searches the remembered frames for [phrase] (embedded raw) and judges
   /// them ([judgeMemory]). Ok with [MemoryHit] (ambiguous or not),
   /// [MemoryMiss], [MemoryEmpty], [MemoryDisabled] or [MemoryOff] (with the
-  /// reason); Error when the phrase could not be embedded. Never throws.
+  /// reason); Error when the phrase could not be embedded, its vector cannot
+  /// be compared ([MemoryVectorException]: a NaN or infinite value, all
+  /// zeros) or its length is not the frames'. Never throws: every stored
+  /// vector passed the same check.
   Future<Result<MemoryRecall>> recall(String phrase) async {
     if (_closed) return const Result.ok(MemoryOff('the memory was closed'));
     if (!_enabled) return const Result.ok(MemoryDisabled());
@@ -445,6 +481,14 @@ class VisualMemoryRepository {
       case Error(:final error):
         debugPrint('[VisualMemory] recall "$phrase": $error');
         return Result.error(error);
+    }
+    if (vectorDefect(query) case final defect?) {
+      // A zero vector would throw in the cosine; a NaN one would score NaN
+      // against every frame. Either is an embedder failure, never a miss.
+      debugPrint('[VisualMemory] recall "$phrase": the vector has $defect');
+      return Result.error(
+        MemoryVectorException('the question\'s vector has $defect'),
+      );
     }
     if (_closed) return const Result.ok(MemoryOff('the memory was closed'));
     final entries = _store.entries; // as it is now, after the await
@@ -487,15 +531,15 @@ class VisualMemoryRepository {
       sameScene: _sameScene,
       tie: _tie,
     )!;
-    final now = _clock();
     final picked = entries[verdict.best];
+    final age = _ageOf(picked.atMicros);
     _lastBestCosine = verdict.cosine;
     debugPrint(
       '[VisualMemory] recall "$phrase" in ${watch.elapsedMilliseconds}ms: '
       'best ${verdict.cosine.toStringAsFixed(3)}, ${verdict.outcome.name} '
       'frame #${picked.frameId} '
       '(${cosines[verdict.best].toStringAsFixed(3)}, '
-      '${((now - picked.atMicros) / 1e6).toStringAsFixed(1)} s ago) rival '
+      '${(age.inMilliseconds / 1000).toStringAsFixed(1)} s ago) rival '
       '${verdict.rival?.toStringAsFixed(3) ?? '–'} over ${entries.length} '
       'frames: ${verdict.reason}',
     );
@@ -507,7 +551,7 @@ class VisualMemoryRepository {
             entry: picked,
             cosine: cosines[verdict.best],
             rival: verdict.rival,
-            age: _ageOf(picked.atMicros),
+            age: age,
             ambiguous: verdict.outcome == MemoryOutcome.ambiguous,
           ),
         );
@@ -516,7 +560,8 @@ class VisualMemoryRepository {
           MemoryMiss(
             cosine: verdict.cosine,
             rival: verdict.rival,
-            span: Duration(microseconds: now - entries.first.firstSeenMicros),
+            // Never negative, like an age (a wall clock set back).
+            span: _ageOf(entries.first.firstSeenMicros),
             frames: entries.length,
             reason: verdict.reason,
           ),

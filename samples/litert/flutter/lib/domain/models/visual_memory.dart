@@ -68,16 +68,29 @@ final class MemoryFrameException implements Exception {
   String toString() => message;
 }
 
+/// An embedding the visual memory cannot compare (a NaN or infinite value,
+/// all zeros): a frame's is not stored (it counts like a failed embedding),
+/// a question's fails the recall.
+final class MemoryVectorException implements Exception {
+  const MemoryVectorException(this.message);
+
+  final String message;
+
+  @override
+  String toString() => message;
+}
+
 /// One remembered frame: when it was seen, its PNG thumbnail, what the
 /// detector saw in it, and its EmbeddingGemma 2 vector. Kept in memory only.
 final class const MemoryEntry({
   required final int id,
   required final int frameId,
 
-  /// The monotonic clock (µs) when it was last seen: when it was stored, or
-  /// the latest time an unchanged scene refreshed it ([seenAgainAt]). Ages
-  /// ("seen 12 s ago") and the acceptance's time separation are measured on
-  /// it.
+  /// The wall clock (µs since the epoch) when it was last seen: when it was
+  /// stored, or the latest time an unchanged scene refreshed it
+  /// ([seenAgainAt]). Ages ("seen 12 s ago") and the acceptance's time
+  /// separation are measured on it: the wall clock keeps counting while the
+  /// device sleeps, a monotonic one may not.
   required final int atMicros,
 
   /// When it was first seen (stored), on the same clock; [atMicros] when not
@@ -90,6 +103,9 @@ final class const MemoryEntry({
   required final Uint8List png,
   required final int width,
   required final int height,
+
+  /// The PNG was mirrored back (the source mirrors its frames).
+  final bool unmirrored = false,
 
   /// Class id → boxes in that frame at the counting score, most numerous
   /// first.
@@ -119,6 +135,7 @@ final class const MemoryEntry({
     png: png,
     width: width,
     height: height,
+    unmirrored: unmirrored,
     counts: counts,
     vector: vector,
     grey: grey,

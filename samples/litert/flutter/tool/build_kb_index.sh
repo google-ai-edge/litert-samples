@@ -28,8 +28,7 @@
 # profile id (kKbEmbeddingProfileId) or flutter_edge_ai_sqlite:
 # test/data/services/knowledge/kb_prebuilt_asset_test.dart compares the
 # manifest with each of them (the key, the profile id, the store's version)
-# and fails until you do. Keep the test app's window visible while it runs
-# (~1 min on an M-series Mac: 304 chunks embed in about 25 s).
+# and fails until you do. Keep the test app's window visible while it runs.
 set -euo pipefail
 
 ROOT=$(cd "$(dirname "$0")/.." && pwd)

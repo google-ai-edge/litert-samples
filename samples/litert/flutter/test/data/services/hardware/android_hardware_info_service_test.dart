@@ -54,8 +54,10 @@ void main() {
     expect(gpu.inferred, isTrue);
     expect(gpu.kind, GpuKind.integrated);
     expect(gpu.source, contains('SM8650'));
-    expect(p.npuHints.single.text, startsWith('Qualcomm Hexagon V75'));
-    expect(p.npuHints.single.text, contains('libcdsprpc.so opens'));
+    expect(
+      p.npuHints.single.text,
+      'Qualcomm Hexagon V75 · libcdsprpc.so opens',
+    );
     expect(p.notes.single, contains('named from the SoC, not queried'));
   });
 

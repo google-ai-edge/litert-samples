@@ -10,7 +10,7 @@ PASS  3   cats golden                                      <time>
            run 5.0 ms median (first 5.0 ms) · 10 runs identical
            golden classes ✓ · max box 0.00 px (≤ 3.0) · max Δscore 0.0000 (≤ 0.03)
 FAIL  4a  chat model load + warm-up (gpu)                  <time>
-           load failed (no fallback): Gemma: requested gpu but the engine loaded on cpu. Fallback is disabled, so it was closed.
+           load failed (no fallback): Gemma 4 E2B did not load on gpu: gpu: Failed to create engine on gpu: Metal delegate kernel initialization failed. Model: /models/gemma-4-E2B-it.litertlm
 SKIP  4b  chat model generate                              0.00 s
            the chat model did not load as requested
 PASS  5   detector again (bit-identical)                   <time>

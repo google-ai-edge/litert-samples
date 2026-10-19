@@ -20,10 +20,9 @@ import 'package:litert_edge_demos/domain/use_cases/skill_question_router.dart';
 
 /// Live device-fact and time questions skip retrieval
 /// (deterministic), so Gemma sees only its skills for them; every
-/// knowledge-base question still retrieves. Device questions clear the KB
-/// gate (5 of 6 at 0.68–0.77 against 0.70 with EmbeddingGemma 2,
-/// `test_assets/skill_trigger_similarity.json`), which is why this router
-/// exists.
+/// knowledge-base question still retrieves. Device questions can clear the
+/// KB gate (`test_assets/skill_trigger_similarity.json`), which is why this
+/// router exists.
 void main() {
   const router = SkillQuestionRouter();
   SkillTopic? topic(String q) => router.classify(q)?.topic;
@@ -32,7 +31,7 @@ void main() {
     final golden = jsonDecode(
       File('test_assets/skill_trigger_similarity.json').readAsStringSync(),
     ) as Map<String, Object?>;
-    // The app has no timer or camera-watch skills: their measured phrases
+    // The app has no timer or camera-watch skills: their golden phrases
     // reach the model like any other chat (no route).
     const topics = {
       'device-info': SkillTopic.deviceFacts,
@@ -184,5 +183,43 @@ void main() {
         expect(action(q), isNull, reason: q);
       }
     });
+  });
+
+  // The responder skips retrieval for a classified question only when an
+  // installed skill offers its intent, and runs that intent directly first
+  // whenever `action` matches: so every classified question must also be an
+  // action with the same intent, or a tools-off chat would lose its excerpts
+  // with no skill to call instead.
+  test('every classified question is also a direct action with the same '
+      'intent', () {
+    final golden = jsonDecode(
+      File('test_assets/skill_trigger_similarity.json').readAsStringSync(),
+    ) as Map<String, Object?>;
+    final questions = [
+      for (final row in golden['phrases']! as List<Object?>)
+        (row! as Map<String, Object?>)['q']! as String,
+      'Which accelerator is running right now?',
+      'Is Gemma running on the GPU?',
+      'How much memory are you using?',
+      'What processor does this device have?',
+      'Are you using the NPU?',
+      'Which backend is the detector using right now?',
+      "What's running on the GPU at the moment?",
+      'Which models are loaded?',
+      'Are you running on the CPU or the GPU?',
+      'What are you running on?',
+      'What time is it now?',
+      'Can you tell me the time, please?',
+      "What's today's date?",
+      'What year is it?',
+    ];
+    var classified = 0;
+    for (final q in questions) {
+      final route = router.classify(q);
+      if (route == null) continue;
+      classified++;
+      expect(router.action(q)?.intent, route.intent, reason: q);
+    }
+    expect(classified, greaterThan(10));
   });
 }

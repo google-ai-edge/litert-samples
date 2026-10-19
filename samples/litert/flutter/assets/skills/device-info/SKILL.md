@@ -1,6 +1,6 @@
 ---
 name: device-info
-description: Say which models, backends and accelerators this app is running and how much memory it uses.
+description: Say which models, backends and accelerators this app is running and how much memory the device has.
 ---
 # Device info
 

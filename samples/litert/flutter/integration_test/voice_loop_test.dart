@@ -15,9 +15,9 @@
 // Demo 1's voice loop on the real app (macOS): Gemma 4 E2B on the GPU,
 // Whisper base int8 and Inflect-nano-v2 on the CPU, soloud playback, in both
 // modes: the Whisper path (GEMMA_MODEL_PATH, no audio tower loaded: Voice →
-// Whisper → Gemma) and audio mode (the same file as your own model, its audio
-// tower loaded as its header has it: Voice → Gemma, the model hears the
-// question).
+// Whisper → Gemma) and audio mode (the same file as your own model, which
+// loads every tower the file has, the engine placing each: Voice → Gemma, the
+// model hears the question).
 //
 //   flutter test integration_test/voice_loop_test.dart -d macos \
 //     --dart-define=GEMMA_MODEL_PATH=<path/to/gemma-4-E2B-it.litertlm>
@@ -44,7 +44,7 @@
 // 5. Real mic probe, only if the app is already authorized (never prompts):
 //    1.5 s of capture, `MIC real …` with its loudness and all-zero check.
 // 6. Audio mode: back home, GEMMA_MODEL_PATH as a local file, its audio
-//    tower on as its header sets it (the Models screen's flow:
+//    tower on because the file has one (the Models screen's flow:
 //    useLocalFile, apply, reload), Demo 1 again; the mode line says
 //    Voice → Gemma. Prints `LLM_RSS` for both loads (step 1's
 //    GEMMA_MODEL_PATH load is the audio-off one: kLlmConfig has no audio
@@ -54,15 +54,14 @@
 //    (after the playback drained) fills it with words containing "france",
 //    and the conversation's text history gets them. Prints `AUDIO …` per
 //    turn (first-turn TTFT vs the second's: the audio warm-up decision).
-// 8. Barge-in in audio mode: the spoken lighthouse question, a press while it is
-//    speaking and Gemma generating: silent ≤150 ms, generation stopped; the
+// 8. Barge-in in audio mode: the spoken lighthouse question, a press while it
+//    is speaking and Gemma generating: silent ≤150 ms, generation stopped; the
 //    follow-up audio turn (the fixture mic plays the France question) is
 //    answered with "paris", on a chat rebuilt from the text history.
 //    Prints `STORY_PARTIAL …` (the reply so far, before the press) and
 //    `AUDIO_BARGE …`.
-// (Audio is no longer a setting: a file with an audio tower always loads it,
-// so there is no "audio off with the same file" step; step 1 measured the
-// audio-off RSS.)
+// (A file with an audio tower always loads it, so there is no "audio off
+// with the same file" step; step 1 prints the audio-off RSS.)
 
 import 'dart:async';
 import 'dart:io';
@@ -279,7 +278,7 @@ void main() {
       ),
     );
 
-    // 1. Setup (downloads STT/TTS on the first run), home, Demo 1.
+    // 1. Setup, home, Demo 1.
     final setupWatch = Stopwatch()..start();
     await pumpUntil(
       tester,
@@ -375,8 +374,8 @@ void main() {
       reason: 'the long reply to start speaking',
       describe: () => describeChat(vm),
     );
-    // Press while Gemma is still generating (~400 tokens at ~80 tok/s), so
-    // the barge-in has to stop the generation, not just the audio.
+    // Press while Gemma is still generating, so the barge-in has to stop
+    // the generation, not just the audio.
     await pumpFor(tester, const Duration(milliseconds: 300));
     expect(vm.phase, TurnPhase.speaking, reason: 'still speaking');
     expect(
@@ -522,18 +521,15 @@ void main() {
     // 6. Audio mode: the same file in place, its audio tower on (the Models
     //    screen's flow), then Demo 1 again.
     await leaveVoiceChat(tester);
-    final local = await deps.chatModels.useLocalFile(kGemmaModelPath);
-    final CustomChatModel adopted;
-    switch (local) {
-      case Ok(:final value):
-        adopted = value;
-      case Error(:final error):
-        fail('GEMMA_MODEL_PATH as a local file: $error');
-    }
+    // Picked, then applied below: a pick alone saves and loads nothing.
+    final (model: adopted, :bundle) = await pickInPlace(
+      deps.chatModels,
+      kGemmaModelPath,
+    );
     expect(
-      adopted.towersOf(deps.chatModels.state.value.header!).supportAudio,
-      isTrue,
-      reason: 'its header has audio',
+      bundle.audioEncoder,
+      isNotNull,
+      reason: 'the file has an audio encoder',
     );
     Future<void> applyAndReload(CustomChatModel model, String label) async {
       expect(await deps.chatModels.apply(model), isA<Ok<void>>());

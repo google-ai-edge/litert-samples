@@ -71,6 +71,21 @@ enum NotHeardReason {
   emptyTranscript,
 }
 
+/// Why something outside the app ended a press or a turn.
+enum InterruptionCause {
+  /// The OS or another app took the audio: a call, Siri, an alarm, another
+  /// app's playback.
+  audioTaken,
+
+  /// The output went away (headphones unplugged): the reply would have gone
+  /// on through the speaker.
+  outputRemoved,
+
+  /// iOS: the app left the foreground, where it may not use the GPU and is
+  /// suspended within seconds (it has no background modes).
+  background,
+}
+
 /// How a turn ended, for the caller that started it.
 enum TurnOutcome {
   completed,

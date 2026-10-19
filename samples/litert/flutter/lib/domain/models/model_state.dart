@@ -12,6 +12,9 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import 'package:flutter_edge_ai_litertlm/flutter_edge_ai_litertlm.dart'
+    show LiteRtLmBundleProblem;
+
 import '../../utils/result.dart';
 import 'model_id.dart';
 
@@ -51,11 +54,12 @@ final class const ChatModelFacts({
   /// flutter_edge_ai's `ModelType` name (`gemma4`).
   required final String modelType,
 
-  /// Where the vision tower was asked to run (`cpu`, `npu`); null when it
-  /// was not loaded (the file has none, or its header could not be read).
+  /// Where the engine put the vision encoder (`cpu`, `gpu`, `npu`:
+  /// `InferenceModel.activeVisionBackend`; the app asks for none); null when
+  /// it was not loaded (the file has none) or the engine does not say.
   final String? visionBackend,
 
-  /// Where the audio tower was asked to run; null when it was not loaded.
+  /// The same for the audio encoder (`InferenceModel.activeAudioBackend`).
   final String? audioBackend,
 
   /// The process's resident memory before and after the engine was built
@@ -67,14 +71,15 @@ final class const ChatModelFacts({
   /// `1a2b3c4d…` for the card.
   String? get shortSha => sha256 == null ? null : '${sha256!.substring(0, 8)}…';
 
-  /// Loaded with the vision tower: photos and camera frames can be sent.
+  /// The engine reports a vision encoder ([visionBackend]): photos and
+  /// camera frames can be sent.
   bool get images => visionBackend != null;
 
-  /// Loaded with the audio tower.
+  /// The engine reports an audio encoder ([audioBackend]).
   bool get audio => audioBackend != null;
 
   /// `ctx 1280 · vision cpu · audio npu · tools off · gemma4`: each loaded
-  /// tower with where it runs (none for a text-only load).
+  /// tower with where the engine put it (none for a text-only load).
   String get capabilityLine => [
     contextTokens == requestedContext
         ? 'ctx $contextTokens'
@@ -138,7 +143,7 @@ final class const ModelReady(final LoadedModelInfo info) extends ModelState;
 final class const ModelUnavailable(final String reason) extends ModelState;
 
 /// Setup stopped. [message] is shown as-is, with a Retry button unless
-/// [retryable] is false (nothing the app can try helps; [message] says what
+/// [retryable] is false (the same load cannot help; [message] says what
 /// does). [backend] is the backend the load failed on (`gpu`, `cpu`) when
 /// another backend might work (the detector: Demo 3 offers the other one);
 /// null otherwise.
@@ -146,6 +151,14 @@ final class const ModelFailed(
   final String message, {
   final String? backend,
   final bool retryable = true,
+
+  /// The chat model only: flutter_edge_ai_litertlm refused the file before
+  /// any engine (`LiteRtLmBundleException.problem`: `incomplete`,
+  /// `wrongBackend`, `unsupportedNpu`). The same load is refused again, so
+  /// such a failure is never [retryable]; the Models screen offers what the
+  /// plugin's message advises, where it can (`wrongBackend` for a build
+  /// compiled for the NPU: Run on NPU). Null for every other failure.
+  final LiteRtLmBundleProblem? bundleProblem,
 }) extends ModelState;
 
 /// Makes a demo's speech recognizer the active one (`ModelRepository

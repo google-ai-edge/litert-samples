@@ -8,7 +8,7 @@ voice chat with Gemma and a live camera assistant. Everything runs on the Pi.
 | Model | Runs on |
 |---|---|
 | Chat model, Gemma 4 E2B (`gemma-4-E2B-it.litertlm`) | CPU (select it on the card, step 5); its vision and audio towers on the CPU |
-| YOLO26n detector (Live camera) | CPU: choose **Run detector on CPU** (step 5); the Pi's GPU is not verified |
+| YOLO26n detector (Live camera) | GPU by default; CPU when chosen in the Live camera settings (**Detector › CPU (slower)**), or with **Run detector on CPU** if the GPU load fails (step 5) |
 | EmbeddingGemma 2 (knowledge base, visual memory), Whisper base and moonshine tiny (speech to text), Inflect-nano-v2 (spoken replies) | CPU |
 
 The app offers no NPU on the Pi.
@@ -109,7 +109,8 @@ show where each model runs.
 ## 6. Use it and check it
 
 - **Voice chat:** hold the mic button, speak, release; or type. Try "What is the input size of the YOLO26 nano
-  detector?" (answered from the knowledge base, with sources) and "Which accelerator are you running on?".
+  detector?" (answered from the knowledge base, with sources) and "What time is it?", and type "Which accelerator are
+  you running on?": the app answers it and names where each model runs.
 - **Live camera:** choose the camera with the **Camera** button at the top of the demo: a USB webcam, or a network
   camera such as a phone running IP Webcam. Hold the mic and ask "What do you see?", "How many people are there?".
   It also remembers what it saw: "Where was the yellow sign?" shows the frame and how long ago it was.
@@ -124,7 +125,7 @@ show where each model runs.
 
 | Symptom | Fix |
 |---|---|
-| `flutter --version` fails with `…/dart: No such file or directory` | A 32-bit system (`dpkg --print-architecture` prints `armhf`): install Raspberry Pi OS (64-bit) |
+| Flutter or the build fails on a 32-bit system (`dpkg --print-architecture` prints `armhf`) | Install Raspberry Pi OS (64-bit): the app needs arm64 |
 | `version 'GLIBC_2.34' not found` or `'GLIBCXX_3.4.30' not found` | Raspberry Pi OS older than Bookworm: install Bookworm or newer |
 | `flutter pub get` cannot find `third_party/flutter_litert` | Run `tool/flutter_litert/vendor.sh` (step 2) |
 | `No file or variants found for asset: assets/models/…` | Run `tool/fetch_models.sh` (step 3) |
@@ -132,9 +133,7 @@ show where each model runs.
 | After a failed build, `file INSTALL cannot copy file … to "/usr/local/…": Permission denied` | CMake kept a default install prefix from the failed run: `rm -r build/linux` and build again |
 | The build stops with `Killed` | Out of memory: close other apps, or add swap: `sudo fallocate -l 4G /swapfile && sudo chmod 600 /swapfile && sudo mkswap /swapfile && sudo swapon /swapfile` |
 | `package.sh: … exists; move it away first` | `rm -r build/dist/litert_edge_demos-v*`, then run it again |
-| A model load fails with `Invalid argument` | The Pi 5 kernel uses 16 KB memory pages (`getconf PAGESIZE`); try the 4 KB kernel: add `kernel=kernel8.img` to `/boot/firmware/config.txt` and reboot |
 | "No sound server" / "Microphone unavailable" | `systemctl --user start pipewire pipewire-pulse`; `sudo apt install pulseaudio-utils` |
 | No sound from replies | Choose the USB speaker in the taskbar's volume menu (the default is often HDMI) |
 | A model fails on the GPU | Choose **Run on CPU** / **Run detector on CPU** |
 | Very slow, the Pi gets hot | Fit the Active Cooler; close other apps |
-| The camera list shows `pispbe`, or `run.sh` lists `/dev/video19`–`35` without a webcam | Those are the Pi's video decoder and image processor, not cameras: plug in a USB webcam and choose it by name |

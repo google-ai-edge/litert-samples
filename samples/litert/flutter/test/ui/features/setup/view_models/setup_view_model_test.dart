@@ -15,6 +15,7 @@
 import 'dart:async';
 import 'dart:io';
 
+import 'package:flutter_edge_ai/flutter_edge_ai.dart' show PreferredBackend;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:litert_edge_demos/config/model_catalog.dart';
 import 'package:litert_edge_demos/data/repositories/chat_model_repository.dart';
@@ -22,6 +23,7 @@ import 'package:litert_edge_demos/data/repositories/model_repository.dart';
 import 'package:litert_edge_demos/data/repositories/provisioning_repository.dart';
 import 'package:litert_edge_demos/data/services/hardware/native_log_tap.dart';
 import 'package:litert_edge_demos/data/services/knowledge/embedder_service.dart';
+import 'package:litert_edge_demos/data/services/llm/llm_service.dart';
 import 'package:litert_edge_demos/data/services/model_store/model_store.dart';
 import 'package:litert_edge_demos/data/services/model_store/models_folder.dart';
 import 'package:litert_edge_demos/data/services/settings/typed_settings.dart';
@@ -45,8 +47,8 @@ import '../../../../fakes/fake_llm_service.dart';
 import '../../../../fakes/fake_self_test_adapters.dart';
 import '../../../../fakes/fake_settings_store.dart';
 import '../../../../fakes/fake_speech.dart';
+import '../../../../support/fake_bundles.dart';
 import '../../../../support/fake_model_server.dart';
-import '../../../../support/test_bytes.dart';
 import '../../../../support/until.dart';
 
 /// The self-test's steps are replaced; its planner is never asked.
@@ -143,13 +145,12 @@ void main() {
   ModelRow rowOf(SetupViewModel vm, ModelId id) =>
       vm.rows.firstWhere((r) => r.spec.id == id);
 
-  /// A `.litertlm` with a real header (Gemma 4 E2B for the GPU), in [dir].
-  File litertlm(Directory dir, String name) => File('${dir.path}/$name')
-    ..writeAsBytesSync([
-      ...File('test_assets/litertlm/gemma4_e2b_gpu.header.bin')
-          .readAsBytesSync(),
-      ...testBytes(4096, seed: 21),
-    ]);
+  /// A test `.litertlm` (Gemma 4 E2B for the GPU), in [dir].
+  File litertlm(Directory dir, String name) => writeFakeLitertlm(
+    '${dir.path}/$name',
+    FakeBundle.gemma4E2b,
+    filler: 4096,
+  );
 
   test('no chat model chosen (the app ships none): every built-in model '
       'loads, the chat row says how to choose one; choosing one by a reload '
@@ -158,6 +159,7 @@ void main() {
     addTearDown(chatStore.close);
     final chatModels = ChatModelRepository(
       settings: TypedSettings(store: InMemorySettingsStore()),
+      readBundle: fakeReadBundle,
       store: chatStore,
       folders: [ModelsFolder(directory: () async => root)],
     );
@@ -211,6 +213,58 @@ void main() {
     expect(llm.loads, hasLength(1), reason: 'only the chat model loaded');
   });
 
+  test('the chosen file gone at launch ("Copy it back"): Retry after it is '
+      'back checks it again and loads it, no restart', () async {
+    final prefs = InMemorySettingsStore();
+    final dir = Directory('${root.path}/picked')..createSync();
+    final file = litertlm(dir, 'gemma-4-E2B-it.litertlm');
+    final firstStore = ModelStore(root: () async => root);
+    addTearDown(firstStore.close);
+    final first = ChatModelRepository(
+      settings: TypedSettings(store: prefs),
+      readBundle: fakeReadBundle,
+      store: firstStore,
+      folders: [ModelsFolder(directory: () async => root)],
+    );
+    addTearDown(first.dispose);
+    await first.load();
+    await first.useLocalFile(file.path);
+    final picked = first.state.value.candidate!.model;
+    expect(await first.apply(picked), isA<Ok<void>>());
+    final bytes = file.readAsBytesSync();
+    file.deleteSync();
+
+    final chatStore = ModelStore(root: () async => root);
+    addTearDown(chatStore.close);
+    final chatModels = ChatModelRepository(
+      settings: TypedSettings(store: prefs),
+      readBundle: fakeReadBundle,
+      store: chatStore,
+      folders: [ModelsFolder(directory: () async => root)],
+    );
+    addTearDown(chatModels.dispose);
+    await chatModels.load();
+    final (:vm, :models, :repo) = build(
+      chatModels: chatModels,
+      gemmaModelPath: '',
+    );
+    await untilNotified(
+      vm,
+      () => vm.prepare.result != null && !vm.prepare.running,
+      what: 'the first setup',
+    );
+    final blocked = rowOf(vm, ModelId.chat);
+    expect(blocked.status, 'Failed');
+    expect(blocked.detail, contains('Copy it back'));
+    expect(blocked.canRetryLoad, isTrue);
+
+    file.writeAsBytesSync(bytes);
+    await vm.prepare.execute();
+
+    expect(models.states.value[ModelId.chat], isA<ModelReady>());
+    expect(llm.installs.last, file.path);
+  });
+
   test('your own chat model chosen but without a file: the chat row says '
       'why it cannot load; no other model is loaded instead', () async {
     final prefs = InMemorySettingsStore()..values['chat.model'] = 'custom';
@@ -218,6 +272,7 @@ void main() {
     addTearDown(chatStore.close);
     final chatModels = ChatModelRepository(
       settings: TypedSettings(store: prefs),
+      readBundle: fakeReadBundle,
       store: chatStore,
       folders: [ModelsFolder(directory: () async => root)],
     );
@@ -287,6 +342,7 @@ void main() {
     );
     final chatModels = ChatModelRepository(
       settings: TypedSettings(store: InMemorySettingsStore()),
+      readBundle: fakeReadBundle,
       store: store,
       folders: [ModelsFolder(directory: () async => root)],
     );
@@ -337,7 +393,10 @@ void main() {
     final result = await downloading;
 
     expect(result, isA<Ok<CustomChatModel>>());
-    expect(store.customFile.value, isA<StoreFileReady>());
+    final candidate = chatModels.state.value.candidate;
+    expect(candidate, isNotNull, reason: 'picked, to apply on the card');
+    expect(File(candidate!.path).lengthSync(), bytes.length);
+    expect(chatModels.state.value.custom, isNull, reason: 'nothing saved');
   });
 
   test('while the self-test holds the chat model: opening the screen starts '
@@ -446,7 +505,7 @@ void main() {
   });
 
   test('a load failure keeps its Retry and is not retried by itself', () async {
-    llm.activeBackend = null; // the engine reports no backend
+    llm.loadError = engineCreateFailure();
     final (:vm, :models, :repo) = build();
 
     await untilNotified(
@@ -458,7 +517,35 @@ void main() {
     final row = rowOf(vm, ModelId.chat);
     expect(row.status, 'Failed');
     expect(row.canRetryLoad, isTrue);
-    expect(row.detail, contains('Fallback is disabled'));
+    expect(row.detail, contains('did not load on gpu'));
     expect(llm.loads, hasLength(1));
   });
+
+  test(
+    "a load the plugin refused before any engine (a LiteRtLmBundleException) "
+    'has no Retry: the same load is refused again',
+    () async {
+      llm.loadError = const ChatModelLoadException(
+        modelName: 'Gemma 4 E2B',
+        requested: PreferredBackend.gpu,
+        cause: LiteRtLmBundleException(
+          LiteRtLmBundleProblem.wrongBackend,
+          '/m/sm8750.litertlm is compiled for the Qualcomm SM8750 NPU and runs '
+          'only there, not on gpu.',
+        ),
+      );
+      final (:vm, :models, :repo) = build();
+
+      await untilNotified(
+        vm,
+        () => vm.prepare.result != null,
+        what: 'setup to fail',
+      );
+      final row = rowOf(vm, ModelId.chat);
+      expect(row.status, 'Failed');
+      expect(row.detail, contains('(wrongBackend)'));
+      expect(row.canRetryLoad, isFalse);
+      expect(llm.loads, hasLength(1));
+    },
+  );
 }

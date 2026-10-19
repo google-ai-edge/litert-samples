@@ -49,7 +49,7 @@ typedef RecallMemory = Future<Result<MemoryRecall>> Function(String phrase);
 typedef RecallLatestMemory = Future<Result<MemoryRecall>> Function();
 
 /// How long a detailed question waits for the previous turn's chat reset
-/// (normally well under 150 ms) before it checks the chat anyway.
+/// (normally far shorter) before it checks the chat anyway.
 const kCameraResetWait = Duration(seconds: 3);
 
 /// Demo 3's LLM step.
@@ -69,12 +69,16 @@ const kCameraResetWait = Duration(seconds: 3);
 ///   the release's snapshot is not needed (the past is not in it). A found
 ///   frame ([MemoryRecalled] with a [MemoryHit], shown on the result card)
 ///   goes to Gemma with the question when the chat model has images, like a
-///   detailed turn (stateless, reset after); with images off a template
-///   says when it was seen and what the detector saw in it. An ambiguous
-///   hit (two places scored alike) is answered from the newest of them, and
-///   the answer first says it may have been in more than one place.
-///   Nothing found, nothing remembered yet, the memory off or switched off:
-///   a template, no LLM.
+///   detailed turn (stateless, reset after; [FrameSentToGemma] with that
+///   frame); with images off a template says when it was seen and what the
+///   detector saw in it. An ambiguous hit (two places scored alike) is
+///   answered from the newest of them, and the answer first says it may
+///   have been in more than one place. Nothing found, nothing remembered
+///   yet, the memory off or switched off: a template, no LLM. A question
+///   with nothing to search for ([MemoryRoute.latest]: "What did you
+///   see?") gets the newest stored frame; with none stored, or the memory
+///   off or switched off, it is a detailed question about the frame now,
+///   its rule (`memory-empty`, `memory-off`, `memory-disabled`) saying why.
 ///
 /// Scoping, as in Demo 1's `ChatTurnResponder`: a turn's stop only stops the
 /// chat while that turn's own ask runs, and the reset only applies while the
@@ -250,7 +254,9 @@ final class _CameraPreparation implements TurnPreparation<CameraSideEvent> {
     }
     var route = _owner._router.classify(transcript);
     // Nothing to search for ("What did you see?"): the newest stored frame
-    // answers; with none stored, the frame now does (the detailed path).
+    // answers; with none stored, or the memory switched off (the default
+    // below kMemoryDefaultOnMinRamBytes of RAM) or off, the frame now does
+    // (the detailed path), and the rule says why.
     Result<MemoryRecall>? newest;
     if (route case MemoryRoute(latest: true)) {
       newest = switch (_owner._latest) {
@@ -258,8 +264,24 @@ final class _CameraPreparation implements TurnPreparation<CameraSideEvent> {
         null => const Result.ok(MemoryOff('this app has no visual memory')),
       };
       if (_cancelled) return;
-      if (newest case Ok(value: MemoryEmpty())) {
-        route = const DetailedRoute('memory-empty');
+      final instead = switch (newest) {
+        Ok(value: MemoryEmpty()) => ('memory-empty', 'nothing is stored yet'),
+        Ok(value: MemoryDisabled()) => (
+          'memory-disabled',
+          'the visual memory is switched off',
+        ),
+        Ok(value: MemoryOff(:final reason)) => (
+          'memory-off',
+          'the visual memory is off ($reason)',
+        ),
+        Ok(value: MemoryHit() || MemoryMiss()) || Error() => null,
+      };
+      if (instead case (final rule, final why)) {
+        debugPrint(
+          '[CameraTurn] "$transcript": $why; the frame now answers it '
+          '($rule)',
+        );
+        route = DetailedRoute(rule);
       }
     }
     onSide(RouteChosen(route, watch.elapsed));
@@ -389,11 +411,22 @@ final class _CameraPreparation implements TurnPreparation<CameraSideEvent> {
         if (hit.ambiguous) yield '${answers.ambiguousLead(hit)} ';
         // A new object per turn, like the detailed path's PNG: the
         // conversation sends it as a new image, never "already in context".
-        yield* _ask(
-          answers.prompt(question, hit),
-          Uint8List.fromList(entry.png),
-          onSide,
+        final png = Uint8List.fromList(entry.png);
+        // The overlay and the turn's record show the frame Gemma got, as
+        // for the detailed path (encoded when it was stored: no time now).
+        onSide(
+          FrameSentToGemma(
+            EncodedSnapshot(
+              png: png,
+              frameId: entry.frameId,
+              width: entry.width,
+              height: entry.height,
+              unmirrored: entry.unmirrored,
+              encodeTime: Duration.zero,
+            ),
+          ),
         );
+        yield* _ask(answers.prompt(question, hit), png, onSide);
     }
   }
 

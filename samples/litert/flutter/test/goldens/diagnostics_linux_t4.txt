@@ -15,7 +15,7 @@ vulkan     Tesla T4 · DISCRETE_GPU · Vulkan 1.4.312 · 580.82.07
 vulkan     llvmpipe (LLVM 15.0.7, 256 bits) · CPU · Vulkan 1.3.255 · Mesa 23.2.1-1ubuntu3.1~22.04.3 (LLVM 15.0.7) · SOFTWARE (runs on the CPU)
 audio      no sound server (see the note) · ALSA cards 0
 note       The TFLite interpreter needs x86_64 and glibc 2.38: the detector is verified against LiteRT CPU instead.
-note       No sound server: PulseAudio/PipeWire is not running (pactl info: Connection failure: Connection refused). Start it: systemctl --user start pipewire pipewire-pulse (or pulseaudio --start). Voice input and spoken replies need PulseAudio or PipeWire (pipewire-pulse).
+note       No sound server: PulseAudio/PipeWire is not running (pactl info: Connection failure: Connection refused). Start it: systemctl --user start pipewire pipewire-pulse (or pulseaudio --start). Voice input needs PulseAudio or PipeWire (pipewire-pulse); spoken replies play through ALSA.
 
 MODELS
 Chat model
@@ -23,7 +23,7 @@ Chat model
   backend  gpu → gpu (confirmed: API)
   api      WebGPU/Vulkan (confirmed: native log)
   adapter  Tesla T4 (Discrete GPU) (confirmed: native log)
-  detail   vision encoder on the CPU (requested)
+  detail   vision encoder on the CPU (activeVisionBackend)
   model    Gemma 4 E2B (GEMMA_MODEL_PATH, type gemma4)
   source   GEMMA_MODEL_PATH=/models/gemma-4-E2B-it.litertlm
   sha256   unknown (GEMMA_MODEL_PATH)

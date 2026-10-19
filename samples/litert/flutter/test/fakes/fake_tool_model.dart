@@ -51,6 +51,19 @@ final class ToolCallTurn extends ScriptedTurn {
   });
 }
 
+/// A Gemma 4 turn that starts with prose and then calls a tool, as
+/// LiteRT-LM delivers it: the prose tokens, then the call's `tool_calls`
+/// JSON as a chunk of its own (one token), and the same JSON as
+/// `lastRawResponse`. Since flutter_edge_ai 2.4.0 core takes that chunk out
+/// of the text (`isSdkToolCallChunk`): only the prose streams, and the call
+/// it parses from `lastRawResponse` runs at the end of the stream (the
+/// SDK-passthrough branch of `InferenceChat.generateChatResponseAsync`).
+final class ProseThenToolCallTurn extends ToolCallTurn {
+  const ProseThenToolCallTurn(this.prose, super.name, super.args, {super.gate});
+
+  final List<String> prose;
+}
+
 /// A plain answer, streamed token by token.
 final class TextTurn extends ScriptedTurn {
   const TextTurn(this.tokens, {super.gate});
@@ -96,6 +109,12 @@ class FakeToolSession extends _SessionBase with RawSdkResponseSession {
   int nativeCancels = 0;
   bool closed = false;
   bool closeOnCancel = true;
+
+  /// [stopGeneration] returns only after the cut reply's end has reached its
+  /// listener (core, then the agent loop), as a native stop may: what the
+  /// loop decides about the cut generation then depends on whether the stop
+  /// flag was up before the native stop was asked for.
+  bool stopReturnsAfterTheEnd = false;
   int nativeInputTokens = 0;
   int nativeOutputTokens = 0;
 
@@ -143,6 +162,14 @@ class FakeToolSession extends _SessionBase with RawSdkResponseSession {
     await turn.gate?.future;
     if (!identical(_reply, reply)) return; // stopped meanwhile
     switch (turn) {
+      case ProseThenToolCallTurn(:final prose, :final rawJson):
+        for (final token in [...prose, rawJson]) {
+          if (!identical(_reply, reply)) return;
+          reply.add(token);
+          await Future<void>.delayed(Duration.zero);
+        }
+        if (!identical(_reply, reply)) return;
+        _lastRaw = rawJson;
       case ToolCallTurn(:final rawJson, :final midGate):
         final half = rawJson.length ~/ 2;
         reply.add(rawJson.substring(0, half));
@@ -197,14 +224,27 @@ class FakeToolSession extends _SessionBase with RawSdkResponseSession {
     if (!closeOnCancel) return;
     _reply = null;
     _streaming = false;
-    unawaited(reply.close());
+    if (!stopReturnsAfterTheEnd) {
+      unawaited(reply.close());
+      return;
+    }
+    await reply.close();
+    for (var i = 0; i < 20; i++) {
+      await Future<void>.delayed(Duration.zero);
+    }
   }
 
   @override
   Future<String> getResponse() => throw UnimplementedError();
 
+  /// Every text [sizeInTokens] counted, in order.
+  final List<String> counted = [];
+
   @override
-  Future<int> sizeInTokens(String text) async => (text.length / 4).ceil();
+  Future<int> sizeInTokens(String text) async {
+    counted.add(text);
+    return (text.length / 4).ceil();
+  }
 
   @override
   SessionMetrics getSessionMetrics() => SessionMetrics(
@@ -242,6 +282,9 @@ final class const ChatArgs({
 /// list for the model: a rebuilt chat continues where the last one
 /// stopped). One session slot, like the FFI model.
 class FakeToolModel extends InferenceModel {
+  /// [maxTokens]: the context window (a small-context NPU build has 1280).
+  FakeToolModel({this.maxTokens = 4096});
+
   final List<ScriptedTurn> script = [];
   final List<FakeToolSession> created = [];
   final List<ChatArgs> chats = [];
@@ -257,7 +300,7 @@ class FakeToolModel extends InferenceModel {
   InferenceModelSession? get session => _session;
 
   @override
-  int get maxTokens => 4096;
+  final int maxTokens;
 
   @override
   ModelFileType get fileType => ModelFileType.litertlm;

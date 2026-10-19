@@ -163,9 +163,9 @@ void main() {
 
   test('ambiguous needs the best at the floor plus the margin: a faint best '
       'that does not stand out from its rival is rejected', () {
-    // The measured ambiguous cases (visual_memory_test.dart, 2026-10-14):
-    // "Where was the sign?" (street sign 0.712, GATE 42 0.694) and "Did you
-    // see some text?" (Wi-Fi 0.648, street sign 0.637).
+    // Ambiguous cases of integration_test/visual_memory_test.dart: "Where
+    // was the sign?" (the street sign against GATE 42) and "Did you see some
+    // text?" (the Wi-Fi note against the street sign).
     for (final (best, rival) in [(0.712, 0.694), (0.648, 0.637)]) {
       final v = judge([best, rival], [0, 10]);
       expect(v.outcome, MemoryOutcome.ambiguous, reason: '$best/$rival');
@@ -204,6 +204,67 @@ void main() {
     expect(judge([0.645], [0]).accepted, isTrue);
     expect(judge([0.70, 0.69], [0, 3]).rival, isNull);
     expect(judge([0.70, 0.69], [0, 3]).accepted, isTrue);
+  });
+
+  test('a NaN score is never the best, a rival or the reported frame', () {
+    // First: not the best, although every comparison with NaN is false (a
+    // NaN kept as the best would pass every test, an accepted NaN).
+    final first = judge([double.nan, 0.76, 0.67], [0, 10, 20]);
+    expect(first.accepted, isTrue);
+    expect(first.best, 1);
+    expect(first.cosine, 0.76);
+    expect(first.rival, 0.67);
+
+    // Later (an infinite score too): not a rival, and never the newest
+    // near-identical frame, though its scene would say it is one.
+    final asked = <int>[];
+    final later = judge(
+      [0.76, double.nan, double.infinity],
+      [0, 10, 20],
+      scene: (i, best) {
+        asked.add(i);
+        return 0.99;
+      },
+    );
+    expect(later.accepted, isTrue);
+    expect(later.best, 0, reason: 'the newer frames have no finite score');
+    expect(later.cosine, 0.76);
+    expect(later.rival, isNull);
+    expect(asked, isEmpty, reason: 'no image cosine asked for them');
+  });
+
+  test('no finite score at all: rejected, never accepted', () {
+    final v = judge([double.nan, double.nan], [0, 10]);
+    expect(v.outcome, MemoryOutcome.rejected);
+    expect(v.reason, 'no score is a number');
+    expect(v.cosine, isNaN);
+    expect(v.rival, isNull);
+  });
+
+  test('newest is the latest sighting (the store\'s order), not the largest '
+      'time: a wall clock set back an hour between two sightings', () {
+    // Keys on the desk at 3600 s; the clock goes back an hour; keys on the
+    // shelf at 10 s. Two places alike: the shelf, the later sighting.
+    final ambiguous = judge([0.76, 0.75], [3600, 10]);
+    expect(ambiguous.outcome, MemoryOutcome.ambiguous);
+    expect(ambiguous.rival, 0.75, reason: 'still 3590 s apart on the clock');
+    expect(ambiguous.best, 1, reason: 'the shelf');
+
+    // One scene seen again after the clock went back: its later frame.
+    final accepted = judge(
+      [0.76, 0.40, 0.755],
+      [3600, 3610, 10],
+      scene: (i, best) => i == 2 ? 0.99 : 0.5,
+    );
+    expect(accepted.accepted, isTrue);
+    expect(accepted.best, 2);
+  });
+
+  test('of equal best scores the earliest frame is the best', () {
+    // Rejected (under the floor), so the best is the frame reported.
+    final v = judge([0.50, 0.60, 0.60], [0, 10, 20]);
+    expect(v.outcome, MemoryOutcome.rejected);
+    expect(v.best, 1);
   });
 
   test('an empty memory has no verdict; mismatched lists are refused', () {

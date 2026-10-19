@@ -22,7 +22,7 @@ import 'package:litert_edge_demos/domain/hardware/accelerator_inference.dart';
 import 'package:litert_edge_demos/domain/models/accelerator_evidence.dart';
 import 'package:litert_edge_demos/domain/models/hardware_profile.dart';
 
-/// sysctl values from a map (the names as measured on an M4 Pro).
+/// sysctl values from a map.
 final class _MapSysctl implements Sysctl {
   const _MapSysctl(this.values);
 

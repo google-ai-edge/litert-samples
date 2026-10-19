@@ -62,11 +62,11 @@ import 'self_test_ports.dart';
 /// E2B settings; otherwise exactly what the app would load, by the app's own
 /// rule ([ModelSourceResolver]):
 /// the chat model chosen on the Models screen ([plan]) — the user's own
-/// `.litertlm` with its saved settings and its header's towers, as the app
-/// read them (`GEMMA_MODEL_PATH` does not override it) — or, with none
+/// `.litertlm` with its saved settings and the towers its file has, as the
+/// app read it (`GEMMA_MODEL_PATH` does not override it) — or, with none
 /// chosen, `GEMMA_MODEL_PATH` ([define]) when set, else "No chat model yet".
-/// `--gemma-backend` places the header's towers for that backend
-/// ([SelfTestChatModel.withBackend]), as the app does.
+/// `--gemma-backend` changes the backend only
+/// ([SelfTestChatModel.withBackend]); the engine places the towers.
 Future<SelfTestChatModel> resolveSelfTestChatModel({
   required String? argument,
   required String define,
@@ -99,8 +99,6 @@ Future<SelfTestChatModel> _resolveChatModel({
         config: custom.config,
         settingsSource: 'your own .litertlm, saved settings',
         sha256: model.file?.sha256,
-        custom: model,
-        header: custom.header,
       );
     case BlockedChatSource(:final reason):
       return SelfTestChatModel(
@@ -147,8 +145,9 @@ ModelFileChoice checkReadable(String path, String source) {
     return ModelFileChoice(path: path, source: source);
   } on FileSystemException catch (e) {
     final sandbox = Platform.isMacOS
-        ? ' macOS builds are sandboxed: they read only their own container '
-              '(the model store and the models folder), so put the file '
+        ? ' macOS builds are sandboxed: they read their own container (the '
+              'model store and the models folder; debug builds also '
+              '~/Downloads) and files chosen in the app, so put the file '
               'there or choose it in the app.'
         : '';
     return ModelFileChoice(
@@ -257,11 +256,11 @@ final class AppSelfTestDetector implements SelfTestDetector {
   Future<void> close() => _service.close();
 }
 
-/// The app's `LlmService` with the chat model's configuration: its backend
-/// check rejects any other backend than requested, and its NPU gate refuses
-/// the NPU where flutter_edge_ai has no NPU stack. flutter_edge_ai has one
-/// model per process: the app's chat model must be unloaded first (the in-app
-/// self-test does that).
+/// The app's `LlmService` with the chat model's configuration, on the strict
+/// engine the self-test registers (`kStrictLiteRtLmEngine`): it loads on the
+/// backend asked for or fails with the plugin's reason. flutter_edge_ai has
+/// one model per process: the app's chat model must be unloaded first (the
+/// in-app self-test does that).
 final class AppSelfTestGemma implements SelfTestGemma {
   /// [llm]: the app's own service by default (a fake in tests).
   AppSelfTestGemma({LlmService? llm}) : _llm = llm ?? LlmService();
@@ -302,10 +301,17 @@ final class AppSelfTestGemma implements SelfTestGemma {
       GemmaLoad(
         modelId: info.modelId,
         backend: info.backend,
+        visionBackend: info.visionBackend,
+        audioBackend: info.audioBackend,
         loadTime: info.loadTime,
         warmUpTime: warmUp,
         contextTokens: info.contextTokens,
-        config: gemmaLoadConfigLine(config, engineContext: info.contextTokens),
+        config: gemmaLoadConfigLine(
+          config,
+          engineContext: info.contextTokens,
+          vision: info.visionBackend,
+          audio: info.audioBackend,
+        ),
       ),
     );
   }
@@ -575,7 +581,7 @@ final class AppSelfTestAudio implements SelfTestAudio {
 
   final HostPlatform _platform;
   final AudioDeviceService _devices;
-  final RecordMicService _mic = RecordMicService();
+  late final RecordMicService _mic = RecordMicService(platform: _platform);
   final bool _ownsRepo;
   late final AudioRepository _repo;
   _ParecordMonitor? _monitor;

@@ -35,8 +35,9 @@ typedef OpenChat = ({InferenceChat chat, ConversationProfile profile});
 
 /// What a turn sends and measures against ([LiveChat.prepareSend]): the
 /// image to send (null when the live chat already sees it, or none is
-/// attached), why it is a re-send, whether LiteRT-LM rebuilds the native
-/// conversation as this turn starts, and LiteRT-LM's metrics before it.
+/// attached), why it is a re-send, whether flutter_edge_ai_litertlm rebuilds
+/// the native conversation as this turn starts, and LiteRT-LM's metrics
+/// before it.
 typedef TurnSend = ({
   Uint8List? image,
   ImageLoss? resent,
@@ -103,15 +104,21 @@ final class LiveChat {
   /// onto it first. Null when no replay is due.
   ContextResetReason? _replayDue;
 
-  /// The last sent turn was stopped: LiteRT-LM rebuilds the native
-  /// conversation when the next turn starts, so that turn's prefill cannot be
-  /// read from the metrics delta.
+  /// The last sent turn was stopped: flutter_edge_ai_litertlm rebuilds the
+  /// native conversation when the next turn starts, so that turn's prefill
+  /// cannot be read from the metrics delta.
   bool _nativeRebuildPending = false;
 
-  /// The last agent turn left staged input behind (LiteRT-LM buffers
-  /// `addQueryChunk` until the next generation and would prepend it, as text,
-  /// to the next user message, so the next turn rebuilds the chat first).
+  /// The last agent turn left staged input behind (flutter_edge_ai_litertlm's
+  /// FFI session buffers `addQueryChunk` until the next generation and would
+  /// prepend it, as text, to the next user message, so the next turn rebuilds
+  /// the chat first).
   bool _staleToolTail = false;
+
+  /// The last prompt [firstFitting] counted, the chat it counted it on and
+  /// its tokens: the turn that sends that prompt next ([checkBudget]) takes
+  /// the count instead of calling the tokenizer again. Used once.
+  ({InferenceChat chat, String prompt, int tokens})? _counted;
 
   Completer<void>? _turnDone;
   bool _stopRequested = false;
@@ -163,8 +170,9 @@ final class LiveChat {
   bool get staleToolTail => _staleToolTail;
 
   /// The next turn rebuilds the live chat from the mirror
-  /// (`clearHistory(replayHistory:)`): a stop left LiteRT-LM to rebuild the
-  /// conversation from the turns' text and an audio turn in it has none (so
+  /// (`clearHistory(replayHistory:)`): a stop left flutter_edge_ai_litertlm
+  /// to rebuild the conversation from the turns' text and an audio turn in it
+  /// has none (so
   /// no question is replayed as an empty message and no recording outlives
   /// the rebuild), or a transcript arrived for a spoken question the live
   /// chat holds only as the placeholder ([HistoryMirror.replayOutdated]: the
@@ -364,9 +372,8 @@ final class LiveChat {
         // would answer as if nothing was said: never a text-only turn.
         return Result.error(
           ConversationAudioUnsupportedException(
-            '${capabilities.modelName} was loaded without audio (its file '
-            'has no audio tower), so the spoken question would be ignored: '
-            'ask through the transcript',
+            '${capabilities.modelName} was loaded without audio, so the '
+            'spoken question would be ignored: ask through the transcript',
           ),
         );
       }
@@ -419,7 +426,14 @@ final class LiveChat {
     Duration? audio,
   }) async {
     final native = sessionMetricsOf(chat)?.totalTokens ?? 0;
-    final promptTokens = await chat.session.sizeInTokens(prompt);
+    final counted = _counted;
+    _counted = null;
+    final promptTokens =
+        counted != null &&
+            identical(counted.chat, chat) &&
+            counted.prompt == prompt
+        ? counted.tokens
+        : await chat.session.sizeInTokens(prompt);
     final guardTime = turnTime();
     final budget = ContextBudget(
       nativeTokens: native,
@@ -459,6 +473,56 @@ final class LiveChat {
         afterReset: budget.replayRoom(image: image != null, afterReset: true),
       ),
     );
+  }
+
+  /// The index of the first of [prompts] whose turn — with [image] attached
+  /// and a recording of [audio] — a fresh chat of the open one could hold:
+  /// the budget guard's own figures ([ContextBudget.fitsFresh]: the prompt
+  /// by the model's tokenizer, the reply allowance, the turn overhead, on an
+  /// agent chat its skills reserve, the image allowance, the recording),
+  /// below the window less the headroom. Null when none fits. The prompts
+  /// are counted in order and the count stops at the first that fits, so a
+  /// roomy window counts one; the turn that sends that prompt reuses its
+  /// count ([checkBudget]). Throws [ConversationNotReadyException] when
+  /// no chat is open, or while a turn runs (nothing is counted beside its
+  /// native generation; the turn's own [precheck] refuses it the same way).
+  Future<int?> firstFitting(
+    List<String> prompts, {
+    required Uint8List? image,
+    required Duration? audio,
+  }) async {
+    final chat = _chat;
+    final profile = _profile;
+    if (_closing) {
+      throw const ConversationNotReadyException('The chat is not open');
+    }
+    // Before the open check, like [precheck]: a running turn that rebuilds
+    // its chat leaves the slot empty meanwhile.
+    if (_isGenerating.value) {
+      throw const ConversationNotReadyException(
+        'A reply is already being generated',
+      );
+    }
+    if (chat == null || profile == null) {
+      throw const ConversationNotReadyException('The chat is not open');
+    }
+    final reserve = await _agent?.reserve(chat);
+    for (final (i, prompt) in prompts.indexed) {
+      final tokens = await chat.session.sizeInTokens(prompt);
+      // The last one counted is the one that fits, or the last candidate.
+      _counted = (chat: chat, prompt: prompt, tokens: tokens);
+      final budget = ContextBudget(
+        nativeTokens: 0,
+        chatTokens: 0,
+        promptTokens: tokens,
+        replyTokens: profile.maxOutputTokens,
+        maxTokens: chat.maxTokens,
+        agentReserve: reserve,
+        audioTokens: audio == null ? 0 : audioTokensFor(audio),
+      );
+      if (budget.fitsFresh(image: image != null)) return i;
+    }
+    return null;
   }
 
   /// What [chat] replays from the mirror before this turn: null when no
@@ -612,8 +676,9 @@ final class LiveChat {
   }
 
   /// A turn that reached the model ended, normally or [stopped]: a stop
-  /// loses the image and makes LiteRT-LM rebuild the conversation as the
-  /// next turn starts; a normal end with a [sentImage] puts it in context.
+  /// loses the image and makes flutter_edge_ai_litertlm rebuild the
+  /// conversation as the next turn starts; a normal end with a [sentImage]
+  /// puts it in context.
   void settleTurn({required bool stopped, required Uint8List? sentImage}) {
     _images.settle(stopped: stopped, sentImage: sentImage);
     _nativeRebuildPending = stopped;
@@ -626,9 +691,9 @@ final class LiveChat {
     _nativeRebuildPending = _stopRequested;
   }
 
-  /// A turn that reached the model was cancelled mid-turn: LiteRT-LM
-  /// cancels native generation and rebuilds the conversation from text, like
-  /// a stop.
+  /// A turn that reached the model was cancelled mid-turn: LiteRT-LM's
+  /// generation is cancelled and flutter_edge_ai_litertlm rebuilds the
+  /// conversation from text, like a stop.
   void cancelTurn({required Uint8List? sentImage}) {
     _images.lose(ImageLoss.stop, sentImage: sentImage);
     _nativeRebuildPending = true;

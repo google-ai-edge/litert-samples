@@ -125,8 +125,9 @@ final class const MemoryCard({
 /// switched off never loads EmbeddingGemma's image encoder.
 ///
 /// App lifecycle (with `foreground`, Android and iOS): leaving the app ends
-/// a held push-to-talk press without a turn and releases the camera; coming
-/// back starts live detection again. Desktop keeps both.
+/// a held push-to-talk press without a turn and releases the camera; on iOS
+/// a hidden app also stops a running answer (kept as interrupted, with a
+/// notice); coming back starts live detection again. Desktop keeps both.
 ///
 /// Rate discipline: [notifyListeners] fires on commands, phase changes and
 /// commits. Boxes, preview, live state, the frozen frame, the partial reply
@@ -182,7 +183,7 @@ class LiveCameraViewModel extends ChangeNotifier {
     _assistant.phase.addListener(_onPhase);
     unawaited(_startMemory());
     unawaited(_applier.load());
-    // The chat and the recognizer switch in parallel (~0.8 s for moonshine).
+    // The chat and the recognizer switch in parallel.
     unawaited(open.execute());
     unawaited(selectStt.execute());
     // Microphone access right after the camera's.
@@ -441,8 +442,9 @@ class LiveCameraViewModel extends ChangeNotifier {
 
   String? _memoryReadError;
 
-  /// Why the switch is off by default on this device (less than 8 GB of
-  /// RAM); null where it is on by default or the app has no visual memory.
+  /// Why the switch is off by default on this device (the OS reports less
+  /// than 6.5 GiB of RAM: sold with 6 GB or less); null where it is on by
+  /// default or the app has no visual memory.
   String? get memoryDefaultReason =>
       _memory == null ? null : _settings?.visualMemoryDefaultReason;
 
@@ -681,8 +683,9 @@ class LiveCameraViewModel extends ChangeNotifier {
   }
 
   /// The app's lifecycle changed (Android and iOS only; see [_foreground]).
-  /// Leaving ends a held push-to-talk press without a turn and releases a
-  /// running source (its CameraController and image stream), except while
+  /// Leaving ends a held push-to-talk press without a turn (on iOS, once
+  /// hidden, a running turn too: [AppForeground.mustStopTurns]) and releases
+  /// a running source (its CameraController and image stream), except while
   /// this screen's own microphone dialog covers the app (inactive): then
   /// only once the app is hidden or paused. A source still starting is
   /// released once its start ends if the app is hidden by then, so a camera
@@ -701,7 +704,12 @@ class LiveCameraViewModel extends ChangeNotifier {
       unawaited(_start(resume: resume));
       return;
     }
-    unawaited(_assistant.cancelCapture());
+    if (foreground.mustStopTurns) {
+      // iOS, hidden: no GPU work and suspension within seconds.
+      unawaited(_assistant.interrupt(InterruptionCause.background));
+    } else {
+      unawaited(_assistant.cancelCapture());
+    }
     if (micAccess.running && !foreground.hidden) return;
     switch (_live.state.value) {
       case LiveRunning() || LivePaused():

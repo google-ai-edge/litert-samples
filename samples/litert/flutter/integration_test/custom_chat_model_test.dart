@@ -18,8 +18,9 @@
 // imported as "your own .litertlm" (APFS clone + SHA-256 computed and
 // recorded), applied on the GPU
 // (the chat is released, the model reloaded with exactly these settings),
-// then NPU is refused with flutter_edge_ai's reason on this host, and the
-// in-app self-test runs on the custom model.
+// then NPU is refused on this host by the app's copy of
+// flutter_edge_ai_litertlm's private NPU check, in the plugin's wording (the
+// plugin is not asked), and the in-app self-test runs on the custom model.
 //
 // The choice stays saved (the same container as the release build), so a
 // release build started afterwards loads the custom model; choose another
@@ -47,7 +48,6 @@ import 'package:litert_edge_demos/config/model_catalog.dart';
 import 'package:litert_edge_demos/domain/models/chat_model.dart';
 import 'package:litert_edge_demos/domain/models/model_id.dart';
 import 'package:litert_edge_demos/domain/models/model_state.dart';
-import 'package:litert_edge_demos/domain/models/model_towers.dart' show Tower;
 import 'package:litert_edge_demos/domain/models/self_test.dart';
 import 'package:litert_edge_demos/domain/ports/model_file_picker.dart';
 import 'package:litert_edge_demos/ui/features/setup/view_models/chat_model_view_model.dart';
@@ -119,7 +119,9 @@ void main() {
     );
     final importMs = importWatch.elapsedMilliseconds;
     expect(vm.importFile.completed, isTrue, reason: '${vm.transferError}');
-    final file = vm.saved!.file!;
+    // Picked, not applied: the card shows it (step 3 applies it). The same
+    // file and settings saved by an earlier run are no candidate.
+    final file = vm.shown!.file!;
     expect(file.name, 'gemma-4-E2B-it.litertlm');
     expect(file.sizeBytes, 2538799104);
     expect(
@@ -130,7 +132,8 @@ void main() {
     expect(file.checksumMatched, isFalse, reason: 'computed, not entered');
     debugPrint('CUSTOM_MODEL file ${vm.fileLine}');
 
-    // 2. NPU is not offered on macOS: flutter_edge_ai's own reason.
+    // 2. NPU is not offered on macOS: the app's copy of the plugin's private
+    //    NPU check refuses it, in the plugin's wording.
     expect(vm.npuOffered, isFalse);
     expect(
       vm.npuUnavailableReason,
@@ -143,16 +146,15 @@ void main() {
     expect(vm.canApply, isFalse);
     final npuReason = vm.draftProblem;
 
-    // 3. Use this model on the GPU, tools on, as gemma4. Its towers are on
-    //    as its header sets them (read from the store's copy): the card
-    //    shows them, nothing to switch.
+    // 3. Use this model on the GPU, tools on, as gemma4. Its towers are the
+    //    file's (read by the plugin from the store's copy): the card shows
+    //    them, nothing to switch; the engine places them.
     vm
       ..setBackend(PreferredBackend.gpu)
       ..setName('My Gemma (custom)')
       ..setTools(enabled: true);
-    expect(vm.towerRow(Tower.vision), isA<TowerFixed>());
-    expect(vm.towerRow(Tower.audio), isA<TowerFixed>());
-    expect(vm.draftTowers?.visionBackend, PreferredBackend.cpu);
+    expect(vm.towerRow(Tower.vision)?.inFile, isTrue);
+    expect(vm.towerRow(Tower.audio)?.inFile, isTrue);
     expect(vm.draftProblem, isNull);
     final reloadWatch = Stopwatch()..start();
     unawaited(vm.apply.execute());

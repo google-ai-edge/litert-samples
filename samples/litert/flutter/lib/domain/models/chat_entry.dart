@@ -65,7 +65,8 @@ final class const ChatEntry({
   required final ChatRole role,
   required final String text,
 
-  /// An assistant reply cut short by Stop or a barge-in.
+  /// An assistant reply cut short by Stop, a barge-in, an interruption from
+  /// outside or a failure (the bubble says "stopped").
   final bool interrupted = false,
 
   /// A user entry's attached picture (the PNG sent to the model), shown as a

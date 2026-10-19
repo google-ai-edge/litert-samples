@@ -22,7 +22,7 @@
   (revision 24d962e9), the LiteRT-LM packaging of
   [google/embeddinggemma-2](https://huggingface.co/google/embeddinggemma-2).
 - **Licence: Apache License 2.0** ([full text](https://www.apache.org/licenses/LICENSE-2.0)). Redistributed
-  unmodified. The app embeds text only.
+  unmodified. The app uses its text, audio and image embeddings.
 - Shown in the app under Home › More › Licences.
 
 ## Whisper base (speech recognition, Demo 1) — `whisper_base_30s_i8.tflite`, `whisper_base_tokenizer.json`
@@ -58,5 +58,13 @@
   `7363e9e4dda1613aebff7005f2e8c0c76d9b0a1cac31de0f3483bef3089c6906`), `g2p_dict.txt.gz` (1 762 038 bytes, SHA-256
   `5b3493a8cd4d20b72c7b91415afaf3f32335ebd81f349698e1cedc898c59f979`), `dp_g2p_matcha_fp16.tflite` (25 785 872 bytes,
   SHA-256 `6e4b481f6874dfabc32ce73bf6f0ea1ba6ab5986ee6f76a27779364be8a53c73`), `g2p_meta.json` (1 904 bytes, SHA-256
-  `7b87bfeaaa072be236e8491d771b0cb97cc92c3e5d83e3558fff8849868810f5`). **Licence: MIT.**
+  `7b87bfeaaa072be236e8491d771b0cb97cc92c3e5d83e3558fff8849868810f5`).
+- **Licences of the G2P files**, as the Matcha-TTS card at that revision gives them ("Model: MIT (Matcha-TTS /
+  HiFi-GAN). G2P dict: Clear BSD (OpenPhonemizer) + MIT (DeepPhonemizer)"):
+  - `g2p_dict.txt.gz` is the espeak-IPA dictionary from [OpenPhonemizer](https://github.com/NeuralVox/OpenPhonemizer):
+    **Clear BSD License (BSD-3-Clause-Clear)**, Copyright (c) 2024 mrfakename, NeuralVox, OpenPhonemizer
+    Contributors. Its licence text, with the conditions and the disclaimer it requires to be reproduced:
+    [`licenses/OpenPhonemizer-BSD-3-Clause-Clear.txt`](../../licenses/OpenPhonemizer-BSD-3-Clause-Clear.txt)
+    (OpenPhonemizer's `LICENSE` at commit 15ffa723).
+  - `config.json`, `dp_g2p_matcha_fp16.tflite` and `g2p_meta.json`: **MIT**.
 - Redistributed unmodified. Shown in the app under Home › More › Licences.

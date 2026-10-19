@@ -30,9 +30,10 @@
 //    is still in the live chat's context).
 // 4. Typed "Describe this photo in great detail." and, while it is spoken
 //    and Gemma still generates, the mic is pressed (barge-in): the reply is
-//    stopped, LiteRT-LM rebuilds the conversation from text only, and the
-//    voice follow-up "How many cats do you see?" must re-send the image:
-//    /two|2/, `[Conversation] image resent (lost: stop)` in the log.
+//    stopped, flutter_edge_ai_litertlm rebuilds the conversation from text
+//    only, and the voice follow-up "How many cats do you see?" must re-send
+//    the image: /two|2/, `[Conversation] image resent (lost: stop)` in the
+//    log.
 // Prints `IMG …` per turn, `WARMUP …`, `BARGE …` and a screenshot path.
 
 import 'dart:io';
@@ -348,7 +349,7 @@ void main() {
 
     // 5. Two more typed turns on the rebuilt conversation: the re-sent image
     //    stays in context, and the budget guard's "used" must include the
-    //    history LiteRT-LM replayed after the stop.
+    //    history flutter_edge_ai_litertlm replayed after the stop.
     final colour = await ask('What colour is the blanket?');
     final fourth = lastGen();
     printTurn('colour', fourth, colour.text);

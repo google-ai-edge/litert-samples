@@ -8,7 +8,7 @@ assistant. Everything runs on the board.
 
 | Model | Runs on |
 |---|---|
-| Chat model `gemma-4-E2B-it_qualcomm_qcs8275.litertlm` | NPU (Hexagon V75); its vision and audio towers on the CPU (its header pins them) |
+| Chat model `gemma-4-E2B-it_qualcomm_qcs8275.litertlm` | NPU (Hexagon V75); its vision and audio towers on the CPU (the engine places them: they are not compiled for the NPU) |
 | Chat model `gemma-4-E2B-it.litertlm` (alternative) | CPU or GPU (Adreno 623); its vision and audio towers on the CPU |
 | YOLO26n detector (Live camera) | GPU (Adreno 623, through LiteRT's WebGPU accelerator on Vulkan); CPU when chosen in the Live camera settings |
 | EmbeddingGemma 2 (knowledge base, visual memory), Whisper base and moonshine tiny (speech to text), Inflect-nano-v2 (spoken replies) | CPU |
@@ -31,7 +31,7 @@ assistant. Everything runs on the board.
 | Storage | about 18 GB free: Flutter, the build and the models |
 | Camera | a USB camera the board sees as `/dev/video*`, or an Android phone as a Wi-Fi camera ([network camera](../../../litert/flutter/README.md#using-the-demos)) |
 | Audio | a USB speakerphone, or a microphone and a speaker |
-| Models | **The YOLO26n detector (`yolo26n_fp16_rawhead.tflite`) will be provided.** The chat model is Gemma 4 E2B compiled for this chip, `gemma-4-E2B-it_qualcomm_qcs8275.litertlm` (3.29 GB) from [litert-community/gemma-4-E2B-it-litert-lm](https://huggingface.co/litert-community/gemma-4-E2B-it-litert-lm), no login needed (step 5). The other built-in models are downloaded in step 3, without a Hugging Face account |
+| Models | The chat model is Gemma 4 E2B compiled for this chip, `gemma-4-E2B-it_qualcomm_qcs8275.litertlm` (3.29 GB) from [litert-community/gemma-4-E2B-it-litert-lm](https://huggingface.co/litert-community/gemma-4-E2B-it-litert-lm), no login needed (step 5). The built-in models are downloaded in step 3, without a Hugging Face account; if you were given the YOLO26n detector (`yolo26n_fp16_rawhead.tflite`), step 3 uses it |
 
 ## 1. Prepare the board
 
@@ -71,15 +71,16 @@ tool/flutter_litert/vendor.sh
 
 ## 3. The built-in models
 
-Put the provided detector where the app expects it, then let the script fetch and verify the rest:
+If you were given the detector, put it where the app expects it first; then let the script fetch and verify the
+rest:
 
 ```sh
 mkdir -p assets/models
-cp /path/to/yolo26n_fp16_rawhead.tflite assets/models/
+cp /path/to/yolo26n_fp16_rawhead.tflite assets/models/   # only if you were given it
 tool/fetch_models.sh
 ```
 
-- The script checks the provided detector against `tool/models.lock` and keeps it, so no Python step runs. Without
+- The script checks a provided detector against `tool/models.lock` and keeps it, so no Python step runs. Without
   the file it derives the detector itself (see the [sample's README](../../../litert/flutter/README.md#set-up-once-per-checkout)).
 - Every built-in model downloads without a Hugging Face account or token.
 - `tool/fetch_models.sh --check` verifies every file without the network.
@@ -119,10 +120,13 @@ cd build/dist/litert_edge_demos-v*-linux-arm64
 install it, then starts the app. Each run is logged to `run.log` next to `run.sh`.
 
 On **Set up models**, the **Chat model** card lists the files in `~/litert-demos/models/` (**Rescan** if needed,
-**Path…** for a file elsewhere). Choose `gemma-4-E2B-it_qualcomm_qcs8275.litertlm`: its header marks it for the NPU,
-so the card selects **NPU** (context 4096 tokens; its header pins the vision and audio towers to the CPU, and the
-card shows them that way). Then **Use this model**. If the card cannot offer the NPU, it says why (for example, not in
-group `fastrpc`, or no `/dev/fastrpc-cdsp`); the app never switches to another backend on its own.
+**Path…** for a file elsewhere). Choose `gemma-4-E2B-it_qualcomm_qcs8275.litertlm`: the plugin reads it as compiled
+for the NPU (it runs only there), so the card selects **NPU** and offers neither GPU nor CPU for it; the app starts an
+NPU build with context 4096 tokens and tools off. Its **Towers** block lists the vision and audio towers; once the
+file is loaded, each row says where the engine runs it (the CPU). Then **Use this model**. If the card cannot offer
+the NPU, it says why (for example, not in group `fastrpc`, or no `/dev/fastrpc-cdsp`), and this file cannot be
+applied until that is fixed; the app never switches to another backend on its own. For the CPU or the GPU, use
+`gemma-4-E2B-it.litertlm`.
 
 The detector runs on the GPU by default (Live camera settings › **Detector**). **This device** and the diagnostics
 overlay show where each model runs.
@@ -130,7 +134,9 @@ overlay show where each model runs.
 ## 6. Use it
 
 - **Voice chat:** hold the mic button, speak, release; or type. Try "What is the input size of the YOLO26 nano
-  detector?" (answered from the knowledge base, with sources) and "Which accelerator are you running on?".
+  detector?" (answered from the knowledge base, with sources) and "Which accelerator are you running on?". Tools
+  start off for the NPU build, so the line above the mic adds **no skills (tools are off)**: a spoken question then
+  reaches no skill, so type the time and accelerator questions, which the app answers itself.
 - **Live camera:** choose the camera with the **Camera** button at the top of the demo: a camera on the board, or a
   network camera such as a phone running IP Webcam. Hold the mic and ask "What do you see?", "How many people are
   there?", "Describe the scene". It also remembers what it saw: "Where was the yellow sign?" shows the frame and how
@@ -138,15 +144,19 @@ overlay show where each model runs.
 
 ## 7. Self-test
 
+After **Use this model** on the card (step 5):
+
 ```sh
-./run.sh --selftest --gemma=$HOME/litert-demos/models/gemma-4-E2B-it_qualcomm_qcs8275.litertlm --gemma-backend=npu
+./run.sh --selftest
 ```
 
-It runs the detector on a reference picture and checks it against golden detections, loads the chat model on the
-NPU and times 64 tokens, checks the speaker and microphone, and saves a report: board, OS, GPU and Vulkan driver,
-where each model ran, speed and memory; the `report` line says where. Exit code 0 means every step passed. Add
-`--skip-audio` without a microphone and speaker. Over SSH, without the desktop: install `xvfb` and prefix the command
-with `xvfb-run -a`. In the app: **This device › Copy diagnostics**.
+It runs the detector on a reference picture and checks it against golden detections, loads the chat model chosen on
+the card with its saved settings (the NPU, context 4096) and times 64 tokens, checks the speaker and microphone, and
+saves a report: board, OS, GPU and Vulkan driver, where each model ran, speed and memory; the `report` line says
+where. Exit code 0 means every step passed. `--gemma=PATH` would instead load a file with the app's Gemma 4 E2B
+settings (context 8192, tools on), not the card's. Add `--skip-audio` without a microphone and speaker. Over SSH,
+without the desktop: install `xvfb` and prefix the command with `xvfb-run -a`. In the app: **This device › Copy
+diagnostics**.
 
 ## Troubleshooting
 
@@ -155,6 +165,7 @@ with `xvfb-run -a`. In the app: **This device › Copy diagnostics**.
 | The card does not offer the NPU: "not accessible to this user" | `sudo usermod -aG fastrpc "$USER"`, then log out and back in |
 | The card does not offer the NPU: `libcdsprpc.so.1 did not open` | `sudo apt install qcom-fastrpc1` |
 | The card does not offer the NPU: no `/dev/fastrpc-cdsp` | The kernel exposes no compute DSP: use the board's own Ubuntu image |
+| GPU and CPU are greyed out for `…_qualcomm_qcs8275.litertlm` | It is compiled for the NPU and runs only there: for the CPU or the GPU use `gemma-4-E2B-it.litertlm` |
 | The build stops reading the QAIRT zip | No network to Qualcomm's download: set `qualcomm_npu_qairt_zip` to a local copy (step 4) |
 | `flutter pub get` cannot find `third_party/flutter_litert` | Run `tool/flutter_litert/vendor.sh` (step 2) |
 | `No file or variants found for asset: assets/models/…` | Run `tool/fetch_models.sh` (step 3) |

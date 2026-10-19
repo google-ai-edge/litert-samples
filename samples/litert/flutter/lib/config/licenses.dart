@@ -16,15 +16,15 @@ import 'package:flutter/foundation.dart';
 
 /// The app's own licence and those of the models and the photo built into it,
 /// shown on the licence page (Home › More › Licences) next to the packages'
-/// own. The full texts are in
-/// `LICENSE`, `assets/models/NOTICE.md`, `test_assets/README.md` and at the
-/// links.
+/// own. The full texts are in `LICENSE`, `licenses/`,
+/// `assets/models/NOTICE.md`, `test_assets/README.md` and at the links.
 void registerModelLicenses() {
   LicenseRegistry.addLicense(() => Stream.fromIterable(modelLicenses));
 }
 
-/// The entries [registerModelLicenses] adds: the app first, then the models,
-/// the self-test's photo and the Linux JPEG library.
+/// The entries [registerModelLicenses] adds: the app first, then the models
+/// and the speech synthesizer's dictionary, the self-test's photo and the
+/// Linux JPEG library.
 const modelLicenses = [
   LicenseEntryWithLineBreaks(['LiteRT Demos app'], _appNotice),
   LicenseEntryWithLineBreaks(['YOLO26n detector (built in)'], _yolo26nNotice),
@@ -36,6 +36,9 @@ const modelLicenses = [
   LicenseEntryWithLineBreaks([
     'Inflect-nano-v2 TTS (built in)',
   ], _inflectNotice),
+  LicenseEntryWithLineBreaks([
+    'OpenPhonemizer dictionary (built in: inflect/g2p_dict.txt.gz)',
+  ], _openPhonemizerNotice),
   LicenseEntryWithLineBreaks([
     'Self-test photo (test_assets/cats.jpg, built in)',
   ], _catsNotice),
@@ -85,9 +88,29 @@ Moonshine by Useful Sensors (Moonshine AI). Licensed under the MIT License: http
 const _inflectNotice = '''
 The speech synthesizer built into this app, Inflect-nano-v2 (inflect_text_encoder_fp16.tflite, 1782268 bytes, SHA-256 c778f516b8557c69734f4d4308084c411b8d3a4575566385d163209bf504f083; inflect_decoder_fp16.tflite, 6375948 bytes, SHA-256 155d5072f104248983015e82d1b90968ab2e87bd7f96c4016928fc83231efbd0; Hugging Face: litert-community/Inflect-Nano-v2), is licensed under the Apache License, Version 2.0: https://www.apache.org/licenses/LICENSE-2.0
 
-The four grapheme-to-phoneme files it reuses (config.json, g2p_dict.txt.gz, dp_g2p_matcha_fp16.tflite, g2p_meta.json; Hugging Face: litert-community/Matcha-TTS) are licensed under the MIT License: https://opensource.org/license/mit
+It reuses four grapheme-to-phoneme files of litert-community/Matcha-TTS (Hugging Face). config.json, dp_g2p_matcha_fp16.tflite and g2p_meta.json are licensed under the MIT License: https://opensource.org/license/mit
+
+g2p_dict.txt.gz is OpenPhonemizer's dictionary, licensed under the Clear BSD License (BSD-3-Clause-Clear): see the entry "OpenPhonemizer dictionary".
 
 All are redistributed unmodified; sizes and SHA-256 of every file are in assets/models/NOTICE.md.''';
+
+const _openPhonemizerNotice = '''
+The grapheme-to-phoneme dictionary built into this app for the speech synthesizer, g2p_dict.txt.gz (1762038 bytes, SHA-256 5b3493a8cd4d20b72c7b91415afaf3f32335ebd81f349698e1cedc898c59f979, Hugging Face: litert-community/Matcha-TTS at revision ee32148115e2dd25913f70b1d71b587c73e0866e), is the espeak-IPA dictionary from OpenPhonemizer (https://github.com/NeuralVox/OpenPhonemizer) as litert-community/Matcha-TTS packages it, redistributed unmodified. Its licence, OpenPhonemizer's LICENSE at https://github.com/NeuralVox/OpenPhonemizer/blob/15ffa723139a5e9a34b069e34c17fdac3095dba3/LICENSE:
+
+The Clear BSD License
+
+Copyright (c) 2024 mrfakename, NeuralVox, OpenPhonemizer Contributors
+All rights reserved.
+
+Redistribution and use in source and binary forms, with or without modification, are permitted (subject to the limitations in the disclaimer below) provided that the following conditions are met:
+
+* Redistributions of source code must retain the above copyright notice, this list of conditions and the following disclaimer.
+
+* Redistributions in binary form must reproduce the above copyright notice, this list of conditions and the following disclaimer in the documentation and/or other materials provided with the distribution.
+
+* Neither the name of the copyright holder nor the names of its contributors may be used to endorse or promote products derived from this software without specific prior written permission.
+
+NO EXPRESS OR IMPLIED LICENSES TO ANY PARTY'S PATENT RIGHTS ARE GRANTED BY THIS LICENSE. THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.''';
 
 const _catsNotice = '''
 The photo built into this app for the self-test's detector check and the image chat, test_assets/cats.jpg (640×480 JPEG, SHA-256 dea9e7ef97386345f7cff32f9055da4982da5471c48d575146c796ab4563b04e), is "Cats and remote controllers." by DocChewbacca on Flickr (https://www.flickr.com/photo.gne?id=210383891), as copied in the COCO 2017 validation set (image 39769, https://cocodataset.org).
@@ -95,13 +118,14 @@ The photo built into this app for the self-test's detector check and the image c
 It is licensed under the Creative Commons Attribution-ShareAlike 2.0 Generic licence (CC BY-SA 2.0): https://creativecommons.org/licenses/by-sa/2.0/''';
 
 const _libjpegTurboNotice = '''
-On Linux the network camera decodes JPEG frames with libjpeg-turbo's TurboJPEG library (lib/libturbojpeg.so.0 in the bundle, copied unmodified from the build machine's Debian/Ubuntu package libturbojpeg, or the system's copy).
+On Linux the network camera decodes JPEG frames with libjpeg-turbo's TurboJPEG library (lib/libturbojpeg.so.0 in the bundle, copied unmodified from the build machine's package, Ubuntu's libturbojpeg or Debian's libturbojpeg0, or the system's copy).
 
 This software is based in part on the work of the Independent JPEG Group.
 
-libjpeg-turbo is covered by the IJG License (the libjpeg API library) and the Modified (3-clause) BSD License (the TurboJPEG API library): https://github.com/libjpeg-turbo/libjpeg-turbo/blob/main/LICENSE.md
+libjpeg-turbo is covered by the IJG License (the libjpeg API library), the Modified (3-clause) BSD License (the TurboJPEG API library) and the zlib License (the SIMD extensions). The copyright years are those of the release the package carries: 2009-2021 in libjpeg-turbo 2.1.2 (Ubuntu 22.04, https://github.com/libjpeg-turbo/libjpeg-turbo/blob/2.1.2/LICENSE.md), 2009-2023 in 2.1.5 (Ubuntu 24.04 and Debian 12, https://github.com/libjpeg-turbo/libjpeg-turbo/blob/2.1.5/LICENSE.md).
 
-Copyright (C) 2009-2023 D. R. Commander. All Rights Reserved.
+libjpeg-turbo 2.1.2: Copyright (C) 2009-2021 D. R. Commander. All Rights Reserved.
+libjpeg-turbo 2.1.5: Copyright (C) 2009-2023 D. R. Commander. All Rights Reserved.
 Copyright (C) 2015 Viktor Szathmáry. All Rights Reserved.
 
 Redistribution and use in source and binary forms, with or without modification, are permitted provided that the following conditions are met:

@@ -79,7 +79,8 @@ final class FakeMemoryEmbedder implements VisualMemoryEmbedder {
 /// A memory shot of scene [scene] (its PNG's first byte and its thumbnail's
 /// value), with [cats] cat boxes; [png] false: the scene did not change.
 /// [encoded] replaces the fake PNG bytes (a real PNG, for a widget that
-/// decodes it); [grey], the thumbnail.
+/// decodes it); [grey], the thumbnail; [unmirrored], the PNG was mirrored
+/// back.
 MemoryShot fakeShot({
   int frameId = 1,
   int scene = 1,
@@ -88,6 +89,7 @@ MemoryShot fakeShot({
   int pngBytes = 100,
   Uint8List? encoded,
   Uint8List? grey,
+  bool unmirrored = false,
 }) => MemoryShot(
   frameId: frameId,
   detections: DetectionFrame(
@@ -107,6 +109,7 @@ MemoryShot fakeShot({
   png: png ? (encoded ?? (Uint8List(pngBytes)..[0] = scene)) : null,
   width: 320,
   height: 180,
+  unmirrored: unmirrored,
   workerTime: const Duration(milliseconds: 5),
 );
 

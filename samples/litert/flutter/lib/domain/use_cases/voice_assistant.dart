@@ -22,6 +22,7 @@ import '../../data/repositories/audio_repository.dart';
 import '../../data/repositories/speech_repository.dart';
 import '../../utils/pcm.dart';
 import '../../utils/result.dart';
+import '../models/audio_interruption.dart';
 import '../models/model_id.dart';
 import '../models/voice.dart';
 import '../ports/voice_diagnostics_sink.dart';
@@ -72,8 +73,10 @@ final class const TranscriptFailed<S>(
 /// [TranscriptFailed.reason] of a barged-in audio question.
 const kInterruptedTranscriptReason = 'interrupted';
 
-/// The assistant's reply, committed. [interrupted]: cut short by Stop or a
-/// barge-in (the text is what was shown until then; may be empty).
+/// The assistant's reply, committed. [interrupted]: cut short by Stop, a
+/// barge-in, an interruption from outside or a failure (the text is what was
+/// shown until then; may be empty, except after a failure, which commits
+/// only a reply that had text).
 final class const AssistantSaid<S>(
   final String text, {
   required final bool interrupted,
@@ -89,6 +92,13 @@ final class const MicUnavailable<S>(final String message)
 
 /// The turn failed (STT, the model, TTS or playback).
 final class const TurnFailed<S>(final Object error)
+    extends VoiceAssistantEvent<S>;
+
+/// Something outside the app ended a press or a turn ([cause]): the OS or
+/// another app took the audio, the output went away, or the app left the
+/// foreground on iOS. A turn's reply, if any, was committed (as interrupted
+/// when it was cut short) just before.
+final class const TurnInterrupted<S>(final InterruptionCause cause)
     extends VoiceAssistantEvent<S>;
 
 /// A responder's side event. [detached]: it belongs to a turn a barge-in
@@ -109,13 +119,22 @@ final class const SideEvent<S>(final S event, {required final bool detached})
 /// [UserSpoke] at once, the reply, then — once its audio has drained and the
 /// turn is idle — the transcript job, whose words arrive as
 /// [TranscriptArrived] with the turn's number, also after newer turns began:
-/// they never drop it). Typed turns are never audio turns.
+/// they never drop it). A press on the reply's playback tail holds the job
+/// until no generation runs: the next turn's reply has been generated (or
+/// cut by another press), or nothing runs at all. Typed turns are never audio
+/// turns.
 ///
 /// One action at a time wins: every user action (mic down, a typed send,
 /// Stop, dispose) supersedes whatever an earlier one still awaits, and a
 /// barge-in detaches the running turn at once — its audio stops, its partial
 /// reply is committed as interrupted — while the session drains it in the
 /// background. The next turn starts only after that drain.
+///
+/// Interruptions from outside ([interrupt]: the audio repository's, and the
+/// app leaving the foreground on iOS) end a press or a turn like Stop and
+/// say why ([TurnInterrupted]). The audio is taken per turn: a press or a
+/// spoken reply activates it, and the end of every press or turn hands it
+/// back ([AudioRepository.deactivate]; Android's other apps resume).
 class VoiceAssistant<S> {
   /// [correctTranscript]: applied to every transcript (Demo 1's Whisper
   /// corrections, `correctVoiceTranscript`), the transcript job's included.
@@ -132,10 +151,15 @@ class VoiceAssistant<S> {
     void Function(int turn, String text)? onTranscript,
   }) : _config = config ?? kVoiceConfig,
        _correct = correctTranscript,
-       _onTranscriptText = onTranscript;
+       _onTranscriptText = onTranscript {
+    _audioInterruptions = _audio.interruptions.listen(_onAudioInterruption);
+  }
 
   final SpeechRepository _speech;
   final AudioRepository _audio;
+
+  /// The audio repository's interruptions, until [dispose].
+  late final StreamSubscription<AudioInterruption> _audioInterruptions;
   final TurnResponderFactory<S> _responders;
 
   /// Where the debug overlay's voice phase and figures go.
@@ -161,8 +185,25 @@ class VoiceAssistant<S> {
     correct: _correct,
   );
 
-  /// Numbers every turn at release ([TurnRequest.turn]).
-  int _turnNumbers = 0;
+  /// Answered audio turns whose recordings wait before they go to
+  /// [_transcripts]: a press on a reply's playback tail opens the next
+  /// capture at once, and Whisper's 30 s window must not compete with the
+  /// turn it asks (its audio query, its generation, its speech). Released
+  /// ([_releaseHeldTranscripts]) as soon as no generation runs: that turn's
+  /// reply has been generated in full (only its playback is left), a press
+  /// cut its generation (the chat it leaves is rebuilt from the text history
+  /// for the next turn, which must find these words there rather than the
+  /// placeholder), or nothing runs at all ([_setPhase]). Oldest first.
+  final List<(_Turn, Uint8List)> _heldTranscripts = [];
+
+  /// Numbers every turn at release ([TurnRequest.turn]), across every
+  /// assistant of the process: a number is never handed out twice. The
+  /// conversation's text mirror finds a transcript's entry by it, and the
+  /// mirror belongs to the shared chat, which can outlive this assistant (a
+  /// demo entered again while the previous reply still stops keeps the
+  /// previous visit's chat, its history included): a per-assistant count
+  /// would start at 1 again and name that visit's turns.
+  static int _turnNumbers = 0;
 
   final ValueNotifier<TurnPhase> _phase = ValueNotifier(TurnPhase.idle);
   final ValueNotifier<String> _partial = ValueNotifier('');
@@ -216,9 +257,9 @@ class VoiceAssistant<S> {
   Future<Result<void>> requestMicAccess() => _audio.requestMicAccess();
 
   /// Starts the audio session and the output engine now, so the first turn
-  /// does not pay for it (on macOS the output device start took 50 ms to
-  /// 2.6 s). A failure is logged here and surfaces on the first turn, which
-  /// prepares again.
+  /// does not pay for it (on macOS starting the output device can be slow).
+  /// A failure is logged here and surfaces on the first turn, which prepares
+  /// again.
   Future<void> prepareAudio() async {
     if (_disposed) return;
     if (await _audio.prepare() case Error(:final error)) {
@@ -256,9 +297,11 @@ class VoiceAssistant<S> {
         // Stop, a typed send or dispose took over while the mic started.
         return const Result.ok(null);
       case CaptureFailed(:final error):
-        final message = error is MicAccessException
-            ? error.message
-            : 'The microphone did not start: $error';
+        final message = switch (error) {
+          MicAccessException(:final message) ||
+          AudioFocusException(:final message) => message,
+          _ => 'The microphone did not start: $error',
+        };
         _emit(MicUnavailable(message));
         _metrics.publishGate(outcome: TurnOutcome.micUnavailable);
         _setPhase(TurnPhase.error);
@@ -421,16 +464,69 @@ class VoiceAssistant<S> {
     return true;
   }
 
+  /// Something outside the app ended what runs ([cause]): the OS or another
+  /// app took the audio (the audio repository has cancelled the capture and
+  /// stopped the playback already), the output went away, or the app left
+  /// the foreground on iOS (no GPU work there, and suspension within
+  /// seconds). A press ends without a turn; a running turn stops as with
+  /// Stop — its playback silenced, its partial reply committed as
+  /// interrupted, an audio question still transcribed — and
+  /// [TurnInterrupted] says why. With nothing running nothing happens.
+  /// Completes once the turn has ended (bounded by VoiceSession's drain,
+  /// worst case ≈10 s).
+  Future<void> interrupt(InterruptionCause cause) async {
+    if (_disposed) return;
+    if (_mic.pressed) {
+      ++_epoch;
+      debugPrint('[Voice] interrupted (${cause.name}): the capture ends');
+      _setPartial('');
+      _emit(TurnInterrupted(cause));
+      _setPhase(TurnPhase.idle);
+      await _mic.drop();
+      return;
+    }
+    final turn = _turn;
+    if (turn == null) {
+      if (!_phase.value.isActive) return;
+      // A release still closing its capture or waiting to start: the epoch
+      // bump stops it there.
+      ++_epoch;
+      debugPrint('[Voice] interrupted (${cause.name}) before the turn began');
+      _setPartial('');
+      _emit(TurnInterrupted(cause));
+      _setPhase(TurnPhase.idle);
+      return;
+    }
+    ++_epoch;
+    debugPrint('[Voice] interrupted (${cause.name}): the turn stops');
+    turn
+      ..stopRequested = true
+      ..interruptedBy ??= cause;
+    final playback = turn.playback;
+    if (playback != null) _silence(playback, 'interruption');
+    await turn.voice.interrupt();
+    await turn.result.future;
+  }
+
+  void _onAudioInterruption(AudioInterruption what) => unawaited(
+    interrupt(switch (what) {
+      AudioInterruption.taken => InterruptionCause.audioTaken,
+      AudioInterruption.outputRemoved => InterruptionCause.outputRemoved,
+    }),
+  );
+
   /// Ends everything: the mic closes, a running turn is detached and
   /// interrupted. Completes once that turn has drained.
   Future<void> dispose() async {
     if (_disposed) return;
     ++_epoch;
+    unawaited(_audioInterruptions.cancel());
     // First: a turn detached now (its reply's playback tail cut) must not
     // hand its recording to a recognizer nobody listens to any more.
     _transcripts.dispose();
     final turn = _turn;
     if (turn != null) _detach(turn);
+    _heldTranscripts.clear();
     // Recorded before _disposed blocks phase updates: the overlay must not
     // stay on "speaking" after the demo was left.
     _setPhase(TurnPhase.idle);
@@ -559,11 +655,13 @@ class VoiceAssistant<S> {
     }
     final speak = _speak;
     if (speak) {
-      final prepared = await _audio.prepare();
+      // The reply will play: the audio for the turn (Android: the focus,
+      // until the turn ends; a voice turn's press took it already).
+      final activated = await _audio.activate();
       if (_disposed || epoch != _epoch) {
         return const TurnResult(TurnOutcome.superseded);
       }
-      if (prepared case Error(:final error)) {
+      if (activated case Error(:final error)) {
         return _failBeforeTurn(error, metrics);
       }
     }
@@ -693,6 +791,9 @@ class VoiceAssistant<S> {
         // Generated in full: a press from here on cuts only the playback,
         // and the question still gets its words ([_detach]).
         turn.replyDone = true;
+        // No generation runs any more: earlier questions held back for this
+        // turn go to the recognizer now, beside its playback only.
+        _releaseHeldTranscripts();
         final playback = turn.playback;
         if (playback != null) {
           playback.end();
@@ -714,7 +815,7 @@ class VoiceAssistant<S> {
         // Stop, not a new press: the question still gets its words.
         _transcribeLater(turn);
       case VoiceErrorEvent(:final error):
-        // Reserved in flutter_edge_ai_speech 0.5.4: never emitted.
+        // Reserved in flutter_edge_ai_speech 0.5.7: never emitted.
         throw asException(error);
     }
   }
@@ -732,7 +833,10 @@ class VoiceAssistant<S> {
     _trackInterrupt(turn.voice.interrupt());
     final partial = turn.reply.toString().trim();
     _setPartial('');
-    if (partial.isNotEmpty) _emit(AssistantSaid(partial, interrupted: false));
+    // Cut off by the failure: committed as interrupted, so the bubble above
+    // the error says "stopped" (its excerpts' chips stay, as after Stop)
+    // instead of passing for a complete answer.
+    if (partial.isNotEmpty) _emit(AssistantSaid(partial, interrupted: true));
     _emit(TurnFailed(error));
     _finish(turn, TurnOutcome.failed, TurnPhase.error, error: error);
     // The question was asked all the same: its entry still gets its words.
@@ -750,8 +854,9 @@ class VoiceAssistant<S> {
     if (turn.pcm case final pcm? when turn.audio) {
       if (turn.replyDone) {
         // Only the playback's tail is cut: the question was answered in
-        // full, and gets its words as at a normal end.
-        _startTranscript(turn, pcm);
+        // full, and gets its words as at a normal end, once no generation
+        // runs.
+        _holdTranscript(turn, pcm);
       } else {
         // A question barged in on during its reply gets no transcript: its
         // recording goes now, and its entry says so instead of looking
@@ -766,6 +871,11 @@ class VoiceAssistant<S> {
       }
     }
     turn.pcm = null;
+    // Its generation was cut: questions held back for it go to the
+    // recognizer now, so the chat rebuilt for the next turn replays their
+    // words, not the placeholder (the next turn starts only after this one
+    // drained).
+    if (!turn.replyDone) _releaseHeldTranscripts();
     if (identical(_turn, turn)) _turn = null;
     final playback = turn.playback;
     final wasPlaying = playback != null && !turn.muted;
@@ -829,6 +939,8 @@ class VoiceAssistant<S> {
       ..total = turn.clock.elapsed;
     if (identical(_turn, turn)) _turn = null;
     _publish(turn);
+    // After the reply's commit, before idle: why it ended there.
+    if (turn.interruptedBy case final cause?) _emit(TurnInterrupted(cause));
     _setPhase(phase);
     turn.complete(TurnResult(outcome, error: error));
   }
@@ -919,6 +1031,30 @@ class VoiceAssistant<S> {
     _startTranscript(turn, pcm);
   }
 
+  /// [turn]'s recording [pcm] (a question answered in full whose playback
+  /// tail a press cut): it is held until no generation runs
+  /// ([_heldTranscripts]), then goes to the transcript job like a normal
+  /// end's. Neither the next press nor its turn drops it.
+  void _holdTranscript(_Turn turn, Uint8List pcm) {
+    turn.pcm = null;
+    _heldTranscripts.add((turn, pcm));
+    // Not reached today (a turn is detached only while one runs), but a
+    // recording must never wait for a phase change that does not come.
+    if (!_phase.value.isActive) _releaseHeldTranscripts();
+  }
+
+  /// No generation runs any more: the held recordings go to the transcript
+  /// job, oldest first (ahead of a turn that just ended, which adds its own
+  /// after this).
+  void _releaseHeldTranscripts() {
+    if (_heldTranscripts.isEmpty) return;
+    final held = List.of(_heldTranscripts);
+    _heldTranscripts.clear();
+    for (final (turn, pcm) in held) {
+      _startTranscript(turn, pcm);
+    }
+  }
+
   /// Hands [turn]'s recording [pcm] to the transcript job, which holds it
   /// from here until its result.
   void _startTranscript(_Turn turn, Uint8List pcm) {
@@ -961,8 +1097,14 @@ class VoiceAssistant<S> {
 
   void _setPhase(TurnPhase phase) {
     if (_disposed) return;
+    final ended = _phase.value.isActive && !phase.isActive;
     _phase.value = phase;
     _diagnostics.recordVoicePhase(phase);
+    // A press or a turn ended: the audio goes back (Android: the focus, so
+    // other apps' audio resumes). The next press or reply takes it again.
+    if (ended) unawaited(_audio.deactivate());
+    // Nothing runs: held transcripts may start.
+    if (!phase.isActive) _releaseHeldTranscripts();
   }
 
   void _setPartial(String text) {
@@ -1074,6 +1216,9 @@ final class _Turn {
 
   /// Stop was pressed: wait for its terminal, ignore further output.
   bool stopRequested = false;
+
+  /// Stopped from outside ([VoiceAssistant.interrupt]): its end says why.
+  InterruptionCause? interruptedBy;
 
   /// "Speak replies" was switched off during it.
   bool muted = false;

@@ -42,7 +42,8 @@ final String? _noTurboJpeg = () {
   final lib = TurboJpegLibrary.open(turboJpegCandidates(), failures: failures);
   return lib == null
       ? 'libturbojpeg not found (${failures.join('; ')}): '
-            'brew install jpeg-turbo / sudo apt install libturbojpeg'
+            'brew install jpeg-turbo / sudo apt install libturbojpeg '
+            '(Debian: libturbojpeg0)'
       : null;
 }();
 

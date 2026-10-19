@@ -20,6 +20,7 @@ import 'package:flutter_edge_ai_agent/flutter_edge_ai_agent.dart'
     show Skill, SkillType;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:litert_edge_demos/config/model_catalog.dart';
+import 'package:litert_edge_demos/data/repositories/conversation_repository.dart';
 import 'package:litert_edge_demos/data/repositories/diagnostics_repository.dart';
 import 'package:litert_edge_demos/data/repositories/image_repository.dart';
 import 'package:litert_edge_demos/data/repositories/skill_repository.dart';
@@ -31,6 +32,7 @@ import 'package:litert_edge_demos/domain/models/chat_entry.dart';
 import 'package:litert_edge_demos/domain/models/llm_image.dart';
 import 'package:litert_edge_demos/domain/models/model_id.dart';
 import 'package:litert_edge_demos/domain/models/model_state.dart';
+import 'package:litert_edge_demos/domain/models/skill_catalog.dart';
 import 'package:litert_edge_demos/domain/models/voice.dart';
 import 'package:litert_edge_demos/domain/use_cases/chat_turn_responder.dart';
 import 'package:litert_edge_demos/domain/use_cases/voice_assistant.dart';
@@ -192,6 +194,39 @@ void main() {
     expect(viewModel.canSend, isTrue);
   });
 
+  test('entered again while the previous visit\'s reply still stops: the '
+      'open fails and leaves that visit\'s chat (this demo\'s profile), yet '
+      'the chat is not ready; the error shows, and New conversation '
+      'recovers', () async {
+    viewModel.dispose();
+    await conversation.close();
+    conversation = FakeConversationRepository()
+      ..leaveOpen(kVoiceChatProfile)
+      ..failedOpenKeepsChat = true
+      ..openResult = const Result.error(
+        ConversationNotReadyException(
+          'The previous reply did not finish within 5s of being stopped',
+        ),
+      );
+    viewModel = createViewModel();
+    await settle();
+
+    expect(viewModel.open.running, isFalse);
+    expect(conversation.profile, kVoiceChatProfile, reason: 'the old chat');
+    expect(viewModel.error, contains('Could not open the chat'));
+    expect(viewModel.isReady, isFalse, reason: 'not this visit\'s chat');
+    expect(viewModel.canSend, isFalse);
+    expect(viewModel.canTalk, isFalse);
+    expect(viewModel.canStartNewConversation, isTrue);
+
+    conversation.openResult = const Result.ok(null);
+    await viewModel.newConversation.execute();
+
+    expect(viewModel.isReady, isTrue);
+    expect(viewModel.canSend, isTrue);
+    expect(viewModel.error, isNull);
+  });
+
   test('New conversation during a reply, then leaving before the turn '
       'drains: no late voice-chat open after dispose', () async {
     final sending = viewModel.send.execute('Tell me a story');
@@ -337,6 +372,10 @@ void main() {
         ChatRole.assistant,
         ChatRole.error,
       ]);
+      // The partial reply the failure cut off reads as interrupted, not as
+      // a complete answer.
+      expect(viewModel.entries[1].text, 'Par');
+      expect(viewModel.entries[1].interrupted, isTrue);
 
       final next = viewModel.send.execute('Retry');
       await settle();
@@ -564,17 +603,99 @@ void main() {
       expect(viewModel.skillsOffReason, isNull);
     });
 
-    test('tools off: the skills label says why and what still works', () async {
-      conversation.capabilities = const ChatCapabilities(
-        modelName: 'Gemma 3 NPU',
-        images: true,
-        tools: false,
-      );
-      await conversation.open(kVoiceChatProfile, skills: [_skill]);
+    group('tools off: the skills label says why, naming no skill or topic', () {
+      const off =
+          'Skills are off: Gemma 3 NPU has tools off, so it cannot call them.';
 
-      expect(viewModel.skillsOffReason, contains('Gemma 3 NPU has tools off'));
-      expect(viewModel.skillsOffReason, contains('device facts still work'));
-      expect(viewModel.hasSkills, isFalse);
+      /// A view model whose skills folder holds [installed], on a chat model
+      /// with tools off.
+      Future<void> toolsOffWith(List<Skill> installed) async {
+        viewModel.dispose();
+        skills = SkillRepository(
+          store: FakeSkillStore(
+            catalog: SkillCatalog(
+              directory: '/fake/skills',
+              fingerprint: 'installed',
+              skills: [
+                for (final skill in installed)
+                  LoadedSkill(skill: skill, path: '${skill.name}/SKILL.md'),
+              ],
+            ),
+          ),
+        );
+        await skills.refresh();
+        conversation.capabilities = const ChatCapabilities(
+          modelName: 'Gemma 3 NPU',
+          images: true,
+          tools: false,
+        );
+        viewModel = createViewModel();
+        await settle();
+        await conversation.open(kVoiceChatProfile, skills: installed);
+        expect(viewModel.hasSkills, isFalse);
+      }
+
+      test('an installed intent skill names an app intent: what the app '
+          'still answers', () async {
+        await toolsOffWith(const [
+          _skill,
+          Skill(
+            name: 'clock',
+            description: 'The time.',
+            instructions:
+                'Call the `run_intent` tool with intent '
+                '`current_time`.',
+            type: SkillType.intent,
+          ),
+        ]);
+
+        expect(
+          viewModel.skillsOffReason,
+          "$off The app still answers the questions it recognizes for an "
+          "installed skill's intent.",
+        );
+      });
+
+      test('in audio mode only typed questions get the intent', () async {
+        await toolsOffWith(const [
+          _skill,
+          Skill(
+            name: 'clock',
+            description: 'The time.',
+            instructions:
+                'Call the `run_intent` tool with intent '
+                '`current_time`.',
+            type: SkillType.intent,
+          ),
+        ]);
+        conversation.capabilities = const ChatCapabilities(
+          modelName: 'Gemma 3 NPU',
+          images: true,
+          audio: true,
+          tools: false,
+        );
+
+        expect(
+          viewModel.skillsOffReason,
+          "$off Typed questions the app recognizes still get an installed "
+          "skill's intent.",
+        );
+      });
+
+      test('none does (or only an instruction-only skill quotes one): the '
+          'first sentence alone', () async {
+        await toolsOffWith(const [
+          _skill,
+          Skill(
+            name: 'time-notes',
+            description: 'Notes on the time.',
+            instructions: 'Never call intent `current_time` for this.',
+            type: SkillType.textOnly,
+          ),
+        ]);
+
+        expect(viewModel.skillsOffReason, off);
+      });
     });
   });
 

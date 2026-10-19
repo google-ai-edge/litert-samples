@@ -14,7 +14,7 @@ LiteRT is Google's on-device runtime for high-performance ML and GenAI deploymen
 
 You can find ready-to-run LiteRT models for a wide range of ML and AI tasks, or convert and run TensorFlow, PyTorch, and JAX models to the TFLite format using the AI Edge conversion and optimization tools. The model file format is the `.tflite` FlatBuffer; large language models are packaged as `.litertlm` bundles and run through LiteRT-LM.
 
-LiteRT provides nightly builds and targets stable releases on a 6 to 8 week cadence. LiteRT is licensed under the Apache-2.0 License. The official documentation lives at ai.google.dev/edge/litert.
+LiteRT provides nightly builds and targets stable releases on a 6 to 8 week cadence. LiteRT is licensed under the Apache-2.0 License. The official documentation lives at developers.google.com/edge/litert; the former address, ai.google.dev/edge/litert, which the LiteRT README links, redirects there.
 
 ## Key features of LiteRT V2
 
@@ -94,7 +94,7 @@ Recently added supported models are published to the Hugging Face LiteRT Communi
 
 The google-ai-edge/litert-samples repository contains official and community contributed sample applications, model recipes, agent skills and utilities for LiteRT and LiteRT-LM. The samples demonstrate different API paradigms (the LiteRT CompiledModel API and the legacy Interpreter API, the Tensor API, and LiteRT-LM) and provide end-to-end model conversion and deployment pipelines.
 
-The repository is organized in four parts. `samples/` holds runnable apps: `samples/litert/` uses the CompiledModel API, designed for modern hardware acceleration (GPU and NPU) and asynchronous execution; `samples/litert_interpreter/` holds legacy Interpreter API samples; `samples/litert_lm/` holds LLM engine samples; and `samples/tensor_api_playground/` is a browser playground. `models/` holds conversion scripts and export recipes. `utilities/` holds shared Kotlin helpers and a GPU conversion toolkit. `skills/` holds agent skills. Running a sample needs Android Studio, Xcode, Python 3.9+ with `pip install ai-edge-litert`, or a browser with WebGPU and WebAssembly support.
+The repository is organized in four parts. `samples/` holds runnable apps: `samples/litert/` holds mostly CompiledModel API samples, designed for modern hardware acceleration (GPU and NPU) and asynchronous execution, plus LiteRT-LM chat samples (Gemma on the Pixel 10 TPU, Gemma and FastVLM on Qualcomm devices); `samples/litert_interpreter/` holds legacy Interpreter API samples; `samples/litert_lm/` holds LLM engine samples; and `samples/tensor_api_playground/` is a browser playground. `models/` holds conversion scripts and export recipes. `utilities/` holds shared Kotlin helpers and a GPU conversion toolkit. `skills/` holds agent skills. Running a sample needs Android Studio, Xcode, Python 3.9+ with `pip install ai-edge-litert`, or a browser with WebGPU and WebAssembly support.
 
 ### Sample apps by task
 

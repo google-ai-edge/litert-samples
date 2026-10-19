@@ -25,6 +25,14 @@ abstract interface class PcmPlayerService {
   /// Starts the output engine. Call once, after the audio session is active.
   Future<void> init();
 
+  /// Shuts the engine down (if it runs) and starts it again on the session as
+  /// it is now, with a new output device. iOS, after the app was hidden: an
+  /// interruption while it was suspended may never have reached the engine,
+  /// which then counts its stopped device as started and plays in silence.
+  /// (After a reported interruption the engine starts the device again by
+  /// itself at the next play.) Call with no output open.
+  Future<void> restart();
+
   /// The playback devices the engine's audio backend lists, the default
   /// marked (callable before [init]). Throws when the engine cannot list.
   List<AudioDevice> listOutputs();
@@ -75,6 +83,24 @@ final class SoloudPcmPlayerService implements PcmPlayerService {
       '[Player] soloud ready: $kPlaybackEngineSampleRate Hz, '
       '$kPlaybackEngineBufferFrames-frame buffer',
     );
+  }
+
+  /// How soloud 4.1.7 handles an interruption on iOS: miniaudio stops the
+  /// output device at `interruption_began`, and the device starts again at
+  /// `interruption_ended` or at the next play/unpause
+  /// (`Player::ensureAudioDeviceStarted` → `soloud_miniaudio_resume`, which
+  /// first calls `[AVAudioSession setActive:YES]`; soloud_miniaudio.cpp). So
+  /// soloud is a second activator of the session on iOS, next to the
+  /// session owner, though it only re-activates what the owner configured
+  /// (it never sets the category: `sessionCategory =
+  /// ma_ios_session_category_none`). Its resume starts only a device it
+  /// knows is stopped: one stopped by an interruption it never heard of
+  /// stays silent, and only a new engine (a new device) helps.
+  @override
+  Future<void> restart() async {
+    if (_soloud.isInitialized) await _soloud.deinitAsync();
+    await init();
+    debugPrint('[Player] soloud restarted');
   }
 
   @override

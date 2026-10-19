@@ -55,9 +55,9 @@ import 'package:litert_edge_demos/domain/use_cases/prompt_builder.dart';
 import 'package:litert_edge_demos/utils/result.dart';
 import 'package:litert_edge_demos/utils/wav.dart';
 
-/// Gemma 4 E2B's towers as its header sets them (both on the CPU), the
-/// audio one left out to compare: built by hand, this test drives the
-/// engine below the app's header rule.
+/// Gemma 4 E2B with both towers, or without the audio one to compare: built
+/// by hand, this test drives the engine below the app's plan. The engine
+/// places the towers (both on the CPU for this file).
 ChatModelConfig _gemma({required bool audio}) => ChatModelConfig(
   name: 'Gemma 4 E2B',
   modelType: ModelType.gemma4,
@@ -65,18 +65,8 @@ ChatModelConfig _gemma({required bool audio}) => ChatModelConfig(
     maxTokens: kLlmConfig.maxTokens,
     backend: PreferredBackend.gpu,
     maxNumImages: 1,
-    towers: ModelTowers(
-      vision: const TowerPlacement(
-        PreferredBackend.cpu,
-        reason: TowerReason.declared,
-      ),
-      audio: audio
-          ? const TowerPlacement(
-              PreferredBackend.cpu,
-              reason: TowerReason.declared,
-            )
-          : null,
-    ),
+    supportImage: true,
+    supportAudio: audio,
   ),
   tools: false,
 );

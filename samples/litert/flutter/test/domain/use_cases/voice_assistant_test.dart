@@ -891,9 +891,11 @@ void main() {
       expect(result.outcome, TurnOutcome.failed);
       expect(result.error.toString(), contains('GPU lost'));
       expect(h.phase, TurnPhase.error);
+      // Cut off by the failure: committed as interrupted, never as a
+      // complete answer above the error.
       expect(
-        h.events.whereType<AssistantSaid<ChatSideEvent>>().single.text,
-        'Par',
+        h.events.whereType<AssistantSaid<ChatSideEvent>>().single,
+        _said('Par', interrupted: true),
       );
       expect(
         h.events.last,

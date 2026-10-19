@@ -25,7 +25,9 @@
 // 3. A time question the router leaves to the model: Gemma loads the
 //    current-time skill and calls current_time.
 // 4. A kid-clock SKILL.md dropped into the skills folder works after
-//    Reload, without a rebuild: "Tell my kid what time it is." → current_time.
+//    Reload, without a rebuild: "Tell my kid what time it is." → kid-clock
+//    loaded (or called as the intent, which the executor refuses as an
+//    unknown intent), current_time run.
 // 5. A malformed SKILL.md is listed with its parse error in the Skills sheet.
 // 6. Device questions call device_info even when retrieval brings GPU docs.
 // Prints `SKILLS time_ttfa=…ms` and one `SKILLS q=…` line per turn. Removes
@@ -160,8 +162,8 @@ void main() {
     );
     final names = catalog.skills.map((s) => s.skill.name);
     expect(names, containsAll(['device-info', 'current-time']));
-    // A user folder seeded by an older build may still hold the removed
-    // skills: they are listed but name intents the app no longer has.
+    // A user folder may hold skills that name intents the app does not
+    // have: they are listed, and printed here as leftovers.
     for (final removed in ['timer', 'camera-watch']) {
       if (names.contains(removed)) debugPrint('SKILLS leftover: $removed');
     }
@@ -215,12 +217,13 @@ void main() {
       return reply;
     }
 
-    /// The call of [intent], also when the model spelled it as the skill
-    /// name the executor normalizes ("current-time" runs current_time).
+    /// The call of [intent], by its exact name: the executor
+    /// (`NativeIntentExecutor`) runs an intent only by its name, so
+    /// "current-time" is an unknown intent, not current_time.
     IntentCalled? called(ChatEntry reply, String intent) {
       for (final step in reply.steps) {
         if (step case IntentCalled(intent: final name)
-            when name.toLowerCase().replaceAll('-', '_') == intent) {
+            when name.trim() == intent) {
           return step;
         }
       }
@@ -337,10 +340,26 @@ void main() {
     );
 
     final kidReply = await ask('Tell my kid what time it is.');
-    // The model may call the skill itself as the intent; the app
-    // then runs its only call (current_time).
+    // The model chose the run-time skill over the bundled current-time
+    // (same intent): it loaded kid-clock (the skill registry finds
+    // kid_clock too), or called kid-clock itself as the intent (the
+    // executor answers with an unknown intent and the intents it runs) ...
+    bool isKidClock(String? name) =>
+        name?.toLowerCase().replaceAll('_', '-') == 'kid-clock';
     expect(
-      called(kidReply, 'current_time') ?? called(kidReply, 'kid-clock'),
+      kidReply.steps.any(
+        (s) => switch (s) {
+          SkillLoaded(:final name, found: true) => isKidClock(name),
+          IntentCalled(:final intent) => isKidClock(intent),
+          _ => false,
+        },
+      ),
+      isTrue,
+      reason: 'kid-clock was neither loaded nor called: ${describeChat(vm)}',
+    );
+    // ... and its intent ran.
+    expect(
+      called(kidReply, 'current_time'),
       isNotNull,
       reason: describeChat(vm),
     );

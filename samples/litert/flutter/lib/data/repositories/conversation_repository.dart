@@ -65,9 +65,14 @@ abstract interface class ConversationRepository {
   /// The open chat is an agent chat (opened with skills).
   bool get hasSkills;
 
+  /// The open agent chat's skills: the ones its system prompt lists, which
+  /// `loadSkill` can load. Empty for a plain chat (a chat model with tools
+  /// off included) and when no chat is open.
+  List<Skill> get skills;
+
   /// The open chat was asked for skills but is plain, because the chat model
-  /// has tools off: skills that need tool calls are off; the app's direct
-  /// intents still run.
+  /// has tools off: the model cannot call any skill. The requests the app
+  /// runs itself still run while an installed skill names their intent.
   bool get skillsNeedTools;
 
   /// What the loaded chat model allows: images, tools, and its name for the
@@ -89,13 +94,17 @@ abstract interface class ConversationRepository {
   /// subscription stops generation too.
   ///
   /// On an agent chat [onStep] receives each skill step as it happens
-  /// (loadSkill, runIntent and its result); nothing is spoken before a tool
-  /// runs, because a Gemma 4 tool-call turn is pure JSON. A step is not an
+  /// (loadSkill, runIntent and its result). A tool call's JSON is never spoken:
+  /// flutter_edge_ai 2.4.0 takes a call it can read out of the text, and the
+  /// app drops the text of one it cannot read (`AgentTurnFold`); prose the
+  /// model writes before a call is streamed and spoken. A step is not an
   /// [AssistantEvent], so code that switches over those stays unchanged. A
   /// cancelled subscription does not stop native generation on the agent path:
   /// the repository stops it and drains the turn, keeping [isGenerating] true
   /// until it has ended. Too many tool rounds end the turn as [AssistantFailed]
-  /// with a [SkillLoopException].
+  /// with a [SkillLoopException], no answer after a loaded skill (after the
+  /// agent loop's one retry, or with none when the generations ran out) with an
+  /// [EmptyAnswerAfterSkillException].
   ///
   /// [image]: a PNG or JPEG (normally from `normalizeForLlm` or a camera
   /// snapshot). Pass the SAME object every turn while it stays attached: it
@@ -107,8 +116,8 @@ abstract interface class ConversationRepository {
   /// [audioWav]: the spoken question itself, as a WAV (16 kHz mono PCM16
   /// behind a 44-byte RIFF header), for a chat model that hears audio
   /// ([ChatCapabilities.audio]). It rides on this turn's user message with
-  /// [prompt] (which may be empty, or carry the excerpts) and [image]; the
-  /// engine keeps only the current turn's recording, so it is never re-sent.
+  /// [prompt] (which may be empty, or carry the excerpts) and [image]; a
+  /// recording goes out once, with its turn, and is never re-sent.
   /// On a chat built without audio support the turn fails with
   /// [ConversationAudioUnsupportedException] before anything reaches the
   /// engine or its history: it never degrades to a text-only turn. A
@@ -143,8 +152,8 @@ abstract interface class ConversationRepository {
   ///
   /// A turn after a stopped one, while an audio turn is in the live chat,
   /// rebuilds the chat from the text mirror (`clearHistory(replayHistory:)`)
-  /// instead of letting LiteRT-LM replay its own text history, in which an
-  /// audio turn's question is missing.
+  /// instead of letting flutter_edge_ai_litertlm's rebuild replay its own
+  /// text history, in which an audio turn's question is missing.
   Stream<AssistantEvent> ask(
     String prompt, {
     Uint8List? image,
@@ -152,6 +161,23 @@ abstract interface class ConversationRepository {
     void Function(SkillStep step)? onStep,
     String? historyText,
     int? turn,
+  });
+
+  /// Which of [prompts] — one turn's prompt in versions with fewer and fewer
+  /// knowledge-base excerpts, most first — fits the model's context window:
+  /// the index of the first one a fresh chat could hold with the turn's
+  /// [image], its recording [audioWav], the reply allowance and, on an agent
+  /// chat, the skills reserve, below the window less the headroom. These are
+  /// the [ask] budget guard's own figures, counted with the chat model's
+  /// tokenizer, so an [ask] with that prompt is not refused as too long. Ok
+  /// with null when none fits (an [ask] then fails with
+  /// [ConversationTooLongException]). An error when no chat is open, a turn
+  /// runs (nothing is counted beside its generation), or the recording is
+  /// not a 16 kHz mono PCM16 WAV.
+  Future<Result<int?>> firstFittingPrompt(
+    List<String> prompts, {
+    Uint8List? image,
+    Uint8List? audioWav,
   });
 
   /// Puts [text] (a transcript) as the user's words of voice turn [turn] in
@@ -239,6 +265,22 @@ final class SkillLoopException implements Exception {
   String toString() =>
       'The model kept calling skills for $iterations rounds without '
       'answering';
+}
+
+/// An agent turn that ended with no answer right after the model loaded
+/// [skillName] (flutter_edge_ai_agent's `EmptyAnswerEvent`): the generation
+/// was empty, and so was the one the agent loop asked for again, or there was
+/// none because `maxIterations` left no generation for a retry. A failure
+/// the user sees, like any empty reply, not an empty bubble.
+final class EmptyAnswerAfterSkillException implements Exception {
+  const EmptyAnswerAfterSkillException(this.skillName);
+
+  final String skillName;
+
+  @override
+  String toString() =>
+      'the model returned an empty reply after loading the skill '
+      '"$skillName"';
 }
 
 /// A queued [ConversationRepository.open] that a later open for another

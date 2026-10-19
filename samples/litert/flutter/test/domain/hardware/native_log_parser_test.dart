@@ -18,7 +18,7 @@ import 'package:litert_edge_demos/domain/hardware/native_log_parser.dart';
 import 'package:litert_edge_demos/domain/models/accelerator_evidence.dart';
 import 'package:litert_edge_demos/domain/models/hardware_profile.dart';
 
-// Captured by the macOS release self-test (Gemma 4 E2B on an M4 Pro).
+// Native log lines of the macOS release self-test (Gemma 4 E2B).
 const _macGemma = [
   'INFO: [accelerator_registry.cc:54] RegisterAccelerator: ptr=0xb4dc50300, name=GPU Metal',
   'INFO: [gpu_registry.cc:144] Dynamically loaded GPU accelerator(@executable_path/../Frameworks/LiteRtMetalAccelerator.framework/LiteRtMetalAccelerator) registered.',
@@ -30,7 +30,7 @@ const _macGemma = [
   'INFO: [litert_lm_loader.cc:120] unrelated line',
 ];
 
-// From runs on a Tesla T4 VM.
+// A Linux log's adapter line: an NVIDIA GPU over Vulkan.
 const _t4 =
     'I0000 00:00:1759700000.000000 12345 environment.cc:526] Selected adapter: '
     'Tesla T4, arch=turing, vendor=nvidia, backend=Vulkan, '
@@ -140,6 +140,106 @@ void main() {
       );
       expect(e.softwareGpu, isTrue);
       expect(e.isError, isTrue);
+    });
+
+    group('softwareGpuReason (a GPU load on llvmpipe & co. fails)', () {
+      const llvmpipeOnly = HardwareProfile(
+        platform: HostPlatform.linux,
+        os: 'Ubuntu 24.04.3 LTS',
+        cpu: CpuInfo(model: 'Neoverse-N1', cores: 4),
+        vulkan: [
+          VulkanDevice(name: 'llvmpipe (LLVM 15.0.7, 128 bits)', type: 'CPU'),
+        ],
+      );
+      const t4AndLlvmpipe = HardwareProfile(
+        platform: HostPlatform.linux,
+        os: 'Ubuntu 24.04.3 LTS',
+        cpu: CpuInfo(model: 'Intel Xeon', cores: 4),
+        vulkan: [
+          VulkanDevice(name: 'llvmpipe (LLVM 19.1.1, 256 bits)', type: 'CPU'),
+          VulkanDevice(name: 'Tesla T4', type: 'DISCRETE_GPU'),
+        ],
+      );
+
+      test('the adapter line names llvmpipe: the reason names it, confirmed '
+          'by the log', () {
+        final reason = softwareGpuReason(
+          inferEvidence(
+            requested: 'gpu',
+            reported: 'gpu',
+            hardware: t4AndLlvmpipe,
+            log: parseNativeLog([
+              'Selected adapter: llvmpipe (LLVM 15.0.7, 128 bits), arch=, '
+                  'vendor=mesa, backend=Vulkan, adapterType=CPU',
+            ]),
+          ),
+        );
+        expect(
+          reason,
+          'The GPU is a software rasterizer: llvmpipe (LLVM 15.0.7, 128 '
+          'bits) (CPU) (confirmed: native log). It runs on the CPU, far '
+          'slower than the CPU backend.',
+        );
+      });
+
+      test('no log (debug build, no tap): the probe lists only llvmpipe, '
+          'labelled inferred', () {
+        final reason = softwareGpuReason(
+          inferEvidence(
+            requested: 'gpu',
+            reported: 'gpu',
+            hardware: llvmpipeOnly,
+          ),
+        );
+        expect(reason, contains('llvmpipe (LLVM 15.0.7, 128 bits)'));
+        expect(reason, contains('(inferred)'));
+      });
+
+      test('a real GPU (named by the log, or the probe preferring it over '
+          'llvmpipe) is none', () {
+        expect(
+          softwareGpuReason(
+            inferEvidence(
+              requested: 'gpu',
+              reported: 'gpu',
+              hardware: llvmpipeOnly,
+              log: parseNativeLog([_t4]),
+            ),
+          ),
+          isNull,
+          reason: 'the log beats the probe',
+        );
+        expect(
+          softwareGpuReason(
+            inferEvidence(
+              requested: 'gpu',
+              reported: 'gpu',
+              hardware: t4AndLlvmpipe,
+            ),
+          ),
+          isNull,
+        );
+        expect(
+          softwareGpuReason(
+            inferEvidence(requested: 'gpu', reported: 'gpu', hardware: null),
+          ),
+          isNull,
+          reason: 'nothing names a software GPU',
+        );
+      });
+
+      test('a load on the CPU never is one', () {
+        expect(
+          softwareGpuReason(
+            inferEvidence(
+              requested: 'cpu',
+              reported: 'cpu',
+              hardware: llvmpipeOnly,
+            ),
+          ),
+          isNull,
+        );
+      });
     });
 
     test('not reportable → requested; a reported other backend → mismatch', () {

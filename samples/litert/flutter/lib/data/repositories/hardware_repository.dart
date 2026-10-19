@@ -22,7 +22,6 @@ import '../../domain/models/audio_devices.dart';
 import '../../domain/models/hardware_profile.dart';
 import '../../domain/models/model_id.dart';
 import '../../domain/models/model_state.dart';
-import '../../domain/models/model_towers.dart' show visionTowerDetail;
 import '../services/hardware/hardware_info_service.dart';
 import '../services/hardware/memory_probe.dart';
 import '../services/hardware/native_log_tap.dart';
@@ -170,8 +169,11 @@ ModelDiagnostics diagnosticsFor(
         ),
         detail: [
           ?info.detail,
-          if (id == ModelId.chat)
-            if (info.chat?.visionBackend case final v?) visionTowerDetail(v),
+          if (info.chat case final chat? when id == ModelId.chat)
+            ...encoderDetails(
+              vision: chat.visionBackend,
+              audio: chat.audioBackend,
+            ),
         ].join(' · ').nullIfEmpty,
         loadTime: info.loadTime,
         warmUpTime: info.warmUpTime,

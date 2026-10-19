@@ -29,6 +29,7 @@ import '../fakes/fake_bundled_files.dart';
 import '../fakes/fake_detector_runtime.dart';
 import '../fakes/fake_llm_service.dart';
 import '../fakes/fake_speech.dart';
+import '../support/fake_bundles.dart';
 
 /// The self-test loads exactly what the app would: for the same choice and
 /// defines, the file and settings `ModelRepository` loads are the ones the
@@ -49,7 +50,7 @@ void main() {
 
   CustomChatPlan custom({bool inPlace = false}) => CustomChatPlan(
     path: customFile,
-    header: const [],
+    bundle: BundleRead(bundleInfo()),
     model: CustomChatModel(
       displayName: 'My Gemma 3',
       source: inPlace
@@ -67,7 +68,7 @@ void main() {
     ChatModelPlan plan,
     String define,
   ) async {
-    final llm = FakeLlmService()..followRequested = true;
+    final llm = FakeLlmService();
     final models = ModelRepository(
       bundled: FakeBundledFiles(),
       detector: fakeDetectorService(),

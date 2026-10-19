@@ -77,8 +77,9 @@ DeviceCheck linuxInputCheck(AudioSystem audio, {required bool parecordFound}) {
 /// silence.
 const kMiniaudioNullPlaybackDevice = 'NULL Playback Device';
 
-/// Linux's no-output message: miniaudio tried PulseAudio, ALSA and JACK and
-/// fell back to Null (`ma_device_init_ex` walks the backends in enum order,
+/// Linux's no-output message: miniaudio tried ALSA and JACK (flutter_soloud
+/// 4.1.7 builds it without PulseAudio, `src/src.cmake`) and fell back to
+/// Null (`ma_device_init_ex` walks the backends in enum order,
 /// `miniaudio.h:44015-44090`; soloud's Linux path calls it,
 /// `soloud_miniaudio.cpp:553`).
 const kNoAudioOutput = 'No audio output (no PulseAudio/PipeWire/ALSA device)';
@@ -165,13 +166,14 @@ DeviceCheck outputCheck({
   }
   final cards = audio.alsaCards ?? 0;
   if (audio.serverUnknown) {
-    // pactl did not run: a server may be there (soloud would use it) or not.
+    // pactl did not run: a server may be there (soloud, which opens ALSA,
+    // would reach it through ALSA's default device) or not.
     if (cards > 0) {
       return DeviceReady(
         device.name,
         detail:
-            'PulseAudio or ALSA: pactl did not run, so the sound server is '
-            'unknown (install pulseaudio-utils)',
+            'ALSA (perhaps routed to a sound server): pactl did not run, so '
+            'the sound server is unknown (install pulseaudio-utils)',
         caution: true,
       );
     }

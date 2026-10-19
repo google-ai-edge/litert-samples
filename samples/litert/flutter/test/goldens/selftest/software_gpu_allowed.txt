@@ -13,7 +13,7 @@ PASS  3   cats golden                                      <time>
 PASS  4a  chat model load + warm-up (gpu)                  <time>
            Gemma 4 E2B (gemma-4-E2B-it) · maxTokens 8192 · vision cpu · tools on · type gemma4 · load 3.60 s · warm-up 2.20 s
            gpu → gpu (confirmed: API) · api WebGPU/Vulkan (inferred) · adapter llvmpipe (LLVM 19.1.1, 256 bits) (inferred) · SOFTWARE GPU (error)
-           vision encoder on the CPU (requested)
+           vision encoder on the CPU (activeVisionBackend)
            the GPU is a software rasterizer (llvmpipe (LLVM 19.1.1, 256 bits), inferred): this is the CPU, not a GPU (allowed by --allow-software-gpu: the GPU code path is tested, not GPU speed)
 PASS  4b  chat model generate 64 tokens                    <time>
            64 chunks · 64 tokens (engine) · first chunk 0.18 s · 74.1 tok/s decode (measured) · 73.3 tok/s (engine)

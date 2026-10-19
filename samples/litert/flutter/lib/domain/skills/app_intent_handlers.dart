@@ -13,35 +13,33 @@
 // limitations under the License.
 
 import 'package:flutter_edge_ai_agent/flutter_edge_ai_agent.dart'
-    show TextResult;
+    show IntentHandler, TextResult;
 
 import '../../utils/spoken_numbers.dart';
 import '../hardware/diagnostics_report.dart' show ModelDiagnostics;
 import '../hardware/soc_table.dart';
 import '../models/accelerator_evidence.dart';
 import '../models/hardware_profile.dart';
-import 'app_intent_executor.dart';
 import 'app_intents.dart';
 
 /// The facts `device_info` reports; the app builds them from its hardware
 /// report at call time.
 typedef DeviceFactsSource = String Function();
 
-/// Every intent's handler. Results speak numbers as words (the fp16 GPU
-/// path may copy digits wrongly) and are one or two short sentences the
-/// model can repeat.
-Map<String, AppIntentSpec> buildAppIntents({
+/// The app's intents, as handlers for the agent package's
+/// `NativeIntentExecutor(handlers:)`: they run next to its built-in intents.
+/// Neither takes parameters, so neither has a validator; the executor hands
+/// them the decoded `parameters` object and turns a throw into an error
+/// result. Results speak numbers as words (the fp16 GPU path may copy digits
+/// wrongly) and are one or two short sentences the model can repeat.
+Map<String, IntentHandler> buildAppIntents({
   required DeviceFactsSource deviceFacts,
   DateTime Function()? now,
 }) {
   final clock = now ?? DateTime.now;
   return {
-    AppIntent.deviceInfo: AppIntentSpec(
-      handler: (_) => TextResult(deviceFacts()),
-    ),
-    AppIntent.currentTime: AppIntentSpec(
-      handler: (_) => TextResult(describeTime(clock())),
-    ),
+    AppIntent.deviceInfo: (_) async => TextResult(deviceFacts()),
+    AppIntent.currentTime: (_) async => TextResult(describeTime(clock())),
   };
 }
 

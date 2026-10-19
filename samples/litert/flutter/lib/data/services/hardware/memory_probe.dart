@@ -102,8 +102,10 @@ const _hostVmInfo64Count = 38;
 const _freeIndex = 0;
 const _inactiveIndex = 2;
 
-/// macOS: free + inactive pages (`host_statistics64`), roughly what Activity
-/// Monitor calls available.
+/// macOS and iOS: the RAM from `hw.memsize` (`sysctlbyname` works in the iOS
+/// sandbox too), available as free + inactive pages (`host_statistics64`),
+/// roughly what Activity Monitor calls available. On iOS GPU allocations
+/// count toward the app's footprint, so the RAM gates matter there as well.
 final class MacMemoryProbe implements MemoryProbe {
   MacMemoryProbe({this._sysctl = const FfiSysctl()});
 
@@ -171,6 +173,6 @@ final class ProcessMemoryProbe implements MemoryProbe {
 /// The probe for [platform].
 MemoryProbe memoryProbeFor(HostPlatform platform) => switch (platform) {
   HostPlatform.linux || HostPlatform.android => const LinuxMemoryProbe(),
-  HostPlatform.macos => MacMemoryProbe(),
-  _ => const ProcessMemoryProbe(),
+  HostPlatform.macos || HostPlatform.ios => MacMemoryProbe(),
+  HostPlatform.windows || HostPlatform.other => const ProcessMemoryProbe(),
 };

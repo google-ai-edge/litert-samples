@@ -26,6 +26,7 @@ import 'package:litert_edge_demos/domain/models/visual_memory.dart';
 import 'package:litert_edge_demos/domain/models/voice.dart';
 import 'package:litert_edge_demos/domain/use_cases/voice_assistant.dart';
 import 'package:litert_edge_demos/domain/vision/stt_corrections.dart';
+import 'package:litert_edge_demos/ui/core/voice_notices.dart';
 import 'package:litert_edge_demos/ui/features/live_camera/view_models/camera_exchange_reducer.dart';
 
 typedef _Event = VoiceAssistantEvent<CameraSideEvent>;
@@ -275,6 +276,48 @@ void main() {
     });
   });
 
+  group('ended from outside (a call, the headphones, iOS background)', () {
+    test('before its question (a press): only the notice, and the frozen '
+        'frame goes', () {
+      final answered = _after([
+        _side(_fast),
+        _side(const FastAnswered(answer: 'I count one cat.', basis: 'cat')),
+        const AssistantSaid('I count one cat.', interrupted: false),
+      ], state: _asked('How many cats?'));
+
+      final update = _reducer.reduce(
+        _reducer.turnStarted(answered),
+        const TurnInterrupted(InterruptionCause.audioTaken),
+        _gemma,
+      );
+
+      final exchange = update.state.exchange;
+      expect(exchange.notice, interruptedText(InterruptionCause.audioTaken));
+      expect(exchange.question, isNull);
+      expect(exchange.answer, isNull);
+      expect(update.unfreeze, isTrue);
+      expect(update.notify, isTrue);
+    });
+
+    test("mid-reply: this turn's question, route chip and the answer cut "
+        'short stay with the notice', () {
+      final update = _run([
+        _side(_detailed),
+        _side(SnapshotTaken(_snapshot(7))),
+        _side(FrameSentToGemma(_png(7))),
+        const AssistantSaid('The cat is', interrupted: true),
+        const TurnInterrupted(InterruptionCause.background),
+      ], state: _asked('What color is the cat?')).last;
+
+      final exchange = update.state.exchange;
+      expect(exchange.notice, interruptedText(InterruptionCause.background));
+      expect(exchange.question, 'What color is the cat?');
+      expect(exchange.answer, 'The cat is');
+      expect(exchange.detailed, isTrue);
+      expect(update.unfreeze, isTrue);
+    });
+  });
+
   group('"The answer failed"', () {
     test('before its question (pending): only the notice, never the previous '
         "turn's exchange", () {
@@ -305,7 +348,8 @@ void main() {
         _side(_detailed),
         _side(SnapshotTaken(_snapshot(7))),
         _side(FrameSentToGemma(_png(7))),
-        const AssistantSaid('The cat is', interrupted: false),
+        // A failed turn commits its partial reply as interrupted.
+        const AssistantSaid('The cat is', interrupted: true),
         TurnFailed(Exception('GPU lost')),
       ], state: _asked('What color is the cat?')).last;
       final exchange = update.state.exchange;
@@ -603,6 +647,29 @@ void main() {
       expect(update.state.exchange.detailed, isTrue);
       expect(update.turn?.memory?.query, 'yellow mug');
       expect(update.turn?.route, isA<MemoryRoute>());
+    });
+
+    test('the recalled frame sent to Gemma: the overlay and the turn record '
+        'get it (never the previous turn\'s), the memory chip stays, no '
+        'freeze', () {
+      final previous = _png(4);
+      final updates = _run(
+        [_side(route), _side(recalled(hit)), _side(FrameSentToGemma(_png(9)))],
+        state: _asked('Where was the yellow mug?')
+            .copyWith(sentImage: previous),
+      );
+      final update = updates.last;
+      expect(update.state.sentImage?.frameId, 9);
+      expect(update.state.turnImage?.frameId, 9);
+      expect(update.turn?.image?.frameId, 9);
+      expect(update.turn?.memory?.recall, same(hit));
+      expect(update.freeze, isNull);
+      expect(update.memoryCard, isNull, reason: 'shown once, at the recall');
+      expect(
+        update.state.exchange.route,
+        'memory · seen 12 s ago · cos 0.71 — Gemma 4 E2B',
+      );
+      expect(update.state.exchange.detailed, isTrue);
     });
 
     test('a hit with images off: the chip says the detector list answers', () {

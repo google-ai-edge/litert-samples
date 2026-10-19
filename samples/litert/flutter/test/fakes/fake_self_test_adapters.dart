@@ -23,8 +23,6 @@ import 'package:litert_edge_demos/data/repositories/audio_repository.dart'
 import 'package:litert_edge_demos/data/services/detector/frame_message.dart';
 import 'package:litert_edge_demos/data/services/frames/frame_source.dart';
 import 'package:litert_edge_demos/data/services/hardware/hardware_info_service.dart';
-import 'package:litert_edge_demos/data/services/llm/llm_service.dart'
-    show BackendMismatchException;
 import 'package:litert_edge_demos/domain/models/audio_devices.dart';
 import 'package:litert_edge_demos/domain/models/chat_model_config.dart';
 import 'package:litert_edge_demos/domain/models/detection.dart';
@@ -54,7 +52,7 @@ const kFakeSelfTestFile = ModelFileChoice(
   source: 'model store',
 );
 
-/// A Linux box with a real GPU that Vulkan names (a T4 VM).
+/// A Linux box with a real GPU that Vulkan names (a Tesla T4).
 const kFakeLinuxT4Profile = HardwareProfile(
   platform: HostPlatform.linux,
   os: 'Ubuntu 24.04.3 LTS',
@@ -314,10 +312,10 @@ Future<Result<Uint8List>> fakeMemoryFrame(Uint8List encoded) async =>
 Future<Result<Uint8List>> fakeAudioQuestion() async =>
     Result.ok(wavFromPcm16(Uint8List(38400), sampleRate: 16000));
 
-/// The chat model as the self-test drives it.
+/// The chat model as the self-test drives it, on the strict engine: it comes
+/// up on the backend asked for, or fails with [loadError].
 final class FakeSelfTestGemma implements SelfTestGemma {
   FakeSelfTestGemma({
-    this.active,
     this.loadError,
     this.tap,
     this.logLines = const [],
@@ -327,13 +325,15 @@ final class FakeSelfTestGemma implements SelfTestGemma {
     this.text = 'Elias lived on the edge of the world.',
     this.closeLog,
     this.engineContext,
+    this.towerBackend = PreferredBackend.cpu,
   });
-
-  /// The backend the engine comes up on; null: as requested.
-  final PreferredBackend? active;
 
   /// The context the engine is built with; null: the one requested.
   final int? engineContext;
+
+  /// Where the engine puts each tower that loads (`activeVisionBackend` /
+  /// `activeAudioBackend`); the CPU, as for Gemma 4 E2B.
+  final PreferredBackend towerBackend;
   final Exception? loadError;
   final FakeNativeLogTap? tap;
 
@@ -367,22 +367,22 @@ final class FakeSelfTestGemma implements SelfTestGemma {
     await loadGate?.future;
     tap?.lines.addAll(logLines);
     if (loadError case final e?) return Result.error(e);
-    final actual = active ?? backend;
-    if (actual != backend) {
-      return Result.error(
-        BackendMismatchException(requested: backend, active: actual),
-      );
-    }
+    final vision = config.llm.supportImage ? towerBackend : null;
+    final audio = config.llm.supportAudio ? towerBackend : null;
     return Result.ok(
       GemmaLoad(
         modelId: 'gemma-4-E2B-it',
-        backend: actual,
+        backend: backend,
+        visionBackend: vision,
+        audioBackend: audio,
         loadTime: const Duration(milliseconds: 3600),
         warmUpTime: const Duration(milliseconds: 2200),
         contextTokens: engineContext ?? config.llm.maxTokens,
         config: gemmaLoadConfigLine(
           config,
           engineContext: engineContext ?? config.llm.maxTokens,
+          vision: vision,
+          audio: audio,
         ),
       ),
     );

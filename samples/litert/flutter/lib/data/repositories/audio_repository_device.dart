@@ -21,6 +21,7 @@ import 'package:flutter/foundation.dart';
 import '../../config/voice_config.dart';
 import '../../domain/audio/audio_device_checks.dart';
 import '../../domain/models/audio_devices.dart';
+import '../../domain/models/audio_interruption.dart';
 import '../../domain/models/hardware_profile.dart' show HostPlatform;
 import '../../domain/models/voice.dart';
 import '../../utils/pcm.dart';
@@ -36,6 +37,18 @@ import 'audio_repository.dart';
 /// playback before it opens the mic). The input device is checked when a voice
 /// demo asks for access (and again on a press after a failed check); errors say
 /// what to do.
+///
+/// The session, per platform: Android takes the audio focus per turn
+/// ([activate] … [deactivate]), so other apps' audio pauses only while a turn
+/// runs; iOS activates the session at [prepare] and keeps it active between
+/// turns (so `setActive` stays off the press path), and after an interruption
+/// or a stay in the background prepares again (activates the session). After
+/// a reported interruption soloud starts its stopped output device again by
+/// itself at the next play (it re-activates the session for that, see
+/// [PcmPlayerService]); after a stay in the background, where an
+/// interruption may never be reported and the device may look started but
+/// play nothing, soloud is restarted (a precaution). macOS (no-op calls)
+/// and Linux (no session) activate at [prepare] too.
 class DeviceAudioRepository implements AudioRepository {
   DeviceAudioRepository({
     required this._session,
@@ -94,6 +107,39 @@ class DeviceAudioRepository implements AudioRepository {
   bool _closed = false;
   Future<void>? _closing;
 
+  /// Synchronous, so a turn learns of an interruption before any later event
+  /// of its own (a clause's audio) can reach the stopped playback.
+  final StreamController<AudioInterruption> _interruptions =
+      StreamController.broadcast(sync: true);
+
+  /// The session's interruptions, from the first prepare on (before it the
+  /// app holds no audio to lose).
+  StreamSubscription<AudioInterruption>? _sessionEvents;
+
+  /// Android shares the audio by focus, taken per turn. Elsewhere the session
+  /// is activated at prepare and kept.
+  bool get _focusPerTurn => _platform == HostPlatform.android;
+
+  /// Bumped when the session may have been taken from the app (iOS: an
+  /// interruption, the app hidden): a prepare that was running then does
+  /// not make the audio ready.
+  int _sessionGeneration = 0;
+
+  /// iOS, after the app was hidden: soloud's output device may have been
+  /// stopped by an interruption miniaudio never heard of (it then counts
+  /// the device as started, and its own resume at play does nothing); the
+  /// next prepare starts a new engine. A precaution.
+  bool _restartEngine = false;
+
+  /// Android: the turn's audio focus, as wanted (from [activate] to
+  /// [deactivate] or an interruption) and as the platform has it. The
+  /// platform calls run one at a time, in order, each bringing the focus to
+  /// what is wanted when it runs, so a late [deactivate] never undoes a
+  /// newer [activate].
+  bool _focusWanted = false;
+  bool _focusHeld = false;
+  Future<void> _focusQueue = Future<void>.value();
+
   /// The [startCapture] and [requestMicAccess] calls in flight. [close]
   /// waits for them (bounded) before it disposes the mic: a start that finds
   /// the repository closed stops the mic it opened, and that stop must come
@@ -117,6 +163,9 @@ class DeviceAudioRepository implements AudioRepository {
   ValueListenable<AudioDeviceStatus> get devices => _devices;
 
   @override
+  Stream<AudioInterruption> get interruptions => _interruptions.stream;
+
+  @override
   Future<Result<void>> prepare() {
     if (_closed) return Future.value(_closedError());
     if (_ready) return Future.value(const Result.ok(null));
@@ -125,6 +174,12 @@ class DeviceAudioRepository implements AudioRepository {
 
   Future<Result<void>> _prepare() async {
     final watch = Stopwatch()..start();
+    final generation = _sessionGeneration;
+    _sessionEvents ??= _session.interruptions.listen(
+      _onInterruption,
+      onError: (Object e, StackTrace st) =>
+          debugPrint('[Audio] session interruptions failed: $e\n$st'),
+    );
     // iOS order: configure + activate the session, then soloud; the recorder is
     // created later, on the first capture.
     try {
@@ -133,9 +188,23 @@ class DeviceAudioRepository implements AudioRepository {
       debugPrint('[Audio] session setup failed: $e\n$st');
       return Result.error(PlaybackException('audio session setup: $e'));
     }
+    if (!_focusPerTurn) {
+      // Active from here on, between turns too (a no-op on macOS and Linux).
+      if (await _activateSession() case final failure?) {
+        return Result.error(failure);
+      }
+    }
+    final restart = _restartEngine;
     try {
-      await _player.init();
+      if (restart) {
+        // Cleared first: a hide during the restart asks again.
+        _restartEngine = false;
+        await _player.restart();
+      } else {
+        await _player.init();
+      }
     } catch (e, st) {
+      if (restart) _restartEngine = true;
       debugPrint('[Audio] output engine failed to start: $e\n$st');
       return Result.error(PlaybackException('output engine start: $e'));
     }
@@ -148,9 +217,146 @@ class DeviceAudioRepository implements AudioRepository {
       return Result.error(PlaybackException(message));
     }
     if (_closed) return _closedError();
+    if (generation != _sessionGeneration) {
+      // Interrupted (or hidden) meanwhile: the session it activated may be
+      // gone. A restart it made may have come before that and counts for
+      // nothing: the next prepare restarts again.
+      if (restart) _restartEngine = true;
+      debugPrint('[Audio] interrupted while preparing: not ready');
+      return const Result.error(AudioFocusException(kAudioInterruptedMessage));
+    }
     _ready = true;
-    debugPrint('[Audio] ready in ${watch.elapsedMilliseconds}ms');
+    debugPrint(
+      '[Audio] ready in ${watch.elapsedMilliseconds}ms'
+      '${restart ? ' (output engine restarted)' : ''}',
+    );
     return const Result.ok(null);
+  }
+
+  /// Activates the session for [_prepare]; the failure to show, or null.
+  Future<AudioFocusException?> _activateSession() async {
+    try {
+      if (await _session.activate()) return null;
+      debugPrint('[Audio] the OS did not activate the session');
+      return const AudioFocusException(kAudioFocusMessage);
+    } catch (e, st) {
+      debugPrint('[Audio] activating the session failed: $e\n$st');
+      return AudioFocusException('$kAudioFocusMessage ($e)');
+    }
+  }
+
+  @override
+  Future<Result<void>> activate() async {
+    if (_closed) return _closedError();
+    // Wanted from the call on: a deactivate called after this one wins,
+    // also while this one still prepares.
+    if (_focusPerTurn) _focusWanted = true;
+    final prepared = await prepare();
+    if (prepared case Error(:final error)) return Result.error(error);
+    if (_closed) return _closedError();
+    if (!_focusPerTurn) return const Result.ok(null);
+    final granted = await _syncFocus();
+    if (_closed) return _closedError();
+    return granted
+        ? const Result.ok(null)
+        : const Result.error(AudioFocusException(kAudioFocusMessage));
+  }
+
+  @override
+  Future<void> deactivate() async {
+    if (_closed || !_focusPerTurn) return;
+    _focusWanted = false;
+    await _syncFocus();
+  }
+
+  /// Queues a platform call that brings the focus to [_focusWanted]. False
+  /// only when the platform refused a request this call made.
+  Future<bool> _syncFocus() {
+    final run = _focusQueue.then((_) => _applyFocus());
+    _focusQueue = run.then<void>((_) {}, onError: (Object _) {});
+    return run;
+  }
+
+  Future<bool> _applyFocus() async {
+    final want = _focusWanted && !_closed;
+    if (want == _focusHeld) return true;
+    if (!want) {
+      await _guard('giving the audio focus back', _session.deactivate);
+      _focusHeld = false;
+      debugPrint('[Audio] audio focus given back');
+      return true;
+    }
+    bool granted;
+    try {
+      granted = await _session.activate();
+    } catch (e, st) {
+      debugPrint('[Audio] requesting the audio focus failed: $e\n$st');
+      granted = false;
+    }
+    _focusHeld = granted;
+    debugPrint(
+      '[Audio] audio focus ${granted ? 'taken' : 'refused (another app holds the audio)'}',
+    );
+    return granted;
+  }
+
+  /// iOS: a playback still running is stopped first (the voice demos stop
+  /// their turn themselves, the in-app self-test does not), so the restart
+  /// at the next prepare never tears down a live one.
+  @override
+  void appHidden() {
+    if (_closed || _platform != HostPlatform.ios) return;
+    if (!_ready && _preparing == null) return;
+    _stopPlayback('the app went to the background');
+    _invalidateSession('the app went to the background', restartEngine: true);
+  }
+
+  void _stopPlayback(String why) {
+    final playback = _playback;
+    if (playback == null) return;
+    unawaited(
+      playback.stop().catchError(
+        (Object e, StackTrace st) =>
+            debugPrint('[Audio] stopping the playback ($why) failed: $e\n$st'),
+      ),
+    );
+  }
+
+  /// The OS or another app took the audio: the capture is cancelled and the
+  /// playback stopped first, then the session is marked for the next turn
+  /// (Android gives up the focus now: `audio_session` keeps its request
+  /// after a transient loss and would answer the next one without asking),
+  /// and only then are the listeners told.
+  void _onInterruption(AudioInterruption what) {
+    if (_closed) return;
+    debugPrint(
+      '[Audio] interrupted (${what.name}): the capture is cancelled, the '
+      'playback stopped',
+    );
+    final capture = _capture;
+    if (capture != null) unawaited(capture.cancel());
+    _stopPlayback('an interruption');
+    if (what == AudioInterruption.taken) {
+      if (_focusPerTurn) {
+        _focusWanted = false;
+        unawaited(_syncFocus());
+      } else {
+        _invalidateSession('the session was interrupted');
+      }
+    }
+    _interruptions.add(what);
+  }
+
+  /// The session may be gone: the next turn prepares again (activates it;
+  /// with [restartEngine], on iOS, also restarts soloud).
+  void _invalidateSession(String why, {bool restartEngine = false}) {
+    _sessionGeneration++;
+    _ready = false;
+    if (restartEngine && _platform == HostPlatform.ios) _restartEngine = true;
+    debugPrint(
+      '[Audio] $why: the next turn activates the session again'
+      '${_restartEngine ? ' and restarts the output engine' : ''}',
+    );
   }
 
   /// Prepares first (the iOS session must be configured before `record`
@@ -274,8 +480,8 @@ class DeviceAudioRepository implements AudioRepository {
   }) async {
     final previous = _capture;
     if (previous != null) await previous.cancel();
-    final prepared = await prepare();
-    if (prepared case Error(:final error)) return Result.error(error);
+    final activated = await activate();
+    if (activated case Error(:final error)) return Result.error(error);
     if (_closed) return _closedError();
 
     final capture = _DeviceCapture(
@@ -355,8 +561,12 @@ class DeviceAudioRepository implements AudioRepository {
   Result<PlaybackHandle> beginPlayback(int sampleRate) {
     if (_closed) return _closedError();
     if (!_ready) {
-      return const Result.error(
-        PlaybackException('prepare() has not succeeded'),
+      return Result.error(
+        PlaybackException(
+          _sessionGeneration == 0
+              ? 'prepare() has not succeeded'
+              : 'the audio was interrupted and has not been prepared again',
+        ),
       );
     }
     final previous = _playback;
@@ -429,8 +639,15 @@ class DeviceAudioRepository implements AudioRepository {
     }
     final playback = _playback;
     if (playback != null) await step('playback stop', playback.stop);
+    // Other apps' audio resumes (Android); [_applyFocus] lets go once closed.
+    if (_focusHeld || _focusWanted) {
+      _focusWanted = false;
+      await step('audio focus release', _syncFocus);
+    }
+    await step('session events', () async => _sessionEvents?.cancel());
     await step('mic dispose', _mic.dispose);
     await step('player dispose', _player.dispose);
+    await _interruptions.close();
     _level.dispose();
     _devices.dispose();
   }

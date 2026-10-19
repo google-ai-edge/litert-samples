@@ -28,7 +28,7 @@ import '../services/model_store/model_store.dart';
 /// the chat model is built into the app, the chat slot holds the user's own
 /// `.litertlm`, or `GEMMA_MODEL_PATH` while none is chosen:
 /// [ModelSourceResolver]'s rule, the one `ModelRepository` loads by. Also
-/// clears what earlier builds downloaded, once setup succeeded.
+/// clears the store folders of retired downloads, once setup succeeded.
 class ProvisioningRepository {
   ProvisioningRepository({
     required this._store,
@@ -86,11 +86,10 @@ class ProvisioningRepository {
   /// The size of the files built-in model [id] ships in the app.
   static int bundledBytes(ModelId id) => bundledModelBytes(id);
 
-  /// After a successful start, once: deletes the store folders earlier
-  /// builds downloaded models into (the retired model manifest's, the
-  /// retired Gemma 4 E2B download), keeping the chosen chat model's file in
-  /// place. Skipped while the chat model is blocked (its file may be one of
-  /// them).
+  /// After a successful start, once: deletes the store folders of retired
+  /// downloads (the retired model manifest's, the retired Gemma 4 E2B
+  /// download), keeping the chosen chat model's file in place. Skipped while
+  /// the chat model is blocked (its file may be one of them).
   Future<List<String>> pruneOldModelFolders() async {
     if (_pruned) return const [];
     final Set<String> keep;

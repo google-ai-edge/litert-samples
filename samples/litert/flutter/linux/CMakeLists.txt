@@ -142,7 +142,8 @@ if(NOT CMAKE_BUILD_TYPE MATCHES "Debug")
 endif()
 
 # The network camera's CPU JPEG decoder: ship the build machine's
-# libturbojpeg.so.0 (Debian/Ubuntu package libturbojpeg, BSD-3-Clause + IJG)
+# libturbojpeg.so.0 (Ubuntu package libturbojpeg, Debian libturbojpeg0;
+# BSD-3-Clause + IJG)
 # in lib/, so a user installs nothing. It
 # needs only libc: built on Ubuntu 22.04 (glibc 2.35) it runs there and on
 # newer systems of the same architecture. The app looks for lib/ first, then
@@ -160,5 +161,6 @@ if(TURBOJPEG_LIBRARY)
 else()
   message(WARNING "libturbojpeg.so.0 not found on this machine: the bundle "
     "will not ship it, and the network camera will need the system's copy "
-    "(sudo apt install libturbojpeg) or use the slow engine decoder.")
+    "(Ubuntu: sudo apt install libturbojpeg; Debian: libturbojpeg0) or use "
+    "the slow engine decoder.")
 endif()
