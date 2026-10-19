@@ -1,0 +1,1 @@
+void litert_abi_stub(void) {}
