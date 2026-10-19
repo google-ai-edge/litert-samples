@@ -75,7 +75,8 @@ import '../support/wav_writer.dart';
 ///   answer reads "42" off the sign.
 /// - q_describe_detail.wav: camera_assistant_test, the long detailed
 ///   question interrupted by the barge-in.
-/// - showcase/: showcase_test (the wording as its earlier runs logged it).
+/// - showcase/: showcase_test; q_mug.wav asks the visual memory about a
+///   scene shown earlier.
 /// - assets/selftest/what_time_is_it.wav: the self-test's step 7b and the
 ///   embedder's audio warm-up (an app asset, so the path starts at the
 ///   repository root).
@@ -92,6 +93,7 @@ const kQuestionClips = <({String file, String text})>[
   (file: 'showcase/q_see.wav', text: 'What do you see?'),
   (file: 'showcase/q_describe.wav', text: 'Describe the scene.'),
   (file: 'showcase/q_sign.wav', text: 'What does the sign say?'),
+  (file: 'showcase/q_mug.wav', text: 'Where did I leave my pirate mug?'),
   // The self-test's spoken question (step 7b), an app asset:
   // kSelfTestAudioQuestionAsset, its words kSelfTestAudioQuestionText.
   (file: 'assets/selftest/what_time_is_it.wav', text: 'What time is it?'),

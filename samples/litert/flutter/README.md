@@ -262,6 +262,23 @@ compiles its GPU programs once and caches them.
   (`http://192.168.1.23:8080/video`). The URL is stored on the device, and an `http` stream is not encrypted: do not
   put a password you use elsewhere in it.
 
+## Screenshots
+
+On a Mac, with Gemma 4 E2B on the GPU and still images in place of the camera:
+
+| | |
+|---|---|
+| ![A question about an attached photo](docs/screenshots/demo1-photo-question.png)<br>**Voice chat:** a question about an attached photo | ![The device-info skill answering which accelerator runs](docs/screenshots/demo1-device-info.png)<br>**Voice chat:** the device-info skill names the chip, the GPU and where each model runs |
+| ![A skill added at run time answering for a child](docs/screenshots/demo1-runtime-skill.png)<br>**Voice chat:** a skill added at run time (`kid-clock`), loaded by the model, runs the time intent | ![The diagnostics overlay over the live camera](docs/screenshots/demo3-overlay-nerd.jpg)<br>**Live camera:** the diagnostics overlay: each model's backend, the detector's frame rate and timings, the reply's speed |
+| ![Gemma reading a note from the camera frame](docs/screenshots/demo3-sign-wifi-password.jpg)<br>**Live camera:** a detailed question: the frame goes to Gemma, which reads the note | ![The visual memory finding a mug seen earlier](docs/screenshots/demo3-visual-memory.jpg)<br>**Visual memory:** "Where did I leave my pirate mug?" finds the frame seen 10 s earlier, while the camera shows a sign |
+
+`integration_test/showcase_test.dart` takes these screenshots. The cat and mug photos are from the COCO 2017
+validation set: "Cats and remote controllers" by DocChewbacca
+([Flickr](https://www.flickr.com/photos/st3f4n/210383891/)) and "Pirate Tea Break!" by Dave Crosby
+([Flickr](https://www.flickr.com/photos/wikidave/2864950455/)), both
+[CC BY-SA 2.0](https://creativecommons.org/licenses/by-sa/2.0/); the signs are drawn by
+`tool/make_showcase_signs.py`.
+
 ## Self-test and diagnostics
 
 `--selftest` probes the hardware, runs the detector on a reference picture against golden detections, loads the chat
