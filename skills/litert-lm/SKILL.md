@@ -1,9 +1,9 @@
 ---
 name: litert-lm
-description: Creates an Android app that runs an open text LLM on the device, on the CPU or the GPU, with the LiteRT-LM Kotlin API. Use this skill to build a new chat, summarization or extraction app with a .litertlm model from Hugging Face litert-community (Gemma, Qwen, Llama, Phi) - the dependency and manifest entries, getting the model file onto the device, engine initialization, a streamed multi-turn conversation, the ViewModel and screen.
+description: Creates an Android app that runs an open text LLM on the device, on the CPU or the GPU, with the LiteRT-LM Kotlin API. LiteRT-LM is the recommended replacement for the MediaPipe LLM Inference API (com.google.mediapipe:tasks-genai), which is in maintenance-only mode. Use this skill to build a new chat, summarization or extraction app with a .litertlm model from Hugging Face litert-community (Gemma, Qwen, Llama, Phi) - the dependency and manifest entries, getting the model file onto the device, engine initialization, a streamed multi-turn conversation, the ViewModel and screen.
 license: Apache-2.0
 metadata:
-  last-updated: '2026-10-07'
+  last-updated: '2026-10-19'
   keywords: [LiteRT-LM, litertlm, Gemma, on-device LLM, Android app, GPU]
 ---
 
@@ -27,6 +27,8 @@ This skill provides step-by-step guidance for building an Android app that runs 
 ### 1. Pick a model from litert-community
 
 Choose a `.litertlm` file at https://huggingface.co/litert-community. Start with `litert-community/gemma-4-E2B-it-litert-lm` (the file `gemma-4-E2B-it.litertlm`, 2.6 GB) or the smaller `litert-community/Qwen3-0.6B` (`Qwen3-0.6B.litertlm`, 0.6 GB); both files run on the CPU and the GPU. A SoC suffix such as `_Google_Tensor_G5` or `.mediatek.mt6993` marks an NPU build (not covered here). The model card names the tested backends and the size. Converting a model yourself is a separate step: [get a model](references/get-a-model.md).
+
+To check a file on a Mac before it goes on the phone, run it with the LiteRT-LM version the app uses: `uvx litert-lm@0.18.0 run --from-huggingface-repo=litert-community/Qwen3-0.6B Qwen3-0.6B.litertlm --prompt="What is the capital of France?"` (needs uv). Keep the version in the command: with litert-lm 0.17.0, the same command answers a different question and still exits with 0.
 
 ### 2. Put the model file on the device
 
