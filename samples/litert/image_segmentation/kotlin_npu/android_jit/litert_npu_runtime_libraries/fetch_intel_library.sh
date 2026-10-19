@@ -29,7 +29,7 @@ OPENVINO_SHA256='757eb8140039c9060a9e2668dc3885ab0daf24fabe7adf71a8e9e81da148049
 
 SCRIPT_DIR=$(dirname "$(realpath "${BASH_SOURCE[0]}")")
 JNI_X86_64_DIR='src/main/jni/x86_64'
-DEST_DIR="${SCRIPT_DIR}/../app_intel/${JNI_X86_64_DIR}"
+DEST_DIR="${SCRIPT_DIR}/intel_runtime/${JNI_X86_64_DIR}"
 
 verify_sha256() {
   local file=$1

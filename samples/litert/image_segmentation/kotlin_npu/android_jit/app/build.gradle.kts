@@ -35,8 +35,11 @@ android {
     testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     vectorDrawables { useSupportLibrary = true }
 
-    ndk { abiFilters.add("arm64-v8a") }
-    // Needed for Qualcomm NPU runtimes
+    ndk {
+      abiFilters.add("arm64-v8a")
+      abiFilters.add("x86_64")
+    }
+    // Needed for Qualcomm and Intel NPU runtimes
     packaging { jniLibs { useLegacyPackaging = true } }
   }
 
@@ -69,6 +72,7 @@ android {
   dynamicFeatures.add(":litert_npu_runtime_libraries:qualcomm_runtime_v75")
   dynamicFeatures.add(":litert_npu_runtime_libraries:qualcomm_runtime_v79")
   dynamicFeatures.add(":litert_npu_runtime_libraries:qualcomm_runtime_v81")
+  dynamicFeatures.add(":litert_npu_runtime_libraries:intel_runtime")
 
   bundle {
     deviceTargetingConfig = file("device_targeting_configuration.xml")
