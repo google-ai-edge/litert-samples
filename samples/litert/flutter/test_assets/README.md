@@ -39,6 +39,7 @@ list at the top of `integration_test/tools/make_question_audio_test.dart`; chang
 | `q_sign.wav`, `showcase/q_sign.wav` | "What does the sign say?" | 1.74 s |
 | `q_describe_detail.wav` | "Describe this scene in detail, please." | 3.08 s |
 | `showcase/q_see.wav` | "What do you see?" | 1.42 s |
+| `showcase/q_mug.wav` | "Where did I leave my pirate mug?" | 2.48 s |
 | `../assets/selftest/what_time_is_it.wav` (an app asset: the self-test's step 7b and the embedder's audio warm-up) | "What time is it?" | 1.37 s |
 
 ## Golden data
