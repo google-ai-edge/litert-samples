@@ -17,7 +17,7 @@
 import 'dart:convert';
 import 'dart:io';
 
-import 'package:flutter_gemma/flutter_gemma.dart';
+import 'package:flutter_edge_ai/flutter_edge_ai.dart';
 
 import '../core/engines/engine_pool.dart';
 import '../core/power/power_source.dart';
@@ -185,8 +185,8 @@ class DemoConfig {
   final String modelPath;
 
   /// The model for the NPU in every act (`NPU_MODEL_PATH`): an NPU-compiled
-  /// build. The standard file loads on the NPU too, at ~5 tok/s — slower than
-  /// the CPU — so without this the NPU row is the worst one on the table.
+  /// build. The standard file opens with the NPU backend too, but LiteRT-LM
+  /// runs it on the CPU (NPU load 0 %), so without this the NPU row is the CPU.
   /// Null = [modelPath].
   final String? npuModelPath;
 

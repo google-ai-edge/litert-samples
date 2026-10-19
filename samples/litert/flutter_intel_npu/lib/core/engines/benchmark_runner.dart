@@ -14,7 +14,7 @@
 
 import 'dart:async';
 
-import 'package:flutter_gemma/flutter_gemma.dart';
+import 'package:flutter_edge_ai/flutter_edge_ai.dart';
 
 import 'backend_catalog.dart';
 import 'benchmark_run.dart';

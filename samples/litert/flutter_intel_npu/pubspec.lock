@@ -113,14 +113,6 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "1.0.9"
-  dart_sentencepiece_tokenizer:
-    dependency: transitive
-    description:
-      name: dart_sentencepiece_tokenizer
-      sha256: "23fd14a3a7a736e0a85c329ab0227f8eaf9626ef83b1d98b6f37fbc284fca8c8"
-      url: "https://pub.dev"
-    source: hosted
-    version: "1.4.1"
   data_assets:
     dependency: transitive
     description:
@@ -190,30 +182,22 @@ packages:
     description: flutter
     source: sdk
     version: "0.0.0"
-  flutter_gemma:
+  flutter_edge_ai:
     dependency: "direct main"
     description:
-      name: flutter_gemma
-      sha256: "35708ea9005504433db7eb0a81ed899691fea988a2b07f626cd30b0ef0bd481e"
+      name: flutter_edge_ai
+      sha256: "8edf97e97f3b36c0eb3b51610900dc9ce362a72fc246fdf49eec88337a50d35f"
       url: "https://pub.dev"
     source: hosted
-    version: "1.8.3"
-  flutter_gemma_embeddings:
-    dependency: transitive
-    description:
-      name: flutter_gemma_embeddings
-      sha256: "05856544fe015812a59f93f215455a04e7c8c1d05f76a3fe58ecb98811149d51"
-      url: "https://pub.dev"
-    source: hosted
-    version: "2.1.1"
-  flutter_gemma_litertlm:
+    version: "2.4.1"
+  flutter_edge_ai_litertlm:
     dependency: "direct main"
     description:
-      name: flutter_gemma_litertlm
-      sha256: e393e6b088cedc11e1670f5f844201f35b7563c5a4accd15a46336a426fb56e8
+      name: flutter_edge_ai_litertlm
+      sha256: "3b793e77f66fd5a50ad54930a264d40a0fd3cd87adb17d50e337a3f0182b1c15"
       url: "https://pub.dev"
     source: hosted
-    version: "1.7.0"
+    version: "1.15.0"
   flutter_gpu:
     dependency: transitive
     description: flutter

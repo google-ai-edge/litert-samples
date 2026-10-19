@@ -22,7 +22,7 @@
 import 'dart:async';
 import 'dart:isolate';
 
-import 'package:flutter_gemma/flutter_gemma.dart';
+import 'package:flutter_edge_ai/flutter_edge_ai.dart';
 
 import '../engines/engine_pool.dart';
 import '../engines/engine_slot.dart';

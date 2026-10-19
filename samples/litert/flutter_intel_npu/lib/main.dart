@@ -15,8 +15,8 @@
 import 'dart:io';
 
 import 'package:flutter/widgets.dart';
-import 'package:flutter_gemma/flutter_gemma.dart';
-import 'package:flutter_gemma_litertlm/flutter_gemma_litertlm.dart';
+import 'package:flutter_edge_ai/flutter_edge_ai.dart';
+import 'package:flutter_edge_ai_litertlm/flutter_edge_ai_litertlm.dart';
 
 import 'app/demo_app.dart';
 import 'app/demo_config.dart';
@@ -25,10 +25,10 @@ Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
   // Core registers no engine on its own; .litertlm is the only desktop engine.
-  await FlutterGemma.initialize(
+  await FlutterEdgeAi.initialize(
     inferenceEngines: const [LiteRtLmEngine()],
   );
-  FlutterGemma.logLevel = GemmaLogLevel.info;
+  FlutterEdgeAi.logLevel = EdgeAiLogLevel.info;
 
   final config = DemoConfig.fromEnvironment();
   for (final e in config.errors) {

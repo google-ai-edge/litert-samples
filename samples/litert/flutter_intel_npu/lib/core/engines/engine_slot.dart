@@ -16,9 +16,12 @@
 
 import 'dart:io';
 
-import 'package:flutter_gemma/flutter_gemma.dart';
-import 'package:flutter_gemma_litertlm/src/ffi/litert_lm_client.dart';
-import 'package:flutter_gemma_litertlm/src/ffi/litert_lm_bindings.dart';
+import 'package:flutter_edge_ai/flutter_edge_ai.dart';
+import 'package:flutter_edge_ai_litertlm/src/ffi/litert_lm_client.dart';
+import 'package:flutter_edge_ai_litertlm/src/ffi/litert_lm_bindings.dart';
+import 'package:flutter_edge_ai_litertlm/src/ffi/npu_vendor_host.dart'
+    show npuDisablesHwMasking, windowsNpuDispatchDir;
+import 'package:flutter_edge_ai_litertlm/src/npu_stacks.dart' show NpuVendor;
 import 'dart:ffi' as ffi;
 
 /// One conversation on a loaded engine. Created per prompt, closed after.
@@ -58,7 +61,7 @@ abstract class EngineSlot {
 }
 
 // ---------------------------------------------------------------------------
-// Public-API slot: FlutterGemma.getActiveModel() — ONE active model per
+// Public-API slot: FlutterEdgeAi.getActiveModel() — ONE active model per
 // process, with the plugin's own npu→gpu→cpu fallback. Used by
 // EnginePolicy.sequential.
 // ---------------------------------------------------------------------------
@@ -89,10 +92,10 @@ class LiteRtLmEngineSlot implements EngineSlot {
     // without this it silently got the model Act 1 had installed. fromFile
     // registers the file in place; nothing is copied.
     final sw = Stopwatch()..start();
-    await FlutterGemma.installModel(modelType: ModelType.gemma4, fileType: ModelFileType.litertlm)
+    await FlutterEdgeAi.installModel(modelType: ModelType.gemma4, fileType: ModelFileType.litertlm)
         .fromFile(modelPath)
         .install();
-    _model = await FlutterGemma.getActiveModel(
+    _model = await FlutterEdgeAi.getActiveModel(
       maxTokens: maxTokens,
       preferredBackend: backend,
     );
@@ -183,6 +186,14 @@ class FfiEngineSlot implements EngineSlot {
         modelPath: modelPath,
         backend: backend.name,
         maxTokens: maxTokens,
+        // The client no longer picks an NPU vendor itself. Intel's stack sits
+        // beside the exe; elsewhere npu stays null and the row fails, as wanted.
+        npuDispatch: backend == PreferredBackend.npu && Platform.isWindows
+            ? (
+                dir: windowsNpuDispatchDir,
+                disableHwMasking: npuDisablesHwMasking(NpuVendor.intel),
+              )
+            : null,
       );
     } catch (_) {
       await client.shutdown();
@@ -201,10 +212,19 @@ class FfiEngineSlot implements EngineSlot {
   }) async {
     final client = _client;
     if (client == null) throw StateError('EngineSlot(${backend.name}) is not loaded');
+    // Explicit, so every backend samples alike rather than by the bundle's
+    // own defaults. topP 0.95 and seed 1 are what LiteRT-LM 0.17 used unset.
     final handle = await client.createConversationHandle(
-      temperature: temperature,
-      topK: topK,
+      sampling: ResolvedSampling(
+        temperature: temperature,
+        topK: topK,
+        topP: 0.95,
+        randomSeed: 1,
+      ),
+      samplingExplicit: true,
       maxOutputTokens: maxOutputTokens,
+      // Text-only turns; the order only matters once media is attached.
+      multimodalOrder: MultimodalOrder.imagesAudioText,
     );
     return _HandleTurn(handle);
   }

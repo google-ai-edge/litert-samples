@@ -20,7 +20,7 @@ import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter/scheduler.dart';
-import 'package:flutter_gemma/flutter_gemma.dart';
+import 'package:flutter_edge_ai/flutter_edge_ai.dart';
 
 import '../../app/demo_config.dart';
 import '../../core/engines/backend_catalog.dart';
@@ -92,7 +92,7 @@ class _Act1ScreenState extends State<Act1Screen> with SingleTickerProviderStateM
       return;
     }
     try {
-      await FlutterGemma.installModel(
+      await FlutterEdgeAi.installModel(
         modelType: ModelType.gemma4,
         fileType: ModelFileType.litertlm,
       ).fromFile(widget.config.modelPath).install();

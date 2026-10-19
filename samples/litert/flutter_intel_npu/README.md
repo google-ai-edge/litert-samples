@@ -30,8 +30,8 @@ Both screenshots are from a Mac, where there is no NPU lane; on a Lunar Lake lap
 Act 3 commentator can move to the NPU.
 
 The app runs on macOS too (CPU and GPU only), which is where most of it was developed. It is built on
-[`flutter_gemma`](https://pub.dev/packages/flutter_gemma) and its LiteRT-LM engine
-[`flutter_gemma_litertlm`](https://pub.dev/packages/flutter_gemma_litertlm), and on
+[`flutter_edge_ai`](https://pub.dev/packages/flutter_edge_ai) and its LiteRT-LM engine
+[`flutter_edge_ai_litertlm`](https://pub.dev/packages/flutter_edge_ai_litertlm), and on
 [`flutter_scene`](https://pub.dev/packages/flutter_scene) for the 3D scene; all three are community packages, not
 Google SDKs. Intel, Core Ultra and Gemma are trademarks of their owners.
 
@@ -44,14 +44,14 @@ The app ships no model: you download the `.litertlm` files and point the app at 
 | 1 and 3 | Gemma 4 E2B, `gemma-4-E2B-it.litertlm` from [litert-community/gemma-4-E2B-it-litert-lm](https://huggingface.co/litert-community/gemma-4-E2B-it-litert-lm) (Gemma 4: Apache-2.0) | 2.5 GB | CPU, GPU (Metal) | CPU, GPU (DirectX 12), NPU |
 | 2 | Gemma 4 12B, `gemma-4-12B-it.litertlm` from [litert-community/gemma-4-12B-it-litert-lm](https://huggingface.co/litert-community/gemma-4-12B-it-litert-lm) (Apache-2.0) | 6.9 GB | GPU | GPU (the NPU once an NPU build exists) |
 | 2, contrast engine | Gemma 4 E2B again, with a 4K window | — | GPU | GPU |
-| 1 and 3, on the NPU | an NPU build of Gemma 4 E2B for Lunar Lake (`NPU_MODEL_PATH`) | — | — | NPU; not yet published |
+| 1 and 3, on the NPU | Gemma 4 E2B compiled for the NPU, `gemma-4-E2B-it_intel_LNL.litertlm` (Lunar Lake) from the same repository (`NPU_MODEL_PATH`); `…_intel_PTL.litertlm` is the Panther Lake build, not tested here | 3.0 GB | — | NPU |
 
 - **NPU** is Intel's NPU, through LiteRT-LM's Intel dispatch library and the OpenVINO runtime that
-  `flutter_gemma_litertlm` bundles on Windows. It exists only on Core Ultra Series 2 (Lunar Lake) and later. macOS
+  `flutter_edge_ai_litertlm` bundles on Windows. It exists only on Core Ultra Series 2 (Lunar Lake) and later. macOS
   has no NPU row: LiteRT-LM does not use the Apple Neural Engine, and the app does not offer it.
-- **The standard E2B file loads on the NPU too, at about 5 tok/s**, slower than the CPU: an NPU row worth showing
-  needs a build compiled for the NPU. Such a build has a fixed context (4096 tokens for the one measured here) and
-  runs only on the NPU.
+- **The standard E2B file is not an NPU model.** Opened with the NPU backend it still loads, but LiteRT-LM runs it
+  on the CPU (about 18 tok/s, NPU load 0 %), and the row says NPU all the same: set `NPU_MODEL_PATH`. An NPU build
+  has a fixed context (4096 tokens for the Lunar Lake E2B) and runs only on the NPU.
 - The app never moves a model to another processor on its own. A backend that fails to load is a failed row, not a
   silent fall back to the CPU.
 
@@ -173,7 +173,7 @@ exit code 2 in a headless run.
 | `MODEL_PATH` | — | the `.litertlm` for Acts 1 and 3 |
 | `MAX_TOKENS` | 4096 | context window. On an NPU build, exactly the length it was compiled for |
 | `BACKENDS` | `cpu,gpu,npu` | Act 1's rows, in order |
-| `POLICY` | `resident` | `resident` keeps every backend loaded (raw LiteRT-LM clients); `sequential` loads one at a time through the public flutter_gemma API |
+| `POLICY` | `resident` | `resident` keeps every backend loaded (raw LiteRT-LM clients); `sequential` loads one at a time through the public flutter_edge_ai API |
 | `PROMPT`, `PROMPT_FILE` | a 150-word explainer | Act 1's measured prompt |
 | `WARMUP` | true | an unmeasured short turn after each load |
 | `MAX_OUTPUT_TOKENS`, `TOP_K` | model's, 1 | Act 1 sampling |
@@ -240,7 +240,7 @@ The code is Apache-2.0, like the rest of this repository ([LICENSE](../../../LIC
 The meeting transcripts in `assets/prompts/` are synthetic, written for this demo. The models are not part of this
 repository. Gemma 4 E2B and 12B, and the LiteRT-LM conversions used here, are Apache-2.0
 ([Gemma 4 licence](https://ai.google.dev/gemma/docs/gemma_4_license)); the Hugging Face repositories are not gated. The LiteRT-LM runtime (Apache-2.0) and, on
-Windows, Intel's OpenVINO NPU runtime are downloaded by `flutter_gemma_litertlm` at build time.
+Windows, Intel's OpenVINO NPU runtime are downloaded by `flutter_edge_ai_litertlm` at build time.
 
 ## Tests
 
@@ -256,12 +256,13 @@ citations and the configuration parser. Anything that needs a model or a GPU is 
 ## Known limitations
 
 - **The NPU is Windows on Intel Core Ultra Series 2 or later only**, and an NPU lane worth showing needs an NPU
-  build of the model (`NPU_MODEL_PATH`), which is not yet published. An NPU build has a fixed context: keep
-  `MAX_TOKENS` at the length it was compiled for (4096 for the one measured here).
-- **Act 2 is not on the NPU yet.** There is no NPU build of the 12B, and the E2B NPU build measured here is
+  build of the model (`NPU_MODEL_PATH`, `gemma-4-E2B-it_intel_LNL.litertlm` on Lunar Lake). An NPU build has a
+  fixed context: keep `MAX_TOKENS` at the length it was compiled for (4096 for the Lunar Lake E2B).
+- **Act 2 is not on the NPU yet.** There is no Lunar Lake NPU build of the 12B (Intel's Panther Lake build is
+  refused by the Lunar Lake NPU driver: `ELF_ABI_VERSION … Expected: 1.3.0 vs received: 2.0.0`), and the E2B NPU build is
   compiled for a 4096-token window: the 7.2K-token meeting does not fit (the runtime refuses it, `7249 >= 4096`),
   while a 21-minute version (3.5K tokens) is answered correctly on the NPU at 53 tok/s, prefill 1.6 s.
-- **Gemma 4 E2B on the GPU returns garbage above ~5.5K input tokens** with LiteRT-LM 0.17 (Metal and DirectX 12;
+- **Gemma 4 E2B on the GPU returns garbage above ~5.5K input tokens** with LiteRT-LM 0.17, not re-measured on 0.18 (Metal and DirectX 12;
   deterministic for a given input). The CPU and the 12B are correct at the same length, which is why Act 2 uses
   the 12B.
 - **Act 3 on Windows needs a desktop session.** Over ssh (session 0) nothing renders. Launched into the console

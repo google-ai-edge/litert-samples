@@ -15,7 +15,7 @@
 // Experiment: can several LiteRT-LM engines be
 // alive at the same time in one process, each on its own backend?
 //
-// Bypasses flutter_gemma's single-active-model policy by talking to the FFI
+// Bypasses flutter_edge_ai's single-active-model policy by talking to the FFI
 // client directly. Run:
 //   flutter run -d macos -t lib/experiments/coexistence.dart \
 //     --dart-define=ORDER=cpu,gpu --dart-define=RESULTS_PATH=/tmp/coex.json
@@ -27,12 +27,21 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter/widgets.dart';
-import 'package:flutter_gemma_litertlm/src/ffi/litert_lm_client.dart';
+import 'package:flutter_edge_ai/flutter_edge_ai.dart';
+import 'package:flutter_edge_ai_litertlm/src/ffi/litert_lm_client.dart';
+import 'package:flutter_edge_ai_litertlm/src/ffi/npu_vendor_host.dart'
+    show NpuDispatch, npuDisablesHwMasking, windowsNpuDispatchDir;
+import 'package:flutter_edge_ai_litertlm/src/npu_stacks.dart' show NpuVendor;
 
 import '../app/demo_config.dart';
 
 const _order = String.fromEnvironment('ORDER', defaultValue: 'cpu,gpu');
 const _maxTokens = int.fromEnvironment('MAX_TOKENS', defaultValue: 2048);
+
+/// Intel's NPU stack beside the exe; the client no longer picks it itself.
+NpuDispatch? _npuDispatch(String backend) => backend == 'npu' && Platform.isWindows
+    ? (dir: windowsNpuDispatchDir, disableHwMasking: npuDisablesHwMasking(NpuVendor.intel))
+    : null;
 const _resultsPath = String.fromEnvironment('RESULTS_PATH');
 const _prompt = 'In two sentences, what is a neural processing unit?';
 
@@ -71,7 +80,14 @@ Future<void> _run() async {
 
   Future<Map<String, Object?>> generate(String backend) async {
     final c = clients[backend]!;
-    await c.createConversation(topK: 1);
+    await c.createConversation(
+      sampling: const ResolvedSampling(
+        temperature: 0.8,
+        topK: 1,
+        topP: 0.95,
+        randomSeed: 1,
+      ),
+    );
     final buf = StringBuffer();
     var chunks = 0;
     await for (final chunk in c.chat(_prompt)) {
@@ -92,7 +108,7 @@ Future<void> _run() async {
   for (final backend in order) {
     await step('create:$backend', () async {
       final c = LiteRtLmFfiClient();
-      await c.initialize(modelPath: config.modelPath, backend: backend, maxTokens: _maxTokens);
+      await c.initialize(modelPath: config.modelPath, backend: backend, maxTokens: _maxTokens, npuDispatch: _npuDispatch(backend));
       clients[backend] = c;
       return {'alive': clients.keys.toList()};
     });
@@ -115,7 +131,7 @@ Future<void> _run() async {
   }
   await step('recreate:${order.first}', () async {
     final c = LiteRtLmFfiClient();
-    await c.initialize(modelPath: config.modelPath, backend: order.first, maxTokens: _maxTokens);
+    await c.initialize(modelPath: config.modelPath, backend: order.first, maxTokens: _maxTokens, npuDispatch: _npuDispatch(order.first));
     clients[order.first] = c;
     final r = await generate(order.first);
     await c.shutdown();

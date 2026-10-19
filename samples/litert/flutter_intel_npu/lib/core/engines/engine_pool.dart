@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import 'package:flutter_gemma/flutter_gemma.dart';
+import 'package:flutter_edge_ai/flutter_edge_ai.dart';
 
 import 'engine_slot.dart';
 
@@ -20,7 +20,7 @@ import 'engine_slot.dart';
 /// one raw `LiteRtLmFfiClient` per backend ([FfiEngineSlot]); validated on
 /// macOS (CPU + GPU) and Windows on Lunar Lake (CPU + GPU + NPU).
 ///
-/// `sequential`: one engine at a time through the public flutter_gemma API
+/// `sequential`: one engine at a time through the public flutter_edge_ai API
 /// ([LiteRtLmEngineSlot]); switching costs a reload (2–10 s cold).
 enum EnginePolicy { resident, sequential }
 
