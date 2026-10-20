@@ -36,9 +36,7 @@ val extractSkillCode =
     tasks.register<ExtractSkillCode>("extractSkillCode") {
         val skills = rootProject.layout.projectDirectory.dir(skillsDir)
         val skill = skills.map { it.dir("litert-runtime") }
-        sources.from(skill.map { it.file("references/imports.md") })
         sources.from(skill.map { it.file("SKILL.md") })
-        sources.from(skill.map { it.file("references/preprocess.md") })
         header.set(layout.projectDirectory.file("skill-header.txt"))
         outputDir.set(layout.buildDirectory.dir("generated/skill"))
     }
