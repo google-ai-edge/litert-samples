@@ -24,7 +24,8 @@
 # something it needs is missing.
 #   audio   a running sound server (pactl info), parecord, a microphone and an
 #           output (pactl list short sources|sinks)
-#   gpu     vulkaninfo --summary (a software device such as llvmpipe is the CPU)
+#   gpu     vulkaninfo --summary (a software device such as llvmpipe is the CPU);
+#           on a Raspberry Pi 5 it also sets V3D_WEBGPU_OVERRIDE=1 for the app
 #   camera  GStreamer's v4l2src plugin and /dev/video*
 #   jpeg    libturbojpeg.so.0 (the network camera's fast JPEG decoder): the
 #           bundle's lib/ copy, else the system's (/usr/lib/<arch>, …)
@@ -35,6 +36,10 @@
 #                     when the bundle is read-only); RUN_LOG= turns it off
 #   RUN_SH_DRY_RUN=1  run the checks, print the app's command line instead of
 #                     starting it
+#   RUN_SH_DT_MODEL=PATH  the board's model (default /proc/device-tree/model;
+#                     for tests)
+#   V3D_WEBGPU_OVERRIDE  kept when set to a value; on a Raspberry Pi 5 set to 1
+#                     otherwise
 #
 # Bash 3.2 compatible (the dry run is tested on macOS too).
 set -u
@@ -142,6 +147,26 @@ EOF
   fi
 fi
 shopt -u nocasematch
+# Raspberry Pi 5: Mesa's v3dv driver (26.2 or newer, as on Raspberry Pi OS
+# Trixie) offers LiteRT's WebGPU accelerator the features it requires only
+# with V3D_WEBGPU_OVERRIDE=1; an older driver ignores it, and the app then
+# refuses the software device it gets instead. A value already set is kept.
+# Most machines have no device tree: then there is no board to name.
+dt_model=${RUN_SH_DT_MODEL:-/proc/device-tree/model}
+board=''
+if [ -r "$dt_model" ]; then
+  board=$(tr -d '\000' <"$dt_model")
+fi
+case "$board" in
+'Raspberry Pi 5'*)
+  if [ -z "${V3D_WEBGPU_OVERRIDE:-}" ]; then
+    export V3D_WEBGPU_OVERRIDE=1
+    ok "$board: V3D_WEBGPU_OVERRIDE=1 (the V3D for LiteRT's WebGPU)"
+  else
+    ok "$board: V3D_WEBGPU_OVERRIDE=$V3D_WEBGPU_OVERRIDE (kept as set)"
+  fi
+  ;;
+esac
 
 echo 'camera'
 if have gst-inspect-1.0; then
@@ -210,6 +235,9 @@ if [ ! -x "$app" ]; then
 fi
 if [ "${RUN_SH_DRY_RUN:-0}" = 1 ]; then
   printf 'would run:'
+  if [ -n "${V3D_WEBGPU_OVERRIDE:-}" ]; then
+    printf ' V3D_WEBGPU_OVERRIDE=%q' "$V3D_WEBGPU_OVERRIDE"
+  fi
   printf ' %q' "$app" "$@"
   printf '\n'
   exit 0

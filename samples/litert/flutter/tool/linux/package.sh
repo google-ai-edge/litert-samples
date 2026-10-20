@@ -57,7 +57,11 @@ to `run.sh`. The chat model is a `.litertlm` file you choose in the app (for exa
 `litert-community/gemma-4-E2B-it-litert-lm` on Hugging Face); the speech, embedding and detector
 models are built in. Licences: `licenses/README.md`.
 EOF
-cp "$ROOT/LICENSE" "$DEST/licenses/LICENSE-app-Apache-2.0.txt"
+# The app's licence: its own LICENSE, or, inside a repository of samples, the repository's.
+app_license=$ROOT
+while [ ! -f "$app_license/LICENSE" ] && [ "$app_license" != / ]; do app_license=$(dirname "$app_license"); done
+[ -f "$app_license/LICENSE" ] || { echo "error: no LICENSE in $ROOT or above it" >&2; exit 1; }
+cp "$app_license/LICENSE" "$DEST/licenses/LICENSE-app-Apache-2.0.txt"
 cp "$ROOT/assets/models/NOTICE.md" "$DEST/licenses/MODELS-NOTICE.md"
 cp "$ROOT/licenses/AGPL-3.0.txt" "$DEST/licenses/AGPL-3.0.txt"
 cp "$ROOT/licenses/OpenPhonemizer-BSD-3-Clause-Clear.txt" "$DEST/licenses/OpenPhonemizer-BSD-3-Clause-Clear.txt"
