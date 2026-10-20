@@ -31,3 +31,16 @@ interface AudioSource : AutoCloseable {
    */
   fun getAudioData(): Sequence<FloatArray>
 }
+
+/**
+ * Returns the number of samples of [audioChunk] up to and including its last non-zero one. Audio
+ * sources fill the part of a chunk that has no audio with zeros (e.g. the end of the last chunk of
+ * a file), which a speech recognizer need not decode.
+ */
+fun getNumOfValidSamples(audioChunk: FloatArray): Int {
+  var numOfValidSamples = audioChunk.size
+  while (numOfValidSamples > 0 && audioChunk[numOfValidSamples - 1] == 0.0f) {
+    numOfValidSamples--
+  }
+  return numOfValidSamples
+}
