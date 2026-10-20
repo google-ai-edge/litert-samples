@@ -53,7 +53,7 @@ Custom AI agent skills that carry a model through the LiteRT deployment lifecycl
 * [`accuracy-safe-quantization/`](skills/accuracy-safe-quantization/): Quantize (fp16 / int8 / int4) without losing accuracy.
 * [`on-device-verification/`](skills/on-device-verification/): Prove the converted model on the actual device.
 * [`compiled-model-app-scaffolding/`](skills/compiled-model-app-scaffolding/): Build an Android app around the verified model.
-* [`litert-compiled-model-migration/`](skills/litert-compiled-model-migration/): Android TFLite → LiteRT CompiledModel V2 with NPU JIT acceleration and zero-copy buffers.
+* [`litert-runtime/`](skills/litert-runtime/): Android app on the CPU or the GPU with the CompiledModel API; its [migration section](skills/litert-runtime/SKILL.md#migrating-from-legacy-tflite-interpreter) moves an existing app from the TFLite Interpreter or LiteRT 1.x.
 
 ---
 

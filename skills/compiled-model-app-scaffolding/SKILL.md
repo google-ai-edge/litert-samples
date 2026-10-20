@@ -15,8 +15,8 @@ An app around a verified model is done when three things hold, in this order:
    file unchanged.
 
 Scope: this scaffolds a **new** app from a model recipe. Migrating an
-existing TFLite Interpreter app to CompiledModel is a different task with
-its own skill, `litert-compiled-model-migration`. LLMs are served through
+existing TFLite Interpreter app to CompiledModel is a different task: see
+the migration section of the `litert-runtime` skill. LLMs are served through
 the LiteRT-LM Engine rather than raw CompiledModel —
 `samples/litert/text_to_speech_lm` is the reference for that case;
 everything below is the non-LLM CompiledModel app.

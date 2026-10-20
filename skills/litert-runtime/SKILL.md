@@ -40,6 +40,7 @@ skill.
 - **Buffer lifecycle** : Allocate `TensorBuffer` instances once using `createInputBuffers` and `createOutputBuffers`, reuse them across inferences, and close all input and output buffers before closing the `CompiledModel`.
 - **Synchronous timing** : `model.run` enqueues work on the GPU and returns before GPU execution completes. Always measure `model.run` and output buffer readback (`outputs[0].readFloat`) together.
 - **Warm-up and exception safety** : Execute one warm-up inference inside the helper constructor's `init` block so first-run GPU shader compilation doesn't block the first user interaction, and call `close` in `catch` before rethrowing so neither `CompiledModel` nor `TensorBuffer` handles leak if buffer allocation or warm-up throws.
+- **Migration** : When the app already uses `org.tensorflow.lite` code, you must read the "Migrating from legacy TFLite Interpreter" section in full before you edit any file. Migrated code must not import any `org.tensorflow.lite` class (including `DataType`), `GpuDelegate` becomes `CompiledModel.Options(Accelerator.GPU, Accelerator.CPU)`, and an NNAPI choice maps to that same GPU option.
 
 ## Detailed steps
 
@@ -331,14 +332,24 @@ outputs on a physical device, you must follow [device verification](references/v
 
 ## Migrating from legacy TFLite Interpreter
 
-When upgrading an existing project from `org.tensorflow.lite.Interpreter`,
-replace legacy constructs with their `CompiledModel` equivalents:
+An existing app on `org.tensorflow.lite.Interpreter` (from
+`org.tensorflow:tensorflow-lite*` or from `com.google.ai.edge.litert:litert`
+1.x) moves to the `CompiledModel` code of Steps 1 to 5 in seven steps, in this
+order. Before you change any file of an
+existing app, you must read [migration](references/migration.md), which gives the commands and code
+for each step:
 
-- **Gradle dependencies** : Remove all `org.tensorflow:tensorflow-lite*` artifacts (`org.tensorflow:tensorflow-lite`, `org.tensorflow:tensorflow-lite-gpu`, `org.tensorflow:tensorflow-lite-support`, and `org.tensorflow:tensorflow-lite-metadata`). Replace them with `com.google.ai.edge.litert:litert:2.3.0` and `com.google.ai.edge.litert:litert-gpu:2.3.0`. If you still need Support or Metadata utilities (such as `ImageProcessor`, `TensorImage`, or `MetadataExtractor`), use `com.google.ai.edge.litert:litert-support:2.3.0` (or `litert-support-api:2.3.0` alongside `litert:2.3.0`) and `com.google.ai.edge.litert:litert-metadata:2.3.0`, and rename package imports from `org.tensorflow.lite.support.*` to `com.google.ai.edge.litert.support.*` per the [LiteRT Support migration guide](https://github.com/google-ai-edge/LiteRT/blob/main/litert/support_lib/MIGRATION_GUIDE.md).
-- **Model loading** : Replace `FileUtil.loadMappedFile` and `Interpreter` with `CompiledModel.create(context.assets, name, options, environment)`.
-- **GPU delegation** : Replace `GpuDelegate` on `Interpreter.Options` with `CompiledModel.Options(Accelerator.GPU)` and the `com.google.ai.edge.litert:litert-gpu:2.3.0` dependency.
-- **Execution** : Replace `interpreter.run` on `ByteBuffer` inputs with `inputs[0].writeFloat(input)`, `model.run(inputs, outputs)`, and `outputs[0].readFloat`.
-- **Label loading** : Replace `FileUtil.loadLabels` with `bufferedReader` and `readLines` on `context.assets.open(name)` (or `com.google.ai.edge.litert.support.common.FileUtil.loadLabels` if using `litert-support:2.3.0`).
+1. **Find the runtime** : Read the build files and the resolved dependencies, and note the delegate, the thread count, and the Support library classes that the app uses.
+1. **Capture a golden output first** : While the legacy runtime is still in the project, record the app's output for one fixed input on the CPU. This step needs a device or an emulator.
+1. **Swap the dependencies** : Remove every legacy artifact and add the dependencies of Step 1. An app on the Support library keeps it as `com.google.ai.edge.litert:litert-support:2.3.0`, with the package `org.tensorflow.lite.support` renamed to `com.google.ai.edge.litert.support` ([LiteRT Support migration guide](https://github.com/google-ai-edge/LiteRT/blob/main/litert/support_lib/MIGRATION_GUIDE.md)).
+1. **Replace the delegates** : `GpuDelegate` becomes `CompiledModel.Options(Accelerator.GPU, Accelerator.CPU)`, so the CPU runs the operators that the GPU doesn't support. An NNAPI choice in the app maps to the same GPU option, not to `Accelerator.CPU` alone or to an NPU accelerator. `setNumThreads(n)` becomes new CPU options with `cpuOptions = CompiledModel.CpuOptions(numThreads = n)`.
+1. **Rewrite the inference code** : Replace `Interpreter` and `FileUtil.loadMappedFile` with the `Classifier` helper of Step 2, created and run only on the single-thread executor of Step 3, never in a constructor that the main thread calls.
+1. **Verify in two stages** : The build passes and the searches for legacy references print nothing; then the migrated output matches the golden output on a device.
+1. **Report what changed and what didn't migrate** : When the app used NNAPI, tell the user that it now runs on the GPU with the CPU as a second accelerator, which changes the speed and the numerical results of a quantized model that ran on a DSP or an NPU before; point them to [NPU acceleration with LiteRT](https://ai.google.dev/edge/litert/next/npu) for the NPU. Tell the user about LiteRT in Google Play services, the TensorFlow Lite Task Library, C++ modules, and Select TensorFlow operators, which this skill doesn't migrate.
+
+Migration mandates that apply to every migrated app:
+
+- **No `org.tensorflow.lite` imports** : Migrated code must not import any `org.tensorflow.lite` class, including `org.tensorflow.lite.DataType`; the LiteRT artifacts keep these classes only for backward compatibility. Replace Support calls that need `DataType` (`TensorImage(DataType.FLOAT32)`, `TensorBuffer.createFixedSize`, and `TensorLabel`) with `preprocess` of Step 4, the `CompiledModel` buffers, and labels paired with the output scores. Remove every existing `org.tensorflow.lite` import line, not only the ones that you add.
 
 ## Antipatterns
 
@@ -352,6 +363,7 @@ replace legacy constructs with their `CompiledModel` equivalents:
 
 - \[ \] Is `minSdk` set to `24` or higher and are both `com.google.ai.edge.litert:litert:2.3.0` and `com.google.ai.edge.litert:litert-gpu:2.3.0` added in `app/build.gradle.kts`?
 - \[ \] Are all legacy `org.tensorflow:tensorflow-lite*` dependencies and `org.tensorflow.lite.*` imports removed?
+- \[ \] After a migration, do both searches for legacy references in the migration steps print nothing, and does the migrated output match the golden output on a device?
 - \[ \] Do `CompiledModel.create`, `model.run`, and `close` all execute on the same single-thread background dispatcher?
 - \[ \] Are `TensorBuffer` instances allocated once, reused across calls, and closed before `model.close`, including when `init` or warm-up throws?
 - \[ \] Does `load` execute one warm-up inference and fall back to `Accelerator.CPU` if `Accelerator.GPU` throws `LiteRtException`?
