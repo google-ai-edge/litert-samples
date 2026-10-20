@@ -12,6 +12,7 @@ types leaves the page.
 | [`ppocr/`](dist/ppocr/) | [PP-OCRv5-LiteRT](https://huggingface.co/litert-community/PP-OCRv5-LiteRT) | Photo or screenshot → selectable lines of text (text detection + recognition) |
 | [`clipseg/`](dist/clipseg/) | [CLIPSeg-rd64-LiteRT](https://huggingface.co/litert-community/CLIPSeg-rd64-LiteRT) | Photo + typed words → a mask of what the words describe (open-vocabulary segmentation, CLIP tokenizer in JavaScript) |
 | [`sam2/`](dist/sam2/) | SAM 2.1 Hiera-Tiny [image encoder](https://huggingface.co/litert-community/SAM2.1-Hiera-Tiny-Image-Encoder) + [mask decoder](https://huggingface.co/litert-community/SAM2.1-Hiera-Tiny-Mask-Decoder) | Photo + click → mask of the clicked object (encoder once per photo, decoder once per click) |
+| [`rfdetr/`](dist/rfdetr/) | [RF-DETR-Nano-LiteRT](https://huggingface.co/litert-community/RF-DETR-Nano-LiteRT) | Photo or live camera → boxes and labels for the 80 COCO object classes (two-graph transformer detector) |
 
 [`dist/index.html`](dist/) is the index page linking every demo.
 
@@ -23,6 +24,11 @@ by Ltshears (a Wikipedia user), released into the public domain by its author
 The SAM 2.1 example photo (`src/sam2/example.jpg`) is
 [“Young tabby cat keeping watch”](https://commons.wikimedia.org/wiki/File:Young_tabby_cat_keeping_watch.jpg)
 by W.carter, CC0 1.0 (`{{self|cc-zero}}` on its Wikimedia Commons file page).
+
+The RF-DETR example photo (`src/rfdetr/example.jpg`) is
+[“The tram is coming, at the streetcorner of the Overtoom & 1e Constantijn Huygensstraat in Amsterdam city”](https://commons.wikimedia.org/wiki/File:The_tram_is_coming,_at_the_streetcorner_of_the_Overtoom_%26_1e_Constantijn_Huygensstraat_in_Amsterdam_city._Free_photo_by_Fons_Heijnsbroek,_Summer_2022.tif)
+by Fons Heijnsbroek, CC0 1.0 (`{{self|cc-zero}}` on its Wikimedia Commons
+file page).
 
 ## Chrome extension
 
@@ -46,12 +52,13 @@ src/                 source — this is what you edit
   ppocr/             index.html + main.js, sample.png (pipeline: chrome_extension/src-ocr/ocr-pipeline.js)
   clipseg/           index.html + main.js, host.js (pre/post-processing), tokenizer.js (CLIP BPE), example.jpg
   sam2/              index.html + main.js, sam2.js, example.jpg
+  rfdetr/            index.html + main.js, host.js (pre/post-processing), coco.js, example.jpg
 dist/                build output — this is what GitHub Pages serves (committed)
-  index.html, moge/, matcha-tts/, ppocr/, clipseg/, sam2/, assets/   built by `npm run build`
+  index.html, moge/, matcha-tts/, ppocr/, clipseg/, sam2/, rfdetr/, assets/   built by `npm run build`
   litert-wasm/       LiteRT.js WASM runtime, copied from node_modules/@litertjs/core
   coi-serviceworker.min.js                  copied from node_modules/coi-serviceworker
 tools/check.mjs      deploy-shaped end-to-end check (headless browser)
-vite.config.js       one Vite project, six pages
+vite.config.js       one Vite project, seven pages
 ```
 
 ## Build
@@ -59,7 +66,7 @@ vite.config.js       one Vite project, six pages
 ```sh
 cd samples/web_demos
 npm ci
-npm run dev      # http://localhost:5173/  (moge/, matcha-tts/, ppocr/, clipseg/, sam2/)
+npm run dev      # http://localhost:5173/  (moge/, matcha-tts/, ppocr/, clipseg/, sam2/, rfdetr/)
 npm run build    # rebuilds dist/ from src/ — commit dist/ together with src/
 ```
 
@@ -73,7 +80,7 @@ the WASM runtime and the service worker are copied from their npm packages
 
 ```sh
 npx playwright install chromium   # once
-npm run check                     # every demo; add `moge` / `matcha` / `ppocr` / `clipseg` / `sam2` for one
+npm run check                     # every demo; add `moge` / `matcha` / `ppocr` / `clipseg` / `sam2` / `rfdetr` for one
 npm run check -- matcha --block-hf   # what a user sees when huggingface.co is unreachable
 ```
 
@@ -83,7 +90,8 @@ worker to turn on cross-origin isolation, the threaded WASM runtime to load,
 the models to download, and one inference / one synthesis / one OCR read
 (of the PP-OCRv5 page's sample, `src/ppocr/sample.png`, which must come back
 as its six lines, with the recognizer on threaded WASM) / two
-segmentations / one click on the bundled SAM 2.1 example to complete. The
+segmentations / one click on the bundled SAM 2.1 example / one detection (on
+the bundled example photo) to complete. The
 sample is a menu card drawn on a canvas (Chromium on macOS, the system
 sans-serif) and saved as a PNG; to replace it, set `OCR_LINES` in
 `tools/check.mjs` to the lines the new image must read.
@@ -94,7 +102,8 @@ Python LiteRT reference gives 17% and 50%), and the second prompt to reuse
 the photo's image features.
 Headless Chromium launched without flags has no usable WebGPU, so this
 exercises the WASM path; `--webgpu` runs the full Chromium build in its new
-headless mode instead, where WebGPU works (`npm run check -- ppocr --webgpu`;
+headless mode instead, where WebGPU works (`npm run check -- ppocr --webgpu`,
+`npm run check -- rfdetr --webgpu`;
 `npm run check -- clipseg --webgpu` also requires all three CLIPSeg graphs on
 WebGPU).
 
@@ -115,6 +124,7 @@ WebGPU).
   M4 Max, WebGPU (fp16 compute) takes ~60 ms per photo and ~4 ms per click;
   the WASM fallback runs the same files at ~13 s per photo and 0.4 s per
   click with 16 threads.
+  RF-DETR-Nano 56 MB (two fp16 graphs).
   `?models=<base url>` on any page loads the same file names from
   another location (a local copy, a mirror).
 - **`litert-wasm/`** is the stock `@litertjs/core` WASM runtime (plain,
@@ -146,6 +156,15 @@ WebGPU).
   compute), the text encoder 8 ms and the decoder 2 ms, so new words take
   about 10 ms. With every graph on WASM, the image encoder takes 4.1 s and
   the text encoder 0.37 s (median of 6).
+- **RF-DETR runs as two graphs with a host step between them**: graph A
+  (backbone + encoder) on WebGPU, then the top-300 proposals picked in
+  JavaScript, then graph B (decoder) on WASM. On five photos, with the same
+  input pixels, graph A on WebGPU matches the Python LiteRT reference (same
+  boxes); graph B on WebGPU does not (logits max |Δ| 6.4–8.5; extra boxes,
+  moved boxes or scores off by more than 0.05 on every photo), so the
+  decoder stays on WASM. The resize is Pillow's bilinear ported to
+  JavaScript, so the page feeds the model exactly the pixels
+  `Image.resize((384, 384), Image.BILINEAR)` gives in Python.
 - **Boot errors name their stage** (`runtime` / `download` / `compile` /
   `warm-up`) and the URL that failed, so "Failed to start (download): could
   not fetch https://huggingface.co/…" means the browser could not reach
@@ -163,6 +182,12 @@ WebGPU).
   `?precision=fp32` runs the two encoders in fp32 on WebGPU; `?raw=1` keeps
   the model input, the image features and the logits in
   `window.__lastResult`.
+- RF-DETR: `?img=<url>` (or `?img=example`) detects at boot and `&repeat=N`
+  runs it N times; every photo run logs an `RFDETR_STATS` JSON line to the
+  console, and the camera logs one line per second. `?backend=wasm` puts
+  graph A on WASM. `?a=webgpu|wasm&b=webgpu|wasm` sets each graph's backend,
+  to reproduce the comparison above. `&raw=1` keeps the raw model outputs in
+  `window.__lastRaw`.
 - Matcha: `?text=…` speaks at boot; `&steps=4&seed=0&voc=wasm&enc=wasm`;
   `&threads=0` forces the single-thread runtime; `&nosound=1` synthesizes
   without playback and logs a `MATCHA_STATS` JSON line to the console.
