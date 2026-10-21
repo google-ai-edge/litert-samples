@@ -32,7 +32,7 @@ class ModelDownloader(private val context: Context) {
                 name = "Gemma 3 1B (Int4)",
                 filename = "gemma3-1b-it-int4.litertlm",
                 url = "https://huggingface.co/litert-community/Gemma3-1B-IT/resolve/main/gemma3-1b-it-int4.litertlm",
-                systemPrompt = "You are Gemma 3, a powerful multimodal AI assistant by Google, running privately on-device. You can understand text, images, and audio.",
+                systemPrompt = "You are Gemma 3, a helpful and concise AI assistant by Google, running privately on-device.",
                 preferredBackend = "GPU"
             )
         )
@@ -56,7 +56,8 @@ class ModelDownloader(private val context: Context) {
     }
 
     fun isModelDownloaded(modelConfig: ModelConfig): Boolean {
-        if (File(context.filesDir, modelConfig.filename).exists()) return true
+        val internal = File(context.filesDir, modelConfig.filename)
+        if (internal.exists() && internal.length() > 0) return true
         return findExternalModel(modelConfig) != null
     }
 
@@ -73,17 +74,18 @@ class ModelDownloader(private val context: Context) {
 
     fun getModelPath(modelConfig: ModelConfig): String {
         val internal = File(context.filesDir, modelConfig.filename)
-        if (internal.exists()) return internal.absolutePath
+        if (internal.exists() && internal.length() > 0) return internal.absolutePath
         val external = findExternalModel(modelConfig)
         if (external != null) return external.absolutePath
         return internal.absolutePath
     }
-    
+
     fun downloadModel(modelConfig: ModelConfig): Flow<DownloadProgress> = flow {
+        val tempFile = File(context.filesDir, "${modelConfig.filename}.part")
         try {
             emit(DownloadProgress.Started)
             val modelFile = File(context.filesDir, modelConfig.filename)
-            if (modelFile.exists()) {
+            if (modelFile.exists() && modelFile.length() > 0) {
                 emit(DownloadProgress.Complete(modelFile.absolutePath))
                 return@flow
             }
@@ -92,7 +94,7 @@ class ModelDownloader(private val context: Context) {
                 emit(DownloadProgress.Complete(externalFile.absolutePath))
                 return@flow
             }
-            
+
             val url = URL(modelConfig.url)
             val connection = url.openConnection() as HttpURLConnection
             val token = getToken()
@@ -105,7 +107,7 @@ class ModelDownloader(private val context: Context) {
             }
             val fileLength = connection.contentLength
             connection.inputStream.use { input ->
-                FileOutputStream(modelFile).use { output ->
+                FileOutputStream(tempFile).use { output ->
                     val buffer = ByteArray(8192)
                     var total: Long = 0
                     var count: Int
@@ -119,8 +121,15 @@ class ModelDownloader(private val context: Context) {
                     }
                 }
             }
+            if (modelFile.exists()) {
+                modelFile.delete()
+            }
+            if (!tempFile.renameTo(modelFile)) {
+                throw Exception("Failed to finalize model file ${modelFile.name}")
+            }
             emit(DownloadProgress.Complete(modelFile.absolutePath))
         } catch (e: Exception) {
+            tempFile.delete()
             emit(DownloadProgress.Error(e.message ?: "Unknown error"))
         }
     }.flowOn(Dispatchers.IO)
