@@ -42,7 +42,7 @@ each one runs:
 |---|---|---|---|---|---|---|---|---|
 | Chat (both demos) | the `.litertlm` you choose, such as Gemma 4 E2B from [litert-community/gemma-4-E2B-it-litert-lm](https://huggingface.co/litert-community/gemma-4-E2B-it-litert-lm) (Gemma 4: Apache-2.0); the files are [below](#chat-model-files) | NPU, with a build for that chip; or GPU | GPU | GPU | GPU | GPU | CPU | NPU, with the `qcs8275` build; or GPU |
 | Chat: vision and audio towers | in the chat model's file | CPU; NPU in builds whose towers are compiled for it | CPU | CPU | CPU | CPU | CPU | CPU |
-| Object detector (Live camera) | YOLO26n, raw head, derived from [Arm/yolo26n-fp16-litert](https://huggingface.co/Arm/yolo26n-fp16-litert) (Ultralytics YOLO26, AGPL-3.0) | GPU | GPU | GPU | GPU | GPU | GPU | GPU |
+| Object detector (Live camera) | YOLO26n, raw head, derived from [Arm/yolo26n-fp16-litert](https://huggingface.co/Arm/yolo26n-fp16-litert) (Ultralytics YOLO26, AGPL-3.0) | GPU | GPU | GPU | GPU | GPU | GPU on Raspberry Pi OS Trixie, CPU on Bookworm ([guide](../../platforms/raspberry/README.md#5-run)) | GPU |
 | Embeddings (knowledge base, spoken questions, visual memory) | EmbeddingGemma 2 740m, text, audio and images, from [litert-community/embeddinggemma-2-740m-litert-lm](https://huggingface.co/litert-community/embeddinggemma-2-740m-litert-lm) (Apache-2.0) | CPU | CPU | CPU | CPU | CPU | CPU | CPU |
 | Speech to text (Voice chat) | Whisper base, int8, from [litert-community/whisper-base](https://huggingface.co/litert-community/whisper-base) (Apache-2.0) | CPU | CPU | CPU | CPU | CPU | CPU | CPU |
 | Speech to text (Live camera) | moonshine tiny, from [litert-community/moonshine-tiny](https://huggingface.co/litert-community/moonshine-tiny) (MIT) | CPU | CPU | CPU | CPU | CPU | CPU | CPU |
@@ -88,7 +88,7 @@ backend fallback (`LiteRtLmEngine(backendFallback: false)`): a load runs on the 
 card shows the plugin's reason (the file cannot run there, LiteRT-LM's own message, or an NPU this device cannot
 reach) and offers another backend as an explicit choice. A build compiled for an NPU runs nowhere else: its card
 never offers the GPU or the CPU. A refusal the plugin makes before any engine (the file cannot run there, or is
-incomplete) has no Retry: the same load would be refused again. A GPU that is a software rasterizer (llvmpipe and the like, on a Linux machine without a GPU driver) counts as
+incomplete) has no Retry: the same load would be refused again. A GPU that is a software rasterizer (llvmpipe and the like, on a Linux machine without a usable GPU driver) counts as
 unusable for the detector: Live camera says so and offers **Run detector on CPU**. **This device** (on Home) and the
 diagnostics overlay show the backend each model asked for and, where the runtime reports it, the one it got.
 

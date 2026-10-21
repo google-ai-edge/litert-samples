@@ -80,7 +80,14 @@ final class _Bundle {
   }) => Process.run(
     '${bin.path}/bash',
     ['${root.path}/run.sh', ...args],
-    environment: {'PATH': bin.path, 'HOME': root.path, ...env},
+    // The board's device-tree model: a file the tests write, absent by default
+    // (so a test host that is a Raspberry Pi reads no board either).
+    environment: {
+      'PATH': bin.path,
+      'HOME': root.path,
+      'RUN_SH_DT_MODEL': '${root.path}/model',
+      ...env,
+    },
     includeParentEnvironment: false,
   );
 }
@@ -275,5 +282,94 @@ esac''');
     expect(result.exitCode, 3);
     expect(result.stdout, contains('app got: --selftest --skip-audio'));
     expect(File('${temp.path}/run.log').existsSync(), isFalse);
+  });
+
+  group('V3D_WEBGPU_OVERRIDE', () {
+    void board(String model) =>
+        File('${temp.path}/model').writeAsStringSync('$model\u0000');
+
+    test('a Raspberry Pi 5: set to 1 for the app, and said so', () async {
+      board('Raspberry Pi 5 Model B Rev 1.0');
+      final result = await bundle.run(
+        const ['--selftest'],
+        env: const {'RUN_SH_DRY_RUN': '1'},
+      );
+      final out = result.stdout as String;
+      expect(
+        out,
+        contains(
+          '  ok    Raspberry Pi 5 Model B Rev 1.0: V3D_WEBGPU_OVERRIDE=1',
+        ),
+      );
+      expect(
+        out,
+        contains(
+          'would run: V3D_WEBGPU_OVERRIDE=1 ${temp.path}/litert_edge_demos '
+          '--selftest',
+        ),
+      );
+    });
+
+    test('a value the caller set is kept, and said so', () async {
+      board('Raspberry Pi 5 Model B Rev 1.0');
+      final out =
+          (await bundle.run(
+                const [],
+                env: const {'RUN_SH_DRY_RUN': '1', 'V3D_WEBGPU_OVERRIDE': '0'},
+              )).stdout
+              as String;
+      expect(
+        out,
+        contains(
+          '  ok    Raspberry Pi 5 Model B Rev 1.0: V3D_WEBGPU_OVERRIDE=0 '
+          '(kept as set)',
+        ),
+      );
+      expect(out, contains('would run: V3D_WEBGPU_OVERRIDE=0 '));
+      expect(out, isNot(contains('V3D_WEBGPU_OVERRIDE=1')));
+    });
+
+    test('an empty value counts as unset', () async {
+      board('Raspberry Pi 5 Model B Rev 1.0');
+      final out =
+          (await bundle.run(
+                const [],
+                env: const {'RUN_SH_DRY_RUN': '1', 'V3D_WEBGPU_OVERRIDE': ''},
+              )).stdout
+              as String;
+      expect(out, contains('would run: V3D_WEBGPU_OVERRIDE=1 '));
+    });
+
+    test('another board, or none: not set, and nothing on stderr', () async {
+      board('Raspberry Pi 4 Model B Rev 1.5');
+      final out =
+          (await bundle.run(
+                const [],
+                env: const {'RUN_SH_DRY_RUN': '1'},
+              )).stdout
+              as String;
+      expect(out, isNot(contains('V3D_WEBGPU_OVERRIDE')));
+      // No device tree, as on most machines; without a log, stderr stays apart.
+      File('${temp.path}/model').deleteSync();
+      final result = await bundle.run(
+        const [],
+        env: const {'RUN_SH_DRY_RUN': '1', 'RUN_LOG': ''},
+      );
+      expect(result.stdout, isNot(contains('V3D_WEBGPU_OVERRIDE')));
+      expect(result.stderr, isEmpty);
+    });
+
+    test('the app itself gets it in its environment', () async {
+      board('Raspberry Pi 5 Model B Rev 1.0');
+      _stub(
+        bundle.root,
+        'litert_edge_demos',
+        r'echo "app env: V3D_WEBGPU_OVERRIDE=${V3D_WEBGPU_OVERRIDE:-unset}"',
+      );
+      final out =
+          (await bundle.run(const [], env: const {'RUN_LOG': ''})).stdout
+              as String;
+      expect(out, contains('app env: V3D_WEBGPU_OVERRIDE=1'));
+    });
   });
 }

@@ -8,7 +8,7 @@ voice chat with Gemma and a live camera assistant. Everything runs on the Pi.
 | Model | Runs on |
 |---|---|
 | Chat model, Gemma 4 E2B (`gemma-4-E2B-it.litertlm`) | CPU (select it on the card, step 5); its vision and audio towers on the CPU |
-| YOLO26n detector (Live camera) | GPU by default; CPU when chosen in the Live camera settings (**Detector › CPU (slower)**), or with **Run detector on CPU** if the GPU load fails (step 5) |
+| YOLO26n detector (Live camera) | GPU on Raspberry Pi OS Trixie; on Bookworm the CPU: **Detector › CPU (slower)** in the Live camera settings, or **Run detector on CPU** when the GPU is refused (step 5) |
 | EmbeddingGemma 2 (knowledge base, visual memory), Whisper base and moonshine tiny (speech to text), Inflect-nano-v2 (spoken replies) | CPU |
 
 The app offers no NPU on the Pi.
@@ -18,7 +18,7 @@ The app offers no NPU on the Pi.
 | | |
 |---|---|
 | Board | Raspberry Pi 5 with **8 GB or 16 GB**; 4 GB is not enough for Gemma 4 E2B |
-| System | **Raspberry Pi OS (64-bit)** with desktop, Bookworm or newer. The 32-bit system does not work |
+| System | **Raspberry Pi OS (64-bit)** with desktop, Bookworm or newer; Trixie for the detector on the GPU. The 32-bit system does not work |
 | Storage | an NVMe SSD, or a fast (A2) microSD card; about 15 GB free for Flutter, the build and the models |
 | Cooling and power | the Active Cooler (the models keep all four cores busy) and the official 27 W supply |
 | Camera | a USB webcam, or an Android phone as a Wi-Fi camera ([network camera](../../litert/flutter/README.md#using-the-demos)). The Camera Module (CSI) is not supported by the app |
@@ -101,10 +101,13 @@ WARN: that is Mesa's CPU driver and expected; the Pi's GPU is the `V3D` line.
 On **Set up models**, the **Chat model** card lists the files in `~/litert-demos/models/` (**Rescan** if needed,
 **Path…** for a file elsewhere). Choose `gemma-4-E2B-it.litertlm`, select **CPU**, then **Use this model**.
 
-**GPU or CPU.** The Pi 5's GPU (VideoCore VII) would run models through LiteRT's WebGPU accelerator (Dawn) on Vulkan
-(Mesa `v3dv`). If a model cannot load on it, the app says so and offers the CPU (**Run on CPU** for the chat model,
-**Run detector on CPU** in Live camera); it never switches on its own. **This device** and the diagnostics overlay
-show where each model runs.
+**GPU or CPU.** Keep the chat model on the CPU: the Pi 5's GPU (VideoCore VII) is far slower for it. The detector runs
+on the GPU through LiteRT's WebGPU accelerator (Dawn) on Vulkan, with the `v3dv` driver of Raspberry Pi OS Trixie
+(Mesa 26.2 or newer, installed in step 1). That driver offers WebGPU the features it requires only with
+`V3D_WEBGPU_OVERRIDE=1`, which `run.sh` sets on a Raspberry Pi 5. With Bookworm's driver (Mesa 24.2) Dawn picks
+`llvmpipe`, Mesa's CPU driver, instead; the app refuses it as a software GPU and offers **Run detector on CPU** (or
+choose **Detector › CPU (slower)** in the Live camera settings). It never switches on its own. On the GPU the detector
+leaves the four CPU cores to Gemma. **This device** and the diagnostics overlay show where each model runs.
 
 ## 6. Use it and check it
 
@@ -114,12 +117,18 @@ show where each model runs.
 - **Live camera:** choose the camera with the **Camera** button at the top of the demo: a USB webcam, or a network
   camera such as a phone running IP Webcam. Hold the mic and ask "What do you see?", "How many people are there?".
   It also remembers what it saw: "Where was the yellow sign?" shows the frame and how long ago it was.
-- **Self-test:** `./run.sh --selftest` runs the detector on a reference picture and checks it against golden
-  detections, loads the chat model and times 64 tokens, checks the speaker and microphone, and saves a report: board,
-  OS, GPU and Vulkan driver, where each model ran, speed and memory; the `report` line says where. Exit code 0 means
-  every step passed. Add `--skip-audio` without a microphone and speaker, and `--gemma-backend=cpu
-  --detector-backend=cpu` for the CPU numbers if the GPU steps fail. Over SSH, without the desktop: install `xvfb`
-  and run `xvfb-run -a ./run.sh --selftest --skip-audio`.
+- **Self-test:** runs the detector on a reference picture and checks it against golden detections, loads the chat
+  model and times 64 tokens, checks the speaker and microphone, and saves a report: board, OS, GPU and Vulkan driver,
+  where each model ran, speed and memory; the `report` line says where. Exit code 0 means every step passed. With the
+  chat model on the CPU, as in step 5:
+
+  ```sh
+  ./run.sh --selftest --gemma=$HOME/litert-demos/models/gemma-4-E2B-it.litertlm --gemma-backend=cpu
+  ```
+
+  `--gemma` names the chat model when none is chosen in the app yet. On Bookworm add `--detector-backend=cpu`. Add
+  `--skip-audio` without a microphone and speaker. Over SSH, without the desktop: install `xvfb` and put
+  `xvfb-run -a` in front.
 
 ## Troubleshooting
 
@@ -135,5 +144,6 @@ show where each model runs.
 | `package.sh: … exists; move it away first` | `rm -r build/dist/litert_edge_demos-v*`, then run it again |
 | "No sound server" / "Microphone unavailable" | `systemctl --user start pipewire pipewire-pulse`; `sudo apt install pulseaudio-utils` |
 | No sound from replies | Choose the USB speaker in the taskbar's volume menu (the default is often HDMI) |
-| A model fails on the GPU | Choose **Run on CPU** / **Run detector on CPU** |
+| The detector's GPU load is refused: a software GPU (`llvmpipe`) | Bookworm's `v3dv` driver (older than Mesa 26.2): **Run detector on CPU**. On Trixie: `sudo apt full-upgrade`, and start the app with `./run.sh` |
+| The chat model is very slow on the GPU | Choose **CPU** on the Chat model card (step 5) |
 | Very slow, the Pi gets hot | Fit the Active Cooler; close other apps |
