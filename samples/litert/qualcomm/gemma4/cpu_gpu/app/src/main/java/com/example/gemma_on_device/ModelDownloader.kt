@@ -18,12 +18,11 @@ import java.net.URL
  *
  * Supports two workflows:
  *   1. In-app download from HuggingFace (with optional HF token).
- *   2. Local push via ADB:
- *        adb push gemma-4-E2B-it.litertlm /sdcard/Download/
- *      The app detects the file in the Download folder and copies it to internal storage.
+ *   2. Local push via ADB into app-scoped external storage:
+ *        adb push gemma-4-E2B-it.litertlm /sdcard/Android/data/com.example.gemma_on_device/files/
  */
 class ModelDownloader(private val context: Context) {
-    
+
     private val prefs: SharedPreferences = context.getSharedPreferences("app_prefs", Context.MODE_PRIVATE)
 
     companion object {
@@ -50,15 +49,15 @@ class ModelDownloader(private val context: Context) {
      */
     private fun getAdbSearchDirs(): List<File> {
         val dirs = mutableListOf<File>()
-        
+
         // App-specific external storage (No permissions required)
         context.getExternalFilesDir(null)?.let { dirs.add(it) }
         context.getExternalFilesDir(Environment.DIRECTORY_DOWNLOADS)?.let { dirs.add(it) }
-        
+
         // Legacy public directories (may require MANAGE_EXTERNAL_STORAGE on Android 11+)
         dirs.add(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS))
         dirs.add(File(Environment.getExternalStorageDirectory(), "Models"))
-        
+
         return dirs
     }
 
@@ -75,9 +74,8 @@ class ModelDownloader(private val context: Context) {
      * or ADB-pushed to a well-known external directory.
      */
     fun isModelDownloaded(modelConfig: ModelConfig): Boolean {
-        // Check internal storage first
-        if (File(context.filesDir, modelConfig.filename).exists()) return true
-        // Check ADB push locations
+        val internal = File(context.filesDir, modelConfig.filename)
+        if (internal.exists() && internal.length() > 0) return true
         return findExternalModel(modelConfig) != null
     }
 
@@ -101,7 +99,7 @@ class ModelDownloader(private val context: Context) {
      */
     fun getModelPath(modelConfig: ModelConfig): String {
         val internal = File(context.filesDir, modelConfig.filename)
-        if (internal.exists()) return internal.absolutePath
+        if (internal.exists() && internal.length() > 0) return internal.absolutePath
 
         val external = findExternalModel(modelConfig)
         if (external != null) return external.absolutePath
@@ -109,65 +107,60 @@ class ModelDownloader(private val context: Context) {
         // Default to internal path (for download target)
         return internal.absolutePath
     }
-    
+
     /**
-     * Download model with progress reporting.
-     * If the model is found in an ADB-push location, it copies from there
-     * instead of downloading from HuggingFace.
+     * Download model with progress reporting using an atomic temporary `.part` file.
      */
     fun downloadModel(modelConfig: ModelConfig): Flow<DownloadProgress> = flow {
+        val tempFile = File(context.filesDir, "${modelConfig.filename}.part")
         try {
             emit(DownloadProgress.Started)
-            
+
             val modelFile = File(context.filesDir, modelConfig.filename)
-            
-            // Already in internal storage
-            if (modelFile.exists()) {
+
+            if (modelFile.exists() && modelFile.length() > 0) {
                 Log.d(TAG, "Model already exists at ${modelFile.absolutePath}")
                 emit(DownloadProgress.Complete(modelFile.absolutePath))
                 return@flow
             }
 
-            // Check for ADB-pushed file and use it directly (no copy needed)
             val externalFile = findExternalModel(modelConfig)
             if (externalFile != null) {
                 Log.i(TAG, "Using ADB-pushed model directly from: ${externalFile.absolutePath}")
                 emit(DownloadProgress.Complete(externalFile.absolutePath))
                 return@flow
             }
-            
-            // Download from HuggingFace
+
             Log.d(TAG, "Downloading model from ${modelConfig.url}")
-            
+
             val url = URL(modelConfig.url)
             val connection = url.openConnection() as HttpURLConnection
-            
-            // Add Authorization header if token exists
+
             val token = getToken()
             if (!token.isNullOrBlank()) {
                 Log.d(TAG, "Using HF Token for authentication")
                 connection.setRequestProperty("Authorization", "Bearer $token")
             }
-            
+
             connection.connect()
-            
+
             val responseCode = connection.responseCode
             if (responseCode != HttpURLConnection.HTTP_OK) {
                 throw Exception("Server returned HTTP $responseCode: ${connection.responseMessage}")
             }
-            
+
             val fileLength = connection.contentLength
-            
+
             connection.inputStream.use { input ->
-                FileOutputStream(modelFile).use { output ->
+                FileOutputStream(tempFile).use { output ->
                     val buffer = ByteArray(8192)
                     var total: Long = 0
                     var count: Int
-                    
+
                     while (input.read(buffer).also { count = it } != -1) {
                         total += count
                         output.write(buffer, 0, count)
-                        
+
                         if (fileLength > 0) {
                             val progress = (total * 100 / fileLength).toInt()
                             emit(DownloadProgress.Progress(progress, total, fileLength.toLong()))
@@ -175,11 +168,18 @@ class ModelDownloader(private val context: Context) {
                     }
                 }
             }
-            
+
+            if (modelFile.exists()) {
+                modelFile.delete()
+            }
+            if (!tempFile.renameTo(modelFile)) {
+                throw Exception("Failed to finalize model file ${modelFile.name}")
+            }
+
             Log.d(TAG, "Model downloaded successfully to ${modelFile.absolutePath}")
             emit(DownloadProgress.Complete(modelFile.absolutePath))
-            
         } catch (e: Exception) {
+            tempFile.delete()
             Log.e(TAG, "Error downloading model: ${e.message}", e)
             emit(DownloadProgress.Error(e.message ?: "Unknown error"))
         }
