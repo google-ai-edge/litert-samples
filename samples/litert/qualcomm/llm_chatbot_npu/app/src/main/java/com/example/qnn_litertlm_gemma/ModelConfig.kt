@@ -1,12 +1,13 @@
 package com.example.qnn_litertlm_gemma
 
 /**
- * Data class representing a LiteRT-LM model configuration
+ * Configuration metadata for a supported on-device LiteRT-LM model package.
  */
 data class ModelConfig(
     val id: String,
     val name: String,
     val filename: String,
+    val candidateFilenames: List<String> = listOf(filename),
     val systemPrompt: String? = null,
     val preferredBackend: String? = null,
     val supportsImage: Boolean = true,

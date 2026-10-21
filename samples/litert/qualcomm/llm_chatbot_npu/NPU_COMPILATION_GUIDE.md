@@ -1,37 +1,43 @@
-# NPU Compilation Guide (Gemma 4 E2B)
+# Qualcomm NPU Compilation Guide (`compile_npu.py`)
 
-To utilize the Snapdragon 8 Elite Hexagon NPU, you must Ahead-of-Time (AOT) compile the `gemma-4-E2B-it.litertlm` model using the Google Edge LiteRT toolchain.
+## `.litertlm` Bundles vs. Standalone `.tflite` Graphs
 
-> [!WARNING]
-> The `ai-edge-litert` compilation package is not currently available for native Windows Python. You must run this compilation step within **WSL (Windows Subsystem for Linux)**, a Linux VM, or a Google Colab notebook. 
-> 
-> **Highly Recommended**: Use the provided [LiteRT_Gemma4_NPU_AOT_Compilation.ipynb](file:///c:/Users/rawat/ModelGarden-QNN-LiteRT/google_colab/LiteRT_Gemma4_NPU_AOT_Compilation.ipynb) in Google Colab to avoid x86_64 emulation issues on ARM64 Windows.
+Understanding the distinction between LiteRT-LM bundles and standalone LiteRT FlatBuffer graphs avoids the common `Model provided has model identifier 'RTLM', should be 'TFL3'` error:
 
-## Prerequisites (in WSL/Linux)
-1. Python 3.10+ installed in your Linux environment.
-2. At least 32GB of RAM (AOT compiling a 2.58GB LLM requires significant memory to trace and generate the QNN context).
+| Format | Magic Bytes | Purpose | How NPU Execution Works |
+| :--- | :--- | :--- | :--- |
+| **`.litertlm`** | `RTLM` (`LITERTLM`) | Multi-component archive bundling prefill/decode subgraphs, vision/audio encoders, tokenizer, and prompt templates | Download ready-to-run SoC-compiled bundles (such as `gemma-4-E2B-it_qualcomm_sm8750.litertlm`) directly from Hugging Face [`litert-community`](https://huggingface.co/litert-community). |
+| **`.tflite`** | `TFL3` | Single FlatBuffer computation graph | Compile ahead-of-time on Linux (x86_64 / WSL2) using `compile_npu.py` (`ai_edge_litert.aot.aot_compile`) to embed the QNN HTP context payload. |
 
-## Step 1: Install Dependencies
-Open your WSL/Linux terminal and run:
+> [!IMPORTANT]
+> **Running this Android sample does NOT require running `compile_npu.py` first.**
+> Download the pre-compiled SM8750 `.litertlm` models directly from Hugging Face and push them with `./run.sh --model <file.litertlm>`:
+> - [`gemma-4-E2B-it_qualcomm_sm8750.litertlm`](https://huggingface.co/litert-community/gemma-4-E2B-it-litert-lm/blob/main/gemma-4-E2B-it_qualcomm_sm8750.litertlm)
+> - [`FastVLM-0.5B.qualcomm.sm8750.litertlm`](https://huggingface.co/litert-community/FastVLM-0.5B/blob/main/FastVLM-0.5B.qualcomm.sm8750.litertlm)
+
+---
+
+## Compiling Standalone `.tflite` Models with `compile_npu.py`
+
+If you have exported a standalone `.tflite` model (`TFL3`) and want to embed a pre-compiled Qualcomm Hexagon NPU context binary:
+
+### Prerequisites
+- Linux environment (`x86_64` Ubuntu 22.04+ or WSL2 on Windows)
+- Python 3.10+
+
+### 1. Install `ai-edge-litert`
 ```bash
 pip install ai-edge-litert
 ```
 
-## Step 2: Run the Compilation Script
-I have created the `compile_npu.py` script for you in the project root. Copy it to your Linux environment along with your `gemma-4-E2B-it.litertlm` file.
-
-Run it:
+### 2. Run `compile_npu.py`
 ```bash
-python3 compile_npu.py
+python3 compile_npu.py \
+  --model_path path/to/model.tflite \
+  --soc_model SM8750 \
+  --output_dir compiled
 ```
 
-*Note: This process may take anywhere from 30 minutes to an hour depending on your CPU.*
-
-## Step 3: Deploy the Compiled Model
-The script will generate an NPU-ready model (containing the `TF_LITE_AUX` payload). Push this new model to your Android device using the exact same ADB command we used previously:
-
-```bash
-adb push gemma-4-E2B-it.litertlm /sdcard/Android/data/com.example.qnn_litertlm_gemma/files/gemma-4-E2B-it.litertlm
-```
-
-Once pushed, the Android app will automatically detect the NPU payload and initialize the QNN Delegate instead of falling back to the GPU!
+Optional flags:
+- `--soc_model`: Target Qualcomm SoC (default: `SM8750`; also supports `SM8650`, `SM8550`, `SM8475`, etc.).
+- `--qairt_root`: Optional path to a custom local QAIRT SDK root (defaults to `$QAIRT_ROOT` if set, otherwise uses `ai-edge-litert`'s bundled toolchain automatically).

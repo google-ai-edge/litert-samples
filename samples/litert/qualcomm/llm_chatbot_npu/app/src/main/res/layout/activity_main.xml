@@ -27,7 +27,7 @@
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
                 android:spinnerMode="dropdown"
-                android:contentDescription="Model"
+                android:contentDescription="Model selector"
                 android:minHeight="36dp"
                 android:paddingStart="0dp"
                 android:paddingEnd="8dp"
@@ -47,7 +47,20 @@
                 android:paddingEnd="8dp"
                 android:paddingTop="2dp"
                 android:paddingBottom="2dp"
-                android:layout_marginStart="8dp"
+                android:layout_marginEnd="6dp"
+                app:layout_constraintEnd_toStartOf="@id/button_reset_chat"
+                app:layout_constraintBottom_toBottomOf="@id/spinner_model"
+                app:layout_constraintTop_toTopOf="@id/spinner_model" />
+
+            <ImageButton
+                android:id="@+id/button_reset_chat"
+                android:layout_width="36dp"
+                android:layout_height="36dp"
+                android:background="?attr/selectableItemBackgroundBorderless"
+                android:contentDescription="Reset conversation"
+                android:padding="6dp"
+                android:src="@drawable/ic_refresh"
+                app:tint="@color/text_secondary"
                 app:layout_constraintEnd_toEndOf="parent"
                 app:layout_constraintBottom_toBottomOf="@id/spinner_model"
                 app:layout_constraintTop_toTopOf="@id/spinner_model" />
@@ -77,32 +90,46 @@
         app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintTop_toBottomOf="@id/card_header" />
 
-    <!-- Loading Overlay -->
+    <!-- Loading / Setup Overlay -->
     <LinearLayout
         android:id="@+id/layout_loading"
-        android:layout_width="wrap_content"
+        android:layout_width="0dp"
         android:layout_height="wrap_content"
         android:orientation="vertical"
         android:gravity="center"
         android:visibility="gone"
-        android:padding="32dp"
+        android:padding="28dp"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintTop_toTopOf="parent"
+        app:layout_constraintTop_toBottomOf="@id/card_header"
         app:layout_constraintBottom_toBottomOf="parent">
-        
+
         <ProgressBar
             android:id="@+id/progress_loading"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content" />
+
         <TextView
             android:id="@+id/text_loading_status"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:layout_marginTop="8dp"
+            android:layout_marginTop="12dp"
             android:text="Initializing..."
             android:textAlignment="center"
-            android:textColor="@color/text_secondary"/>
+            android:lineSpacingExtra="2dp"
+            android:textColor="@color/text_secondary" />
+
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/button_retry_model"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="16dp"
+            android:text="Check Again"
+            android:textAllCaps="false"
+            android:visibility="gone"
+            app:cornerRadius="20dp"
+            app:backgroundTint="@color/brand_primary"
+            android:textColor="@color/text_on_brand" />
     </LinearLayout>
 
     <!-- Attachment Status -->
@@ -172,8 +199,8 @@
                 android:padding="12dp"
                 android:textColor="@color/text_primary"
                 android:textSize="16sp"
-                android:maxLines="4" 
-                android:inputType="textCapSentences|textMultiLine"/>
+                android:maxLines="4"
+                android:inputType="textCapSentences|textMultiLine" />
 
             <ImageButton
                 android:id="@+id/button_send"
