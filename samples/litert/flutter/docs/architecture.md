@@ -6,8 +6,8 @@ through an agent skill) and speaks it from the first finished sentence; with a c
 recording itself is the question. **Live camera** draws live detector boxes and answers spoken questions: simple ones
 from the detections, detailed ones by sending the frame to the chat model, and questions about the past from a visual
 memory of the session. Both share the chat model, speech, EmbeddingGemma 2, audio and diagnostics; with the chat model
-file on the device, the demos need no network (only the optional network camera, Download from URL and, on macOS and
-Linux, the calendar intent's Google Calendar page use one).
+file on the device, the demos need no network (only the optional network camera, Download from URL and, on macOS,
+Linux and Windows, the calendar intent's Google Calendar page use one).
 
 ## Layers
 
@@ -65,7 +65,7 @@ lib/selftest  the --selftest diagnostics (not part of the demos)
 
 | Role | Model | File(s) | Runtime package | Default backend | Source |
 |---|---|---|---|---|---|
-| Chat (both demos) | Gemma 4 E2B, or a Qualcomm NPU build of it | the chosen `.litertlm` | `flutter_edge_ai` + `flutter_edge_ai_litertlm` (LiteRT-LM) | NPU if the file (of an imported or downloaded file, its stored copy) is compiled for an NPU (`LiteRtLmBundleInfo.isCompiledForNpu`), else GPU; the user can change it, except for a build compiled for an NPU, which runs only there | chosen by the user |
+| Chat (both demos) | Gemma 4 E2B, or an NPU build of it (Qualcomm, Intel) | the chosen `.litertlm` | `flutter_edge_ai` + `flutter_edge_ai_litertlm` (LiteRT-LM) | NPU if the file (of an imported or downloaded file, its stored copy) is compiled for an NPU (`LiteRtLmBundleInfo.isCompiledForNpu`), else GPU; a build compiled for an NPU runs only there, any other file on the GPU or the CPU (the user's choice) | chosen by the user |
 | Speech to text (Voice chat) | Whisper base int8 (a multilingual model, run with language `en`), 30 s window | `assets/models/whisper_base_30s_i8.tflite` + tokenizer | `flutter_edge_ai_speech` | CPU | built in |
 | Speech to text (Live camera) | moonshine tiny, 5 s window | `assets/models/moonshine_tiny_5s_f32.tflite` + tokenizer | `flutter_edge_ai_speech` | CPU | built in |
 | Text to speech | Inflect-nano-v2 (24 kHz) with Matcha's G2P | `assets/models/inflect/` (6 files) | `flutter_edge_ai_speech` | CPU | built in |
@@ -93,7 +93,8 @@ the detector with `tool/prune_yolo26n_head.py`.
   with no tower (none is known), and read again by a recheck or an apply of the same file. A saved file that cannot be
   opened or is incomplete at launch blocks the slot. A missing or changed file blocks the slot with the reason; no
   other model takes its place. With nothing
-  chosen, `GEMMA_MODEL_PATH` fills the slot. One LiteRT-LM engine per process: `ChatModelSwitcher` serializes reloads,
+  chosen, `GEMMA_MODEL_PATH` fills the slot, with Gemma 4 E2B's settings, or for a file compiled for an NPU with the
+  app's first-file defaults for it (`namedChatModelFor`; the self-test's `--gemma` reads its file the same way). One LiteRT-LM engine per process: `ChatModelSwitcher` serializes reloads,
   unloads and the in-app self-test.
 - **Candidate and Apply.** A picked file (models folder, Path…, import, download) is only a `ChatModelCandidate`, held
   in memory: the Models screen's card shows its settings and the towers its own file has, and nothing is saved. Apply
@@ -220,9 +221,16 @@ record (PCM16 16 kHz mono) -> push-to-talk capture -> energy gate -> VoiceSessio
    guard starts the chat over before the context overflows (a recording counts 25 tokens per second), and before
    `InferenceChat`'s own trim would fire (`kContextHeadroomTokens`). The repository keeps a text mirror of the
    conversation (`HistoryMirror`: the question — "[voice question]" for an audio turn until its transcript arrives —
-   and the reply). A chat that must be rebuilt replays the mirror's newest turns as text: after a stop while an audio
-   turn is in it (`clearHistory(replayHistory:)`, instead of flutter_edge_ai_litertlm's own rebuild after a stop,
-   which replays the text only, so an audio question would have no words) and after an interrupted skill call every
+   and the reply). After a stop flutter_edge_ai_litertlm rewinds the conversation in place on the GPU and the CPU:
+   the stopped turn's image, recording and partial reply stay, so the app does not send the image again (only after
+   a stopped turn that began during the plugin's recovery from an earlier stop and produced nothing, which may never
+   have reached the model). When a rewind fails or the stopped turn does not wind down, the plugin rebuilds the
+   conversation from text instead and only logs it, so the app cannot tell that the earlier images and recordings
+   are gone. LiteRT-LM's token count holds a rewound stopped exchange twice, so after a stop the budget guard errs
+   high (both reported upstream). On the NPU the plugin always rebuilds the conversation from text only.
+   A chat that must be rebuilt replays the mirror's newest turns as text: after a stop on the NPU while an audio
+   turn is in it (`clearHistory(replayHistory:)`, instead of the plugin's own rebuild, which replays the text only,
+   so an audio question would have no words) and after an interrupted skill call every
    turn that fits beside the next one, after a budget reset at most a quarter of the window. `InferenceChat`'s
    history (flutter_edge_ai) holds each turn's WAV (≤ ~960 KB per 30 s question) until the next rebuild or reset;
    the context budget bounds that to about six 30 s questions at 8192 tokens.
@@ -397,25 +405,44 @@ error the UI shows, with an explicit way out (Run on NPU / GPU / CPU, Run detect
   self-test): a load makes one attempt, on the requested backend. `LlmService.load`
   (`lib/data/services/llm/llm_service.dart`) makes no check of its own; a failure is a `ChatModelLoadException` whose
   message is the plugin's: a `LiteRtLmBundleException`'s message and problem (refused before any engine: an NPU build
-  asked for the GPU or the CPU, an incomplete file, an NPU this package has no dispatch for), or each
+  asked for the GPU or the CPU, a file read as compiled for none asked for the NPU, an incomplete file, an NPU this package has no
+  dispatch for), or each
   `BackendInitException` attempt with its `LiteRtLmEngineCreateException.nativeMessage` (LiteRT-LM's own words) or
   `NpuDispatchUnavailableException.message` (the NPU cannot be reached here). A file compiled for an NPU
-  (`isCompiledForNpu`) runs on no other backend (flutter_edge_ai_litertlm 1.14.0's README,
-  [Where a model runs](https://pub.dev/packages/flutter_edge_ai_litertlm/versions/1.14.0#where-a-model-runs)): its
-  load refuses the GPU and the CPU for it (`wrongBackend`). The card disables both, in the app's own words ("compiled
-  for the Qualcomm SM8750 NPU: runs only on the NPU"), and `ChatModelRepository.problemWith` refuses them, so Apply and Run on GPU /
-  CPU never unload the running model for a load the plugin would refuse. The card's NPU line names the SoC the OS
-  reports ("available (SoC QTI SM8750)") and the Towers block the NPU the file is compiled for ("Text model:
-  compiled for the Qualcomm SM8750 NPU"); neither says whether that pair runs: only the load tells. A refusal before
-  any engine (`LiteRtLmBundleException`) is a `ModelFailed` with `retryable: false` and its `bundleProblem`: no
-  Retry. For `wrongBackend` over a build compiled for an NPU, the card offers Run on NPU while the NPU is offered. For
+  (`isCompiledForNpu`) runs on no other backend, and a file read as compiled for none never on the NPU; a file whose
+  header the plugin cannot read keeps every backend, so the card offers it the NPU where this device offers one (flutter_edge_ai_litertlm
+  1.17.0's README,
+  [Where a model runs](https://pub.dev/packages/flutter_edge_ai_litertlm/versions/1.17.0#where-a-model-runs)): the
+  strict load refuses the GPU and the CPU for the first and the NPU for the second (`wrongBackend`). A file compiled
+  for an NPU vendor this build does not run on this ABI (`npuBuildRefusal` in
+  `lib/data/services/llm/npu_availability.dart`: Qualcomm runs on Android and Linux arm64, Intel on Windows x64, the
+  Google Tensor and MediaTek stacks are not in this build) runs on no backend here: the plugin refuses it
+  (`unsupportedNpu`, or no stack for it). The card disables them, in the app's own words ("compiled for the Qualcomm
+  SM8750 NPU: runs only on the NPU", "NPU: not for this file (not compiled for an NPU)", "NPU: not on this device"),
+  and `ChatModelRepository.problemWith` refuses them (`cannotRunHere` first, on every backend), so Apply and Run on
+  GPU / CPU / NPU never unload the running model for a refusal they predict (the plugin's, before any engine). A file an earlier app version
+  saved on a backend it cannot run on is loaded as saved: the plugin refuses it before any engine, and the card
+  offers the way out. The card's NPU line names the SoC the OS reports ("available (SoC QTI SM8750)") or, on
+  Windows, the NPU device and its driver ("available (Intel(R) AI Boost, driver 32.0.100.4778)"), and the Towers
+  block the NPU the file is compiled for ("Text model: compiled for the Qualcomm SM8750 NPU"); neither says whether
+  that pair runs (a build for the Lunar Lake NPU on a Panther Lake PC, one for another Snapdragon): only the load
+  tells. A refusal before any engine (`LiteRtLmBundleException`) is a `ModelFailed` with `retryable: false` and its
+  `bundleProblem`: no Retry. For `wrongBackend` over a build compiled for an NPU, the card offers Run on NPU while the NPU is offered. For
   a generic file, a `wrongBackend` refusal or a retryable engine failure offers Run on GPU / Run on CPU, whichever it is not on; the other refusals (an incomplete
   file, an NPU this package has no dispatch for) and a failure that is not retryable offer none.
-  `lib/data/services/llm/npu_availability.dart` mirrors flutter_edge_ai_litertlm 1.14.0's private NPU gate
-  (`hostShipsNpuDispatch` / `npuDispatchShipsFor` in `lib/src/ffi/backend_preference.dart`: on Android only when
-  `libcdsprpc.so` opens, on Linux arm64 when the Qualcomm probe passes) because the plugin has no public API for it;
-  it offers the NPU on the card, and Apply refuses an NPU it says is not there. The Android NPU stack is bundled only because `pubspec.yaml` sets `qualcomm_npu: true` for `flutter_edge_ai_litertlm` under
-  `hooks: user_defines`.
+  `lib/data/services/llm/npu_availability.dart` mirrors flutter_edge_ai_litertlm 1.17.0's private per-vendor NPU
+  gate (`chooseNpuVendor` / `npuStackOf` in `lib/src/ffi/npu_vendor_host.dart`, `npuUnreachable` in
+  `lib/src/ffi/backend_preference.dart`) for the stacks this app builds with, because the plugin has no public API
+  for it: Qualcomm on Android arm64 when `libcdsprpc.so` opens and on Linux arm64 when the Qualcomm probe passes
+  (bundled only because `pubspec.yaml` sets `qualcomm_npu: true` for `flutter_edge_ai_litertlm` under
+  `hooks: user_defines`; the Google Tensor and MediaTek stacks are opt-in and not enabled), and Intel on Windows x64
+  when `LiteRtDispatch.dll` is beside the executable. The plugin has no Windows device probe, so the app adds one:
+  the present compute accelerators as `Get-PnpDevice -Class ComputeAccelerator -PresentOnly` lists them (Windows
+  PowerShell, `-EncodedCommand`, JSON; its `Status` is the same in every display language), run once at launch as an
+  asynchronous process with a deadline. Until it answers the NPU is "being checked" (`NpuPending`) and not offered;
+  only a list without an Intel device (`PCI\VEN_8086`) makes it unavailable, and a list that could not be made
+  leaves it available with a note ("not checked: …; the load decides"). Every other ABI has no NPU stack. It offers
+  the NPU on the card, and Apply refuses an NPU it says is not there.
 - **Chat model towers.** The towers (vision, audio) are not settings, and the app never says where one will run:
   every tower the file has is loaded (`supportImage` / `supportAudio` from `LiteRtLmBundleInfo.visionEncoder` /
   `audioEncoder`, the applied file as the repository read it last: `ChatModelState.bundle`), with
@@ -424,7 +451,8 @@ error the UI shows, with an explicit way out (Run on NPU / GPU / CPU, Run detect
   file does not allow would be refused). After the load `InferenceModel.activeVisionBackend` / `activeAudioBackend`
   say where each went (`LlmInfo`, `ChatModelFacts.visionBackend` / `audioBackend`): the card's Towers block shows them
   for the loaded file, and before a load only which towers the file has (and, for a build compiled for an NPU, the
-  chip). `GEMMA_MODEL_PATH` keeps fixed towers (`kLlmConfig`: vision on, no audio).
+  chip). `GEMMA_MODEL_PATH` keeps fixed towers for a generic or unreadable file (`kLlmConfig`: vision on, no audio);
+  a file compiled for an NPU gets the app's defaults for it, its towers included.
 - **Detector:** the strict accelerator set and the load checks above. **Embedder:** requested on the CPU (the generic
   EmbeddingGemma 2 bundle runs only there; the per-SoC NPU bundles are not used), registered with
   `requireWeightCache: true` (`kStrictEmbeddingBackend`): a load that could write no weight cache at all fails with

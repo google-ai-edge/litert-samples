@@ -388,6 +388,77 @@ void main() {
       );
     });
 
+    test('Windows: camera_desktop has no denial code, so a camera that did '
+        'not start gives its reason and the desktop-apps switch', () {
+      // camera_desktop 2.0.0 windows/camera.cpp: an engine that failed to
+      // initialize (E_ACCESSDENIED with the privacy switch off) completes
+      // `initialize` with `initialization_failed`; an engine error event
+      // fails it with `disposed`. Both carry the system's (localized) text.
+      for (final (code, description) in [
+        ('initialization_failed', 'Engine init failed: Access is denied.'),
+        ('initialization_failed', 'Failed to create capture engine'),
+        ('disposed', 'Access is denied.'),
+      ]) {
+        final message = cameraFailure(
+          CameraException(code, description),
+          TargetPlatform.windows,
+        ).message;
+        expect(
+          message,
+          startsWith('The camera did not start ($description).'),
+          reason: code,
+        );
+        expect(
+          message,
+          contains(
+            'Settings > Privacy & security > Camera, turn on "Camera access" '
+            'and "Let desktop apps access your camera", then press Retry.',
+          ),
+        );
+        expect(message, contains('another app is using the camera'));
+        expect(message, isNot(contains('System Settings')));
+      }
+      // No description: the code stands in for it.
+      expect(
+        cameraFailure(
+          CameraException('initialization_failed', null),
+          TargetPlatform.windows,
+        ).message,
+        startsWith('The camera did not start (initialization_failed).'),
+      );
+      // A denial code (no Windows plugin sends one today) gets the definite
+      // text.
+      expect(
+        cameraFailure(
+          CameraException('permission_denied', null),
+          TargetPlatform.windows,
+        ).message,
+        'Camera access is off for desktop apps. Open Settings > Privacy & '
+        'security > Camera, turn on "Let desktop apps access your camera", '
+        'then press Retry.',
+      );
+      // The same codes elsewhere keep the plain form: on macOS and Linux
+      // camera_desktop reports a denial by its own code.
+      for (final platform in [TargetPlatform.macOS, TargetPlatform.linux]) {
+        expect(
+          cameraFailure(
+            CameraException('initialization_failed', 'no device'),
+            platform,
+          ).message,
+          'Camera error (initialization_failed): no device',
+          reason: platform.name,
+        );
+      }
+      // Other Windows codes keep their code and description.
+      expect(
+        cameraFailure(
+          CameraException('camera_not_found', 'No camera with id 3'),
+          TargetPlatform.windows,
+        ).message,
+        'Camera error (camera_not_found): No camera with id 3',
+      );
+    });
+
     test('other camera errors keep their code and description', () {
       final error = cameraFailure(
         CameraException('initialization_timeout', 'no frames received'),

@@ -627,17 +627,36 @@ class ChatModelViewModel extends ChangeNotifier {
   // ---- The NPU ----
 
   /// Whether the app's copy of flutter_edge_ai_litertlm's private NPU check
-  /// finds the NPU reachable here (the plugin is not asked).
+  /// finds the NPU reachable here (the plugin is not asked). Whether the
+  /// shown file may run there is [npuNotForFileReason].
   bool get npuOffered => _chatModels.npu is NpuAvailable;
 
   /// `available (SoC QTI SM8750)` or `unavailable: <reason>`.
   String get npuLine => describeNpu(_chatModels.npu);
 
-  /// Why the NPU option is disabled; null when it is offered.
+  /// Why this device offers no NPU; null when it does.
   String? get npuUnavailableReason => switch (_chatModels.npu) {
     NpuUnavailable(:final reason) => 'NPU unavailable: $reason.',
+    NpuPending() => 'NPU: still being checked.',
     NpuAvailable() => null,
   };
+
+  /// Why the NPU is not offered for the [shown] file; null when it is: a
+  /// file not compiled for an NPU, which the strict engine refuses on the
+  /// NPU, or one compiled for an NPU vendor this build does not run here
+  /// (`ChatModelRepository.cannotRunHere`: it runs on no backend here).
+  /// `ChatModelRepository.problemWith` refuses both. The counterpart of
+  /// [gpuCpuUnavailableReason].
+  String? get npuNotForFileReason =>
+      switch ((notForNpuReason(_bundle), _chatModels.cannotRunHere(_bundle))) {
+        (final reason?, _) => 'NPU: not for this file ($reason).',
+        (_, final why?) => 'NPU: not on this device (this file is $why).',
+        _ => null,
+      };
+
+  /// Why the NPU option is disabled ([npuNotForFileReason], else
+  /// [npuUnavailableReason]); null when it is offered.
+  String? get npuDisabledReason => npuNotForFileReason ?? npuUnavailableReason;
 
   /// Why the GPU and CPU options are disabled for the [shown] file; null
   /// when they are offered: a build compiled for an NPU
@@ -693,8 +712,9 @@ class ChatModelViewModel extends ChangeNotifier {
   ///   offered.
   /// - Any other refusal before an engine (`ModelFailed.bundleProblem`:
   ///   incomplete, unsupportedNpu): none, no backend changes it; for a
-  ///   generic file's `wrongBackend` (a text model that declares its
-  ///   backends) the other backends.
+  ///   generic file's `wrongBackend` (saved on the NPU by an earlier app
+  ///   version, or a text model that declares its backends) the other
+  ///   backends.
   /// - Any other failure: the other backends, except for a build compiled
   ///   for an NPU (it runs nowhere else) and for a failure no load can
   ///   help (a self-test that did not end).

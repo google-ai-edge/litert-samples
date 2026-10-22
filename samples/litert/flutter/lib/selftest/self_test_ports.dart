@@ -25,6 +25,8 @@ import '../config/model_catalog.dart';
 import '../data/services/detector/frame_message.dart';
 import '../data/services/frames/frame_source.dart' show FrameView;
 import '../domain/models/audio_devices.dart' show DeviceReady;
+import '../domain/models/chat_model.dart'
+    show LiteRtLmBundleInfo, notForNpuReason;
 import '../domain/models/chat_model_config.dart';
 import '../domain/models/detection.dart';
 import '../domain/models/detector_spec.dart' show kDetModelAsset;
@@ -80,30 +82,40 @@ final class const SelfTestChatModel({
   /// The file's SHA-256 when known (computed when it was stored or hashed in
   /// place; pinned for an adopted earlier Gemma 4 E2B download).
   final String? sha256,
+
+  /// What `readLiteRtLmBundleInfo` made of the file; null when it was not
+  /// read, or its header could not be (no backend is ruled out then).
+  final LiteRtLmBundleInfo? bundle,
 }) {
   /// [config] on [backend] instead (`--gemma-backend`); itself when null.
   /// The towers stay: they are the file's whatever the backend, and the
-  /// engine places them.
-  SelfTestChatModel withBackend(PreferredBackend? backend) =>
-      backend == null || backend == config.llm.backend
-      ? this
-      : SelfTestChatModel(
-          file: file,
-          settingsSource: '$settingsSource, backend from --gemma-backend',
-          sha256: sha256,
-          config: ChatModelConfig(
-            name: config.name,
-            modelType: config.modelType,
-            tools: config.tools,
-            llm: LlmConfig(
-              maxTokens: config.llm.maxTokens,
-              backend: backend,
-              maxNumImages: config.llm.maxNumImages,
-              supportImage: config.llm.supportImage,
-              supportAudio: config.llm.supportAudio,
+  /// engine places them. The NPU for a file read and compiled for none
+  /// ([notForNpuReason]) is refused here, before any load: no file, and the
+  /// reason in its place (the strict engine would refuse it as
+  /// `wrongBackend`).
+  SelfTestChatModel withBackend(PreferredBackend? backend) {
+    if (backend == null) return this;
+    final path = file.path;
+    final notForNpu = backend == PreferredBackend.npu && path != null
+        ? notForNpuReason(bundle)
+        : null;
+    if (notForNpu == null && backend == config.llm.backend) return this;
+    return SelfTestChatModel(
+      file: notForNpu == null
+          ? file
+          : ModelFileChoice(
+              source: file.source,
+              problem:
+                  '--gemma-backend=npu: $path is $notForNpu, so the strict '
+                  'engine refuses it on the NPU (wrongBackend). Leave out '
+                  '--gemma-backend, or pass gpu or cpu.',
             ),
-          ),
-        );
+      settingsSource: '$settingsSource, backend from --gemma-backend',
+      sha256: sha256,
+      bundle: bundle,
+      config: chatModelConfigOn(config, backend),
+    );
+  }
 
   /// `npu · ctx 1280 · towers vision+audio · tools off · type gemmaIt`: the
   /// towers that load (where each runs is the engine's choice, reported
@@ -116,6 +128,23 @@ final class const SelfTestChatModel({
     'type ${config.modelType.name}',
   ].join(' · ');
 }
+
+/// [config] on [backend]; everything else as it is.
+ChatModelConfig chatModelConfigOn(
+  ChatModelConfig config,
+  PreferredBackend backend,
+) => ChatModelConfig(
+  name: config.name,
+  modelType: config.modelType,
+  tools: config.tools,
+  llm: LlmConfig(
+    maxTokens: config.llm.maxTokens,
+    backend: backend,
+    maxNumImages: config.llm.maxNumImages,
+    supportImage: config.llm.supportImage,
+    supportAudio: config.llm.supportAudio,
+  ),
+);
 
 String _towersAsked(LlmConfig llm) {
   final towers = [

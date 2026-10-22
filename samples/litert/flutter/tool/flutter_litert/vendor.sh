@@ -17,10 +17,17 @@
 # flutter_litert-3.9.3.patch (pubspec.yaml points dependency_overrides there).
 # Run once per checkout, before `flutter pub get`.
 #
-# Why the patch: on Linux the app's LiteRT runtime is the libLiteRt.so of the
-# LiteRT-LM native bundle (flutter_edge_ai_litertlm; x86_64 + arm64, glibc
-# 2.35), whose model-loading ABI is newer than the one flutter_litert 3.9.3
-# assumes on desktop. Unpatched, YOLO26n crashes the process on Linux.
+# Why the patch: on Linux and Windows the app's LiteRT runtime is the one of
+# the LiteRT-LM native bundle (flutter_edge_ai_litertlm: libLiteRt.so for
+# x86_64 + arm64, glibc 2.35; libLiteRt.dll for Windows x64), whose
+# model-loading ABI is newer than the one flutter_litert 3.9.3 assumes on
+# desktop, and on Windows whose tensor layout structs are smaller than the
+# MSVC ones it assumes there. Unpatched, YOLO26n crashes the process on Linux.
+# The plugin's own Windows libLiteRt.dll (LiteRT 2.1.5) is left out of the
+# copy, so its loader cannot fall back to it.
+#
+# Windows: run it in Git Bash. The pub cache is $PUB_CACHE when set, else
+# ~/.pub-cache, else the Windows default %LOCALAPPDATA%\Pub\Cache.
 set -eu
 
 VERSION=3.9.3
@@ -44,14 +51,23 @@ DART="dart"
 command -v fvm >/dev/null 2>&1 && DART="fvm dart"
 (cd "$ROOT" && $DART pub cache add flutter_litert --version "$VERSION")
 
-PUB_CACHE_DIR=${PUB_CACHE:-$HOME/.pub-cache}
+if [ -n "${PUB_CACHE:-}" ]; then
+  PUB_CACHE_DIR=$PUB_CACHE
+elif [ ! -d "$HOME/.pub-cache" ] && [ -n "${LOCALAPPDATA:-}" ]; then
+  # Windows: dart's own default. Git Bash gives LOCALAPPDATA as C:\Users\...
+  PUB_CACHE_DIR=$(cygpath -u "$LOCALAPPDATA" 2>/dev/null || printf '%s' "$LOCALAPPDATA")/Pub/Cache
+else
+  PUB_CACHE_DIR=$HOME/.pub-cache
+fi
 SRC="$PUB_CACHE_DIR/hosted/pub.dev/flutter_litert-$VERSION"
 [ -d "$SRC" ] || { echo "error: $SRC not found after pub cache add" >&2; exit 1; }
 
 TMP="$DEST.tmp.$$"
 mkdir -p "$TMP"
-# example/ is not needed for a path dependency.
-(cd "$SRC" && tar cf - --exclude ./example .) | (cd "$TMP" && tar xf -)
+# example/ is not needed for a path dependency; the Windows LiteRT 2.1.5
+# runtime must not be found (see above).
+(cd "$SRC" && tar cf - --exclude ./example --exclude ./windows/libLiteRt.dll .) |
+  (cd "$TMP" && tar xf -)
 (cd "$TMP" && patch -p1 --forward --quiet < "$PATCH")
 printf '%s\n' "$WANT" > "$TMP/.vendored"
 

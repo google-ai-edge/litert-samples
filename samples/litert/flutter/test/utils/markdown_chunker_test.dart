@@ -102,7 +102,7 @@ void main() {
         'chunk': 3,
         // The front matter lists several URLs separated by " ; ", each
         // followed by the files it was read from in parentheses.
-        'source': 'https://pub.dev/packages/flutter_edge_ai_rag/versions/1.1.1',
+        'source': 'https://pub.dev/packages/flutter_edge_ai_rag/versions/1.1.2',
       });
       expect(meta['source'], isNot(contains(';')));
     });

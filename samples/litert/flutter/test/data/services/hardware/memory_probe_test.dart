@@ -12,6 +12,9 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import 'dart:ffi';
+
+import 'package:ffi/ffi.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:litert_edge_demos/data/services/hardware/macos_sysctl.dart';
 import 'package:litert_edge_demos/data/services/hardware/memory_probe.dart';
@@ -33,7 +36,8 @@ final class _Sysctl implements Sysctl {
 
 void main() {
   test('the physical RAM: MemTotal on Linux and Android, hw.memsize on '
-      'macOS and iOS, none elsewhere; null when unreadable', () {
+      'macOS and iOS, ullTotalPhys on Windows, none elsewhere; null when '
+      'unreadable', () {
     const meminfo =
         'MemTotal:        7654321 kB\nMemFree:  1000 kB\n'
         'MemAvailable:    3000000 kB\n';
@@ -49,16 +53,67 @@ void main() {
       24 << 30,
     );
     expect(MacMemoryProbe(sysctl: const _Sysctl({})).totalBytes(), isNull);
+    expect(
+      WindowsMemoryProbe(status: () => (total: 16 << 30, available: 9 << 30))
+          .totalBytes(),
+      16 << 30,
+    );
+    expect(WindowsMemoryProbe(status: () => null).totalBytes(), isNull);
     expect(const ProcessMemoryProbe().totalBytes(), isNull);
   });
 
+  test('Windows: available is ullAvailPhys, next to the process RSS; a '
+      'failed call is null, not zero', () {
+    final probe = WindowsMemoryProbe(
+      status: () => (total: 32 << 30, available: 21 << 30),
+    );
+    expect(probe.availableBytes(), 21 << 30);
+    final snapshot = probe.snapshot();
+    expect(snapshot.availableBytes, 21 << 30);
+    expect(snapshot.rssBytes, greaterThan(0));
+
+    final failed = WindowsMemoryProbe(status: () => null);
+    expect(failed.availableBytes(), isNull);
+    expect(failed.snapshot().availableBytes, isNull);
+    expect(failed.snapshot().rssBytes, greaterThan(0));
+  });
+
+  test('MEMORYSTATUSEX matches sysinfoapi.h: 64 bytes, ullTotalPhys at 8 '
+      'and ullAvailPhys at 16', () {
+    expect(sizeOf<MemoryStatusEx>(), 64);
+    final status = calloc<MemoryStatusEx>();
+    try {
+      status.ref
+        ..dwLength = 64
+        ..dwMemoryLoad = 37
+        ..ullTotalPhys = 0x0102030405060708
+        ..ullAvailPhys = 0x1112131415161718
+        ..ullAvailExtendedVirtual = 0x2122232425262728;
+      final words = status.cast<Uint32>();
+      expect(words[0], 64, reason: 'dwLength at 0');
+      expect(words[1], 37, reason: 'dwMemoryLoad at 4');
+      final quads = status.cast<Uint64>();
+      expect(quads[1], 0x0102030405060708, reason: 'ullTotalPhys at 8');
+      expect(quads[2], 0x1112131415161718, reason: 'ullAvailPhys at 16');
+      expect(
+        quads[7],
+        0x2122232425262728,
+        reason: 'ullAvailExtendedVirtual at 56',
+      );
+    } finally {
+      calloc.free(status);
+    }
+  });
+
   test('the probe per platform: iOS reads hw.memsize like macOS (its RAM '
-      'gates the visual memory there too); Windows and others RSS only', () {
+      'gates the visual memory there too), Windows GlobalMemoryStatusEx; '
+      'others RSS only', () {
     expect(memoryProbeFor(HostPlatform.linux), isA<LinuxMemoryProbe>());
     expect(memoryProbeFor(HostPlatform.android), isA<LinuxMemoryProbe>());
     expect(memoryProbeFor(HostPlatform.macos), isA<MacMemoryProbe>());
     expect(memoryProbeFor(HostPlatform.ios), isA<MacMemoryProbe>());
-    expect(memoryProbeFor(HostPlatform.windows), isA<ProcessMemoryProbe>());
+    // Choosing it loads nothing: kernel32 is looked up on the first read.
+    expect(memoryProbeFor(HostPlatform.windows), isA<WindowsMemoryProbe>());
     expect(memoryProbeFor(HostPlatform.other), isA<ProcessMemoryProbe>());
   });
 }

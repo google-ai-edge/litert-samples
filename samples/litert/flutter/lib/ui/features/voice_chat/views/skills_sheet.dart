@@ -155,6 +155,15 @@ class SkillsSheet extends StatelessWidget {
   }
 }
 
+/// How a skill folder gets into the skills folder on [platform].
+String skillsFolderHint(TargetPlatform platform) => switch (platform) {
+  TargetPlatform.android => 'adb push <skill-folder> to this folder.',
+  TargetPlatform.iOS => 'Files app › On My iPhone › this app › skills.',
+  TargetPlatform.macOS => 'Copy a skill folder here in Finder.',
+  TargetPlatform.windows => 'Copy a skill folder here in File Explorer.',
+  _ => 'Copy a skill folder here.',
+};
+
 class _Folder extends StatelessWidget {
   const _Folder({required this.catalog});
 
@@ -169,12 +178,7 @@ class _Folder extends StatelessWidget {
         style: TextStyle(color: theme.colorScheme.error),
       );
     }
-    final hint = switch (defaultTargetPlatform) {
-      TargetPlatform.android => 'adb push <skill-folder> to this folder.',
-      TargetPlatform.iOS => 'Files app › On My iPhone › this app › skills.',
-      TargetPlatform.macOS => 'Copy a skill folder here in Finder.',
-      _ => 'Copy a skill folder here.',
-    };
+    final hint = skillsFolderHint(defaultTargetPlatform);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       spacing: 2,

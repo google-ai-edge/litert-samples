@@ -87,10 +87,11 @@ final class GenerationMetricsBuilder {
   /// the conversation's LAST decode turn; that is this turn only when it ran
   /// to the end and produced text, so only then is its rate used (otherwise
   /// the chunk rate). The prefill is the input-token delta, unless
-  /// [rebuildPending] (flutter_edge_ai_litertlm rebuilt the native
-  /// conversation when this turn started) or the turn had [toolRounds] (the
-  /// delta then also holds tool calls and responses, so it says nothing about
-  /// the image).
+  /// [rebuildPending] (flutter_edge_ai_litertlm recovered the native
+  /// conversation from a stop when this turn started: a rewind prefills the
+  /// stopped turn again, a rebuild starts a new count) or the turn had
+  /// [toolRounds] (the delta then also holds tool calls and responses, so it
+  /// says nothing about the image).
   /// [chatTokens]: flutter_edge_ai's own count after the turn.
   GenerationMetrics finished({
     required bool stopped,

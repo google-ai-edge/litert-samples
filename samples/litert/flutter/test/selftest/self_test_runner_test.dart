@@ -35,6 +35,7 @@ import 'package:litert_edge_demos/utils/wav.dart';
 import '../fakes/fake_hardware.dart';
 import '../fakes/fake_llm_service.dart' show engineCreateFailure;
 import '../fakes/fake_self_test_adapters.dart';
+import '../support/fake_bundles.dart' show bundleInfo, kTestNpuTarget;
 
 /// [fakeSelfTestRunner] with the chat model as a file and a config (the
 /// user's own settings unless it is the app's Gemma 4 E2B).
@@ -522,6 +523,53 @@ void main() {
       formatSelfTest(report),
       contains('Gemma 4 E2B settings, backend from --gemma-backend'),
     );
+  });
+
+  test('--gemma-backend=npu for a file read and compiled for no NPU fails '
+      'step 4a with the reason, before any load', () async {
+    final gemma = FakeSelfTestGemma();
+    final report = await fakeSelfTestRunner(
+      options: const SelfTestOptions(gemmaBackend: PreferredBackend.npu),
+      detector: FakeSelfTestDetector(),
+      gemma: gemma,
+      chatModel: SelfTestChatModel(
+        file: kFakeSelfTestFile,
+        config: kDefineChatModel,
+        settingsSource: 'the app\'s Gemma 4 E2B settings',
+        bundle: bundleInfo(vision: true, audio: true),
+      ),
+      detectorFile: kFakeSelfTestFile,
+    ).run();
+
+    expect(gemma.loads, isEmpty, reason: 'refused before any load');
+    expect(report.steps[3].title, 'chat model load + warm-up (npu)');
+    expect(report.steps[3].status, StepStatus.fail);
+    expect(
+      report.steps[3].details.single,
+      '--gemma-backend=npu: ${kFakeSelfTestFile.path} is not compiled for an '
+      'NPU, so the strict engine refuses it on the NPU (wrongBackend). Leave '
+      'out --gemma-backend, or pass gpu or cpu.',
+    );
+    expect(_statuses(report)['4b'], StepStatus.skip);
+  });
+
+  test('--gemma-backend=npu for a build compiled for the NPU loads it on the '
+      'NPU', () async {
+    final gemma = FakeSelfTestGemma();
+    await fakeSelfTestRunner(
+      options: const SelfTestOptions(gemmaBackend: PreferredBackend.npu),
+      detector: FakeSelfTestDetector(),
+      gemma: gemma,
+      chatModel: SelfTestChatModel(
+        file: kFakeSelfTestFile,
+        config: kDefineChatModel,
+        settingsSource: 'the app\'s Gemma 4 E2B settings',
+        bundle: bundleInfo(npu: kTestNpuTarget),
+      ),
+      detectorFile: kFakeSelfTestFile,
+    ).run();
+
+    expect(gemma.loads.single, PreferredBackend.npu);
   });
 
   test('stop: the step in flight ends on its own, every later step is '

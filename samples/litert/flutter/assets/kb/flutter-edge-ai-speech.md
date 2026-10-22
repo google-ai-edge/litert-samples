@@ -1,6 +1,6 @@
 ---
 title: On-device speech with flutter_edge_ai_speech
-source: https://pub.dev/packages/flutter_edge_ai/versions/2.4.0 (skills/flutter-edge-ai-speech/SKILL.md, CHANGELOG.md, lib/src/api/flutter_edge_ai.dart) ; https://pub.dev/packages/flutter_edge_ai_speech/versions/0.5.7 (README.md, CHANGELOG.md, lib/src/voice/voice_session.dart, lib/src/voice/voice_event.dart, lib/src/voice/voice_responder.dart, lib/src/voice/clause_splitter.dart) ; https://github.com/DenisovAV/flutter_edge_ai/tree/d35c575ab91e078c47201131800cf33dd7630833/packages/flutter_edge_ai_speech
+source: https://pub.dev/packages/flutter_edge_ai/versions/2.5.1 (skills/flutter-edge-ai-speech/SKILL.md, CHANGELOG.md, lib/src/api/flutter_edge_ai.dart) ; https://pub.dev/packages/flutter_edge_ai_speech/versions/0.5.10 (README.md, CHANGELOG.md, lib/src/voice/voice_session.dart, lib/src/voice/voice_event.dart, lib/src/voice/voice_responder.dart, lib/src/voice/clause_splitter.dart) ; https://github.com/DenisovAV/flutter_edge_ai/tree/d35c575ab91e078c47201131800cf33dd7630833/packages/flutter_edge_ai_speech
 license: MIT
 ---
 
@@ -14,7 +14,7 @@ flutter_edge_ai_speech is on-device speech for flutter_edge_ai — STT, TTS, and
 
 STT works end-to-end for moonshine-tiny (raw-PCM seq2seq), Whisper and Parakeet (log-mel) via LiteRtSttBackend. TTS works end-to-end for Matcha, Qwen3-TTS and Inflect-Nano-v2 via LiteRtTtsBackend; kokoro and supertonic are follow-ons. Both backends are pure factories — the model is selected per install via SttModelType or TtsModelType, not by the backend.
 
-STT and TTS run through FFI on Android, iOS, macOS, Linux and Windows. Web is a stub: both throw UnsupportedError. Every flutter_edge_ai_litertlm release contains the fix for Windows STT and TTS, which older engine releases failed with CreateTensorBufferFromHostMemory status=3.
+STT and TTS run through FFI on Android, iOS, macOS, Linux and Windows. Web is a stub: both throw UnsupportedError. On macOS the app needs the same setup as every LiteRT-LM feature — Swift Package Manager off for the app and the post_install block in macos/Podfile — or STT and TTS fail to load; since flutter_edge_ai_litertlm 1.17.0 the error says so. Every flutter_edge_ai_litertlm release contains the fix for Windows STT and TTS, which older engine releases failed with CreateTensorBufferFromHostMemory status=3.
 
 ## Rules for using the speech package
 
@@ -100,7 +100,7 @@ Inflect-Nano-v2 is VITS-style: a text encoder emits latents and log-durations, a
 
 Install a TTS bundle once with FlutterEdgeAi.installTts().fromNetwork(<bundle URL>).ofType(TtsModelType.matcha).install(), then get the synthesizer with FlutterEdgeAi.getActiveTts(). synth.synthesize('Hello world.') returns a Uint8List of 16-bit PCM, and synth.sampleRate gives its rate — 22050 for Matcha. Close the synthesizer when done.
 
-Play synthesized audio at synth.sampleRate, because it differs per model; playing it at the wrong rate gives the wrong pitch. VoiceSession owns no microphone or player — the app captures PCM with package:record and plays the reply, for example with pcmToWav and package:just_audio.
+Play synthesized audio at synth.sampleRate, because it differs per model; playing it at the wrong rate gives the wrong pitch. VoiceSession owns no microphone or player — the app captures PCM with package:record and plays the reply, for example with package:just_audio after a PCM-to-WAV helper such as the example app's own AudioConverter.pcmToWav.
 
 ## Shipping a text-to-speech voice inside the app
 
@@ -130,9 +130,9 @@ VoiceSession.custom is the general constructor — any LLM behind a VoiceRespond
 
 ## Audio turns: runAudioTurn without speech-to-text
 
-Since flutter_edge_ai_speech 0.5.7, VoiceSession.runAudioTurn sends the recording itself to a model that hears audio — Gemma 4 E2B or E4B as `.litertlm`, on native platforms — and skips speech-to-text. It takes the same 16 kHz mono 16-bit PCM as runTurn and wraps it in a WAV header, because a `.litertlm` model decodes an audio file. Load the model with getActiveModel(supportAudio: true), which loads the audio encoder; createChat takes supportAudio from the model unless it is passed, and VoiceSession.fromChat wires the audio path for a chat whose supportAudio is true. On a chat without it, runAudioTurn throws StateError.
+Since flutter_edge_ai_speech 0.5.7, VoiceSession.runAudioTurn sends the recording itself to a model that hears audio — Gemma 4 E2B or E4B as `.litertlm`, on native platforms — and skips speech-to-text. It takes the same 16 kHz mono 16-bit PCM as runTurn and wraps it in a WAV header, because a `.litertlm` model decodes an audio file. Load the model with getActiveModel(supportAudio: true), which loads the audio encoder; createChat takes supportAudio from the model unless it is passed on native `.litertlm`, MediaPipe Android and iOS and flutter_edge_ai_llama models, while other engines default it to false, and VoiceSession.fromChat wires the audio path for a chat whose supportAudio is true. On a chat without it, runAudioTurn throws StateError.
 
-An audio turn emits the events of runTurn without the VoiceTranscriptEvent: the complete and interrupted events carry an empty transcript, and a recording under 2 bytes, a push-to-talk tap, completes without asking the model. Barge-in and the one-turn-in-flight rule are the same as in runTurn. One difference lies in the engine: after a barge-in a `.litertlm` chat rebuilds its conversation from the turns' text, so the model forgets what was said in earlier audio turns, while its own replies stay. With VoiceSession.custom the hook is VoiceResponder.respondToAudio: it receives that WAV and can pass it on as is, for example to AgentSession.ask(audioBytes:); without it, runAudioTurn throws StateError.
+An audio turn emits the events of runTurn without the VoiceTranscriptEvent: the complete and interrupted events carry an empty transcript, and a recording under 2 bytes, a push-to-talk tap, completes without asking the model. Barge-in and the one-turn-in-flight rule are the same as in runTurn. After a barge-in a `.litertlm` chat keeps what was said in earlier audio turns with flutter_edge_ai_litertlm 1.15.0 and later, which rewinds the conversation in place; with 1.14.0 and earlier, and on the NPU, it rebuilds its conversation from the turns' text, so the model forgets what was said in earlier audio turns, while its own replies stay. With VoiceSession.custom the hook is VoiceResponder.respondToAudio: it receives that WAV and can pass it on as is, for example to AgentSession.ask(audioBytes:); without it, runAudioTurn throws StateError.
 
 ## Streaming reply audio sentence by sentence
 

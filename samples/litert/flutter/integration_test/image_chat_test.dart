@@ -30,11 +30,14 @@
 //    is still in the live chat's context).
 // 4. Typed "Describe this photo in great detail." and, while it is spoken
 //    and Gemma still generates, the mic is pressed (barge-in): the reply is
-//    stopped, flutter_edge_ai_litertlm rebuilds the conversation from text
-//    only, and the voice follow-up "How many cats do you see?" must re-send
-//    the image: /two|2/, `[Conversation] image resent (lost: stop)` in the
-//    log.
-// Prints `IMG …` per turn, `WARMUP …`, `BARGE …` and a screenshot path.
+//    stopped, flutter_edge_ai_litertlm rewinds the conversation in place on
+//    the GPU (the photo stays in it), and the voice follow-up "How many cats
+//    do you see?" is answered without sending the image again: /two|2/, no
+//    "image resent" in the log, the plugin's rewind line once.
+// 5. Two more typed turns: the budget guard takes LiteRT-LM's count as it is,
+//    which holds the stopped exchange twice after the rewind (errs high).
+// Prints `IMG …` per turn, `WARMUP …`, `BARGE …`, `TOKENS …` and a
+// screenshot path.
 
 import 'dart:io';
 import 'dart:ui' as ui;
@@ -98,7 +101,9 @@ void main() {
   initIntegrationTest();
 
   testWidgets('image chat: answers about the photo, keeps it for follow-ups, '
-      're-sends it after a barge-in', (tester) async {
+      'and keeps it after a barge-in (the stopped turn is rewound in place)', (
+    tester,
+  ) async {
     if (kGemmaModelPath.isEmpty) {
       fail('Pass --dart-define=GEMMA_MODEL_PATH=<path to the .litertlm>');
     }
@@ -321,35 +326,54 @@ void main() {
       describe: () => describeChat(vm),
     );
     expect(vm.phase, TurnPhase.idle, reason: describeChat(vm));
-    final followUser = vm.entries.lastWhere((e) => e.role == ChatRole.user);
     final followReply = vm.entries.last;
     final third = lastGen();
+    debugPrint(
+      'BARGE stopped reply="${vm.entries[entriesBefore].text.replaceAll('\n', ' ')}"',
+    );
     printTurn('after-barge-in', third, followReply.text);
-    expect(followUser.text.toLowerCase(), contains('cat'));
+    // In audio mode the question's words arrive after the reply's playback
+    // (the transcript job fills the bubble in place).
+    await pumpUntil(
+      tester,
+      () => vm.entries
+          .lastWhere((e) => e.role == ChatRole.user)
+          .text
+          .toLowerCase()
+          .contains('cat'),
+      timeout: const Duration(seconds: 30),
+      reason: 'the follow-up\'s transcript',
+      describe: () => describeChat(vm),
+    );
+    final followUser = vm.entries.lastWhere((e) => e.role == ChatRole.user);
     expect(followUser.image, same(attached.png));
     expect(followReply.role, ChatRole.assistant);
     expect(followReply.text, matches(_two), reason: describeChat(vm));
-    expect(third.imageSent, isTrue);
-    expect(third.imageResent, ImageLoss.stop);
-    expect(log, contains('[Conversation] image resent (lost: stop)'));
+    // The engine kept the photo through the stop: nothing is sent again.
+    expect(third.imageSent, isFalse);
+    expect(third.imageResent, isNull);
+    expect(log.where((l) => l.contains('image resent')), isEmpty);
+    const rewound =
+        '[FfiInferenceModel] rewound the conversation after a stopped turn';
+    expect(log.where((l) => l == rewound), hasLength(1));
     expect(deps.conversation.imageInContext, same(attached.png));
     expect(
       debugOverlayLines(deps.diagnostics.latest),
-      contains(startsWith('img resent (lost: stop)')),
+      isNot(contains(startsWith('img resent'))),
     );
     debugPrint(
       'BARGE silenced=${ms(barge.silenced)}ms drain=${ms(barge.interruptDone)}ms '
-      'transcript="${followUser.text}" '
-      'log="${log.firstWhere((l) => l.contains('image resent'))}"',
+      'transcript="${followUser.text}" rewound=${log.contains(rewound)}',
     );
     await tester.pump(const Duration(milliseconds: 400));
     debugPrint(
       'SCREENSHOT ${await saveScreenshot('image_chat_after_barge_in')}',
     );
 
-    // 5. Two more typed turns on the rebuilt conversation: the re-sent image
-    //    stays in context, and the budget guard's "used" must include the
-    //    history flutter_edge_ai_litertlm replayed after the stop.
+    // 5. Two more typed turns on the rewound conversation: the image stays in
+    //    context, and the budget guard's "used" is LiteRT-LM's count, which
+    //    then holds the stopped exchange twice (the rewind prefilled it
+    //    again): the guard errs high.
     final colour = await ask('What colour is the blanket?');
     final fourth = lastGen();
     printTurn('colour', fourth, colour.text);
@@ -372,10 +396,24 @@ void main() {
       'after_barge_in=${third.contextTokens} colour=${fourth.contextTokens} '
       'asleep=${fifth.contextTokens} | budget used per turn=$budgets',
     );
-    // The turn after the rebuild starts from what the rebuilt conversation
-    // reported, not from zero.
+    // The turn after the follow-up starts from what the conversation holds.
     expect(budgets[4], third.contextTokens);
     expect(budgets[4], greaterThan(second.contextTokens!));
+    // The stopped exchange (its question and the part of the description
+    // that was produced; no image) is in the count once before the follow-up
+    // (budgets[3]) and again after it: the follow-up added at least that much
+    // beside its own turn.
+    final stoppedExchange = budgets[3] - second.contextTokens!;
+    expect(stoppedExchange, inInclusiveRange(10, kImageTokenAllowance - 1));
+    expect(
+      third.contextTokens! - budgets[3],
+      greaterThan(stoppedExchange),
+      reason: 'LiteRT-LM counts a rewound exchange twice',
+    );
+    debugPrint(
+      'TOKENS rewind: stopped exchange $stoppedExchange, the follow-up added '
+      '${third.contextTokens! - budgets[3]}',
+    );
 
     // Memory after the turns (maxTokens sizes the KV cache).
     final mem = deps.diagnostics.latest;

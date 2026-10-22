@@ -26,8 +26,8 @@ const kAppVersion = '1.0.0+1';
 /// pubspec.lock (checked by test/config/build_info_test.dart: a `pub upgrade`
 /// fails that test until this map is updated).
 const kPackageVersions = {
-  'flutter_edge_ai': '2.4.0',
-  'flutter_edge_ai_litertlm': '1.14.0',
+  'flutter_edge_ai': '2.5.1',
+  'flutter_edge_ai_litertlm': '1.17.0',
   'flutter_litert': '3.9.3',
 };
 

@@ -33,6 +33,7 @@ import 'package:litert_edge_demos/domain/models/model_id.dart';
 import 'package:litert_edge_demos/domain/models/model_state.dart';
 import 'package:litert_edge_demos/utils/markdown_chunker.dart';
 import 'package:litert_edge_demos/utils/result.dart';
+import 'package:path/path.dart' as p;
 
 import '../../fakes/fake_knowledge.dart';
 import 'knowledge_repository_test.dart' show FixedDocuments, corpus;
@@ -74,6 +75,7 @@ class FileBackedStore extends FakeVectorStoreService {
           }
         }
       } on FormatException catch (e) {
+        heldPath = null;
         return Result.error(e);
       }
     }
@@ -151,6 +153,127 @@ class FileBackedStore extends FakeVectorStoreService {
     ]..sort((a, b) => b.similarity.compareTo(a.similarity));
     return Result.ok(hits.take(topK).toList());
   }
+}
+
+/// Windows' rule for the `kb.db*` files, run with
+/// [IOOverrides.runWithIOOverrides]: the database [store] holds open, and its
+/// SQLite side files, cannot be deleted or renamed over. Such a call throws
+/// the [PathAccessException] Windows gives (errno 5) and is recorded in
+/// [refused]; POSIX allows both. [failRenames] makes every rename fail
+/// anyway (another process holding the copy).
+final class WindowsFileRules extends IOOverrides {
+  WindowsFileRules(this.store);
+
+  final FakeVectorStoreService store;
+  final List<String> refused = [];
+  bool failRenames = false;
+
+  @override
+  File createFile(String path) {
+    final file = super.createFile(path);
+    return p.basename(path).startsWith('kb.db')
+        ? _WindowsFile(file, this)
+        : file;
+  }
+
+  bool _isHeld(String path) {
+    final held = store.heldPath;
+    if (held == null) return false;
+    return p.equals(path, held) ||
+        ['-wal', '-shm', '-journal'].any((suffix) => path == '$held$suffix');
+  }
+
+  void _check(String what, String path, String target, String message) {
+    if (!_isHeld(target)) return;
+    refused.add('$what while the store holds ${p.basename(store.heldPath!)}');
+    throw PathAccessException(
+      path,
+      const OSError('Access is denied', 5),
+      message,
+    );
+  }
+}
+
+/// A `kb.db*` file under [WindowsFileRules]: the calls the repository and
+/// [FileBackedStore] make, any other is a test error.
+class _WindowsFile implements File {
+  _WindowsFile(this._file, this._rules);
+
+  final File _file;
+  final WindowsFileRules _rules;
+
+  @override
+  String get path => _file.path;
+
+  @override
+  Future<bool> exists() => _file.exists();
+
+  @override
+  bool existsSync() => _file.existsSync();
+
+  @override
+  int lengthSync() => _file.lengthSync();
+
+  @override
+  String readAsStringSync({Encoding encoding = utf8}) =>
+      _file.readAsStringSync(encoding: encoding);
+
+  @override
+  void writeAsStringSync(
+    String contents, {
+    FileMode mode = FileMode.write,
+    Encoding encoding = utf8,
+    bool flush = false,
+  }) => _file.writeAsStringSync(
+    contents,
+    mode: mode,
+    encoding: encoding,
+    flush: flush,
+  );
+
+  @override
+  Future<File> writeAsBytes(
+    List<int> bytes, {
+    FileMode mode = FileMode.write,
+    bool flush = false,
+  }) async {
+    await _file.writeAsBytes(bytes, mode: mode, flush: flush);
+    return this;
+  }
+
+  @override
+  Future<FileSystemEntity> delete({bool recursive = false}) async {
+    _rules._check(
+      'delete ${p.basename(path)}',
+      path,
+      path,
+      'Cannot delete file',
+    );
+    return _file.delete(recursive: recursive);
+  }
+
+  @override
+  Future<File> rename(String newPath) async {
+    _rules._check(
+      'rename ${p.basename(path)} over ${p.basename(newPath)}',
+      path,
+      newPath,
+      "Cannot rename file to '$newPath'",
+    );
+    if (_rules.failRenames) {
+      throw FileSystemException(
+        "Cannot rename file to '$newPath'",
+        path,
+        const OSError('The file is being used by another process', 32),
+      );
+    }
+    return _file.rename(newPath);
+  }
+
+  @override
+  Never noSuchMethod(Invocation invocation) => throw UnsupportedError(
+    '_WindowsFile does not cover ${invocation.memberName}',
+  );
 }
 
 const _ready = ModelReady(
@@ -603,6 +726,124 @@ void main() {
       expect(ready.prebuiltSkipped, startsWith('it did not open'));
       expect(store.openedPaths, hasLength(4), reason: 'open, copy, reset x2');
       expect(store.rows, hasLength(3));
+    });
+  });
+
+  group('on Windows, where a file that is open cannot be deleted or renamed '
+      'over', () {
+    /// The app's `kb.db` from an earlier launch, without rows and without a
+    /// marker (so it is not reused); [journal] leaves a `kb.db-journal`
+    /// beside it.
+    String earlierDatabase({bool journal = false}) {
+      final app = Directory('${dir.path}/app')..createSync();
+      final path = p.join(app.path, 'kb.db');
+      File(path).writeAsStringSync('{}');
+      if (journal) File('$path-journal').writeAsStringSync('');
+      return path;
+    }
+
+    /// [build]'s repository, built and indexed under [rules] (the run
+    /// starts in its constructor).
+    Future<Result<KnowledgeReady>> indexUnder(
+      WindowsFileRules rules,
+      PrebuiltKbIndexSource prebuilt,
+    ) => IOOverrides.runWithIOOverrides(
+      () => build(
+        name: 'app',
+        store: rules.store,
+        prebuilt: prebuilt,
+      ).ensureIndexed(),
+      rules,
+    );
+
+    test('a matching prebuilt index replaces the kb.db the store had open: '
+        'the store lets go of it before the rename', () async {
+      final (:manifest, :db) = await buildPrebuilt();
+      final path = earlierDatabase();
+      final store = FileBackedStore(model);
+      final rules = WindowsFileRules(store);
+
+      final result = await indexUnder(
+        rules,
+        FakePrebuiltKbIndex(PrebuiltManifestFound(manifest), database: db),
+      );
+
+      expect(rules.refused, isEmpty);
+      final ready = (result as Ok<KnowledgeReady>).value;
+      expect(ready.origin, KnowledgeOrigin.prebuilt);
+      expect(ready.prebuiltSkipped, isNull);
+      expect(store.releaseCalls, 1);
+      expect(store.openedPaths, [path, path]);
+      expect(store.heldPath, path, reason: 'open on the copy');
+      expect(store.rows, hasLength(3));
+      expect(File(path).readAsBytesSync(), db);
+      expect(File('$path.prebuilt').existsSync(), isFalse);
+      expect(markerOf('app')['origin'], 'prebuilt');
+    });
+
+    test('a rename that fails anyway: the journal went after the release, '
+        'the store is reopened on the old kb.db and indexed on the '
+        'device', () async {
+      final (:manifest, :db) = await buildPrebuilt();
+      final path = earlierDatabase(journal: true);
+      final store = FileBackedStore(model);
+      final rules = WindowsFileRules(store)..failRenames = true;
+
+      final result = await indexUnder(
+        rules,
+        FakePrebuiltKbIndex(PrebuiltManifestFound(manifest), database: db),
+      );
+
+      expect(rules.refused, isEmpty);
+      final ready = (result as Ok<KnowledgeReady>).value;
+      expect(ready.origin, KnowledgeOrigin.device);
+      expect(
+        ready.prebuiltSkipped,
+        allOf(startsWith('copying it failed: '), contains('another process')),
+      );
+      expect(File('$path-journal').existsSync(), isFalse);
+      expect(File('$path.prebuilt').existsSync(), isFalse);
+      expect(store.openedPaths, [path, path], reason: 'open, then reopen');
+      expect(store.heldPath, path);
+      expect(store.clearCalls, 1);
+      expect(store.rows, hasLength(3));
+      expect(markerOf('app')['origin'], 'device');
+    });
+
+    test('a copy that does not open is deleted with no handle on it, the '
+        'store reopened empty, and indexed on the device', () async {
+      final (:manifest, db: _) = await buildPrebuilt();
+      final path = earlierDatabase();
+      final garbage = Uint8List.fromList(utf8.encode('not a database'));
+      final unreadable = PrebuiltKbManifest(
+        key: manifest.key,
+        profileId: manifest.profileId,
+        chunks: 3,
+        dbBytes: garbage.length,
+        dbSha256: sha256.convert(garbage).toString(),
+        store: manifest.store,
+        embedderBackend: manifest.embedderBackend,
+        builtOn: manifest.builtOn,
+        builtAt: manifest.builtAt,
+      );
+      final store = FileBackedStore(model);
+      final rules = WindowsFileRules(store);
+
+      final result = await indexUnder(
+        rules,
+        FakePrebuiltKbIndex(
+          PrebuiltManifestFound(unreadable),
+          database: garbage,
+        ),
+      );
+
+      expect(rules.refused, isEmpty);
+      final ready = (result as Ok<KnowledgeReady>).value;
+      expect(ready.origin, KnowledgeOrigin.device);
+      expect(ready.prebuiltSkipped, startsWith('it did not open'));
+      expect(store.openedPaths, hasLength(4), reason: 'open, copy, reset x2');
+      expect(store.rows, hasLength(3));
+      expect(File(path).readAsStringSync(), isNot(contains('not a database')));
     });
   });
 

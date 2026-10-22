@@ -29,9 +29,13 @@
 # gated files, and never printed.
 #
 # YOLO26n: Arm's original is downloaded, and tool/prune_yolo26n_head.py derives the raw-head file from
-# it in a Python venv with the `pip` line of the lock. Needs python3 3.10-3.14 with venv (Debian/Ubuntu:
-# python3-venv). ai-edge-litert has wheels for macOS arm64 and Linux x86_64/aarch64. The output must
-# match the lock byte for byte.
+# it in a Python venv with the `pip` line of the lock. Needs Python 3.10-3.14 with venv (Debian/Ubuntu:
+# python3-venv): $PYTHON when set, else the first of python3, python and the Windows launcher `py -3`
+# that runs (on Windows `python3` may be the Microsoft Store alias, which runs nothing). ai-edge-litert
+# 2.2.0 has wheels for macOS arm64, Linux x86_64/aarch64 and Windows x64 (CPython 3.10-3.14). The
+# output must match the lock byte for byte.
+#
+# Windows: run it in Git Bash (curl, sha256sum, sed and awk come with it).
 #
 # Work files (partial downloads, Arm's original, the venv) go to build/fetch_models/; set
 # FETCH_MODELS_CACHE to move them. Exit status: 0 every file verified, 1 a file is missing or failed,
@@ -154,6 +158,40 @@ download() {
   mv -f "$part" "$7"
 }
 
+# find_python: sets PY (and PY_ARG, `-3` for the Windows launcher) to the first interpreter of $PYTHON,
+# or of python3, python, py -3, that runs and is 3.10 or newer. Returns 1 when none does.
+find_python() {
+  PY=
+  PY_ARG=
+  if [ -n "${PYTHON:-}" ]; then
+    set -- "$PYTHON"
+  else
+    set -- python3 python py
+  fi
+  for candidate in "$@"; do
+    arg=
+    [ "$candidate" = py ] && [ -z "${PYTHON:-}" ] && arg=-3
+    command -v "$candidate" >/dev/null 2>&1 || continue
+    if "$candidate" ${arg:+"$arg"} -c 'import sys; sys.exit(0 if sys.version_info >= (3, 10) else 1)' \
+      </dev/null >/dev/null 2>&1; then
+      PY=$candidate
+      PY_ARG=$arg
+      return 0
+    fi
+  done
+  return 1
+}
+
+# venv_python <venv>: prints the venv's interpreter, bin/python (macOS, Linux) or Scripts/python.exe
+# (Windows); nothing when it has neither.
+venv_python() {
+  if [ -x "$1/bin/python" ]; then
+    printf '%s\n' "$1/bin/python"
+  elif [ -f "$1/Scripts/python.exe" ]; then
+    printf '%s\n' "$1/Scripts/python.exe"
+  fi
+}
+
 # derive_yolo <dest> <size> <sha256> <repo> <revision> <path> <source size> <source sha256>
 derive_yolo() {
   src="$CACHE/yolo26n/$6"
@@ -161,38 +199,44 @@ derive_yolo() {
     download "$4" "$5" "$6" public "$7" "$8" "$src" || return 1
   fi
   venv="$CACHE/venv"
+  vpy=$(venv_python "$venv")
   # A venv whose setup failed at ensurepip (Debian/Ubuntu without python3-venv) still has
   # bin/python, but no pip: it is made again (--clear empties that directory only).
   clear=
-  if [ -x "$venv/bin/python" ] &&
-    ! "$venv/bin/python" -m pip --version </dev/null >/dev/null 2>&1; then
+  if [ -n "$vpy" ] && ! "$vpy" -m pip --version </dev/null >/dev/null 2>&1; then
     echo "  $venv has no pip (an earlier setup failed): making it again"
     clear=--clear
   fi
-  if [ ! -x "$venv/bin/python" ] || [ -n "$clear" ]; then
-    python=${PYTHON:-python3}
-    if ! command -v "$python" >/dev/null 2>&1; then
-      REASON="python3 not found (needed to derive YOLO26n with tool/prune_yolo26n_head.py)"
+  if [ -z "$vpy" ] || [ -n "$clear" ]; then
+    if ! find_python; then
+      REASON="no Python 3.10 or newer found (${PYTHON:-python3, python, py -3}; needed to derive YOLO26n"
+      REASON="$REASON with tool/prune_yolo26n_head.py)"
       return 1
     fi
-    if ! "$python" -m venv ${clear:+"$clear"} "$venv" </dev/null; then
-      REASON="$python -m venv failed (Debian/Ubuntu: apt install python3-venv)"
+    if ! "$PY" ${PY_ARG:+"$PY_ARG"} -m venv ${clear:+"$clear"} "$venv" </dev/null; then
+      REASON="$PY${PY_ARG:+ $PY_ARG} -m venv failed (Debian/Ubuntu: apt install python3-venv)"
+      return 1
+    fi
+    vpy=$(venv_python "$venv")
+    if [ -z "$vpy" ]; then
+      REASON="$PY${PY_ARG:+ $PY_ARG} -m venv made no bin/python or Scripts/python.exe in $venv"
       return 1
     fi
   fi
   if [ "$(cat "$venv/.requirements" 2>/dev/null || true)" != "$PIP" ]; then
     echo "  installing $PIP into $venv"
     # shellcheck disable=SC2086 # PIP is a list of requirements
-    if ! "$venv/bin/python" -m pip install --disable-pip-version-check --quiet --only-binary=:all: \
+    if ! "$vpy" -m pip install --disable-pip-version-check --quiet --only-binary=:all: \
       $PIP </dev/null; then
-      REASON="pip install $PIP failed (wheels: macOS arm64, Linux x86_64/aarch64; Python 3.10-3.14)"
+      REASON="pip install $PIP failed (wheels: macOS arm64, Linux x86_64/aarch64, Windows x64; Python"
+      REASON="$REASON 3.10-3.14)"
       return 1
     fi
     printf '%s\n' "$PIP" >"$venv/.requirements"
   fi
   out="$CACHE/yolo26n/$(basename "$1").part"
   rm -f "$out"
-  if ! "$venv/bin/python" -I "$ROOT/tool/prune_yolo26n_head.py" "$src" "$out" \
+  if ! "$vpy" -I "$ROOT/tool/prune_yolo26n_head.py" "$src" "$out" \
     </dev/null >"$CACHE/yolo26n/prune.log" 2>&1; then
     REASON="tool/prune_yolo26n_head.py failed: see $CACHE/yolo26n/prune.log"
     return 1

@@ -141,6 +141,16 @@ void main() {
     expect(npuOnlyReason(null), isNull);
   });
 
+  test('notForNpuReason: the counterpart, for a file read and compiled for '
+      'no NPU; null for an NPU build and for a header not read', () {
+    expect(
+      notForNpuReason(bundleInfo(vision: true, audio: true)),
+      'not compiled for an NPU',
+    );
+    expect(notForNpuReason(bundleInfo(npu: kTestNpuTarget)), isNull);
+    expect(notForNpuReason(null), isNull);
+  });
+
   test('the model type a file name announces', () {
     expect(modelTypeFromFileName('gemma-4-E2B-it.litertlm'), ModelType.gemma4);
     expect(

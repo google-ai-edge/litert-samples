@@ -1,0 +1,31 @@
+{
+    "cpu":  [
+                {
+                    "Name":  "Intel(R) Core(TM) Ultra 7 258V",
+                    "NumberOfCores":  8,
+                    "NumberOfLogicalProcessors":  8
+                }
+            ],
+    "gpus":  [
+                 {
+                     "Name":  "Intel(R) Arc(TM) 140V GPU (16GB)",
+                     "DriverVersion":  "32.0.101.8826",
+                     "AdapterCompatibility":  "Intel Corporation",
+                     "VideoProcessor":  "Intel(R) Arc(TM) 140V GPU (16GB) Family"
+                 }
+             ],
+    "os":  {
+               "Caption":  "Microsoft Windows 11 Pro",
+               "Version":  "10.0.26200",
+               "BuildNumber":  "26200",
+               "OSArchitecture":  "64-bit"
+           },
+    "ram":  33905037312,
+    "npu":  [
+                {
+                    "FriendlyName":  "Intel(R) AI Boost",
+                    "Status":  "OK",
+                    "InstanceId":  "PCI\\VEN_8086\u0026DEV_643E\u0026SUBSYS_72708086\u0026REV_04\\3\u002611583659\u00260\u002658"
+                }
+            ]
+}

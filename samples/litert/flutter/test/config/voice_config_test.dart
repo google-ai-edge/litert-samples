@@ -33,5 +33,16 @@ void main() {
     expect(android, isNot(contains('Privacy & Security')));
     expect(android, contains('Settings › Apps › LiteRT Demos'));
     expect(android, contains('Permissions › Microphone'));
+    // Windows 11: the switch for unpackaged (desktop) apps.
+    final windows = micAccessMessage(TargetPlatform.windows);
+    expect(
+      windows,
+      contains(
+        'Settings › Privacy & security › Microphone › Let desktop apps '
+        'access your microphone',
+      ),
+    );
+    expect(windows, isNot(contains('System Settings')));
+    expect(windows, isNot(contains('pavucontrol')));
   });
 }

@@ -1,10 +1,10 @@
 # LiteRT Demos (Flutter)
 
-One Flutter app with two on-device AI demos for Android, iOS, macOS and Linux. Everything runs on the device: a chat
-model through LiteRT-LM (Gemma 4 E2B on the GPU, CPU or a Qualcomm NPU), speech in and out, EmbeddingGemma 2 for a
+One Flutter app with two on-device AI demos for Android, iOS, macOS, Linux and Windows. Everything runs on the device:
+a chat model through LiteRT-LM (Gemma 4 E2B on the GPU, CPU or a Qualcomm or Intel NPU), speech in and out, EmbeddingGemma 2 for a
 local knowledge base and the camera's visual memory, and a LiteRT object detector. Once the chat model is on the
-device, the demos need no network (only the optional network camera, **Download from URL** and, on macOS and Linux,
-the calendar intent's Google Calendar page use one).
+device, the demos need no network (only the optional network camera, **Download from URL** and, on the desktops, the
+calendar intent's Google Calendar page use one).
 
 | Home | Voice chat | Live camera |
 |---|---|---|
@@ -38,24 +38,27 @@ for the detector. Both are community packages, not Google SDKs. How the pieces f
 The chat model is the `.litertlm` file you choose: the app ships none. Every other model is built into the app. Where
 each one runs:
 
-| Role | Model and source | Android: Snapdragon with the NPU | Android: other | iOS | macOS | Linux: NVIDIA GPU (x86_64, Jetson Orin) | Linux: Raspberry Pi 5 | Linux: VENTUNO Q (QCS8275) |
-|---|---|---|---|---|---|---|---|---|
-| Chat (both demos) | the `.litertlm` you choose, such as Gemma 4 E2B from [litert-community/gemma-4-E2B-it-litert-lm](https://huggingface.co/litert-community/gemma-4-E2B-it-litert-lm) (Gemma 4: Apache-2.0); the files are [below](#chat-model-files) | NPU, with a build for that chip; or GPU | GPU | GPU | GPU | GPU | CPU | NPU, with the `qcs8275` build; or GPU |
-| Chat: vision and audio towers | in the chat model's file | CPU; NPU in builds whose towers are compiled for it | CPU | CPU | CPU | CPU | CPU | CPU |
-| Object detector (Live camera) | YOLO26n, raw head, derived from [Arm/yolo26n-fp16-litert](https://huggingface.co/Arm/yolo26n-fp16-litert) (Ultralytics YOLO26, AGPL-3.0) | GPU | GPU | GPU | GPU | GPU | GPU on Raspberry Pi OS Trixie, CPU on Bookworm ([guide](../../platforms/raspberry/README.md#5-run)) | GPU |
-| Embeddings (knowledge base, spoken questions, visual memory) | EmbeddingGemma 2 740m, text, audio and images, from [litert-community/embeddinggemma-2-740m-litert-lm](https://huggingface.co/litert-community/embeddinggemma-2-740m-litert-lm) (Apache-2.0) | CPU | CPU | CPU | CPU | CPU | CPU | CPU |
-| Speech to text (Voice chat) | Whisper base, int8, from [litert-community/whisper-base](https://huggingface.co/litert-community/whisper-base) (Apache-2.0) | CPU | CPU | CPU | CPU | CPU | CPU | CPU |
-| Speech to text (Live camera) | moonshine tiny, from [litert-community/moonshine-tiny](https://huggingface.co/litert-community/moonshine-tiny) (MIT) | CPU | CPU | CPU | CPU | CPU | CPU | CPU |
-| Text to speech | Inflect-nano-v2 (fp16) from [litert-community/Inflect-Nano-v2](https://huggingface.co/litert-community/Inflect-Nano-v2) (Apache-2.0), with Matcha's G2P from [litert-community/Matcha-TTS](https://huggingface.co/litert-community/Matcha-TTS) (G2P model and config MIT; `g2p_dict.txt.gz` BSD-3-Clause-Clear, from OpenPhonemizer) | CPU | CPU | CPU | CPU | CPU | CPU | CPU |
+| Role | Model and source | Android: Snapdragon with the NPU | Android: other | iOS | macOS | Linux: NVIDIA GPU (x86_64, Jetson Orin) | Linux: Raspberry Pi 5 | Linux: VENTUNO Q (QCS8275) | Windows: Intel Core Ultra |
+|---|---|---|---|---|---|---|---|---|---|
+| Chat (both demos) | the `.litertlm` you choose, such as Gemma 4 E2B from [litert-community/gemma-4-E2B-it-litert-lm](https://huggingface.co/litert-community/gemma-4-E2B-it-litert-lm) (Gemma 4: Apache-2.0); the files are [below](#chat-model-files) | NPU, with a build for that chip; or GPU | GPU | GPU | GPU | GPU | CPU | NPU, with the `QCS8275` build; or GPU | NPU, with the build for that processor; or GPU |
+| Chat: vision and audio towers | in the chat model's file | CPU; NPU in builds whose towers are compiled for it | CPU | CPU | CPU | CPU | CPU | NPU, with the `QCS8275` build; or CPU | CPU |
+| Object detector (Live camera) | YOLO26n, raw head, derived from [Arm/yolo26n-fp16-litert](https://huggingface.co/Arm/yolo26n-fp16-litert) (Ultralytics YOLO26, AGPL-3.0) | GPU | GPU | GPU | GPU | GPU | GPU on Raspberry Pi OS Trixie, CPU on Bookworm ([guide](../../platforms/raspberry/README.md#5-run)) | GPU | GPU |
+| Embeddings (knowledge base, spoken questions, visual memory) | EmbeddingGemma 2 740m, text, audio and images, from [litert-community/embeddinggemma-2-740m-litert-lm](https://huggingface.co/litert-community/embeddinggemma-2-740m-litert-lm) (Apache-2.0) | CPU | CPU | CPU | CPU | CPU | CPU | CPU | CPU |
+| Speech to text (Voice chat) | Whisper base, int8, from [litert-community/whisper-base](https://huggingface.co/litert-community/whisper-base) (Apache-2.0) | CPU | CPU | CPU | CPU | CPU | CPU | CPU | CPU |
+| Speech to text (Live camera) | moonshine tiny, from [litert-community/moonshine-tiny](https://huggingface.co/litert-community/moonshine-tiny) (MIT) | CPU | CPU | CPU | CPU | CPU | CPU | CPU | CPU |
+| Text to speech | Inflect-nano-v2 (fp16) from [litert-community/Inflect-Nano-v2](https://huggingface.co/litert-community/Inflect-Nano-v2) (Apache-2.0), with Matcha's G2P from [litert-community/Matcha-TTS](https://huggingface.co/litert-community/Matcha-TTS) (G2P model and config MIT; `g2p_dict.txt.gz` BSD-3-Clause-Clear, from OpenPhonemizer) | CPU | CPU | CPU | CPU | CPU | CPU | CPU | CPU |
 
 
-- **GPU** is Metal on iOS and macOS, and LiteRT's WebGPU accelerator on Vulkan on Linux.
+- **GPU** is Metal on iOS and macOS, and LiteRT's WebGPU accelerator on Vulkan on Linux and on DirectX 12 on Windows.
 - **Speech** (Whisper, moonshine, Inflect) is requested on the CPU; flutter_edge_ai_speech does not report where it
   ran.
-- **NPU** is Qualcomm's Hexagon NPU, through LiteRT's Qualcomm dispatch library and Qualcomm's QNN runtime, both
-  fetched at build time ([Set up](#set-up-once-per-checkout)). The app offers it on Android phones where Qualcomm's
-  FastRPC library (`libcdsprpc.so`) opens, and on Linux arm64 boards with a Qualcomm compute DSP
-  (`/dev/fastrpc-cdsp`); nowhere else. NPU builds are compiled per chip.
+- **NPU** is Qualcomm's Hexagon NPU on Android and Linux arm64, through LiteRT's Qualcomm dispatch library and
+  Qualcomm's QNN runtime, both fetched at build time ([Set up](#set-up-once-per-checkout)). The app offers it on
+  Android phones where Qualcomm's FastRPC library (`libcdsprpc.so`) opens, and on Linux arm64 boards with a Qualcomm
+  compute DSP (`/dev/fastrpc-cdsp`). On Windows x64 it is the NPU of an Intel Core Ultra processor, through LiteRT's
+  Intel dispatch library and OpenVINO, which the LiteRT-LM runtime for Windows carries beside the app; the app offers
+  it unless Windows lists no Intel NPU (when the listing itself fails, it offers it and the load decides). NPU builds are compiled per chip, and the app offers the NPU only for a file compiled
+  for an NPU its platform runs (Qualcomm on Android and Linux arm64, Intel on Windows).
 - **The CPU is a choice** for the detector in the Live camera settings, and for any chat model file not compiled for
   an NPU. A build compiled for an NPU runs only on the NPU (flutter_edge_ai_litertlm refuses it on the GPU and the
   CPU), so its card offers neither.
@@ -65,7 +68,9 @@ each one runs:
 | File | Source | Compiled for | Text | Vision and audio towers |
 |---|---|---|---|---|
 | `gemma-4-E2B-it.litertlm` (2.6 GB) | [litert-community/gemma-4-E2B-it-litert-lm](https://huggingface.co/litert-community/gemma-4-E2B-it-litert-lm) | no chip: any device | GPU or CPU | CPU |
-| Qualcomm NPU builds, compiled for one chip each: `…_qualcomm_sm8750.litertlm`, `…_qualcomm_qcs8275.litertlm` | the same repository | Snapdragon 8 Elite (SM8750) phones; QCS8275 boards such as the VENTUNO Q | NPU | CPU: their towers are not compiled for the NPU |
+| Qualcomm NPU build for phones: `gemma-4-E2B-it_qualcomm_sm8750.litertlm` | the same repository | Snapdragon 8 Elite (SM8750) phones | NPU | CPU: its towers are not compiled for the NPU |
+| Qualcomm NPU build for boards: `gemma-4-E2B-it_Qualcomm_QCS8275.litertlm` | the same repository | QCS8275 boards such as the VENTUNO Q | NPU | NPU |
+| Intel NPU builds, compiled for one processor family each: `…_intel_LNL.litertlm`, `…_intel_PTL.litertlm` | the same repository | Intel Core Ultra 200V (Lunar Lake); Core Ultra series 3 (Panther Lake) | NPU | CPU |
 | Gemma 4 E2B with the vision and audio towers compiled for the NPU too, one file per chip | provided by Google, not yet published | one chip each | NPU | NPU |
 
 The app does not choose where a tower runs: it loads every tower the file has and leaves the backend to
@@ -103,6 +108,7 @@ This README covers what every platform shares. Each guide has the device-specifi
 | Raspberry Pi 5 | [samples/platforms/raspberry](../../platforms/raspberry/README.md) |
 | NVIDIA Jetson Orin | [samples/platforms/nvidia](../../platforms/nvidia/README.md) |
 | Arduino VENTUNO Q (Qualcomm QCS8275), including the NPU | [samples/platforms/qualcomm/ventuno](../../platforms/qualcomm/ventuno/README.md) |
+| Windows PC with an Intel Core Ultra processor, including the NPU | [samples/platforms/intel](../../platforms/intel/README.md) |
 
 macOS (Apple silicon) and Linux desktops run from this folder directly ([Run](#run)).
 
@@ -115,6 +121,7 @@ macOS (Apple silicon) and Linux desktops run from this folder directly ([Run](#r
 | Disk | about 720 MB for the built-in models (plus a Python venv under `build/`), 2.6 GB for the chat model, the build output, and about 385 MB of embedder caches the app writes at its first launch (an embedder that could write no cache at all does not load, and says why: `requireWeightCache`) |
 | macOS | Xcode 26 and CocoaPods; Apple silicon, macOS 14 or newer |
 | Linux | x64 or arm64, Ubuntu 22.04+ / Debian 12+; a Vulkan GPU for GPU inference; the packages below |
+| Windows | Windows 11 x64; Visual Studio 2026 with **Desktop development with C++** (or its Build Tools with that workload and **C++ ATL**), NuGet, Git for Windows (its Git Bash runs the set-up scripts) and Developer Mode; a checkout near the drive's root, such as `C:\litert-samples` (deeper, the build's paths pass Windows' 260-character limit): see the [Intel guide](../../platforms/intel/README.md#1-prepare-the-pc) |
 | Android, iOS | see the platform guides |
 
 On Linux, install the build and runtime packages first:
@@ -137,8 +144,8 @@ tool/fetch_models.sh                 # the built-in models into assets/models/, 
 flutter pub get
 ```
 
-- **`vendor.sh`.** On Linux, `flutter_litert` must run on the same LiteRT library as LiteRT-LM (one LiteRT per
-  process). The patch makes it do that, and changes nothing on the other platforms. `pubspec.yaml` points
+- **`vendor.sh`.** On Linux and Windows, `flutter_litert` must run on the same LiteRT library as LiteRT-LM (one
+  LiteRT per process). The patch makes it do that, and changes nothing on the other platforms. `pubspec.yaml` points
   `dependency_overrides` at the patched copy, so `flutter pub get` fails until this has run.
 - **`fetch_models.sh`.** The models built into the app are not in git. [`tool/models.lock`](tool/models.lock) pins
   every file (repository, commit, path, size and SHA-256); the script resumes interrupted downloads, skips files it
@@ -153,7 +160,8 @@ flutter pub get
 - **The first build** of each platform downloads native prebuilts: the LiteRT-LM runtime and sqlite-vec, both built
   by the `flutter_edge_ai` project (GitHub releases), and, because `pubspec.yaml` sets `qualcomm_npu: true`,
   Qualcomm's QNN runtime for the NPU (Android: from Maven Central; Linux arm64: read out of Qualcomm's public QAIRT
-  SDK zip). Each is checked against pinned SHA-256 values; the QNN libraries are under Qualcomm's licence. Set
+  SDK zip); on Windows the LiteRT-LM runtime carries Intel's NPU dispatch and OpenVINO. Each is checked against pinned
+  SHA-256 values; the QNN libraries are under Qualcomm's licence. Set
   `qualcomm_npu: false` to build without them.
 
 ## The chat model
@@ -172,6 +180,7 @@ Start the app once, then put the file in its models folder and choose it on **Se
 | iOS | the app's Documents/models (visible in the Files app) |
 | macOS | the app's Documents/models (`~/Library/Containers/com.google.ai.edge.examples.litertEdgeDemos/Data/Documents/models`) |
 | Linux | `~/litert-demos/models` |
+| Windows | `%USERPROFILE%\litert-demos\models` |
 
 Tap the file, check its settings, then **Use this model** (**Apply and reload** once a model is chosen); a tapped
 file changes nothing until then. On Android and iOS, with no model chosen yet and a single file in the models folders,
@@ -221,8 +230,18 @@ flutter run -d <device-id> --release
   ```
 
   Then run `./run.sh` inside that folder.
+- **Windows:** `flutter run -d windows --release`. For the pre-flight launcher, which checks the Visual C++ runtime,
+  the GPU, the NPU, the microphone, speakers and camera and says what to fix, package a release build:
 
-Grant the camera and microphone when asked. The chat model's first GPU load is slower than later ones: LiteRT-LM
+  ```sh
+  flutter build windows --release
+  powershell -NoProfile -ExecutionPolicy Bypass -File tool/windows/package.ps1   # build\dist\…-windows-x64\ and a .zip
+  ```
+
+  Then run `run.cmd` inside that folder.
+
+Grant the camera and microphone when asked (on Windows, desktop apps are not asked: **Settings › Privacy & security ›
+Camera** and **Microphone** must allow desktop apps). The chat model's first GPU load is slower than later ones: LiteRT-LM
 compiles its GPU programs once and caches them.
 
 ## Using the demos
@@ -235,9 +254,9 @@ compiles its GPU programs once and caches them.
   package's built-in ones, named exactly; the Skills sheet lists a skill that names any other intent with its
   error. Of the built-ins, `get_current_date_and_time` works everywhere; `send_email` and `send_text` open the mail or SMS app, where one is
   installed, for you to send; `create_calendar_event` opens the calendar's new-event editor on Android and iOS and a
-  Google Calendar page in the browser on macOS and Linux; `read_calendar_events` always answers that it is not
-  available; `schedule_notification` does not work in this app (the package never sets up notifications, and the app
-  adds nothing for it).
+  Google Calendar page in the browser on macOS, Linux and Windows; `read_calendar_events` always answers that it is not
+  available; `schedule_notification` is off in this app: the agent package turns it on only for an app that sets up
+  notifications itself, which this app does not, so it answers that scheduling notifications is not enabled.
   Time and device questions that the app's rules recognize, typed or transcribed by Whisper (with a chat model
   without an audio tower), are answered by the app itself while a skill that runs those intents is installed (the
   bundled `current-time` and `device-info` do); delete it and the question goes to the chat model. A spoken question
@@ -284,9 +303,9 @@ validation set: "Cats and remote controllers" by DocChewbacca
 `--selftest` probes the hardware, runs the detector on a reference picture against golden detections, loads the chat
 model and times 64 tokens, runs the detector again to check it is unchanged, plays a tone and records one second,
 loads EmbeddingGemma 2 and compares a bundled spoken question with its words and a bundled photo (made into a
-memory frame) with a caption, then writes a report: device, OS, GPU (and on Linux its driver), where each model ran,
-speed and memory. On Linux run
-`./run.sh --selftest` (add `--skip-audio` without a microphone or speaker); everywhere, **Home › More › Models ›
+memory frame) with a caption, then writes a report: device, OS, GPU (and on Linux and Windows its driver), where each
+model ran, speed and memory. On Linux run `./run.sh --selftest`, on Windows `run.cmd --selftest` (add `--skip-audio`
+without a microphone or speaker); everywhere, **Home › More › Models ›
 Run self-test** does the same in the app. **This device › Copy diagnostics** copies the same facts to the clipboard.
 
 ## Configuration
@@ -308,7 +327,9 @@ Tunables (frame rate, voice gate, prompts, knowledge-base settings) are in `lib/
 
 [Models and accelerators](#models-and-accelerators) gives each model's source and licence. The NPU runtime, fetched
 at build time (`qualcomm_npu: true`), is Qualcomm's QNN runtime (HTP), under Qualcomm's licence (redistribution
-inside an app), with LiteRT's Qualcomm dispatch library (Apache-2.0).
+inside an app), with LiteRT's Qualcomm dispatch library (Apache-2.0). On Windows the LiteRT-LM runtime carries
+LiteRT's Intel dispatch library, Intel's OpenVINO redistributables (Intel OpenVINO Distribution License) and oneTBB
+(Apache-2.0); `tool/windows/package.ps1` puts their notices in the package's `licenses` folder.
 
 Every built-in model is fetched by `tool/fetch_models.sh`, none is in git; [assets/models/NOTICE.md](assets/models/NOTICE.md)
 and the in-app licence page (**Home › More › Licences**) list them with their sources.

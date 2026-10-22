@@ -13,8 +13,8 @@
 // limitations under the License.
 
 import 'dart:io';
-import 'dart:typed_data';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter_edge_ai/flutter_edge_ai.dart' hide ModelSpec;
 import 'package:flutter_edge_ai_agent/flutter_edge_ai_agent.dart'
     show Skill, parseSkillMd;
@@ -26,6 +26,7 @@ import 'package:litert_edge_demos/data/repositories/conversation_repository.dart
 import 'package:litert_edge_demos/data/services/llm/llm_service.dart';
 import 'package:litert_edge_demos/domain/models/assistant_event.dart';
 import 'package:litert_edge_demos/domain/models/chat_model_config.dart';
+import 'package:litert_edge_demos/domain/models/conversation_history.dart';
 import 'package:litert_edge_demos/utils/result.dart';
 
 import '../../../fakes/fake_tool_model.dart';
@@ -66,6 +67,38 @@ void main() {
     Ok() => 'ok',
     Error(:final error) => '$error',
   };
+
+  /// The sent turn ends: [stopped], [responded] (the model produced
+  /// something).
+  void settle({
+    required bool stopped,
+    required Uint8List? sentImage,
+    bool responded = true,
+  }) => live.settleTurn(
+    stopped: stopped,
+    sentImage: sentImage,
+    responded: responded,
+  );
+
+  /// The budget guard's "used" for a one-word turn on [chat].
+  Future<int> used(InferenceChat chat) async {
+    final log = <String>[];
+    final original = debugPrint;
+    debugPrint = (message, {wrapWidth}) => log.add(message ?? '');
+    try {
+      await live.checkBudget(
+        chat,
+        'Q',
+        kVoiceChatProfile,
+        null,
+        () => Duration.zero,
+      );
+    } finally {
+      debugPrint = original;
+    }
+    final line = log.firstWhere((l) => l.contains('budget used='));
+    return int.parse(RegExp(r'used=(\d+)').firstMatch(line)![1]!);
+  }
 
   test('nothing is open at first: a turn cannot start', () {
     expect(live.isOpen, isFalse);
@@ -124,32 +157,65 @@ void main() {
       expect(first.image, same(cats));
       expect(first.resent, isNull);
 
-      live.settleTurn(stopped: false, sentImage: cats);
+      settle(stopped: false, sentImage: cats);
 
       expect(live.imageInContext, same(cats));
       expect(live.prepareSend(chat, cats).image, isNull);
     });
 
-    test('a stopped turn loses the image and makes the next prefill '
-        'unmeasurable', () {
+    test('a stopped turn keeps the image (the GPU rewinds it in place) and '
+        'makes the next prefill unmeasurable', () {
       final chat = open().chat;
-      live.settleTurn(stopped: false, sentImage: cats);
+      settle(stopped: false, sentImage: cats);
 
-      live.settleTurn(stopped: true, sentImage: null);
+      settle(stopped: true, sentImage: null);
 
       final next = live.prepareSend(chat, cats);
-      expect(next.image, same(cats));
-      expect(next.resent, ImageLoss.stop);
+      expect(next.image, isNull, reason: 'the engine still holds it');
+      expect(next.resent, isNull);
       expect(next.rebuildPending, isTrue);
-      expect(live.imageInContext, isNull);
-      live.settleTurn(stopped: false, sentImage: cats);
+      expect(live.imageInContext, same(cats));
+      settle(stopped: false, sentImage: null);
       expect(live.prepareSend(chat, null).rebuildPending, isFalse);
+    });
+
+    test('a stop in the turn that sent the image keeps it', () {
+      final chat = open().chat;
+      live.prepareSend(chat, cats);
+
+      settle(stopped: true, sentImage: cats);
+
+      expect(live.imageInContext, same(cats));
+      expect(live.prepareSend(chat, cats).image, isNull);
+    });
+
+    test('a stopped turn that began right after another stop and produced '
+        'nothing loses the image it sent (the plugin may have skipped the '
+        'send); one that produced something keeps it, and one that sent none '
+        'keeps the image in context', () {
+      final chat = open().chat;
+      final dogs = Uint8List.fromList([4, 5, 6]);
+      settle(stopped: false, sentImage: cats);
+      settle(stopped: true, sentImage: null);
+
+      live.prepareSend(chat, null);
+      settle(stopped: true, sentImage: null, responded: false);
+      expect(live.imageInContext, same(cats), reason: 'nothing was sent');
+
+      expect(live.prepareSend(chat, dogs).image, same(dogs));
+      settle(stopped: true, sentImage: dogs, responded: false);
+      final again = live.prepareSend(chat, dogs);
+      expect(again.image, same(dogs));
+      expect(again.resent, ImageLoss.stop);
+
+      settle(stopped: true, sentImage: dogs);
+      expect(live.imageInContext, same(dogs), reason: 'it answered');
     });
 
     test('a failed turn loses the image; the prefill stays measurable unless '
         'a stop was requested', () async {
       final chat = open().chat;
-      live.settleTurn(stopped: false, sentImage: cats);
+      settle(stopped: false, sentImage: cats);
 
       live.failTurn(sentImage: null);
 
@@ -164,15 +230,81 @@ void main() {
       expect(live.prepareSend(chat, null).rebuildPending, isTrue);
     });
 
-    test('a cancelled turn counts as a stop', () {
+    test('a cancelled turn counts as a stop: the image stays, the next '
+        'prefill is unmeasurable', () {
       final chat = open().chat;
 
       live.cancelTurn(sentImage: cats);
 
       final next = live.prepareSend(chat, cats);
-      expect(next.resent, ImageLoss.stop);
+      expect(next.image, isNull);
+      expect(next.resent, isNull);
       expect(next.rebuildPending, isTrue);
     });
+
+    test('a stopped audio turn rebuilds nothing from the mirror: the engine '
+        'keeps its recording', () {
+      live.mirror.begin(user: kSpokenQuestionPlaceholder, audio: true);
+
+      settle(stopped: true, sentImage: null);
+
+      expect(live.mirrorRebuildDue, isFalse);
+    });
+
+    test(
+      'after a stop rewound in place the guard takes LiteRT-LM\'s count as '
+      'it is: it holds the stopped exchange twice, so the guard errs high',
+      () async {
+        final chat = open().chat;
+        void count(int input, int output) => model.lastSession
+          ..nativeInputTokens = input
+          ..nativeOutputTokens = output;
+        count(300, 10);
+        live.prepareSend(chat, null);
+        count(315, 22); // stopped after 12 tokens
+        settle(stopped: true, sentImage: null);
+        expect(await used(chat), 337);
+
+        // The next turn's send runs the rewind: its 27 are prefilled again.
+        live.prepareSend(chat, null);
+        count(315 + 27 + 1 + 6, 25);
+        settle(stopped: false, sentImage: null);
+
+        expect(await used(chat), 349 + 25, reason: 'the 27 count twice');
+      },
+    );
+
+    test(
+      'a rebuild from the mirror (a transcript for a replayed placeholder) '
+      'clears the pending recovery and loses the image (rebuild); a stopped '
+      'turn after it that produced nothing keeps the image it sent',
+      () async {
+        final chat = open().chat;
+        settle(stopped: false, sentImage: cats);
+        final slot = live.mirror.begin(
+          user: kSpokenQuestionPlaceholder,
+          turn: 7,
+          audio: true,
+        );
+        live.mirror
+          ..reply(slot, 'Paris.')
+          ..replayed(live.mirror.turns);
+        expect(live.mirror.setUser(7, 'Capital of France?'), isTrue);
+        settle(stopped: true, sentImage: null);
+        expect(live.mirrorRebuildDue, isTrue);
+
+        final plan = await live.planReplay(chat, (full: 2000, afterReset: 900));
+        expect(plan!.clear, isTrue);
+        await live.applyReplay(chat, plan);
+
+        expect(live.mirrorRebuildDue, isFalse);
+        final next = live.prepareSend(chat, cats);
+        expect(next.rebuildPending, isFalse);
+        expect(next.resent, ImageLoss.rebuild);
+        settle(stopped: true, sentImage: cats, responded: false);
+        expect(live.imageInContext, same(cats), reason: 'no stop was pending');
+      },
+    );
 
     test('the metrics before the turn are the live session\'s', () {
       final chat = open().chat;
@@ -182,12 +314,11 @@ void main() {
     });
 
     test('a budget recreate loses the image (budget) and clears the pending '
-        'rebuild', () async {
+        'recovery: a stopped turn on the fresh chat that produced nothing keeps '
+        'the image it sent', () async {
       final chat = open().chat;
-      live
-        ..settleTurn(stopped: false, sentImage: cats)
-        ..settleTurn(stopped: true, sentImage: null)
-        ..settleTurn(stopped: false, sentImage: cats);
+      settle(stopped: false, sentImage: cats);
+      settle(stopped: true, sentImage: null);
       final chats = model.chats.length;
 
       final fresh = await live.recreatePlain(kVoiceChatProfile);
@@ -197,16 +328,89 @@ void main() {
       final next = live.prepareSend(fresh, cats);
       expect(next.resent, ImageLoss.budget);
       expect(next.rebuildPending, isFalse);
+      settle(stopped: true, sentImage: cats, responded: false);
+      expect(live.imageInContext, same(cats));
     });
 
     test('a rebuild loses the image (reset)', () async {
-      live.settleTurn(stopped: false, sentImage: cats);
+      settle(stopped: false, sentImage: cats);
 
       await live.rebuild(kVoiceChatProfile, const []);
 
       expect(live.prepareSend(open().chat, cats).resent, ImageLoss.reset);
     });
   });
+
+  group(
+    'the native conversation on the NPU (rebuilt from text after a stop)',
+    () {
+      setUp(() async {
+        await live.close();
+        model = FakeToolModel(activeBackend: PreferredBackend.npu);
+        final llm = LlmService(loadModel: (_) async => model);
+        expect(await llm.load(kDefineChatModel), isA<Ok<LlmInfo>>());
+        live = LiveChat(
+          ChatFactory(
+            llm: llm,
+            sampler: kSampler,
+            executors: const [],
+            maxIterations: kAgentMaxIterations,
+            agentTools: kAgentTools,
+          ),
+          stopTimeout: const Duration(seconds: 1),
+        );
+        await live.rebuild(kVoiceChatProfile, const []);
+      });
+
+      test('a stopped turn loses the image and makes the next prefill '
+          'unmeasurable', () {
+        final chat = open().chat;
+        settle(stopped: false, sentImage: cats);
+
+        settle(stopped: true, sentImage: null);
+
+        final next = live.prepareSend(chat, cats);
+        expect(next.image, same(cats));
+        expect(next.resent, ImageLoss.stop);
+        expect(next.rebuildPending, isTrue);
+        expect(live.imageInContext, isNull);
+        settle(stopped: false, sentImage: cats);
+        expect(live.prepareSend(chat, null).rebuildPending, isFalse);
+      });
+
+      test('a stop in the turn that first sent the image loses it', () {
+        settle(stopped: true, sentImage: cats);
+
+        expect(live.prepareSend(open().chat, cats).resent, ImageLoss.stop);
+      });
+
+      test('a cancelled turn counts as a stop', () {
+        final chat = open().chat;
+
+        live.cancelTurn(sentImage: cats);
+
+        final next = live.prepareSend(chat, cats);
+        expect(next.resent, ImageLoss.stop);
+        expect(next.rebuildPending, isTrue);
+      });
+
+      test('a stopped audio turn makes the next turn rebuild from the '
+          'mirror, which clears the pending recovery', () async {
+        final chat = open().chat;
+        live.mirror.begin(user: kSpokenQuestionPlaceholder, audio: true);
+
+        settle(stopped: true, sentImage: null);
+
+        expect(live.mirrorRebuildDue, isTrue);
+        final plan = await live.planReplay(chat, (full: 2000, afterReset: 900));
+        expect(plan!.clear, isTrue);
+        expect(plan.why, ContextResetReason.rebuildAfterStop);
+        await live.applyReplay(chat, plan);
+        expect(live.mirrorRebuildDue, isFalse);
+        expect(live.prepareSend(chat, null).rebuildPending, isFalse);
+      });
+    },
+  );
 
   group('an agent chat', () {
     setUp(() => live.rebuild(kVoiceChatProfile, skills));

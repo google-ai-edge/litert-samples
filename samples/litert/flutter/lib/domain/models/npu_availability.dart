@@ -18,22 +18,43 @@
 /// it.
 sealed class const NpuAvailability();
 
-/// The NPU dispatch stack ships here and (Android) the device's Qualcomm
-/// FastRPC library opens. Necessary, not sufficient: whether a given file
-/// runs on this SoC only a load tells. [soc] is the SoC the OS names
-/// (Android `ro.soc.model`), when it names one.
-final class const NpuAvailable({final String? soc}) extends NpuAvailability;
+/// The check has not answered yet: on Windows its device check runs a
+/// process, which never runs on the UI isolate's path. The NPU is not
+/// offered until it answers.
+final class const NpuPending() extends NpuAvailability;
+
+/// This build carries an NPU stack for this device and the device answers:
+/// Qualcomm's FastRPC opens (Android, Linux arm64), or an Intel NPU is
+/// present and its dispatch is beside the executable (Windows x64).
+/// Necessary, not sufficient: whether a given file runs on this SoC only a
+/// load tells. [soc] is the SoC the OS names (Android `ro.soc.model`),
+/// [device] the NPU device it lists (Windows: `Intel(R) AI Boost, driver
+/// 32.0.100.4778`), [note] what could not be checked (the load decides).
+final class const NpuAvailable({
+  final String? soc,
+  final String? device,
+  final String? note,
+}) extends NpuAvailability;
 
 /// The app's copy of the plugin's check finds no reachable NPU here (an NPU
 /// load would fail with flutter_edge_ai_litertlm's
 /// `NpuDispatchUnavailableException`); [reason] is worded as the plugin's
-/// private check words it.
+/// private check words it, or as the app's own Windows device check does.
 final class const NpuUnavailable(final String reason, {final String? soc})
     extends NpuAvailability;
 
-/// `available (SoC SM8650)` or `unavailable: <reason>`.
+/// `available (SoC SM8650)`, `available (Intel(R) AI Boost, driver
+/// 32.0.100.4778)`, `being checked` or `unavailable: reason`.
 String describeNpu(NpuAvailability npu) => switch (npu) {
-  NpuAvailable(:final soc) => 'available${soc == null ? '' : ' (SoC $soc)'}',
+  NpuPending() => 'being checked',
+  NpuAvailable(:final soc, :final device, :final note) => switch ([
+    if (soc != null) 'SoC $soc',
+    ?device,
+    ?note,
+  ]) {
+    [] => 'available',
+    final named => 'available (${named.join('; ')})',
+  },
   NpuUnavailable(:final reason, :final soc) =>
     'unavailable: $reason${soc == null ? '' : ' (SoC $soc)'}',
 };

@@ -23,18 +23,20 @@ typedef MirrorSlot = ({int index, int generation});
 /// streamed. It holds text only: no image and no recording outlives the turn
 /// that sent it here.
 ///
-/// Why it exists: flutter_edge_ai_litertlm (its FFI session) rebuilds the
-/// native conversation from the turns' text after a stopped turn, and an
-/// audio turn has no text (its prompt carries at most the excerpts), so that
-/// rebuild would replay a question nobody can read. A chat that must be
-/// rebuilt — after a stop when an audio turn is in it, after a budget reset,
-/// after an interrupted skill call — is rebuilt from this mirror instead
-/// ([replayText]).
+/// Why it exists: on the NPU flutter_edge_ai_litertlm (its FFI session)
+/// rebuilds the native conversation from the turns' text after a stopped
+/// turn (on the GPU and the CPU it rewinds it in place, recordings kept), and
+/// an audio turn has no text (its prompt carries at most the excerpts), so
+/// that rebuild would replay a question nobody can read. A chat that must be
+/// rebuilt — after such a stop when an audio turn is in it, after a budget
+/// reset, after an interrupted skill call — is rebuilt from this mirror
+/// instead ([replayText]).
 final class HistoryMirror {
   final List<HistoryTurn> _turns = [];
 
   /// An audio turn reached the live native conversation since it was last
-  /// built or rebuilt: a stop now must be followed by a rebuild from here.
+  /// built or rebuilt: a stop on the NPU now must be followed by a rebuild
+  /// from here.
   bool audioInLive = false;
 
   /// The voice turns the live native conversation holds only as

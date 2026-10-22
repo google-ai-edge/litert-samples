@@ -221,7 +221,11 @@ Future<void> _runAgentTurn(
     // Without DoneEvent or MaxIterationsEvent the loop saw the cancel.
     final stopped = fold.stopped(stopRequested: live.stopRequested);
     // 4. Before the terminal event: the caller may ask again at once.
-    live.settleTurn(stopped: stopped, sentImage: imageToSend);
+    live.settleTurn(
+      stopped: stopped,
+      sentImage: imageToSend,
+      responded: fold.responded,
+    );
     // Core ends a run without a final call-free generation only at an
     // isCancelled poll, and every poll follows staged input (the prompt, a tool
     // response, or the `cancelled` answers it writes itself without an event),

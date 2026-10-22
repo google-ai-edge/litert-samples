@@ -3,14 +3,43 @@ tool/flutter_litert/vendor.sh into third_party/flutter_litert. flutter_litert, a
 a modification of it, stay under flutter_litert's own licence, the Apache License 2.0
 (third_party/flutter_litert/LICENSE after vendoring); this app's Apache-2.0 LICENSE at the
 repository root does not replace it. Changed files: lib/src/bindings/litert_ffi.dart,
-linux/CMakeLists.txt (why: see the comments the patch adds).
+linux/CMakeLists.txt, windows/CMakeLists.txt (why: see the comments the patch adds).
 
 --- a/lib/src/bindings/litert_ffi.dart
 +++ b/lib/src/bindings/litert_ffi.dart
-@@ -96,6 +96,18 @@
+@@ -50,12 +50,23 @@
+ /// ABI.
+ final class LiteRtRankedTensorType extends Opaque {}
+ 
+-/// ABI size of [LiteRtLayout] for the current platform.
+-final int kLiteRtLayoutByteSize = Platform.isWindows ? 72 : 68;
++/// ABI size of [LiteRtLayout] for the loaded runtime.
++final int kLiteRtLayoutByteSize = _msvcBoolBitfieldLayout ? 72 : 68;
+ 
+-/// ABI size of [LiteRtRankedTensorType] for the current platform.
+-final int kLiteRtRankedTensorTypeByteSize = Platform.isWindows ? 76 : 72;
++/// ABI size of [LiteRtRankedTensorType] for the loaded runtime.
++final int kLiteRtRankedTensorTypeByteSize = _msvcBoolBitfieldLayout ? 76 : 72;
+ 
++/// litert_edge_demos patch: MSVC's 72/76 only for the runtime this plugin
++/// bundles on Windows (LiteRT 2.1.5, `bool has_strides : 1`). On Windows the
++/// app runs on LiteRT-LM's libLiteRt.dll (flutter_edge_ai_litertlm's native
++/// assets, beside the executable), built from a LiteRT where `has_strides`
++/// is an `unsigned int` bit-field: MSVC packs it with `rank` as clang/gcc do,
++/// 68/72 on every compiler (dimensions at offset 4). That runtime has the
++/// newer model-loading ABI ([_hasEnvironmentModelAbi]), which tells the two
++/// apart; with the MSVC sizes every shape it reads or writes is 4 bytes off.
++final bool _msvcBoolBitfieldLayout =
++    Platform.isWindows && !_hasEnvironmentModelAbi(litertDynamicLibrary);
++
+ /// Byte offset of the layout field within [LiteRtRankedTensorType].
+ const int kLiteRtRankedTensorTypeLayoutOffset = 4;
+ 
+@@ -95,6 +106,18 @@
+ }
  
  typedef LiteRtOpaquePayloadDeleterNative = Void Function(Pointer<Void>);
- 
++
 +/// Whether [dylib] takes an environment as the first model-loading argument.
 +/// `LiteRtCreateModelFromFd` is absent from the 2.1.5 dylib and present in the
 +/// newer runtimes (LiteRT-LM's libLiteRt.so on Linux), so on desktop its
@@ -22,11 +51,10 @@ linux/CMakeLists.txt (why: see the comments the patch adds).
 +bool _hasEnvironmentModelAbi(DynamicLibrary dylib) =>
 +    Platform.isAndroid ||
 +    (!Platform.isIOS && dylib.providesSymbol('LiteRtCreateModelFromFd'));
-+
+ 
  int Function(Pointer<Void>, Pointer<Utf8>, Pointer<Pointer<Void>>)
  _bindCreateModelFromFile(DynamicLibrary dylib) {
-   // LiteRT 2.1.6 added an environment as the first model-loading argument but
-@@ -103,7 +115,12 @@
+@@ -103,7 +126,12 @@
    // pinned to 2.2.0; the currently bundled Apple/desktop runtimes retain the
    // legacy ABI. Present one environment-aware Dart signature to the caller and
    // adapt only at this binding boundary.
@@ -40,7 +68,7 @@ linux/CMakeLists.txt (why: see the comments the patch adds).
      return dylib.lookupFunction<
        Int32 Function(Pointer<Void>, Pointer<Utf8>, Pointer<Pointer<Void>>),
        int Function(Pointer<Void>, Pointer<Utf8>, Pointer<Pointer<Void>>)
-@@ -119,7 +136,7 @@
+@@ -119,7 +147,7 @@
  
  int Function(Pointer<Void>, Pointer<Void>, int, Pointer<Pointer<Void>>)
  _bindCreateModelFromBuffer(DynamicLibrary dylib) {
@@ -122,6 +150,102 @@ linux/CMakeLists.txt (why: see the comments the patch adds).
 -  "${CMAKE_CURRENT_SOURCE_DIR}/lib/libLiteRt.so"
 -  "${CMAKE_CURRENT_SOURCE_DIR}/lib/libLiteRtWebGpuAccelerator.so"
 -)
++# (flutter_litert), not by PROJECT_NAME (flutter_tflite). Set both.
++set(flutter_tflite_bundled_libraries ${flutter_litert_bundled_libraries})
+ 
+ set(flutter_tflite_bundled_libraries ${flutter_tflite_bundled_libraries} PARENT_SCOPE)
+ set(flutter_litert_bundled_libraries ${flutter_litert_bundled_libraries} PARENT_SCOPE)
+--- a/windows/CMakeLists.txt
++++ b/windows/CMakeLists.txt
+@@ -33,80 +33,22 @@
+ # Build the TFLite custom ops library (e.g., Convolution2DTransposeBias for MediaPipe)
+ add_subdirectory("${CMAKE_CURRENT_SOURCE_DIR}/../src" "${CMAKE_CURRENT_BINARY_DIR}/custom_ops")
+ 
+-set(FLUTTER_LITERT_TFLITE_DLL "${CMAKE_CURRENT_SOURCE_DIR}/libtensorflowlite_c-win.dll")
+-# LiteRT Next runtime (CompiledModel API), x86_64; from the official
+-# ai-edge-litert 2.1.5 PyPI wheel.
+-set(FLUTTER_LITERT_LITERT_DLL "${CMAKE_CURRENT_SOURCE_DIR}/libLiteRt.dll")
+-# WebGPU (Dawn/D3D12) GPU accelerator for the CompiledModel API; from the same
+-# ai-edge-litert 2.1.5 wheel. The runtime discovers it at startup by scanning
+-# the RuntimeLibraryDir environment option for this exact file name, so the
+-# name must not change.
+-set(FLUTTER_LITERT_GPU_DLL "${CMAKE_CURRENT_SOURCE_DIR}/libLiteRtWebGpuAccelerator.dll")
+-# DirectX Shader Compiler (DXC), from microsoft/DirectXShaderCompiler release
+-# v1.9.2602.24. Optional but preferred: Dawn uses DXC instead of the OS FXC
+-# (d3dcompiler_47.dll) when both dxcompiler.dll and dxil.dll are present next
+-# to the executable.
+-set(FLUTTER_LITERT_DXCOMPILER_DLL "${CMAKE_CURRENT_SOURCE_DIR}/dxcompiler.dll")
+-set(FLUTTER_LITERT_DXIL_DLL "${CMAKE_CURRENT_SOURCE_DIR}/dxil.dll")
+-
+-# The WebGPU GPU accelerator (~20 MB) and DirectX Shader Compiler (~18 MB) are
+-# fetched at build time from a GitHub release rather than bundled in the
+-# published pub.dev package, which must stay under the 100 MiB limit. Each is
+-# downloaded (verified by SHA-256) only if it is not already present.
+-set(FLUTTER_LITERT_GPU_LIBS_URL
+-  "https://github.com/hugocornellier/flutter_litert/releases/download/litert-desktop-gpu-v1.0.0")
+-
+-function(flutter_litert_fetch_lib path url sha)
+-  if(EXISTS "${path}")
+-    return()
+-  endif()
+-  foreach(attempt RANGE 1 3)
+-    message(STATUS "flutter_litert: downloading ${url} (attempt ${attempt})")
+-    file(DOWNLOAD "${url}" "${path}"
+-      EXPECTED_HASH SHA256=${sha}
+-      TLS_VERIFY ON
+-      STATUS dl_status)
+-    list(GET dl_status 0 dl_code)
+-    if(dl_code EQUAL 0)
+-      return()
+-    endif()
+-    list(GET dl_status 1 dl_msg)
+-    message(WARNING "flutter_litert: download failed (${dl_msg}); retrying")
+-    file(REMOVE "${path}")
+-  endforeach()
+-  message(FATAL_ERROR "flutter_litert: could not download ${url}")
+-endfunction()
+-
+-flutter_litert_fetch_lib("${FLUTTER_LITERT_GPU_DLL}"
+-  "${FLUTTER_LITERT_GPU_LIBS_URL}/libLiteRtWebGpuAccelerator.dll"
+-  "65fb92e4b0c3f1bba389964ffac5544bfebe5edf029c5a94a87864fa3e3ee124")
+-flutter_litert_fetch_lib("${FLUTTER_LITERT_DXCOMPILER_DLL}"
+-  "${FLUTTER_LITERT_GPU_LIBS_URL}/dxcompiler.dll"
+-  "9b5e10ed756c461b4ec2c83a99f1d6ace20e97826e9c0b0e966b7b1cd6f2aec6")
+-flutter_litert_fetch_lib("${FLUTTER_LITERT_DXIL_DLL}"
+-  "${FLUTTER_LITERT_GPU_LIBS_URL}/dxil.dll"
+-  "cbcfe883a09fd0ca1f98abdf3a9553b560895e3283a136da82a8381253a169df")
+-
+-set(flutter_tflite_bundled_libraries
+-  "${FLUTTER_LITERT_TFLITE_DLL}"
+-  "${FLUTTER_LITERT_LITERT_DLL}"
+-  "${FLUTTER_LITERT_GPU_DLL}"
+-  "${FLUTTER_LITERT_DXCOMPILER_DLL}"
+-  "${FLUTTER_LITERT_DXIL_DLL}"
+-  "$<TARGET_FILE:tflite_custom_ops>"
+-)
+-
+-# Flutter's generated_plugins.cmake references plugins by their directory name
+-# (flutter_litert), not by PROJECT_NAME (flutter_tflite). Set both to ensure
+-# bundled native libraries are included.
++# litert_edge_demos patch: no LiteRT runtime from this plugin on Windows, and
++# no downloads. flutter_edge_ai_litertlm ships libLiteRt.dll,
++# libLiteRtWebGpuAccelerator.dll, dxcompiler.dll and dxil.dll as native assets
++# with the same file names beside the executable; the runner installs native
++# assets after the plugins' bundled libraries, so they would overwrite this
++# plugin's LiteRT 2.1.5 copies in any case. CompiledModel binds to that runtime
++# (lib/src/bindings/litert_ffi.dart picks the model-loading ABI and the layout
++# sizes from the library). The TFLite C library (Interpreter, the CPU reference
++# in verifyCompiledModel) and the custom ops are this plugin's alone: bundled.
+ set(flutter_litert_bundled_libraries
+-  "${FLUTTER_LITERT_TFLITE_DLL}"
+-  "${FLUTTER_LITERT_LITERT_DLL}"
+-  "${FLUTTER_LITERT_GPU_DLL}"
+-  "${FLUTTER_LITERT_DXCOMPILER_DLL}"
+-  "${FLUTTER_LITERT_DXIL_DLL}"
++  "${CMAKE_CURRENT_SOURCE_DIR}/libtensorflowlite_c-win.dll"
+   "$<TARGET_FILE:tflite_custom_ops>"
+ )
++# Flutter's generated_plugins.cmake references plugins by their directory name
 +# (flutter_litert), not by PROJECT_NAME (flutter_tflite). Set both.
 +set(flutter_tflite_bundled_libraries ${flutter_litert_bundled_libraries})
  

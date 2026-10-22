@@ -18,8 +18,9 @@
 // gated-repo token (environment or .env, never printed, sent only for gated
 // files), idempotent reruns, a resumed download, a redirect, a corrupt
 // local file, a corrupt or refused download, and the YOLO26n venv's setup
-// against a stub python3. The real derivation needs Python and Arm's
-// original; the clean-checkout run covers it.
+// against stub interpreters (python3; python and `py -3` as on Windows, with
+// a venv in Scripts/). The real derivation needs Python and Arm's original;
+// the clean-checkout run covers it.
 @TestOn('linux || mac-os')
 library;
 
@@ -90,19 +91,38 @@ fi
 printf 200
 ''';
 
-/// Stub python3: only `-m venv [--clear] <dir>`. The venv gets the stub
-/// [_venvPython] and pip, unless $VENV_NO_PIP is set: that plays Debian
-/// without python3-venv, where ensurepip fails after bin/python is made.
+/// Stub base interpreter, installed as python3 (and as python and py where a
+/// test needs them): the version probe `-c …` and `-m venv [--clear] <dir>`,
+/// after the Windows launcher's `-3` when it is py. A name listed in
+/// $PY_BROKEN plays the Microsoft Store alias: it is on PATH and runs
+/// nothing. Who made a venv, with which arguments, goes to $PY_WHO. The venv
+/// gets the stub [_venvPython] and pip, in bin/python or, with
+/// $VENV_LAYOUT=windows, in Scripts/python.exe, unless $VENV_NO_PIP is set:
+/// that plays Debian without python3-venv, where ensurepip fails after the
+/// interpreter is made.
 const _python3 = r'''#!/bin/sh
+self=$(basename "$0")
+case " ${PY_BROKEN:-} " in
+  *" $self "*) echo 'Python was not found; run without arguments to install from the Microsoft Store' >&2; exit 1 ;;
+esac
+all="$*"
+[ "$self" = py ] && [ "$1" = -3 ] && shift
+[ "$1" = -c ] && exit 0
 [ "$1" = -m ] && [ "$2" = venv ] || exit 2
 shift 2
 clear=
 [ "$1" = --clear ] && clear=' --clear' && shift
 echo "venv$clear" >>"$PY_LOG"
+[ -n "${PY_WHO:-}" ] && echo "$self $all" >>"$PY_WHO"
 [ -n "$clear" ] && rm -f "$1/pip" "$1/.requirements"
-mkdir -p "$1/bin"
-cp "$VENV_PYTHON" "$1/bin/python"
-chmod +x "$1/bin/python"
+if [ "${VENV_LAYOUT:-}" = windows ]; then
+  interpreter="$1/Scripts/python.exe"
+else
+  interpreter="$1/bin/python"
+fi
+mkdir -p "$(dirname "$interpreter")"
+cp "$VENV_PYTHON" "$interpreter"
+chmod +x "$interpreter"
 if [ -n "${VENV_NO_PIP:-}" ]; then
   echo 'Error: ensurepip is not available' >&2
   exit 1
@@ -162,6 +182,13 @@ hf sub/b.bin ${gatedBytes.length} ${_sha(gatedBytes)} gated owner/gated $_revisi
   File get pythonLog => File('${root.path}/python.log');
   List<String> get pythonCalls =>
       pythonLog.existsSync() ? pythonLog.readAsLinesSync() : [];
+  File get venvMakers => File('${root.path}/python_who.log');
+
+  /// Installs the stub interpreter under [name] too (`python`, `py`).
+  void interpreter(String name) {
+    File('${bin.path}/$name').writeAsStringSync(_python3);
+    Process.runSync('chmod', ['+x', '${bin.path}/$name']);
+  }
 
   /// Replaces the lock.
   void lock(String text) =>
@@ -185,6 +212,7 @@ hf sub/b.bin ${gatedBytes.length} ${_sha(gatedBytes)} gated owner/gated $_revisi
       'REMOTE': remote.path,
       'CURL_LOG': log.path,
       'PY_LOG': pythonLog.path,
+      'PY_WHO': venvMakers.path,
       'VENV_PYTHON': '${root.path}/venv_python',
       ...env,
     },
@@ -390,6 +418,79 @@ yolo26n-rawhead y.tflite ${original.length} ${_sha(original)} public owner/arm $
           'pip --version',
         ], reason: 'the working venv is reused, nothing reinstalled');
         expect(checkout.requests, hasLength(1), reason: 'the original kept');
+      });
+
+      group('YOLO26n on Windows (Git Bash)', () {
+        late List<int> original;
+
+        setUp(() {
+          original = utf8.encode('arm yolo26n original');
+          checkout
+            ..serve('owner/arm', 'orig.tflite', original)
+            ..lock('''
+pip ai-edge-litert==2.2.0
+yolo26n-rawhead y.tflite ${original.length} ${_sha(original)} public owner/arm $_revision orig.tflite ${original.length} ${_sha(original)}
+''');
+        });
+
+        test(
+          'python3 is the Microsoft Store alias: python makes the venv; '
+          'a venv with Scripts/python.exe (no bin/) is used and reused',
+          () async {
+            checkout.interpreter('python');
+            final env = {'PY_BROKEN': 'python3', 'VENV_LAYOUT': 'windows'};
+            final first = await checkout.run(const [], env: env);
+            expect(first.exitCode, 0, reason: _output(first));
+            expect(checkout.model('y.tflite').readAsBytesSync(), original);
+            expect(
+              checkout.venvMakers.readAsLinesSync().single,
+              startsWith('python -m venv '),
+            );
+            expect(checkout.pythonCalls, ['venv', 'pip install']);
+
+            checkout.model('y.tflite').deleteSync();
+            final again = await checkout.run(const [], env: env);
+            expect(again.exitCode, 0, reason: _output(again));
+            expect(checkout.pythonCalls.skip(2), [
+              'pip --version',
+            ], reason: 'the Scripts/python.exe venv is reused');
+          },
+        );
+
+        test(
+          'neither python3 nor python runs: the launcher, as py -3',
+          () async {
+            checkout
+              ..interpreter('python')
+              ..interpreter('py');
+            final result = await checkout.run(
+              const [],
+              env: {'PY_BROKEN': 'python3 python', 'VENV_LAYOUT': 'windows'},
+            );
+            expect(result.exitCode, 0, reason: _output(result));
+            expect(
+              checkout.venvMakers.readAsLinesSync().single,
+              startsWith('py -3 -m venv '),
+            );
+          },
+        );
+
+        test('no interpreter runs: the file fails, naming the three '
+            'tried', () async {
+          checkout
+            ..interpreter('python')
+            ..interpreter('py');
+          final result = await checkout.run(
+            const [],
+            env: {'PY_BROKEN': 'python3 python py'},
+          );
+          expect(result.exitCode, 1, reason: _output(result));
+          expect(
+            result.stderr,
+            contains('no Python 3.10 or newer found (python3, python, py -3;'),
+          );
+          expect(checkout.pythonCalls, isEmpty);
+        });
       });
 
       test('a partial download is resumed from where it stopped', () async {

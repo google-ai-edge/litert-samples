@@ -62,6 +62,37 @@ void main() {
     expect(fold.steps, isEmpty);
   });
 
+  group('responded (the model produced something for the turn)', () {
+    test('not before any event, nor for an empty chunk or a done event', () {
+      expect(fold.responded, isFalse);
+      fold
+        ..on(const TextChunkEvent(''), stopRequested: false)
+        ..on(const DoneEvent(''), stopRequested: true);
+      expect(fold.responded, isFalse);
+    });
+
+    test('text counts, also text dropped after a stop', () {
+      fold.on(const TextChunkEvent('noon'), stopRequested: true);
+      expect(fold.responded, isTrue);
+    });
+
+    test('a skill load counts', () {
+      fold.on(const SkillLoadEvent('current-time'), stopRequested: false);
+      expect(fold.responded, isTrue);
+    });
+
+    test('an intent call counts', () {
+      fold.on(
+        const ToolCallEvent(
+          toolName: 'runIntent',
+          args: {'intent': 'current_time'},
+        ),
+        stopRequested: false,
+      );
+      expect(fold.responded, isTrue);
+    });
+  });
+
   test('after a stop, text is dropped (partial tool-call JSON or a cut '
       'reply)', () {
     expect(fold.on(const TextChunkEvent('noon'), stopRequested: true), isNull);

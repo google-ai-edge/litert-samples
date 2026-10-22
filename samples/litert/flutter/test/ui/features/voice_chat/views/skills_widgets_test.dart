@@ -55,6 +55,20 @@ SkillCatalog catalogOf(
 );
 
 void main() {
+  test('the skills folder hint names each platform\'s file manager', () {
+    expect(
+      skillsFolderHint(TargetPlatform.windows),
+      'Copy a skill folder here in File Explorer.',
+    );
+    expect(
+      skillsFolderHint(TargetPlatform.macOS),
+      'Copy a skill folder here in Finder.',
+    );
+    expect(skillsFolderHint(TargetPlatform.android), contains('adb push'));
+    expect(skillsFolderHint(TargetPlatform.iOS), contains('Files app'));
+    expect(skillsFolderHint(TargetPlatform.linux), 'Copy a skill folder here.');
+  });
+
   testWidgets('a reply with skill steps shows them, with the arguments and '
       'the result', (tester) async {
     await tester.pumpWidget(

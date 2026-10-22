@@ -1,6 +1,6 @@
 ---
 title: flutter_edge_ai overview
-source: https://pub.dev/packages/flutter_edge_ai/versions/2.4.0 (README.md, CHANGELOG.md, lib/fix_data.yaml, lib/genai.dart, lib/src/model.dart, lib/src/extensions.dart, lib/src/domain/model_source.dart, skills/flutter-edge-ai-inference/SKILL.md, skills/flutter-edge-ai-inference/references/platform-setup.md, example/lib/models/) ; https://pub.dev/packages/flutter_edge_ai_litertlm/versions/1.14.0 (README.md, CHANGELOG.md) ; https://pub.dev/packages/flutter_edge_ai_agent/versions/0.3.0 (README.md) ; https://pub.dev/packages/flutter_edge_ai_speech/versions/0.5.7 (README.md) ; https://github.com/DenisovAV/flutter_edge_ai/blob/d35c575ab91e078c47201131800cf33dd7630833/website/content/docs/models.md ; https://github.com/DenisovAV/flutter_edge_ai/blob/d35c575ab91e078c47201131800cf33dd7630833/packages/flutter_edge_ai/MIGRATION.md
+source: https://pub.dev/packages/flutter_edge_ai/versions/2.5.1 (README.md, CHANGELOG.md, lib/fix_data.yaml, lib/genai.dart, lib/src/model.dart, lib/src/extensions.dart, lib/src/domain/model_source.dart, skills/flutter-edge-ai-inference/SKILL.md, skills/flutter-edge-ai-inference/references/platform-setup.md, example/lib/models/) ; https://pub.dev/packages/flutter_edge_ai_litertlm/versions/1.17.0 (README.md, CHANGELOG.md) ; https://pub.dev/packages/flutter_edge_ai_agent/versions/0.4.1 (README.md) ; https://pub.dev/packages/flutter_edge_ai_speech/versions/0.5.10 (README.md) ; https://github.com/DenisovAV/flutter_edge_ai/blob/d35c575ab91e078c47201131800cf33dd7630833/website/content/docs/models.md ; https://github.com/DenisovAV/flutter_edge_ai/blob/d35c575ab91e078c47201131800cf33dd7630833/packages/flutter_edge_ai/MIGRATION.md
 license: MIT
 ---
 
@@ -12,20 +12,20 @@ This document explains what the flutter_edge_ai Flutter plugin (formerly flutter
 
 flutter_edge_ai brings on-device AI to Flutter on Android, iOS, web, macOS, Windows and Linux. It runs Gemma and other open models, or the model the operating system already ships, with text, vision, audio, function calling, embeddings, RAG and speech — no server and no cloud. The core is small: an app adds only the runtimes and stores it uses. Through version 1.11.3 the package shipped as `flutter_gemma`; it was renamed to `flutter_edge_ai` in 1.11.4.
 
-flutter_edge_ai runs any model a registered engine supports. The models run with it so far include Gemma 4 E2B and E4B, Gemma 3n E2B and E4B, Gemma 3 1B, Gemma 3 270M, FunctionGemma 270M, TranslateGemma 4B, Qwen3 0.6B, Qwen3.5 and later, Qwen 2.5 0.5B and 1.5B, DeepSeek R1, Phi-4 Mini, Phi-4 Mini Reasoning, FastVLM, Qwen2-VL, SmolVLM2, LLaVA-OneVision, VibeVoice-ASR, SmolLM, SmolLM3, LFM2.5, Phi-3.5 Mini (ONNX) and the operating systems' own models. Gemma 4 and Gemma 3n take image and audio input; FastVLM, Qwen2-VL, SmolVLM2 and LLaVA-OneVision take images; VibeVoice-ASR takes audio, for transcription only. Desktop platforms (macOS, Windows, Linux) run LiteRT-LM `.litertlm` files, ONNX models or the operating system's own model; MediaPipe `.task` files do not run on desktop.
+flutter_edge_ai runs any model a registered engine supports. The models run with it so far include Gemma 4 E2B and E4B, Gemma 3n E2B and E4B, Gemma 3 1B, Gemma 3 270M, FunctionGemma 270M, TranslateGemma 4B, Qwen3 0.6B, Qwen3.5 and later, Qwen 2.5 0.5B and 1.5B, DeepSeek R1, Phi-4 Mini, Phi-4 Mini Reasoning, FastVLM, Qwen2-VL, SmolVLM2, LLaVA-OneVision, VibeVoice-ASR, SmolLM, SmolLM3, LFM2.5, Phi-3.5 Mini (ONNX) and the operating systems' own models. Gemma 4 and Gemma 3n take image and audio input; FastVLM, Qwen2-VL, SmolVLM2 and LLaVA-OneVision take images; VibeVoice-ASR takes audio, for transcription only. Desktop platforms (macOS, Windows, Linux) run LiteRT-LM `.litertlm` files, ONNX models, `.gguf` models through llama.cpp or the operating system's own model; MediaPipe `.task` files do not run on desktop.
 
 Models run locally on the user's device, for privacy and offline use.
 
 ## Main inference features
 
-- Pluggable engines: LiteRT-LM (`.litertlm`), MediaPipe (`.task`), ONNX Runtime, and the operating system's own models — Gemini Nano, Apple Foundation Models, Windows AI Foundry and the Chrome Prompt API.
+- Pluggable engines: LiteRT-LM (`.litertlm`), MediaPipe (`.task`), ONNX Runtime, llama.cpp (`.gguf`), and the operating system's own models — Gemini Nano, Apple Foundation Models, Windows AI Foundry and the Chrome Prompt API.
 - Multimodal input: images and audio with Gemma 4 and Gemma 3n, images with the other vision models, and audio for transcription with VibeVoice-ASR. Audio input works on Android, iOS and desktop, not on the web.
 - Function calling: models can call the app's functions on the models that support them.
 - Thinking mode: Gemma 4, Qwen3, DeepSeek R1 and `.litertlm` bundles with a thought channel (for example SmolLM3 and Phi-4 Mini Reasoning) can stream their reasoning separately from the answer.
 - Stop generation: cancel a reply mid-stream with `stopGeneration()`.
-- CPU, GPU and NPU backends per model: the Qualcomm NPU on Android and Linux arm64 (opt-in) and the Intel NPU on Windows.
+- CPU, GPU and NPU backends per model: Qualcomm on Android and Linux arm64, Google Tensor and MediaTek on Android (all opt-in), and Intel on Windows.
 - Desktop support: LiteRT-LM is called directly from Dart through `dart:ffi` — no JVM and no separate process.
-- Model management: installs from the network, app assets, bundled files or local paths, Hugging Face installs in one call, retries, typed download errors, and LoRA weights for MediaPipe `.task` models.
+- Model management: installs from the network, app assets, bundled files or local paths, Hugging Face installs in one call, retries, typed download errors, and LoRA weights for MediaPipe `.task` models and, on native platforms, GGUF models through llama.cpp.
 - Genkit integration for on-device and hybrid cloud flows.
 
 ## Speech, agent skills, embeddings and RAG features
@@ -36,7 +36,7 @@ Beyond text generation, flutter_edge_ai offers opt-in packages for the rest of a
 - On-device text-to-speech with `flutter_edge_ai_speech`: synthesize speech fully offline with a selectable model (Matcha, Qwen3-TTS, Inflect-Nano-v2).
 - On-device voice loop: `VoiceSession` chains STT, LLM and TTS into one push-to-talk turn with barge-in (native platforms only).
 - On-device agent skills with `flutter_edge_ai_agent`: give the model `SKILL.md` skills (text, JavaScript, native intent or MCP) that it invokes through function calling, fully offline. It is verified on Android, iOS, macOS and Windows and is not supported on the web.
-- Embeddings: 768-dimensional vectors through the LiteRT backend in `flutter_edge_ai_litertlm`. EmbeddingGemma 2 is one `.litertlm` file that carries its own tokenizer and embeds text, images on its 440m and 740m bundles, and audio on the 740m; EmbeddingGemma 1 and Gecko are a `.tflite` model plus a tokenizer from `flutter_edge_ai_embeddings`.
+- Embeddings: 768-dimensional vectors through the LiteRT backend in `flutter_edge_ai_litertlm`. EmbeddingGemma 2 is one `.litertlm` file that carries its own tokenizer and embeds text, images on its 440m and 740m bundles, and audio on the 740m; EmbeddingGemma 1 and Gecko are a `.tflite` model plus a tokenizer from `flutter_edge_ai_embeddings`. EmbeddingGemma 2 text embeddings from a `.gguf` run natively through `flutter_edge_ai_llama`.
 - On-device RAG with `flutter_edge_ai_rag` and a storage provider: `flutter_edge_ai_qdrant` (qdrant-edge, native) or `flutter_edge_ai_sqlite` (`sqlite-vec` / `vec0` KNN inside SQLite on all six platforms including the web), with payload filters.
 
 flutter_edge_ai also ships agent skills for coding assistants. Running `dart run skills@ get --all` installs the skills that the Flutter Edge AI packages in the app's dependencies bundle, where coding assistants look for them.
@@ -50,6 +50,7 @@ flutter_edge_ai also ships agent skills for coding assistants. Running `dart run
 - `flutter_edge_ai_mediapipe` — `.task` and `.bin` models (MediaPipe; mobile and web).
 - `flutter_edge_ai_builtin_ai` — the model built into the OS or browser: Gemini Nano, Apple Foundation Models, Windows AI Foundry and the Chrome Prompt API.
 - `flutter_edge_ai_onnx` — ONNX Runtime text generation and embeddings.
+- `flutter_edge_ai_llama` — `.gguf` chat models and EmbeddingGemma 2 text embeddings through llama.cpp (via llamadart).
 - Further opt-in packages for embeddings tokenizers, RAG, agent skills, speech and memory diagnostics, listed in the table below.
 
 Moving from the old names means renaming each `flutter_gemma*` dependency and import to its `flutter_edge_ai*` counterpart (`flutter_gemma_rag_sqlite` and `flutter_gemma_rag_qdrant` became `flutter_edge_ai_sqlite` and `flutter_edge_ai_qdrant`) and running `dart fix --apply`, which renames `FlutterGemma` to `FlutterEdgeAi`, `FlutterGemmaPlugin` to `FlutterEdgeAiPlugin`, `FlutterGemmaDesktop` to `FlutterEdgeAiDesktop` and `GemmaLogLevel` to `EdgeAiLogLevel`. Version 2.0.0 removed the old aliases and moved the RAG APIs out of core into `flutter_edge_ai_rag`. Version 2.3.0 changed the embedding API and made core's internals private under `lib/src`: an app imports `package:flutter_edge_ai/flutter_edge_ai.dart` (and `package:flutter_edge_ai/genai.dart` for the genai_primitives types), an engine or tokenizer package imports `package:flutter_edge_ai/engine.dart`, and no code imports a `src/` path.
@@ -60,6 +61,7 @@ Moving from the old names means renaming each `flutter_gemma*` dependency and im
 |---|---|
 | Run `.litertlm` models (Gemma 4, Qwen3, FastVLM, and everything on desktop) and LiteRT embeddings | `flutter_edge_ai_litertlm` |
 | Run `.task` or `.bin` models (MediaPipe; mobile and web) | `flutter_edge_ai_mediapipe` |
+| Run GGUF chat and native EmbeddingGemma 2 text embeddings through llama.cpp | `flutter_edge_ai_llama` |
 | Run ONNX models — text generation and embeddings | `flutter_edge_ai_onnx` |
 | Use the model built into the OS or browser | `flutter_edge_ai_builtin_ai` |
 | Tokenizers for text embeddings (needed for `.tflite` and `.onnx` embedders; an EmbeddingGemma 2 `.litertlm` carries its own) | `flutter_edge_ai_embeddings` |
@@ -73,7 +75,7 @@ Moving from the old names means renaming each `flutter_gemma*` dependency and im
 
 Call `await FlutterEdgeAi.initialize(...)` once in `main()`, after `WidgetsFlutterBinding.ensureInitialized()`, and register the opt-in packages you added to `pubspec.yaml`. Core registers no engine on its own, so without this step `getActiveModel()` throws `StateError: No inference engine can handle this model`, and the first embedding fails the same way.
 
-Each list comes from one package: `inferenceEngines:` takes `LiteRtLmEngine()`, `MediaPipeEngine()`, `BuiltInAiEngine()` or `OnnxEngine()`; `embeddingBackends:` (for example `LiteRtEmbeddingBackend()`) and `embeddingTokenizers:` (for example `GemmaEmbeddingTokenizers()`, needed only for `.tflite` and `.onnx` embedders) set up embeddings; `sttBackends:` and `ttsBackends:` come from `flutter_edge_ai_speech`; `skillExecutors:` from `flutter_edge_ai_agent`; and `huggingFaceResolvers:` overrides the Hugging Face resolvers that engines bring with them. RAG is not configured here: it lives in `flutter_edge_ai_rag`.
+Each list comes from one package: `inferenceEngines:` takes `LiteRtLmEngine()`, `MediaPipeEngine()`, `BuiltInAiEngine()`, `OnnxEngine()` or `LlamaEngineProvider()`; `embeddingBackends:` (for example `LiteRtEmbeddingBackend()`) and `embeddingTokenizers:` (for example `GemmaEmbeddingTokenizers()`, needed only for `.tflite` and `.onnx` embedders) set up embeddings; `sttBackends:` and `ttsBackends:` come from `flutter_edge_ai_speech`; `skillExecutors:` from `flutter_edge_ai_agent`; and `huggingFaceResolvers:` overrides the Hugging Face resolvers that engines bring with them. RAG is not configured here: it lives in `flutter_edge_ai_rag`.
 
 Add only the engines you ship. Passing both `LiteRtLmEngine()` and `MediaPipeEngine()` lets one app run both formats — the registry routes each model to the engine that handles its file type. Common settings are `huggingFaceToken` for gated models, `maxDownloadRetries` (default 10), and the web-only `webStorageMode`.
 
@@ -85,7 +87,7 @@ SDK-managed templates: `.task` files are the MediaPipe format for mobile and web
 
 Template from the model type: `.bin` and `.tflite` files get no template from the runtime. Core wraps each message in the turn markers of the `ModelType` the model was installed with, so declare the right type.
 
-`ModelFileType` is what selects the engine — it is not inferred from the file name. `installModel` defaults it to `ModelFileType.task`, so declare it explicitly: `ModelFileType.litertlm` for `.litertlm` files (omitting it routes the model to MediaPipe, which cannot read that format), `ModelFileType.task` for `.task` files, `ModelFileType.binary` for `.bin` and `.tflite` files, `ModelFileType.onnx` for ONNX Runtime GenAI model directories, and `ModelFileType.builtIn` for OS-provided models such as Gemini Nano and Apple Foundation Models. `ModelFileType.gguf` (core 2.3.2) is reserved for `.gguf` files; the llama.cpp engine that runs them, `flutter_edge_ai_llama`, is coming soon, and until then `getActiveModel` finds no engine for such a model.
+`ModelFileType` is what selects the engine — it is not inferred from the file name. `installModel` defaults it to `ModelFileType.task`, so declare it explicitly: `ModelFileType.litertlm` for `.litertlm` files (omitting it routes the model to MediaPipe, which cannot read that format), `ModelFileType.task` for `.task` files, `ModelFileType.binary` for `.bin` and `.tflite` files, `ModelFileType.onnx` for ONNX Runtime GenAI model directories, and `ModelFileType.builtIn` for OS-provided models such as Gemini Nano and Apple Foundation Models. `ModelFileType.gguf` (core 2.3.2) is for `.gguf` files, which `flutter_edge_ai_llama` runs through llama.cpp: register `LlamaEngineProvider()`, and llama.cpp applies the chat template the file carries. Without that package `getActiveModel` finds no engine for such a model.
 
 ## Engines by platform
 
@@ -94,9 +96,10 @@ Template from the model type: `.bin` and `.tflite` files get no template from th
 | LiteRT-LM (`.litertlm`) | yes | yes | preview | yes | yes | yes |
 | MediaPipe (`.task`) | yes | yes | yes | no | no | no |
 | ONNX Runtime | yes | yes | yes | yes | yes | yes |
+| llama.cpp (`.gguf`) | yes | yes (16.4+) | yes | yes (14+) | yes | yes |
 | Built-in AI | yes | yes | yes | yes | yes | no |
 
-LiteRT-LM ships `arm64` on Android, iOS and macOS, `x86_64` on Windows, and `x86_64` and `arm64` on Linux. On Android, MediaPipe `.task` also runs on `x86_64` and `armeabi-v7a`. Web `.litertlm` takes text input only — an image or audio message throws `UnsupportedError`, and LoRA is not supported — while function calling and thinking work. The iOS Simulator runs on the CPU only.
+LiteRT-LM ships `arm64` on Android, iOS and macOS, `x86_64` on Windows, and `x86_64` and `arm64` on Linux. On Android, MediaPipe `.task` also runs on `x86_64` and `armeabi-v7a`. llama.cpp runs through llamadart and needs iOS 16.4 and macOS 14 with Flutter's Swift Package Manager on; the LiteRT-LM macOS setup (CocoaPods, usually with Swift Package Manager off) is not qualified together with it, so the package advises separate apps. Web `.litertlm` takes text input only — an image or audio message throws `UnsupportedError`, and LoRA is not supported — while function calling and thinking work. The iOS Simulator runs on the CPU only.
 
 ## Model capabilities by model family
 
@@ -183,7 +186,7 @@ The plugin's internal logs are silent in release builds — model output, prompt
 | Function calling | yes | yes | `.litertlm` engine | yes |
 | Agent skills | yes | yes | no | macOS, Windows, Linux |
 | GPU acceleration | yes | yes (device) | yes | yes (Metal, Vulkan, DirectX 12) |
-| NPU acceleration | Qualcomm, `.litertlm`, opt-in | no | no | Windows (Intel); Linux arm64 (Qualcomm, opt-in) |
+| NPU acceleration | Qualcomm, Google Tensor G5/G6, MediaTek; `.litertlm`, each opt-in | no | no | Windows (Intel); Linux arm64 (Qualcomm, opt-in) |
 | Text embeddings and RAG | yes | yes | yes | yes |
 
 On the web, the `.litertlm` engine is an early preview that takes text input only (function calling and thinking work), so images on the web need a MediaPipe `.task` build. JavaScript agent skills do not run on Linux, which has no embeddable webview.

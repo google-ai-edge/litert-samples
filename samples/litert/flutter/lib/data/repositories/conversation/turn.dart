@@ -139,7 +139,9 @@ Stream<AssistantEvent> askTurn(
     // session buffers the prompt until generation, so skipping it would glue
     // this prompt onto the next one.
     var stopResent = false;
+    var responded = false;
     await for (final response in chat.generateChatResponseAsync()) {
+      responded = true;
       if (live.stopRequested) {
         // Drain, never break: breaking would cancel the stream and skip
         // InferenceChat's end-of-turn bookkeeping (reply into its history,
@@ -171,7 +173,11 @@ Stream<AssistantEvent> askTurn(
     metrics.stop();
     final stopped = live.stopRequested;
     // 3. Before the terminal event: the caller may ask again at once.
-    live.settleTurn(stopped: stopped, sentImage: imageToSend);
+    live.settleTurn(
+      stopped: stopped,
+      sentImage: imageToSend,
+      responded: responded,
+    );
     settled = true;
     final after = sessionMetricsOf(chat);
     yield AssistantDone(
@@ -199,8 +205,7 @@ Stream<AssistantEvent> askTurn(
   } finally {
     if (sent && !settled) {
       // Cancelled mid-turn: LiteRT-LM's generation is cancelled and
-      // flutter_edge_ai_litertlm rebuilds the conversation from text, like a
-      // stop.
+      // flutter_edge_ai_litertlm recovers the conversation like after a stop.
       live.cancelTurn(sentImage: imageToSend);
     }
     if (slot != null) live.mirror.reply(slot, reply.toString());

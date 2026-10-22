@@ -120,10 +120,9 @@ void main() {
     fail('the turn never reached the engine');
   }
 
-  setUp(() async {
-    originalDebugPrint = debugPrint;
-    debugPrint = (message, {wrapWidth}) {};
-    model = FakeInferenceModel();
+  /// The conversation over an engine on [backend], the voice chat open.
+  Future<void> openOn(PreferredBackend backend) async {
+    model = FakeInferenceModel(activeBackend: backend);
     final llm = LlmService(loadModel: (_) async => model);
     expect(await llm.load(_audioGemma), isA<Ok<LlmInfo>>());
     repo = EdgeAiConversationRepository(
@@ -131,6 +130,12 @@ void main() {
       stopTimeout: const Duration(milliseconds: 50),
     );
     expect(await repo.open(kVoiceChatProfile), isA<Ok<void>>());
+  }
+
+  setUp(() async {
+    originalDebugPrint = debugPrint;
+    debugPrint = (message, {wrapWidth}) {};
+    await openOn(PreferredBackend.gpu);
     recognizer = FakeRecognizer();
     audio = FakeAudioRepository()..autoDrain = true;
     speech = await loadedSpeech(
@@ -218,10 +223,49 @@ void main() {
     await second.assistant.dispose();
   });
 
-  test('a press on a reply\'s playback tail, then one during the next '
-      'reply\'s generation: the first question\'s words reach the text '
+  test('on the GPU a press during a reply\'s generation cuts it, and the '
+      'next question runs on the same conversation (rewound in place, its '
+      'recordings kept): nothing is replayed', () async {
+    recognizer.text = 'What is the capital of France?';
+    final v = visit();
+    unawaited(v.assistant.submitUtterance(speechUtterance()));
+    await untilStreaming();
+    model.lastSession
+      ..emit('Paris is the capital of France.')
+      ..finish();
+    await settle();
+    audio.autoDrain = false;
+    await v.assistant.micDown();
+    final second = v.assistant.micUp();
+    await untilStreaming();
+    model.lastSession.emit('Berlin is');
+    await settle();
+    final session = model.lastSession;
+    await v.assistant.micDown();
+    await settle();
+
+    audio.autoDrain = true;
+    final third = v.assistant.micUp();
+    await untilStreaming();
+    expect(model.lastSession, same(session), reason: 'no clearHistory');
+    final asked = session.queries.last;
+    expect(asked.text, isNot(startsWith(HistoryMirror.replayHeader)));
+    expect(asked.hasAudio, isTrue);
+    expect(model.chat!.fullHistory.where((m) => m.hasAudio), hasLength(3));
+    session
+      ..emit('Rome.')
+      ..finish();
+    expect((await third).outcome, TurnOutcome.completed);
+    expect((await second).outcome, TurnOutcome.superseded);
+    await v.assistant.dispose();
+  });
+
+  test('on the NPU a press on a reply\'s playback tail, then one during the '
+      'next reply\'s generation: the first question\'s words reach the text '
       'history when that generation is cut, so the chat rebuilt for the '
       'third question replays them (not the placeholder)', () async {
+    await repo.close();
+    await openOn(PreferredBackend.npu);
     audio.autoDrain = false;
     recognizer.text = 'What is the capital of France?';
     final v = visit();

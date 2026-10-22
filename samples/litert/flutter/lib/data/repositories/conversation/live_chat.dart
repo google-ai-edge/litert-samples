@@ -35,9 +35,10 @@ typedef OpenChat = ({InferenceChat chat, ConversationProfile profile});
 
 /// What a turn sends and measures against ([LiveChat.prepareSend]): the
 /// image to send (null when the live chat already sees it, or none is
-/// attached), why it is a re-send, whether flutter_edge_ai_litertlm rebuilds
-/// the native conversation as this turn starts, and LiteRT-LM's metrics
-/// before it.
+/// attached), why it is a re-send, whether flutter_edge_ai_litertlm recovers
+/// the native conversation from a stop as this turn starts (rewinds or
+/// rebuilds it, [ChatFactory.stopRewinds]), and LiteRT-LM's metrics before
+/// it.
 typedef TurnSend = ({
   Uint8List? image,
   ImageLoss? resent,
@@ -48,10 +49,11 @@ typedef TurnSend = ({
 /// What a chat that must be rebuilt replays from the conversation's text
 /// mirror before the turn ([LiveChat.planReplay]): the newest [turns] that
 /// fit, their [tokens], how many older replayable turns were [dropped],
-/// whether the live chat is cleared first ([clear]: a stop left an audio turn
-/// in it) or the chat is a fresh one already (a budget reset, an interrupted
-/// skill call), and [why] it is rebuilt: what the turn announces when the
-/// plan dropped turns.
+/// whether the live chat is cleared first ([clear]: a stop on the NPU left an
+/// audio turn in it, or a transcript arrived for a replayed placeholder) or
+/// the chat is a fresh one already (a budget reset, an interrupted skill
+/// call), and [why] it is rebuilt: what the turn announces when the plan
+/// dropped turns.
 typedef ReplayPlan = ({
   List<HistoryTurn> turns,
   int tokens,
@@ -104,10 +106,17 @@ final class LiveChat {
   /// onto it first. Null when no replay is due.
   ContextResetReason? _replayDue;
 
-  /// The last sent turn was stopped: flutter_edge_ai_litertlm rebuilds the
-  /// native conversation when the next turn starts, so that turn's prefill
-  /// cannot be read from the metrics delta.
+  /// The last sent turn was stopped: flutter_edge_ai_litertlm recovers the
+  /// native conversation when the next turn starts — rewinds it in place,
+  /// keeping the stopped turn and every image and recording, or on the NPU
+  /// rebuilds it from the turns' text ([ChatFactory.stopRewinds]) — so that
+  /// turn's prefill cannot be read from the metrics delta.
   bool _nativeRebuildPending = false;
+
+  /// The turn being sent started while [_nativeRebuildPending]: its send
+  /// waits for the recovery, and a stop that lands meanwhile can end it
+  /// before anything of it reaches the model.
+  bool _sendsAfterStop = false;
 
   /// The last agent turn left staged input behind (flutter_edge_ai_litertlm's
   /// FFI session buffers `addQueryChunk` until the next generation and would
@@ -170,16 +179,18 @@ final class LiveChat {
   bool get staleToolTail => _staleToolTail;
 
   /// The next turn rebuilds the live chat from the mirror
-  /// (`clearHistory(replayHistory:)`): a stop left flutter_edge_ai_litertlm
-  /// to rebuild the conversation from the turns' text and an audio turn in it
-  /// has none (so
-  /// no question is replayed as an empty message and no recording outlives
-  /// the rebuild), or a transcript arrived for a spoken question the live
-  /// chat holds only as the placeholder ([HistoryMirror.replayOutdated]: the
-  /// model would never see its words).
+  /// (`clearHistory(replayHistory:)`): a stop on the NPU left
+  /// flutter_edge_ai_litertlm to rebuild the conversation from the turns'
+  /// text and an audio turn in it has none (so no question is replayed as an
+  /// empty message and no recording outlives the rebuild; on the GPU and the
+  /// CPU the stopped conversation is rewound with its recordings,
+  /// [ChatFactory.stopRewinds]), or a transcript arrived for a spoken
+  /// question the live chat holds only as the placeholder
+  /// ([HistoryMirror.replayOutdated]: the model would never see its words).
   bool get mirrorRebuildDue => _stopLeftAudio || mirror.replayOutdated;
 
-  bool get _stopLeftAudio => _nativeRebuildPending && mirror.audioInLive;
+  bool get _stopLeftAudio =>
+      _nativeRebuildPending && !_chats.stopRewinds && mirror.audioInLive;
 
   // ---- The slot's lifecycle ----
 
@@ -425,6 +436,8 @@ final class LiveChat {
     AgentChat? agent,
     Duration? audio,
   }) async {
+    // After a stop rewound in place this errs high: LiteRT-LM's count then
+    // holds the stopped exchange twice (ContextBudget.nativeTokens).
     final native = sessionMetricsOf(chat)?.totalTokens ?? 0;
     final counted = _counted;
     _counted = null;
@@ -667,6 +680,7 @@ final class LiveChat {
     if (resent != null) {
       debugPrint('[Conversation] image resent (lost: ${resent.name})');
     }
+    _sendsAfterStop = _nativeRebuildPending;
     return (
       image: toSend,
       resent: resent,
@@ -675,27 +689,54 @@ final class LiveChat {
     );
   }
 
-  /// A turn that reached the model ended, normally or [stopped]: a stop
-  /// loses the image and makes flutter_edge_ai_litertlm rebuild the
-  /// conversation as the next turn starts; a normal end with a [sentImage]
-  /// puts it in context.
-  void settleTurn({required bool stopped, required Uint8List? sentImage}) {
-    _images.settle(stopped: stopped, sentImage: sentImage);
+  /// A turn that reached the model ended, normally or [stopped]. A normal end
+  /// with a [sentImage] puts it in context. A stop makes
+  /// flutter_edge_ai_litertlm recover the conversation as the next turn
+  /// starts: on the GPU and the CPU it rewinds it in place, so the image is
+  /// taken to stay in context like after a normal end; on the NPU it rebuilds
+  /// it from text and the image is lost ([ChatFactory.stopRewinds]). The app
+  /// cannot tell when the plugin falls back to that rebuild on the GPU or the
+  /// CPU too (a rewind that fails or a stopped turn that does not wind down):
+  /// the earlier images and recordings are then gone while the app still
+  /// counts the image as in context.
+  ///
+  /// [responded]: the model produced something for the turn. A stopped turn
+  /// that began right after another stop and produced nothing may never have
+  /// reached the model (the stop can land while the plugin still recovers
+  /// from the previous one, and the plugin then skips the send), so the image
+  /// it sent is lost and the next turn sends it again.
+  void settleTurn({
+    required bool stopped,
+    required Uint8List? sentImage,
+    required bool responded,
+  }) {
+    final rewound = stopped && _chats.stopRewinds;
+    final mayNotHaveSent = sentImage != null && !responded && _sendsAfterStop;
+    _images.settle(
+      stopped: stopped && (!rewound || mayNotHaveSent),
+      sentImage: sentImage,
+    );
     _nativeRebuildPending = stopped;
   }
 
   /// A turn that reached the model failed. No rebuild follows a failure: what
   /// the model saw counts as gone, so the next turn sends the image again.
+  /// One whose stop was requested is recovered at the next turn like a stop.
   void failTurn({required Uint8List? sentImage}) {
     _images.lose(ImageLoss.failure, sentImage: sentImage);
     _nativeRebuildPending = _stopRequested;
   }
 
-  /// A turn that reached the model was cancelled mid-turn: LiteRT-LM's
-  /// generation is cancelled and flutter_edge_ai_litertlm rebuilds the
-  /// conversation from text, like a stop.
+  /// A turn that reached the model was cancelled mid-turn (at a text delta,
+  /// so the model had answered): LiteRT-LM's generation is cancelled and
+  /// flutter_edge_ai_litertlm recovers the conversation like after a stop
+  /// ([settleTurn]).
   void cancelTurn({required Uint8List? sentImage}) {
-    _images.lose(ImageLoss.stop, sentImage: sentImage);
+    if (_chats.stopRewinds) {
+      _images.settle(stopped: false, sentImage: sentImage);
+    } else {
+      _images.lose(ImageLoss.stop, sentImage: sentImage);
+    }
     _nativeRebuildPending = true;
   }
 

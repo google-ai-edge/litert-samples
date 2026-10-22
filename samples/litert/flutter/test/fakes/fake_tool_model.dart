@@ -283,7 +283,12 @@ final class const ChatArgs({
 /// stopped). One session slot, like the FFI model.
 class FakeToolModel extends InferenceModel {
   /// [maxTokens]: the context window (a small-context NPU build has 1280).
-  FakeToolModel({this.maxTokens = 4096});
+  /// [activeBackend]: where the engine runs (a stopped turn is rewound in
+  /// place on the GPU and the CPU, rebuilt from text on the NPU).
+  FakeToolModel({
+    this.maxTokens = 4096,
+    this.activeBackend = PreferredBackend.gpu,
+  });
 
   final List<ScriptedTurn> script = [];
   final List<FakeToolSession> created = [];
@@ -294,7 +299,7 @@ class FakeToolModel extends InferenceModel {
       created.isEmpty ? throw StateError('No session yet') : created.last;
 
   @override
-  PreferredBackend? get activeBackend => PreferredBackend.gpu;
+  final PreferredBackend? activeBackend;
 
   @override
   InferenceModelSession? get session => _session;

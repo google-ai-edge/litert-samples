@@ -12,12 +12,21 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import 'dart:io' show Directory;
+
+import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
 
 /// A model path from a `--dart-define`: absolute as given, otherwise relative
-/// to the app's documents directory.
-Future<String> resolveLocalPath(String path) async {
-  if (path.startsWith('/')) return path;
-  final docs = await getApplicationDocumentsDirectory();
-  return '${docs.path}/$path';
+/// to the app's documents directory. Absolute in the running platform's
+/// style: `/…` on POSIX; `C:\…`, `C:/…`, `\\server\share\…` or a rooted
+/// `\…` on Windows. [style] and [documents] are the tests' seams.
+Future<String> resolveLocalPath(
+  String path, {
+  p.Context? style,
+  Future<Directory> Function() documents = getApplicationDocumentsDirectory,
+}) async {
+  final context = style ?? p.context;
+  if (context.isAbsolute(path)) return path;
+  return context.join((await documents()).path, path);
 }

@@ -18,6 +18,7 @@ import '../../../domain/models/hardware_profile.dart';
 import 'android_hardware_info_service.dart';
 import 'linux_hardware_info_service.dart';
 import 'macos_hardware_info_service.dart';
+import 'windows_hardware_info_service.dart';
 
 /// Probes what the device is. One implementation per platform; tests use a
 /// fake.
@@ -34,6 +35,7 @@ HardwareInfoService hardwareInfoServiceForPlatform() =>
       HostPlatform.linux => LinuxHardwareInfoService(),
       HostPlatform.macos => MacHardwareInfoService(),
       HostPlatform.android => AndroidHardwareInfoService(),
+      HostPlatform.windows => WindowsHardwareInfoService(),
       final other => BasicHardwareInfoService(other),
     };
 

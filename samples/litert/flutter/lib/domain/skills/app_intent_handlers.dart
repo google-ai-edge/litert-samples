@@ -88,6 +88,8 @@ String describeHardware({
     // `NVIDIA GPU 0x2b85`) is not called a GPU again.
     final gpuPart = gpu == null || chip == 'unknown'
         ? ''
+        : gpu.kind == GpuKind.software
+        ? ' and no hardware GPU, only the software renderer ${gpu.name}'
         : ' and ${_article(gpu.name)} ${gpu.name}'
               '${gpu.name.contains('GPU') ? '' : ' GPU'}'
               '${gpu.api == null ? '' : ' (${gpu.api})'}'

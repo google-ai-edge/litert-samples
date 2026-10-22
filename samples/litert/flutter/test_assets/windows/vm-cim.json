@@ -1,0 +1,1 @@
+{"cpu":[{"Name":"Intel(R) Xeon(R) CPU @ 2.80GHz","NumberOfCores":4,"NumberOfLogicalProcessors":8}],"gpus":[],"os":{"Caption":"Microsoft Windows Server 2025 Datacenter","Version":"10.0.26100","BuildNumber":"26100","OSArchitecture":"64-bit"},"ram":34355912704,"machine":{"Manufacturer":"Google","Model":"Google Compute Engine"},"npu":[]}

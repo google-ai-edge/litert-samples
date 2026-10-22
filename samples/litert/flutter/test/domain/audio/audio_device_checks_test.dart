@@ -173,6 +173,46 @@ void main() {
     });
   });
 
+  test('Windows: the output and mic messages name no Linux audio tool', () {
+    final linuxOnly = RegExp('pavucontrol|parecord|pactl|PulseAudio|PipeWire');
+    expect(
+      outputCheck(
+        platform: HostPlatform.windows,
+        playback: const [
+          AudioDevice(id: '0', name: 'Speakers (Realtek(R) Audio)'),
+          AudioDevice(id: '1', name: 'Headphones (USB Audio)', isDefault: true),
+        ],
+      ),
+      isA<DeviceReady>()
+          .having((d) => d.name, 'name', 'Headphones (USB Audio)')
+          .having((d) => d.detail, 'detail', 'default output')
+          .having((d) => d.caution, 'caution', isFalse),
+    );
+    for (final playback in [
+      const <AudioDevice>[],
+      const [
+        AudioDevice(id: '0', name: 'NULL Playback Device', isDefault: true),
+      ],
+    ]) {
+      final check = outputCheck(
+        platform: HostPlatform.windows,
+        playback: playback,
+      );
+      expect(check, isA<DeviceUnavailable>());
+      final message = (check as DeviceUnavailable).message;
+      expect(message, startsWith('No audio output device: '));
+      expect(message, isNot(contains(linuxOnly)));
+    }
+    // Only Linux records with parecord.
+    expect(
+      micStartErrorMessage(
+        const ProcessException('parecord', []),
+        HostPlatform.windows,
+      ),
+      isNot(kParecordMissing),
+    );
+  });
+
   group('output check (miniaudio null device)', () {
     const nullDevice = AudioDevice(
       id: '0',

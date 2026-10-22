@@ -50,6 +50,8 @@ typedef QueryEmbedder = Future<Result<List<double>>> Function(
 ///   repository gates.
 /// - [clear] drops the rows (the profile binding stays); the next [add]
 ///   recreates the table.
+/// - [release] closes the database but not the store, so its file can be
+///   replaced: Windows refuses to rename over or delete a file that is open.
 /// - Every [add] is its own autocommit transaction (no batch insert).
 class VectorStoreService {
   VectorStoreService({
@@ -127,6 +129,16 @@ class VectorStoreService {
       _guard('stats', () => _opened.stats());
 
   Future<Result<void>> clear() => _guard('clear', () => _opened.clear());
+
+  /// Closes the open database, if any, and keeps the store usable: [open]
+  /// works afterwards, the other calls fail until then. For replacing the
+  /// database file: Windows refuses to rename over or delete a file that is
+  /// open (POSIX allows both).
+  Future<Result<void>> release() => _guard('release', () async {
+    final index = _index;
+    _index = null;
+    await index?.dispose();
+  });
 
   /// Closes the open database; [open] refuses from now on.
   Future<void> close() async {

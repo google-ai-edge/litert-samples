@@ -290,4 +290,64 @@ void main() {
       expect(await folder.list(), isA<Error<List<LocalModelEntry>>>());
     });
   });
+
+  group('homeModelsPath: the default folder under the home on Linux and '
+      'Windows', () {
+    test(r'Windows: %USERPROFILE%\litert-demos\models, not Documents (which '
+        'OneDrive may redirect)', () {
+      expect(
+        homeModelsPath(
+          operatingSystem: 'windows',
+          environment: const {
+            'USERPROFILE': r'C:\Users\me',
+            'HOME': '/c/Users/me',
+          },
+        ),
+        r'C:\Users\me\litert-demos\models',
+      );
+    });
+
+    test('Linux: \$HOME/litert-demos/models', () {
+      expect(
+        homeModelsPath(
+          operatingSystem: 'linux',
+          environment: const {'HOME': '/home/me'},
+        ),
+        '/home/me/litert-demos/models',
+      );
+    });
+
+    test('the variable unset or empty is an error naming it', () {
+      expect(
+        () => homeModelsPath(operatingSystem: 'windows', environment: const {}),
+        throwsA(
+          isA<LocalModelException>().having(
+            (e) => e.message,
+            'message',
+            'USERPROFILE is not set.',
+          ),
+        ),
+      );
+      expect(
+        () => homeModelsPath(
+          operatingSystem: 'linux',
+          environment: const {'HOME': ''},
+        ),
+        throwsA(isA<LocalModelException>()),
+      );
+    });
+
+    test("macOS, iOS and Android: none (the app's own folder)", () {
+      for (final os in ['macos', 'ios', 'android']) {
+        expect(
+          homeModelsPath(
+            operatingSystem: os,
+            environment: const {'HOME': '/Users/me'},
+          ),
+          isNull,
+          reason: os,
+        );
+      }
+    });
+  });
 }

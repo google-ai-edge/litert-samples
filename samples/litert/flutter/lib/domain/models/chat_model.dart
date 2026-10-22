@@ -222,6 +222,20 @@ String? npuOnlyReason(LiteRtLmBundleInfo? bundle) {
       'only on the NPU';
 }
 
+/// `not compiled for an NPU`: why the NPU is not offered for a file that was
+/// read and is compiled for none ([LiteRtLmBundleInfo.isCompiledForNpu]
+/// false), the counterpart of [npuOnlyReason]. The strict engine refuses
+/// such a file on the NPU before any engine
+/// (`LiteRtLmBundleProblem.wrongBackend`; flutter_edge_ai_litertlm's README,
+/// "Where a model runs"): LiteRT would compile it on the device, and no NPU
+/// stack ships the compiler plugin for that. Null for a build compiled for an
+/// NPU and for a file whose header was not read (the plugin keeps every
+/// backend for it).
+String? notForNpuReason(LiteRtLmBundleInfo? bundle) =>
+    bundle == null || bundle.isCompiledForNpu
+    ? null
+    : 'not compiled for an NPU';
+
 /// The user's own chat model: the file and how to run it. Persisted as
 /// JSON (`CustomChatModelCodec`, in the data layer) next to the
 /// [ChatModelKind] choice.

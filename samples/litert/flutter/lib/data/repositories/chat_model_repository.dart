@@ -19,6 +19,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_edge_ai/flutter_edge_ai.dart' show PreferredBackend;
 import 'package:flutter_edge_ai_litertlm/flutter_edge_ai_litertlm.dart'
     show readLiteRtLmBundleInfo;
+import 'package:path/path.dart' show basename;
 
 import '../../config/model_catalog.dart'
     show
@@ -137,12 +138,14 @@ class ChatModelRepository implements ChatModelPlanner {
     required this._settings,
     required this._store,
     this._npu = probeNpu,
+    this._loadNpu = loadNpu,
+    String? abi,
     required this._folders,
     this._ops = const ModelFileOps(),
     this._length = _fileLength,
     this._readBundle = readLiteRtLmBundleInfo,
     this._persistMigration = true,
-  });
+  }) : _abi = abi ?? currentAbi();
 
   /// Reads what a `.litertlm` says about itself: flutter_edge_ai_litertlm's
   /// [readLiteRtLmBundleInfo] (a fake in tests).
@@ -164,6 +167,16 @@ class ChatModelRepository implements ChatModelPlanner {
   final TypedSettings _settings;
   final ModelStore _store;
   final NpuAvailability Function() _npu;
+
+  /// Runs [_npu]'s check where it lists devices with a process (Windows),
+  /// started by [load]: its answer when it came, null where [_npu] answers at
+  /// once; never throws. The state is published again when it answers, so
+  /// the Models screen reads [npu] again.
+  final Future<NpuAvailability?> Function() _loadNpu;
+
+  /// This process's ABI (`android_arm64`, `windows_x64`, …): where a file
+  /// compiled for an NPU can run ([cannotRunHere]).
+  final String _abi;
   final ModelFileOps _ops;
 
   /// Where users copy their `.litertlm` to use it in place: the first is
@@ -236,6 +249,19 @@ class ChatModelRepository implements ChatModelPlanner {
   /// the NPU by it.
   NpuAvailability get npu => _npu();
 
+  /// Why this build cannot run [bundle]'s file here on any backend, or null:
+  /// a file compiled for an NPU vendor this build does not run on this ABI
+  /// ([npuBuildRefusal]: a Qualcomm build on a PC, an Intel one on a phone, a
+  /// Google Tensor one anywhere). The plugin refuses its load before any
+  /// engine (`unsupportedNpu`), or finds no stack for it, and only once the
+  /// running model was unloaded: the Models screen and [problemWith] refuse
+  /// it up front.
+  String? cannotRunHere(LiteRtLmBundleInfo? bundle) =>
+      switch (bundle?.npuTarget) {
+        final target? => npuBuildRefusal(target, _abi),
+        null => null,
+      };
+
   /// Each models folder, in order (the app's own first, created when
   /// missing), with the `.litertlm` files in it: a folder that cannot be
   /// resolved has only an error, one that cannot be read its path and the
@@ -266,6 +292,11 @@ class ChatModelRepository implements ChatModelPlanner {
 
   /// Reads the saved choice and custom model and looks for its file.
   Future<Result<void>> load() async {
+    unawaited(
+      _loadNpu().then<void>((npu) {
+        if (npu != null) _republish();
+      }, onError: (Object e) => debugPrint('[ChatModel] NPU check: $e')),
+    );
     final problems = <String>[];
     var kind = ChatModelKind.none;
     String? note;
@@ -711,7 +742,7 @@ class ChatModelRepository implements ChatModelPlanner {
       );
     }
     final file = CustomModelFile(
-      name: absolute.split('/').last,
+      name: basename(absolute),
       sizeBytes: stat.size,
       checksumMatched: false,
     );
@@ -1083,7 +1114,7 @@ class ChatModelRepository implements ChatModelPlanner {
   /// downloaded one alike (the last two read from the store's copy). An NPU
   /// build starts on the NPU also where this device offers none: the card
   /// then says why it cannot be applied.
-  CustomChatModel defaultsFor(
+  static CustomChatModel defaultsFor(
     CustomModelFile file,
     CustomModelSource source, {
     required BundleReading bundle,
@@ -1282,9 +1313,9 @@ class ChatModelRepository implements ChatModelPlanner {
   /// Why [model] cannot be the chat model as it is; null when it can. The
   /// file must still be there; a build compiled for an NPU
   /// ([LiteRtLmBundleInfo.isCompiledForNpu], its file as last read) only on
-  /// the NPU, as the plugin's load would refuse it elsewhere
-  /// (flutter_edge_ai_litertlm's README, "Where a model runs") after the
-  /// running model was unloaded.
+  /// the NPU, and any other file read only on the GPU or the CPU, as the
+  /// plugin's strict load would refuse it otherwise (flutter_edge_ai_litertlm's
+  /// README, "Where a model runs") after the running model was unloaded.
   String? problemWith(CustomChatModel model) {
     if (model.displayName.trim().isEmpty) return 'Give the model a name.';
     final file = model.file;
@@ -1301,27 +1332,37 @@ class ChatModelRepository implements ChatModelPlanner {
     } else if (_savedStore is! StoreFileReady) {
       return 'The file is not verified in the model store.';
     }
+    // The candidate's file, else the saved one as last read.
+    final bundle = (candidate?.bundle ?? _appliedBundle)?.info;
+    if (cannotRunHere(bundle) case final why?) {
+      return 'This file cannot run here: it is $why. Choose the generic '
+          ".litertlm of this model, or the one built for this device's NPU.";
+    }
     if (CustomChatModel.contextProblem(model.maxTokens, model.backend)
         case final problem?) {
       return problem;
     }
-    // A build compiled for an NPU runs only on the NPU: the plugin refuses it
-    // on the GPU and the CPU (wrongBackend), and only once the running model
-    // was unloaded. The candidate's file, else the saved one as last read.
-    final bundle = (candidate?.bundle ?? _appliedBundle)?.info;
+    // A build compiled for an NPU runs only on the NPU, any other file read
+    // never there: the plugin refuses the other backends (wrongBackend), and
+    // only once the running model was unloaded.
     if (model.backend != PreferredBackend.npu) {
       if (npuOnlyReason(bundle) case final reason?) {
         return '${model.backend.name.toUpperCase()}: not for this file '
             '($reason). Choose NPU.';
       }
+      return null;
+    }
+    if (notForNpuReason(bundle) case final reason?) {
+      return 'NPU: not for this file ($reason). Choose GPU or CPU.';
     }
     // The NPU only where the Models screen offers it ([npu]).
-    if (model.backend == PreferredBackend.npu) {
-      if (_npu() case NpuUnavailable(:final reason)) {
-        return 'The NPU is not available here: $reason.';
-      }
-    }
-    return null;
+    return switch (_npu()) {
+      NpuUnavailable(:final reason) =>
+        'The NPU is not available here: $reason.',
+      NpuPending() =>
+        'The NPU is still being checked: apply again in a moment.',
+      NpuAvailable() => null,
+    };
   }
 
   /// Saves [model]'s settings and makes it the chat model: the candidate's

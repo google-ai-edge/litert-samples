@@ -1,0 +1,31 @@
+{
+    "cpu":  [
+                {
+                    "Name":  "Intel(R) Core(TM) Ultra X7 358H",
+                    "NumberOfCores":  16,
+                    "NumberOfLogicalProcessors":  16
+                }
+            ],
+    "gpus":  [
+                 {
+                     "Name":  "Intel(R) Arc(TM) B390 GPU",
+                     "DriverVersion":  "32.0.101.8864",
+                     "AdapterCompatibility":  "Intel Corporation",
+                     "VideoProcessor":  "Intel(R) Arc(TM) B390 GPU Family"
+                 }
+             ],
+    "os":  {
+               "Caption":  "Microsoft Windows 11 Pro",
+               "Version":  "10.0.26200",
+               "BuildNumber":  "26200",
+               "OSArchitecture":  "64-bit"
+           },
+    "ram":  68173721600,
+    "npu":  [
+                {
+                    "FriendlyName":  "Intel(R) NPU",
+                    "Status":  "OK",
+                    "InstanceId":  "PCI\\VEN_8086\u0026DEV_B03E\u0026SUBSYS_72708086\u0026REV_04\\3\u002611583659\u00260\u002658"
+                }
+            ]
+}
