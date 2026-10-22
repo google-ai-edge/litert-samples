@@ -50,18 +50,11 @@ winget install --id Microsoft.NuGet -e --source winget
 winget install --id Microsoft.VisualStudio.BuildTools -e --source winget --override "--passive --wait --add Microsoft.VisualStudio.Workload.VCTools --add Microsoft.VisualStudio.Component.VC.ATL --includeRecommended"
 ```
 
-- Visual Studio Build Tools 2026 with **Desktop development with C++** and **C++ ATL** builds the Windows app (one of
-  its plugins needs ATL). If you already have Visual Studio 2026 Community, add the **Desktop development with C++**
-  workload in the Visual Studio Installer instead; ATL comes with it.
-- NuGet fetches the WebView2 and WIL packages one of the app's plugins builds against.
-- Python derives the detector in step 3. The `python3` that Windows offers from the Microsoft Store is only a
-  shortcut to the Store; install Python as above.
-- `--source winget` keeps winget from asking you to accept the Microsoft Store source's terms, which none of these
-  packages need.
+If you already have Visual Studio 2026 Community, add its **Desktop development with C++** workload in the Visual
+Studio Installer instead of the Build Tools line.
 
-**Open a new terminal**: the one you used does not find Git yet. Install Flutter 3.47.3 there (keep `--branch 3.47.3`:
-a shallow clone without the tag cannot tell its version) in a folder without spaces, such as `C:\flutter`, and put it
-on your PATH, then **open a new terminal again**:
+**Open a new terminal** (the old one does not find Git yet), install Flutter 3.47.3 into a folder without spaces and
+put it on your PATH, then **open a new terminal again**:
 
 ```powershell
 git clone --depth 1 --branch 3.47.3 https://github.com/flutter/flutter.git C:\flutter
@@ -79,9 +72,8 @@ Warnings about Android, Chrome or the channel do not matter here; only **Visual 
 
 The set-up scripts are shell scripts: run steps 2 to 4 in **Git Bash** (installed with Git; Start › Git Bash).
 
-Clone the samples to `C:\litert-samples`, not into your user folder. Some of the build's files lie over 200 characters
-deep inside the sample; from `C:\Users\<you>\litert-samples` they pass the 260-character path limit of the Visual
-Studio build tools, and every build after the first fails.
+Clone to `C:\litert-samples`: from a deeper folder, such as your user folder, the build's paths pass Windows'
+260-character limit and every build after the first fails.
 
 ```sh
 git clone --depth 1 https://github.com/google-ai-edge/litert-samples.git /c/litert-samples
@@ -95,11 +87,8 @@ tool/flutter_litert/vendor.sh
 tool/fetch_models.sh
 ```
 
-- Every built-in model downloads without a Hugging Face account or token.
-- The script derives the YOLO26n detector in a Python virtual environment (the `ai-edge-litert` wheel exists for
-  Windows x64). If you were given `yolo26n_fp16_rawhead.tflite`, copy it into `assets/models/` first and the script
-  only verifies it.
-- `tool/fetch_models.sh --check` verifies every file without the network.
+No Hugging Face account is needed. The script derives the detector with Python; if you were given
+`yolo26n_fp16_rawhead.tflite`, copy it into `assets/models/` first.
 
 ## 4. Build
 
@@ -111,11 +100,9 @@ flutter build windows --release
 powershell -NoProfile -ExecutionPolicy Bypass -File tool/windows/package.ps1
 ```
 
-The first build downloads the LiteRT-LM runtime for Windows from GitHub, with the Intel NPU stack (OpenVINO). It takes
-several minutes. `package.ps1` checks the bundle's models against the lock and writes
-`build\dist\litert_edge_demos-v<version>-windows-x64\` (the app, the launcher `run.cmd` and the licences) and a `.zip`
-of it, which runs on another PC from the table above that has the latest Microsoft Visual C++ Redistributable (x64);
-`run.cmd` says when it is missing.
+The first build downloads the LiteRT-LM runtime with the Intel NPU stack (OpenVINO) and takes several minutes.
+`package.ps1` writes `build\dist\litert_edge_demos-v<version>-windows-x64\` with the launcher `run.cmd`, and a `.zip`
+of it for another PC from the table above (that PC needs the latest Microsoft Visual C++ Redistributable, x64).
 
 ## 5. Run
 
@@ -129,12 +116,11 @@ curl.exe -L -C - -o $env:USERPROFILE\litert-demos\models\gemma-4-E2B-it_intel_LN
 
 Start the app with `run.cmd` in
 `C:\litert-samples\samples\litert\flutter\build\dist\litert_edge_demos-v<version>-windows-x64\` (double-click it, or
-run `.\run.cmd` in a terminal there). It checks the Visual C++ runtime, the GPU, the NPU and its driver, the microphone,
-speakers and camera (and their privacy switches) and the free space in `%TEMP%`, says what is missing and how to fix
-it, then starts the app. Each run is logged to `run.log` next to `run.cmd`.
+run `.\run.cmd` in a terminal there). It checks the PC (runtime, GPU, NPU, microphone, speakers, camera), says what is
+missing, then starts the app; each run is logged to `run.log`.
 
-On **Set up models**, the **Chat model** card lists the files in `litert-demos\models` (**Rescan** if needed,
-**Path…** for a file elsewhere). Choose your file, then **Use this model**:
+On **Set up models**, the **Chat model** card lists the files in `litert-demos\models` (**Rescan** if needed).
+Choose your file, then **Use this model**:
 
 - An NPU file runs on the **NPU** only; the card offers nothing else for it.
 - The generic file runs on the **GPU** or the **CPU**.
@@ -149,16 +135,14 @@ On **Set up models**, the **Chat model** card lists the files in `litert-demos\m
 - **Live camera:** choose the camera with the **Camera** button at the top of the demo. Hold the mic and ask "What do
   you see?", "How many people are there?". It also remembers what it saw: "Where was the yellow sign?" shows the frame
   and how long ago it was.
-- **Self-test:** runs the detector on a reference picture and checks it against golden detections, loads the chat
-  model and times 64 tokens, checks the speaker and microphone, and saves a report: processor, GPU and driver, NPU,
-  where each model ran, speed and memory; the `report` line says where. Exit code 0 means every step passed:
+- **Self-test:** checks the detector, the chat model, the speakers and the microphone, and saves a report (where each
+  model ran, speed, memory); the `report` line says where. Exit code 0 means every step passed:
 
   ```powershell
   .\run.cmd --selftest --gemma=$env:USERPROFILE\litert-demos\models\gemma-4-E2B-it_intel_LNL.litertlm
   ```
 
-  An NPU file runs on the NPU; for the generic file add `--gemma-backend=gpu` or `cpu`. Add `--skip-audio` without a
-  microphone and speakers.
+  For the generic file add `--gemma-backend=gpu` or `cpu`; without a microphone and speakers add `--skip-audio`.
 
 ## Troubleshooting
 

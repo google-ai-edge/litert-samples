@@ -31,7 +31,7 @@ assistant. Everything runs on the board.
 | Storage | about 18 GB free: Flutter, the build and the models |
 | Camera | a USB camera the board sees as `/dev/video*`, or an Android phone as a Wi-Fi camera ([network camera](../../../litert/flutter/README.md#using-the-demos)) |
 | Audio | a USB speakerphone, or a microphone and a speaker |
-| Models | The chat model is Gemma 4 E2B compiled for this chip, `gemma-4-E2B-it_Qualcomm_QCS8275.litertlm` (2.72 GB) from [litert-community/gemma-4-E2B-it-litert-lm](https://huggingface.co/litert-community/gemma-4-E2B-it-litert-lm), no login needed (step 5). The built-in models are downloaded in step 3, without a Hugging Face account; if you were given the YOLO26n detector (`yolo26n_fp16_rawhead.tflite`), step 3 uses it |
+| Models | Gemma 4 E2B compiled for this chip, `gemma-4-E2B-it_Qualcomm_QCS8275.litertlm` (2.72 GB) from [litert-community/gemma-4-E2B-it-litert-lm](https://huggingface.co/litert-community/gemma-4-E2B-it-litert-lm), no login needed (step 5); the built-in models download in step 3 |
 
 ## 1. Prepare the board
 
@@ -48,18 +48,13 @@ sudo usermod -aG fastrpc "$USER"          # then log out and back in
 vulkaninfo --summary | grep deviceName     # expect a line with Adreno623
 ```
 
-The first install line takes the ALSA sound library and its headers from Ubuntu: the board's Arduino package
-repository carries a newer ALSA library without headers, and `libasound2-dev` does not install next to it. If the
-board already runs that newer library (after an `apt upgrade`), apt lists it as downgraded and asks before going
-on. Later, `apt upgrade` keeps `libasound2t64` back; that is expected.
+The first install line takes ALSA and its headers from Ubuntu: the board's Arduino repository has a newer ALSA without
+headers. If the board already has that newer one, apt asks before replacing it.
 
-After logging in again, check the NPU's device nodes: `ls -l /dev/fastrpc-cdsp /dev/dma_heap/system` should show
-both, and `groups` should include `fastrpc`. `qcom-fastrpc1` provides Qualcomm's FastRPC library
-(`libcdsprpc.so.1`), the bridge to the NPU; on the board's image it is usually installed already. `pulseaudio-utils`
-gives the app `pactl` and `parecord` for the sound check and the microphone; it works on PipeWire.
+After logging in again, `ls -l /dev/fastrpc-cdsp /dev/dma_heap/system` should list both, and `groups` should include
+`fastrpc`.
 
-Install Flutter 3.47.3 (the Linux arm64 SDK comes from the same Git repository; keep `--branch 3.47.3`, a shallow
-clone without the tag cannot tell its version):
+Install Flutter 3.47.3 (keep `--branch 3.47.3`: a shallow clone without the tag cannot tell its version):
 
 ```sh
 git clone --depth 1 --branch 3.47.3 https://github.com/flutter/flutter.git ~/flutter
@@ -77,8 +72,7 @@ tool/flutter_litert/vendor.sh
 
 ## 3. The built-in models
 
-If you were given the detector, put it where the app expects it first; then let the script fetch and verify the
-rest:
+If you were given the detector, copy it in first; the script fetches and verifies the rest:
 
 ```sh
 mkdir -p assets/models
@@ -86,10 +80,8 @@ cp /path/to/yolo26n_fp16_rawhead.tflite assets/models/   # only if you were give
 tool/fetch_models.sh
 ```
 
-- The script checks a provided detector against `tool/models.lock` and keeps it, so no Python step runs. Without
-  the file it derives the detector itself (see the [sample's README](../../../litert/flutter/README.md#set-up-once-per-checkout)).
-- Every built-in model downloads without a Hugging Face account or token.
-- `tool/fetch_models.sh --check` verifies every file without the network.
+No Hugging Face account is needed. Without a provided detector, the script derives it (see the
+[sample's README](../../../litert/flutter/README.md#set-up-once-per-checkout)).
 
 ## 4. Build
 
@@ -99,19 +91,9 @@ NO_XIPH_LIBS=1 flutter build linux --release
 tool/linux/package.sh
 ```
 
-- The first build downloads the LiteRT-LM runtime for Linux arm64 from GitHub, with the Qualcomm LiteRT dispatch
-  library for the NPU.
-- Because the sample's `pubspec.yaml` sets `qualcomm_npu: true`, the build also reads Qualcomm's QNN runtime
-  (QAIRT 2.50.0: `libQnnHtp`, `libQnnSystem` and the Hexagon V68 to V81 libraries) out of Qualcomm's public QAIRT
-  SDK zip, about 32 MB by HTTP range requests, each file checked against a pinned SHA-256. These are Qualcomm's
-  libraries under Qualcomm's licence; the build prints a notice. Offline, download that zip once and set
-  `qualcomm_npu_qairt_zip: /path/to/the.zip` next to `qualcomm_npu: true` under `hooks: user_defines:
-  flutter_edge_ai_litertlm:` in `pubspec.yaml`.
-- `NO_XIPH_LIBS=1` leaves out codec libraries of the audio player that exist only for x64; the app plays raw PCM
-  and does not need them.
-- `package.sh` checks the bundle's models against the lock and writes
-  `build/dist/litert_edge_demos-v<version>-linux-arm64/` (the app with the NPU libraries, the launcher `run.sh` and
-  the app's licences; Qualcomm's QAIRT licence and notice stay in the build cache) and a `.tar.gz` of it.
+The first build downloads the LiteRT-LM runtime and Qualcomm's NPU libraries (under Qualcomm's licence; the build
+prints a notice). `package.sh` writes `build/dist/litert_edge_demos-v<version>-linux-arm64/` with the launcher `run.sh`,
+and a `.tar.gz` of it.
 
 ## 5. Run
 
@@ -125,14 +107,12 @@ cd build/dist/litert_edge_demos-v*-linux-arm64
 `run.sh` checks the sound server, microphone, speaker, GPU (Vulkan) and camera, says what is missing and how to
 install it, then starts the app. Each run is logged to `run.log` next to `run.sh`.
 
-On **Set up models**, the **Chat model** card lists the files in `~/litert-demos/models/` (**Rescan** if needed,
-**Path…** for a file elsewhere). Choose `gemma-4-E2B-it_Qualcomm_QCS8275.litertlm`: the plugin reads it as compiled
-for the NPU (it runs only there), so the card selects **NPU** and offers neither GPU nor CPU for it; the app starts an
-NPU build with context 4096 tokens and tools off. Its **Towers** block lists the vision and audio towers; once the
-file is loaded, each row says where the engine runs it (the NPU). Then **Use this model**. If the card cannot offer
-the NPU, it says why (for example, not in group `fastrpc`, or no `/dev/fastrpc-cdsp`), and this file cannot be
-applied until that is fixed; the app never switches to another backend on its own. For the CPU or the GPU, use
-`gemma-4-E2B-it.litertlm`.
+On **Set up models**, the **Chat model** card lists the files in `~/litert-demos/models/` (**Rescan** if needed).
+Choose `gemma-4-E2B-it_Qualcomm_QCS8275.litertlm`, then **Use this model**:
+
+- It runs on the **NPU** only: the card selects it and offers nothing else.
+- If the card cannot offer the NPU, it says why ([Troubleshooting](#troubleshooting)).
+- For the GPU or the CPU, use `gemma-4-E2B-it.litertlm`.
 
 The detector runs on the GPU by default (Live camera settings › **Detector**). **This device** and the diagnostics
 overlay show where each model runs.
@@ -141,8 +121,7 @@ overlay show where each model runs.
 
 - **Voice chat:** hold the mic button, speak, release; or type. Try "What is the input size of the YOLO26 nano
   detector?" (answered from the knowledge base, with sources) and "Which accelerator are you running on?". Tools
-  start off for the NPU build, so the line above the mic adds **no skills (tools are off)**: a spoken question then
-  reaches no skill, so type the time and accelerator questions, which the app answers itself.
+  are off for the NPU build: type the time and accelerator questions, which the app answers itself.
 - **Live camera:** choose the camera with the **Camera** button at the top of the demo: a camera on the board, or a
   network camera such as a phone running IP Webcam. Hold the mic and ask "What do you see?", "How many people are
   there?", "Describe the scene". It also remembers what it saw: "Where was the yellow sign?" shows the frame and how
@@ -156,14 +135,9 @@ After **Use this model** on the card (step 5):
 ./run.sh --selftest
 ```
 
-It runs the detector on a reference picture and checks it against golden detections, loads the chat model chosen on
-the card with its saved settings (the NPU, context 4096) and times 64 tokens, checks the speaker and microphone, and
-saves a report: board, OS, GPU and Vulkan driver, where each model ran, speed and memory; the `report` line says
-where. Exit code 0 means every step passed. `--gemma=PATH` instead loads that file, not the card's choice: an NPU
-build such as this one with the app's defaults for it (the NPU, context 4096, tools off), any other file with the
-app's Gemma 4 E2B settings (the GPU, context 8192, tools on). Add `--skip-audio` without a microphone and speaker.
-Over SSH, without the desktop: install `xvfb` and prefix the command with `xvfb-run -a`. In the app: **This device ›
-Copy diagnostics**.
+It checks the detector, the chat model, the speaker and the microphone, and saves a report (where each model ran, speed,
+memory); the `report` line says where. Exit code 0 means every step passed. Add `--skip-audio` without a microphone and
+speaker; over SSH, install `xvfb` and put `xvfb-run -a` in front. In the app: **This device › Copy diagnostics**.
 
 ## Troubleshooting
 
@@ -173,7 +147,7 @@ Copy diagnostics**.
 | The card does not offer the NPU: `libcdsprpc.so.1 did not open` | `sudo apt install qcom-fastrpc1` |
 | The card does not offer the NPU: no `/dev/fastrpc-cdsp` | The kernel exposes no compute DSP: use the board's own Ubuntu image |
 | GPU and CPU are greyed out for `…_Qualcomm_QCS8275.litertlm` | It is compiled for the NPU and runs only there: for the CPU or the GPU use `gemma-4-E2B-it.litertlm` |
-| The build stops reading the QAIRT zip | No network to Qualcomm's download: set `qualcomm_npu_qairt_zip` to a local copy (step 4) |
+| The build stops reading the QAIRT zip | No network to Qualcomm's download: download the QAIRT SDK zip once and set `qualcomm_npu_qairt_zip: /path/to/the.zip` next to `qualcomm_npu: true` in `pubspec.yaml` |
 | `flutter pub get` cannot find `third_party/flutter_litert` | Run `tool/flutter_litert/vendor.sh` (step 2) |
 | `No file or variants found for asset: assets/models/…` | Run `tool/fetch_models.sh` (step 3) |
 | `flutter build linux` fails linking `libFLAC` / `libvorbis` | Build with `NO_XIPH_LIBS=1` (step 4) |
