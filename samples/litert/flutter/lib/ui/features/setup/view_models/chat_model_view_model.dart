@@ -18,6 +18,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart' show PlatformException;
 import 'package:flutter_edge_ai/flutter_edge_ai.dart'
     show ModelType, PreferredBackend;
+import 'package:path/path.dart' show basename;
 
 import '../../../../data/repositories/chat_model_repository.dart';
 import '../../../../domain/models/chat_model.dart';
@@ -753,18 +754,21 @@ class ChatModelViewModel extends ChangeNotifier {
   /// fills the slot.
   ChatModelSource get _planned => _sources.chat(_chatModels.plan);
 
+  /// `GEMMA_MODEL_PATH` is named by its file: what it loads with follows
+  /// the file (Gemma 4 E2B's settings, or the app's defaults for a build
+  /// compiled for an NPU), which only the load reads.
   String _plannedName() => switch (_planned) {
     CustomChatSource(:final plan) => plan.model.displayName,
     BlockedChatSource() => 'your own model',
-    DefineChatSource(:final config) => config.name,
+    DefineChatSource(:final path) => basename(path),
     NoChatSource() => 'no chat model',
   };
 
-  /// The backend the planned load asks for; null when nothing loads.
+  /// The backend the planned load asks for; null when nothing loads, and
+  /// for `GEMMA_MODEL_PATH` (it follows the file, see [_plannedName]).
   String? _plannedBackend() => switch (_planned) {
     CustomChatSource(:final plan) => plan.model.backend.name,
-    DefineChatSource(:final config) => config.llm.backend.name,
-    BlockedChatSource() || NoChatSource() => null,
+    DefineChatSource() || BlockedChatSource() || NoChatSource() => null,
   };
 
   // ---- Actions ----

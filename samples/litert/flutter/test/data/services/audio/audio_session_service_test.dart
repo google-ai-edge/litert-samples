@@ -83,7 +83,7 @@ void main() {
   });
 
   test('Windows gets the no-op session too: audio_session has no Windows '
-      'plugin, so its first call would throw MissingPluginException', () async {
+      'plugin and would answer as if a session were active', () async {
     final service = audioSessionServiceFor(HostPlatform.windows);
     expect(service, isA<NoAudioSessionService>());
     expect(await service.activate(), isTrue);

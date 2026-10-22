@@ -253,6 +253,36 @@ void main() {
       }
     });
 
+    test('the query tells "Windows lists none" from "the query failed": '
+        'only the second is not listed', () {
+      // The catch sees only a terminating error: without -ErrorAction Stop a
+      // failed query would read as an empty list, the one unavailable case.
+      expect(
+        kWindowsNpuScript,
+        contains(
+          'Get-PnpDevice -Class ComputeAccelerator -PresentOnly '
+          '-ErrorAction Stop',
+        ),
+      );
+      // "None" is Get-PnpDevice's ObjectNotFound error: the list stays empty
+      // and listed. Any other error is a failed query, with its message.
+      expect(kWindowsNpuScript, contains(r'$listed = $true'));
+      expect(
+        kWindowsNpuScript,
+        contains(r'''
+} catch {
+  if ($_.CategoryInfo.Category -ne 'ObjectNotFound') {
+    $listed = $false
+    $err = "$($_.Exception.Message)"
+  }
+}'''),
+      );
+      expect(
+        kWindowsNpuScript,
+        contains(r'listed = $listed; error = $err; npu = $npu'),
+      );
+    });
+
     test("the dispatch DLL missing: unavailable with the plugin's reason, "
         'whatever is listed', () {
       const missing =

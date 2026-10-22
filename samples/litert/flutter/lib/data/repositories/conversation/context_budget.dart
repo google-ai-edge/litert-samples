@@ -36,11 +36,12 @@ typedef AgentReserve = ({int system, int rounds});
 /// user message).
 final class const ContextBudget({
   /// LiteRT-LM's count for the live conversation (0 when unreadable). It is
-  /// the work the conversation did, not what it holds: after a stopped turn
-  /// that flutter_edge_ai_litertlm rewound in place it counts the stopped
-  /// exchange twice (its first run and the rewind's prefill), so the guard
-  /// errs high after a stop and may reset the chat a little early, the safe
-  /// direction.
+  /// the work the conversation did, not what it holds: each stopped turn that
+  /// flutter_edge_ai_litertlm rewound in place is in it twice (its first run
+  /// and the rewind's prefill), and these extras add up over the stops until
+  /// the chat's next reset. So after stops the guard errs high by every
+  /// stopped exchange since that reset and may reset the chat that much
+  /// early: the safe direction.
   required final int nativeTokens,
 
   /// flutter_edge_ai's count (`InferenceChat.currentTokens`).

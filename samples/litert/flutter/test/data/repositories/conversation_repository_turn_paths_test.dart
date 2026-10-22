@@ -231,6 +231,40 @@ void main() {
         expect(m2.promptTokens, 3);
       });
 
+      test('a stopped turn right after another stop that produced nothing '
+          'loses the image it sent (the plugin may have skipped the send): '
+          'the next ask sends it again', () async {
+        final dog = Uint8List.fromList([0x89, 0x50, 0x4E, 0x47, 2]);
+
+        /// Asks with [image] and stops before the reply's first token.
+        Future<_Turn> cut(Uint8List image) async {
+          model.script.add(TextTurn(const ['Never.'], gate: Completer<void>()));
+          final turn = _Turn(repo, 'Look.', image: image);
+          await settle();
+          await repo.stop();
+          await turn.done;
+          return turn;
+        }
+
+        final first = await cut(cats);
+        expect(first.metrics.stopped, isTrue);
+        expect(repo.imageInContext, same(cats), reason: 'rewound in place');
+        final second = await cut(dog);
+        expect(second.deltas, isEmpty);
+        final m2 = second.metrics;
+        expect((m2.stopped, m2.imageSent), (true, true));
+        expect(repo.imageInContext, isNull);
+
+        model.script.add(const TextTurn(['A dog.']));
+        final next = _Turn(repo, 'What is it?', image: dog);
+        await next.done;
+
+        final users = session().queries.where((m) => m.isUser).toList();
+        expect(users.last.imageBytes, same(dog));
+        expect(next.metrics.imageSent, isTrue);
+        expect(next.metrics.imageResent, ImageLoss.stop);
+      });
+
       group('preconditions: one AssistantFailed, nothing reaches the '
           'engine, idle', () {
         test('the conversation is closed', () async {

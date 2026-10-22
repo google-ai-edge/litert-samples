@@ -114,6 +114,8 @@ void main() {
       tts: fakeTtsService(),
       chatModels: chatModels,
       embedder: EmbedderService(),
+      readBundle: fakeReadBundle,
+      abi: chatModelsAbi,
     );
     picker = FakeModelFilePicker(support: support);
     switcher = ChatModelSwitcher(
@@ -172,26 +174,47 @@ void main() {
     expect(llm.models, isEmpty, reason: 'nothing loaded');
   });
 
-  test('none chosen and GEMMA_MODEL_PATH set (a developer build): the card '
-      'names what loads, by the rule setup loads by', () async {
-    await build(gemmaModelPath: pick('define.litertlm'), prepare: false);
-    llm.loadGate = Completer<void>();
+  group('none chosen and GEMMA_MODEL_PATH set (a developer build): the card '
+      'names the file that loads, by the rule setup loads by, and its '
+      'backend once loaded (what it loads with follows the file)', () {
+    /// Loads the define's file with [content]; returns the card's line
+    /// while it loads.
+    Future<String> loading(List<int> content) async {
+      await build(
+        gemmaModelPath: pick('define.litertlm', content),
+        prepare: false,
+      );
+      llm.loadGate = Completer<void>();
+      final preparing = models.prepareAll();
+      // The define's file is read first (what it loads with follows it).
+      await untilNotified(
+        models.states,
+        () => models.states.value[ModelId.chat] is ModelLoading,
+        what: 'the load',
+      );
+      final line = vm.activeLine;
+      llm.loadGate!.complete();
+      expect(await preparing, isA<Ok<void>>());
+      return line;
+    }
 
-    final preparing = models.prepareAll();
-    // The define's file is read first (what it loads with follows it).
-    await untilNotified(
-      models.states,
-      () => models.states.value[ModelId.chat] is ModelLoading,
-      what: 'the load',
-    );
-    expect(vm.activeLine, 'Loading ${kDefineChatModel.name} on gpu…');
+    test("a file not compiled for an NPU: Gemma 4 E2B's settings", () async {
+      final line = await loading(fakeLitertlmBytes(FakeBundle.gemma4E2b));
 
-    llm.loadGate!.complete();
-    expect(await preparing, isA<Ok<void>>());
-    expect(
-      vm.activeLine,
-      startsWith('Loaded: ${kDefineChatModel.name} · gpu → gpu'),
-    );
+      expect(line, 'Loading define.litertlm…');
+      expect(
+        vm.activeLine,
+        startsWith('Loaded: ${kDefineChatModel.name} · gpu → gpu'),
+      );
+    });
+
+    test("a build compiled for an NPU: the app's defaults for it, on the "
+        'NPU; the card never says the GPU', () async {
+      final line = await loading(bytes);
+
+      expect(line, 'Loading define.litertlm…');
+      expect(vm.activeLine, startsWith('Loaded: define · npu → npu'));
+    });
   });
 
   test('import → defaults in the editor → Use this model: the chat is '

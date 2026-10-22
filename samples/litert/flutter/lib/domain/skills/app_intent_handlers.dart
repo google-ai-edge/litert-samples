@@ -89,7 +89,7 @@ String describeHardware({
     final gpuPart = gpu == null || chip == 'unknown'
         ? ''
         : gpu.kind == GpuKind.software
-        ? ' and no hardware GPU, only the software renderer ${gpu.name}'
+        ? ' and no GPU driver in use, only the software renderer ${gpu.name}'
         : ' and ${_article(gpu.name)} ${gpu.name}'
               '${gpu.name.contains('GPU') ? '' : ' GPU'}'
               '${gpu.api == null ? '' : ' (${gpu.api})'}'

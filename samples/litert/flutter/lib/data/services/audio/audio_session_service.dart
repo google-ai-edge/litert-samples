@@ -61,11 +61,10 @@ AudioSessionService audioSessionServiceFor(HostPlatform platform) =>
 
 /// Linux and Windows have no audio session: PulseAudio/PipeWire route per
 /// stream on Linux, and Windows has no app-wide session to configure.
-/// Said explicitly. On Linux `audio_session` 0.2.4 swallows its missing
-/// plugin (`AudioSession.instance`, `AudioSession.configure`) and
-/// `AudioSession.setActive` answers true, which would log a session that does
-/// not exist; it has no Windows implementation at all, so its first call
-/// there throws a MissingPluginException.
+/// Said explicitly. `audio_session` 0.2.4 has no implementation on either:
+/// it swallows its missing plugin (`AudioSession.instance`,
+/// `AudioSession.configure`) and `AudioSession.setActive` answers true, which
+/// would log a session that does not exist.
 final class NoAudioSessionService implements AudioSessionService {
   /// Linux's.
   const NoAudioSessionService({this._log})
