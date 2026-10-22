@@ -8,7 +8,7 @@ assistant. Everything runs on the board.
 
 | Model | Runs on |
 |---|---|
-| Chat model `gemma-4-E2B-it_qualcomm_qcs8275.litertlm` | NPU (Hexagon V75); its vision and audio towers on the CPU (the engine places them: they are not compiled for the NPU) |
+| Chat model `gemma-4-E2B-it_Qualcomm_QCS8275.litertlm` | NPU (Hexagon V75), its vision and audio towers too |
 | Chat model `gemma-4-E2B-it.litertlm` (alternative) | CPU or GPU (Adreno 623); its vision and audio towers on the CPU |
 | YOLO26n detector (Live camera) | GPU (Adreno 623, through LiteRT's WebGPU accelerator on Vulkan); CPU when chosen in the Live camera settings |
 | EmbeddingGemma 2 (knowledge base, visual memory), Whisper base and moonshine tiny (speech to text), Inflect-nano-v2 (spoken replies) | CPU |
@@ -31,13 +31,14 @@ assistant. Everything runs on the board.
 | Storage | about 18 GB free: Flutter, the build and the models |
 | Camera | a USB camera the board sees as `/dev/video*`, or an Android phone as a Wi-Fi camera ([network camera](../../../litert/flutter/README.md#using-the-demos)) |
 | Audio | a USB speakerphone, or a microphone and a speaker |
-| Models | The chat model is Gemma 4 E2B compiled for this chip, `gemma-4-E2B-it_qualcomm_qcs8275.litertlm` (3.29 GB) from [litert-community/gemma-4-E2B-it-litert-lm](https://huggingface.co/litert-community/gemma-4-E2B-it-litert-lm), no login needed (step 5). The built-in models are downloaded in step 3, without a Hugging Face account; if you were given the YOLO26n detector (`yolo26n_fp16_rawhead.tflite`), step 3 uses it |
+| Models | The chat model is Gemma 4 E2B compiled for this chip, `gemma-4-E2B-it_Qualcomm_QCS8275.litertlm` (2.72 GB) from [litert-community/gemma-4-E2B-it-litert-lm](https://huggingface.co/litert-community/gemma-4-E2B-it-litert-lm), no login needed (step 5). The built-in models are downloaded in step 3, without a Hugging Face account; if you were given the YOLO26n detector (`yolo26n_fp16_rawhead.tflite`), step 3 uses it |
 
 ## 1. Prepare the board
 
 ```sh
 dpkg --print-architecture                 # must print arm64
 sudo apt update
+sudo apt install --allow-downgrades libasound2t64/noble-updates libasound2-dev/noble-updates
 sudo apt install -y git curl unzip xz-utils patch clang cmake ninja-build pkg-config lld \
   libgtk-3-dev liblzma-dev libstdc++-12-dev libgstreamer1.0-dev libgstreamer-plugins-base1.0-dev \
   libasound2-dev libturbojpeg python3-venv \
@@ -46,6 +47,11 @@ sudo apt install -y git curl unzip xz-utils patch clang cmake ninja-build pkg-co
 sudo usermod -aG fastrpc "$USER"          # then log out and back in
 vulkaninfo --summary | grep deviceName     # expect a line with Adreno623
 ```
+
+The first install line takes the ALSA sound library and its headers from Ubuntu: the board's Arduino package
+repository carries a newer ALSA library without headers, and `libasound2-dev` does not install next to it. If the
+board already runs that newer library (after an `apt upgrade`), apt lists it as downgraded and asks before going
+on. Later, `apt upgrade` keeps `libasound2t64` back; that is expected.
 
 After logging in again, check the NPU's device nodes: `ls -l /dev/fastrpc-cdsp /dev/dma_heap/system` should show
 both, and `groups` should include `fastrpc`. `qcom-fastrpc1` provides Qualcomm's FastRPC library
@@ -111,7 +117,7 @@ tool/linux/package.sh
 
 ```sh
 mkdir -p ~/litert-demos/models
-wget -c -P ~/litert-demos/models https://huggingface.co/litert-community/gemma-4-E2B-it-litert-lm/resolve/main/gemma-4-E2B-it_qualcomm_qcs8275.litertlm
+wget -c -P ~/litert-demos/models https://huggingface.co/litert-community/gemma-4-E2B-it-litert-lm/resolve/main/gemma-4-E2B-it_Qualcomm_QCS8275.litertlm
 cd build/dist/litert_edge_demos-v*-linux-arm64
 ./run.sh
 ```
@@ -120,10 +126,10 @@ cd build/dist/litert_edge_demos-v*-linux-arm64
 install it, then starts the app. Each run is logged to `run.log` next to `run.sh`.
 
 On **Set up models**, the **Chat model** card lists the files in `~/litert-demos/models/` (**Rescan** if needed,
-**Path…** for a file elsewhere). Choose `gemma-4-E2B-it_qualcomm_qcs8275.litertlm`: the plugin reads it as compiled
+**Path…** for a file elsewhere). Choose `gemma-4-E2B-it_Qualcomm_QCS8275.litertlm`: the plugin reads it as compiled
 for the NPU (it runs only there), so the card selects **NPU** and offers neither GPU nor CPU for it; the app starts an
 NPU build with context 4096 tokens and tools off. Its **Towers** block lists the vision and audio towers; once the
-file is loaded, each row says where the engine runs it (the CPU). Then **Use this model**. If the card cannot offer
+file is loaded, each row says where the engine runs it (the NPU). Then **Use this model**. If the card cannot offer
 the NPU, it says why (for example, not in group `fastrpc`, or no `/dev/fastrpc-cdsp`), and this file cannot be
 applied until that is fixed; the app never switches to another backend on its own. For the CPU or the GPU, use
 `gemma-4-E2B-it.litertlm`.
@@ -153,10 +159,11 @@ After **Use this model** on the card (step 5):
 It runs the detector on a reference picture and checks it against golden detections, loads the chat model chosen on
 the card with its saved settings (the NPU, context 4096) and times 64 tokens, checks the speaker and microphone, and
 saves a report: board, OS, GPU and Vulkan driver, where each model ran, speed and memory; the `report` line says
-where. Exit code 0 means every step passed. `--gemma=PATH` would instead load a file with the app's Gemma 4 E2B
-settings (context 8192, tools on), not the card's. Add `--skip-audio` without a microphone and speaker. Over SSH,
-without the desktop: install `xvfb` and prefix the command with `xvfb-run -a`. In the app: **This device › Copy
-diagnostics**.
+where. Exit code 0 means every step passed. `--gemma=PATH` instead loads that file, not the card's choice: an NPU
+build such as this one with the app's defaults for it (the NPU, context 4096, tools off), any other file with the
+app's Gemma 4 E2B settings (the GPU, context 8192, tools on). Add `--skip-audio` without a microphone and speaker.
+Over SSH, without the desktop: install `xvfb` and prefix the command with `xvfb-run -a`. In the app: **This device ›
+Copy diagnostics**.
 
 ## Troubleshooting
 
@@ -165,7 +172,7 @@ diagnostics**.
 | The card does not offer the NPU: "not accessible to this user" | `sudo usermod -aG fastrpc "$USER"`, then log out and back in |
 | The card does not offer the NPU: `libcdsprpc.so.1 did not open` | `sudo apt install qcom-fastrpc1` |
 | The card does not offer the NPU: no `/dev/fastrpc-cdsp` | The kernel exposes no compute DSP: use the board's own Ubuntu image |
-| GPU and CPU are greyed out for `…_qualcomm_qcs8275.litertlm` | It is compiled for the NPU and runs only there: for the CPU or the GPU use `gemma-4-E2B-it.litertlm` |
+| GPU and CPU are greyed out for `…_Qualcomm_QCS8275.litertlm` | It is compiled for the NPU and runs only there: for the CPU or the GPU use `gemma-4-E2B-it.litertlm` |
 | The build stops reading the QAIRT zip | No network to Qualcomm's download: set `qualcomm_npu_qairt_zip` to a local copy (step 4) |
 | `flutter pub get` cannot find `third_party/flutter_litert` | Run `tool/flutter_litert/vendor.sh` (step 2) |
 | `No file or variants found for asset: assets/models/…` | Run `tool/fetch_models.sh` (step 3) |
@@ -173,5 +180,7 @@ diagnostics**.
 | After a failed build, `file INSTALL cannot copy file … to "/usr/local/…": Permission denied` | CMake kept a default install prefix from the failed run: `rm -r build/linux` and build again |
 | `package.sh: … exists; move it away first` | `rm -r build/dist/litert_edge_demos-v*`, then run it again |
 | `pactl did not run: install pulseaudio-utils` | `sudo apt install pulseaudio-utils` |
-| A `…_qualcomm_sm8750` or other phone build fails to load | NPU builds are compiled per chip: on this board use `…_qualcomm_qcs8275.litertlm` |
+| An NPU build for another chip fails to load | NPU builds are compiled per chip: on this board use `gemma-4-E2B-it_Qualcomm_QCS8275.litertlm` |
+| `libasound2-dev : Depends: libasound2t64 (= …) but … is to be installed` | Install both from Ubuntu first: `sudo apt install --allow-downgrades libasound2t64/noble-updates libasound2-dev/noble-updates` (step 1) |
+| `flutter build linux` fails: `ALSA_LIBRARY` is `NOTFOUND`, or `alsa/asoundlib.h` is not found | `libasound2-dev` is missing: run step 1's ALSA line again |
 | No camera picture | Use a phone as a network camera ([sample README](../../../litert/flutter/README.md#using-the-demos)) |

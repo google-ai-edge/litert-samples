@@ -175,7 +175,7 @@ All runnable applications live under **[`samples/`](samples/)**. New application
 | Sample App | Highlights & Modality | Platforms & Accelerators | Models Used (`litert-community`) |
 | :--- | :--- | :--- | :--- |
 | **[`samples/litert_model_zoo/`](samples/litert_model_zoo/)** | **34 Tasks in One Android App** (21 Vision, 8 Audio, 5 Text Decision). On-demand SHA-256 verified downloads from HF, live latency/backend cards, 122 JVM tests. | Android (`CompiledModel` GPU / CPU) | 34 repos on `litert-community` (RF-DETR, PIDNet, MODNet, DINOv2, PP-OCRv5, Depth Anything 3, Zipformer, Matcha-TTS, Laya, etc.) |
-| **[`samples/litert/flutter/`](samples/litert/flutter/)** | **All-in-One Edge AI Assistant**: Spoken voice chat, live camera object detection + visual memory, local RAG knowledge base, and function-calling agent skills. | Android, iOS, macOS, Linux, Raspberry Pi 5, Jetson Orin, Qualcomm VENTUNO Q (CPU / GPU / NPU) | [Gemma 4 E2B](https://huggingface.co/litert-community/gemma-4-E2B-it-litert-lm), [EmbeddingGemma 2](https://huggingface.co/litert-community/embeddinggemma-2-740m-litert-lm), [Whisper Base](https://huggingface.co/litert-community/whisper-base), [Moonshine Tiny](https://huggingface.co/litert-community/moonshine-tiny), [Inflect-Nano-v2](https://huggingface.co/litert-community/Inflect-Nano-v2), YOLO26n |
+| **[`samples/litert/flutter/`](samples/litert/flutter/)** | **All-in-One Edge AI Assistant**: Spoken voice chat, live camera object detection + visual memory, local RAG knowledge base, and function-calling agent skills. | Android, iOS, macOS, Linux, Windows, Raspberry Pi 5, Jetson Orin, Qualcomm VENTUNO Q, Intel Core Ultra PCs (CPU / GPU / NPU) | [Gemma 4 E2B](https://huggingface.co/litert-community/gemma-4-E2B-it-litert-lm), [EmbeddingGemma 2](https://huggingface.co/litert-community/embeddinggemma-2-740m-litert-lm), [Whisper Base](https://huggingface.co/litert-community/whisper-base), [Moonshine Tiny](https://huggingface.co/litert-community/moonshine-tiny), [Inflect-Nano-v2](https://huggingface.co/litert-community/Inflect-Nano-v2), YOLO26n |
 | **[`samples/litert/flutter_intel_npu/`](samples/litert/flutter_intel_npu/)** | **3-Act Hardware Showcase**: Compare CPU vs. GPU vs. Intel Core Ultra NPU in a live speed race, 45-min transcript Q&A, and live 3D scene narration. | Windows 11 (Intel Core Ultra CPU / GPU / NPU), macOS (CPU / Metal GPU) | [Gemma 4 E2B](https://huggingface.co/litert-community/gemma-4-E2B-it-litert-lm) & [Gemma 4 12B](https://huggingface.co/litert-community/gemma-4-12B-it-litert-lm) |
 | **[`samples/litert_lm/voice_assistant/`](samples/litert_lm/voice_assistant/)** | **100% Offline Voice Agent**: Listens to speech, executes device tool calls (alarm, timer, calendar), and speaks back offline. | Android (Kotlin) | [Gemma 4 E2B](https://huggingface.co/litert-community/gemma-4-E2B-it-litert-lm) + [Zipformer CR-CTC](https://huggingface.co/litert-community/Zipformer-medium-CR-CTC-LiteRT) + [KittenTTS Nano](https://huggingface.co/litert-community/kitten-tts-nano-0.8) |
 | **[`samples/litert_lm/reachy-voice-robot/`](samples/litert_lm/reachy-voice-robot/)** | **Embodied Voice Robot**: Sees via camera, hears questions, reasons with Gemma, and speaks aloud on Raspberry Pi. | Raspberry Pi (Python) | [Gemma 4 E2B](https://huggingface.co/litert-community/gemma-4-E2B-it-litert-lm) + [Moonshine Tiny](https://huggingface.co/litert-community/moonshine-tiny) + [Inflect-Nano-v2](https://huggingface.co/litert-community/Inflect-Nano-v2) + YOLO26 |
@@ -214,6 +214,7 @@ Step-by-step instructions to build, deploy, and run LiteRT & LiteRT-LM demos on 
 * 🟢 **[NVIDIA Jetson Orin (`samples/platforms/nvidia/`)](samples/platforms/nvidia/)** — Edge Linux GPU deployment.
 * 🔌 **[Qualcomm / Arduino VENTUNO Q (`samples/platforms/qualcomm/ventuno/`)](samples/platforms/qualcomm/ventuno/)** — Development board NPU/CPU guide.
 * 🍓 **[Raspberry Pi 5 (`samples/platforms/raspberry/`)](samples/platforms/raspberry/)** — Embedded Linux setup for voice & vision agents.
+* 💻 **[Intel Core Ultra PCs, Windows (`samples/platforms/intel/`)](samples/platforms/intel/)** — Windows build with the Intel NPU, GPU and CPU.
 
 ---
 
@@ -290,7 +291,7 @@ litert-samples/
 │   ├── litert_lm/                  # LiteRT-LM agentic showcases (Offline Android Voice Assistant, Raspberry Pi Reachy Robot)
 │   ├── web_demos/                  # Client-side WebGPU/WASM demos (@litertjs/core) + Chrome Extension
 │   ├── tensor_api_playground/      # Interactive browser playground for the C++ LiteRT Tensor API
-│   ├── platforms/                  # Hardware setup guides (Android, iOS, NVIDIA Jetson, Qualcomm VENTUNO Q, Raspberry Pi)
+│   ├── platforms/                  # Hardware setup guides (Android, iOS, NVIDIA Jetson, Qualcomm VENTUNO Q, Raspberry Pi, Intel PCs)
 │   ├── end_to_end/                 # Full conversion-to-deployment pipelines (ImageNet)
 │   └── litert_interpreter/         # Legacy TensorFlow Lite Interpreter API reference samples (maintenance mode)
 ├── models/                         # 🧪 End-to-end model conversion recipes & verification gates
