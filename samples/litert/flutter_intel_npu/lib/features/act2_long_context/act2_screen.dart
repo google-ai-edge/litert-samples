@@ -64,7 +64,8 @@ class _Act2ScreenState extends State<Act2Screen> {
       final ctl = LongContextController(
         pool: widget.pool,
         spec: widget.config.act2,
-        fallbackModelPath: widget.config.modelPath,
+        // On the NPU the contrast engine needs the NPU build too.
+        fallbackModelPath: widget.config.modelPathFor(widget.config.act2.backend),
         transcript: t,
       );
       ctl.addListener(_onCtl);
@@ -78,22 +79,27 @@ class _Act2ScreenState extends State<Act2Screen> {
       if (auto != null && ctl.phase == Act2Phase.ready) {
         await ctl.ask(auto);
         await ctl.runContrast();
-        _emitResults(ctl);
+        await _emitResults(ctl);
       } else if (ctl.phase == Act2Phase.failed && widget.config.autorunExit) {
-        _emitResults(ctl);
+        await _emitResults(ctl);
       }
     } catch (e) {
       if (mounted) setState(() => _loadError = '$e');
     }
   }
 
-  void _emitResults(LongContextController ctl) {
+  Future<void> _emitResults(LongContextController ctl) async {
     final json = jsonEncode({'act': 2, 'captured_at': DateTime.now().toIso8601String(), ...ctl.toJson()});
     // ignore: avoid_print
     print('ACT2_JSON $json');
     final p = widget.config.resultsPath;
     if (p != null) File(p).writeAsStringSync('$json\n', mode: FileMode.append);
-    if (widget.config.autorunExit) exit(ctl.error == null ? 0 : 1);
+    if (widget.config.autorunExit) {
+      // Close the models first: an NPU bundle's weight bank in the temp folder
+      // (5.55 GB for the Panther Lake 12B) goes only with its engine.
+      await widget.pool.releaseAll();
+      exit(ctl.error == null ? 0 : 1);
+    }
   }
 
   void _onCtl() {
@@ -284,7 +290,7 @@ class _ModelPane extends StatelessWidget {
               child: Text(
                 'question TTFT ${ctl.answerTtft?.inMilliseconds} ms · '
                 '${ctl.answerMetrics!.tokensPerSecond?.toStringAsFixed(1)} tok/s · '
-                '${ctl.answerMetrics!.outputTokens} tokens',
+                '${ctl.answerOutputTokens} tokens',
                 style: theme.textTheme.bodySmall,
               ),
             ),

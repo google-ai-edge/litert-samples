@@ -45,6 +45,8 @@ class _Turn implements EngineTurn {
   @override
   SessionMetrics get metrics => SessionMetrics(outputTokens: chunks.length, tokensPerSecond: 50);
   @override
+  Future<void> stop() async {}
+  @override
   Future<void> close() async {}
 }
 

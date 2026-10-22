@@ -95,7 +95,7 @@ class _Act1ScreenState extends State<Act1Screen> with SingleTickerProviderStateM
       await FlutterEdgeAi.installModel(
         modelType: ModelType.gemma4,
         fileType: ModelFileType.litertlm,
-      ).fromFile(widget.config.modelPath).install();
+      ).fromFile(widget.config.modelPath).install(activate: false);
       if (!mounted) return;
       setState(() => _installed = true);
     } catch (e) {

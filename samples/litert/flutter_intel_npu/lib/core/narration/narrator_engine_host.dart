@@ -12,22 +12,20 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// The narrator's worker isolate: owns its own engines (raw LiteRT-LM FFI
-// clients, one per backend) and runs every generate() there, so whatever the
-// native path blocks on can only block THIS isolate — never the UI isolate
-// that owns the frame rate.
-//
-// Wire protocol is plain maps so nothing here needs Flutter.
+// The narrator's engines and conversation, behind a message protocol of
+// plain maps. It runs on the UI isolate: the plugin creates engines in a
+// background isolate and streams tokens from a native thread. Closing an
+// engine (engine_delete) does run here, when the act ends or the narrator is
+// replaced.
 
 import 'dart:async';
-import 'dart:isolate';
 
 import 'package:flutter_edge_ai/flutter_edge_ai.dart';
 
 import '../engines/engine_pool.dart';
 import '../engines/engine_slot.dart';
 
-/// UI → worker
+/// UI → host
 class NarratorCmd {
   static const load = 'load'; // {backend, modelPath, maxTokens}
   static const open = 'open'; // {backend, maxOutputTokens} → new conversation on that engine
@@ -36,7 +34,7 @@ class NarratorCmd {
   static const dispose = 'dispose';
 }
 
-/// worker → UI
+/// host → UI
 class NarratorMsg {
   static const ready = 'ready'; // {port}
   static const loaded = 'loaded'; // {backend, loadMs}
@@ -46,12 +44,14 @@ class NarratorMsg {
   static const error = 'error'; // {op, message}
 }
 
-/// The engine host: everything after the wire. Used by the worker isolate
-/// ([narratorMain]) and, with `ACT3_NARRATOR_INLINE=true`, directly on the
-/// UI isolate (a diagnostic/fallback mode — see CLAUDE.md, Windows GPU).
+/// The engine host: everything after the wire.
 class NarratorEngineHost {
   final EnginePool _pool = EnginePool(policy: EnginePolicy.resident, modelPath: '');
   EngineTurn? _turn;
+
+  /// Stops the turn in progress now, not after the commands queued behind
+  /// it, so a dispose or a replacement does not wait for it to finish.
+  void cancel() => _turn?.stop();
 
   /// Handles one command; replies (possibly several) go through [send].
   /// Returns false after `dispose`.
@@ -101,18 +101,5 @@ class NarratorEngineHost {
       send({'type': NarratorMsg.error, 'op': type, 'turnId': msg['turnId'], 'message': '$e\n$st'});
     }
     return true;
-  }
-}
-
-Future<void> narratorMain(SendPort toUi) async {
-  final inbox = ReceivePort();
-  toUi.send({'type': NarratorMsg.ready, 'port': inbox.sendPort});
-  final host = NarratorEngineHost();
-  await for (final raw in inbox) {
-    final alive = await host.handle(raw as Map<String, Object?>, toUi.send);
-    if (!alive) {
-      inbox.close();
-      return;
-    }
   }
 }

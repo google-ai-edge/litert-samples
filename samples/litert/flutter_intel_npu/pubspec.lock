@@ -186,18 +186,18 @@ packages:
     dependency: "direct main"
     description:
       name: flutter_edge_ai
-      sha256: "8edf97e97f3b36c0eb3b51610900dc9ce362a72fc246fdf49eec88337a50d35f"
+      sha256: "2eef7d40cdc0339c4c202e58851418f04673c0d75bf606cfd69e7e1fbea7bf9b"
       url: "https://pub.dev"
     source: hosted
-    version: "2.4.1"
+    version: "2.5.1"
   flutter_edge_ai_litertlm:
     dependency: "direct main"
     description:
       name: flutter_edge_ai_litertlm
-      sha256: "3b793e77f66fd5a50ad54930a264d40a0fd3cd87adb17d50e337a3f0182b1c15"
+      sha256: "2b76ab41db0293b21719fe4656a41b268fe9a1dfc87c4c991960b3f6668a0309"
       url: "https://pub.dev"
     source: hosted
-    version: "1.15.0"
+    version: "1.17.0"
   flutter_gpu:
     dependency: transitive
     description: flutter

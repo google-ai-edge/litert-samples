@@ -84,7 +84,6 @@ class _RunnerScreenState extends State<RunnerScreen> {
     },
     maxTokens: widget.config.act3.narratorMaxTokens,
     interval: Duration(milliseconds: widget.config.act3.narratorIntervalMs),
-    inline: widget.config.act3.narratorInline,
     preface: SceneNarrator.runnerPreface,
   );
 

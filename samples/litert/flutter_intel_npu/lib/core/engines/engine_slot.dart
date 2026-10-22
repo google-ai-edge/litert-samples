@@ -12,17 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// ignore_for_file: implementation_imports
-
-import 'dart:io';
-
 import 'package:flutter_edge_ai/flutter_edge_ai.dart';
-import 'package:flutter_edge_ai_litertlm/src/ffi/litert_lm_client.dart';
-import 'package:flutter_edge_ai_litertlm/src/ffi/litert_lm_bindings.dart';
-import 'package:flutter_edge_ai_litertlm/src/ffi/npu_vendor_host.dart'
-    show npuDisablesHwMasking, windowsNpuDispatchDir;
-import 'package:flutter_edge_ai_litertlm/src/npu_stacks.dart' show NpuVendor;
-import 'dart:ffi' as ffi;
 
 /// One conversation on a loaded engine. Created per prompt, closed after.
 abstract class EngineTurn {
@@ -36,6 +26,9 @@ abstract class EngineTurn {
   /// Runtime-reported numbers for the last [generate]. Call after the stream
   /// completes.
   SessionMetrics get metrics;
+
+  /// Stops the [generate] in progress; its stream then ends.
+  Future<void> stop();
 
   Future<void> close();
 }
@@ -60,12 +53,11 @@ abstract class EngineSlot {
   Future<void> unload();
 }
 
-// ---------------------------------------------------------------------------
-// Public-API slot: FlutterEdgeAi.getActiveModel() — ONE active model per
-// process, with the plugin's own npu→gpu→cpu fallback. Used by
-// EnginePolicy.sequential.
-// ---------------------------------------------------------------------------
-
+/// One model opened with `FlutterEdgeAi.openModel`: this slot owns it, it
+/// stays open next to every other slot's model, and [unload] closes it.
+/// `main()` registers the engine with `backendFallback: false`, so the
+/// requested backend either initialises or [load] throws, and a failed
+/// backend is a failed row rather than a quiet reload on the CPU.
 class LiteRtLmEngineSlot implements EngineSlot {
   LiteRtLmEngineSlot(this.backend);
 
@@ -74,6 +66,9 @@ class LiteRtLmEngineSlot implements EngineSlot {
 
   InferenceModel? _model;
   Duration? _loadTime;
+
+  /// The load in flight, so [unload] can wait for it and close what it opens.
+  Future<void>? _loading;
 
   @override
   PreferredBackend? get activeBackend => _model?.activeBackend;
@@ -85,17 +80,14 @@ class LiteRtLmEngineSlot implements EngineSlot {
   Duration? get loadTime => _loadTime;
 
   @override
-  Future<void> load({required String modelPath, required int maxTokens}) async {
+  Future<void> load({required String modelPath, required int maxTokens}) =>
+      _loading ??= _load(modelPath, maxTokens).whenComplete(() => _loading = null);
+
+  Future<void> _load(String modelPath, int maxTokens) async {
     if (_model != null) return;
-    // getActiveModel() opens whatever model is active, so make [modelPath]
-    // the active one first: Act 2 asks for its own file (the 12B), and
-    // without this it silently got the model Act 1 had installed. fromFile
-    // registers the file in place; nothing is copied.
     final sw = Stopwatch()..start();
-    await FlutterEdgeAi.installModel(modelType: ModelType.gemma4, fileType: ModelFileType.litertlm)
-        .fromFile(modelPath)
-        .install();
-    _model = await FlutterEdgeAi.getActiveModel(
+    _model = await FlutterEdgeAi.openModel(
+      await _register(modelPath),
       maxTokens: maxTokens,
       preferredBackend: backend,
     );
@@ -111,9 +103,15 @@ class LiteRtLmEngineSlot implements EngineSlot {
   }) async {
     final model = _model;
     if (model == null) throw StateError('EngineSlot(${backend.name}) is not loaded');
+    // Explicit, so every backend samples alike rather than by the bundle's
+    // own defaults. topP 0.95 and seed 1 are what LiteRT-LM 0.17 used unset.
+    // createSession (not openSession) keeps one native conversation, so the
+    // KV cache of earlier turns is reused.
     final session = await model.createSession(
       temperature: temperature,
       topK: topK,
+      topP: 0.95,
+      randomSeed: 1,
       maxOutputTokens: maxOutputTokens,
     );
     return _SessionTurn(session);
@@ -121,12 +119,29 @@ class LiteRtLmEngineSlot implements EngineSlot {
 
   @override
   Future<void> unload() async {
+    // Leaving an act mid-load must not leave the model it was opening behind.
+    try {
+      await _loading;
+    } catch (_) {
+      // Nothing was opened.
+    }
     final model = _model;
     _model = null;
     _loadTime = null;
     if (model != null) await model.close();
   }
 }
+
+/// Registers [path] in place without making it the active model; `openModel`
+/// takes the spec it returns. Cheap: nothing is copied or hashed, and the same
+/// path again is skipped. Done before every load, because the plugin names a
+/// model by its file name: another file with the same name in between would
+/// leave an earlier spec pointing at the wrong file.
+Future<InferenceModelSpec> _register(String path) async => (await FlutterEdgeAi.installModel(
+      modelType: ModelType.gemma4,
+      fileType: ModelFileType.litertlm,
+    ).fromFile(path).install(activate: false))
+        .spec;
 
 class _SessionTurn implements EngineTurn {
   _SessionTurn(this._session);
@@ -145,131 +160,8 @@ class _SessionTurn implements EngineTurn {
   SessionMetrics get metrics => _session.getSessionMetrics();
 
   @override
+  Future<void> stop() => _session.stopGeneration();
+
+  @override
   Future<void> close() => _session.close();
-}
-
-// ---------------------------------------------------------------------------
-// Raw-FFI slot: one LiteRtLmFfiClient per slot, so several engines can be
-// alive at once (lib/experiments/coexistence.dart). No fallback: the requested
-// backend either initialises or load() throws. Used by EnginePolicy.resident.
-// ---------------------------------------------------------------------------
-
-class FfiEngineSlot implements EngineSlot {
-  FfiEngineSlot(this.backend);
-
-  @override
-  final PreferredBackend backend;
-
-  LiteRtLmFfiClient? _client;
-  Duration? _loadTime;
-
-  /// The raw client has no fallback: it runs on the requested backend or
-  /// load() throws. "Requested NPU, ran on CPU" can only happen on the
-  /// plugin path ([LiteRtLmEngineSlot]).
-  @override
-  PreferredBackend? get activeBackend => _client == null ? null : backend;
-
-  @override
-  bool get isLoaded => _client != null;
-
-  @override
-  Duration? get loadTime => _loadTime;
-
-  @override
-  Future<void> load({required String modelPath, required int maxTokens}) async {
-    if (_client != null) return;
-    _maybeEnableVerboseNativeLog();
-    final client = LiteRtLmFfiClient();
-    final sw = Stopwatch()..start();
-    try {
-      await client.initialize(
-        modelPath: modelPath,
-        backend: backend.name,
-        maxTokens: maxTokens,
-        // The client no longer picks an NPU vendor itself. Intel's stack sits
-        // beside the exe; elsewhere npu stays null and the row fails, as wanted.
-        npuDispatch: backend == PreferredBackend.npu && Platform.isWindows
-            ? (
-                dir: windowsNpuDispatchDir,
-                disableHwMasking: npuDisablesHwMasking(NpuVendor.intel),
-              )
-            : null,
-      );
-    } catch (_) {
-      await client.shutdown();
-      rethrow;
-    }
-    sw.stop();
-    _client = client;
-    _loadTime = sw.elapsed;
-  }
-
-  @override
-  Future<EngineTurn> openTurn({
-    double temperature = 0.8,
-    int topK = 1,
-    int? maxOutputTokens,
-  }) async {
-    final client = _client;
-    if (client == null) throw StateError('EngineSlot(${backend.name}) is not loaded');
-    // Explicit, so every backend samples alike rather than by the bundle's
-    // own defaults. topP 0.95 and seed 1 are what LiteRT-LM 0.17 used unset.
-    final handle = await client.createConversationHandle(
-      sampling: ResolvedSampling(
-        temperature: temperature,
-        topK: topK,
-        topP: 0.95,
-        randomSeed: 1,
-      ),
-      samplingExplicit: true,
-      maxOutputTokens: maxOutputTokens,
-      // Text-only turns; the order only matters once media is attached.
-      multimodalOrder: MultimodalOrder.imagesAudioText,
-    );
-    return _HandleTurn(handle);
-  }
-
-  @override
-  Future<void> unload() async {
-    final client = _client;
-    _client = null;
-    _loadTime = null;
-    if (client != null) await client.shutdown();
-  }
-}
-
-bool _verboseSet = false;
-
-/// `LITERT_VERBOSE=1` in the environment turns LiteRT-LM's own logger to
-/// VERBOSE (stderr) before the first engine is created. Windows only: the
-/// DLL sits next to the exe; on macOS it is a framework the client resolves.
-void _maybeEnableVerboseNativeLog() {
-  if (_verboseSet || !Platform.isWindows) return;
-  if (Platform.environment['LITERT_VERBOSE'] != '1') return;
-  _verboseSet = true;
-  try {
-    final exeDir = File(Platform.resolvedExecutable).parent.path;
-    final lib = ffi.DynamicLibrary.open('$exeDir${Platform.pathSeparator}LiteRtLm.dll');
-    LiteRtLmBindings(lib).litert_lm_set_min_log_level(0);
-    stderr.writeln('LiteRT-LM log level: VERBOSE');
-  } catch (e) {
-    stderr.writeln('LiteRT-LM log level unchanged: $e');
-  }
-}
-
-class _HandleTurn implements EngineTurn {
-  _HandleTurn(this._handle);
-  final LiteRtLmConversationHandle _handle;
-
-  @override
-  Stream<String> generate(String prompt) => _handle.chat(prompt);
-
-  @override
-  Future<int?> countTokens(String text) => _handle.tokenCount(text);
-
-  @override
-  SessionMetrics get metrics => _handle.getSessionMetrics();
-
-  @override
-  Future<void> close() async => _handle.close();
 }

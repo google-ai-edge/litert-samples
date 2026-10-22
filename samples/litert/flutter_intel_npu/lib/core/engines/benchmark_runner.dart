@@ -78,7 +78,9 @@ class BenchmarkRunner {
 
         if (warmup) {
           yield run = run.copyWith(status: BenchmarkRunStatus.warming);
-          final t = await slot.openTurn(maxOutputTokens: 8);
+          // Same sampling as the measured turn: an engine keeps the sampler of
+          // its first generation (LiteRT-LM#2080).
+          final t = await slot.openTurn(maxOutputTokens: 8, topK: topK);
           try {
             await for (final _ in t.generate('Say hi.')) {}
           } finally {

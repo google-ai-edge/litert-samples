@@ -15,12 +15,11 @@
 // Experiment: can several LiteRT-LM engines be
 // alive at the same time in one process, each on its own backend?
 //
-// Bypasses flutter_edge_ai's single-active-model policy by talking to the FFI
-// client directly. Run:
+// Each engine is its own FlutterEdgeAi.openModel model. Run:
 //   flutter run -d macos -t lib/experiments/coexistence.dart \
 //     --dart-define=ORDER=cpu,gpu --dart-define=RESULTS_PATH=/tmp/coex.json
 //
-// ignore_for_file: implementation_imports, avoid_print
+// ignore_for_file: avoid_print
 
 import 'dart:async';
 import 'dart:convert';
@@ -28,25 +27,19 @@ import 'dart:io';
 
 import 'package:flutter/widgets.dart';
 import 'package:flutter_edge_ai/flutter_edge_ai.dart';
-import 'package:flutter_edge_ai_litertlm/src/ffi/litert_lm_client.dart';
-import 'package:flutter_edge_ai_litertlm/src/ffi/npu_vendor_host.dart'
-    show NpuDispatch, npuDisablesHwMasking, windowsNpuDispatchDir;
-import 'package:flutter_edge_ai_litertlm/src/npu_stacks.dart' show NpuVendor;
+import 'package:flutter_edge_ai_litertlm/flutter_edge_ai_litertlm.dart';
 
 import '../app/demo_config.dart';
 
 const _order = String.fromEnvironment('ORDER', defaultValue: 'cpu,gpu');
 const _maxTokens = int.fromEnvironment('MAX_TOKENS', defaultValue: 2048);
-
-/// Intel's NPU stack beside the exe; the client no longer picks it itself.
-NpuDispatch? _npuDispatch(String backend) => backend == 'npu' && Platform.isWindows
-    ? (dir: windowsNpuDispatchDir, disableHwMasking: npuDisablesHwMasking(NpuVendor.intel))
-    : null;
 const _resultsPath = String.fromEnvironment('RESULTS_PATH');
 const _prompt = 'In two sentences, what is a neural processing unit?';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  // No fallback: an engine that does not load on its backend is a failed step.
+  await FlutterEdgeAi.initialize(inferenceEngines: const [LiteRtLmEngine(backendFallback: false)]);
   runApp(const Center(child: Text('coexistence experiment — see log', textDirection: TextDirection.ltr)));
   unawaited(_run());
 }
@@ -62,7 +55,21 @@ Future<void> _run() async {
     'steps': <Map<String, Object?>>[],
   };
   final steps = report['steps'] as List<Map<String, Object?>>;
-  final clients = <String, LiteRtLmFfiClient>{};
+  final models = <String, InferenceModel>{};
+  // The NPU needs its own compiled bundle (NPU_MODEL_PATH); a generic one
+  // does not load there without a fallback.
+  String modelFor(String backend) => backend == 'npu' ? config.npuModelPath ?? config.modelPath : config.modelPath;
+  Future<InferenceModel> open(String backend) async {
+    final installed = await FlutterEdgeAi.installModel(modelType: ModelType.gemma4, fileType: ModelFileType.litertlm)
+        .fromFile(modelFor(backend))
+        .install(activate: false);
+    return FlutterEdgeAi.openModel(
+      installed.spec,
+      maxTokens: _maxTokens,
+      preferredBackend: PreferredBackend.values.byName(backend),
+    );
+  }
+
   var exitCode = 0;
 
   Future<void> step(String name, Future<Map<String, Object?>> Function() body) async {
@@ -79,24 +86,22 @@ Future<void> _run() async {
   }
 
   Future<Map<String, Object?>> generate(String backend) async {
-    final c = clients[backend]!;
-    await c.createConversation(
-      sampling: const ResolvedSampling(
-        temperature: 0.8,
-        topK: 1,
-        topP: 0.95,
-        randomSeed: 1,
-      ),
-    );
+    final session = await models[backend]!.createSession(temperature: 0.8, topK: 1, topP: 0.95, randomSeed: 1);
     final buf = StringBuffer();
     var chunks = 0;
-    await for (final chunk in c.chat(_prompt)) {
-      buf.write(chunk);
-      chunks++;
+    final SessionMetrics m;
+    try {
+      await session.addQueryChunk(Message.text(text: _prompt, isUser: true));
+      await for (final chunk in session.getResponseAsync()) {
+        buf.write(chunk);
+        chunks++;
+      }
+      m = session.getSessionMetrics();
+    } finally {
+      await session.close();
     }
-    final m = c.getSessionMetrics();
-    c.closeConversation();
     return {
+      'active': models[backend]!.activeBackend?.name,
       'chunks': chunks,
       'ttft_ms': m.timeToFirstTokenMs,
       'tps': m.tokensPerSecond,
@@ -107,37 +112,39 @@ Future<void> _run() async {
   // 1. Create every engine, in the requested order, keeping all alive.
   for (final backend in order) {
     await step('create:$backend', () async {
-      final c = LiteRtLmFfiClient();
-      await c.initialize(modelPath: config.modelPath, backend: backend, maxTokens: _maxTokens, npuDispatch: _npuDispatch(backend));
-      clients[backend] = c;
-      return {'alive': clients.keys.toList()};
+      models[backend] = await open(backend);
+      return {'alive': models.keys.toList()};
     });
   }
 
   // 2. Generate on each while all are alive, then again on the first one to
   //    prove creating the later engines did not break the earlier one.
   for (final backend in order) {
-    if (clients.containsKey(backend)) await step('generate:$backend', () => generate(backend));
+    if (models.containsKey(backend)) await step('generate:$backend', () => generate(backend));
   }
-  if (clients.containsKey(order.first)) {
+  if (models.containsKey(order.first)) {
     await step('generate-again:${order.first}', () => generate(order.first));
   }
 
   // 3. Tear down in reverse order, then re-create the first backend to check
   //    delete → create still works after coexistence.
   for (final backend in order.reversed) {
-    final c = clients.remove(backend);
-    if (c != null) await step('shutdown:$backend', () async { await c.shutdown(); return {}; });
+    final m = models.remove(backend);
+    if (m != null) await step('close:$backend', () async { await m.close(); return {}; });
   }
-  await step('recreate:${order.first}', () async {
-    final c = LiteRtLmFfiClient();
-    await c.initialize(modelPath: config.modelPath, backend: order.first, maxTokens: _maxTokens, npuDispatch: _npuDispatch(order.first));
-    clients[order.first] = c;
-    final r = await generate(order.first);
-    await c.shutdown();
-    clients.remove(order.first);
-    return r;
+  await step('reopen:${order.first}', () async {
+    final m = await open(order.first);
+    models[order.first] = m;
+    try {
+      return await generate(order.first);
+    } finally {
+      await models.remove(order.first)?.close();
+    }
   });
+  // A step that failed after its open left its model here.
+  for (final m in models.values) {
+    await m.close();
+  }
 
   report['verdict'] = exitCode == 0 ? 'coexistence OK' : 'FAILED (see steps)';
   final json = const JsonEncoder.withIndent('  ').convert(report);

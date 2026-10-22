@@ -49,9 +49,8 @@ The app ships no model: you download the `.litertlm` files and point the app at 
 - **NPU** is Intel's NPU, through LiteRT-LM's Intel dispatch library and the OpenVINO runtime that
   `flutter_edge_ai_litertlm` bundles on Windows. It exists only on Core Ultra Series 2 (Lunar Lake) and later. macOS
   has no NPU row: LiteRT-LM does not use the Apple Neural Engine, and the app does not offer it.
-- **The standard E2B file is not an NPU model.** Opened with the NPU backend it still loads, but LiteRT-LM runs it
-  on the CPU (about 18 tok/s, NPU load 0 %), and the row says NPU all the same: set `NPU_MODEL_PATH`. An NPU build
-  has a fixed context (4096 tokens for the Lunar Lake E2B) and runs only on the NPU.
+- **The standard E2B file is not an NPU model.** The NPU refuses it, so the NPU row fails without `NPU_MODEL_PATH`.
+  An NPU build has a fixed context (4096 tokens for the Lunar Lake E2B) and runs only on the NPU.
 - The app never moves a model to another processor on its own. A backend that fails to load is a failed row, not a
   silent fall back to the CPU.
 
@@ -64,7 +63,7 @@ The app ships no model: you download the `.litertlm` files and point the app at 
 | Windows | Windows 11, Visual Studio 2022 with "Desktop development with C++", Developer Mode on (Flutter plugins need symlinks), the Visual C++ Redistributable on machines that run the build |
 | NPU | Intel Core Ultra Series 2 (Lunar Lake) or newer with the Intel NPU driver |
 | Memory | Act 2's 12B was run on a 24 GB Mac and a 32 GB Lunar Lake machine |
-| Disk | the models (above), and ~0.4 GB of GPU program cache LiteRT-LM writes next to each model on first load |
+| Disk | the models (above), and the GPU caches LiteRT-LM writes on a model's first GPU load, up to the model's own size again (the 12B's are 6 GB) |
 | Network | the first build downloads the LiteRT-LM native libraries (a GitHub release, SHA-256 checked) |
 | Optional | `ffmpeg` on the PATH (or `FFMPEG=…`) for recording Act 3 to video; [LibreHardwareMonitor](https://github.com/LibreHardwareMonitor/LibreHardwareMonitor) for watts on Windows |
 
@@ -96,8 +95,9 @@ flutter run -d windows --profile --dart-define-from-file=config.json
 
 The home screen lists the three acts. `ACT=1`, `2` or `3` opens one directly.
 
-The first GPU load of a model is slow: LiteRT-LM compiles its GPU programs and caches them next to the model file.
-Later loads take a second or two.
+The first GPU load of a model is slow: LiteRT-LM compiles its GPU programs and caches them, with the weights in GPU
+layout, in the app's support folder (`%APPDATA%\com.google.ai.edge.examples\intel_npu_demo` on Windows). Later loads
+take a second or two.
 
 ## Using the demos
 
@@ -173,17 +173,17 @@ exit code 2 in a headless run.
 | `MODEL_PATH` | — | the `.litertlm` for Acts 1 and 3 |
 | `MAX_TOKENS` | 4096 | context window. On an NPU build, exactly the length it was compiled for |
 | `BACKENDS` | `cpu,gpu,npu` | Act 1's rows, in order |
-| `POLICY` | `resident` | `resident` keeps every backend loaded (raw LiteRT-LM clients); `sequential` loads one at a time through the public flutter_edge_ai API |
+| `POLICY` | `resident` | `resident` keeps every backend loaded (one `FlutterEdgeAi.openModel` model each); `sequential` loads one at a time |
 | `PROMPT`, `PROMPT_FILE` | a 150-word explainer | Act 1's measured prompt |
 | `WARMUP` | true | an unmeasured short turn after each load |
 | `MAX_OUTPUT_TOKENS`, `TOP_K` | model's, 1 | Act 1 sampling |
 | `ACT` | 0 | open an act directly (0 = home) |
-| `ACT2_MODEL_PATH` | `MODEL_PATH` | the long-context model (the 12B) |
+| `ACT2_MODEL_PATH` | `MODEL_PATH`; required when `ACT2_BACKEND` is npu | the long-context model (the 12B) |
 | `ACT2_BACKEND`, `ACT2_MAX_TOKENS` | gpu, 16384 | |
-| `ACT2_CONTRAST_MODEL_PATH`, `ACT2_CONTRAST_MAX_TOKENS` | `MODEL_PATH`, 4096 | the engine that must not fit the transcript; a small model, never a second 12B |
+| `ACT2_CONTRAST_MODEL_PATH`, `ACT2_CONTRAST_MAX_TOKENS` | `MODEL_PATH` (`NPU_MODEL_PATH` when `ACT2_BACKEND` is npu), 4096 | the engine that must not fit the transcript; a small model, never a second 12B |
 | `ACT2_TRANSCRIPT` | the bundled meeting | a `[mm:ss] Speaker: text` file |
 | `ACT2_QUESTION`, `ACT2_MAX_OUTPUT_TOKENS` | —, 300 | ask unattended |
-| `NPU_MODEL_PATH` | `MODEL_PATH` | the model for the NPU, in Act 1 and Act 3: an NPU build. `ACT3_NPU_MODEL_PATH` still works |
+| `NPU_MODEL_PATH` | `MODEL_PATH` | the model for the NPU in every act: an NPU build. `ACT3_NPU_MODEL_PATH` still works |
 | `ACT3_TARGET_FPS` | 60 | frame budget; 0 = the display's refresh rate |
 | `ACT3_CALIBRATE`, `ACT3_BASELINE` | true, true | the load ladder and the solo-speed pass |
 | `ACT3_VIEW_CHUNKS`, `ACT3_PROP_DENSITY`, `ACT3_RENDER_SCALE`, `ACT3_SHADOWS`, `ACT3_POST` | 7, 1.0, 1.0, true, true | load dials (the calibrator sets the first three) |
@@ -193,7 +193,6 @@ exit code 2 in a headless run.
 | `ACT3_DETAILS` | true | false starts on the stage view: meters and subtitles only |
 | `ACT3_START_Z` | 4 | where on the trail Dash starts, in metres |
 | `ACT3_SCENE` | `runner` | `arena` is the earlier physics scene |
-| `ACT3_NARRATOR_INLINE` | false | run the engines on the UI isolate (diagnostic) |
 | `POWER_FILE`, `POWER_MODE` | see below, `auto` | Windows power and load; `auto`, `watts` or `utilization` |
 
 Headless runs: `AUTORUN=true` starts Act 1 by itself, `AUTORUN_REPEAT=2` runs it twice (the second sweep is warm),

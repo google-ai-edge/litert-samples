@@ -84,7 +84,7 @@ class DemoConfig {
     final act = k.integer('ACT', const int.fromEnvironment('ACT', defaultValue: 0));
     final act2 = Act2Spec(
       modelPath: k.str('ACT2_MODEL_PATH', const String.fromEnvironment('ACT2_MODEL_PATH')),
-      backend: k.backend('ACT2_BACKEND', const String.fromEnvironment('ACT2_BACKEND', defaultValue: 'gpu')),
+      backend: k.backend('ACT2_BACKEND', k.str('ACT2_BACKEND', const String.fromEnvironment('ACT2_BACKEND', defaultValue: 'gpu'))),
       maxTokens: k.integer('ACT2_MAX_TOKENS', const int.fromEnvironment('ACT2_MAX_TOKENS', defaultValue: 16384)),
       contrastMaxTokens: k.integer('ACT2_CONTRAST_MAX_TOKENS', const int.fromEnvironment('ACT2_CONTRAST_MAX_TOKENS', defaultValue: 4096)),
       contrastModelPath: k.str('ACT2_CONTRAST_MODEL_PATH', const String.fromEnvironment('ACT2_CONTRAST_MODEL_PATH')),
@@ -92,6 +92,11 @@ class DemoConfig {
       autorunQuestion: k.str('ACT2_QUESTION', const String.fromEnvironment('ACT2_QUESTION')),
       maxOutputTokens: k.integer('ACT2_MAX_OUTPUT_TOKENS', const int.fromEnvironment('ACT2_MAX_OUTPUT_TOKENS', defaultValue: 300)),
     );
+    // An NPU build has one fixed window, so the long-context model and the
+    // small contrast model cannot both default to NPU_MODEL_PATH.
+    if (act2.backend == PreferredBackend.npu && act2.modelPathOr('').isEmpty) {
+      k.errors.add('ACT2_MODEL_PATH: required when ACT2_BACKEND is npu (an NPU build of the long-context model)');
+    }
 
     // ACT3_NPU_MODEL_PATH is the older name, from when only Act 3 had it.
     var npuModel = k.str('NPU_MODEL_PATH', const String.fromEnvironment('NPU_MODEL_PATH'));
@@ -100,7 +105,6 @@ class DemoConfig {
     final recordPath = k.str('ACT3_RECORD', const String.fromEnvironment('ACT3_RECORD'));
     final dayStart = k.str('ACT3_TIME_OF_DAY', const String.fromEnvironment('ACT3_TIME_OF_DAY', defaultValue: 'day'));
     final act3 = Act3Spec(
-      narratorInline: k.boolean('ACT3_NARRATOR_INLINE', const bool.fromEnvironment('ACT3_NARRATOR_INLINE')),
       npuModelPath: npuModel.isNotEmpty ? npuModel : null,
       narratorMaxTokens: k.integer('ACT3_NARRATOR_MAX_TOKENS', const int.fromEnvironment('ACT3_NARRATOR_MAX_TOKENS', defaultValue: 4096)),
       narratorIntervalMs: k.integer('ACT3_NARRATOR_INTERVAL_MS', const int.fromEnvironment('ACT3_NARRATOR_INTERVAL_MS', defaultValue: 4000)),
@@ -185,9 +189,8 @@ class DemoConfig {
   final String modelPath;
 
   /// The model for the NPU in every act (`NPU_MODEL_PATH`): an NPU-compiled
-  /// build. The standard file opens with the NPU backend too, but LiteRT-LM
-  /// runs it on the CPU (NPU load 0 %), so without this the NPU row is the CPU.
-  /// Null = [modelPath].
+  /// build. The standard file does not load on the NPU (the engine has no
+  /// fallback), so without this the NPU row fails. Null = [modelPath].
   final String? npuModelPath;
 
   String modelPathFor(PreferredBackend b) =>
@@ -218,7 +221,7 @@ class DemoConfig {
   final String? resultsPath;
 
   /// `resident` keeps every backend loaded (instant switch, more RAM);
-  /// `sequential` reloads on each switch through the public API.
+  /// `sequential` reloads on each switch.
   final EnginePolicy policy;
 
   /// How many full sweeps an autorun performs (2+ shows resident vs reload).
@@ -336,7 +339,6 @@ class Act3Spec {
     required this.narratorIntervalMs,
     required this.narratorPlan,
     required this.npuModelPath,
-    required this.narratorInline,
     required this.scene,
     required this.viewChunks,
     required this.propDensity,
@@ -410,9 +412,6 @@ class Act3Spec {
   /// How often the autopilot fumbles an obstacle on purpose (0..1). A perfect
   /// run has nothing for the narrator to talk about.
   final double pilotMissRate;
-
-  /// Run the narrator's engines on the UI isolate (diagnostic / fallback).
-  final bool narratorInline;
 
   /// NPU-compiled bundle for the narrator's NPU row (an NPU build of Gemma 4
   /// E2B on Lunar Lake). Null = same file as the other backends.

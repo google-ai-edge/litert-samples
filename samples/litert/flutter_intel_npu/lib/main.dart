@@ -25,9 +25,26 @@ Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
   // Core registers no engine on its own; .litertlm is the only desktop engine.
+  // No fallback: a backend that does not load is a failed row, not a model
+  // quietly reloaded on the CPU. LITERT_VERBOSE=1 turns LiteRT-LM's own log
+  // (stderr) to VERBOSE.
   await FlutterEdgeAi.initialize(
-    inferenceEngines: const [LiteRtLmEngine()],
+    inferenceEngines: [
+      LiteRtLmEngine(
+        backendFallback: false,
+        nativeLogLevel: Platform.environment['LITERT_VERBOSE'] == '1' ? LiteRtLmLogLevel.verbose : null,
+      ),
+    ],
   );
+  // Every model here is opened with openModel; none is the active one. Older
+  // versions of this app made MODEL_PATH active, and the plugin restores that
+  // at start, which would stop a different file with the same name from
+  // registering.
+  try {
+    await FlutterEdgeAi.clearActiveInferenceIdentity();
+  } catch (e) {
+    stderr.writeln('could not clear the saved active model: $e');
+  }
   FlutterEdgeAi.logLevel = EdgeAiLogLevel.info;
 
   final config = DemoConfig.fromEnvironment();
