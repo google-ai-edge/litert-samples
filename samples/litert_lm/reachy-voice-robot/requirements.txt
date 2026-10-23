@@ -3,7 +3,7 @@ ai-edge-litert==2.3.0
 ml-dtypes>=0.5
 huggingface-hub>=0.28
 numpy>=2.0
-pillow>=11.0
+pillow>=13.0.0
 # Inflect-Nano-v2 TTS frontend (the default --tts): text normalization + espeak
 # phonemization. espeakng-loader bundles libespeak-ng, so no system install is
 # needed.

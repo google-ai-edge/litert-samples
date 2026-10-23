@@ -11,7 +11,7 @@ dependencies = [
     "huggingface-hub>=0.28",
     "numpy>=2.0",
     # Real frames for the detector; synthetic noise produces no detections.
-    "pillow>=11.0",
+    "pillow>=13.0.0",
     # Inflect-Nano-v2 TTS frontend (default --tts): text normalization + espeak
     # phonemization. espeakng-loader bundles libespeak-ng (no system install).
     "num2words>=0.5",
