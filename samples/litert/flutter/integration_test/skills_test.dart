@@ -260,12 +260,13 @@ void main() {
       startsWith('This Mac has an Apple'),
       reason: 'names the chip',
     );
-    // The loaded chat model leads the second sentence: Gemma 4 E2B, or the
-    // user's own model when one is chosen.
+    // The loaded chat model leads the second sentence, its first letter
+    // capitalized: Gemma 4 E2B, or the user's own model when one is chosen.
     final chatName = deps.conversation.capabilities.modelName;
+    final leading = '${chatName[0].toUpperCase()}${chatName.substring(1)}';
     expect(
       deviceReply.text,
-      contains('. $chatName '),
+      contains('. $leading '),
       reason: 'the chat model ($chatName) first',
     );
     expect(

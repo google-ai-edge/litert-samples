@@ -57,7 +57,8 @@
 // 8. Barge-in in audio mode: the spoken lighthouse question, a press while it
 //    is speaking and Gemma generating: silent ≤150 ms, generation stopped; the
 //    follow-up audio turn (the fixture mic plays the France question) is
-//    answered with "paris", on a chat rebuilt from the text history.
+//    answered with "paris", on the conversation the plugin rewound in place
+//    (on the GPU; nothing is rebuilt from the text history).
 //    Prints `STORY_PARTIAL …` (the reply so far, before the press) and
 //    `AUDIO_BARGE …`.
 // (A file with an audio tower always loads it, so there is no "audio off
@@ -240,7 +241,7 @@ void main() {
       reason: 'the clip as tool/make_question_audio.sh writes it',
     );
     // debugPrint is captured for the lines that prove the audio run's
-    // rebuild (restored before the test ends, as flutter_test requires).
+    // rewind (restored before the test ends, as flutter_test requires).
     final logged = <String>[];
     final printer = debugPrint;
     debugPrint = (String? message, {int? wrapWidth}) {
@@ -684,12 +685,18 @@ void main() {
       (e) => e.role == ChatRole.user,
     );
     expect(storyQuestion.spoken, isNotNull);
-    // "rebuilt the chat from the text history" (the live chat cleared), or
-    // "replayed the text history" (an interrupted skill call's fresh chat).
+    // On the GPU flutter_edge_ai_litertlm rewinds the stopped turn in place,
+    // its recording included, so the app rebuilds nothing: "rebuilt the chat
+    // from the text history" (the live chat cleared) or "replayed the text
+    // history" (an interrupted skill call's fresh chat) would mean it did.
     bool rebuildLine(String l) =>
         l.contains('[Conversation] rebuilt the chat from the text history') ||
         l.contains('[Conversation] replayed the text history');
+    bool rewindLine(String l) => l.contains(
+      '[FfiInferenceModel] rewound the conversation after a stopped turn',
+    );
     final storyRebuildsBefore = logged.where(rebuildLine).length;
+    final storyRewindsBefore = logged.where(rewindLine).length;
     final audioPressWatch = Stopwatch()..start();
     final audioGesture = await tester.startGesture(
       tester.getCenter(find.byKey(ChatKeys.mic)),
@@ -736,13 +743,15 @@ void main() {
     );
     expect(followAsked.spoken, isNotNull, reason: 'the follow-up is audio');
     expect(audioVm.entries.last.text.toLowerCase(), contains('paris'));
-    final rebuilt = logged.where(rebuildLine).toList();
     expect(
-      rebuilt.length,
-      storyRebuildsBefore + 1,
-      reason:
-          'the stopped audio turn makes the next one rebuild the chat '
-          'from the text history',
+      logged.where(rewindLine).length,
+      storyRewindsBefore + 1,
+      reason: 'the plugin rewinds the stopped audio turn',
+    );
+    expect(
+      logged.where(rebuildLine).length,
+      storyRebuildsBefore,
+      reason: 'a rewound stop needs no rebuild from the text history',
     );
     // The interrupted story stays in the history as its placeholder and the
     // partial reply; it gets no transcript (a barged-in question gets none:
@@ -769,7 +778,7 @@ void main() {
       'gen_stopped=${storyGen.stopped} '
       'gen_stop_latency=${ms(storyGen.stopLatency)}ms | '
       'FOLLOWUP ttfa=${ms(followVoice.firstAudio)}ms '
-      'rebuild="${rebuilt.last}" reply="${audioVm.entries.last.text}"',
+      'reply="${audioVm.entries.last.text}"',
     );
     // Its transcript too, after the playback.
     await pumpUntil(

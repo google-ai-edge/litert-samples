@@ -2,7 +2,7 @@
   "format": "kb-prebuilt/2",
   "key": {
     "format": "kb-index/3",
-    "documents": "e1be391b63bcecd572a902677206deb26160e45a1b57a8022ba84f88e67cbc61",
+    "documents": "c526cda32930fcc5e3fd3212694b143775612068215eb13330da94df088b165d",
     "chunker": "md-chunker-1/1400/300",
     "documentPrefix": "title: none | text: ",
     "modelId": "embeddinggemma-2-740m",
@@ -10,11 +10,11 @@
     "dim": 768
   },
   "profileId": "embeddinggemma-2-740m-litertlm-24d962e9-e7a8a220-text-retrieval-prefix-v1",
-  "chunks": 354,
-  "dbBytes": 3739648,
-  "dbSha256": "03c9ff876748ce34c9bc3bf51cb170124ef71be423b0e786482b0743a7d2173e",
+  "chunks": 355,
+  "dbBytes": 3743744,
+  "dbSha256": "2f79873ea3d99d05df00f7a441d2116e15c010d7fb40decf022b98ac8814859f",
   "store": "flutter_edge_ai_sqlite 2.1.1",
   "embedderBackend": "cpu",
   "builtOn": "macos",
-  "builtAt": "2026-10-22T09:56:20.490195Z"
+  "builtAt": "2026-10-22T21:22:36.915738Z"
 }

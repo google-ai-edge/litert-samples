@@ -49,7 +49,9 @@
 // 6. Barge-in during a spoken detailed answer: silenced ≤ 150 ms, unfrozen at
 //    once, the detector recovers.
 // 7. Back to Demo 1: Whisper active again, "What is the capital of France?"
-//    → Paris. `DEMO1 stt_model=… switch=… stt=… first_audio=…`
+//    → Paris; with an audio tower Gemma hears the question and Whisper's
+//    transcript follows the playback. `DEMO1 stt_model=… switch=… stt=…
+//    first_audio=…`
 // 8. With ROUTER_AUDIO_DIR, a folder holding index.json (a copy of
 //    test_assets/router_golden.json) and `<i>.pcm`, item i spoken as 16 kHz
 //    mono PCM16 without a header: every router golden question transcribed
@@ -763,8 +765,19 @@ void main() {
       describe: () => 'phase=${chat.phase} error=${chat.error}',
     );
     expect(result!.outcome, TurnOutcome.completed);
-    final user = chat.entries.lastWhere((e) => e.role == ChatRole.user);
     final reply = chat.entries.last;
+    // A chat model with an audio tower hears the question itself (no STT
+    // before the reply); Whisper's words fill the user entry after the
+    // playback.
+    ChatEntry asked() => chat.entries.lastWhere((e) => e.role == ChatRole.user);
+    await pumpUntil(
+      tester,
+      () => asked().spoken == null || asked().spoken!.transcript != null,
+      timeout: const Duration(seconds: 30),
+      reason: 'the transcript after the playback',
+      describe: () => 'question="${asked().text}"',
+    );
+    final user = asked();
     final voice = deps.diagnostics.latest.lastVoiceTurn!;
     debugPrint(
       'DEMO1 stt_model=${deps.activeStt.value?.modelId} '
