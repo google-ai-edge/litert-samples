@@ -1,7 +1,7 @@
 PODS:
   - connectivity_plus (0.0.1):
     - FlutterMacOS
-  - flutter_gemma (1.8.3):
+  - flutter_edge_ai (2.4.1):
     - FlutterMacOS
   - FlutterMacOS (1.0.0)
   - large_file_handler (0.5.0):
@@ -12,7 +12,7 @@ PODS:
 
 DEPENDENCIES:
   - connectivity_plus (from `Flutter/ephemeral/.symlinks/plugins/connectivity_plus/macos`)
-  - flutter_gemma (from `Flutter/ephemeral/.symlinks/plugins/flutter_gemma/macos`)
+  - flutter_edge_ai (from `Flutter/ephemeral/.symlinks/plugins/flutter_edge_ai/macos`)
   - FlutterMacOS (from `Flutter/ephemeral`)
   - large_file_handler (from `Flutter/ephemeral/.symlinks/plugins/large_file_handler/macos`)
   - shared_preferences_foundation (from `Flutter/ephemeral/.symlinks/plugins/shared_preferences_foundation/darwin`)
@@ -20,8 +20,8 @@ DEPENDENCIES:
 EXTERNAL SOURCES:
   connectivity_plus:
     :path: Flutter/ephemeral/.symlinks/plugins/connectivity_plus/macos
-  flutter_gemma:
-    :path: Flutter/ephemeral/.symlinks/plugins/flutter_gemma/macos
+  flutter_edge_ai:
+    :path: Flutter/ephemeral/.symlinks/plugins/flutter_edge_ai/macos
   FlutterMacOS:
     :path: Flutter/ephemeral
   large_file_handler:
@@ -31,11 +31,11 @@ EXTERNAL SOURCES:
 
 SPEC CHECKSUMS:
   connectivity_plus: 4adf20a405e25b42b9c9f87feff8f4b6fde18a4e
-  flutter_gemma: e93e2ed046b8d0be80ac8b6247376eddbecad8fb
+  flutter_edge_ai: 049e902a1d8543022e5c8a43e8b66b27100e90b9
   FlutterMacOS: c232990155153907050900a2e175c7773903ba4e
   large_file_handler: b337fef756ae925be9c28112a81c7c4275d91c45
   shared_preferences_foundation: 7036424c3d8ec98dfe75ff1667cb0cd531ec82bb
 
-PODFILE CHECKSUM: 8c50772b647c5495d76444d70aa1e2594716ddd1
+PODFILE CHECKSUM: 2b9d3b70702a174501f10f3f4387d82446c85005
 
 COCOAPODS: 1.16.2

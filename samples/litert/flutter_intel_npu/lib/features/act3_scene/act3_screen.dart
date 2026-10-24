@@ -20,7 +20,7 @@ import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
-import 'package:flutter_gemma/flutter_gemma.dart';
+import 'package:flutter_edge_ai/flutter_edge_ai.dart';
 import 'package:flutter_scene/scene.dart';
 import 'package:vector_math/vector_math.dart' as vm;
 
@@ -62,7 +62,6 @@ class _Act3ScreenState extends State<Act3Screen> {
     },
     maxTokens: widget.config.act3.narratorMaxTokens,
     interval: Duration(milliseconds: widget.config.act3.narratorIntervalMs),
-    inline: widget.config.act3.narratorInline,
   );
   final GlobalKey _captureKey = GlobalKey();
   bool _ready = false;

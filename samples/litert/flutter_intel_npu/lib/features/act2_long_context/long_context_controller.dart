@@ -15,7 +15,7 @@
 import 'dart:async';
 
 import 'package:flutter/foundation.dart';
-import 'package:flutter_gemma/flutter_gemma.dart';
+import 'package:flutter_edge_ai/flutter_edge_ai.dart';
 
 import '../../app/demo_config.dart';
 import '../../core/engines/engine_pool.dart';
@@ -58,6 +58,10 @@ class LongContextController extends ChangeNotifier {
   String answer = '';
   List<Citation> citations = const [];
   SessionMetrics? answerMetrics;
+
+  /// Tokens of the last answer alone. LiteRT-LM's counts add up every turn of
+  /// the conversation (the prefill's "Ready" and every earlier answer).
+  int? answerOutputTokens;
   Duration? answerTtft;
 
   // Contrast engine (short window) state.
@@ -119,9 +123,11 @@ class LongContextController extends ChangeNotifier {
     answer = '';
     citations = const [];
     answerMetrics = null;
+    answerOutputTokens = null;
     answerTtft = null;
     _set(Act2Phase.answering);
     try {
+      final outBefore = turn.metrics.outputTokens;
       final sw = Stopwatch()..start();
       await for (final chunk in turn.generate(q + _questionSuffix)) {
         answerTtft ??= sw.elapsed;
@@ -130,6 +136,7 @@ class LongContextController extends ChangeNotifier {
         notifyListeners();
       }
       answerMetrics = turn.metrics;
+      answerOutputTokens = answerMetrics!.outputTokens - outBefore;
       _set(Act2Phase.ready);
     } catch (e, st) {
       error = '$e\n$st';
@@ -206,7 +213,7 @@ class LongContextController extends ChangeNotifier {
         'citations': citations.map((c) => c.stamp).toList(),
         'answer_ttft_ms': answerTtft?.inMilliseconds,
         'answer_tps': answerMetrics?.tokensPerSecond,
-        'answer_output_tokens': answerMetrics?.outputTokens,
+        'answer_output_tokens': answerOutputTokens,
         'contrast_model': contrastModelFileName,
         'contrast_max_tokens': spec.contrastMaxTokens,
         'contrast_result': contrastResult,

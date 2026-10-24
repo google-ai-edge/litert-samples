@@ -14,7 +14,7 @@
 
 import 'dart:async';
 
-import 'package:flutter_gemma/flutter_gemma.dart';
+import 'package:flutter_edge_ai/flutter_edge_ai.dart';
 
 import 'backend_catalog.dart';
 import 'benchmark_run.dart';
@@ -78,7 +78,9 @@ class BenchmarkRunner {
 
         if (warmup) {
           yield run = run.copyWith(status: BenchmarkRunStatus.warming);
-          final t = await slot.openTurn(maxOutputTokens: 8);
+          // Same sampling as the measured turn: an engine keeps the sampler of
+          // its first generation (LiteRT-LM#2080).
+          final t = await slot.openTurn(maxOutputTokens: 8, topK: topK);
           try {
             await for (final _ in t.generate('Say hi.')) {}
           } finally {

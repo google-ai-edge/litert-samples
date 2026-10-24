@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import 'package:flutter_gemma/flutter_gemma.dart';
+import 'package:flutter_edge_ai/flutter_edge_ai.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:intel_npu_demo/core/engines/backend_catalog.dart';
 import 'package:intel_npu_demo/core/engines/benchmark_run.dart';
@@ -44,6 +44,8 @@ class _Turn implements EngineTurn {
   Future<int?> countTokens(String text) async => null;
   @override
   SessionMetrics get metrics => SessionMetrics(outputTokens: chunks.length, tokensPerSecond: 50);
+  @override
+  Future<void> stop() async {}
   @override
   Future<void> close() async {}
 }

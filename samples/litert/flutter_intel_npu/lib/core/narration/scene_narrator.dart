@@ -16,10 +16,10 @@ import 'dart:async';
 import 'dart:isolate';
 
 import 'package:flutter/foundation.dart';
-import 'package:flutter_gemma/flutter_gemma.dart';
+import 'package:flutter_edge_ai/flutter_edge_ai.dart';
 
 import '../scene/scene_events.dart';
-import 'narrator_isolate.dart';
+import 'narrator_engine_host.dart';
 
 enum NarratorState { off, loading, idle, generating, failed }
 
@@ -49,11 +49,10 @@ class NarrationTurn {
   final int inputTokens;
 }
 
-/// Act 3's narrator, UI-side proxy. Batches the scene's event log and asks
-/// the worker isolate ([narratorMain]) to comment on ONE multi-turn
-/// conversation, so the log accumulates in context and the model can refer
-/// back to something that happened minutes ago. All native work — engine
-/// load, prefill, decode — happens on the worker; this side only formats
+/// Act 3's narrator. Batches the scene's event log and asks the engine host
+/// ([NarratorEngineHost]) to comment on ONE multi-turn conversation, so the
+/// log accumulates in context and the model can refer back to something that
+/// happened minutes ago. The host owns the engines; this side only formats
 /// prompts and receives chunks.
 class SceneNarrator extends ChangeNotifier {
   SceneNarrator({
@@ -64,7 +63,6 @@ class SceneNarrator extends ChangeNotifier {
     this.interval = const Duration(seconds: 4),
     this.maxEventsPerTurn = 12,
     this.maxOutputTokens = 60,
-    this.inline = false,
     this.preface = arenaPreface,
     this.situation,
   });
@@ -73,10 +71,6 @@ class SceneNarrator extends ChangeNotifier {
   /// the run is going, the hardware the narrator is on). Null or empty text
   /// leaves the prompt as it was.
   String Function()? situation;
-
-  /// Run the engine host on the UI isolate instead of a worker (diagnostic /
-  /// fallback; costs UI-thread time during prefill).
-  final bool inline;
 
   final SceneEventLog events;
   final String modelPath;
@@ -94,12 +88,19 @@ class SceneNarrator extends ChangeNotifier {
   PreferredBackend? backend;
   String? error;
 
-  SendPort? _worker;
-  Isolate? _isolate;
-  ReceivePort? _exitPort;
-  final ReceivePort _inbox = ReceivePort();
-  StreamSubscription<dynamic>? _inboxSub;
-  Completer<void>? _workerReady;
+  SendPort? _host;
+  NarratorEngineHost? _engineHost;
+
+  /// Set when an engine load timed out. LiteRT-LM creates engines one at a
+  /// time per isolate, so a hung create blocks every later load in the app:
+  /// a new host would only time out again.
+  bool _createHung = false;
+
+  /// Replies from the current host only. Each host gets its own port, closed
+  /// when the host is dropped, so a late reply from a dropped host goes
+  /// nowhere instead of answering the new host's waiters.
+  ReceivePort? _replies;
+  Completer<void>? _hostReady;
   bool _disposed = false;
 
   /// start / stop / preload run one after another, in call order. Without
@@ -107,9 +108,9 @@ class SceneNarrator extends ChangeNotifier {
   /// then raced: both overwrote the pending `open`, and one never returned.
   Future<void> _lifecycle = Future.value();
 
-  /// A load that takes longer is hung (on macOS an NPU load never returns):
-  /// the worker is replaced and the load fails, instead of the narrator
-  /// sitting in `loading` for the rest of the act.
+  /// A load that takes longer is hung: the narrator fails for the rest of
+  /// the run (see [_createHung]) instead of sitting in `loading`. A turn that
+  /// takes longer is stopped and the host replaced.
   static const loadTimeout = Duration(minutes: 3);
   static const turnTimeout = Duration(minutes: 2);
   final Map<String, Completer<Map<String, Object?>>> _waiting = {};
@@ -192,49 +193,45 @@ class SceneNarrator extends ChangeNotifier {
       'a short aside, since you are part of the show. Never list the events; '
       'talk about them.';
 
-  // ---------------------------------------------------------------- worker
+  // ------------------------------------------------------------------ host
 
-  Future<void> _ensureWorker() async {
-    if (_worker != null) return;
-    if (_workerReady != null) return _workerReady!.future;
-    _workerReady = Completer<void>();
-    _inboxSub = _inbox.listen(_onWorkerMessage);
-    if (inline) {
-      // Same protocol, no isolate: commands go to a local host through a
-      // ReceivePort so the reply path stays identical.
-      final host = NarratorEngineHost();
-      final cmdPort = ReceivePort();
-      cmdPort.listen((raw) async {
-        final alive = await host.handle(raw as Map<String, Object?>, _inbox.sendPort.send);
-        if (!alive) cmdPort.close();
-      });
-      _inbox.sendPort.send({'type': NarratorMsg.ready, 'port': cmdPort.sendPort});
-    } else {
-      final exit = ReceivePort();
-      _exitPort = exit;
-      exit.listen((_) => _dropWorker('the narrator worker stopped'));
-      _isolate = await Isolate.spawn(
-        narratorMain,
-        _inbox.sendPort,
-        debugName: 'narrator',
-        onExit: exit.sendPort,
-        onError: exit.sendPort,
-      );
-      if (_disposed) _isolate?.kill();
-    }
-    return _workerReady!.future;
+  Future<void> _ensureHost() async {
+    if (_disposed) throw StateError('narrator disposed');
+    if (_createHung) throw StateError('an engine load hung earlier; restart the app');
+    if (_host != null) return;
+    if (_hostReady != null) return _hostReady!.future;
+    _hostReady = Completer<void>();
+    final replies = _replies = ReceivePort()..listen(_onHostMessage);
+    // Commands reach the host through a ReceivePort and run one at a time, in
+    // order: a dispose waits for a load still in flight, then closes what it
+    // opened, and nothing after a dispose runs.
+    final host = _engineHost = NarratorEngineHost();
+    final commands = ReceivePort();
+    var alive = true;
+    var queue = Future<void>.value();
+    commands.listen((raw) {
+      queue = queue.then((_) async {
+        if (!alive) return;
+        alive = await host.handle(raw as Map<String, Object?>, replies.sendPort.send);
+        if (!alive) commands.close();
+      }).catchError((Object _) {});
+    });
+    replies.sendPort.send({'type': NarratorMsg.ready, 'port': commands.sendPort});
+    return _hostReady!.future;
   }
 
-  /// Forgets the worker and fails everything waiting on it. Kills it when it
-  /// is an isolate (a call stuck in native code ends when it returns).
-  void _dropWorker(String reason) {
-    _exitPort?.close();
-    _exitPort = null;
-    _isolate?.kill(priority: Isolate.immediate);
-    _isolate = null;
-    _worker = null;
-    final ready = _workerReady;
-    _workerReady = null;
+  /// Forgets the host and fails everything waiting on it. The old host still
+  /// gets a dispose, which runs once its stuck call returns and closes the
+  /// engine that call opened.
+  void _dropHost(String reason) {
+    _engineHost?.cancel();
+    _engineHost = null;
+    _host?.send({'type': NarratorCmd.dispose});
+    _host = null;
+    _replies?.close();
+    _replies = null;
+    final ready = _hostReady;
+    _hostReady = null;
     if (ready != null && !ready.isCompleted) ready.completeError(StateError(reason));
     _loaded.clear();
     final e = StateError(reason);
@@ -248,7 +245,7 @@ class SceneNarrator extends ChangeNotifier {
     }
   }
 
-  void _onWorkerMessage(dynamic raw) {
+  void _onHostMessage(dynamic raw) {
     final msg = raw as Map<String, Object?>;
     switch (msg['type'] as String) {
       case NarratorMsg.ready:
@@ -257,8 +254,8 @@ class SceneNarrator extends ChangeNotifier {
           port.send({'type': NarratorCmd.dispose});
           return;
         }
-        _worker = port;
-        _workerReady?.complete();
+        _host = port;
+        _hostReady?.complete();
       case NarratorMsg.loaded:
         final b = PreferredBackend.values.byName(msg['backend'] as String);
         _loaded.add(b);
@@ -298,16 +295,19 @@ class SceneNarrator extends ChangeNotifier {
   }
 
   Future<Map<String, Object?>> _ask(String key, Map<String, Object?> cmd, Duration timeout) async {
-    final worker = _worker;
-    if (worker == null) throw StateError('the narrator worker is not running');
+    final host = _host;
+    if (host == null) throw StateError('the narrator is not running');
     final c = Completer<Map<String, Object?>>();
     _waiting[key] = c;
-    worker.send(cmd);
+    host.send(cmd);
     try {
       return await c.future.timeout(timeout);
     } on TimeoutException {
       _waiting.remove(key);
-      _dropWorker('${cmd['type']} ${cmd['backend'] ?? ''} took over ${timeout.inSeconds} s; the narrator worker was restarted');
+      final loading = cmd['type'] == NarratorCmd.load || cmd['type'] == NarratorCmd.open;
+      if (loading) _createHung = true;
+      _dropHost('${cmd['type']} ${cmd['backend'] ?? ''} took over ${timeout.inSeconds} s; '
+          '${loading ? 'restart the app' : 'the narrator was restarted'}');
       rethrow;
     }
   }
@@ -324,7 +324,7 @@ class SceneNarrator extends ChangeNotifier {
   Future<void> preload(PreferredBackend b) => _serial(() => _preload(b));
 
   Future<void> _preload(PreferredBackend b) async {
-    await _ensureWorker();
+    await _ensureHost();
     if (_loaded.contains(b)) return;
     await _ask(
       'load:${b.name}',
@@ -377,7 +377,7 @@ class SceneNarrator extends ChangeNotifier {
     _timer?.cancel();
     _timer = null;
     await _waitIdle();
-    _worker?.send({'type': NarratorCmd.close});
+    _host?.send({'type': NarratorCmd.close});
     _pending.clear();
     live = '';
     _set(NarratorState.off);
@@ -412,7 +412,7 @@ class SceneNarrator extends ChangeNotifier {
   }
 
   Future<void> _tick() async {
-    if (_busy || state != NarratorState.idle || _pending.isEmpty || _worker == null) return;
+    if (_busy || state != NarratorState.idle || _pending.isEmpty || _host == null) return;
     _busy = true;
     final b = backend!;
     final batch = _pending.take(maxEventsPerTurn).toList();
@@ -523,23 +523,22 @@ class SceneNarrator extends ChangeNotifier {
     _disposed = true;
     _timer?.cancel();
     _sub?.cancel();
-    final worker = _worker;
-    if (worker != null) {
-      // The worker closes its engines and exits by itself.
-      worker.send({'type': NarratorCmd.dispose});
-      _exitPort?.close();
-    } else {
-      // Still spawning (or dead): nothing to close politely.
-      _exitPort?.close();
-      _isolate?.kill();
-    }
+    // The host closes its engines by itself, after any load still in flight;
+    // a turn still running is stopped first.
+    _engineHost?.cancel();
+    _engineHost = null;
+    _host?.send({'type': NarratorCmd.dispose});
+    _host = null;
     final e = StateError('narrator disposed');
+    final ready = _hostReady;
+    _hostReady = null;
+    if (ready != null && !ready.isCompleted) ready.completeError(e);
     for (final c in _waiting.values) {
       if (!c.isCompleted) c.completeError(e);
     }
     _waiting.clear();
-    _inboxSub?.cancel();
-    _inbox.close();
+    _replies?.close();
+    _replies = null;
     super.dispose();
   }
 }

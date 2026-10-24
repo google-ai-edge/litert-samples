@@ -15,8 +15,8 @@
 import 'dart:io';
 
 import 'package:flutter/widgets.dart';
-import 'package:flutter_gemma/flutter_gemma.dart';
-import 'package:flutter_gemma_litertlm/flutter_gemma_litertlm.dart';
+import 'package:flutter_edge_ai/flutter_edge_ai.dart';
+import 'package:flutter_edge_ai_litertlm/flutter_edge_ai_litertlm.dart';
 
 import 'app/demo_app.dart';
 import 'app/demo_config.dart';
@@ -25,10 +25,27 @@ Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
   // Core registers no engine on its own; .litertlm is the only desktop engine.
-  await FlutterGemma.initialize(
-    inferenceEngines: const [LiteRtLmEngine()],
+  // No fallback: a backend that does not load is a failed row, not a model
+  // quietly reloaded on the CPU. LITERT_VERBOSE=1 turns LiteRT-LM's own log
+  // (stderr) to VERBOSE.
+  await FlutterEdgeAi.initialize(
+    inferenceEngines: [
+      LiteRtLmEngine(
+        backendFallback: false,
+        nativeLogLevel: Platform.environment['LITERT_VERBOSE'] == '1' ? LiteRtLmLogLevel.verbose : null,
+      ),
+    ],
   );
-  FlutterGemma.logLevel = GemmaLogLevel.info;
+  // Every model here is opened with openModel; none is the active one. Older
+  // versions of this app made MODEL_PATH active, and the plugin restores that
+  // at start, which would stop a different file with the same name from
+  // registering.
+  try {
+    await FlutterEdgeAi.clearActiveInferenceIdentity();
+  } catch (e) {
+    stderr.writeln('could not clear the saved active model: $e');
+  }
+  FlutterEdgeAi.logLevel = EdgeAiLogLevel.info;
 
   final config = DemoConfig.fromEnvironment();
   for (final e in config.errors) {

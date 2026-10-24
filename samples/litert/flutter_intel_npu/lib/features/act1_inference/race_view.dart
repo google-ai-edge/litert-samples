@@ -15,7 +15,7 @@
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
-import 'package:flutter_gemma/flutter_gemma.dart';
+import 'package:flutter_edge_ai/flutter_edge_ai.dart';
 
 import '../../core/engines/backend_catalog.dart';
 import '../../core/engines/benchmark_run.dart';

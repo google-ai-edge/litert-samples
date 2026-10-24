@@ -26,9 +26,10 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
-  flutter_gemma: ^1.8.3
-  # Exact: lib/core/engines/engine_slot.dart imports its src/ FFI client.
-  flutter_gemma_litertlm: 1.7.0
+  flutter_edge_ai: ^2.5.1
+  # 1.17.0: OpenVINO 2026.4.1 on Windows, which Gemma 4 12B on the Panther
+  # Lake NPU needs.
+  flutter_edge_ai_litertlm: ^1.17.0
   scrollable_positioned_list: ^0.3.8
   cupertino_icons: ^1.0.8
   flutter_scene: ^0.23.0
@@ -42,7 +43,7 @@ dev_dependencies:
   flutter_lints: ^6.0.0
 
 flutter:
-  # flutter_gemma_litertlm stages its macOS companion dylibs through a
+  # flutter_edge_ai_litertlm stages its macOS companion dylibs through a
   # CocoaPods post_install phase (see macos/Podfile), so keep the CocoaPods path.
   config:
     enable-swift-package-manager: false
