@@ -1,5 +1,5 @@
 version = 1
-revision = 3
+revision = 5
 requires-python = "==3.12.*"
 
 [[package]]
@@ -13,21 +13,22 @@ wheels = [
 
 [[package]]
 name = "ai-edge-litert"
-version = "2.1.6"
+version = "2.3.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "backports-strenum" },
     { name = "flatbuffers" },
+    { name = "ml-dtypes" },
     { name = "numpy" },
     { name = "protobuf" },
     { name = "tqdm" },
     { name = "typing-extensions" },
 ]
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/52/d5/164aaf69f60f72b7076900ef1cc6153bf50d82cd15202bdf1239c0dbfb1c/ai_edge_litert-2.1.6-cp312-cp312-macosx_12_0_arm64.whl", hash = "sha256:5adf0c9afde6151dc7f2989d039c800f3060d98d40bb5dfc95e426ad4eb3680b", size = 10033170, upload-time = "2026-07-01T21:42:53.208Z" },
-    { url = "https://files.pythonhosted.org/packages/b7/24/4f490bc5df4e3c5e796de20437804da9982e565cb9eba0d862eb20efa2b7/ai_edge_litert-2.1.6-cp312-cp312-manylinux_2_27_aarch64.whl", hash = "sha256:e8aa6393e1293fac837f764b5a9ba3ef81bb16068c94a2068d9dfb109a24e3b9", size = 13066237, upload-time = "2026-07-01T21:02:30.375Z" },
-    { url = "https://files.pythonhosted.org/packages/39/df/08defcb80cfe1782a51b58184300ca592f302d7cd1e3d26d5adcd11bb588/ai_edge_litert-2.1.6-cp312-cp312-manylinux_2_27_x86_64.whl", hash = "sha256:0156d9051c9a2500cd4c4ecedb77676eff0b45bd8efb1001e8e730a8cd0db4ee", size = 17332723, upload-time = "2026-07-01T20:59:25.961Z" },
-    { url = "https://files.pythonhosted.org/packages/ef/3a/d4236d7a971c70eceeb957f2f186db16fa46dc0fa27fd30e1b2ef075cace/ai_edge_litert-2.1.6-cp312-cp312-win_amd64.whl", hash = "sha256:f722298b070343e24634ab51a55b7185d32d8f84d4df8659f9d2989e76d7d63f", size = 16589039, upload-time = "2026-07-01T21:43:45.484Z" },
+    { url = "https://files.pythonhosted.org/packages/6f/12/86fe17e7069ae792c6e21c523151b34fc03b29a886340e760feaf40237dc/ai_edge_litert-2.3.0-cp312-cp312-macosx_12_0_arm64.whl", hash = "sha256:2cd92f02fc9616755670027c5b020bfee5c72ae50cf5d33e92465a863b705a8b", size = 12825324, upload-time = "2026-10-06T23:09:56.476Z" },
+    { url = "https://files.pythonhosted.org/packages/77/89/2bdb0260c4182358c0948316109a3850c37aa15b87665f4b12fb51ea706c/ai_edge_litert-2.3.0-cp312-cp312-manylinux_2_27_aarch64.whl", hash = "sha256:9891611b23a87cc2ace60e4b5ee9a2ee6f0fb7f395f009470961ae6e6310e1b8", size = 14380093, upload-time = "2026-10-06T22:53:23.168Z" },
+    { url = "https://files.pythonhosted.org/packages/94/db/defacfb96eb7ddf6145dc6bc0b0c64bc221364e413662ef8216bae8258e8/ai_edge_litert-2.3.0-cp312-cp312-manylinux_2_27_x86_64.whl", hash = "sha256:dc9f56c23e0dcf182b6c35f23fbb102ed048296588882b806d5eff7654c04c88", size = 21781762, upload-time = "2026-10-06T23:36:25.261Z" },
+    { url = "https://files.pythonhosted.org/packages/3e/f6/529d465a222282252226d272325d85bcbcf33e618eb3fc241d18f1a645a5/ai_edge_litert-2.3.0-cp312-cp312-win_amd64.whl", hash = "sha256:b33b039667da6c57815f88d4709c1b31890375fa2cd35f165a3bf9dfd36f23a3", size = 20670680, upload-time = "2026-10-06T23:00:25.792Z" },
 ]
 
 [[package]]
@@ -121,11 +122,11 @@ wheels = [
 
 [[package]]
 name = "filelock"
-version = "3.32.2"
+version = "4.2.1"
 source = { registry = "https://pypi.org/simple" }
-sdist = { url = "https://files.pythonhosted.org/packages/f6/57/3ba6e6cb097f85b855b00163d169f35365f44277df044dcf96d55b8f62a3/filelock-3.32.2.tar.gz", hash = "sha256:c33351e1f49cae33414acbc6d56784e6ecee82514ec90795da1161fc4836b5b8", size = 217172, upload-time = "2026-07-29T22:46:04.895Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/d5/98/771d8ca889f220d7d7e352addf500666368f0fd081c6080a83767580c6e4/filelock-4.2.1.tar.gz", hash = "sha256:c4c937ccac2a813cee448e662a56366cfb374c0f8702e75f295c412cc1c5d5a3", size = 650997, upload-time = "2026-10-17T16:48:14.435Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/c1/e8/72f8cef9fdfeffe06213fe8508039396ee48daa0e3259457ed766173bfd6/filelock-3.32.2-py3-none-any.whl", hash = "sha256:87dd94cf281e586d135fa51132b8e3d9a598b316e90377a288663c9321036c82", size = 98830, upload-time = "2026-07-29T22:46:03.52Z" },
+    { url = "https://files.pythonhosted.org/packages/28/00/db89d339bc4ecdc8087fa7b8607ba22ffc27bf96286f340c9620bea428b3/filelock-4.2.1-py3-none-any.whl", hash = "sha256:7be2662e9e826b9bba28afc0f843a123280d799a2ea44bb5d35ccec67905ae44", size = 162455, upload-time = "2026-10-17T16:48:12.937Z" },
 ]
 
 [[package]]
@@ -491,7 +492,7 @@ dev = [
 
 [package.metadata]
 requires-dist = [
-    { name = "ai-edge-litert", specifier = "==2.1.6" },
+    { name = "ai-edge-litert", specifier = "==2.3.0" },
     { name = "espeakng-loader", specifier = ">=0.2" },
     { name = "huggingface-hub", specifier = ">=0.28" },
     { name = "litert-lm", specifier = "==0.15.0" },
