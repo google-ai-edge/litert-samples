@@ -27,11 +27,22 @@ interface SpeechRecognizer : AutoCloseable {
    */
   fun recognize(features: FloatArray): Sequence<Pair<Int, Int>>
 
+  /**
+   * Same as [recognize], for features of an audio chunk in which only the first [numOfValidSamples]
+   * samples carry audio and the rest are zeros an audio source filled the chunk with (see
+   * [getNumOfValidSamples]). A recognizer that cannot use the number ignores it.
+   */
+  fun recognize(features: FloatArray, numOfValidSamples: Int): Sequence<Pair<Int, Int>> =
+    recognize(features)
+
   companion object {
     /** Special token ID that indicates the end of the sequence. */
     const val END_OF_SEQUENCE = -1
 
     /** Special timestamp that indicates the timestamp is not available. */
     const val NO_TIMESTAMP = -1
+
+    /** Number of valid samples of an audio chunk whose samples all carry audio. */
+    const val ALL_SAMPLES = Int.MAX_VALUE
   }
 }
