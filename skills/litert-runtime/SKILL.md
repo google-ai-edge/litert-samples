@@ -150,6 +150,46 @@ so a wrong size produces an incorrect result. For `int8` or `uint8` tensors, use
 `writeInt8` and `readInt8` on `TensorBuffer` instead of `writeFloat` and
 `readFloat`.
 
+`create(context.assets, …)` keeps a copy of the asset's bytes in the native heap
+for as long as the model is open. When memory matters, copy the asset once into
+`context.noBackupFilesDir` (a downloaded file or an AI pack file is already on
+disk) and call `create(filePath, …)` instead: the file is mapped, and those
+pages are file-backed and reclaimable. On the CPU, two fields of `CpuOptions`
+cut the runtime's own allocations as well:
+
+    import android.content.Context
+    import com.google.ai.edge.litert.Accelerator
+    import com.google.ai.edge.litert.CompiledModel
+    import java.io.File
+
+    fun memoryOptions(context: Context): CompiledModel.Options =
+        CompiledModel.Options(Accelerator.CPU).apply {
+            cpuOptions = CompiledModel.CpuOptions(
+                xnnPackFlags = 0x23,
+                xnnPackWeightCachePath =
+                    File(context.codeCacheDir, "model-v1.xnnpack_cache").path,
+            )
+        }
+
+The weight cache is written on the first load (the size of the fp32 weights,
+about twice the file of an fp16 model) and mapped on later loads, so the packed
+weights leave the heap; put the model's version in the file name and delete old
+caches. `0x23` is the runtime's default `0x3` plus the transient indirection
+buffer flag `0x20`, which replaces the per-operator pointer tables of the
+convolutions with one shared buffer; the value replaces the default, so `0x20`
+alone would leave `int8` and `uint8` operators to the fallback kernels. Both
+fields are ignored on the GPU. On a Pixel 8a with MODNet (fp32, 25 MB, 512×512
+input), with the model open after ten inferences and the process at 110 MB
+before the load, anonymous memory (RssAnon) was 327 MB from assets, 295 MB from
+a file path, 271 MB with a warm weight cache and 195 MB with the indirection
+buffer as well; inference went from 992 ms to 1022 ms with byte-identical
+outputs. A 16 MB model with a 256×256 input went from 225 MB to 188 MB, 6 MB of
+it from the indirection buffer. Closing the model after a task brought the
+process back to 117 MB, and creating it again with a warm cache took 20 ms; the
+first inference after any load costs a full inference (1.0 s for MODNet on the
+CPU), so close a model when the next use is not imminent and keep it open when
+it is.
+
 ### Step 3: Wire the ViewModel and Compose screen
 
 Drive the helper from a single-thread executor inside an `AndroidViewModel`,
@@ -347,6 +387,7 @@ replace legacy constructs with their `CompiledModel` equivalents:
 - **Never** benchmark `model.run` without including output buffer readback (`outputs[0].readFloat`).
 - **Never** mix `org.tensorflow:tensorflow-lite*` artifacts (such as `org.tensorflow:tensorflow-lite-support`) with `com.google.ai.edge.litert:*` artifacts; both ship the `org.tensorflow.lite.*` classes and cause duplicate class build failures.
 - **Never** use `Accelerator.GPU` on LiteRT 2.3.0 without adding the `com.google.ai.edge.litert:litert-gpu:2.3.0` dependency alongside `com.google.ai.edge.litert:litert:2.3.0`.
+- **Never** set `xnnPackFlags = 0x20` on its own to get the transient indirection buffer; the value replaces the runtime's default `0x3`, so pass `0x23`.
 
 ## Checklist
 
@@ -356,3 +397,4 @@ replace legacy constructs with their `CompiledModel` equivalents:
 - \[ \] Are `TensorBuffer` instances allocated once, reused across calls, and closed before `model.close`, including when `init` or warm-up throws?
 - \[ \] Does `load` execute one warm-up inference and fall back to `Accelerator.CPU` if `Accelerator.GPU` throws `LiteRtException`?
 - \[ \] Does the project compile with `./gradlew assembleDebug`?
+- \[ \] If memory matters, is the model created from a file path with a versioned weight cache and `xnnPackFlags = 0x23` on the CPU, and closed after a task when the next use is not imminent?
