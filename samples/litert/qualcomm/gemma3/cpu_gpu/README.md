@@ -1,30 +1,28 @@
-# Gemma 3 On-Device Sample (CPU/GPU)
+# Gemma 3 1B On-Device Chat Sample (CPU / GPU)
 
-This sample demonstrates how to run the **Gemma 3 1B IT** model on Android using the LiteRT-LM framework, optimized for **CPU** and **GPU** (OpenCL) backends.
+An Android chat sample demonstrating on-device **Gemma 3 1B IT** inference using **Google LiteRT-LM** on **GPU (OpenCL)** and **CPU** backends.
 
 ## Features
-- **Strictly Non-NPU**: Uses GPU (OpenCL) and CPU backends for maximum compatibility.
-- **Multimodal Ready (Text-only UI)**: Engineered with LiteRT-LM for high-performance inference.
-- **Dynamic Initialization**: Automatic fallback from GPU to CPU if needed.
+- **GPU & CPU Execution**: Prioritizes GPU acceleration with automatic CPU fallback across Android devices without requiring vendor NPU libraries.
+- **Flexible Model Provisioning**: Download directly in-app from Hugging Face (with optional HF token configuration) or push via `adb` to scoped app storage.
+- **Live Telemetry**: Displays active backend, initialization time, Time-to-First-Token (`TTFT`), and decode throughput (`tokens/s`).
 
-## Model Setup
-1. Download the `gemma3-1b-it-int4.litertlm` model from [Hugging Face](https://huggingface.co/litert-community/Gemma3-1B-IT).
-2. Push the model to your device's internal storage:
-   ```bash
-   adb shell mkdir -p /sdcard/Download
-   adb push gemma3-1b-it-int4.litertlm /sdcard/Download/
-   ```
-   Or push directly to the app's files directory:
-   ```bash
-   adb push gemma3-1b-it-int4.litertlm /data/local/tmp/
-   adb shell run-as com.example.gemma3_on_device cp /data/local/tmp/gemma3-1b-it-int4.litertlm files/
-   ```
+## Quick Start
 
-## Backends
-- **GPU (LITERT_CL)**: Uses OpenCL acceleration.
-- **CPU**: Standard LiteRT CPU execution.
+### 1. Build & Install
+```bash
+./gradlew :app:assembleDebug
+adb install -r app/build/outputs/apk/debug/app-debug.apk
+```
 
-## Getting Started
-1. Open this project in Android Studio.
-2. Build and run on a device with OpenCL support (e.g., Samsung S25 Ultra).
-3. The app will automatically detect the model in `/sdcard/Download` or its local files directory.
+### 2. Provision the Model
+Download [`gemma3-1b-it-int4.litertlm`](https://huggingface.co/litert-community/Gemma3-1B-IT/blob/main/gemma3-1b-it-int4.litertlm) from Hugging Face and push it to the app's scoped external files directory:
+```bash
+adb shell mkdir -p /sdcard/Android/data/com.example.gemma3_on_device/files
+adb push gemma3-1b-it-int4.litertlm \
+  /sdcard/Android/data/com.example.gemma3_on_device/files/
+```
+Or launch the app and tap **Download Now** in the setup prompt.
+
+## License
+Apache License 2.0
