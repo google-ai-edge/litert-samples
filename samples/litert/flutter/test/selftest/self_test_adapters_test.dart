@@ -82,12 +82,17 @@ void main() {
         ),
       );
 
+  /// On a Qualcomm phone, where the NPU builds of these tests run.
   Future<SelfTestChatModel> resolve(
     ChatModelPlan plan, {
     String? argument,
     String define = '',
-  }) =>
-      resolveSelfTestChatModel(argument: argument, define: define, plan: plan);
+  }) => resolveSelfTestChatModel(
+    argument: argument,
+    define: define,
+    plan: plan,
+    abi: 'android_arm64',
+  );
 
   test('your own model wins over GEMMA_MODEL_PATH, like the app', () async {
     final chosen = await resolve(custom(), define: defineFile);
@@ -165,6 +170,129 @@ void main() {
       expect(llm.supportImage, isTrue);
       expect(llm.supportAudio, isFalse);
     }
+  });
+
+  test('--gemma without --gemma-backend: a build compiled for an NPU with '
+      'the settings the app starts it with (the NPU, the context its name '
+      "gives or 4096, tools off, its towers); any other with the app's Gemma "
+      '4 E2B settings', () async {
+    String write(String name, FakeBundle kind) => (File(
+      '${tmp.path}/$name',
+    )..writeAsBytesSync(fakeLitertlmBytes(kind))).path;
+    Future<SelfTestChatModel> gemma(String path) => resolveSelfTestChatModel(
+      argument: path,
+      define: '',
+      plan: const NoChatModelPlan(),
+      read: fakeReadBundle,
+      abi: 'android_arm64',
+    );
+
+    final npu = await gemma(write('sm8750.litertlm', FakeBundle.officialNpu));
+    expect(npu.config.name, 'sm8750');
+    expect(npu.config.llm.backend, PreferredBackend.npu);
+    expect(npu.config.llm.maxTokens, 4096);
+    expect(npu.config.tools, isFalse);
+    expect(npu.config.llm.supportImage && npu.config.llm.supportAudio, isTrue);
+    expect(
+      npu.settingsSource,
+      "the app's defaults for this file (compiled for an NPU)",
+    );
+    expect(npu.bundle?.isCompiledForNpu, isTrue);
+    expect(
+      (await gemma(write('g3_ekv1280_sm8750.litertlm', FakeBundle.textOnlyNpu)))
+          .config
+          .llm
+          .maxTokens,
+      1280,
+      reason: 'the context its name gives',
+    );
+
+    final generic = await gemma(write('e2b.litertlm', FakeBundle.gemma4E2b));
+    expect(generic.config.llm.backend, kDefineChatModel.llm.backend);
+    expect(generic.settingsSource, "the app's Gemma 4 E2B settings");
+
+    // A header the reader cannot read rules out no backend.
+    final unread = await gemma(argumentFile);
+    expect(unread.config.llm.backend, kDefineChatModel.llm.backend);
+    expect(unread.bundle, isNull);
+    expect(unread.withBackend(PreferredBackend.npu).file.path, argumentFile);
+  });
+
+  test('--gemma-backend=npu for a file read and compiled for no NPU: no '
+      'file, the reason in its place, from every source', () async {
+    final generic = (File(
+      '${tmp.path}/e2b.litertlm',
+    )..writeAsBytesSync(fakeLitertlmBytes(FakeBundle.gemma4E2b))).path;
+    for (final chosen in [
+      await resolve(custom()),
+      await resolveSelfTestChatModel(
+        argument: generic,
+        define: '',
+        plan: const NoChatModelPlan(),
+        read: fakeReadBundle,
+      ),
+      await resolveSelfTestChatModel(
+        argument: null,
+        define: generic,
+        plan: const NoChatModelPlan(),
+        read: fakeReadBundle,
+      ),
+    ]) {
+      final path = chosen.file.path!;
+      final onNpu = chosen.withBackend(PreferredBackend.npu);
+      expect(onNpu.file.path, isNull, reason: chosen.file.source);
+      expect(onNpu.file.source, chosen.file.source);
+      expect(
+        onNpu.file.problem,
+        '--gemma-backend=npu: $path is not compiled for an NPU, so the strict '
+        'engine refuses it on the NPU (wrongBackend). Leave out '
+        '--gemma-backend, or pass gpu or cpu.',
+      );
+      expect(onNpu.config.llm.backend, PreferredBackend.npu);
+      expect(chosen.withBackend(PreferredBackend.cpu).file.path, path);
+    }
+  });
+
+  test('a file compiled for an NPU vendor this build does not run here: no '
+      'file, the reason in its place, from every source', () async {
+    final qualcomm = (File(
+      '${tmp.path}/sm8750.litertlm',
+    )..writeAsBytesSync(fakeLitertlmBytes(FakeBundle.officialNpu))).path;
+    for (final chosen in [
+      await resolveSelfTestChatModel(
+        argument: null,
+        define: '',
+        plan: custom(bundle: FakeBundle.officialNpu),
+        abi: 'windows_x64',
+      ),
+      await resolveSelfTestChatModel(
+        argument: qualcomm,
+        define: '',
+        plan: const NoChatModelPlan(),
+        read: fakeReadBundle,
+        abi: 'windows_x64',
+      ),
+    ]) {
+      expect(chosen.file.path, isNull);
+      expect(
+        chosen.file.problem,
+        endsWith(
+          'cannot run here: it is compiled for the Qualcomm SM8750 NPU, '
+          'which this build runs on android_arm64 and linux_arm64 only, and '
+          'this is windows_x64.',
+        ),
+      );
+    }
+    expect(
+      (await resolveSelfTestChatModel(
+        argument: qualcomm,
+        define: '',
+        plan: const NoChatModelPlan(),
+        read: fakeReadBundle,
+        abi: 'linux_arm64',
+      )).file.path,
+      qualcomm,
+    );
   });
 
   test('the chat model load warms its towers up as the app does (the image '

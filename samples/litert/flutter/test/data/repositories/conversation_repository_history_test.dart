@@ -127,11 +127,9 @@ void main() {
     return t;
   }
 
-  setUp(() async {
-    log = [];
-    originalDebugPrint = debugPrint;
-    debugPrint = (message, {wrapWidth}) => log.add(message ?? '');
-    model = FakeInferenceModel();
+  /// The repository over an engine on [backend], with the voice chat open.
+  Future<void> build(PreferredBackend backend) async {
+    model = FakeInferenceModel(activeBackend: backend);
     final llm = LlmService(loadModel: (_) async => model);
     expect(await llm.load(_audioGemma), isA<Ok<LlmInfo>>());
     repo = EdgeAiConversationRepository(
@@ -139,6 +137,20 @@ void main() {
       stopTimeout: const Duration(seconds: 2),
     );
     expect(await repo.open(kVoiceChatProfile), isA<Ok<void>>());
+  }
+
+  /// flutter_edge_ai_litertlm rebuilds a stopped conversation from text on
+  /// the NPU (on the GPU and the CPU it rewinds it in place).
+  Future<void> onNpu() async {
+    await repo.close();
+    await build(PreferredBackend.npu);
+  }
+
+  setUp(() async {
+    log = [];
+    originalDebugPrint = debugPrint;
+    debugPrint = (message, {wrapWidth}) => log.add(message ?? '');
+    await build(PreferredBackend.gpu);
   });
 
   tearDown(() async {
@@ -210,7 +222,41 @@ void main() {
     expect(repo.history, isEmpty);
   });
 
-  group('a stop with an audio turn in the live chat', () {
+  test('a stop with an audio turn in the live chat (the GPU rewinds it in '
+      'place): the next turn runs on the same native conversation, which '
+      'keeps both recordings, and nothing is replayed', () async {
+    await answer(
+      PromptBuilderLike.spoken,
+      audioWav: wav,
+      historyText: kSpokenQuestionPlaceholder,
+      turn: 1,
+      reply: 'Paris.',
+    );
+    repo.setHistoryText(1, 'What is the capital of France?');
+    await stopped(
+      PromptBuilderLike.spoken,
+      audioWav: wav,
+      historyText: kSpokenQuestionPlaceholder,
+      turn: 2,
+    );
+    final stoppedSession = session();
+    final queries = stoppedSession.queries.length;
+
+    final next = await answer('And Germany?', historyText: 'And Germany?');
+
+    expect(session(), same(stoppedSession), reason: 'no clearHistory');
+    expect(stoppedSession.closed, isFalse);
+    expect(stoppedSession.queries, hasLength(queries + 1));
+    expect(stoppedSession.queries.last.text, 'And Germany?');
+    expect(model.chat!.fullHistory.where((m) => m.hasAudio), hasLength(2));
+    expect(log.where((l) => l.contains('the text history')), isEmpty);
+    expect(next.events.whereType<AssistantContextReset>(), isEmpty);
+    expect((next.events.last as AssistantDone).metrics.contextReset, isFalse);
+  });
+
+  group('a stop with an audio turn in the live chat on the NPU', () {
+    setUp(onNpu);
+
     test(
       'the next turn rebuilds the chat from the text history '
       '(clearHistory): a new native conversation on the same chat whose '
@@ -370,8 +416,9 @@ void main() {
     });
   });
 
-  test('a stopped text turn leaves the rebuild to flutter_edge_ai_litertlm '
-      '(its text history is complete): no clearHistory', () async {
+  test('a stopped text turn leaves the recovery to flutter_edge_ai_litertlm '
+      '(a rewind, or on the NPU a rebuild from its complete text history): '
+      'no clearHistory', () async {
     await answer('What is LiteRT?', historyText: 'What is LiteRT?');
     await stopped('Tell me more', historyText: 'Tell me more');
     final created = model.created.length;
@@ -439,7 +486,10 @@ void main() {
     expect(reset.wordlessTurns, 1, reason: 'turn 4 had no transcript yet');
   });
 
-  group('a rebuild after a stop is not capped like a budget reset', () {
+  group('a rebuild after a stop on the NPU is not capped like a budget '
+      'reset', () {
+    setUp(onNpu);
+
     test('six long exchanges and a barge-in: the rebuilt chat gets all seven '
         'back, and no turn says the conversation got too long', () async {
       // Each reply ~250 tokens (1000 characters at the fake's 4 per token):
@@ -548,11 +598,9 @@ void _agentPath() {
     late DebugPrintCallback originalDebugPrint;
     final wav = wavFromPcm16(Uint8List(16000), sampleRate: 16000);
 
-    setUp(() async {
-      log = [];
-      originalDebugPrint = debugPrint;
-      debugPrint = (message, {wrapWidth}) => log.add(message ?? '');
-      model = FakeToolModel();
+    /// The agent chat over an engine on [backend].
+    Future<void> build(PreferredBackend backend) async {
+      model = FakeToolModel(activeBackend: backend);
       final llm = LlmService(loadModel: (_) async => model);
       expect(
         await llm.load(
@@ -584,6 +632,80 @@ void _agentPath() {
         isA<Ok<void>>(),
       );
       expect(repo.hasSkills, isTrue);
+    }
+
+    setUp(() async {
+      log = [];
+      originalDebugPrint = debugPrint;
+      debugPrint = (message, {wrapWidth}) => log.add(message ?? '');
+      await build(PreferredBackend.gpu);
+    });
+
+    /// An audio turn answered, then a second one stopped at its first words;
+    /// returns the stopped turn's reply as the history records it.
+    Future<String> audioThenStopped() async {
+      model.script.add(const TextTurn(['Paris.']));
+      await repo
+          .ask(
+            PromptBuilderLike.spoken,
+            audioWav: wav,
+            historyText: kSpokenQuestionPlaceholder,
+            turn: 1,
+          )
+          .drain<void>();
+      repo.setHistoryText(1, 'Capital of France?');
+      model.script.add(
+        const TextTurn(['Once ', 'upon ', 'a ', 'time ', 'there ', 'was.']),
+      );
+      final cut = <AssistantEvent>[];
+      var stopping = false;
+      await repo
+          .ask(
+            PromptBuilderLike.spoken,
+            audioWav: wav,
+            historyText: kSpokenQuestionPlaceholder,
+            turn: 2,
+          )
+          .map((e) {
+            cut.add(e);
+            if (e is AssistantTextDelta && !stopping) {
+              stopping = true;
+              unawaited(repo.stop());
+            }
+            return e;
+          })
+          .drain<void>();
+      expect((cut.last as AssistantDone).metrics.stopped, isTrue);
+      expect(
+        model.chat!.fullHistory.where((m) => m.hasAudio),
+        hasLength(2),
+        reason: 'the chat keeps both recordings',
+      );
+      final stoppedReply = repo.history[1].assistant;
+      expect(stoppedReply, isNotEmpty);
+      expect(stoppedReply, isNot('Once upon a time there was.'));
+      return stoppedReply;
+    }
+
+    test('an audio turn, a stop mid-reply, the next turn on the GPU: the same '
+        'session goes on (rewound in place), both recordings stay, nothing '
+        'is replayed', () async {
+      await audioThenStopped();
+      final sessions = model.created.length;
+      final queries = model.lastSession.queries.length;
+
+      model.script.add(const TextTurn(['Berlin.']));
+      final next = await repo
+          .ask('And Germany?', historyText: 'And Germany?')
+          .toList();
+
+      expect(next.last, isA<AssistantDone>());
+      expect(next.whereType<AssistantContextReset>(), isEmpty);
+      expect(model.created.length, sessions, reason: 'no clearHistory');
+      expect(model.lastSession.queries, hasLength(queries + 1));
+      expect(model.lastSession.queries.last.text, 'And Germany?');
+      expect(model.chat!.fullHistory.where((m) => m.hasAudio), hasLength(2));
+      expect(log.where((l) => l.contains('the text history')), isEmpty);
     });
 
     tearDown(() async {
@@ -611,52 +733,13 @@ void _agentPath() {
       expect(repo.history.single.user, 'Capital of France?');
     });
 
-    test('an audio turn, a stop mid-reply, the next turn: the same agent chat '
-        'is rebuilt once from the text history (the replay line first), no '
-        'recording is left in its history, and the tools are still '
-        'declared', () async {
-      model.script.add(const TextTurn(['Paris.']));
-      await repo
-          .ask(
-            PromptBuilderLike.spoken,
-            audioWav: wav,
-            historyText: kSpokenQuestionPlaceholder,
-            turn: 1,
-          )
-          .drain<void>();
-      repo.setHistoryText(1, 'Capital of France?');
-
-      // The second audio question is stopped at its first words.
-      model.script.add(
-        const TextTurn(['Once ', 'upon ', 'a ', 'time ', 'there ', 'was.']),
-      );
-      final cut = <AssistantEvent>[];
-      var stopping = false;
-      await repo
-          .ask(
-            PromptBuilderLike.spoken,
-            audioWav: wav,
-            historyText: kSpokenQuestionPlaceholder,
-            turn: 2,
-          )
-          .map((e) {
-            cut.add(e);
-            if (e is AssistantTextDelta && !stopping) {
-              stopping = true;
-              unawaited(repo.stop());
-            }
-            return e;
-          })
-          .drain<void>();
-      expect((cut.last as AssistantDone).metrics.stopped, isTrue);
-      expect(
-        model.chat!.fullHistory.where((m) => m.hasAudio),
-        hasLength(2),
-        reason: 'until the rebuild the chat keeps both recordings',
-      );
-      final stoppedReply = repo.history[1].assistant;
-      expect(stoppedReply, isNotEmpty);
-      expect(stoppedReply, isNot('Once upon a time there was.'));
+    test('an audio turn, a stop mid-reply, the next turn on the NPU: the same '
+        'agent chat is rebuilt once from the text history (the replay line '
+        'first), no recording is left in its history, and the tools are '
+        'still declared', () async {
+      await repo.close();
+      await build(PreferredBackend.npu);
+      final stoppedReply = await audioThenStopped();
       final chats = model.chats.length;
       final sessions = model.created.length;
       final declared = [for (final t in model.lastSession.tools) t.name];

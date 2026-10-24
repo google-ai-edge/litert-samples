@@ -100,8 +100,14 @@ DeviceSummary buildDeviceSummary({
         for (final g in gpus)
           SummaryLine(
             label: 'GPU',
-            value: [g.name, ?g.api].join(' · '),
-            tone: g.inferred ? SummaryTone.caution : SummaryTone.neutral,
+            value: [
+              g.name,
+              ?g.api,
+              if (g.kind == GpuKind.software) 'software',
+            ].join(' · '),
+            tone: g.inferred || g.kind == GpuKind.software
+                ? SummaryTone.caution
+                : SummaryTone.neutral,
             tag: g.inferred ? 'inferred' : null,
           ),
       if (hw.vulkan case final devices? when !softwareVulkan)

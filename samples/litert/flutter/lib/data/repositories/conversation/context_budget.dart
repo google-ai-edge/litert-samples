@@ -35,7 +35,13 @@ typedef AgentReserve = ({int system, int rounds});
 /// InferenceChat's own trim from firing (it replays the history onto one
 /// user message).
 final class const ContextBudget({
-  /// LiteRT-LM's count for the live conversation (0 when unreadable).
+  /// LiteRT-LM's count for the live conversation (0 when unreadable). It is
+  /// the work the conversation did, not what it holds: each stopped turn that
+  /// flutter_edge_ai_litertlm rewound in place is in it twice (its first run
+  /// and the rewind's prefill), and these extras add up over the stops until
+  /// the chat's next reset. So after stops the guard errs high by every
+  /// stopped exchange since that reset and may reset the chat that much
+  /// early: the safe direction.
   required final int nativeTokens,
 
   /// flutter_edge_ai's count (`InferenceChat.currentTokens`).
@@ -58,7 +64,8 @@ final class const ContextBudget({
   final int audioTokens = 0,
 
   /// The live chat is rebuilt from the conversation's text mirror before this
-  /// turn (a stop left an audio turn in it): what it holds now does not count,
+  /// turn (a stop on the NPU left an audio turn in it, or a transcript
+  /// arrived for a replayed placeholder): what it holds now does not count,
   /// so the verdict is never a reset; the replay gets the whole [replayRoom].
   final bool rebuilding = false,
 }) {
@@ -102,9 +109,9 @@ final class const ContextBudget({
   /// [afterReset] (the budget guard recreated the chat): at most
   /// [kHistoryReplayMaxFraction] of the [limit], since more would fill it
   /// again and the next turn would reset it again. A rebuild for another
-  /// reason (a stop with an audio turn in the chat, an interrupted skill
-  /// call) gets all of it: dropping turns that fit would only make the model
-  /// forget them.
+  /// reason (a stop on the NPU with an audio turn in the chat, an interrupted
+  /// skill call) gets all of it: dropping turns that fit would only make the
+  /// model forget them.
   int replayRoom({required bool image, required bool afterReset}) {
     final room = math.max(0, limit - needFresh(image: image));
     if (!afterReset) return room;

@@ -82,6 +82,21 @@ void main() {
     expect(await none.interruptions.isEmpty, isTrue);
   });
 
+  test('Windows gets the no-op session too: audio_session has no Windows '
+      'plugin and would answer as if a session were active', () async {
+    final service = audioSessionServiceFor(HostPlatform.windows);
+    expect(service, isA<NoAudioSessionService>());
+    expect(await service.activate(), isTrue);
+    await service.deactivate();
+    expect(await service.interruptions.isEmpty, isTrue);
+
+    final lines = <String>[];
+    await NoAudioSessionService.windows(log: lines.add).configureHalfDuplex();
+    expect(lines, [
+      '[AudioSession] none on Windows (it has no app audio session)',
+    ]);
+  });
+
   test('the other platforms keep audio_session', () {
     for (final platform in [
       HostPlatform.macos,

@@ -36,9 +36,11 @@ import 'conversation_repository.dart';
 /// and the open [ConversationProfile].
 ///
 /// Images: LiteRT-LM keeps an image in the native conversation until the
-/// conversation is rebuilt — after a stopped turn it is rebuilt from text
-/// only — so this repository tracks which image the live chat can see
-/// ([imageInContext]) and re-sends the caller's image when it cannot.
+/// conversation is rebuilt — a stopped turn is rewound in place on the GPU and
+/// the CPU, image kept (unless the plugin falls back to a rebuild, which it
+/// does not report), and rebuilt from text only on the NPU — so this
+/// repository tracks which image the live chat can see ([imageInContext]) and
+/// re-sends the caller's image when it cannot.
 ///
 /// A facade over the pieces in `conversation/`: [OpenQueue] serves [open]
 /// and [reset], [LiveChat] holds the chat slot and what its native

@@ -70,6 +70,10 @@ final class AgentTurnFold {
   /// a generation before the answer).
   int get toolRounds => _toolRounds;
 
+  /// The model produced something: text (spoken or not) or a tool call.
+  bool get responded => _textSeen || _toolRounds > 0;
+  bool _textSeen = false;
+
   /// The loop ended with a final, call-free generation ([DoneEvent]).
   bool get finished => _finished;
 
@@ -96,6 +100,7 @@ final class AgentTurnFold {
         // `InferenceChat.generateChatResponseAsync` surfaces it from its
         // swallowed-tool-call fallback, or for a text-stream format from
         // its end-of-stream buffer) or a cut reply; dropped either way.
+        if (text.isNotEmpty) _textSeen = true;
         if (stopRequested || text.isEmpty) return null;
         // Tool-call JSON in the text channel is never spoken ([_rawCalls]).
         if (_isRawToolCall(text)) {

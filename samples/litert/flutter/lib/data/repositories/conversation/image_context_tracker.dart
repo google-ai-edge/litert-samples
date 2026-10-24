@@ -18,9 +18,10 @@ import '../../../domain/models/assistant_event.dart';
 
 /// Which image the live chat can see, and why it lost the last one. LiteRT-LM
 /// keeps an image in the native conversation until the conversation is
-/// rebuilt — after a stopped turn flutter_edge_ai_litertlm rebuilds it from
-/// text only — so the repository re-sends the caller's image whenever the
-/// chat cannot see it.
+/// rebuilt — after a stopped turn flutter_edge_ai_litertlm rewinds it in place
+/// on the GPU and the CPU, image kept (unless it falls back to a rebuild, which
+/// it does not report), but rebuilds it from text only on the NPU — so the
+/// repository re-sends the caller's image whenever the chat cannot see it.
 ///
 /// Images are compared with `identical`: the caller passes the same object
 /// every turn while it stays attached, and a new object is a new image.
@@ -46,9 +47,9 @@ final class ImageContextTracker {
     return lost != null && identical(lost.image, image) ? lost.reason : null;
   }
 
-  /// After a turn that reached the model: a stop loses the image (the
-  /// conversation is rebuilt from text); a normal end with a sent image
-  /// makes it the one in context.
+  /// After a turn that reached the model: [stopped], a stop that loses the
+  /// image (the conversation is rebuilt from text); otherwise a sent image
+  /// becomes the one in context (a normal end, or a stop rewound in place).
   void settle({required bool stopped, required Uint8List? sentImage}) {
     if (stopped) {
       lose(ImageLoss.stop, sentImage: sentImage);

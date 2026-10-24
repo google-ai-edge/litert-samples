@@ -124,10 +124,24 @@ int cameraFrameRotation({
 ///   which the app's own switch cannot lift.
 /// - camera_desktop 2.0.0 (macOS): `permission_denied` for every denial;
 ///   macOS asks once, so it needs System Settings.
+/// - camera_desktop 2.0.0 (Windows) has no code of its own for a denial:
+///   Media Foundation's failure (E_ACCESSDENIED when the privacy switch is
+///   off) reaches `initialize` as `initialization_failed` ("Engine init
+///   failed: " + the system's localized text, or "Failed to create capture
+///   engine" with the HRESULT only in its debug log) or, from an engine
+///   error event, `disposed` with that text ([_windowsStartFailed]).
 const _accessDenied = 'CameraAccessDenied';
 const _accessDeniedWithoutPrompt = 'CameraAccessDeniedWithoutPrompt';
 const _accessRestricted = 'CameraAccessRestricted';
 const _desktopPermissionDenied = 'permission_denied';
+
+/// camera_desktop 2.0.0's codes for a Windows camera that did not start
+/// (`windows/camera.cpp`: `CompleteInit`, `FailAllPendingResults`). A denial
+/// is one cause among others (another app holds the camera, a driver
+/// failed), and the text is in the system's language, so the message gives
+/// the plugin's reason and the privacy switches to check, without claiming
+/// which it was.
+const _windowsStartFailed = {'initialization_failed', 'disposed'};
 
 /// A camera failure as the message the user sees. Access denied says what
 /// brings it back (Retry asks again where the platform shows its dialog
@@ -162,8 +176,22 @@ FrameSourceUnavailableException cameraFailure(
         'Camera access is off for this app. Open Settings > Apps > '
             'LiteRT Demos > Permissions > Camera, allow it, then press '
             'Retry.',
+      // camera_desktop 2.0.0 sends no denial code on Windows (see
+      // [_windowsStartFailed]); this is for a plugin that does.
+      TargetPlatform.windows =>
+        'Camera access is off for desktop apps. Open Settings > Privacy & '
+            'security > Camera, turn on "Let desktop apps access your '
+            'camera", then press Retry.',
       _ => 'Camera access was denied ($code). Allow it, then press Retry.',
     },
+    _
+        when platform == TargetPlatform.windows &&
+            _windowsStartFailed.contains(code) =>
+      'The camera did not start (${error.description ?? code}). If camera '
+          'access is off for desktop apps, open Settings > Privacy & '
+          'security > Camera, turn on "Camera access" and "Let desktop apps '
+          'access your camera", then press Retry. If another app is using '
+          'the camera, close it first.',
     _ => null,
   };
   return FrameSourceUnavailableException(

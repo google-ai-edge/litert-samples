@@ -64,6 +64,10 @@ void main() {
   late ChatModelSwitcher switcher;
   late ChatModelViewModel vm;
 
+  /// The ABI the chat models run on: a Qualcomm phone, as the NPU fakes
+  /// describe it, unless a test says otherwise.
+  var chatModelsAbi = 'android_arm64';
+
   const fileName = 'gemma3_ekv1280_sm8750.litertlm';
 
   /// A text-only NPU build (compiled for the NPU, as the name says).
@@ -86,6 +90,7 @@ void main() {
       settings: settings,
       store: store,
       npu: () => npu,
+      abi: chatModelsAbi,
       readBundle: fakeReadBundle,
       folders: [
         ModelsFolder(
@@ -109,6 +114,8 @@ void main() {
       tts: fakeTtsService(),
       chatModels: chatModels,
       embedder: EmbedderService(),
+      readBundle: fakeReadBundle,
+      abi: chatModelsAbi,
     );
     picker = FakeModelFilePicker(support: support);
     switcher = ChatModelSwitcher(
@@ -132,6 +139,7 @@ void main() {
   }
 
   setUp(() async {
+    chatModelsAbi = 'android_arm64';
     root = Directory.systemTemp.createTempSync('chat_vm_root');
     picked = Directory.systemTemp.createTempSync('chat_vm_picked');
     server = await FakeModelServer.start();
@@ -166,22 +174,47 @@ void main() {
     expect(llm.models, isEmpty, reason: 'nothing loaded');
   });
 
-  test('none chosen and GEMMA_MODEL_PATH set (a developer build): the card '
-      'names what loads, by the rule setup loads by', () async {
-    await build(gemmaModelPath: pick('define.litertlm'), prepare: false);
-    llm.loadGate = Completer<void>();
+  group('none chosen and GEMMA_MODEL_PATH set (a developer build): the card '
+      'names the file that loads, by the rule setup loads by, and its '
+      'backend once loaded (what it loads with follows the file)', () {
+    /// Loads the define's file with [content]; returns the card's line
+    /// while it loads.
+    Future<String> loading(List<int> content) async {
+      await build(
+        gemmaModelPath: pick('define.litertlm', content),
+        prepare: false,
+      );
+      llm.loadGate = Completer<void>();
+      final preparing = models.prepareAll();
+      // The define's file is read first (what it loads with follows it).
+      await untilNotified(
+        models.states,
+        () => models.states.value[ModelId.chat] is ModelLoading,
+        what: 'the load',
+      );
+      final line = vm.activeLine;
+      llm.loadGate!.complete();
+      expect(await preparing, isA<Ok<void>>());
+      return line;
+    }
 
-    final preparing = models.prepareAll();
-    await pumpEventQueue();
-    expect(models.states.value[ModelId.chat], isA<ModelLoading>());
-    expect(vm.activeLine, 'Loading ${kDefineChatModel.name} on gpu…');
+    test("a file not compiled for an NPU: Gemma 4 E2B's settings", () async {
+      final line = await loading(fakeLitertlmBytes(FakeBundle.gemma4E2b));
 
-    llm.loadGate!.complete();
-    expect(await preparing, isA<Ok<void>>());
-    expect(
-      vm.activeLine,
-      startsWith('Loaded: ${kDefineChatModel.name} · gpu → gpu'),
-    );
+      expect(line, 'Loading define.litertlm…');
+      expect(
+        vm.activeLine,
+        startsWith('Loaded: ${kDefineChatModel.name} · gpu → gpu'),
+      );
+    });
+
+    test("a build compiled for an NPU: the app's defaults for it, on the "
+        'NPU; the card never says the GPU', () async {
+      final line = await loading(bytes);
+
+      expect(line, 'Loading define.litertlm…');
+      expect(vm.activeLine, startsWith('Loaded: define · npu → npu'));
+    });
   });
 
   test('import → defaults in the editor → Use this model: the chat is '
@@ -306,9 +339,9 @@ void main() {
     expect(vm.activeLine, contains('npu → npu'));
   });
 
-  test('a build for an NPU this package has no dispatch for (Google '
-      'Tensor): the NPU only; where it is offered, its load is the '
-      "plugin's unsupportedNpu refusal, and no backend is offered", () async {
+  test('a build for an NPU whose stack this build lacks (Google Tensor): '
+      'every backend is off and Apply is refused up front, so the running '
+      'model is never unloaded for the plugin\'s unsupportedNpu', () async {
     await build();
     await useInPlace('gemma-4-E2B-it_tensor_g5.litertlm', FakeBundle.tensorNpu);
     expect(vm.draftBackend, PreferredBackend.npu);
@@ -317,22 +350,59 @@ void main() {
       'GPU and CPU: not for this file (compiled for the Google Tensor_G5 NPU: '
       'runs only on the NPU).',
     );
-    llm.loadError = const ChatModelLoadException(
-      modelName: 'gemma-4-E2B-it_tensor_g5',
-      requested: PreferredBackend.npu,
-      cause: LiteRtLmBundleException(
-        LiteRtLmBundleProblem.unsupportedNpu,
-        '/m/gemma-4-E2B-it_tensor_g5.litertlm is compiled for the Google '
-        'Tensor_G5 NPU. flutter_edge_ai_litertlm runs Qualcomm and Intel NPU '
-        'bundles only; install the generic bundle of this model to run it on '
-        'the GPU or the CPU.',
-      ),
+    const why =
+        'compiled for the Google Tensor_G5 NPU, and this build has no Google '
+        'Tensor NPU stack (opt-in, not enabled)';
+    expect(vm.npuOffered, isTrue, reason: 'the device has a Qualcomm NPU');
+    expect(
+      vm.npuDisabledReason,
+      'NPU: not on this device (this file is $why).',
     );
+    expect(
+      vm.draftProblem,
+      'This file cannot run here: it is $why. Choose the generic .litertlm of '
+      "this model, or the one built for this device's NPU.",
+    );
+    expect(vm.canApply, isFalse);
 
     await vm.apply.execute();
 
-    expect(vm.loadError, endsWith('(unsupportedNpu)'));
-    expect(vm.failureActions, isEmpty);
+    expect(llm.models, isEmpty, reason: 'nothing loaded or unloaded');
+    expect(vm.loadError, isNull);
+  });
+
+  test('a Qualcomm build on a PC with an Intel NPU: the NPU is off for the '
+      'file, whatever the device offers', () async {
+    chatModelsAbi = 'windows_x64';
+    await build(npu: const NpuAvailable(device: 'Intel(R) AI Boost'));
+    await useInPlace(
+      'gemma-4-E2B-it_qualcomm_sm8750.litertlm',
+      FakeBundle.officialNpu,
+    );
+
+    expect(vm.npuOffered, isTrue);
+    expect(
+      vm.npuDisabledReason,
+      'NPU: not on this device (this file is compiled for the Qualcomm SM8750 '
+      'NPU, which this build runs on android_arm64 and linux_arm64 only, and '
+      'this is windows_x64).',
+    );
+    expect(vm.draftProblem, startsWith('This file cannot run here'));
+    expect(vm.canApply, isFalse);
+  });
+
+  test('the NPU while its check has not answered: off, and said so', () async {
+    chatModelsAbi = 'windows_x64';
+    await build(npu: const NpuPending());
+    await useInPlace('lnl.litertlm', FakeBundle.intelNpu);
+
+    expect(vm.npuOffered, isFalse);
+    expect(vm.npuDisabledReason, 'NPU: still being checked.');
+    expect(vm.npuLine, 'being checked');
+    expect(
+      vm.draftProblem,
+      'The NPU is still being checked: apply again in a moment.',
+    );
   });
 
   test("another file picked while one runs shows its own towers, never the "
@@ -792,32 +862,31 @@ void main() {
   test('a failed load shows the engine\'s reason and the explicit ways out; '
       'Run on GPU reloads on the GPU', () async {
     await build();
-    // A file not compiled for an NPU, asked for the NPU.
+    // A file not compiled for an NPU, on the CPU.
     picker.modelFile = pick(
       fileName,
       fakeLitertlmBytes(FakeBundle.textOnly, filler: 48 * 1024, seed: 9),
     );
     await vm.importFile.execute();
-    vm.setBackend(PreferredBackend.npu);
+    vm.setBackend(PreferredBackend.cpu);
     llm.loadError = engineCreateFailure(
       modelName: 'gemma3_ekv1280_sm8750',
-      backend: PreferredBackend.npu,
-      // A string LiteRT's Qualcomm dispatch library carries.
-      nativeMessage: 'Failed to set up QNN manager',
+      backend: PreferredBackend.cpu,
+      nativeMessage: 'Failed to allocate the KV cache',
     );
 
     await vm.apply.execute();
 
     expect(models.states.value[ModelId.chat], isA<ModelFailed>());
-    expect(vm.loadError, contains('did not load on npu'));
+    expect(vm.loadError, contains('did not load on cpu'));
     expect(
       vm.loadError,
-      contains('Failed to create engine on npu: Failed to set up QNN manager'),
+      contains(
+        'Failed to create engine on cpu: Failed to allocate the KV '
+        'cache',
+      ),
     );
-    expect(vm.failureActions, [
-      ChatModelAction.runOnGpu,
-      ChatModelAction.runOnCpu,
-    ]);
+    expect(vm.failureActions, [ChatModelAction.runOnGpu]);
     expect(
       llm.models.where((m) => m.name == kDefineChatModel.name),
       isEmpty,
@@ -947,6 +1016,86 @@ void main() {
       expect(vm.failureActions, isEmpty);
       expect(vm.npuUnavailableReason, contains('no NPU dispatch stack'));
       expect(vm.gpuCpuUnavailableReason, contains('runs only on the NPU'));
+    });
+  });
+
+  group('a file not compiled for an NPU that an earlier build saved on the '
+      'NPU', () {
+    const genericFile = 'gemma-4-E2B-it.litertlm';
+
+    test('the launch goes on: the load fails with wrongBackend, not '
+        'retryable; the card offers Run on GPU and Run on CPU, and Run on GPU '
+        'loads it', () async {
+      final file = File(pick(genericFile, litertlm(4)))
+        ..writeAsBytesSync(
+          fakeLitertlmBytes(FakeBundle.gemma4E2b, filler: 4096),
+        );
+      final path = file.path;
+      await build(
+        prepare: false,
+        seed: (settings) async {
+          await settings.write(Settings.chatModel, ChatModelKind.custom.name);
+          await settings.write(
+            Settings.customChatModel,
+            '{"v":4,"displayName":"gemma-4-E2B-it","modelType":"gemma4",'
+            '"backend":"npu","maxTokens":4096,"tools":true,'
+            '"source":{"kind":"local","path":"$path"},'
+            '"file":{"name":"$genericFile","sizeBytes":${file.lengthSync()},'
+            '"checksumMatched":false}}',
+          );
+        },
+      );
+      // The plugin's refusal of a generic file asked for the NPU
+      // (`planLiteRtLmLoad`'s wrongBackend message).
+      llm.loadError = ChatModelLoadException(
+        modelName: 'gemma-4-E2B-it',
+        requested: PreferredBackend.npu,
+        cause: LiteRtLmBundleException(
+          LiteRtLmBundleProblem.wrongBackend,
+          '$path is not compiled for an NPU (its text model carries no '
+          'LiteRtStamp and there is no tf_lite_aux), so it cannot run on one. '
+          'Load it with PreferredBackend.gpu or .cpu, or omit '
+          'preferredBackend; to run on the NPU, install the bundle compiled '
+          "for this device's NPU.",
+          path: path,
+        ),
+      );
+      expect(await models.prepareAll(), isA<Error<void>>());
+
+      final failed = models.states.value[ModelId.chat]! as ModelFailed;
+      expect(failed.bundleProblem, LiteRtLmBundleProblem.wrongBackend);
+      expect(failed.retryable, isFalse);
+      expect(vm.loadError, contains('(wrongBackend)'));
+      expect(vm.failureActions, [
+        ChatModelAction.runOnGpu,
+        ChatModelAction.runOnCpu,
+      ]);
+      expect(vm.draftBackend, PreferredBackend.npu, reason: 'as saved');
+      expect(vm.npuOffered, isTrue, reason: 'the device has one');
+      expect(
+        vm.npuDisabledReason,
+        'NPU: not for this file (not compiled for an NPU).',
+      );
+      expect(
+        vm.draftProblem,
+        'NPU: not for this file (not compiled for an NPU). Choose GPU or '
+        'CPU.',
+      );
+
+      llm.loadError = null;
+      vm.runAction(ChatModelAction.runOnGpu);
+      await untilNotified(
+        vm.runOn,
+        () => vm.runOn.completed || vm.runOn.error,
+        what: 'Run on GPU',
+      );
+
+      expect(vm.runOn.completed, isTrue, reason: '${vm.runOn.result}');
+      expect(llm.models.last.llm.backend, PreferredBackend.gpu);
+      expect(models.states.value[ModelId.chat], isA<ModelReady>());
+      expect(vm.saved?.backend, PreferredBackend.gpu, reason: 'saved');
+      expect(vm.draftProblem, isNull);
+      expect(vm.npuDisabledReason, isNotNull, reason: 'still not for it');
     });
   });
 

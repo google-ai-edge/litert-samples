@@ -121,6 +121,11 @@ String micAccessMessage(TargetPlatform platform) => switch (platform) {
   TargetPlatform.android =>
     'Microphone access is off for this app — Settings › Apps › '
         'LiteRT Demos › Permissions › Microphone',
+  // Windows 11's switch for unpackaged apps like this one. record_windows
+  // 2.3.0 answers hasPermission with true, so only a failed check shows it.
+  TargetPlatform.windows =>
+    'Microphone access is off for this app — Settings › Privacy & security '
+        '› Microphone › Let desktop apps access your microphone',
   // No permission on Linux: PulseAudio/PipeWire handed over silence (a muted
   // or wrong default input).
   TargetPlatform.linux =>

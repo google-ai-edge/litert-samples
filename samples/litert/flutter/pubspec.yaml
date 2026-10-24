@@ -37,12 +37,12 @@ dependencies:
   file_selector: ^1.1.0
   flutter:
     sdk: flutter
-  flutter_edge_ai: ^2.4.0
-  flutter_edge_ai_agent: ^0.3.0
-  flutter_edge_ai_litertlm: ^1.14.0
-  flutter_edge_ai_rag: ^1.1.1
-  flutter_edge_ai_speech: ^0.5.7
-  flutter_edge_ai_sqlite: ^2.1.0
+  flutter_edge_ai: ^2.5.1
+  flutter_edge_ai_agent: ^0.4.1
+  flutter_edge_ai_litertlm: ^1.17.0
+  flutter_edge_ai_rag: ^1.1.2
+  flutter_edge_ai_speech: ^0.5.10
+  flutter_edge_ai_sqlite: ^2.1.1
   flutter_litert: ^3.9.3
   flutter_soloud: ^4.1.7
   image_picker: ^1.2.3
@@ -50,6 +50,9 @@ dependencies:
   # (AssetManager on Dispatchers.IO), once. Already in the app through
   # flutter_edge_ai; a direct dependency because the app calls it.
   large_file_handler: ^0.5.2
+  # File names of paths on every OS (a Windows path too); already resolved
+  # transitively.
+  path: ^1.9.1
   path_provider: ^2.1.6
   provider: ^6.1.5+1
   record: ^7.1.1

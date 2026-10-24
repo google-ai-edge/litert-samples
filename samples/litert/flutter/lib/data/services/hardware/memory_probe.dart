@@ -156,6 +156,83 @@ final class MacMemoryProbe implements MemoryProbe {
   MemorySnapshot snapshot() => _processSnapshot(availableBytes());
 }
 
+/// `MEMORYSTATUSEX` (`sysinfoapi.h`): two `DWORD`s, then seven `DWORDLONG`s
+/// on 8-byte boundaries, 64 bytes on every Windows ABI. `dwLength` must hold
+/// that size before the call.
+final class MemoryStatusEx extends Struct {
+  @Uint32()
+  external int dwLength;
+  @Uint32()
+  external int dwMemoryLoad;
+  @Uint64()
+  external int ullTotalPhys;
+  @Uint64()
+  external int ullAvailPhys;
+  @Uint64()
+  external int ullTotalPageFile;
+  @Uint64()
+  external int ullAvailPageFile;
+  @Uint64()
+  external int ullTotalVirtual;
+  @Uint64()
+  external int ullAvailVirtual;
+  @Uint64()
+  external int ullAvailExtendedVirtual;
+}
+
+/// The physical memory Windows reports, in bytes.
+typedef PhysicalMemory = ({int total, int available});
+
+typedef _GlobalMemoryStatusExC = Int32 Function(Pointer<MemoryStatusEx>);
+typedef _GlobalMemoryStatusExDart = int Function(Pointer<MemoryStatusEx>);
+
+/// kernel32's `GlobalMemoryStatusEx` (looked up on the first call; Windows
+/// only): `ullTotalPhys` and `ullAvailPhys`. Null when it returns FALSE.
+PhysicalMemory? globalMemoryStatus() {
+  final status = calloc<MemoryStatusEx>();
+  try {
+    status.ref.dwLength = sizeOf<MemoryStatusEx>();
+    if (_globalMemoryStatusEx(status) == 0) return null;
+    return (total: status.ref.ullTotalPhys, available: status.ref.ullAvailPhys);
+  } finally {
+    calloc.free(status);
+  }
+}
+
+final _globalMemoryStatusEx = DynamicLibrary.open('kernel32.dll')
+    .lookupFunction<_GlobalMemoryStatusExC, _GlobalMemoryStatusExDart>(
+      'GlobalMemoryStatusEx',
+    );
+
+/// Windows: the RAM and the available memory from `GlobalMemoryStatusEx`
+/// (`ullAvailPhys`: free, zeroed and standby pages, what Task Manager calls
+/// available).
+final class WindowsMemoryProbe implements MemoryProbe {
+  WindowsMemoryProbe({this._status = globalMemoryStatus});
+
+  final PhysicalMemory? Function() _status;
+
+  bool _loggedFailure = false;
+
+  PhysicalMemory? _read() {
+    final memory = _status();
+    if (memory == null && !_loggedFailure) {
+      _loggedFailure = true;
+      debugPrint('[Hardware] GlobalMemoryStatusEx failed');
+    }
+    return memory;
+  }
+
+  @override
+  int? totalBytes() => _read()?.total;
+
+  @override
+  int? availableBytes() => _read()?.available;
+
+  @override
+  MemorySnapshot snapshot() => _processSnapshot(availableBytes());
+}
+
 /// Elsewhere: process RSS only.
 final class ProcessMemoryProbe implements MemoryProbe {
   const ProcessMemoryProbe();
@@ -174,5 +251,6 @@ final class ProcessMemoryProbe implements MemoryProbe {
 MemoryProbe memoryProbeFor(HostPlatform platform) => switch (platform) {
   HostPlatform.linux || HostPlatform.android => const LinuxMemoryProbe(),
   HostPlatform.macos || HostPlatform.ios => MacMemoryProbe(),
-  HostPlatform.windows || HostPlatform.other => const ProcessMemoryProbe(),
+  HostPlatform.windows => WindowsMemoryProbe(),
+  HostPlatform.other => const ProcessMemoryProbe(),
 };

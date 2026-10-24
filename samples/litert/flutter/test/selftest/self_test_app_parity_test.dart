@@ -16,10 +16,14 @@ import 'dart:io';
 
 import 'package:flutter_edge_ai/flutter_edge_ai.dart'
     show ModelType, PreferredBackend;
+import 'package:flutter_edge_ai_litertlm/flutter_edge_ai_litertlm.dart'
+    show readLiteRtLmBundleInfo;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:litert_edge_demos/data/repositories/model_repository.dart';
 import 'package:litert_edge_demos/data/services/detector/detector_service.dart';
 import 'package:litert_edge_demos/data/services/knowledge/embedder_service.dart';
+import 'package:litert_edge_demos/data/services/model_store/models_folder.dart'
+    show BundleReader;
 import 'package:litert_edge_demos/domain/models/chat_model.dart';
 import 'package:litert_edge_demos/domain/models/chat_model_config.dart';
 import 'package:litert_edge_demos/domain/ports/chat_model_planner.dart';
@@ -63,13 +67,18 @@ void main() {
     ),
   );
 
-  /// The file and settings the app's chat slot loads; nulls when none.
+  /// The file and settings the app's chat slot loads; nulls when none. On
+  /// [abi], its files read with [read].
   Future<(String?, ChatModelConfig?)> appLoads(
     ChatModelPlan plan,
-    String define,
-  ) async {
+    String define, {
+    BundleReader read = readLiteRtLmBundleInfo,
+    String abi = 'android_arm64',
+  }) async {
     final llm = FakeLlmService();
     final models = ModelRepository(
+      readBundle: read,
+      abi: abi,
       bundled: FakeBundledFiles(),
       detector: fakeDetectorService(),
       bundledDetector: fakeBundledDetector,
@@ -138,6 +147,65 @@ void main() {
       expect(selfTest.file.problem, isNotNull);
     });
   }
+
+  group('GEMMA_MODEL_PATH naming a build compiled for an NPU, none chosen', () {
+    test("both load it with the app's defaults for it (the NPU, its "
+        'context, tools off, its towers)', () async {
+      File(defineFile)
+          .writeAsBytesSync(fakeLitertlmBytes(FakeBundle.officialNpu));
+      final (appPath, appConfig) = await appLoads(
+        const NoChatModelPlan(),
+        defineFile,
+        read: fakeReadBundle,
+      );
+
+      final selfTest = await resolveSelfTestChatModel(
+        argument: null,
+        define: defineFile,
+        plan: const NoChatModelPlan(),
+        read: fakeReadBundle,
+        abi: 'android_arm64',
+      );
+
+      expect(appPath, defineFile);
+      expect(appConfig!.llm.backend, PreferredBackend.npu);
+      expect(appConfig.llm.maxTokens, 4096);
+      expect(appConfig.tools, isFalse);
+      expect(selfTest.file.path, appPath);
+      expectSameSettings(selfTest.config, appConfig);
+      expect(selfTest.config.llm.supportAudio, appConfig.llm.supportAudio);
+    });
+
+    test(
+      'one for an NPU this build does not run here loads in neither',
+      () async {
+        File(defineFile)
+            .writeAsBytesSync(fakeLitertlmBytes(FakeBundle.intelNpu));
+        final (appPath, _) = await appLoads(
+          const NoChatModelPlan(),
+          defineFile,
+          read: fakeReadBundle,
+        );
+
+        final selfTest = await resolveSelfTestChatModel(
+          argument: null,
+          define: defineFile,
+          plan: const NoChatModelPlan(),
+          read: fakeReadBundle,
+          abi: 'android_arm64',
+        );
+
+        expect(appPath, isNull);
+        expect(selfTest.file.path, isNull);
+        expect(
+          selfTest.file.problem,
+          '$defineFile cannot run here: it is compiled for the IntelOpenVINO '
+          'LNL NPU, which this build runs on windows_x64 only, and this is '
+          'android_arm64.',
+        );
+      },
+    );
+  });
 
   test('the detector: built in, in both', () async {
     final detector = InProcessDetectorService();

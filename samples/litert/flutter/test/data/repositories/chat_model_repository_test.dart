@@ -134,6 +134,8 @@ void main() {
       'no NPU dispatch stack ships for macos',
     ),
     bool persistMigration = true,
+    // A Qualcomm phone, as the NPU fakes describe it.
+    String abi = 'android_arm64',
   }) {
     final store = ModelStore(root: () async => root);
     stores.add(store);
@@ -143,6 +145,7 @@ void main() {
       store: store,
       persistMigration: persistMigration,
       npu: () => npu,
+      abi: abi,
       folders: [
         ModelsFolder(
           directory: () async => Directory('${root.path}/m'),
@@ -1576,19 +1579,72 @@ void main() {
     expect(prefs.values['chat.model'], isNot('custom'));
   });
 
-  test('Run on GPU raises a small NPU context to 1024 (a generic file asked '
-      'for the NPU)', () async {
-    final repo = newRepo(npu: const NpuAvailable());
+  test('a file not compiled for an NPU: Apply and Run on NPU refuse the NPU '
+      "in the plugin's terms, also where the device has one (its strict load "
+      'would refuse it after the running model was unloaded); nothing is '
+      'saved', () async {
+    final repo = newRepo(npu: const NpuAvailable(soc: 'QTI SM8750'));
     await repo.load();
+    final generic = File('${picked.path}/gemma-4-E2B-it.litertlm')
+      ..writeAsBytesSync(fakeLitertlmBytes(FakeBundle.gemma4E2b));
+    final candidate =
+        (await repo.useLocalFile(generic.path) as Ok<CustomChatModel>).value;
+    expect(candidate.backend, PreferredBackend.gpu, reason: 'its default');
+    const refused =
+        'NPU: not for this file (not compiled for an NPU). Choose GPU or CPU.';
+    expect(
+      repo.problemWith(candidate.copyWith(backend: PreferredBackend.npu)),
+      refused,
+      reason: "the candidate's file",
+    );
+    expect(
+      '${(await repo.apply(candidate.copyWith(backend: PreferredBackend.npu)) as Error<void>).error}',
+      refused,
+    );
+    expect(prefs.values['chat.model'], isNot('custom'));
+
+    expect(await repo.apply(candidate), isA<Ok<void>>());
+    final saved = prefs.values['chat.custom'];
+    expect(
+      '${(await repo.runOn(PreferredBackend.npu) as Error<void>).error}',
+      refused,
+      reason: 'the saved file',
+    );
+    expect(prefs.values['chat.custom'], saved);
+  });
+
+  test('a file not compiled for an NPU that an earlier app version saved on '
+      'the NPU: the launch goes on with it as saved (the load is refused as '
+      'wrongBackend, and the card offers Run on GPU / CPU); Run on GPU '
+      'raises its small NPU context to 1024', () async {
     final generic = File('${picked.path}/qwen3_0.6b.litertlm')
       ..writeAsBytesSync(fakeLitertlmBytes(FakeBundle.textOnly));
-    final picked0 =
-        (await repo.useLocalFile(generic.path) as Ok<CustomChatModel>).value;
-    expect(
-      await repo.apply(
-        picked0.copyWith(backend: PreferredBackend.npu, maxTokens: 896),
+    prefs.values['chat.model'] = ChatModelKind.custom.name;
+    prefs.values['chat.custom'] = CustomChatModelCodec.encode(
+      CustomChatModel(
+        displayName: 'qwen3_0.6b',
+        source: LocalModelSource(generic.path),
+        file: CustomModelFile(
+          name: 'qwen3_0.6b.litertlm',
+          sizeBytes: generic.lengthSync(),
+          checksumMatched: false,
+        ),
+        backend: PreferredBackend.npu,
+        maxTokens: 896,
       ),
-      isA<Ok<void>>(),
+    );
+    final repo = newRepo(npu: const NpuAvailable());
+
+    expect(await repo.load(), isA<Ok<void>>());
+    expect(repo.state.value.problem, isNull);
+    expect(
+      (repo.plan as CustomChatPlan).config.llm.backend,
+      PreferredBackend.npu,
+      reason: 'as saved: the plugin refuses it before any engine',
+    );
+    expect(
+      repo.problemWith(repo.state.value.custom!),
+      'NPU: not for this file (not compiled for an NPU). Choose GPU or CPU.',
     );
 
     expect(await repo.runOn(PreferredBackend.gpu), isA<Ok<void>>());
@@ -1596,6 +1652,129 @@ void main() {
     expect(onGpu.backend, PreferredBackend.gpu);
     expect(onGpu.maxTokens, 1024);
     expect(prefs.values['chat.model'], 'custom');
+  });
+
+  group('a file compiled for an NPU vendor this build does not run here: '
+      'refused up front on every backend (the plugin refuses it as '
+      'unsupportedNpu only after the running model was unloaded); nothing is '
+      'saved', () {
+    const tail =
+        ". Choose the generic .litertlm of this model, or the one built for "
+        "this device's NPU.";
+    for (final (kind, abi, npu, why) in [
+      (
+        FakeBundle.officialNpu,
+        'windows_x64',
+        const NpuAvailable(device: 'Intel(R) AI Boost'),
+        'compiled for the Qualcomm SM8750 NPU, which this build runs on '
+            'android_arm64 and linux_arm64 only, and this is windows_x64',
+      ),
+      (
+        FakeBundle.intelNpu,
+        'android_arm64',
+        const NpuAvailable(soc: 'QTI SM8750'),
+        'compiled for the IntelOpenVINO LNL NPU, which this build runs on '
+            'windows_x64 only, and this is android_arm64',
+      ),
+      (
+        FakeBundle.intelNpu,
+        'linux_arm64',
+        const NpuAvailable(),
+        'compiled for the IntelOpenVINO LNL NPU, which this build runs on '
+            'windows_x64 only, and this is linux_arm64',
+      ),
+      (
+        FakeBundle.tensorNpu,
+        'android_arm64',
+        const NpuAvailable(soc: 'QTI SM8750'),
+        'compiled for the Google Tensor_G5 NPU, and this build has no Google '
+            'Tensor NPU stack (opt-in, not enabled)',
+      ),
+    ]) {
+      test('${kind.name} on $abi', () async {
+        final repo = newRepo(npu: npu, abi: abi);
+        await repo.load();
+        final file = writeFakeLitertlm(
+          '${picked.path}/${kind.name}.litertlm',
+          kind,
+        );
+        final candidate =
+            (await repo.useLocalFile(file.path) as Ok<CustomChatModel>).value;
+
+        expect(repo.cannotRunHere(candidateBundle(repo)), why);
+        for (final backend in PreferredBackend.values) {
+          expect(
+            repo.problemWith(candidate.copyWith(backend: backend)),
+            'This file cannot run here: it is $why$tail',
+            reason: backend.name,
+          );
+        }
+        expect(
+          '${(await repo.apply(candidate) as Error<void>).error}',
+          'This file cannot run here: it is $why$tail',
+        );
+        expect(prefs.values['chat.model'], isNot('custom'));
+      });
+    }
+
+    test('the same files where this build runs them are not refused', () {
+      final repo = newRepo(abi: 'windows_x64');
+      expect(repo.cannotRunHere(FakeBundle.intelNpu.info(1 << 20)), isNull);
+      expect(repo.cannotRunHere(FakeBundle.gemma4E2b.info(1 << 20)), isNull);
+      expect(
+        newRepo().cannotRunHere(FakeBundle.officialNpu.info(1 << 20)),
+        isNull,
+      );
+    });
+  });
+
+  test('the NPU while its check has not answered (Windows): not applied, '
+      'with the reason', () async {
+    final repo = newRepo(npu: const NpuPending(), abi: 'windows_x64');
+    await repo.load();
+    final file = writeFakeLitertlm(
+      '${picked.path}/lnl.litertlm',
+      FakeBundle.intelNpu,
+    );
+    final candidate =
+        (await repo.useLocalFile(file.path) as Ok<CustomChatModel>).value;
+    expect(candidate.backend, PreferredBackend.npu);
+    expect(
+      repo.problemWith(candidate),
+      'The NPU is still being checked: apply again in a moment.',
+    );
+  });
+
+  test('an NPU check that answers after the launch (Windows lists its '
+      'devices with a process) publishes the state again: the Models screen '
+      'reads it', () async {
+    final answered = Completer<NpuAvailability?>();
+    NpuAvailability npu = const NpuPending();
+    final store = ModelStore(root: () async => root);
+    stores.add(store);
+    final repo = ChatModelRepository(
+      settings: TypedSettings(store: prefs),
+      store: store,
+      npu: () => npu,
+      loadNpu: () => answered.future,
+      abi: 'windows_x64',
+      readBundle: fakeReadBundle,
+      folders: [
+        ModelsFolder(directory: () async => Directory('${root.path}/m')),
+      ],
+    );
+    repos.add(repo);
+    await repo.load();
+    var published = 0;
+    repo.state.addListener(() => published++);
+    expect(repo.npu, isA<NpuPending>());
+
+    npu = const NpuAvailable(device: 'Intel(R) AI Boost');
+    answered.complete(npu);
+    await pumpEventQueue();
+
+    expect(published, 1);
+    expect(repo.npu, isA<NpuAvailable>());
   });
 
   test('a build compiled for the NPU: Apply and Run on GPU / CPU refuse the '

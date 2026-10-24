@@ -47,6 +47,9 @@ abstract final class ChatModelKeys {
   static const backend = ValueKey('chat-model-backend');
   static const npuReason = ValueKey('chat-model-npu-reason');
 
+  /// Why the NPU is off for the file: it is not compiled for an NPU.
+  static const npuFileReason = ValueKey('chat-model-npu-file-reason');
+
   /// Why GPU and CPU are off: a build compiled for an NPU.
   static const gpuCpuReason = ValueKey('chat-model-gpu-cpu-reason');
   static const context = ValueKey('chat-model-context');
@@ -468,8 +471,8 @@ class _EditorState extends State<_Editor> {
             ButtonSegment(
               value: PreferredBackend.npu,
               label: const Text('NPU'),
-              enabled: vm.npuOffered,
-              tooltip: vm.npuUnavailableReason,
+              enabled: vm.npuDisabledReason == null,
+              tooltip: vm.npuDisabledReason,
             ),
             for (final (backend, label) in const [
               (PreferredBackend.gpu, 'GPU'),
@@ -492,6 +495,8 @@ class _EditorState extends State<_Editor> {
               ? caption
               : caption?.copyWith(color: kWarningColor),
         ),
+        if (vm.npuNotForFileReason case final reason?)
+          Text(reason, key: ChatModelKeys.npuFileReason, style: caption),
         if (vm.gpuCpuUnavailableReason case final reason?)
           Text(reason, key: ChatModelKeys.gpuCpuReason, style: caption),
         TextField(

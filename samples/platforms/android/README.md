@@ -75,10 +75,12 @@ Wi-Fi). Android has no file import: the system picker would load the whole multi
 2. Tap the file and check the settings. The app reads the file through the plugin and starts from what it says:
    - **NPU / GPU / CPU.** A build compiled for an NPU (such as `…_qualcomm_sm8750`) starts on the **NPU**, and GPU
      and CPU are off for it: the card says "compiled for the Qualcomm SM8750 NPU: runs only on the NPU". Any other
-     file, Gemma 4 E2B included, starts on the **GPU**; **CPU**, and **NPU** where the phone's NPU can be reached,
-     are the other choices. NPU builds are compiled per chip. The app's NPU stack covers the Snapdragon 8 Gen 2,
-     8 Gen 3, 8 Elite and 8 Elite Gen 5. Where the phone's NPU cannot be reached, the card says why, and an NPU build
-     cannot be applied there.
+     file, Gemma 4 E2B included, starts on the **GPU**, with the **CPU** as the other choice; the NPU is offered only
+     for a build compiled for one ("not compiled for an NPU"). NPU builds are compiled per chip. The app's NPU stack
+     covers the Snapdragon 8 Gen 2, 8 Gen 3, 8 Elite and 8 Elite Gen 5. Where the phone's NPU cannot be reached, the
+     card says why, and an NPU build cannot be applied there. A build for another vendor's NPU (an Intel PC's, a
+     Google Tensor phone's) runs on no backend in this app on Android: the card says so and the file cannot be
+     applied.
    - **Context length.** An NPU build has one compiled length: the app reads it from the file name (`_ekv4096_`),
      otherwise it uses 4096 on the NPU and 8192 on the GPU or CPU. Change it if your build differs.
    - **Towers** (shown, not set): the vision and audio towers the file has; for an NPU build, a first line names the
@@ -138,6 +140,8 @@ adb logcat -d > litert-demos-log.txt
 | "cannot be read (Permission denied)" | Push it to `/data/local/tmp/litert-models/` (step 3); if it still fails: `adb shell chmod 644 /data/local/tmp/litert-models/*` |
 | NPU not offered, or the NPU load fails | The card says why: the phone's NPU cannot be reached, or the plugin's reason for the load. Use a build compiled for this phone's chip, or Gemma 4 E2B on the GPU |
 | GPU and CPU are greyed out | The file is compiled for an NPU and runs only there: for the GPU or CPU use `gemma-4-E2B-it.litertlm` |
+| NPU greyed out for Gemma 4 E2B: "not compiled for an NPU" | Only a build compiled for the phone's NPU runs there: use the GPU or CPU for this file |
+| "This file cannot run here: it is compiled for the … NPU" | The file is built for another device's NPU (an Intel PC, a Google Tensor phone): use `gemma-4-E2B-it.litertlm`, or a build for this phone's chip |
 | The app closes while loading the model | Not enough free memory: close other apps; 8 GB of RAM is recommended |
 | No voice reply | Check the media volume; the reply also appears as text |
 

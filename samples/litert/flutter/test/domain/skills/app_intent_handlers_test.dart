@@ -184,6 +184,45 @@ void main() {
       expect(facts, isNot(contains('moonshine')), reason: 'not loaded');
     });
 
+    test('only a software renderer: no GPU driver in use, said so (true '
+        'without a GPU, and for a GPU listed without its driver)', () {
+      for (final gpu in const [
+        GpuInfo(
+          name: 'Microsoft Basic Render Driver',
+          source: 'Win32_VideoController lists no GPU: Direct3D 12 opens WARP',
+          inferred: true,
+          kind: GpuKind.software,
+        ),
+        GpuInfo(
+          name: 'Microsoft Basic Display Adapter',
+          source: 'Win32_VideoController',
+          kind: GpuKind.software,
+        ),
+      ]) {
+        final facts = describeHardware(
+          hardware: HardwareProfile(
+            platform: HostPlatform.windows,
+            os: 'Microsoft Windows Server 2025 Datacenter (10.0.26100)',
+            cpu: const CpuInfo(
+              model: 'Intel(R) Xeon(R) CPU @ 2.80GHz',
+              cores: 8,
+            ),
+            memory: const MemoryInfo(totalBytes: 32 << 30),
+            gpus: [gpu],
+          ),
+          models: const [],
+        );
+        expect(
+          facts,
+          startsWith(
+            'This computer has an Intel(R) Xeon(R) CPU @ 2.80GHz with '
+            'thirty-two gigabytes of memory and no GPU driver in use, only '
+            'the software renderer ${gpu.name}.',
+          ),
+        );
+      }
+    });
+
     test('a phone: the SoC by its marketing name, your own chat model on the '
         'Qualcomm NPU', () {
       final facts = describeHardware(

@@ -138,6 +138,9 @@ HardwareProfile androidProfileFrom(
           soc?.manufacturer?.toUpperCase() == 'QTI') {
         notes.add('Qualcomm SoC, but the NPU is unavailable: $reason.');
       }
+    case NpuPending():
+      // Android's check needs no process: it never waits.
+      break;
   }
 
   return HardwareProfile(

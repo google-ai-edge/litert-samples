@@ -15,6 +15,7 @@
 import 'dart:async';
 
 import 'package:flutter/foundation.dart';
+import 'package:flutter_edge_ai/flutter_edge_ai.dart' show PreferredBackend;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:litert_edge_demos/config/model_catalog.dart';
 import 'package:litert_edge_demos/data/repositories/conversation/history_mirror.dart';
@@ -104,6 +105,19 @@ void main() {
     debugPrint = originalDebugPrint;
   });
 
+  /// Builds the repository again over an engine on [backend].
+  Future<void> on(PreferredBackend backend) async {
+    await repo.close();
+    model = FakeInferenceModel(activeBackend: backend);
+    llm = LlmService(loadModel: (_) async => model);
+    expect(await llm.load(kDefineChatModel), isA<Ok<LlmInfo>>());
+    repo = EdgeAiConversationRepository(
+      llm: llm,
+      stopTimeout: const Duration(seconds: 2),
+    );
+    expect(await repo.open(kVoiceChatProfile), isA<Ok<void>>());
+  }
+
   // The rule itself (identity, the loss reasons, a new image superseding
   // the one in context): image_context_tracker_test.dart and
   // live_chat_test.dart. These keep the repository's part: the query, the
@@ -135,6 +149,95 @@ void main() {
       expect(repo.imageInContext, same(cats));
     });
 
+    test('a stop keeps the image (the GPU rewinds the stopped turn in '
+        'place): the next ask does not send it again', () async {
+      await answer('What animal is this?', image: cats);
+      final stop = await stopped('Describe it in detail.', image: cats);
+      expect(stop.metrics.stopped, isTrue);
+      expect(repo.imageInContext, same(cats));
+
+      final follow = await answer('What colour is the sofa?', image: cats);
+
+      expect(session().queries.last.hasImage, isFalse);
+      expect(follow.metrics.imageSent, isFalse);
+      expect(follow.metrics.imageResent, isNull);
+      expect(log.where((l) => l.contains('image resent')), isEmpty);
+      expect(model.created, hasLength(1), reason: 'the same conversation');
+    });
+
+    test('a stop in the turn that first sent the image keeps it (barge-in '
+        'during the first answer)', () async {
+      await stopped('What animal is this?', image: cats);
+
+      final follow = await answer('How many?', image: cats);
+
+      expect(follow.metrics.imageSent, isFalse);
+      expect(follow.metrics.imageResent, isNull);
+    });
+
+    test('a failed turn loses the image', () async {
+      await answer('What animal is this?', image: cats);
+      final failing = Turn(repo.ask('Again?', image: cats));
+      await settle();
+      session().failWith(Exception('Stream error: boom'));
+      await failing.done;
+      expect(failing.events.last, isA<AssistantFailed>());
+      expect(repo.imageInContext, isNull);
+
+      final follow = await answer('How many?', image: cats);
+
+      expect(follow.metrics.imageResent, ImageLoss.failure);
+    });
+
+    test('cancelling the ask subscription mid-reply keeps the image in '
+        'context (native rewinds the turn like a stop)', () async {
+      await answer('What animal is this?', image: cats);
+      final events = <AssistantEvent>[];
+      final sub = repo.ask('Describe it.', image: cats).listen(events.add);
+      await settle();
+      session().emit('Once');
+      await settle();
+      expect(events.whereType<AssistantTextDelta>(), isNotEmpty);
+
+      // A caller that stops listening (Demo 3's post-turn reset may). An
+      // async* body only sees the cancel at its next yield, i.e. the next
+      // native token.
+      final cancelling = sub.cancel();
+      await settle();
+      session().emit(' upon');
+      await cancelling;
+      await settle();
+
+      expect(repo.imageInContext, same(cats));
+      expect(repo.isGenerating.value, isFalse);
+      final follow = await answer('How many?', image: cats);
+      expect(follow.metrics.imageSent, isFalse);
+      expect(follow.metrics.prefillTokens, isNull, reason: 'native rewound');
+    });
+
+    test('cancelling the turn that first sent the image keeps it', () async {
+      final sub = repo.ask('What animal is this?', image: cats).listen((_) {});
+      await settle();
+      session().emit('A');
+      await settle();
+
+      final cancelling = sub.cancel();
+      await settle();
+      session().emit(' cat'); // the next native token delivers the cancel
+      await cancelling;
+      await settle();
+
+      expect(repo.imageInContext, same(cats));
+      final follow = await answer('How many?', image: cats);
+      expect(follow.metrics.imageSent, isFalse);
+    });
+  });
+
+  // flutter_edge_ai_litertlm rebuilds a stopped conversation from text on the
+  // NPU (it rewinds it in place on the GPU and the CPU, above).
+  group('re-send rule on the NPU', () {
+    setUp(() => on(PreferredBackend.npu));
+
     test(
       'a stop loses the image: the next ask re-sends it and says so',
       () async {
@@ -163,33 +266,13 @@ void main() {
       expect(follow.metrics.imageResent, ImageLoss.stop);
     });
 
-    test('a failed turn loses the image', () async {
+    test('cancelling the ask subscription mid-reply loses the image in '
+        'context', () async {
       await answer('What animal is this?', image: cats);
-      final failing = Turn(repo.ask('Again?', image: cats));
-      await settle();
-      session().failWith(Exception('Stream error: boom'));
-      await failing.done;
-      expect(failing.events.last, isA<AssistantFailed>());
-      expect(repo.imageInContext, isNull);
-
-      final follow = await answer('How many?', image: cats);
-
-      expect(follow.metrics.imageResent, ImageLoss.failure);
-    });
-
-    test('cancelling the ask subscription mid-reply loses the '
-        'image in context (native rebuilds from text only)', () async {
-      await answer('What animal is this?', image: cats);
-      final events = <AssistantEvent>[];
-      final sub = repo.ask('Describe it.', image: cats).listen(events.add);
+      final sub = repo.ask('Describe it.', image: cats).listen((_) {});
       await settle();
       session().emit('Once');
       await settle();
-      expect(events.whereType<AssistantTextDelta>(), isNotEmpty);
-
-      // A caller that stops listening (Demo 3's post-turn reset may). An
-      // async* body only sees the cancel at its next yield, i.e. the next
-      // native token.
       final cancelling = sub.cancel();
       await settle();
       session().emit(' upon');
@@ -197,30 +280,10 @@ void main() {
       await settle();
 
       expect(repo.imageInContext, isNull);
-      expect(repo.isGenerating.value, isFalse);
       final follow = await answer('How many?', image: cats);
       expect(follow.metrics.imageSent, isTrue);
       expect(follow.metrics.imageResent, ImageLoss.stop);
       expect(follow.metrics.prefillTokens, isNull, reason: 'native rebuilt');
-    });
-
-    test('cancelling the turn that first sent the image re-sends '
-        'it next time', () async {
-      final sub = repo.ask('What animal is this?', image: cats).listen((_) {});
-      await settle();
-      session().emit('A');
-      await settle();
-
-      final cancelling = sub.cancel();
-      await settle();
-      session().emit(' cat'); // the next native token delivers the cancel
-      await cancelling;
-      await settle();
-
-      expect(repo.imageInContext, isNull);
-      final follow = await answer('How many?', image: cats);
-      expect(follow.metrics.imageSent, isTrue);
-      expect(follow.metrics.imageResent, ImageLoss.stop);
     });
   });
 
@@ -330,6 +393,47 @@ void main() {
       final turn = await answer('Hi');
 
       expect(turn.events.whereType<AssistantContextReset>(), isEmpty);
+    });
+
+    test('a stop rewound in place: the follow-up about the photo sends no '
+        'image; the context and the next guard take LiteRT-LM\'s count as it '
+        'is, which holds the stopped exchange twice (errs high)', () async {
+      // Gemma 4 E2B's counts on the macOS GPU (flutter_edge_ai_litertlm
+      // 1.17.0).
+      final first = Turn(repo.ask('What animal is this?', image: cats));
+      await settle();
+      session()
+        ..emit('Cats.')
+        ..nativeInputTokens = 297
+        ..nativeOutputTokens = 5
+        ..finish();
+      await first.done;
+      // Stopped after 12 tokens of reply (15 prefilled).
+      final cut = Turn(repo.ask('Describe it in detail.', image: cats));
+      await settle();
+      session()
+        ..emit('This is')
+        ..nativeInputTokens = 312
+        ..nativeOutputTokens = 17;
+      await settle();
+      await repo.stop();
+      await cut.done;
+      // The follow-up's send runs the rewind: the 27 are prefilled again.
+      final follow = Turn(repo.ask('How many?', image: cats));
+      await settle();
+      session()
+        ..emit('Two.')
+        ..nativeInputTokens = 312 + 27 + 3 + 6
+        ..nativeOutputTokens = 19
+        ..finish();
+      await follow.done;
+
+      expect(follow.metrics.imageSent, isFalse);
+      expect(session().queries.last.hasImage, isFalse);
+      expect(follow.metrics.contextTokens, 348 + 19);
+      await answer('And the sofa?');
+      final budgets = log.where((l) => l.contains('] budget used=')).toList();
+      expect(budgets.last, startsWith('[Conversation] budget used=367 '));
     });
 
     test(

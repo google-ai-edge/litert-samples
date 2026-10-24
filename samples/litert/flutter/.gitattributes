@@ -1,0 +1,13 @@
+# Line ends the tools need on every checkout, Windows included (core.autocrlf
+# would otherwise give them CRLF): the shell scripts run in bash or Git Bash,
+# patch(1) applies the flutter_litert patch to LF sources, and
+# tool/fetch_models.sh reads the lock line by line. The knowledge-base articles
+# keep LF: the prebuilt index is keyed by their bytes, so a CRLF checkout would
+# index them again on the device. The Windows launchers keep CRLF, as cmd.exe
+# expects.
+*.sh text eol=lf
+*.patch text eol=lf
+tool/models.lock text eol=lf
+assets/kb/*.md text eol=lf
+*.cmd text eol=crlf
+*.ps1 text eol=crlf

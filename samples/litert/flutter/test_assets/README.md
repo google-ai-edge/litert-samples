@@ -39,6 +39,7 @@ list at the top of `integration_test/tools/make_question_audio_test.dart`; chang
 | `q_sign.wav`, `showcase/q_sign.wav` | "What does the sign say?" | 1.74 s |
 | `q_describe_detail.wav` | "Describe this scene in detail, please." | 3.08 s |
 | `showcase/q_see.wav` | "What do you see?" | 1.42 s |
+| `showcase/q_mug.wav` | "Where did I leave my pirate mug?" | 2.48 s |
 | `../assets/selftest/what_time_is_it.wav` (an app asset: the self-test's step 7b and the embedder's audio warm-up) | "What time is it?" | 1.37 s |
 
 ## Golden data
@@ -51,3 +52,16 @@ list at the top of `integration_test/tools/make_question_audio_test.dart`; chang
 - `skill_trigger_similarity.json`: measured EmbeddingGemma 2 similarities of the skill trigger questions against the
   knowledge base; `integration_test/kb_retrieval_test.dart` prints it again (`KB_SKILL_TRIGGERS`).
 - `yolo26n/cats_golden.json`: the detector's strict-GPU fp32 detections on `yolo26n/cats_640x480_rgba.u8`.
+
+## Windows hardware probe
+
+`windows/lnl-cim.json` (an Intel Core Ultra 7 258V, Lunar Lake, with an Arc 140V and its NPU) and `windows/ptl-cim.json`
+(an Intel Core Ultra X7 358H, Panther Lake, with an Arc B390 and its NPU), and `windows/vm-cim.json` (a Windows Server
+2025 VM on Google Compute Engine with no display adapter): what Windows PowerShell 5.1 printed for the CIM and PnP
+queries of the app's Windows hardware probe (`lib/data/services/hardware/windows_hardware_info_service.dart`) on those
+machines, as `ConvertTo-Json` writes it (CRLF line ends, `&` escaped as a JSON `\u` escape). Read by
+`test/data/services/hardware/windows_hardware_info_service_test.dart`.
+
+Their `npu` arrays (`Get-PnpDevice -Class ComputeAccelerator -PresentOnly`) are also what the app's NPU check reads
+on Windows (`lib/data/services/llm/npu_availability.dart`, tested in
+`test/data/services/llm/npu_availability_test.dart`).

@@ -257,15 +257,33 @@ class FakeVectorStoreService implements VectorStoreService {
   Exception openError = Exception('file is not a database');
   void Function(String path)? onOpen;
 
+  /// The database file the store holds open, like the native handle: set by
+  /// an [open] that succeeds, cleared by one that fails (the real one
+  /// closes the database opened before, a failed open its own), by
+  /// [release] and by [close].
+  String? heldPath;
+  int releaseCalls = 0;
+
   @override
   Future<Result<void>> open(String databasePath) async {
     if (_refusedWhenClosed<void>('open') case final refused?) return refused;
+    heldPath = null;
     openedPaths.add(databasePath);
     onOpen?.call(databasePath);
     if (failOpens > 0) {
       failOpens--;
       return Result.error(openError);
     }
+    heldPath = databasePath;
+    return const Result.ok(null);
+  }
+
+  /// Like the real one, it works on a closed store too (there is nothing
+  /// left to close).
+  @override
+  Future<Result<void>> release() async {
+    releaseCalls++;
+    heldPath = null;
     return const Result.ok(null);
   }
 
@@ -337,6 +355,7 @@ class FakeVectorStoreService implements VectorStoreService {
   Future<void> close() async {
     closeCalls++;
     _closed = true;
+    heldPath = null;
     closedWithCallsInFlight += _inFlight;
   }
 }

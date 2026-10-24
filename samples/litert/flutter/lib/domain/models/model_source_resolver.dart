@@ -31,7 +31,8 @@ final class const CustomChatSource(final CustomChatPlan plan)
 
 /// `GEMMA_MODEL_PATH` while no model is chosen: [path] as given (absolute,
 /// or relative to the documents directory), run with [config] (Gemma 4
-/// E2B's settings).
+/// E2B's settings) unless its file is compiled for an NPU: then with the
+/// app's defaults for that file (`namedChatModelFor`, where it is read).
 final class const DefineChatSource({
   required final String path,
   required final ChatModelConfig config,

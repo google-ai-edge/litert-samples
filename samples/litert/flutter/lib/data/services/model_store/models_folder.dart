@@ -21,6 +21,7 @@ import 'package:flutter_edge_ai_litertlm/flutter_edge_ai_litertlm.dart'
         LiteRtLmBundleInfo,
         LiteRtLmBundleProblem,
         readLiteRtLmBundleInfo;
+import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
 
 import '../../../domain/models/chat_model.dart';
@@ -92,6 +93,8 @@ Future<Result<BundleReading>> inspectLitertlm(
 ///   (`/sdcard/Android/data/<app id>/files/models`): `adb push` writes
 ///   there and the app reads it, neither needs a permission;
 /// - Linux: `~/litert-demos/models`;
+/// - Windows: `%USERPROFILE%\litert-demos\models` (not Documents, which
+///   OneDrive may move into the cloud);
 /// - macOS and iOS: the app's Documents/models (iOS: visible in Files).
 class ModelsFolder {
   ModelsFolder({
@@ -245,12 +248,37 @@ Future<Directory> defaultModelsDirectory() async {
     }
     return Directory('${external.path}/models');
   }
-  if (Platform.isLinux) {
-    final home = Platform.environment['HOME'];
-    if (home == null || home.isEmpty) {
-      throw const LocalModelException('HOME is not set.');
-    }
-    return Directory('$home/litert-demos/models');
+  if (homeModelsPath(
+        operatingSystem: Platform.operatingSystem,
+        environment: Platform.environment,
+      )
+      case final path?) {
+    return Directory(path);
   }
   return Directory('${(await getApplicationDocumentsDirectory()).path}/models');
+}
+
+/// The desktop models folder under the user's home, for [operatingSystem]
+/// as `Platform.operatingSystem` spells it: Linux `$HOME/litert-demos/models`,
+/// Windows `%USERPROFILE%\litert-demos\models`, the same place in both.
+/// Not Windows' Documents: OneDrive's folder backup can redirect it into
+/// OneDrive, whose Files On-Demand may keep a model in the cloud only. Null
+/// on the other platforms (the app's own folder). Throws a
+/// [LocalModelException] when the variable is not set.
+@visibleForTesting
+String? homeModelsPath({
+  required String operatingSystem,
+  required Map<String, String> environment,
+}) {
+  final (variable, style) = switch (operatingSystem) {
+    'linux' => ('HOME', p.posix),
+    'windows' => ('USERPROFILE', p.windows),
+    _ => (null, null),
+  };
+  if (variable == null || style == null) return null;
+  final home = environment[variable];
+  if (home == null || home.isEmpty) {
+    throw LocalModelException('$variable is not set.');
+  }
+  return style.join(home, 'litert-demos', 'models');
 }

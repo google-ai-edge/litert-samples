@@ -31,8 +31,11 @@
 //    that warm-up cost.
 // 3. Gemma hears the question: test_assets/france_16k.pcm as a WAV with the
 //    spoken question's prompt → a reply containing "paris".
-// 4. A stopped audio turn: the next turn rebuilds the chat from the text
-//    history (the log line), and is answered.
+// 4. A stopped audio turn on a fresh chat, stopped at its first words: on the
+//    GPU flutter_edge_ai_litertlm rewinds it in place as the next turn starts
+//    (the plugin's log line), so the recording stays in the conversation —
+//    the follow-up can quote the spoken question, which no text holds — and
+//    no rebuild from the text history runs.
 
 import 'dart:io';
 
@@ -112,7 +115,7 @@ void main() {
   IntegrationTestWidgetsFlutterBinding.ensureInitialized();
 
   testWidgets('Gemma hears the question (RSS and first audio TTFT measured), '
-      'and a stopped audio turn is rebuilt from the text history', (
+      'and a stopped audio turn keeps its recording (rewound in place)', (
     tester,
   ) async {
     if (kGemmaModelPath.isEmpty) {
@@ -204,8 +207,10 @@ void main() {
       expect(text, isEmpty, reason: 'the deltas went to the buffer');
     }
 
-    // 4. A stopped audio turn, then the rebuild from the text history.
-    repo.setHistoryText(1, 'What is the capital of France?');
+    // 4. A stopped audio turn on a fresh chat (no earlier turn names the
+    //    city), stopped at its first words, then a follow-up only the
+    //    recording can answer.
+    expect(await repo.reset(ifCurrent: kVoiceChatProfile), isA<Ok<void>>());
     final story = StringBuffer();
     textBuffer = story.write;
     final stoppedTurn = _ask(
@@ -217,34 +222,42 @@ void main() {
       historyText: kSpokenQuestionPlaceholder,
     );
     final waitText = Stopwatch()..start();
-    while (story.length < 40 &&
-        waitText.elapsed < const Duration(seconds: 30)) {
-      await Future<void>.delayed(const Duration(milliseconds: 20));
+    while (story.isEmpty && waitText.elapsed < const Duration(seconds: 30)) {
+      await Future<void>.delayed(const Duration(milliseconds: 5));
     }
     final stopWatch = Stopwatch()..start();
     await repo.stop();
     final stoppedResult = await stoppedTurn;
     debugPrint(
-      'AUDIO_STOP chars=${story.length} stop=${stopWatch.elapsedMilliseconds}ms '
+      'AUDIO_STOP chars=${story.length} "$story" '
+      'stop=${stopWatch.elapsedMilliseconds}ms '
       'stopped=${stoppedResult.metrics?.stopped}',
     );
     expect(stoppedResult.metrics?.stopped, isTrue);
+    expect(
+      story.toString().toLowerCase(),
+      isNot(contains('france')),
+      reason: 'the partial reply must not give the question away',
+    );
     final follow = StringBuffer();
     textBuffer = follow.write;
     final followed = await _ask(
       repo,
-      'Which country is that city in? Answer in one sentence.',
-      historyText: 'Which country is that city in?',
+      'Quote, word for word, the question I asked in my audio recording.',
+      historyText: 'Quote the question I asked.',
     );
     expect(followed.error, isNull);
-    final rebuilt = logged.where(
-      (l) =>
-          l.contains('[Conversation] rebuilt the chat from the text history'),
+    expect(
+      logged.where((l) => l.contains('rebuilt the chat from the text history')),
+      isEmpty,
     );
-    expect(rebuilt, hasLength(1));
+    const rewound =
+        '[FfiInferenceModel] rewound the conversation after a stopped turn';
+    expect(logged.where((l) => l == rewound), hasLength(1));
+    expect(followed.metrics?.contextReset, isFalse);
     debugPrint(
-      'AUDIO_REBUILD "${rebuilt.single}" ttft='
-      '${followed.metrics?.timeToFirstToken?.inMilliseconds}ms '
+      'AUDIO_REWIND ttft=${followed.metrics?.timeToFirstToken?.inMilliseconds}ms '
+      'ctx=${followed.metrics?.contextTokens} '
       'reply="${follow.toString().trim()}" history=${repo.history}',
     );
     expect(follow.toString().toLowerCase(), contains('france'));

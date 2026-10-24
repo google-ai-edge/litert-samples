@@ -18,6 +18,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart' show PlatformException;
 import 'package:flutter_edge_ai/flutter_edge_ai.dart'
     show ModelType, PreferredBackend;
+import 'package:path/path.dart' show basename;
 
 import '../../../../data/repositories/chat_model_repository.dart';
 import '../../../../domain/models/chat_model.dart';
@@ -627,17 +628,36 @@ class ChatModelViewModel extends ChangeNotifier {
   // ---- The NPU ----
 
   /// Whether the app's copy of flutter_edge_ai_litertlm's private NPU check
-  /// finds the NPU reachable here (the plugin is not asked).
+  /// finds the NPU reachable here (the plugin is not asked). Whether the
+  /// shown file may run there is [npuNotForFileReason].
   bool get npuOffered => _chatModels.npu is NpuAvailable;
 
   /// `available (SoC QTI SM8750)` or `unavailable: <reason>`.
   String get npuLine => describeNpu(_chatModels.npu);
 
-  /// Why the NPU option is disabled; null when it is offered.
+  /// Why this device offers no NPU; null when it does.
   String? get npuUnavailableReason => switch (_chatModels.npu) {
     NpuUnavailable(:final reason) => 'NPU unavailable: $reason.',
+    NpuPending() => 'NPU: still being checked.',
     NpuAvailable() => null,
   };
+
+  /// Why the NPU is not offered for the [shown] file; null when it is: a
+  /// file not compiled for an NPU, which the strict engine refuses on the
+  /// NPU, or one compiled for an NPU vendor this build does not run here
+  /// (`ChatModelRepository.cannotRunHere`: it runs on no backend here).
+  /// `ChatModelRepository.problemWith` refuses both. The counterpart of
+  /// [gpuCpuUnavailableReason].
+  String? get npuNotForFileReason =>
+      switch ((notForNpuReason(_bundle), _chatModels.cannotRunHere(_bundle))) {
+        (final reason?, _) => 'NPU: not for this file ($reason).',
+        (_, final why?) => 'NPU: not on this device (this file is $why).',
+        _ => null,
+      };
+
+  /// Why the NPU option is disabled ([npuNotForFileReason], else
+  /// [npuUnavailableReason]); null when it is offered.
+  String? get npuDisabledReason => npuNotForFileReason ?? npuUnavailableReason;
 
   /// Why the GPU and CPU options are disabled for the [shown] file; null
   /// when they are offered: a build compiled for an NPU
@@ -693,8 +713,9 @@ class ChatModelViewModel extends ChangeNotifier {
   ///   offered.
   /// - Any other refusal before an engine (`ModelFailed.bundleProblem`:
   ///   incomplete, unsupportedNpu): none, no backend changes it; for a
-  ///   generic file's `wrongBackend` (a text model that declares its
-  ///   backends) the other backends.
+  ///   generic file's `wrongBackend` (saved on the NPU by an earlier app
+  ///   version, or a text model that declares its backends) the other
+  ///   backends.
   /// - Any other failure: the other backends, except for a build compiled
   ///   for an NPU (it runs nowhere else) and for a failure no load can
   ///   help (a self-test that did not end).
@@ -733,18 +754,21 @@ class ChatModelViewModel extends ChangeNotifier {
   /// fills the slot.
   ChatModelSource get _planned => _sources.chat(_chatModels.plan);
 
+  /// `GEMMA_MODEL_PATH` is named by its file: what it loads with follows
+  /// the file (Gemma 4 E2B's settings, or the app's defaults for a build
+  /// compiled for an NPU), which only the load reads.
   String _plannedName() => switch (_planned) {
     CustomChatSource(:final plan) => plan.model.displayName,
     BlockedChatSource() => 'your own model',
-    DefineChatSource(:final config) => config.name,
+    DefineChatSource(:final path) => basename(path),
     NoChatSource() => 'no chat model',
   };
 
-  /// The backend the planned load asks for; null when nothing loads.
+  /// The backend the planned load asks for; null when nothing loads, and
+  /// for `GEMMA_MODEL_PATH` (it follows the file, see [_plannedName]).
   String? _plannedBackend() => switch (_planned) {
     CustomChatSource(:final plan) => plan.model.backend.name,
-    DefineChatSource(:final config) => config.llm.backend.name,
-    BlockedChatSource() || NoChatSource() => null,
+    DefineChatSource() || BlockedChatSource() || NoChatSource() => null,
   };
 
   // ---- Actions ----

@@ -21,6 +21,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_edge_ai/flutter_edge_ai.dart' show TaskType;
 import 'package:flutter_edge_ai_rag/flutter_edge_ai_rag.dart'
     show RetrievalResult;
+import 'package:path/path.dart' as p;
 
 import '../../config/knowledge_config.dart';
 import '../../domain/models/knowledge.dart';
@@ -97,6 +98,9 @@ class KnowledgeRepository implements KnowledgeRetriever {
     _models.addListener(_onModels);
     _onModels();
   }
+
+  /// The files SQLite may keep beside `kb.db`.
+  static const _sideSuffixes = ['-wal', '-shm', '-journal'];
 
   final EmbedderService _embedder;
   final VectorStoreService _store;
@@ -243,8 +247,10 @@ class KnowledgeRepository implements KnowledgeRetriever {
   /// [_closedError]. Two places do not stop: [_openStore], whose reset
   /// (marker and database deleted, store reopened) only follows an open
   /// that failed while the repository was still open, and the prebuilt
-  /// copy in [_installPrebuilt], which a run close overtook still finishes
-  /// (the store is not reopened on it).
+  /// copy in [_installPrebuilt] with the store's release of the old file (a
+  /// no-op on a closed store), which a run close overtook still finishes
+  /// (the store is not reopened, on the copy or, when it failed, the old
+  /// file).
   void _stopIfClosed() {
     if (_closed) throw const _Closed();
   }
@@ -457,11 +463,14 @@ class KnowledgeRepository implements KnowledgeRetriever {
 
   /// Strategy 2: puts the prebuilt index in place of `<dir>/kb.db` when its
   /// manifest's key is [key]: the asset is checked against the manifest's
-  /// size and SHA-256, written beside the database, renamed over it, and the
-  /// store reopened on it (it closes its handle on the old file first), then
-  /// its rows and dimension are checked. Anything short of that is skipped
-  /// with the reason, and the store is left open (reset when the copy would
-  /// not open) for indexing on the device.
+  /// size and SHA-256 and written beside the database; the store lets go of
+  /// the old file (Windows refuses to delete or rename over a file that is
+  /// open), its side files are deleted, the copy renamed over it and the
+  /// store opened on it, then its rows and dimension are checked. Anything
+  /// short of that is skipped with the reason, and the store is left open
+  /// for indexing on the device: still on the old file when the copy failed
+  /// before it let go, reopened on it when after, reset when what is there
+  /// would not open.
   Future<_Prebuilt> _installPrebuilt(
     Directory dir,
     KbIndexMarker marker,
@@ -492,8 +501,11 @@ class KnowledgeRepository implements KnowledgeRetriever {
         'with tool/build_kb_index.sh',
       );
     }
-    final path = '${dir.path}/kb.db';
+    final path = p.join(dir.path, 'kb.db');
     final temp = File('$path.prebuilt');
+    // Whether the store let go of the old kb.db, and why the copy failed.
+    var released = false;
+    String? copyFailed;
     try {
       final bytes = await _prebuilt.database();
       if (bytes.length != manifest.dbBytes) {
@@ -510,16 +522,32 @@ class KnowledgeRepository implements KnowledgeRetriever {
         );
       }
       await temp.writeAsBytes(bytes, flush: true);
-      for (final suffix in ['-wal', '-shm', '-journal']) {
+      // The store's handle goes first: POSIX lets a file that is open be
+      // deleted or renamed over, Windows refuses (PathAccessException,
+      // errno 5).
+      released = true;
+      if (await _store.release() case Error(:final error)) throw error;
+      for (final suffix in _sideSuffixes) {
         final side = File('$path$suffix');
         if (await side.exists()) await side.delete();
       }
       await temp.rename(path);
     } catch (e, st) {
       debugPrint('[Knowledge] copying the prebuilt index failed: $e\n$st');
-      return _PrebuiltSkipped('copying it failed: $e');
+      copyFailed = 'copying it failed: $e';
     } finally {
       if (await temp.exists()) await temp.delete();
+    }
+    if (copyFailed != null) {
+      if (released) {
+        _stopIfClosed();
+        // The store let go of the old file: back to it (reset when it will
+        // not open); indexing on the device clears it.
+        if (await _openStore(dir, marker) case Error(:final error)) {
+          throw error;
+        }
+      }
+      return _PrebuiltSkipped(copyFailed);
     }
     _stopIfClosed();
     final problem = switch (await _store.open(path)) {
@@ -551,7 +579,7 @@ class KnowledgeRepository implements KnowledgeRetriever {
   /// marker, and opened once more, empty; the caller then re-indexes. A
   /// second failure is returned, saying a reset was tried.
   Future<Result<void>> _openStore(Directory dir, KbIndexMarker marker) async {
-    final path = '${dir.path}/kb.db';
+    final path = p.join(dir.path, 'kb.db');
     final first = await _store.open(path);
     if (first is! Error<void>) return first;
     // A store closed meanwhile refuses to open: that says nothing about the
@@ -561,10 +589,13 @@ class KnowledgeRepository implements KnowledgeRetriever {
       '[Knowledge] opening the index failed (${first.error}): deleting it '
       'and re-indexing',
     );
+    // A failed open holds no handle on the file (the store closed the
+    // previous database first, the failed one closes its own), so these
+    // deletes also work on Windows.
     await marker.delete();
     for (final file in [
       File(path),
-      for (final suffix in ['-wal', '-shm', '-journal']) File('$path$suffix'),
+      for (final suffix in _sideSuffixes) File('$path$suffix'),
     ]) {
       if (await file.exists()) await file.delete();
     }

@@ -99,7 +99,9 @@ final class MacAudioDeviceService implements AudioDeviceService {
   }
 }
 
-/// iOS and Android: the system picks the route; the name is not queried.
+/// iOS, Android and Windows: the system picks the route; the name is not
+/// queried (record_windows 2.3.0 opens Windows' default recording device
+/// when given no device id). No Linux sound-server check runs there.
 final class BasicAudioDeviceService implements AudioDeviceService {
   const BasicAudioDeviceService(this._platform);
 

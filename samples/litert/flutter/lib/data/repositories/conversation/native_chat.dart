@@ -65,6 +65,26 @@ final class ChatFactory {
     ),
   };
 
+  /// Whether flutter_edge_ai_litertlm (1.15.0 on) rewinds a stopped turn in
+  /// place: as the next turn starts, the native conversation is put back to
+  /// before the stopped turn and given that turn again — the message as it was
+  /// sent, image and recording included, and the partial reply — so it keeps
+  /// every earlier image and recording too (`RecoveringConversationHandle`,
+  /// `canRewind` in `ffi_inference_model.dart`). True on the GPU and the CPU.
+  /// On the NPU, whose executor rolls back one token at most, it rebuilds the
+  /// conversation from the turns' text instead. A backend the engine does not
+  /// report counts as the NPU here (the plugin rewinds then, but the app
+  /// would rather send an image twice than lose it). On the GPU and the CPU
+  /// the plugin also falls back to that rebuild when a rewind fails or the
+  /// stopped turn does not wind down within 5 s, and the app cannot tell
+  /// (only a log line says so).
+  bool get stopRewinds =>
+      _llm.isLoaded &&
+      switch (_llm.model.activeBackend) {
+        PreferredBackend.gpu || PreferredBackend.cpu => true,
+        PreferredBackend.npu || null => false,
+      };
+
   /// A plain chat: no tool declarations at all (`tools` stays empty, so the
   /// native session gets no `tools_json`). Built with the chat model's image
   /// and audio support (a chat without `supportAudio` would drop a recording

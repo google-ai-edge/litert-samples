@@ -45,6 +45,7 @@ import 'package:litert_edge_demos/app.dart';
 import 'package:litert_edge_demos/config/demos.dart';
 import 'package:litert_edge_demos/config/dependencies.dart';
 import 'package:litert_edge_demos/config/env.dart';
+import 'package:litert_edge_demos/config/live_camera_config.dart';
 import 'package:litert_edge_demos/data/services/skills/skill_store_service.dart';
 import 'package:litert_edge_demos/domain/models/chat_entry.dart';
 import 'package:litert_edge_demos/domain/models/frame_source_info.dart';
@@ -461,6 +462,39 @@ void main() {
     await step('sign: wifi', () async {
       await scene('sign_wifi.jpg');
       await detailed('q_sign.wav', 'demo3_sign_wifi');
+    });
+
+    // The visual memory: one source that shows the mug, the cats and a sign
+    // in turn (a new source clears the memory), long enough for the sampler
+    // to keep each, then a question about the mug. The shot waits for the
+    // sign to be live, so the mug is only in the memory's card.
+    await step('visual memory', () async {
+      final started = await deps.live.start(
+        FixtureSourceSpec([
+          '$dir/coco_2592_pirate_mug.jpg',
+          '$dir/../cats.jpg',
+          '$dir/sign_do_not_feed.jpg',
+        ]),
+        owner: cam,
+      );
+      if (started is! Ok<FrameSourceInfo>) fail('memory scenes: $started');
+      final startedAt = DateTime.now();
+      await pumpFor(tester, kFixtureHold * 3 * 2);
+      await askAloud('q_mug.wav');
+      await answered();
+      final hold = kFixtureHold.inMilliseconds;
+      await pumpUntil(
+        tester,
+        () {
+          final ms =
+              DateTime.now().difference(startedAt).inMilliseconds % (hold * 3);
+          // The sign's slide, with room for the shot's own short pump.
+          return ms ~/ hold == 2 && ms % hold > 500 && ms % hold < 1900;
+        },
+        timeout: kFixtureHold * 6,
+        reason: 'the sign to be live',
+      );
+      await shot('demo3_memory_mug');
     });
 
     debugPrint('SHOWCASE shots=${shots.length} skipped=$skipped');

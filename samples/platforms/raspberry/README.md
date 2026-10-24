@@ -126,9 +126,9 @@ leaves the four CPU cores to Gemma. **This device** and the diagnostics overlay 
   ./run.sh --selftest --gemma=$HOME/litert-demos/models/gemma-4-E2B-it.litertlm --gemma-backend=cpu
   ```
 
-  `--gemma` names the chat model when none is chosen in the app yet. On Bookworm add `--detector-backend=cpu`. Add
-  `--skip-audio` without a microphone and speaker. Over SSH, without the desktop: install `xvfb` and put
-  `xvfb-run -a` in front.
+  `--gemma` loads that file for this run with the app's Gemma 4 E2B settings, in place of the one chosen in the
+  app. On Bookworm add `--detector-backend=cpu`. Add `--skip-audio` without a microphone and speaker. Over SSH,
+  without the desktop: install `xvfb` and put `xvfb-run -a` in front.
 
 ## Troubleshooting
 

@@ -39,6 +39,7 @@
 import 'dart:async';
 import 'dart:io';
 
+import 'package:crypto/crypto.dart' show sha256;
 import 'package:flutter/material.dart';
 import 'package:flutter_edge_ai/flutter_edge_ai.dart' show PreferredBackend;
 import 'package:flutter_test/flutter_test.dart';
@@ -123,17 +124,20 @@ void main() {
     // file and settings saved by an earlier run are no candidate.
     final file = vm.shown!.file!;
     expect(file.name, 'gemma-4-E2B-it.litertlm');
-    expect(file.sizeBytes, 2538799104);
-    expect(
-      file.sha256,
-      '2c902a8c1c7675ec57f51020f01571d765af2ca84859e8c8fcf663a56e6e587a',
-      reason: 'the pinned Gemma 4 E2B bytes',
+    // Against the file itself, not a pinned release: Hugging Face replaces
+    // the published file now and then.
+    final original = File(kGemmaModelPath);
+    final digest = await tester.runAsync(
+      () => sha256.bind(original.openRead()).first,
     );
+    expect(file.sizeBytes, original.lengthSync());
+    expect(file.sha256, '$digest', reason: 'the imported bytes');
     expect(file.checksumMatched, isFalse, reason: 'computed, not entered');
     debugPrint('CUSTOM_MODEL file ${vm.fileLine}');
 
     // 2. NPU is not offered on macOS: the app's copy of the plugin's private
-    //    NPU check refuses it, in the plugin's wording.
+    //    NPU check refuses it, in the plugin's wording. Choosing it anyway is
+    //    refused for the file first: it is not compiled for an NPU.
     expect(vm.npuOffered, isFalse);
     expect(
       vm.npuUnavailableReason,
@@ -142,7 +146,7 @@ void main() {
     vm
       ..setBackend(PreferredBackend.npu)
       ..setContext('4096');
-    expect(vm.draftProblem, contains('no NPU dispatch stack ships for macos'));
+    expect(vm.draftProblem, contains('not compiled for an NPU'));
     expect(vm.canApply, isFalse);
     final npuReason = vm.draftProblem;
 

@@ -21,6 +21,8 @@ import 'dart:ui' as ui;
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart' show rootBundle;
 import 'package:flutter_edge_ai/flutter_edge_ai.dart' hide ModelSpec;
+import 'package:flutter_edge_ai_litertlm/flutter_edge_ai_litertlm.dart'
+    show readLiteRtLmBundleInfo;
 
 import '../config/model_catalog.dart';
 import '../config/voice_config.dart' show kMicAccessMessage;
@@ -31,6 +33,7 @@ import '../data/repositories/audio_repository.dart'
         MicFormatException,
         PlaybackException;
 import '../data/repositories/audio_repository_device.dart';
+import '../data/repositories/chat_model/named_chat_model.dart';
 import '../data/services/audio/audio_device_service.dart';
 import '../data/services/audio/audio_session_service.dart';
 import '../data/services/audio/mic_service.dart';
@@ -40,8 +43,11 @@ import '../data/services/detector/frame_message.dart';
 import '../data/services/frames/frame_source.dart';
 import '../data/services/knowledge/embedder_service.dart';
 import '../data/services/llm/llm_service.dart';
+import '../data/services/llm/npu_availability.dart'
+    show currentAbi, npuBuildRefusal;
 import '../data/services/model_store/bundled_model_files.dart';
 import '../data/services/model_store/local_files.dart';
+import '../data/services/model_store/models_folder.dart' show BundleReader;
 import '../domain/audio/audio_device_checks.dart';
 import '../domain/models/audio_devices.dart';
 import '../domain/models/chat_model.dart';
@@ -58,31 +64,115 @@ import 'cats_golden.dart';
 import 'embedder_steps.dart' show kSelfTestAudioQuestionAsset;
 import 'self_test_ports.dart';
 
-/// The self-test's chat model: an explicit `--gemma` with the app's Gemma 4
-/// E2B settings; otherwise exactly what the app would load, by the app's own
-/// rule ([ModelSourceResolver]):
-/// the chat model chosen on the Models screen ([plan]) — the user's own
+/// The self-test's chat model: an explicit `--gemma`; otherwise exactly what
+/// the app would load, by the app's own rule ([ModelSourceResolver]): the
+/// chat model chosen on the Models screen ([plan]) — the user's own
 /// `.litertlm` with its saved settings and the towers its file has, as the
 /// app read it (`GEMMA_MODEL_PATH` does not override it) — or, with none
 /// chosen, `GEMMA_MODEL_PATH` ([define]) when set, else "No chat model yet".
+/// A `--gemma` or `GEMMA_MODEL_PATH` file loads as the app loads the define
+/// ([namedChatModelFor]): with the app's Gemma 4 E2B settings, or, for a
+/// file compiled for an NPU, with the settings the app starts such a file
+/// with (the NPU, the context its name gives or 4096, tools off, the towers
+/// it has).
 /// `--gemma-backend` changes the backend only
-/// ([SelfTestChatModel.withBackend]); the engine places the towers.
+/// ([SelfTestChatModel.withBackend]); the engine places the towers. A file
+/// is read with [read] (flutter_edge_ai_litertlm's
+/// `readLiteRtLmBundleInfo`), so that what the plugin would refuse before
+/// any engine fails here before any load: a file compiled for an NPU vendor
+/// this build does not run on [abi] (`npuBuildRefusal`), and the NPU for a
+/// file compiled for none.
 Future<SelfTestChatModel> resolveSelfTestChatModel({
   required String? argument,
   required String define,
   required ChatModelPlan plan,
-}) => _resolveChatModel(argument: argument, define: define, plan: plan);
+  BundleReader read = readLiteRtLmBundleInfo,
+  String? abi,
+}) async {
+  final here = abi ?? currentAbi();
+  return _runnableHere(
+    await _resolveChatModel(
+      argument: argument,
+      define: define,
+      plan: plan,
+      read: read,
+      abi: here,
+    ),
+    here,
+  );
+}
+
+/// [model] with the reason in place of its file when this build cannot run
+/// that file on [abi] at all ([npuBuildRefusal]); itself otherwise.
+SelfTestChatModel _runnableHere(SelfTestChatModel model, String abi) {
+  final path = model.file.path;
+  final target = model.bundle?.npuTarget;
+  if (path == null || target == null) return model;
+  final why = npuBuildRefusal(target, abi);
+  if (why == null) return model;
+  return SelfTestChatModel(
+    file: ModelFileChoice(
+      source: model.file.source,
+      problem: '$path cannot run here: it is $why.',
+    ),
+    config: model.config,
+    settingsSource: model.settingsSource,
+    sha256: model.sha256,
+    bundle: model.bundle,
+  );
+}
+
+/// [file] (`--gemma`, `GEMMA_MODEL_PATH`) with what it loads with, as the
+/// app reads such a file ([namedChatModelFor]): [given] ([givenSettings]),
+/// or the app's defaults for a file compiled for an NPU; the reason in place
+/// of the file when no backend runs it here.
+Future<SelfTestChatModel> _named(
+  ModelFileChoice file,
+  ChatModelConfig given, {
+  required String givenSettings,
+  required BundleReader read,
+  required String abi,
+}) async {
+  final path = file.path;
+  if (path == null) {
+    return SelfTestChatModel(
+      file: file,
+      config: given,
+      settingsSource: givenSettings,
+    );
+  }
+  return switch (await namedChatModelFor(path, given, read: read, abi: abi)) {
+    Ok(value: (:final config, :final bundle, :final npuDefaults)) =>
+      SelfTestChatModel(
+        file: file,
+        config: config,
+        settingsSource: npuDefaults
+            ? "the app's defaults for this file (compiled for an NPU)"
+            : givenSettings,
+        bundle: bundle,
+      ),
+    Error(:final error) => SelfTestChatModel(
+      file: ModelFileChoice(source: file.source, problem: '$error'),
+      config: given,
+      settingsSource: givenSettings,
+    ),
+  };
+}
 
 Future<SelfTestChatModel> _resolveChatModel({
   required String? argument,
   required String define,
   required ChatModelPlan plan,
+  required BundleReader read,
+  required String abi,
 }) async {
   if (argument != null) {
-    return SelfTestChatModel(
-      file: checkReadable(argument, '--gemma'),
-      config: kDefineChatModel,
-      settingsSource: 'the app\'s Gemma 4 E2B settings',
+    return _named(
+      checkReadable(argument, '--gemma'),
+      kDefineChatModel,
+      givenSettings: 'the app\'s Gemma 4 E2B settings',
+      read: read,
+      abi: abi,
     );
   }
   final sources = ModelSourceResolver(gemmaModelPath: define);
@@ -99,6 +189,7 @@ Future<SelfTestChatModel> _resolveChatModel({
         config: custom.config,
         settingsSource: 'your own .litertlm, saved settings',
         sha256: model.file?.sha256,
+        bundle: custom.bundle.info,
       );
     case BlockedChatSource(:final reason):
       return SelfTestChatModel(
@@ -125,15 +216,16 @@ Future<SelfTestChatModel> _resolveChatModel({
         settingsSource: 'no chat model',
       );
     case DefineChatSource(:final path, :final config):
-      return SelfTestChatModel(
-        // Checked up front, so a sandboxed path fails with a reason
-        // instead of deep inside a load.
-        file: checkReadable(
-          await resolveLocalPath(path),
-          kGemmaModelPathDefine,
-        ),
-        config: config,
-        settingsSource: 'the app\'s Gemma 4 E2B settings',
+      // Checked up front, so a sandboxed path fails with a reason instead
+      // of deep inside a load.
+      // What the app loads for the define (`ModelRepository` reads it the
+      // same way).
+      return _named(
+        checkReadable(await resolveLocalPath(path), kGemmaModelPathDefine),
+        config,
+        givenSettings: 'the app\'s Gemma 4 E2B settings',
+        read: read,
+        abi: abi,
       );
   }
 }

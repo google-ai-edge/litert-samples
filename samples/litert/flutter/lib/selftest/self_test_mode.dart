@@ -35,6 +35,7 @@ import '../data/services/settings/typed_settings.dart';
 import '../domain/models/chat_model.dart';
 import '../domain/models/hardware_profile.dart' show HostPlatform;
 import '../utils/result.dart';
+import 'process_exit.dart';
 import 'self_test_adapters.dart';
 import 'self_test_options.dart';
 import 'self_test_report.dart';
@@ -71,8 +72,7 @@ Future<Never> runSelfTestMode(Result<SelfTestOptions> parsed) async {
       options = value;
     case Error(:final error):
       say('$error');
-      await stdout.flush();
-      exit(1);
+      await exitProcess(1);
   }
   // Dart's own report of an uncaught error goes to fd 2, which the tap
   // redirects: say it on stdout too, and fail the run.
@@ -97,7 +97,9 @@ Future<Never> runSelfTestMode(Result<SelfTestOptions> parsed) async {
   String? outPath;
   // A native call that never returns must not hang a headless run: past the
   // limit, report what finished and exit 1. (The models are not closed: the
-  // call holding one may never return; exit() releases them.)
+  // call holding one may never return; ending the process releases them,
+  // except the Intel NPU's weight bank in %TEMP%, which the next NPU load
+  // sweeps.)
   final watchdog = Timer(options.timeout, () {
     say('timed out after ${options.timeout.inSeconds} s');
     final partial = runner?.report(timedOut: options.timeout);
@@ -189,8 +191,7 @@ Future<Never> _finish(
   final text = formatSelfTest(report, reportPath: written);
   stdout.write(text);
   progress.value = [...progress.value, '', ...text.trimRight().split('\n')];
-  await stdout.flush();
-  exit(report.exitCode);
+  await exitProcess(report.exitCode);
 }
 
 /// Something outside the steps failed (a bug or a broken install): still one
@@ -201,8 +202,7 @@ Future<Never> _crash(String why, void Function(String) say) async {
     '$kSelfTestBegin\nresult     FAIL · crashed outside the steps · exit 1\n'
     '${why.split('\n').first}\n$kSelfTestEnd\n',
   );
-  await stdout.flush();
-  exit(1);
+  await exitProcess(1);
 }
 
 /// The chat model chosen on the Models screen (the user's own `.litertlm`,

@@ -16,6 +16,8 @@ import 'dart:async';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter_edge_ai/flutter_edge_ai.dart' show EmbeddingModality;
+import 'package:flutter_edge_ai_litertlm/flutter_edge_ai_litertlm.dart'
+    show readLiteRtLmBundleInfo;
 
 import '../../config/env.dart';
 import '../../config/model_catalog.dart';
@@ -38,10 +40,13 @@ import '../services/detector/detector_service.dart';
 import '../services/hardware/native_log_tap.dart';
 import '../services/knowledge/embedder_service.dart';
 import '../services/llm/llm_service.dart';
+import '../services/llm/npu_availability.dart' show currentAbi;
 import '../services/model_store/bundled_model_files.dart';
 import '../services/model_store/local_files.dart';
+import '../services/model_store/models_folder.dart' show BundleReader;
 import '../services/speech/stt_service.dart';
 import '../services/speech/tts_service.dart';
+import 'chat_model/named_chat_model.dart';
 import 'model/model_load_pipeline.dart';
 
 /// A model has no files built into this app.
@@ -110,7 +115,10 @@ class ModelRepository implements ModelStates {
     this._chatModels,
     Set<ModelId>? requiredModels,
     this._closeWait = const Duration(seconds: 5),
-  }) : _sources = ModelSourceResolver(
+    this._readBundle = readLiteRtLmBundleInfo,
+    String? abi,
+  }) : _abi = abi ?? currentAbi(),
+       _sources = ModelSourceResolver(
          // `GEMMA_MODEL_PATH` loads with the resolver's default settings,
          // the ones the self-test uses too.
          gemmaModelPath: gemmaModelPath,
@@ -120,6 +128,14 @@ class ModelRepository implements ModelStates {
   final LlmService _llm;
   final SttService _stt;
   final TtsService _tts;
+
+  /// Reads what `GEMMA_MODEL_PATH`'s file says about itself
+  /// ([namedChatModelFor]); flutter_edge_ai_litertlm's
+  /// `readLiteRtLmBundleInfo` (a fake in tests).
+  final BundleReader _readBundle;
+
+  /// This process's ABI: where a file compiled for an NPU can run.
+  final String _abi;
 
   /// Which file the chat model loads: the chosen one, or
   /// `GEMMA_MODEL_PATH` while none is. Every other model is built in.
@@ -705,7 +721,21 @@ class ModelRepository implements ModelStates {
         );
       case DefineChatSource(path: final given, :final label, config: final c):
         path = await resolveLocalPath(given);
-        config = c;
+        // Gemma 4 E2B's settings, or for a build compiled for an NPU the
+        // app's defaults for it (the self-test reads it the same way).
+        switch (await namedChatModelFor(
+          path,
+          c,
+          read: _readBundle,
+          abi: _abi,
+        )) {
+          case Ok(:final value):
+            config = value.config;
+          case Error(:final error):
+            // No backend runs it here: the same load is refused again.
+            _set(id, ModelFailed('$label: $error', retryable: false));
+            return Result.error(error);
+        }
         facts = (info) => ChatModelFacts(
           name: config.name,
           custom: false,

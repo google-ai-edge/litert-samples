@@ -23,14 +23,15 @@
     <!-- The app posts no notifications of its own: it has no timer skill, and no foreground
          download notification (flutter_edge_ai configures one only for foreground: true, which
          the app never asks for).
-         flutter_edge_ai_agent 0.3.0's NativeIntentExecutor, which runs the app's intents, keeps
+         flutter_edge_ai_agent's NativeIntentExecutor, which runs the app's intents, keeps
          its built-in schedule_notification (it cannot be removed), and a SKILL.md added at run
-         time can call it. It does not work in this app: the package never initializes
-         flutter_local_notifications and documents no Android setup for it beyond desugaring, and
-         the app adds none (no exact-alarm permission, no receivers), so expect an error back or a
-         notification that never shows. flutter_local_notifications (via flutter_edge_ai_agent)
-         merges POST_NOTIFICATIONS itself: removed here so Android never offers a notification
-         permission for it. -->
+         time can call it. Since flutter_edge_ai_agent 0.4.0 that intent is off unless the app
+         initializes flutter_local_notifications itself and passes
+         NativeIntentExecutor(notifications:). This app does neither, so the intent answers
+         that scheduling notifications is not enabled and makes no plugin call; no exact-alarm
+         permission and no receivers are needed. flutter_local_notifications (via
+         flutter_edge_ai_agent) merges POST_NOTIFICATIONS itself: removed here so Android never
+         offers a notification permission for it. -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" tools:node="remove"/>
     <application
         android:label="LiteRT Demos"

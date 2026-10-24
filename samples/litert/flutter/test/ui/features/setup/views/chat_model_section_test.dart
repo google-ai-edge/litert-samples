@@ -86,6 +86,8 @@ void main() {
       settings: TypedSettings(store: prefs),
       store: store,
       npu: () => npu,
+      // A Qualcomm phone, as the NPU fakes describe it.
+      abi: 'android_arm64',
       readBundle: fakeReadBundle,
       folders: [
         ModelsFolder(
@@ -402,6 +404,44 @@ void main() {
     await tearDownSection(tester);
   });
 
+  testWidgets('a file not compiled for an NPU on a device with one: the NPU '
+      "is off with the file's reason, and the device's NPU line stays", (
+    tester,
+  ) async {
+    await pumpSection(tester, npu: sm8750, inPlace: FakeBundle.gemma4E2b);
+
+    final npu = control(
+      tester,
+      ChatModelKeys.backend,
+    ).segments.firstWhere((s) => s.value == PreferredBackend.npu);
+    expect(npu.enabled, isFalse);
+    expect(npu.tooltip, 'NPU: not for this file (not compiled for an NPU).');
+    expect(
+      tester.widget<Text>(find.byKey(ChatModelKeys.npuFileReason)).data,
+      'NPU: not for this file (not compiled for an NPU).',
+    );
+    expect(
+      tester.widget<Text>(find.byKey(ChatModelKeys.npuReason)).data,
+      'NPU available (SoC QTI SM8750)',
+    );
+    expect(find.byKey(ChatModelKeys.gpuCpuReason), findsNothing);
+    await tearDownSection(tester);
+  });
+
+  testWidgets('a build compiled for the NPU on a device with one: the NPU is '
+      'on, with no file reason', (tester) async {
+    await pumpSection(tester, npu: sm8750, inPlace: FakeBundle.textOnlyNpu);
+
+    final npu = control(
+      tester,
+      ChatModelKeys.backend,
+    ).segments.firstWhere((s) => s.value == PreferredBackend.npu);
+    expect(npu.enabled, isTrue);
+    expect(npu.tooltip, isNull);
+    expect(find.byKey(ChatModelKeys.npuFileReason), findsNothing);
+    await tearDownSection(tester);
+  });
+
   testWidgets("a file whose header the plugin cannot read: the Towers block "
       "says so with the plugin's message, no tower rows; Apply is on", (
     tester,
@@ -609,19 +649,19 @@ void main() {
     await tearDownSection(tester);
   });
 
-  testWidgets('a failed load: the reason and Run on GPU / Run on CPU; Run on '
-      'CPU reloads on the CPU', (tester) async {
-    // A text-only file not compiled for an NPU, asked for the NPU.
+  testWidgets('a failed load: the reason and the backend it is not on; Run on '
+      'GPU reloads on the GPU', (tester) async {
+    // A text-only file not compiled for an NPU, on the CPU.
     await pumpSection(
       tester,
       npu: const NpuAvailable(soc: 'QTI SM8750'),
       inPlace: FakeBundle.textOnly,
     );
-    vm.setBackend(PreferredBackend.npu);
+    vm.setBackend(PreferredBackend.cpu);
     await tester.pump();
     llm.loadError = ChatModelLoadException(
       modelName: 'gemma3_ekv1280_sm8750',
-      requested: PreferredBackend.npu,
+      requested: PreferredBackend.cpu,
       cause: Exception('Failed to create engine'),
     );
 
@@ -630,22 +670,26 @@ void main() {
 
     expect(
       tester.widget<Text>(find.byKey(ChatModelKeys.loadError)).data,
-      contains('did not load on npu'),
+      contains('did not load on cpu'),
     );
-    for (final action in [ChatModelAction.runOnGpu, ChatModelAction.runOnCpu]) {
-      expect(find.byKey(ChatModelKeys.action(action)), findsOneWidget);
+    expect(
+      find.byKey(ChatModelKeys.action(ChatModelAction.runOnGpu)),
+      findsOneWidget,
+    );
+    for (final action in [ChatModelAction.runOnCpu, ChatModelAction.runOnNpu]) {
+      expect(find.byKey(ChatModelKeys.action(action)), findsNothing);
     }
     expect(find.textContaining('Gemma 4 E2B'), findsNothing);
 
     await tester.tap(
-      find.byKey(ChatModelKeys.action(ChatModelAction.runOnCpu)),
+      find.byKey(ChatModelKeys.action(ChatModelAction.runOnGpu)),
     );
     // The tapped command runs in the test's fake zone (its continuations
     // need pumps) and its store work in real time: alternate both.
     await whileRunning(tester, () => vm.runOn.running || vm.busy);
     expect(vm.busy, isFalse, reason: 'the reload finished');
 
-    expect(llm.models.last.llm.backend, PreferredBackend.cpu);
+    expect(llm.models.last.llm.backend, PreferredBackend.gpu);
     expect(find.byKey(ChatModelKeys.loadError), findsNothing);
     expect(chatModels.state.value.kind, ChatModelKind.custom);
     await tearDownSection(tester);

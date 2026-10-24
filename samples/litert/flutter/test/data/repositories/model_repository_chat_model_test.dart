@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import 'dart:io';
+
 import 'package:flutter_edge_ai/flutter_edge_ai.dart'
     show ModelType, PreferredBackend;
 import 'package:flutter_edge_ai_litertlm/flutter_edge_ai_litertlm.dart'
@@ -202,6 +204,81 @@ void main() {
     // put the vision encoder on the CPU.
     expect(chat.visionBackend, 'cpu');
     expect(chat.audioBackend, isNull);
+  });
+
+  group('GEMMA_MODEL_PATH follows its file', () {
+    late Directory tmp;
+    setUp(() => tmp = Directory.systemTemp.createTempSync('define_file'));
+    tearDown(() => tmp.deleteSync(recursive: true));
+
+    /// The slot over a define naming a file of [kind], on a Qualcomm phone.
+    Future<ModelRepository> launch(FakeBundle kind, String name) async {
+      final path = writeFakeLitertlm('${tmp.path}/$name', kind).path;
+      final define = ModelRepository(
+        bundled: FakeBundledFiles(),
+        detector: fakeDetectorService(),
+        bundledDetector: fakeBundledDetector,
+        gemmaModelPath: path,
+        llm: llm,
+        stt: fakeSttService(),
+        tts: fakeTtsService(),
+        chatModels: _Planner(const NoChatModelPlan()),
+        embedder: EmbedderService(),
+        readBundle: fakeReadBundle,
+        abi: 'android_arm64',
+      );
+      addTearDown(define.close);
+      await define.prepareAll();
+      return define;
+    }
+
+    test(
+      "a file not compiled for an NPU: exactly Gemma 4 E2B's settings "
+      '(images on, no audio tower: the integration tests rely on them)',
+      () async {
+        await launch(FakeBundle.gemma4E2b, 'gemma-4-E2B-it.litertlm');
+
+        expect(llm.models.single, same(kDefineChatModel));
+      },
+    );
+
+    test("a build compiled for an NPU: the app's defaults for it (the NPU, "
+        'the context its name gives, tools off, its towers), not the GPU the '
+        'plugin would refuse', () async {
+      final define = await launch(
+        FakeBundle.officialNpu,
+        'gemma-4-E2B-it_qualcomm_sm8750_ekv2048.litertlm',
+      );
+
+      final loaded = llm.models.single;
+      expect(loaded.llm.backend, PreferredBackend.npu);
+      expect(loaded.llm.maxTokens, 2048);
+      expect(loaded.tools, isFalse);
+      expect(loaded.llm.supportImage && loaded.llm.supportAudio, isTrue);
+      final chat = (define.states.value[ModelId.chat] as ModelReady).info.chat!;
+      expect(chat.requestedBackend, 'npu');
+      expect(chat.custom, isFalse);
+    });
+
+    test('a build for an NPU this build does not run here: refused before '
+        'any install, not retryable', () async {
+      final define = await launch(
+        FakeBundle.intelNpu,
+        'e2b_intel_lnl.litertlm',
+      );
+
+      final failed = define.states.value[ModelId.chat]! as ModelFailed;
+      expect(failed.retryable, isFalse);
+      expect(
+        failed.message,
+        contains(
+          'cannot run here: it is compiled for the IntelOpenVINO LNL NPU, '
+          'which this build runs on windows_x64 only, and this is '
+          'android_arm64.',
+        ),
+      );
+      expect(llm.installs, isEmpty);
+    });
   });
 
   test('a blocked custom model fails the slot with its reason; Gemma 4 E2B '

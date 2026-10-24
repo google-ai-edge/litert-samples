@@ -50,27 +50,36 @@ abstract interface class AudioSessionService {
   Stream<AudioInterruption> get interruptions;
 }
 
-/// The session owner for [platform]: none on Linux (see
+/// The session owner for [platform]: none on Linux and Windows (see
 /// [NoAudioSessionService]), `audio_session` elsewhere.
 AudioSessionService audioSessionServiceFor(HostPlatform platform) =>
-    platform == HostPlatform.linux
-    ? const NoAudioSessionService()
-    : PlatformAudioSessionService();
+    switch (platform) {
+      HostPlatform.linux => const NoAudioSessionService(),
+      HostPlatform.windows => const NoAudioSessionService.windows(),
+      _ => PlatformAudioSessionService(),
+    };
 
-/// Linux has no audio session: PulseAudio/PipeWire route per stream. Said
-/// explicitly, because `audio_session` 0.2.4 swallows its missing Linux plugin
-/// (`AudioSession.instance`, `AudioSession.configure`) and
-/// `AudioSession.setActive` answers true, which would log a session that does
-/// not exist.
+/// Linux and Windows have no audio session: PulseAudio/PipeWire route per
+/// stream on Linux, and Windows has no app-wide session to configure.
+/// Said explicitly. `audio_session` 0.2.4 has no implementation on either:
+/// it swallows its missing plugin (`AudioSession.instance`,
+/// `AudioSession.configure`) and `AudioSession.setActive` answers true, which
+/// would log a session that does not exist.
 final class NoAudioSessionService implements AudioSessionService {
-  const NoAudioSessionService({this._log});
+  /// Linux's.
+  const NoAudioSessionService({this._log})
+    : _system = 'Linux (PulseAudio/PipeWire)';
+
+  /// Windows': no app-wide audio session to configure or activate.
+  const NoAudioSessionService.windows({this._log})
+    : _system = 'Windows (it has no app audio session)';
 
   final void Function(String line)? _log;
+  final String _system;
 
   @override
-  Future<void> configureHalfDuplex() async => (_log ?? debugPrint)(
-    '[AudioSession] none on Linux (PulseAudio/PipeWire)',
-  );
+  Future<void> configureHalfDuplex() async =>
+      (_log ?? debugPrint)('[AudioSession] none on $_system');
 
   @override
   Future<bool> activate() async => true;

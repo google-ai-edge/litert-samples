@@ -135,6 +135,12 @@ enum FakeBundle {
     npu: LiteRtLmNpuTarget(vendor: 'Google', soc: 'Tensor_G5'),
   ),
 
+  /// A text-only build for the Intel Lunar Lake NPU (Windows x64 only), as
+  /// LiteRT's OpenVINO plugin stamps it.
+  intelNpu(
+    npu: LiteRtLmNpuTarget(vendor: 'IntelOpenVINO', soc: 'LNL'),
+  ),
+
   /// A text-only model for the GPU and the CPU (Qwen3 0.6B).
   textOnly(),
 

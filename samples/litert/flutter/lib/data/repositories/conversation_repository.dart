@@ -109,9 +109,15 @@ abstract interface class ConversationRepository {
   /// [image]: a PNG or JPEG (normally from `normalizeForLlm` or a camera
   /// snapshot). Pass the SAME object every turn while it stays attached: it
   /// is sent only when the live chat cannot see it — the first time, and
-  /// again after a stop, a failure, an [open]/[reset] or a budget reset
-  /// (compared with `identical`, see [imageInContext]). A new object is sent
-  /// as a new image.
+  /// again after a failure, an [open]/[reset], a budget reset or a stop on
+  /// the NPU (compared with `identical`, see [imageInContext]). On the GPU and
+  /// the CPU flutter_edge_ai_litertlm rewinds a stopped turn in place and
+  /// keeps it, so it is not sent again; except after a stopped turn that began
+  /// during the plugin's recovery from an earlier stop and produced nothing
+  /// (it may never have reached the model). When the plugin falls back to a
+  /// rebuild from text there (a rewind that fails, a stopped turn that does
+  /// not wind down) the image is gone and this repository cannot tell: only
+  /// the plugin's log says so. A new object is sent as a new image.
   ///
   /// [audioWav]: the spoken question itself, as a WAV (16 kHz mono PCM16
   /// behind a 44-byte RIFF header), for a chat model that hears audio
@@ -129,7 +135,8 @@ abstract interface class ConversationRepository {
   /// ~960 KB per 30 s question (16 kHz mono PCM16), and the context budget
   /// bounds how many audio turns fit between rebuilds (about six of 30 s in
   /// an 8192-token window, ≈ 6 MB). No rebuild keeps one: a rebuild replays
-  /// the text history only.
+  /// the text history only. A stop on the GPU or the CPU is no rebuild: the
+  /// native conversation is rewound in place with its recordings.
   ///
   /// [historyText]: the user's words as the conversation's text mirror
   /// records them (the question without its excerpts, or
@@ -150,10 +157,17 @@ abstract interface class ConversationRepository {
   /// ([kContextHeadroomTokens]), which would replay the history recordings
   /// included.
   ///
-  /// A turn after a stopped one, while an audio turn is in the live chat,
-  /// rebuilds the chat from the text mirror (`clearHistory(replayHistory:)`)
-  /// instead of letting flutter_edge_ai_litertlm's rebuild replay its own
-  /// text history, in which an audio turn's question is missing.
+  /// After a stopped turn flutter_edge_ai_litertlm recovers the native
+  /// conversation as the next turn starts. On the GPU and the CPU it rewinds
+  /// it in place: the stopped turn (its message, image and recording, and the
+  /// partial reply) and every earlier turn stay as they were, unless the
+  /// rewind fails or the stopped turn does not wind down: the plugin then
+  /// rebuilds it from text without telling the app. LiteRT-LM's token count
+  /// holds a rewound exchange twice, so the budget guard errs high after a
+  /// stop. On the NPU it always rebuilds it from its own text history, in
+  /// which an audio turn's question is missing, so there a turn after a
+  /// stopped one, while an audio turn is in the live chat, rebuilds the chat
+  /// from the text mirror (`clearHistory(replayHistory:)`) instead.
   Stream<AssistantEvent> ask(
     String prompt, {
     Uint8List? image,
@@ -191,8 +205,9 @@ abstract interface class ConversationRepository {
   List<HistoryTurn> get history;
 
   /// The image the live chat can see: the last one a turn sent and that has
-  /// not been lost since. Null after a stop, a failure, [open], [reset] or a
-  /// budget reset.
+  /// not been lost since, as far as the app can tell (a rewind the plugin
+  /// silently replaced with a rebuild from text loses it unseen). Null after a
+  /// failure, [open], [reset], a budget reset or a stop on the NPU.
   Uint8List? get imageInContext;
 
   /// Stops the running turn and completes once it has ended. No-op when idle.

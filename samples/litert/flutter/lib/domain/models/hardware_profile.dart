@@ -74,7 +74,8 @@ enum GpuKind {
   /// A VM's display adapter (QEMU, virtio, VMware, EC2): no compute.
   virtualDisplay,
 
-  /// llvmpipe, lavapipe, SwiftShader, softpipe: runs on the CPU.
+  /// llvmpipe, lavapipe, SwiftShader, softpipe, Windows' WARP (the Microsoft
+  /// Basic Render Driver and Basic Display Adapter): runs on the CPU.
   software,
   unknown,
 }
@@ -121,9 +122,13 @@ bool isSoftwareVulkanIcd(String fileName) =>
     fileName.startsWith('lvp_icd') ||
     fileName.toLowerCase().contains('swiftshader');
 
-/// llvmpipe, lavapipe, SwiftShader or softpipe: a GPU API on the CPU.
+/// llvmpipe, lavapipe, SwiftShader or softpipe, or on Windows WARP: the
+/// Microsoft Basic Render Driver (the D3D12 adapter WebGPU opens without a
+/// GPU driver) and the Microsoft Basic Display Adapter (the display driver
+/// Windows uses until the vendor's is installed). A GPU API on the CPU.
 bool isSoftwareGpuName(String name) => RegExp(
-  r'llvmpipe|lavapipe|swiftshader|softpipe',
+  r'llvmpipe|lavapipe|swiftshader|softpipe|'
+  r'microsoft basic (render driver|display adapter)',
   caseSensitive: false,
 ).hasMatch(name);
 

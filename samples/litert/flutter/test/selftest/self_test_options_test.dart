@@ -39,7 +39,11 @@ void main() {
   test("defaults: the chat model's own backend, GPU for the detector, no "
       'paths, no CPU retry', () {
     final o = _ok(const ['--selftest']);
-    expect(o.gemmaBackend, isNull, reason: 'gpu for Gemma 4 E2B, else saved');
+    expect(
+      o.gemmaBackend,
+      isNull,
+      reason: "--gemma: the file's own, else saved",
+    );
     expect(o.detectorBackend, DetectorBackend.gpu);
     expect(o.gemmaPath, isNull);
     expect(o.detectorCpuRetry, isFalse);

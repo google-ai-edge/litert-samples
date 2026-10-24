@@ -261,6 +261,22 @@ void main() {
     expect(provider.stores.last.closeCalls, 1);
   });
 
+  test('release closes the database and keeps the store: the other calls '
+      'fail until open, which works again', () async {
+    final store = service();
+    expect(await store.release(), isA<Ok<void>>(), reason: 'nothing open');
+    await store.open('/kb/kb.db');
+
+    expect(await store.release(), isA<Ok<void>>());
+    expect(provider.stores.single.closeCalls, 1);
+    expect(await store.stats(), isA<Error<VectorStoreStats>>());
+
+    expect(await store.open('/kb/kb.db'), isA<Ok<void>>());
+    expect(provider.stores, hasLength(2));
+    expect(provider.stores.first.closeCalls, 1, reason: 'closed once');
+    expect(await store.stats(), isA<Ok<VectorStoreStats>>());
+  });
+
   test('after close, open is refused: nothing reopens the database '
       'without an owner', () async {
     final store = service();
