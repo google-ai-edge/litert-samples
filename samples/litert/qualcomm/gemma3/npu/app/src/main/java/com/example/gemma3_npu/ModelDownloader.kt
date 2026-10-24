@@ -14,114 +14,122 @@ import java.net.HttpURLConnection
 import java.net.URL
 
 /**
- * Utility class for downloading LiteRT-LM models.
- * Gemma 3 NPU Edition.
+ * Resolves locally pushed or downloaded LiteRT-LM packages for Gemma 3 1B on Qualcomm NPU.
  */
 class ModelDownloader(private val context: Context) {
-    
-    private val prefs: SharedPreferences = context.getSharedPreferences("app_prefs", Context.MODE_PRIVATE)
+
+    private val prefs: SharedPreferences =
+        context.getSharedPreferences("app_prefs", Context.MODE_PRIVATE)
 
     companion object {
         private const val TAG = "ModelDownloader"
         private const val KEY_HF_TOKEN = "hf_token"
 
-        // Models
         val AVAILABLE_MODELS = listOf(
             ModelConfig(
                 id = "gemma3-npu",
                 name = "Gemma 3 1B (NPU-optimized)",
                 filename = "Gemma3-1B-IT_q4_ekv1280_sm8750.litertlm",
                 url = "https://huggingface.co/litert-community/Gemma3-1B-IT/resolve/main/Gemma3-1B-IT_q4_ekv1280_sm8750.litertlm",
-                systemPrompt = "You are Gemma 3, a powerful AI assistant by Google, running privately on-device via NPU.",
+                systemPrompt = "You are Gemma 3, a helpful AI assistant by Google running privately on-device.",
                 preferredBackend = "NPU"
             )
         )
+
+        internal fun findReadableModel(filename: String, searchDirs: List<File>): File? {
+            for (dir in searchDirs) {
+                val candidate = File(dir, filename)
+                if (candidate.isFile && candidate.canRead() && candidate.length() > 0L) {
+                    return candidate
+                }
+            }
+            return null
+        }
     }
 
-    private fun getAdbSearchDirs(): List<File> {
+    private fun getSearchDirs(): List<File> {
         val dirs = mutableListOf<File>()
+        dirs.add(context.filesDir)
         context.getExternalFilesDir(null)?.let { dirs.add(it) }
+        dirs.add(File("/sdcard/Android/data/${context.packageName}/files"))
         context.getExternalFilesDir(Environment.DIRECTORY_DOWNLOADS)?.let { dirs.add(it) }
         dirs.add(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS))
         dirs.add(File(Environment.getExternalStorageDirectory(), "Models"))
-        return dirs
+        return dirs.distinctBy { it.absolutePath }
     }
 
     fun saveToken(token: String) {
         prefs.edit().putString(KEY_HF_TOKEN, token).apply()
     }
 
-    fun getToken(): String? {
-        return prefs.getString(KEY_HF_TOKEN, null)
-    }
+    fun getToken(): String? = prefs.getString(KEY_HF_TOKEN, null)
 
-    fun isModelDownloaded(modelConfig: ModelConfig): Boolean {
-        if (File(context.filesDir, modelConfig.filename).exists()) return true
-        return findExternalModel(modelConfig) != null
-    }
-
-    private fun findExternalModel(modelConfig: ModelConfig): File? {
-        for (dir in getAdbSearchDirs()) {
-            val candidate = File(dir, modelConfig.filename)
-            if (candidate.exists() && candidate.canRead() && candidate.length() > 0) {
-                Log.i(TAG, "Found ADB-pushed model at: ${candidate.absolutePath}")
-                return candidate
-            }
-        }
-        return null
-    }
+    fun isModelDownloaded(modelConfig: ModelConfig): Boolean =
+        findReadableModel(modelConfig.filename, getSearchDirs()) != null
 
     fun getModelPath(modelConfig: ModelConfig): String {
-        val internal = File(context.filesDir, modelConfig.filename)
-        if (internal.exists()) return internal.absolutePath
-        val external = findExternalModel(modelConfig)
-        if (external != null) return external.absolutePath
-        return internal.absolutePath
+        findReadableModel(modelConfig.filename, getSearchDirs())?.let {
+            Log.i(TAG, "Resolved model path: ${it.absolutePath}")
+            return it.absolutePath
+        }
+        return File(context.filesDir, modelConfig.filename).absolutePath
     }
-    
+
+    fun getAdbPushCommand(modelConfig: ModelConfig): String =
+        "adb push ${modelConfig.filename} /sdcard/Android/data/${context.packageName}/files/"
+
     fun downloadModel(modelConfig: ModelConfig): Flow<DownloadProgress> = flow {
+        val targetFile = File(context.filesDir, modelConfig.filename)
+        val tempFile = File(context.filesDir, "${modelConfig.filename}.part")
         try {
             emit(DownloadProgress.Started)
-            val modelFile = File(context.filesDir, modelConfig.filename)
-            if (modelFile.exists()) {
-                emit(DownloadProgress.Complete(modelFile.absolutePath))
+            findReadableModel(modelConfig.filename, getSearchDirs())?.let { existing ->
+                emit(DownloadProgress.Complete(existing.absolutePath))
                 return@flow
             }
-            val externalFile = findExternalModel(modelConfig)
-            if (externalFile != null) {
-                emit(DownloadProgress.Complete(externalFile.absolutePath))
-                return@flow
+
+            val connection = (URL(modelConfig.url).openConnection() as HttpURLConnection).apply {
+                connectTimeout = 30_000
+                readTimeout = 60_000
+                val token = getToken()
+                if (!token.isNullOrBlank()) {
+                    setRequestProperty("Authorization", "Bearer $token")
+                }
             }
-            
-            val url = URL(modelConfig.url)
-            val connection = url.openConnection() as HttpURLConnection
-            val token = getToken()
-            if (!token.isNullOrBlank()) {
-                connection.setRequestProperty("Authorization", "Bearer $token")
-            }
+
             connection.connect()
             if (connection.responseCode != HttpURLConnection.HTTP_OK) {
                 throw Exception("Server returned HTTP ${connection.responseCode}")
             }
-            val fileLength = connection.contentLength
+
+            val fileLength = connection.contentLengthLong
             connection.inputStream.use { input ->
-                FileOutputStream(modelFile).use { output ->
+                FileOutputStream(tempFile).use { output ->
                     val buffer = ByteArray(8192)
-                    var total: Long = 0
+                    var total = 0L
                     var count: Int
                     while (input.read(buffer).also { count = it } != -1) {
                         total += count
                         output.write(buffer, 0, count)
-                        if (fileLength > 0) {
-                            val progress = (total * 100 / fileLength).toInt()
-                            emit(DownloadProgress.Progress(progress, total, fileLength.toLong()))
+                        if (fileLength > 0L) {
+                            val progress = ((total * 100L) / fileLength).toInt()
+                            emit(DownloadProgress.Progress(progress, total, fileLength))
                         }
                     }
                 }
             }
-            emit(DownloadProgress.Complete(modelFile.absolutePath))
+
+            if (targetFile.exists()) {
+                targetFile.delete()
+            }
+            if (!tempFile.renameTo(targetFile)) {
+                tempFile.copyTo(targetFile, overwrite = true)
+                tempFile.delete()
+            }
+            emit(DownloadProgress.Complete(targetFile.absolutePath))
         } catch (e: Exception) {
-            emit(DownloadProgress.Error(e.message ?: "Unknown error"))
+            tempFile.delete()
+            emit(DownloadProgress.Error(e.message ?: "Unknown download error"))
         }
     }.flowOn(Dispatchers.IO)
 }
