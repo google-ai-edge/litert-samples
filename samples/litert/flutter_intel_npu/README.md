@@ -52,6 +52,7 @@ The app ships no model: you download the `.litertlm` files and point the app at 
 | 2 | Gemma 4 12B, `gemma-4-12B-it.litertlm` from [litert-community/gemma-4-12B-it-litert-lm](https://huggingface.co/litert-community/gemma-4-12B-it-litert-lm) (Apache-2.0) | 6.9 GB | GPU | GPU (the NPU once an NPU build exists) |
 | 2, contrast engine | Gemma 4 E2B again, with a 4K window | — | GPU | GPU |
 | 1 and 3, on the NPU | Gemma 4 E2B compiled for the NPU, `gemma-4-E2B-it_intel_LNL.litertlm` (Lunar Lake) from the same repository (`NPU_MODEL_PATH`); `…_intel_PTL.litertlm` is the Panther Lake build, not tested here | 3.0 GB | — | NPU |
+| 4 | Any Gemma 4 model with native tool calling, listed in `ACT4_MODELS`. Measured with Intel's Gemma 4 26B A4B build for the Panther Lake NPU, `gemma4_26b_moe_32k_1024_ptl_26b_template.litertlm` (provided by Intel, not public; 32K context, NPU only) | 13.3 GB | CPU, GPU (not measured) | NPU (Intel's build), CPU, GPU |
 
 - **NPU** is Intel's NPU, through LiteRT-LM's Intel dispatch library and the OpenVINO runtime that
   `flutter_edge_ai_litertlm` bundles on Windows. It exists only on Core Ultra Series 2 (Lunar Lake) and later. macOS
