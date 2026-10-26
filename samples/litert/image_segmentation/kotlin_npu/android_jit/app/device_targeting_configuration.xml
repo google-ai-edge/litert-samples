@@ -138,20 +138,4 @@
             <config:system-on-chip manufacturer="Google" model="Tensor G3"/>
         </config:device-selector>
     </config:device-group>
-
-    <config:device-group name="Intel_Core_Ultra_7_325">
-        <config:device-selector>
-            <config:system-on-chip manufacturer="Intel" model="IntelR CoreTM Ultra 7 325"/>
-        </config:device-selector>
-    </config:device-group>
-    <config:device-group name="Intel_Core_Ultra_7_355">
-        <config:device-selector>
-            <config:system-on-chip manufacturer="Intel" model="IntelR CoreTM Ultra 7 355"/>
-        </config:device-selector>
-    </config:device-group>
-    <config:device-group name="Intel_Core_Ultra_7_365">
-        <config:device-selector>
-            <config:system-on-chip manufacturer="Intel" model="IntelR CoreTM Ultra 7 365"/>
-        </config:device-selector>
-    </config:device-group>
 </config:device-targeting-config>

@@ -4,18 +4,7 @@ android {
   namespace = "com.google.ai.edge.litert.qualcomm_runtime.v81"
   compileSdk = 35
 
-  defaultConfig {
-    minSdk = 31
-    ndk {
-      abiFilters.add("arm64-v8a")
-      abiFilters.add("x86_64")
-    }
-    externalNativeBuild {
-      cmake { arguments += "-DLITERT_ABI_STUB_NAME=litert_${project.name}_abi_stub" }
-    }
-  }
-
-  externalNativeBuild { cmake { path = file("../abi_stub/CMakeLists.txt") } }
+  defaultConfig { minSdk = 31 }
 
   sourceSets {
     getByName("main") {

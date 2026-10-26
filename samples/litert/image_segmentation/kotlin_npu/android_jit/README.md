@@ -12,19 +12,28 @@ WARNING: The version of NPU runtime libraries has to match the runtime maven pac
 Please make sure your NPU runtime are being placed under the project root folder
 (current folder for this gradle project).
 
-From the app's root directory, run:
+Fetch the Intel native dependencies first:
 
 ```sh
-$ ./gradlew :app:bundleRelease
+$ ./litert_npu_runtime_libraries/fetch_intel_library.sh
 ```
 
-This produces the unified ARM64 and x86_64 app bundle at
-`./app/build/outputs/bundle/release/app-release.aab`.
+Then build both bundles:
 
-Every native feature contains a uniquely named no-op library for both ABIs.
-These stubs are never loaded; they only satisfy bundletool's requirement that
-all native feature modules expose the same ABI set. Google Play's ABI splits
-and SoC conditions select the real runtime for each device.
+```sh
+$ ./gradlew :app:bundleRelease :app_intel:bundleRelease
+```
+
+This produces two bundles:
+
+- `./app/build/outputs/bundle/release/app-release.aab`: ARM64 vendor runtimes.
+- `./app_intel/build/outputs/bundle/release/app_intel-release.aab`: Intel x86_64 runtime.
+
+Both bundles use the package name
+`com.google.ai.edge.examples.image_segmentation`. The ARM bundle uses version
+code 1 and the Intel bundle uses version code 2. Sign both with the same key
+and upload both to the same Play release. Their ABI targeting does not overlap,
+so Play delivers the matching bundle to each device.
 
 ## Install the app bundle to a device for local testing
 
@@ -77,20 +86,26 @@ Currently, the following devices are supported:
 | Google   | Tensor G4 |  16+            | Google_Tensor_G4 |
 | Google   | Tensor G5 |  16+            | Google_Tensor_G5 |
 | Google   | Tensor G6 |  16+            | Google_Tensor_G6 |
-| Intel    | IntelR CoreTM Ultra 7 325 | S+ | Intel_Core_Ultra_7_325 |
-| Intel    | IntelR CoreTM Ultra 7 355 | S+ | Intel_Core_Ultra_7_355 |
-| Intel    | IntelR CoreTM Ultra 7 365 | S+ | Intel_Core_Ultra_7_365 |
 
 ### Intel NPU runtime libraries
 
 The LiteRT Intel plugins and their manifest declarations come from the
 published `litert-npu-runtime-intel-openvino` Maven package, which Gradle
 resolves from the standard repositories. Fetch the OpenVINO and Intel NPU
-compiler libraries they depend on before building:
+compiler libraries they depend on before building. The fetch script places
+them under `app_intel/src/main/jni/x86_64`.
+
+To locally test the Intel bundle on a connected x86_64 device:
 
 ```sh
-$ ./litert_npu_runtime_libraries/fetch_intel_library.sh
-```
+$ tmp_dir=$(mktemp -d)
 
-The Intel runtime is an SoC-targeted feature in the unified app bundle. The
-stub libraries are built with the Android NDK and CMake 3.22.1 or newer.
+$ $bundletool build-apks \
+  --bundle=./app_intel/build/outputs/bundle/release/app_intel-release.aab \
+  --output="$tmp_dir/image_segmentation_intel.apks" \
+  --connected-device \
+  --overwrite
+
+$ $bundletool install-apks \
+  --apks="$tmp_dir/image_segmentation_intel.apks"
+```
