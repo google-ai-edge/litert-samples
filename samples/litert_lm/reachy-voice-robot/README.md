@@ -107,13 +107,8 @@ the CPU) is roughly 2×. The reply keeps streaming after that first sentence —
 
 ### 1. Install
 
-Use an updated Python 3.12 installation and follow the repository's
-[Python package security prerequisites](../../../README.md#python-package-security)
-before installing dependencies. This project requires uv 0.13.4 or newer when
-using uv.
-
 ```bash
-python -m pip install -r requirements.txt      # or, with uv:  uv sync --locked
+pip install -r requirements.txt      # or, with uv:  uv sync
 ```
 
 The **speech-to-text** and the **synthesizer** (Inflect-Nano-v2) models auto-download from

@@ -145,34 +145,6 @@ Experience LiteRT running **100% client-side** in your browser via **[LiteRT.js]
 
 ---
 
-### Python package security
-
-Before installing Python dependencies, update your operating system's CA
-certificates and use a supported Python release with the
-[eMudhra/emSign security fixes](https://discuss.python.org/t/information-for-python-users-regarding-emudhra-emsign-ca-certificate-security-incident/109576).
-Use **pip 26.2.2 or newer**, **certifi 2026.10.19 or newer**, and **uv 0.13.4 or
-newer**. pip and uv also carry their own certificate bundles, so updating the
-standalone certifi package alone is insufficient.
-
-In each existing or newly created virtual environment, check the version with
-`python -m pip --version`. If pip is older than 26.2.2, bootstrap it with the
-hash-pinned wheel from the Python advisory:
-
-```bash
-python -m pip install --upgrade "pip @ https://files.pythonhosted.org/packages/3f/06/3e4420302363fbb71be3c7f35ce042f54bfca330e3e66b3a2e3c4cca579f/pip-26.2.2-py3-none-any.whl#sha256=fd7f4dfa8190e014013b9f08f3e973f4e4c26ffd179a204895533a7254813a70"
-```
-
-Then use the updated pip to install the latest releases:
-
-```bash
-python -m pip install --upgrade pip certifi
-```
-
-Update uv through its installation method. For the standalone installer, after
-updating the system CA store, use `UV_SYSTEM_CERTS=true uv self update`.
-
----
-
 ### ⚡ Level 2 — Run & Benchmark from the Terminal (3 Minutes)
 
 Use **[LiteRT-CLI (`litert`)](https://github.com/google-ai-edge/LiteRT-CLI)** or **[LiteRT-LM (`litert-lm`)](https://github.com/google-ai-edge/LiteRT-LM)** to pull any model from `litert-community` and run or benchmark it immediately:

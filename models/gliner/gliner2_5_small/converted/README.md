@@ -39,9 +39,7 @@ Default source revision:
 
 ## Environment
 
-Python 3.12 and macOS arm64 were used. Use an updated Python 3.12 release and
-follow the [Python package security prerequisites](../../../../README.md#python-package-security)
-for the virtual environment before installing its requirements. From this directory:
+Python 3.12 and macOS arm64 were used. From this directory:
 
 ```bash
 python -m venv .venv

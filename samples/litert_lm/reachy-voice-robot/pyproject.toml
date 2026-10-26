@@ -28,7 +28,6 @@ dev = ["pytest>=8.0"]
 # python -m demo.serve, ...). No wheel to build.
 [tool.uv]
 package = false
-required-version = ">=0.13.4"
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
