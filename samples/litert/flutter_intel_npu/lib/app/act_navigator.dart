@@ -20,11 +20,12 @@ import '../features/act1_inference/act1_screen.dart';
 import '../features/act2_long_context/act2_screen.dart';
 import '../features/act3_scene/act3_screen.dart';
 import '../features/act3_scene/runner/runner_screen.dart';
+import '../features/act4_agent/act4_screen.dart';
 import 'demo_config.dart';
 
-/// Three acts, one running app. No routing package: the presenter goes
+/// Four acts, one running app. No routing package: the presenter goes
 /// home → act → home. Act 1's engines stay resident across acts (EnginePool);
-/// Act 2 releases its large model when it closes.
+/// Acts 2 and 4 release their large models when they close.
 class ActNavigator extends StatelessWidget {
   const ActNavigator({super.key, required this.config, required this.pool, required this.power});
 
@@ -36,6 +37,7 @@ class ActNavigator extends StatelessWidget {
     (n: 1, title: 'Inference', subtitle: 'Same model, same prompt: CPU · GPU · NPU'),
     (n: 2, title: 'Long context', subtitle: 'A 45-minute meeting in one piece'),
     (n: 3, title: "The NPU's own argument", subtitle: 'Heavy 3D on the GPU, live commentary on the NPU'),
+    (n: 4, title: 'Meeting agent', subtitle: 'Gemma 4 does the follow-up of a meeting with tools'),
   ];
 
   Widget screenFor(int act) => switch (act) {
@@ -44,6 +46,7 @@ class ActNavigator extends StatelessWidget {
         3 => config.act3.isRunner
             ? RunnerScreen(config: config, power: power)
             : Act3Screen(config: config, power: power),
+        4 => Act4Screen(config: config, pool: pool),
         _ => _NoSuchAct(act: act),
       };
 
@@ -95,7 +98,7 @@ class _NoSuchAct extends StatelessWidget {
   @override
   Widget build(BuildContext context) => Scaffold(
         appBar: AppBar(title: Text('Act $act')),
-        body: const Center(child: Text('There are three acts: ACT=1, 2 or 3 (0 = home).')),
+        body: const Center(child: Text('There are four acts: ACT=1, 2, 3 or 4 (0 = home).')),
       );
 }
 

@@ -46,6 +46,7 @@ class DemoConfig {
     required this.act,
     required this.act2,
     required this.act3,
+    required this.act4,
     required this.powerFile,
     required this.powerMode,
     this.npuModelPath,
@@ -131,6 +132,8 @@ class DemoConfig {
           k.fail('ACT3_TIME_OF_DAY', dayStart, 'expected ${DayPhase.values.map((p) => p.name).join('|')}', DayPhase.day),
     );
 
+    final act4 = Act4Spec._parse(k);
+
     final powerFile = k.str('POWER_FILE', const String.fromEnvironment('POWER_FILE'));
     final powerModeRaw = k.str('POWER_MODE', const String.fromEnvironment('POWER_MODE', defaultValue: 'auto'));
 
@@ -168,6 +171,7 @@ class DemoConfig {
       act: act,
       act2: act2,
       act3: act3,
+      act4: act4,
       policy: switch (policy) {
         'resident' => EnginePolicy.resident,
         'sequential' => EnginePolicy.sequential,
@@ -241,6 +245,9 @@ class DemoConfig {
 
   /// Act 3 (scene) load dials and headless run length.
   final Act3Spec act3;
+
+  /// Act 4 (meeting agent): the model menu and how a run samples.
+  final Act4Spec act4;
 
   /// JSON written by `tools/power_sidecar/power_sidecar.ps1`; null = platform default.
   final String? powerFile;
@@ -434,6 +441,154 @@ class Act3Spec {
   final int autorunSeconds;
 }
 
+/// One entry of Act 4's model menu (`ACT4_MODELS`).
+class Act4Model {
+  const Act4Model({
+    required this.name,
+    required this.path,
+    required this.backend,
+    required this.maxTokens,
+    required this.think,
+  });
+
+  final String name;
+  final String path;
+  final PreferredBackend backend;
+
+  /// Context window. On the NPU, the one the bundle was compiled for.
+  final int maxTokens;
+
+  /// Whether a run on this model thinks unless the presenter switches it.
+  final bool think;
+}
+
+/// Act 4 runs one model at a time from a menu, on the meeting follow-up task.
+class Act4Spec {
+  const Act4Spec({
+    required this.models,
+    required this.modelIndex,
+    required this.think,
+    required this.greedy,
+    required this.temp,
+    required this.seed,
+    required this.maxOutputTokens,
+    required this.maxCalls,
+    required this.autorun,
+    this.meetingPath,
+    this.workspacePath,
+  });
+
+  static Act4Spec _parse(_Keys k) {
+    final models = <Act4Model>[];
+    final raw = k.json('ACT4_MODELS', const String.fromEnvironment('ACT4_MODELS'));
+    if (raw != null && raw is! List) k.fail('ACT4_MODELS', raw, 'expected a JSON array of models', null);
+    for (final (i, e) in (raw is List ? raw : const []).indexed) {
+      final key = 'ACT4_MODELS[$i]';
+      if (e is! Map) {
+        k.fail(key, e, 'expected {"name", "path", "backend", "maxTokens", "think"}', null);
+        continue;
+      }
+      final entry = _Keys((e.cast<String, Object?>(), null));
+      // A misspelt key ("max_tokens") would otherwise be a default the
+      // presenter never chose: an NPU bundle has one context it was built for.
+      const known = {'name', 'path', 'backend', 'maxTokens', 'think'};
+      for (final key in e.keys) {
+        if (!known.contains(key)) entry.errors.add('$key: unknown key, expected one of ${known.join(', ')}');
+      }
+      final path = entry.str('path', '');
+      final backend = entry.str('backend', '');
+      final m = Act4Model(
+        name: entry.str('name', path.split(RegExp(r'[\\/]')).last),
+        path: path,
+        backend: entry.backend('backend', backend.isEmpty ? 'cpu' : backend),
+        maxTokens: entry.integer('maxTokens', 16384),
+        think: entry.boolean('think', false),
+      );
+      if (path.isEmpty) entry.errors.add('path: required');
+      if (path.isNotEmpty && !File(path).existsSync()) entry.errors.add('path: no file at $path');
+      if (backend.isEmpty) entry.errors.add('backend: required (cpu, gpu or npu)');
+      if (m.maxTokens <= 0) entry.errors.add('maxTokens: expected a positive number, got ${m.maxTokens}');
+      k.errors.addAll(entry.errors.map((x) => '$key.$x'));
+      models.add(m);
+    }
+    final index = k.integer('ACT4_MODEL', const int.fromEnvironment('ACT4_MODEL', defaultValue: 0));
+    final think = k.str('ACT4_THINK', const String.fromEnvironment('ACT4_THINK'));
+    final sampler = k.str('ACT4_SAMPLER', const String.fromEnvironment('ACT4_SAMPLER', defaultValue: 'greedy'));
+    if (models.isNotEmpty && (index < 0 || index >= models.length)) {
+      k.fail('ACT4_MODEL', index, 'expected 0..${models.length - 1} (an index into ACT4_MODELS)', null);
+    }
+    final autorun = k.boolean('ACT4_AUTORUN', const bool.fromEnvironment('ACT4_AUTORUN'));
+    final meeting = k.str('ACT4_MEETING', const String.fromEnvironment('ACT4_MEETING'));
+    final workspace = k.str('ACT4_WORKSPACE', const String.fromEnvironment('ACT4_WORKSPACE'));
+    if (meeting.isNotEmpty && !File(meeting).existsSync()) k.errors.add('ACT4_MEETING: no file at $meeting');
+    if (workspace.isNotEmpty && !File(workspace).existsSync()) k.errors.add('ACT4_WORKSPACE: no file at $workspace');
+    if (autorun && models.isEmpty) k.errors.add('ACT4_AUTORUN: needs ACT4_MODELS');
+    final maxCalls = k.integer('ACT4_MAX_CALLS', const int.fromEnvironment('ACT4_MAX_CALLS', defaultValue: 40));
+    if (maxCalls < 1) k.errors.add('ACT4_MAX_CALLS: expected at least 1, got $maxCalls');
+    final maxOutputTokens = k.integer(
+      'ACT4_MAX_OUTPUT_TOKENS',
+      const int.fromEnvironment('ACT4_MAX_OUTPUT_TOKENS', defaultValue: 0),
+    );
+    if (maxOutputTokens < 0) k.errors.add('ACT4_MAX_OUTPUT_TOKENS: expected 0 (the default) or more');
+    final temp = k.number('ACT4_TEMP', const String.fromEnvironment('ACT4_TEMP', defaultValue: '0.3'));
+    if (temp <= 0) k.errors.add('ACT4_TEMP: expected more than 0, got $temp');
+    return Act4Spec(
+      models: List.unmodifiable(models),
+      modelIndex: index.clamp(0, models.isEmpty ? 0 : models.length - 1),
+      think: switch (think) {
+        '' => null,
+        'true' => true,
+        'false' => false,
+        _ => k.fail('ACT4_THINK', think, 'expected true or false', null),
+      },
+      greedy: switch (sampler) {
+        'greedy' => true,
+        'seeded' => false,
+        _ => k.fail('ACT4_SAMPLER', sampler, 'expected greedy|seeded', true),
+      },
+      temp: temp,
+      seed: k.integer('ACT4_SEED', const int.fromEnvironment('ACT4_SEED', defaultValue: 1)),
+      maxOutputTokens: maxOutputTokens,
+      maxCalls: maxCalls,
+      autorun: autorun,
+      meetingPath: meeting.isEmpty ? null : meeting,
+      workspacePath: workspace.isEmpty ? null : workspace,
+    );
+  }
+
+  final List<Act4Model> models;
+
+  /// The entry preselected in the menu (`ACT4_MODEL`).
+  final int modelIndex;
+
+  /// `ACT4_THINK`: overrides the preselected entry's `think`; null = the entry's.
+  final bool? think;
+
+  /// `ACT4_SAMPLER`: greedy (top-k 1), or seeded with [temp] and [seed].
+  final bool greedy;
+  final double temp;
+  final int seed;
+
+  /// Output cap per turn, thinking included; 0 = 6144 with thinking, 4096 without.
+  final int maxOutputTokens;
+
+  int maxOutputTokensFor({required bool think}) => maxOutputTokens > 0 ? maxOutputTokens : (think ? 6144 : 4096);
+
+  /// Executed calls per run; later calls are refused.
+  final int maxCalls;
+
+  /// Run the preselected model once when the act opens (headless with AUTORUN_EXIT).
+  final bool autorun;
+
+  /// `ACT4_MEETING`: the transcript the act opens with (.txt); null = the
+  /// bundled example.
+  final String? meetingPath;
+
+  /// `ACT4_WORKSPACE`: people, calendars, documents (JSON); null = the file
+  /// beside the transcript if there is one, or the bundled example's own.
+  final String? workspacePath;
+}
+
 /// Reads keys from the `DEMO_CONFIG` JSON, falling back to the compile-time
 /// value, and collects every problem instead of guessing. JSON numbers,
 /// booleans and their string spellings ("3", "true") are all accepted.
@@ -482,6 +637,18 @@ class _Keys {
     if (v == 'true') return true;
     if (v == 'false') return false;
     return fail(key, v, 'expected true or false', dflt);
+  }
+
+  /// A JSON value: as is from the `DEMO_CONFIG` file, parsed from the
+  /// dart-define's text. Null when unset.
+  Object? json(String key, String compileTime) {
+    final v = o[key] ?? (compileTime.isEmpty ? null : compileTime);
+    if (v is! String) return v;
+    try {
+      return jsonDecode(v);
+    } on FormatException catch (e) {
+      return fail(key, v, 'expected JSON (${e.message})', null);
+    }
   }
 
   PreferredBackend backend(String key, String value) => switch (value.trim().toLowerCase()) {

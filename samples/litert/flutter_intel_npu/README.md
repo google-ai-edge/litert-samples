@@ -1,6 +1,6 @@
 # Intel NPU demo: Gemma on the NPU of a Core Ultra laptop
 
-A Flutter desktop app in three acts about the NPU of an Intel Core Ultra laptop (Lunar Lake, Panther Lake): what it
+A Flutter desktop app in four acts about the NPU of an Intel Core Ultra laptop (Lunar Lake, Panther Lake): what it
 brings to an on-device language model, Gemma 4, next to the CPU and the GPU. Everything runs on the machine; once
 the model file is there, the app needs no network. Each act shows one side of the NPU:
 
@@ -21,6 +21,13 @@ the model file is there, the app needs no network. Each act shows one side of th
   calibrates itself to the edge of the frame budget, and two meters show the cost: FRAME BUDGET (how much of a frame
   the scene uses) and MODEL SPEED (how much of its own solo speed the model still gets). Put the commentator on the
   GPU and one of them drops; put it on the NPU and neither does.
+- **Act 4 — Meeting agent.** The model reads the transcript of any meeting (a plain text file) and does the
+  follow-up with six tools (tasks, email, drafts for approval, meetings, documents, questions), through the
+  plugin's native tool calling. The tools only record the call. Nothing about the meeting
+  is in the app: the model first lists the follow-ups it finds, and that list is the checklist; then each action
+  names the item it is for, and the item is ticked. The rules (no mail straight to an outside address, meetings
+  only where everyone is free, every action on the list, nothing done twice) are checked against a workspace file:
+  the people, the company's mail domain, the calendars and the shared documents.
 
 | Act 1: the race replay | Act 3: the runner and its commentator |
 |---|---|
@@ -93,7 +100,7 @@ flutter run -d macos   --profile --dart-define-from-file=config.json
 flutter run -d windows --profile --dart-define-from-file=config.json
 ```
 
-The home screen lists the three acts. `ACT=1`, `2` or `3` opens one directly.
+The home screen lists the four acts. `ACT=1` to `4` opens one directly.
 
 The first GPU load of a model is slow: LiteRT-LM compiles its GPU programs and caches them, with the weights in GPU
 layout, in the app's support folder (`%APPDATA%\com.google.ai.edge.examples\intel_npu_demo` on Windows). Later loads
@@ -109,6 +116,23 @@ take a second or two.
 - **Act 2:** wait for "Context is warm", then ask, e.g. "What cost centre code did finance assign, who said it,
   and at what timestamp?". Timestamps in the answer become chips that jump to the line; a timestamp that is not in
   the transcript stays grey. **Same source into 4096** feeds the same transcript to the small-window engine.
+- **Act 4:** open a transcript with the folder button (or `ACT4_MEETING`; the bundled example is a product
+  meeting at a made-up company, `assets/agent/example/`), pick a model, thinking on or off, and press **Run**. The
+  left pane shows the thinking as it streams, then the actions as they arrive (the plugin hands a turn's calls over
+  when the turn ends, so they land together; they are let in one after another). The right pane is the checklist:
+  the follow-ups the model listed, ticked as actions name them, then the rules. *Follow-ups done* counts against
+  the model's own list, so it measures follow-through, not whether the list is right: a list that misses
+  something costs nothing. *Rules kept* stays open until the first action, because a model that does nothing
+  keeps every rule. Thinking is capped at 2048 tokens a turn (`LiteRtLmEngine(thinkingTokenBudget:)`):
+  uncapped, the Intel 26B on the NPU thinks until the output limit and never calls a tool. Listing and acting are
+  one request, not two: on the NPU a second message after a tool loop fails (the executor rolls back one token at
+  most).
+
+  The workspace is `ACT4_WORKSPACE`, else `<transcript name>.workspace.json` or `workspace.json` beside the
+  transcript, else none: the agent then knows only the meeting, and the rules that need a domain or a calendar are
+  left out. Its format is the example's, `nimbus.workspace.json`: `company`, `today`, `internal_domain`,
+  `work_hours`, `people` (`name`, `email`, `role`, `internal`), `calendars` (`date`, `busy`: address → `[["HH:MM",
+  "HH:MM"]]` or `"out"`), `documents`, and `notes` (Markdown handed to the model as is).
 - **Act 3:** the presenter's keys:
 
   | Key | |
@@ -194,10 +218,18 @@ exit code 2 in a headless run.
 | `ACT3_START_Z` | 4 | where on the trail Dash starts, in metres |
 | `ACT3_SCENE` | `runner` | `arena` is the earlier physics scene |
 | `POWER_FILE`, `POWER_MODE` | see below, `auto` | Windows power and load; `auto`, `watts` or `utilization` |
+| `ACT4_MODELS` | — | Act 4's menu, a JSON array: `[{"name", "path", "backend", "maxTokens", "think"}]` |
+| `ACT4_MODEL`, `ACT4_THINK` | 0, the entry's `think` | the preselected entry, and thinking for it |
+| `ACT4_SAMPLER`, `ACT4_TEMP`, `ACT4_SEED` | `greedy`, 0.3, 1 | `seeded` samples with top-k 64, top-p 0.95. The NPU decodes greedily either way. Config only: the screen has no sampler control |
+| `ACT4_MAX_OUTPUT_TOKENS`, `ACT4_MAX_CALLS` | 6144 with thinking, 4096 without; 40 | per turn, thinking included; calls past the limit are refused |
+| `ACT4_AUTORUN` | false | run the preselected entry once when the act opens (with `AUTORUN_EXIT`, then exit) |
+| `ACT4_MEETING`, `ACT4_WORKSPACE` | the bundled example | the transcript (.txt, UTF-8) and its workspace (JSON); a configured transcript takes the workspace beside it, else none |
 
 Headless runs: `AUTORUN=true` starts Act 1 by itself, `AUTORUN_REPEAT=2` runs it twice (the second sweep is warm),
 `AUTORUN_EXIT=true` exits when done, `RESULTS_PATH=…` appends the results as JSON lines, with every chunk's arrival
-time. Next to it Act 1 saves the race replay's middle and finish as PNGs, Act 3 a frame per phase. Act 3 runs unattended with `ACT3_NARRATOR_PLAN=off:12,gpu:25,cpu:25` (phase:seconds; one set
+time. Next to it Act 1 saves the race replay's middle and finish as PNGs, Act 3 a frame per phase. Act 4 runs
+unattended with `ACT4_AUTORUN=true`: one result line (`ACT4_JSON` on stdout, appended to `RESULTS_PATH`), no PNGs;
+it exits 1 if the run failed or the line could not be written. Act 3 runs unattended with `ACT3_NARRATOR_PLAN=off:12,gpu:25,cpu:25` (phase:seconds; one set
 of frame, commentator and power numbers per phase) or `ACT3_AUTORUN_SECONDS=25` (scene only). In debug builds the
 plugin redirects stdout to `$TMPDIR/litertlm_native.log`, so read `RESULTS_PATH`, not the console.
 
@@ -236,7 +268,8 @@ Watts read zero while Memory Integrity (VBS) is on; the loads are always there, 
 
 The code is Apache-2.0, like the rest of this repository ([LICENSE](../../../LICENSE)). `assets/models/dash.glb` is the Dash model from
 [bdero/flutter_scene](https://github.com/bdero/flutter_scene), MIT ([assets/models/NOTICE.md](assets/models/NOTICE.md)).
-The meeting transcripts in `assets/prompts/` are synthetic, written for this demo. The models are not part of this
+The meeting transcripts in `assets/prompts/` and the Act 4 example in `assets/agent/example/` (its people, company
+and mail domain included) are synthetic, written for this demo. The models are not part of this
 repository. Gemma 4 E2B and 12B, and the LiteRT-LM conversions used here, are Apache-2.0
 ([Gemma 4 licence](https://ai.google.dev/gemma/docs/gemma_4_license)); the Hugging Face repositories are not gated. The LiteRT-LM runtime (Apache-2.0) and, on
 Windows, Intel's OpenVINO NPU runtime are downloaded by `flutter_edge_ai_litertlm` at build time.
@@ -250,7 +283,9 @@ flutter test
 
 The tests cover the world generator (chunk seams, winding, rivers, the trail's geometry, determinism), the day
 cycle, the commentator's situation block and per-phase statistics, the load calibrator and frame budget, transcript
-citations and the configuration parser. Anything that needs a model or a GPU is checked in headless runs (above).
+citations and the configuration parser. Act 4: reading a transcript, the workspace and its errors, the checklist
+and the rules built from a run, the tool-call checks, the result line and the one-request contract of the agent
+loop. Anything that needs a model or a GPU is checked in headless runs (above).
 
 ## Known limitations
 

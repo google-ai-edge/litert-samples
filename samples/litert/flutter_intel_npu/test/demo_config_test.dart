@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import 'dart:io';
+
 import 'package:flutter_edge_ai/flutter_edge_ai.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:intel_npu_demo/app/demo_config.dart';
@@ -65,9 +67,87 @@ void main() {
       expect(c.errors, ['DEMO_CONFIG: cannot read /x.json']);
     });
 
+    test('Act 4: the model menu and run settings', () {
+      final model = _anyFile('m.litertlm');
+      final c = parse({
+        'ACT4_MODELS': [
+          {'name': '26B NPU', 'path': model, 'backend': 'npu', 'maxTokens': 32768, 'think': false},
+          {'path': model, 'backend': 'GPU', 'maxTokens': '16384', 'think': 'true'},
+        ],
+        'ACT4_MODEL': 1,
+        'ACT4_SAMPLER': 'seeded',
+        'ACT4_SEED': '3',
+      });
+      expect(c.errors, isEmpty);
+      final a = c.act4;
+      expect(a.models.map((m) => (m.name, m.backend, m.maxTokens, m.think)), [
+        ('26B NPU', PreferredBackend.npu, 32768, false),
+        ('m.litertlm', PreferredBackend.gpu, 16384, true),
+      ]);
+      expect((a.modelIndex, a.think, a.greedy, a.temp, a.seed, a.maxCalls), (1, null, false, 0.3, 3, 40));
+      expect((a.maxOutputTokensFor(think: true), a.maxOutputTokensFor(think: false)), (6144, 4096));
+    });
+
+    test('Act 4: the menu can come as a dart-define string', () {
+      final c = parse({'ACT4_MODELS': '[{"path": "/nonexistent/m.litertlm", "backend": "tpu"}]', 'ACT4_MODEL': 2});
+      expect(c.errors, [
+        'ACT4_MODELS[0].backend: expected cpu|gpu|npu, got "tpu"',
+        'ACT4_MODELS[0].path: no file at /nonexistent/m.litertlm',
+        'ACT4_MODEL: expected 0..0 (an index into ACT4_MODELS), got 2',
+      ]);
+    });
+
+    test('Act 4: bad values are reported', () {
+      final c = parse({'ACT4_MODELS': '[{', 'ACT4_THINK': 'maybe', 'ACT4_SAMPLER': 'hot', 'ACT4_AUTORUN': true});
+      expect(c.errors.map((e) => e.split(':').first).toSet(), {'ACT4_MODELS', 'ACT4_THINK', 'ACT4_SAMPLER', 'ACT4_AUTORUN'});
+      expect(c.act4.greedy, isTrue);
+    });
+
+    test('Act 4: meeting, workspace and limits', () {
+      final file = _anyFile('meeting.txt');
+      final ok = parse({
+        'ACT4_MODELS': [
+          {'path': file, 'backend': 'cpu'},
+        ],
+        'ACT4_AUTORUN': true,
+        'ACT4_MEETING': file,
+        'ACT4_WORKSPACE': file,
+      });
+      expect(ok.errors, isEmpty);
+      expect((ok.act4.meetingPath, ok.act4.workspacePath, ok.act4.autorun), (file, file, true));
+      final bad = parse({
+        'ACT4_MODELS': [
+          {'path': file, 'max_tokens': 4096, 'maxTokens': 0},
+        ],
+        'ACT4_MEETING': '/nonexistent/m.txt',
+        'ACT4_WORKSPACE': '/nonexistent/w.json',
+        'ACT4_MAX_CALLS': 0,
+        'ACT4_MAX_OUTPUT_TOKENS': -1,
+        'ACT4_TEMP': 0,
+      });
+      expect(bad.errors.map((e) => e.split(':').first).toSet(), {
+        'ACT4_MODELS[0].max_tokens',
+        'ACT4_MODELS[0].backend',
+        'ACT4_MODELS[0].maxTokens',
+        'ACT4_MEETING',
+        'ACT4_WORKSPACE',
+        'ACT4_MAX_CALLS',
+        'ACT4_MAX_OUTPUT_TOKENS',
+        'ACT4_TEMP',
+      });
+    });
+
     test('a run that exits by itself is headless', () {
       expect(parse({'AUTORUN_EXIT': true}).headless, isTrue);
       expect(parse({}).headless, isFalse);
     });
   });
+}
+
+/// A real file for a config key that must point at one; deleted with the
+/// temporary folder.
+String _anyFile(String name) {
+  final dir = Directory.systemTemp.createTempSync('act4_cfg');
+  addTearDown(() => dir.deleteSync(recursive: true));
+  return (File('${dir.path}${Platform.pathSeparator}$name')..writeAsStringSync('x')).path;
 }
