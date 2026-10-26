@@ -66,12 +66,12 @@ jobs:
 
       - name: Install Android Platform, Build Tools, and NDK
         run: |
-          # Install the specific platform 36, build tools 36.1.0, and NDK 25.2.9519653
-          yes | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --install "platforms;android-36" "build-tools;36.1.0" "ndk;25.2.9519653"
+          # NDK 27's Clang supports the SME2 kernels enabled by current XNNPACK.
+          yes | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --install "platforms;android-36" "build-tools;36.1.0" "ndk;27.3.13750724"
           
           # Set explicit paths and version variables in GITHUB_ENV
           echo "ANDROID_SDK_HOME=$ANDROID_HOME" >> $GITHUB_ENV
-          echo "ANDROID_NDK_HOME=$ANDROID_HOME/ndk/25.2.9519653" >> $GITHUB_ENV
+          echo "ANDROID_NDK_HOME=$ANDROID_HOME/ndk/27.3.13750724" >> $GITHUB_ENV
           echo "ANDROID_API_LEVEL=36" >> $GITHUB_ENV
           echo "ANDROID_BUILD_TOOLS_VERSION=36.1.0" >> $GITHUB_ENV
           echo "ANDROID_NDK_API_LEVEL=26" >> $GITHUB_ENV
