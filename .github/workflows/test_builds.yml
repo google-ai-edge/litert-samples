@@ -24,7 +24,8 @@ concurrency:
 jobs:
   build-and-test:
     name: "Build-and-Test-Linux"
-    runs-on: ubuntu-latest
+    # LLVM 19 packages are available from apt.llvm.org for Ubuntu 24.04.
+    runs-on: ubuntu-24.04
     permissions:
       actions: write
       contents: write
