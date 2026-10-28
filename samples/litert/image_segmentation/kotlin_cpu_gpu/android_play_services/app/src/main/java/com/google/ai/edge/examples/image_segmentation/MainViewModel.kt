@@ -181,4 +181,12 @@ class MainViewModel(private val imageSegmentationHelper: ImageSegmentationHelper
   fun errorMessageShown() {
     errorMessage.update { null }
   }
+
+  /**
+   * Releases the segmenter and the Google Play services LiteRT environment. The environment is
+   * shared across accelerator switches, so it is only released when the ViewModel goes away.
+   */
+  override fun onCleared() {
+    imageSegmentationHelper.close()
+  }
 }

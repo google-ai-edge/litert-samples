@@ -14,8 +14,7 @@
  * limitations under the License.
  */
 
-// This command line flag is necessary to build the app with NPU support because NPU is available
-// only on arm64 devices. CPU/GPU is available on all devices.
+// Image segmentation sample that runs on the LiteRT runtime provided by Google Play services.
 //
 // Example:
 //   ./gradlew build
@@ -32,7 +31,8 @@ android {
   compileSdk = 36
 
   defaultConfig {
-    applicationId = "com.google.ai.edge.examples.image_segmentation"
+    // A distinct application ID, so this sample can be installed next to the bundled-runtime one.
+    applicationId = "com.google.ai.edge.examples.image_segmentation.playservices"
     minSdk = 24
     targetSdk = 33
     versionCode = 1
@@ -40,15 +40,14 @@ android {
 
     testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     vectorDrawables { useSupportLibrary = true }
-
-    ndk {
-      abiFilters.add("arm64-v8a")
-      abiFilters.add("armeabi-v7a")
-    }
   }
 
   buildTypes {
     release {
+      // Sign release builds with the debug key so that `./gradlew :app:installRelease` works out of
+      // the box, which makes it easy to measure the optimized build. Real apps must sign release
+      // builds with their own key.
+      signingConfig = signingConfigs.getByName("debug")
       isMinifyEnabled = false
       proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
     }
@@ -56,10 +55,6 @@ android {
   compileOptions {
     sourceCompatibility = JavaVersion.VERSION_1_8
     targetCompatibility = JavaVersion.VERSION_1_8
-  }
-  kotlinOptions {
-    jvmTarget = "1.8"
-    freeCompilerArgs += "-Xskip-metadata-version-check"
   }
   buildFeatures { compose = true }
   packaging { resources { excludes += "/META-INF/{AL2.0,LGPL2.1}" } }
@@ -71,6 +66,8 @@ android {
     disable.add("Aligned16KB")
   }
 }
+
+kotlin { compilerOptions { jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_1_8) } }
 
 // Import DownloadModels task
 project.extensions.extraProperties["ASSET_DIR"] = "$projectDir/src/main/assets"
@@ -89,9 +86,9 @@ dependencies {
   implementation(libs.androidx.material.icons.core)
   implementation(libs.androidx.material.icons.extended)
   implementation(libs.androidx.material2)
-  implementation(libs.litert)
-  implementation(libs.litert.gpu)
-  implementation(libs.litert.support)
+  // LiteRT CompiledModel API, backed by the runtime in Google Play services.
+  implementation(libs.play.services.litert)
+  implementation(libs.kotlinx.coroutines.play.services)
   implementation(libs.androidx.camera.core)
   implementation(libs.androidx.camera.lifecycle)
   implementation(libs.androidx.camera.view)

@@ -16,7 +16,8 @@
 [versions]
 agp = "8.9.1"
 coilCompose = "3.3.0"
-kotlin = "2.2.21"
+# play-services-litert is built with Kotlin 2.4.0, so the app needs at least this version.
+kotlin = "2.4.0"
 coreKtx = "1.17.0"
 junit = "4.13.2"
 junitVersion = "1.2.1"
@@ -25,12 +26,11 @@ lifecycleRuntimeKtx = "2.10.0"
 activityCompose = "1.12.1"
 composeBom = "2025.12.00"
 undercouchDownload = "5.6.0"
-litert = "2.3.0"
-litertSupport = "2.3.0"
+playServicesLitert = "17.0.0"
+kotlinxCoroutines = "1.10.2"
 cameraCore = "1.5.2"
 compose = "1.5.0"
 composeLivedata = "1.9.4"
-aiDelivery = "0.1.1-alpha01"
 
 [libraries]
 androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }
@@ -54,14 +54,14 @@ androidx-ui-test-junit4 = { group = "androidx.compose.ui", name = "ui-test-junit
 androidx-material2 = { group = "androidx.compose.material", name = "material", version.ref = "compose" }
 androidx-camera-core = { group = "androidx.camera", name = "camera-core", version.ref = "cameraCore" }
 
-litert = { group = "com.google.ai.edge.litert", name = "litert", version.ref = "litert" }
-litert-gpu = { group = "com.google.ai.edge.litert", name = "litert-gpu", version.ref = "litert" }
-litert-support = { group = "com.google.ai.edge.litert", name = "litert-support", version.ref = "litertSupport" }
+# The LiteRT runtime (CPU and GPU) is provided by Google Play services, so the bundled "litert" and
+# "litert-gpu" artifacts are not used.
+play-services-litert = { group = "com.google.android.gms", name = "play-services-litert", version.ref = "playServicesLitert" }
+kotlinx-coroutines-play-services = { group = "org.jetbrains.kotlinx", name = "kotlinx-coroutines-play-services", version.ref = "kotlinxCoroutines" }
 androidx-camera-lifecycle = { group = "androidx.camera", name = "camera-lifecycle", version.ref = "cameraCore" }
 androidx-camera-view = { group = "androidx.camera", name = "camera-view", version.ref = "cameraCore" }
 androidx-camera-camera2 = { group = "androidx.camera", name = "camera-camera2", version.ref = "cameraCore" }
 androidx-compose-runtime-livedata = { group = "androidx.compose.runtime", name = "runtime-livedata", version.ref = "composeLivedata" }
-android-play-ai-delivery = { group = "com.google.android.play", name = "ai-delivery", version.ref = "aiDelivery" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }

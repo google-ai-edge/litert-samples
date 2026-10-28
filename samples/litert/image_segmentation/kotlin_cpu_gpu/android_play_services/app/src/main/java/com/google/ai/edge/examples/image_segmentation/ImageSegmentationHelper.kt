@@ -25,23 +25,30 @@ import android.util.Log
 import androidx.core.graphics.scale
 import com.google.ai.edge.litert.Accelerator
 import com.google.ai.edge.litert.CompiledModel
+import com.google.ai.edge.litert.Environment
 import com.google.ai.edge.examples.image_segmentation.TensorUtils.logTensorStats
+import com.google.android.gms.litert.LiteRt
+import com.google.android.gms.litert.LiteRtDsl.initializationOptions
 import java.nio.ByteBuffer
 import java.nio.FloatBuffer
 import java.util.Random
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.channels.BufferOverflow
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.isActive
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.tasks.await
 import kotlinx.coroutines.withContext
 
-import com.google.ai.edge.litert.support.common.ops.NormalizeOp
-import com.google.ai.edge.litert.support.image.ImageProcessor
-import com.google.ai.edge.litert.support.image.TensorImage
-import com.google.ai.edge.litert.support.image.ops.ResizeOp
-import com.google.ai.edge.litert.support.image.ops.Rot90Op
-
+/**
+ * Runs the selfie multiclass segmentation model with the LiteRT CompiledModel API.
+ *
+ * Unlike the `android` variant of this sample, the LiteRT runtime is not bundled in the APK: it is
+ * loaded from Google Play services (`play-services-litert`), which keeps the APK small and lets
+ * Google Play services keep the runtime up to date.
+ */
 class ImageSegmentationHelper(private val context: Context) {
   /** As the result of image segmentation, this value emits map of probabilities */
   val segmentation: SharedFlow<SegmentationResult>
@@ -62,20 +69,41 @@ class ImageSegmentationHelper(private val context: Context) {
 
   // Accessed only with singleThreadDispatcher.
   private var segmenter: Segmenter? = null
+
+  // The LiteRT environment backed by the runtime in Google Play services. It is created once, on
+  // first use, and shared by every CompiledModel this helper creates: initializing it loads the
+  // LiteRT runtime (and the GPU accelerator) from Google Play services, which is expensive, while
+  // switching accelerators only needs a new CompiledModel. Accessed only with
+  // singleThreadDispatcher.
+  private var environment: Environment? = null
   private val singleThreadDispatcher = Dispatchers.IO.limitedParallelism(1, "ModelDispatcher")
 
-  /** Init a CompiledModel from AI Pack. */
+  /**
+   * Init a CompiledModel for [acceleratorEnum], running on the LiteRT runtime provided by Google
+   * Play services.
+   *
+   * If the GPU is requested but the model cannot be compiled for it (e.g. the device has no
+   * supported GPU, or Google Play services could not load the GPU accelerator), the error is
+   * reported and the segmenter falls back to the CPU, so the app keeps working.
+   */
   suspend fun initSegmenter(acceleratorEnum: AcceleratorEnum = AcceleratorEnum.CPU) {
     cleanup()
     try {
       withContext(singleThreadDispatcher) {
+        // The runtime comes from Google Play services instead of being bundled in the APK, so it
+        // must be initialized before any CompiledModel can be created.
+        val env = getOrCreateEnvironment()
         val model =
-          CompiledModel.create(
-            context.assets,
-            "selfie_multiclass.tflite",
-            CompiledModel.Options(toAccelerator(acceleratorEnum)),
-            null,
-          )
+          try {
+            createCompiledModel(env, acceleratorEnum)
+          } catch (e: Exception) {
+            if (acceleratorEnum == AcceleratorEnum.CPU) throw e
+            Log.w(TAG, "Failed to create the model on $acceleratorEnum, falling back to CPU", e)
+            _error.emit(
+              IllegalStateException("$acceleratorEnum is not available, using CPU instead.", e)
+            )
+            createCompiledModel(env, AcceleratorEnum.CPU)
+          }
         segmenter = Segmenter(model, coloredLabels)
         Log.d(TAG, "Created an image segmenter")
       }
@@ -85,7 +113,51 @@ class ImageSegmentationHelper(private val context: Context) {
     }
   }
 
-  /** Cleanup resources when the helper is no longer needed */
+  /**
+   * Returns the LiteRT [Environment] backed by Google Play services, creating it on first use.
+   *
+   * Must be called on [singleThreadDispatcher]. Fails if Google Play services is missing or
+   * outdated, or if the LiteRT module is not available yet (e.g. still downloading).
+   */
+  private suspend fun getOrCreateEnvironment(): Environment {
+    environment?.let {
+      return it
+    }
+    // Request GPU support up front. If Google Play services cannot load the GPU accelerator, the
+    // environment is still created, and only CompiledModels that ask for the GPU will fail.
+    val options = initializationOptions { setEnableGpu(true) }
+    val env = LiteRt.initialize(context, options).await()
+    Log.d(TAG, "Initialized LiteRT from Google Play services")
+    environment = env
+    return env
+  }
+
+  private fun createCompiledModel(env: Environment, acceleratorEnum: AcceleratorEnum) =
+    CompiledModel.create(
+      context.assets,
+      "selfie_multiclass.tflite",
+      CompiledModel.Options(toAccelerator(acceleratorEnum)),
+      env,
+    )
+
+  /**
+   * Releases all resources, including the Google Play services LiteRT [Environment]. Call it once,
+   * when the helper is no longer needed (e.g. from ViewModel.onCleared()). The release runs
+   * asynchronously on [singleThreadDispatcher], after any in-flight inference.
+   */
+  fun close() {
+    // The caller's scope (e.g. viewModelScope) is already cancelled at this point, so use a
+    // dedicated scope bound to the model dispatcher.
+    CoroutineScope(singleThreadDispatcher).launch {
+      segmenter?.cleanup()
+      segmenter = null
+      environment?.close()
+      environment = null
+      Log.d(TAG, "Released the image segmenter and the LiteRT environment")
+    }
+  }
+
+  /** Releases the current segmenter, e.g. before switching accelerators. */
   suspend fun cleanup() {
     try {
       withContext(singleThreadDispatcher) {
@@ -128,19 +200,13 @@ class ImageSegmentationHelper(private val context: Context) {
       val rotation = -rotationDegrees / 90
       val (h, w) = Pair(256, 256)
 
-      // Preprocessing timing using litert-support ImageProcessor
+      // Preprocessing timing
       val preprocessStartTime = SystemClock.uptimeMillis()
-      val imageProcessor =
-        ImageProcessor.Builder()
-          .add(ResizeOp(h, w, ResizeOp.ResizeMethod.BILINEAR))
-          .add(Rot90Op(rotation))
-          .add(NormalizeOp(127.5f, 127.5f))
-          .build()
-
-      val tensorImage = imageProcessor.process(TensorImage.fromBitmap(bitmap))
-      val inputFloatArray = tensorImage.tensorBuffer.floatArray
+      var image = bitmap.scale(w, h, true)
+      image = rot90Clockwise(image, rotation)
+      val inputFloatArray = normalize(image, 127.5f, 127.5f)
       val preprocessTime = SystemClock.uptimeMillis() - preprocessStartTime
-      Log.d(TAG, "Preprocessing time (via litert-support ImageProcessor): $preprocessTime ms")
+      Log.d(TAG, "Preprocessing time: $preprocessTime ms")
 
       // Inference timing (includes both model execution and mask processing)
       val inferenceStartTime = SystemClock.uptimeMillis()
