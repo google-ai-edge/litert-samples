@@ -35,6 +35,11 @@ compatibility.
 
 -   GPU: 40-50ms per frame
 
+**Google Play services version**
+
+-   `android_play_services`: same sample using the LiteRT runtime from Google
+Play services instead of bundling it in the APK
+
 ### 2. kotlin_npu
 
 An advanced implementation with Neural Processing Unit (NPU) support for
