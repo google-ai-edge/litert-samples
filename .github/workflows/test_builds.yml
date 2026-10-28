@@ -51,9 +51,8 @@ jobs:
           python-version: '3.11'
 
       - name: Set up Bazel
+        # Bazel version (7.6.1) is read automatically from .bazelversion.
         uses: bazel-contrib/setup-bazel@c5acdfb288317d0b5c0bbd7a396a3dc868bb0f86 # 0.19.0
-        with:
-          bazel-version: '7.6.1'
 
       - name: Install System Dependencies (LLVM/Clang-19)
         run: |
