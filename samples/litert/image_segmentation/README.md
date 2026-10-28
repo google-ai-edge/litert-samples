@@ -35,7 +35,7 @@ compatibility.
 
 -   GPU: 40-50ms per frame
 
-**Google Play services verion**
+**Google Play services version**
 
 -   `android_play_services`: same sample using the LiteRT runtime from Google
 Play services instead of bundling it in the APK
