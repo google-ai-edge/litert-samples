@@ -67,7 +67,7 @@ The app ships no model: you download the `.litertlm` files and point the app at 
 | | |
 |---|---|
 | Flutter | 3.47.1 or newer, stable channel ([fvm](https://fvm.app) works). `flutter_scene` needs 3.47.0; Flutter GPU on Windows needs 3.47.1 |
-| macOS | Apple silicon, Xcode and CocoaPods |
+| macOS | macOS 14 or newer on Apple silicon, Xcode and CocoaPods |
 | Windows | Windows 11, Visual Studio 2022 with "Desktop development with C++", Developer Mode on (Flutter plugins need symlinks), the Visual C++ Redistributable on machines that run the build |
 | NPU | Intel Core Ultra Series 2 (Lunar Lake) or newer with the Intel NPU driver |
 | Memory | Act 2's 12B was run on a 24 GB Mac and a 32 GB Lunar Lake machine |
