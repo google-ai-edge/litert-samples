@@ -50,7 +50,7 @@ taking the binary and its shared libraries from the public release bucket at
 `gs://litert/binaries/latest/android_arm64/litert_lm/`, in two ways:
 
 1. **Direct call**: the binary is the session executable, running one configuration across several devices.
-   `--executable-env-vars` sets the `LD_LIBRARY_PATH` that GPU runs need to load the OpenCL delegate.
+   `--executable-env-vars` sets the `LD_LIBRARY_PATH` the binary needs to load the shared libraries pushed next to it.
 2. **Wrapper script**: a shell script is the session executable and runs several configurations per device (CPU, then
    GPU), with a discarded warm-up pass and a cooldown between them so later runs are not throttled.
 
