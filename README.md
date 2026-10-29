@@ -264,9 +264,9 @@ Point your AI coding agent (Claude Code, Gemini CLI, Cursor, etc.) at **[`skills
   5. [`skills/benchmark-on-ddp/`](skills/benchmark-on-ddp/) — Benchmark models on Google Cloud Developer Device Platform (DDP) phones or macOS and update the leaderboard.
   6. [`skills/compiled-model-app-scaffolding/`](skills/compiled-model-app-scaffolding/) — Scaffold a production Android app (Kotlin, Jetpack Compose, `CompiledModelRunner`) around a verified model.
   7. [`skills/litert-compiled-model-migration/`](skills/litert-compiled-model-migration/) — Migrate legacy TensorFlow Lite (`Interpreter`) Android apps to LiteRT `CompiledModel` V2 with zero-copy buffers and NPU JIT.
-* **Android App Developer Skills (`android/skills` format, device-tested via [`skills/tests/`](skills/tests/))**:
-  * [`skills/litert-runtime/`](skills/litert-runtime/) — Build an Android app running a `.tflite` model on CPU/GPU via `CompiledModel`.
-  * [`skills/litert-lm/`](skills/litert-lm/) — Build an Android app running a `.litertlm` model from `litert-community` with streaming multi-turn chat.
+* **Android App Developer Skills (a mirror of [`android/skills`](https://github.com/android/skills/tree/main/device-ai/litert) `device-ai/litert`, device-tested via [`skills/android/tests/`](skills/android/tests/))**:
+  * [`skills/android/litert-runtime/`](skills/android/litert-runtime/) — Build an Android app running a `.tflite` model on CPU/GPU via `CompiledModel`.
+  * [`skills/android/litert-lm/`](skills/android/litert-lm/) — Build an Android app running a `.litertlm` model from `litert-community` with streaming multi-turn chat.
 
 #### 2. Real-Device Cloud Benchmarking (`benchmark/`)
 
