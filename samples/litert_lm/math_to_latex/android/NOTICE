@@ -1,0 +1,33 @@
+Math to LaTeX Android sample
+
+Model: MiniCPM-OCR-1.0 by OpenBMB (https://huggingface.co/openbmb/MiniCPM-OCR-1.0), licensed
+under Apache License 2.0. The app downloads its LiteRT-LM conversion,
+MiniCPM-OCR-1.0-VL_int8.litertlm, from https://huggingface.co/litert-community/MiniCPM-OCR-1.0
+(Apache License 2.0) on first use; the file is not part of this source tree.
+
+app/src/main/java/com/google/ai/edge/examples/math_to_latex/PilBicubic.kt follows the
+bicubic resampling of Pillow 13.0.0 (src/libImaging/Resample.c), Copyright (c) 1997-2011
+by Secret Labs AB, Copyright (c) 1995-2011 by Fredrik Lundh and contributors, Copyright (c)
+2010 by Jeffrey 'Alex' Clark and contributors, under the MIT-CMU License
+(licenses/Pillow-MIT-CMU.txt). It is adapted from the Pillow 12.2.0 port of the image cutout sample
+proposed in google-ai-edge/litert-samples#490 (samples/litert/image_cutout/kotlin_gpu), with
+Pillow 13's choice of which pass runs first.
+
+Pictures.kt follows the picture preparation of the model card's page script, ocr_page.py
+(https://github.com/john-rocky/hf-to-litertlm/blob/main/minicpmocr_work/ocr_page.py), whose
+slicing grid is that of transformers' MiniCPMOcrImageProcessor.get_sliced_grid (Apache
+License 2.0).
+
+The build fetches MathJax 3.2.2 (es5/tex-svg-full.js, https://www.mathjax.org, Apache
+License 2.0, licenses/MathJax-APACHE-2.0.txt) into the app's assets to draw the model's
+LaTeX; the file is checked against its SHA-256 and is not part of this source tree.
+
+The data package (data/ModelCatalog.kt, data/ModelStore.kt, data/DownloadSafety.kt) is
+adapted from this repository's voice assistant sample (samples/litert_lm/voice_assistant).
+
+The example pages app/src/main/assets/examples/*.png were written and rendered for this
+sample by tools/make_examples.py: text in DejaVu Serif (Bitstream Vera Fonts license, DejaVu
+changes in the public domain), formulas by MathJax.
+
+Gradle wrapper files retain their upstream Apache License 2.0 headers.
+Component license texts and their sources are under licenses/.
