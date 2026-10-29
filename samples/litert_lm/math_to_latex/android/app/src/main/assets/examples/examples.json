@@ -1,0 +1,203 @@
+{
+ "generator": "tools/make_examples.py",
+ "mathjax": "3.2.2",
+ "font": "DejaVu Serif",
+ "pages": [
+  {
+   "file": "handout_attention.png",
+   "sha256": "4fcf42f57602cab7ff1dada1b662880ffae049ff298c5c88a0d218b13c974d97",
+   "formulas": [
+    {
+     "tag": "12.1",
+     "latex": "\\mathrm{Attention}(Q, K, V) = \\mathrm{softmax}\\left( \\frac{QK^{\\top}}{\\sqrt{d_{k}}} \\right) V",
+     "box": [
+      305,
+      392,
+      845,
+      468
+     ]
+    },
+    {
+     "tag": "12.2",
+     "latex": "\\mathrm{softmax}(\\mathbf{z})_{i} = \\frac{e^{z_{i}}}{\\sum_{j=1}^{K} e^{z_{j}}}",
+     "box": [
+      421,
+      596,
+      729,
+      677
+     ]
+    },
+    {
+     "tag": "12.3",
+     "latex": "\\mathrm{MultiHead}(Q, K, V) = \\mathrm{Concat}(\\mathrm{head}_{1}, \\ldots, \\mathrm{head}_{h})\\, W^{O}",
+     "box": [
+      234,
+      877,
+      916,
+      912
+     ]
+    },
+    {
+     "tag": "12.4",
+     "latex": "\\mathrm{head}_{i} = \\mathrm{Attention}(Q W_{i}^{Q},\\, K W_{i}^{K},\\, V W_{i}^{V})",
+     "box": [
+      315,
+      987,
+      835,
+      1026
+     ]
+    },
+    {
+     "tag": "12.5",
+     "latex": "\\mathcal{L}(\\theta) = -\\sum_{t=1}^{T} \\log p_{\\theta}(y_{t} \\mid y_{<t}, x)",
+     "box": [
+      383,
+      1193,
+      767,
+      1282
+     ]
+    }
+   ],
+   "paragraphs": [
+    {
+     "text": "Given queries \\(Q \\in \\mathbb{R}^{n \\times d_k}\\), keys \\(K \\in \\mathbb{R}^{m \\times d_k}\\) and values \\(V \\in \\mathbb{R}^{m \\times d_v}\\), attention weighs every value by how well its key matches the query:",
+     "box": [
+      120,
+      274,
+      1120,
+      346
+     ]
+    },
+    {
+     "text": "The softmax is taken row by row, so each row of weights sums to one:",
+     "box": [
+      120,
+      514,
+      1120,
+      550
+     ]
+    },
+    {
+     "text": "Dividing by \\(\\sqrt{d_k}\\) keeps the dot products from growing with the key size, where the softmax would saturate. Multi-head attention runs \\(h\\) heads in parallel and joins them:",
+     "box": [
+      120,
+      723,
+      1120,
+      831
+     ]
+    },
+    {
+     "text": "A language model trained with these layers minimizes the cross-entropy of the next token:",
+     "box": [
+      120,
+      1075,
+      1120,
+      1147
+     ]
+    },
+    {
+     "text": "Exercise. Show that scaling \\(Q\\) by a constant \\(c > 0\\) changes the attention weights only through the temperature of the softmax.",
+     "box": [
+      120,
+      1328,
+      1120,
+      1400
+     ]
+    }
+   ]
+  },
+  {
+   "file": "handout_normal.png",
+   "sha256": "f1881e316d00775e73f78347568c42325eb025ca1d18fbcfee006068f217771f",
+   "formulas": [
+    {
+     "tag": "7.1",
+     "latex": "f(x) = \\frac{1}{\\sigma\\sqrt{2\\pi}} \\exp\\left( -\\frac{(x-\\mu)^{2}}{2\\sigma^{2}} \\right)",
+     "box": [
+      367,
+      392,
+      783,
+      469
+     ]
+    },
+    {
+     "tag": "7.2",
+     "latex": "Z = \\frac{X - \\mu}{\\sigma} \\sim N(0, 1)",
+     "box": [
+      433,
+      633,
+      717,
+      694
+     ]
+    },
+    {
+     "tag": "7.3",
+     "latex": "P(a \\leq X \\leq b) = \\Phi\\left( \\frac{b - \\mu}{\\sigma} \\right) - \\Phi\\left( \\frac{a - \\mu}{\\sigma} \\right)",
+     "box": [
+      299,
+      859,
+      851,
+      930
+     ]
+    },
+    {
+     "tag": "7.4",
+     "latex": "\\sqrt{n}\\, \\frac{\\bar{X}_{n} - \\mu}{\\sigma} \\xrightarrow{d} N(0, 1)",
+     "box": [
+      429,
+      1095,
+      721,
+      1163
+     ]
+    }
+   ],
+   "paragraphs": [
+    {
+     "text": "A random variable \\(X\\) is normally distributed with mean \\(\\mu\\) and standard deviation \\(\\sigma\\), written \\(X \\sim N(\\mu, \\sigma^{2})\\), when its density is",
+     "box": [
+      120,
+      274,
+      1120,
+      346
+     ]
+    },
+    {
+     "text": "The density is symmetric about \\(\\mu\\), with inflection points at \\(\\mu \\pm \\sigma\\). Any normal variable can be standardized:",
+     "box": [
+      120,
+      515,
+      1120,
+      587
+     ]
+    },
+    {
+     "text": "so every probability comes from one table of \\(\\Phi\\), the standard normal distribution function:",
+     "box": [
+      120,
+      740,
+      1120,
+      813
+     ]
+    },
+    {
+     "text": "For the mean \\(\\bar{X}_{n}\\) of \\(n\\) independent observations with finite variance, the central limit theorem gives",
+     "box": [
+      120,
+      976,
+      1120,
+      1049
+     ]
+    },
+    {
+     "text": "Example. Exam scores with \\(\\mu = 70\\) and \\(\\sigma = 8\\): the share above 86 is \\(1 - \\Phi(2) \\approx 0.023\\).",
+     "box": [
+      120,
+      1209,
+      1120,
+      1282
+     ]
+    }
+   ]
+  }
+ ]
+}
