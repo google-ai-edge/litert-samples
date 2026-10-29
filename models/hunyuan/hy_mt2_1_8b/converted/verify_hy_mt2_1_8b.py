@@ -158,8 +158,8 @@ def run_one(litert_lm, model, prompt, backend, timeout, no_template=False):
   if no_template:
     cmd.append("--no-template")
   cmd += ["--prompt", prompt]
-  # litert-lm (>= 0.18) appends a non-TTY stdin to --prompt and waits for its
-  # EOF; an inherited pipe or socket would hang every run, so give it none.
+  # `litert-lm run` appends a non-TTY stdin to --prompt and waits for its EOF;
+  # an inherited pipe or socket would hang every run, so give it none.
   proc = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout,
                         stdin=subprocess.DEVNULL)
   if proc.returncode != 0:
