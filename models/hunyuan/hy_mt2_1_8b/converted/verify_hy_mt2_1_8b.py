@@ -31,10 +31,14 @@ Five modes:
     the shape this recipe produces: NO start_token (the template renders the
     BOS literal itself and the engine prepends the metadata start_token
     unconditionally), <｜hy_place▁holder▁no▁2｜> (120020) among the stop ids,
-    the vendor Jinja template embedded byte-equal to the repo's
-    chat_template.jinja, a bytes-per-parameter ratio in the int8 band, and
-    every section under the iOS ~2 GiB single-section mmap ceiling.
-    Needs `pip install litert-lm-builder`.
+    the embedded Jinja byte-equal to the repo's chat_template.jinja with its
+    content sites reading content parts (hy_mt2_extension.content_parts_template;
+    LiteRT-LM 0.18 and later pass message content as a list of parts), a
+    bytes-per-parameter ratio in the int8 band, every
+    section under the iOS ~2 GiB single-section mmap ceiling, and, when the
+    exporter wrote an ExecutorMetadata section (litert-torch does for every
+    LLM since the published bundle was built), only the 32 + 32 global K/V
+    cache buffers of a dense model. Needs `pip install litert-lm-builder`.
 
       python verify_hy_mt2_1_8b.py model.litertlm --check-metadata
 
@@ -47,9 +51,10 @@ Five modes:
 
       python verify_hy_mt2_1_8b.py model.litertlm --translate [--device cpu|mps]
 
-  --rope-ab — the one-variable proof behind the rope bake: loads the model
-    twice on CPU, once from the vendor config (rope_scaling dynamic/alpha)
-    and once from the baked config (rope_theta 11,158,839.925…, no
+  --rope-ab — the one-variable proof that the vendor rope and the baked one
+    are the same computation: loads the model twice on CPU, once from the
+    vendor config (rope_scaling dynamic/alpha) and once from the baked config
+    the published bundle was built from (rope_theta 11,158,839.925…, no
     rope_scaling), and asserts inv_freq and teacher-forced logits are
     bitwise-equal. About a minute; the bundle is not needed.
 
@@ -57,12 +62,14 @@ Five modes:
 
   --bos-discriminator WITH_START_TOKEN.litertlm — decides, inside the runtime
     and with no HF/int8 confound, whether the engine prepends the metadata
-    start_token. Three streams over the same weights (CPU, greedy):
-      X  : the default bundle, --no-template, prompt = rendered text minus
-           its leading BOS string            -> [start_token?] + rest
-      Y' : this bundle, normal templating    -> [template BOS] + rest
-      X' : this bundle, --no-template, same BOS-stripped text -> rest only
-    If the engine prepends: X == Y' on every probe and X != X' somewhere.
+    start_token. Three streams over the same weights (CPU, greedy, all through
+    the --no-template path):
+      X  : the default bundle, prompt = rendered text minus its leading BOS
+           string                            -> [start_token?] + rest
+      Y  : this bundle, the whole rendered text, BOS literal included
+                                             -> [literal BOS] + rest
+      X' : this bundle, the same BOS-stripped text -> rest only
+    If the engine prepends: X == Y on every probe and X != X' somewhere.
     Build the default bundle with `build_hy_mt2_1_8b.py --keep-start-token`.
 
       python verify_hy_mt2_1_8b.py model.litertlm --bos-discriminator out_int8_bos/Hy-MT2-1.8B_int8.litertlm
@@ -81,13 +88,16 @@ from collections import Counter
 from pathlib import Path
 
 MODEL_ID = "tencent/Hy-MT2-1.8B"
+CPU_THREADS = 4  # litert-lm --cpu-thread-count for every CPU run
 EOS_ID = 120020
 # 2,038,515,712 tensors in the checkpoint minus the tied lm_head copy
 # (120818 x 2048 = 247,435,264) that the bundle stores once.
 UNIQUE_PARAMS = 2_038_515_712 - 120_818 * 2_048
-# The repo's chat_template.jinja (the only template the repo ships).
-TEMPLATE_BYTES = 654
-TEMPLATE_MD5 = "6d883d86c23cbdc6879c208513770884"
+# The repo's chat_template.jinja (the only template the repo ships, 654 B, md5
+# 6d883d86…) after hy_mt2_extension.content_parts_template: what the bundle
+# embeds, byte-equal to the template of the published litert-community bundle.
+TEMPLATE_BYTES = 1037
+TEMPLATE_MD5 = "c91ee3a4ed63400882eb5182e0049d82"
 
 SUFFIX = " Answer briefly."
 # (label, question, answer-regex, wrong-answer-veto-regex-or-None).
@@ -140,10 +150,18 @@ def run_one(litert_lm, model, prompt, backend, timeout, no_template=False):
   """Runs one prompt through `litert-lm run`, greedy; the answer is stdout."""
   cmd = [litert_lm, "run", str(model), "--backend", backend,
          "--temperature", "0", "--top-k", "1", "--cache", "no"]
+  if backend == "cpu":
+    # A near-tie in greedy decoding can flip with the CPU thread count (the
+    # French probe on litert-lm 0.19.0: "spectaculaire" with 4 threads,
+    # "significative" with 1), so every CPU run uses the same count.
+    cmd += ["--cpu-thread-count", str(CPU_THREADS)]
   if no_template:
     cmd.append("--no-template")
   cmd += ["--prompt", prompt]
-  proc = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout)
+  # litert-lm (>= 0.18) appends a non-TTY stdin to --prompt and waits for its
+  # EOF; an inherited pipe or socket would hang every run, so give it none.
+  proc = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout,
+                        stdin=subprocess.DEVNULL)
   if proc.returncode != 0:
     raise RuntimeError(
         f"litert-lm run failed (exit={proc.returncode}).\n"
@@ -186,7 +204,8 @@ def gate(args):
 
 
 def read_metadata(model, jinja_path=None):
-  """Returns (LlmMetadata pbtext, [sections]) without unpacking the bundle.
+  """Returns (LlmMetadata pbtext, ExecutorMetadata pbtext, [sections]) without
+  unpacking the bundle.
 
   With jinja_path, the embedded Jinja template is written there (the peek
   API writes only that file when no dump dir is given)."""
@@ -198,6 +217,9 @@ def read_metadata(model, jinja_path=None):
   text = buf.getvalue()
   m = re.search(r"start of LlmMetadata\n(.*?)>{4,} end of LlmMetadata", text, re.S)
   pbtext = m.group(1) if m else ""
+  m = re.search(r"start of ExecutorMetadata\n(.*?)>{4,} end of ExecutorMetadata",
+                text, re.S)
+  executor = m.group(1) if m else ""
   sections = []
   for sm in re.finditer(
       r"Section (\d+):\n(.*?)Begin Offset:\s*(\d+)\n\s*End Offset:\s*(\d+)\n"
@@ -207,13 +229,13 @@ def read_metadata(model, jinja_path=None):
     sections.append({"index": int(sm.group(1)), "type": sm.group(5),
                      "model_type": mt.group(1) if mt else None,
                      "bytes": int(sm.group(4)) - int(sm.group(3))})
-  return pbtext, sections
+  return pbtext, executor, sections
 
 
 def check_metadata(args):
   with tempfile.TemporaryDirectory() as td:
     jinja_path = os.path.join(td, "template.jinja")
-    pbtext, sections = read_metadata(args.model, jinja_path)
+    pbtext, executor, sections = read_metadata(args.model, jinja_path)
     embedded = Path(jinja_path).read_bytes() if os.path.exists(jinja_path) else b""
   if not pbtext:
     print("FAIL: no LlmMetadata section found")
@@ -236,13 +258,16 @@ def check_metadata(args):
   detail = f"{len(embedded)} B, md5 {md5[:8]}…"
   try:  # live byte comparison when the Hub is reachable; else the recorded hash
     from huggingface_hub import hf_hub_download
-    repo_tpl = Path(hf_hub_download(MODEL_ID, "chat_template.jinja")).read_bytes()
-    check("embedded Jinja template is byte-equal to the repo's chat_template.jinja",
-          embedded == repo_tpl, detail + f" vs repo {len(repo_tpl)} B")
+    sys.path.insert(0, str(Path(__file__).resolve().parent))
+    from hy_mt2_extension import content_parts_template  # noqa: E402
+    repo_tpl = Path(hf_hub_download(MODEL_ID, "chat_template.jinja")).read_text()
+    want = content_parts_template(repo_tpl).encode()
+    check("embedded Jinja = the repo's chat_template.jinja reading content parts",
+          embedded == want, detail + f" vs {len(want)} B")
   except Exception as e:  # noqa: BLE001
-    check("embedded Jinja template matches the recorded repo template hash",
-          len(embedded) == TEMPLATE_BYTES and md5 == TEMPLATE_MD5,
-          detail + f" (Hub unreachable: {type(e).__name__})")
+    check("embedded Jinja matches the recorded hash of the repo template "
+          "reading content parts", len(embedded) == TEMPLATE_BYTES
+          and md5 == TEMPLATE_MD5, detail + f" (Hub unreachable: {type(e).__name__})")
 
   ctx = re.search(r"max_num_tokens:\s*(\d+)", pbtext)
   check("max_num_tokens 4096", bool(ctx) and int(ctx.group(1)) == 4096,
@@ -256,9 +281,16 @@ def check_metadata(args):
   check("every section < 2 GiB (iOS mmap ceiling)", not big,
         ", ".join(f"{s['type']}:{s['bytes'] / 1024 ** 3:.2f} GiB" for s in sections))
   types = [s["type"] for s in sections]
-  check("dense bundle: LlmMetadata + tokenizer + one prefill/decode model, "
-        "no ExecutorMetadata needed", "ExecutorMetadataProto" not in types
-        and "TFLiteModel" in types, str(types))
+  check("dense bundle: LlmMetadata + tokenizer + one prefill/decode model",
+        types.count("TFLiteModel") == 1, str(types))
+  if "ExecutorMetadataProto" in types:
+    # Written by the exporter for every LLM since the published bundle was
+    # built; a dense model may declare its global K/V caches and nothing else.
+    kinds = dict(Counter(re.findall(r"type:\s*(TYPE_\w+)", executor)))
+    lengths = sorted(set(re.findall(r"maximum_sequence_length:\s*(\d+)", executor)))
+    check("ExecutorMetadata declares only the 32 + 32 global K/V caches (4096)",
+          kinds == {"TYPE_GLOBAL_KEY_CACHE": 32, "TYPE_GLOBAL_VALUE_CACHE": 32}
+          and lengths == ["4096"], f"{kinds}, maximum_sequence_length {lengths}")
 
   sp = re.search(r"sampler_params \{.*?\n\}", pbtext, re.S)
   if sp:
@@ -325,17 +357,47 @@ def translate(args):
   return 0 if passed == len(PROBES) else 1
 
 
+def baked_rope_config(snapshot, out_dir):
+  """Builds the hub-format dir the published bundle was exported from.
+
+  Its config carries the statically resolved rope (`rope_theta` baked,
+  `rope_scaling` dropped); everything but config.json is a symlink into the
+  snapshot. The bake is the exact expression transformers' hunyuan rotary
+  embedding evaluates at init.
+  """
+  cfg = json.loads((snapshot / "config.json").read_text())
+  rope = cfg.get("rope_scaling") or {}
+  if rope.get("type") != "dynamic" or not rope.get("alpha"):
+    raise SystemExit(
+        f"unexpected rope_scaling {rope!r} — this check bakes the "
+        "dynamic-alpha form only; re-check the checkpoint's config")
+  dim = cfg["head_dim"]
+  baked = cfg["rope_theta"] * rope["alpha"] ** (dim / (dim - 2))
+
+  norm = out_dir / "rope_normalized_src"
+  norm.mkdir(parents=True, exist_ok=True)
+  for f in snapshot.iterdir():
+    if f.name == "config.json" or f.is_dir():
+      continue
+    dst = norm / f.name
+    if not dst.exists():
+      dst.symlink_to(f.resolve())
+  norm_cfg = {k: v for k, v in cfg.items() if k != "rope_scaling"}
+  norm_cfg["rope_theta"] = baked
+  (norm / "config.json").write_text(json.dumps(norm_cfg, indent=1))
+  print(f"  rope: type=dynamic alpha={rope['alpha']} baked -> "
+        f"rope_theta={baked!r} ({baked.hex()}), rope_scaling dropped")
+  return norm
+
+
 def rope_ab(args):
   import torch
   from huggingface_hub import snapshot_download
   from transformers import AutoModelForCausalLM, AutoTokenizer
 
-  sys.path.insert(0, str(Path(__file__).resolve().parent))
-  from build_hy_mt2_1_8b import normalize_rope  # noqa: E402
-
   snap = Path(snapshot_download(MODEL_ID, ignore_patterns=["train/*", "imgs/*", "*.png"]))
   with tempfile.TemporaryDirectory() as td:
-    norm = normalize_rope(snap, Path(td))
+    norm = baked_rope_config(snap, Path(td))
     a = AutoModelForCausalLM.from_pretrained(str(snap), dtype=torch.bfloat16).eval()
     b = AutoModelForCausalLM.from_pretrained(str(norm), dtype=torch.bfloat16).eval()
   ra, rb = a.model.rotary_emb, b.model.rotary_emb
@@ -356,8 +418,8 @@ def rope_ab(args):
   print(f"  [{'v' if logits_equal else 'X'}] teacher-forced logits bitwise-equal "
         f"over {int(ids.shape[1])} tokens (max |diff| {float((la - lb).abs().max()):g})")
   ok = inv_equal and logits_equal
-  print(f"\n  VERDICT: {'PASS' if ok else 'FAIL'} — the bake is "
-        f"{'exact' if ok else 'NOT exact; do not ship'}")
+  print(f"\n  VERDICT: {'PASS' if ok else 'FAIL'} — the vendor rope and the "
+        f"baked one are {'the same computation' if ok else 'NOT the same'}")
   return 0 if ok else 1
 
 
@@ -377,25 +439,28 @@ def bos_discriminator(args):
                                        tokenize=False, add_generation_prompt=True)
     assert rendered.startswith(tok.bos_token), "template no longer renders a BOS literal"
     stripped = rendered[len(tok.bos_token):]
+    # All three streams go through the raw (--no-template) path: on litert-lm
+    # 0.19.0 the templated path can give a different greedy text for the same
+    # rendered prompt, which would confound the comparison.
     try:
       x = run_one(args.litert_lm, with_bos, stripped, "cpu", args.timeout, no_template=True)
-      yp = run_one(args.litert_lm, nobos, q, "cpu", args.timeout)
+      y = run_one(args.litert_lm, nobos, rendered, "cpu", args.timeout, no_template=True)
       xp = run_one(args.litert_lm, nobos, stripped, "cpu", args.timeout, no_template=True)
     except Exception as e:  # noqa: BLE001
       print(f"FAIL (harness) on {lang}: {e}", file=sys.stderr)
       return 2
-    rows.append({"lang": lang, "X": x, "Yp": yp, "Xp": xp,
-                 "X_eq_Yp": x == yp, "X_eq_Xp": x == xp})
-    print(f"  {lang:9s} X==Y' {'yes' if x == yp else 'NO '}   X==X' {'yes' if x == xp else 'no '}")
+    rows.append({"lang": lang, "X": x, "Y": y, "Xp": xp,
+                 "X_eq_Y": x == y, "X_eq_Xp": x == xp})
+    print(f"  {lang:9s} X==Y {'yes' if x == y else 'NO '}   X==X' {'yes' if x == xp else 'no '}")
     print(f"        X  [start_token]+rest : {x!r}")
-    print(f"        Y' [template BOS]+rest: {yp!r}")
+    print(f"        Y  [literal BOS]+rest : {y!r}")
     print(f"        X' rest only          : {xp!r}")
-  all_xy = all(r["X_eq_Yp"] for r in rows)
+  all_xy = all(r["X_eq_Y"] for r in rows)
   all_xx = all(r["X_eq_Xp"] for r in rows)
-  verdict = ("engine prepends start_token (X == Y' everywhere, X != X' somewhere) "
+  verdict = ("engine prepends start_token (X == Y everywhere, X != X' somewhere) "
              "-> the default export fed BOS twice; dropping it is correct"
              if all_xy and not all_xx else
-             "engine does NOT prepend (X == X' everywhere, X != Y' somewhere)"
+             "engine does NOT prepend (X == X' everywhere, X != Y somewhere)"
              if all_xx and not all_xy else "inconclusive on these probes")
   print(f"\n  VERDICT: {verdict}")
   if args.json:
