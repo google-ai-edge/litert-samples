@@ -28,10 +28,10 @@ import org.gradle.api.tasks.TaskAction
 /**
  * Writes the Kotlin code blocks of a skill's Markdown files into one source file, so that the app
  * under test is the skill's own code and cannot drift from it. The code blocks are indented by four
- * spaces, the form android/skills publishes. A block that starts with `android {`,
- * `dependencies {`, `plugins {` or `repositories {` is the Gradle setup and one that starts with
- * `<` is a manifest entry; both are left out, since the module's build file and manifest have
- * them. The `import` lines of every block are hoisted to the top of the file, each once.
+ * spaces, the form android/skills publishes. A block is Kotlin source when its first line is an
+ * `import`; the other blocks (the Gradle setup, manifest entries, a call shown inside a step) are
+ * left out, since the module's build file and manifest have the setup. The `import` lines of
+ * every block are hoisted to the top of the file, each once.
  */
 abstract class ExtractSkillCode : DefaultTask() {
     /** The Markdown files to read, in the order their code blocks are written out. */
@@ -49,15 +49,14 @@ abstract class ExtractSkillCode : DefaultTask() {
 
     @TaskAction
     fun extract() {
-        val setup = Regex("^(<|(android|dependencies|plugins|repositories)\\s*\\{)")
+        val importLine = Regex("^import\\s+[\\w.]+(\\s+as\\s+\\w+)?$")
         val blocks =
             sources.files.flatMap { file ->
-                codeBlocks(file.readText().replace("\r\n", "\n")).filterNot { block ->
-                    setup.containsMatchIn(block.lines().firstOrNull { it.isNotBlank() }.orEmpty())
+                codeBlocks(file.readText().replace("\r\n", "\n")).filter { block ->
+                    importLine.matches(block.lines().firstOrNull { it.isNotBlank() }.orEmpty())
                 }
             }
         check(blocks.isNotEmpty()) { "no kotlin block in ${sources.files}" }
-        val importLine = Regex("^import\\s+[\\w.]+(\\s+as\\s+\\w+)?$")
         val imports = blocks.flatMap { it.lines() }.filter(importLine::matches).distinct().sorted()
         val code =
             blocks.map { block ->
