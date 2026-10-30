@@ -125,6 +125,15 @@ publish checklist: `references/verification-gates.md` §Publish.
   what exports and what runs; several walls in the references are
   version-bounded facts. A conversion note without versions is not
   reproducible.
+- **Pinned is not yet byte-identical.** Two builds of the same inputs
+  still differ: litert_lm_builder writes a fresh `uuid` and
+  `creation_timestamp` into the header (google-ai-edge/LiteRT-LM#4064),
+  and `export_hf` writes the stop tokens in an order that changes with
+  Python's hash seed (google-ai-edge/litert-torch#1346; export with
+  `PYTHONHASHSEED=0`).
+  [hf-to-litertlm](https://github.com/john-rocky/hf-to-litertlm) holds
+  both fixed and writes a lock; its `scripts/verify_lock.py` rebuilds
+  from the lock and compares the bytes.
 - **The runtime moves under you.** A wall table entry is a dated fact,
   not a law — re-test walls on each runtime/converter release, in both
   directions: walls fall (blocked architectures start working) and
