@@ -1,0 +1,15 @@
+*.iml
+.gradle
+.kotlin
+/local.properties
+/.idea
+.DS_Store
+build/
+/captures
+.externalNativeBuild
+.cxx
+local.properties
+# the model file is copied to the phone with install_to_device.sh, never committed
+*.tflite
+*.litertlm
+*.npz
