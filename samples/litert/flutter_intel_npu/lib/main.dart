@@ -27,11 +27,15 @@ Future<void> main() async {
   // Core registers no engine on its own; .litertlm is the only desktop engine.
   // No fallback: a backend that does not load is a failed row, not a model
   // quietly reloaded on the CPU. LITERT_VERBOSE=1 turns LiteRT-LM's own log
-  // (stderr) to VERBOSE.
+  // (stderr) to VERBOSE. The thinking budget only matters to Act 4, the one
+  // act that turns thinking on: without it the Intel 26B on the NPU spends
+  // the whole turn thinking and never calls a tool. 2048 leaves the calls room
+  // in the act's output cap (6144 a turn with thinking).
   await FlutterEdgeAi.initialize(
     inferenceEngines: [
       LiteRtLmEngine(
         backendFallback: false,
+        thinkingTokenBudget: 2048,
         nativeLogLevel: Platform.environment['LITERT_VERBOSE'] == '1' ? LiteRtLmLogLevel.verbose : null,
       ),
     ],

@@ -1,0 +1,33 @@
+{
+  "company": "Nimbus, a software company",
+  "today": "2026-11-03",
+  "internal_domain": "nimbus.io",
+  "work_hours": ["09:00", "18:00"],
+  "people": [
+    {"name": "Ana Ruiz", "role": "Product Lead (chairs the meeting; owns the Acme account)", "email": "ana.ruiz@nimbus.io"},
+    {"name": "Dmitri Volkov", "role": "Engineering Manager (budget owner, signs purchase orders)", "email": "dmitri.volkov@nimbus.io"},
+    {"name": "Priya Nair", "role": "Android Lead", "email": "priya.nair@nimbus.io"},
+    {"name": "Tom Becker", "role": "Security Engineer", "email": "tom.becker@nimbus.io"},
+    {"name": "Lena Hoffmann", "role": "Security Engineer", "email": "lena.hoffmann@nimbus.io"},
+    {"name": "Maria Costa", "role": "Marketing Manager", "email": "maria.costa@nimbus.io"},
+    {"name": "Ahmed Saleh", "role": "QA Lead", "email": "ahmed.saleh@nimbus.io"},
+    {"name": "Jonas Weber", "role": "Legal Counsel", "email": "jonas.weber@nimbus.io"},
+    {"name": "Richard Hale", "role": "CTO of Acme Corp (customer)", "email": "richard.hale@acme.com", "internal": false},
+    {"name": "TestForce", "role": "QA contractor vendor", "email": "sales@testforce.eu", "internal": false},
+    {"name": "Corvus Security", "role": "penetration-test vendor", "email": "reports@corvus-sec.com", "internal": false}
+  ],
+  "calendars": [
+    {
+      "date": "2026-11-18",
+      "busy": {
+        "ana.ruiz@nimbus.io": [["09:00", "11:00"]],
+        "dmitri.volkov@nimbus.io": [["09:30", "12:00"], ["16:00", "17:00"]],
+        "priya.nair@nimbus.io": [["15:30", "16:30"]],
+        "lena.hoffmann@nimbus.io": [["13:00", "14:30"]],
+        "tom.becker@nimbus.io": "out"
+      }
+    }
+  ],
+  "documents": ["QA budget", "Release notes 3.0 beta"],
+  "notes": "## Open tickets\n\n- MOB-412 \"Crash on SSO login on Android 15\" — owner Priya Nair (assignee Kenji Mori), open.\n- MOB-300 \"3.0 epic\" — includes tablet layouts, onboarding, sync performance.\n\n## Changelog since 2.9 (input for the release notes)\n\n- New onboarding with account linking\n- Sync up to 3x faster for large notebooks\n- Dark-mode toggle in Settings\n- SSO login for business accounts\n- Offline search inside attachments"
+}

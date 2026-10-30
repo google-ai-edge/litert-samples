@@ -50,6 +50,17 @@ abstract class EngineSlot {
     int topK = 1,
     int? maxOutputTokens,
   });
+
+  /// A chat that declares [tools] and lets the model call them (Act 4).
+  Future<InferenceChat> openChat({
+    required List<Tool> tools,
+    required String systemInstruction,
+    required bool enableThinking,
+    required double temperature,
+    required int topK,
+    required int randomSeed,
+    int? maxOutputTokens,
+  });
   Future<void> unload();
 }
 
@@ -115,6 +126,32 @@ class LiteRtLmEngineSlot implements EngineSlot {
       maxOutputTokens: maxOutputTokens,
     );
     return _SessionTurn(session);
+  }
+
+  @override
+  Future<InferenceChat> openChat({
+    required List<Tool> tools,
+    required String systemInstruction,
+    required bool enableThinking,
+    required double temperature,
+    required int topK,
+    required int randomSeed,
+    int? maxOutputTokens,
+  }) {
+    final model = _model;
+    if (model == null) throw StateError('EngineSlot(${backend.name}) is not loaded');
+    return model.createChat(
+      temperature: temperature,
+      topK: topK,
+      topP: 0.95,
+      randomSeed: randomSeed,
+      tools: tools,
+      supportsFunctionCalls: true,
+      enableThinking: enableThinking,
+      modelType: ModelType.gemma4,
+      systemInstruction: systemInstruction,
+      maxOutputTokens: maxOutputTokens,
+    );
   }
 
   @override

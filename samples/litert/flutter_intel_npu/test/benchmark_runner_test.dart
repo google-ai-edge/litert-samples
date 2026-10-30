@@ -66,6 +66,17 @@ class _Slot implements EngineSlot {
   Future<EngineTurn> openTurn({double temperature = 0.8, int topK = 1, int? maxOutputTokens}) async =>
       _Turn(['a', 'b', 'c']);
   @override
+  Future<InferenceChat> openChat({
+    required List<Tool> tools,
+    required String systemInstruction,
+    required bool enableThinking,
+    required double temperature,
+    required int topK,
+    required int randomSeed,
+    int? maxOutputTokens,
+  }) =>
+      throw UnimplementedError();
+  @override
   Future<void> unload() async {}
 }
 

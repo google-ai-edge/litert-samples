@@ -1,0 +1,168 @@
+MEETING TRANSCRIPT — "Nimbus Notes for Android 3.0: beta readiness"
+Tuesday, 2026-11-03, 10:00–10:52. Video call, auto-transcribed.
+Present: Ana Ruiz, Dmitri Volkov, Priya Nair, Tom Becker, Lena Hoffmann, Maria Costa.
+Absent: Ahmed Saleh, Jonas Weber.
+
+[00:00] Ana: Okay, I think that's everyone we're going to get. Ahmed is at the device lab in Porto all week, so he's not joining, and Jonas from legal has a conflict. Let's go. Agenda: beta date, security, QA capacity, the Acme situation, and launch stuff. Assistant is on the call taking notes, so please be explicit about who does what.
+
+[00:01] Dmitri: Before we start — did anyone hear back from facilities about the coffee machine on four? It's been "being fixed" for three weeks.
+
+[00:01] Maria: They told me Thursday. They told me Thursday last week too.
+
+[00:01] Ana: Not a project item. Okay. Beta. Plan of record is Thursday the 12th, and Acme has been told the 12th. Priya, where are we?
+
+[00:02] Priya: Honestly, the 12th is tight but doable if nothing else explodes. The scary one is the login crash with SSO on Android 15.
+
+[00:02] Tom: Is that one tracked somewhere? I don't want it living in Slack.
+
+[00:02] Priya: Yes, I filed it last week, it's MOB-412, Kenji is on it, he has a repro. We're fine on tracking, it just needs to get fixed.
+
+[00:03] Dmitri: Is it a blocker for beta?
+
+[00:03] Priya: For business accounts, yes. If you can't log in with SSO, the beta is useless for Acme.
+
+[00:03] Ana: Okay. Keep it on MOB-412. Next — QA. Dmitri, you had the contractor thing from Ahmed?
+
+[00:04] Dmitri: Right. Ahmed asked for contractors for the regression window, because his team is half at the device lab. TestForce quoted four hundred eighty euros per tester-day. The regression window is the six working days right before the beta, so three testers times six days.
+
+[00:05] Priya: Can we hold on that for a sec, I think the beta date is going to move, Tom has news.
+
+[00:05] Ana: Tom?
+
+[00:05] Tom: Yeah. So, the signing key. We filed the Play upload key rotation two weeks ago. The HSM vendor now says the new key won't be provisioned until the 10th. And after the rotation request we can't upload with the old key.
+
+[00:06] Dmitri: So no store upload before the 10th, at the earliest.
+
+[00:06] Priya: And the beta track review can take up to two days, and I'm not submitting a build the same day the key shows up. The 12th is gone.
+
+[00:07] Ana: Okay. Then let's not pretend. We move the beta by one week. Thursday the 19th. Is anybody not okay with the 19th?
+
+[00:07] Dmitri: Fine by me.
+
+[00:07] Priya: The 19th works.
+
+[00:07] Tom: Works.
+
+[00:07] Ana: Good. Beta is Thursday the 19th. That's final. Everything else today is against the 19th.
+
+[00:08] Maria: Can I ask something about the 19th — is that a public beta or still the closed group?
+
+[00:08] Ana: Open beta on the Play beta track, so it's a public build. We talked about doing a closed beta first and decided not to, it doesn't buy us anything.
+
+[00:09] Priya: Then I want to submit to the store on the Monday of beta week, so the 16th. That leaves room for review.
+
+[00:09] Ana: Agreed. Priya owns the store submission, on the 16th.
+
+[00:09] Priya: But before I submit I need two things. Security sign-off, and the localization strings for the new onboarding.
+
+[00:10] Tom: On sign-off — I want it in by end of day on the Friday before submission. So the 13th. But I'm not signing anything before I've read the pen-test report, and Corvus says the report lands on the 11th.
+
+[00:10] Lena: The 11th is a Wednesday, right? So two days to go through it.
+
+[00:10] Tom: Two days is fine if the report is clean. If it's not clean we talk again.
+
+[00:11] Ana: Okay. And the strings?
+
+[00:11] Priya: The new onboarding has German and French strings that nobody has translated yet. They have to be in the build I submit.
+
+[00:12] Ana: Who has bandwidth for that?
+
+[00:12] Priya: Not my team. We're underwater with MOB-412 and the tablet layouts.
+
+[00:12] Maria: Marketing used to do translations, but that moved to the product side last year, so not us anymore.
+
+[00:13] Dmitri: Let's not solve it in this meeting. Ana and I will figure out who takes it.
+
+[00:13] Ana: Fine. Moving on. Back to QA, Dmitri.
+
+[00:13] Dmitri: Right. So with the 19th, the regression window is the six working days before it — the 11th through the 18th. Three testers, six days each, at four eighty.
+
+[00:14] Priya: Wait, the third tester is only for the tablet matrix. The tablets don't arrive until the 13th. So the third one only needs the last four days.
+
+[00:14] Dmitri: Ah, true. So two testers for six days, one tester for four. Fine. I'll sign the PO with TestForce, it's under my ten-k limit. Assistant, can you put the final number into the QA budget sheet, so finance sees it before the PO hits them?
+
+[00:15] Ana: And somebody please send Ahmed a short recap — the new beta date, and the contractor plan, so he can brief TestForce on the devices.
+
+[00:15] Tom: Oh, and since we're talking about dates — heads up, I'm out from the 9th through the 18th. My sister's wedding in Lisbon. I'm back on the 19th. Lena covers anything security while I'm away.
+
+[00:16] Lena: Sure, I've got it. Send me whatever you have on the Corvus engagement before you go.
+
+[00:16] Maria: Lisbon in November, nice. Is it outdoors?
+
+[00:16] Tom: God, I hope not.
+
+[00:17] Ana: Okay. Acme. They were promised the 12th. I'll call Richard — their CTO — myself before the end of this week. I don't want them to hear about a delay in an email first.
+
+[00:17] Dmitri: Agreed, that has to be a call.
+
+[00:18] Ana: After the call we follow up in writing with the new date and what's in the beta. Assistant can prep that email, but it goes out from me, I want to see it before it's sent.
+
+[00:18] Priya: Should we mention the SSO fix in that email?
+
+[00:19] Ana: Say SSO login is in the beta, don't mention the crash. If it's not fixed by the 16th we have a different conversation anyway.
+
+[00:19] Lena: For the record, I'd rather we don't promise SSO to Acme in writing until I've seen the pen-test, but okay, Ana's call.
+
+[00:20] Ana: Noted. My call. Next — legal. The data-sharing screen in onboarding changed, so the privacy text is new. Legal's rule is a review two business days before any public build, and the beta is a public build. Jonas owns that review. I'll mention it to him, but please make sure it's on his list.
+
+[00:21] Dmitri: Two business days before the 19th... that's early that week.
+
+[00:21] Ana: Right. Next — go/no-go. Let's do it the day before the beta, Wednesday the 18th. Me, Dmitri, Priya, and security. Forty-five minutes.
+
+[00:22] Dmitri: My Wednesdays are bad. Mornings are bad, and I have a four o'clock.
+
+[00:22] Tom: I'm back on the 19th, so for the 18th it should be Lena, not me.
+
+[00:22] Lena: Fine, put me in.
+
+[00:23] Ana: Assistant, find a slot that works for all four.
+
+[00:23] Maria: Can I do launch stuff now?
+
+[00:23] Ana: Go.
+
+[00:24] Maria: For the beta I was planning a press note and a social push. Short one, "Nimbus Notes 3.0 beta is here", screenshots of the new onboarding, maybe a quote from Ana.
+
+[00:25] Dmitri: Screenshots of the onboarding that doesn't have translations yet.
+
+[00:25] Maria: English screenshots, it's fine.
+
+[00:26] Priya: Can I add one thing to the build before we go there? The dark-mode toggle is in the changelog, but it's not ready. It flickers on Samsung devices, and the fix is not trivial. I'm pulling it from the beta build.
+
+[00:26] Ana: Agreed, pull it. Better a beta without dark mode than a beta that flickers.
+
+[00:27] Priya: Okay. So the beta has the new onboarding, faster sync, SSO for business, and offline search in attachments. Dark mode stays out.
+
+[00:27] Ana: Assistant, please draft the release notes from the changelog. Priya reviews them before they go into the store listing.
+
+[00:28] Priya: Yes, send them my way.
+
+[00:28] Dmitri: While we're on the build — we should also think about moving the sync service to the new cluster at some point.
+
+[00:29] Ana: Not for this release. Let's not even write that down, it's a Q1 conversation.
+
+[00:29] Dmitri: Fair.
+
+[00:30] Ana: Maria — back to the press note. I've been thinking while Priya talked. Let's not do a press note for the beta. It's a beta, Acme is already sensitive about the slip, and I don't want press around it. We plan GA comms in December. So nothing for marketing this round.
+
+[00:31] Maria: Fair. I'll park it, no press note, no social push.
+
+[00:31] Ana: Thank you. Anything else?
+
+[00:32] Lena: Just to confirm: the Corvus report goes to me now, not Tom?
+
+[00:32] Tom: Yes, I'll forward the engagement thread to you today. The report will come to both of us, but you're on point.
+
+[00:33] Dmitri: One more on QA — Ahmed should know the tablets arrive on the 13th, it's in my recap note to him... or, well, the assistant's recap.
+
+[00:33] Ana: The assistant's recap. Assistant, include that.
+
+[00:34] Priya: Do we need a separate ticket for the tablet layouts?
+
+[00:34] Ana: No, that's already in the 3.0 epic. Don't create anything new for it.
+
+[00:35] Ana: Okay, I think we're done. Summary from me: beta Thursday the 19th, store submission on the 16th, security and localization before that, legal review, go/no-go on the 18th, Acme call this week and the follow-up email, contractors, release notes. Thanks everyone.
+
+[00:35] Dmitri: Thanks. And somebody really needs to fix that coffee machine.
+
+[End of transcript]
