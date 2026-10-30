@@ -14,14 +14,14 @@ Each skill is a self-contained `SKILL.md` playbook covering one stage of taking 
 * [`compiled-model-app-scaffolding/`](compiled-model-app-scaffolding/) — Build an Android app (Kotlin, Compose) around a verified LiteRT model using the CompiledModel API: app architecture, inference-layer lifecycle rules, model delivery, and UI traps.
 * [`litert-compiled-model-migration/`](litert-compiled-model-migration/) — Rapidly migrate an existing Android application from legacy TensorFlow Lite (TFLite) to the LiteRT CompiledModel API (2.3.0): dependency swap (the TensorFlow Lite Support Library moves to LiteRT Support), `CompiledModel` rewrite with buffer reuse, optional NPU JIT acceleration, and an instrumented-test gate.
 
-## Skills in the android/skills form (for app developers' agents)
+## Android skills (for app developers' agents)
 
-Two skills written in the form of [android/skills](https://github.com/android/skills) (frontmatter, prerequisites, numbered steps, `references/`), for an Android developer's agent that starts from a model file rather than for a conversion engineer's. They cover an app on the CPU and the GPU; NPU, multimodal input and tools are not covered.
+[`android/`](android/) is a mirror of [`device-ai/litert`](https://github.com/android/skills/tree/main/device-ai/litert) in [android/skills](https://github.com/android/skills): two skills for an Android developer's agent that starts from a model file rather than for a conversion engineer's. Changes to them start here as pull requests and then go to android/skills.
 
-* [`litert-runtime/`](litert-runtime/) — Create an Android app that runs a `.tflite` model on the CPU or the GPU with the CompiledModel API: the dependency, where the model file goes, the inference class, the ViewModel and screen, and checking the output on a device.
-* [`litert-lm/`](litert-lm/) — Create an Android app that runs an open text LLM on the CPU or the GPU with the LiteRT-LM Kotlin API: the dependency and manifest entries, getting a `.litertlm` model from litert-community onto the device, engine initialization, a streamed multi-turn conversation, the ViewModel and screen.
+* [`android/litert-runtime/`](android/litert-runtime/) — Create an Android app that runs a `.tflite` model on the CPU or the GPU with the CompiledModel API: the dependency, where the model file goes, the inference class, the ViewModel and screen, and checking the output on a device.
+* [`android/litert-lm/`](android/litert-lm/) — Create an Android app that runs an open text LLM on the CPU or the GPU with the LiteRT-LM Kotlin API: the dependency and manifest entries, getting a `.litertlm` model from litert-community onto the device, engine initialization, a streamed multi-turn conversation, the ViewModel and screen.
 
-[`tests/`](tests/) builds the Kotlin of these two skills into apps and runs it on a device, including the paths where a step fails.
+[`android/tests/`](android/tests/) builds the Kotlin of these two skills into apps and runs it on a device, including the paths where a step fails.
 
 ## Skill for the Google Tensor NPU (Pixel 10 and 11)
 * [`litert-google-tensor/`](litert-google-tensor/) — Take a `.tflite` model to the TPU in Pixel 10 (Tensor G5) and Pixel 11 (Tensor G6) phones: compile it ahead of time for the chip, benchmark it on a USB-connected Pixel (latency, peak memory, TPU tile time and TPU energy per inference, with an optional CPU baseline), deploy it to an Android (Gradle) app as a Google Play AI pack with the Google Tensor NPU runtime, a CPU fallback for other phones and a Kotlin loader, and validate the result by installing the app the way Google Play would and confirming the model runs on the TPU (or reporting why it fell back to the CPU). You don't need a Linux machine or VM of your own: on macOS, Windows or ARM hosts the compile runs on a Google Colab VM (`--colab`). Compiling needs [Google Tensor SDK Beta access](https://developers.google.com/edge/litert/next/tensor-sdk).
