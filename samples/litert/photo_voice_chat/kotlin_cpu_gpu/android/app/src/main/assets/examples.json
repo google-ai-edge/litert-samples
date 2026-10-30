@@ -1,0 +1,17 @@
+{
+ "note": "The example photos (CC0 photos from Wikimedia Commons, made square and 512 x 512; README.md) and their spoken questions (16 kHz mono WAV, spoken by Kokoro-82M). A question's text is what its recording says.",
+ "photos": [
+  {"id": "fruit_bowl", "label": "Fruit bowl", "photo": "fruit_bowl.png", "questions": [
+   {"id": "fruit_bowl_q1", "text": "What fruit is in this bowl?", "wav": "fruit_bowl_q1.wav"},
+   {"id": "fruit_bowl_q2", "text": "Which one is red?", "wav": "fruit_bowl_q2.wav"},
+   {"id": "fruit_bowl_q3", "text": "What color are the other apples?", "wav": "fruit_bowl_q3.wav"}]},
+  {"id": "coffee", "label": "Coffee", "photo": "coffee.png", "questions": [
+   {"id": "coffee_q1", "text": "What's in the cup?", "wav": "coffee_q1.wav"},
+   {"id": "coffee_q2", "text": "What is next to it?", "wav": "coffee_q2.wav"},
+   {"id": "coffee_q3", "text": "What color is that?", "wav": "coffee_q3.wav"}]},
+  {"id": "umbrella", "label": "Umbrella", "photo": "umbrella.png", "questions": [
+   {"id": "umbrella_q1", "text": "What is this thing?", "wav": "umbrella_q1.wav"},
+   {"id": "umbrella_q2", "text": "What color is it?", "wav": "umbrella_q2.wav"},
+   {"id": "umbrella_q3", "text": "Is it open or closed?", "wav": "umbrella_q3.wav"}]}
+ ]
+}
