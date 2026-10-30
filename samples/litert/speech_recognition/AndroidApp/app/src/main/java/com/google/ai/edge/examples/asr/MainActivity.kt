@@ -417,7 +417,7 @@ class MainActivity : AppCompatActivity() {
     overlapRatio: Float,
     maxLevenshteinDistance: Int,
   ) {
-    val preprocessedChannel = Channel<FloatArray>(Channel.BUFFERED)
+    val preprocessedChannel = Channel<Pair<FloatArray, Int>>(Channel.BUFFERED)
     val tokenChannel = Channel<Pair<Int, Int>>(Channel.BUFFERED)
     LevenshteinTokenMerger(
         tokenizer!!,
@@ -436,13 +436,15 @@ class MainActivity : AppCompatActivity() {
   private fun CoroutineScope.scheduleAudioPreprocessing(
     audioSource: AudioSource,
     audioPreprocessor: AudioPreprocessor,
-    preprocessedChannel: Channel<FloatArray>,
+    preprocessedChannel: Channel<Pair<FloatArray, Int>>,
   ) =
     launch(Dispatchers.IO) {
       try {
         for (audioChunk in audioSource.getAudioData()) {
           val preprocessed = audioPreprocessor.process(audioChunk)
-          preprocessedChannel.send(preprocessed)
+          // With the number of samples that carry audio, so that the decoder can skip the zeros an
+          // audio source pads a chunk with.
+          preprocessedChannel.send(Pair(preprocessed, getNumOfValidSamples(audioChunk)))
           yield()
         }
       } finally {
@@ -452,13 +454,13 @@ class MainActivity : AppCompatActivity() {
 
   private fun CoroutineScope.scheduleSpeechRecognition(
     speechRecognizer: SpeechRecognizer,
-    preprocessedChannel: Channel<FloatArray>,
+    preprocessedChannel: Channel<Pair<FloatArray, Int>>,
     tokenChannel: Channel<Pair<Int, Int>>,
   ) =
     launch(Dispatchers.IO) {
       try {
-        for (preprocessed in preprocessedChannel) {
-          val tokenSequence = speechRecognizer.recognize(preprocessed)
+        for ((preprocessed, numOfValidSamples) in preprocessedChannel) {
+          val tokenSequence = speechRecognizer.recognize(preprocessed, numOfValidSamples)
           for ((tokenId, timestamp) in tokenSequence) {
             tokenChannel.send(Pair(tokenId, timestamp))
             if (tokenId == SpeechRecognizer.END_OF_SEQUENCE) break
