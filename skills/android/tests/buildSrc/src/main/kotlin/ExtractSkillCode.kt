@@ -18,6 +18,8 @@ import org.gradle.api.DefaultTask
 import org.gradle.api.file.ConfigurableFileCollection
 import org.gradle.api.file.DirectoryProperty
 import org.gradle.api.file.RegularFileProperty
+import org.gradle.api.provider.Property
+import org.gradle.api.tasks.Input
 import org.gradle.api.tasks.InputFile
 import org.gradle.api.tasks.InputFiles
 import org.gradle.api.tasks.OutputDirectory
@@ -29,9 +31,10 @@ import org.gradle.api.tasks.TaskAction
  * Writes the Kotlin code blocks of a skill's Markdown files into one source file, so that the app
  * under test is the skill's own code and cannot drift from it. The code blocks are indented by four
  * spaces, the form android/skills publishes. A block is Kotlin source when its first line is an
- * `import`; the other blocks (the Gradle setup, manifest entries, a call shown inside a step) are
- * left out, since the module's build file and manifest have the setup. The `import` lines of
- * every block are hoisted to the top of the file, each once.
+ * `import` or a `//` comment (the code blocks of `references/migration.md` start with a comment and
+ * share one block of imports); the other blocks (the Gradle setup, manifest entries, shell
+ * commands, a call shown inside a step) are left out, since the module's build file and manifest
+ * have the setup. The `import` lines of every block are hoisted to the top of the file, each once.
  */
 abstract class ExtractSkillCode : DefaultTask() {
     /** The Markdown files to read, in the order their code blocks are written out. */
@@ -44,8 +47,20 @@ abstract class ExtractSkillCode : DefaultTask() {
     @get:PathSensitive(PathSensitivity.NONE)
     abstract val header: RegularFileProperty
 
+    /**
+     * The name of the generated file, `SkillCode.kt` by default. Kotlin puts the top-level
+     * functions of a file in a class named after it, and in a test APK that class shadows the app's
+     * class of the same name, so code that goes into the test APK needs another name.
+     */
+    @get:Input
+    abstract val fileName: Property<String>
+
     @get:OutputDirectory
     abstract val outputDir: DirectoryProperty
+
+    init {
+        fileName.convention("SkillCode.kt")
+    }
 
     @TaskAction
     fun extract() {
@@ -53,7 +68,8 @@ abstract class ExtractSkillCode : DefaultTask() {
         val blocks =
             sources.files.flatMap { file ->
                 codeBlocks(file.readText().replace("\r\n", "\n")).filter { block ->
-                    importLine.matches(block.lines().firstOrNull { it.isNotBlank() }.orEmpty())
+                    val first = block.lines().firstOrNull { it.isNotBlank() }.orEmpty()
+                    importLine.matches(first) || first.startsWith("//")
                 }
             }
         check(blocks.isNotEmpty()) { "no kotlin block in ${sources.files}" }
@@ -63,7 +79,7 @@ abstract class ExtractSkillCode : DefaultTask() {
                 block.lines().filterNot(importLine::matches).joinToString("\n").trim()
             }
         val head = header.get().asFile.readText().trimEnd()
-        val out = outputDir.get().file("SkillCode.kt").asFile
+        val out = outputDir.get().file(fileName.get()).asFile
         out.parentFile.mkdirs()
         val body = code.filter { it.isNotEmpty() }.joinToString("\n\n")
         out.writeText(head + "\n\n" + imports.joinToString("\n") + "\n\n" + body + "\n")
