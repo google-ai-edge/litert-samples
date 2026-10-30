@@ -1,0 +1,9 @@
+{
+  "examples": [
+    {"id": "harbor_line", "title": "Harbor Line timetable", "file": "harbor_line_timetable.png", "task": "NEXT_DEPARTURE", "after": "09:15"},
+    {"id": "willow_bay_ferry", "title": "Willow Bay Ferry timetable (photo)", "file": "willow_bay_ferry_photo.jpg", "task": "NEXT_DEPARTURE", "after": "09:00"},
+    {"id": "corner_bistro", "title": "Corner Bistro receipt", "file": "corner_bistro_receipt.png", "task": "SPLIT_BILL", "people": 2},
+    {"id": "pine_market", "title": "Pine & Co. Market receipt (photo)", "file": "pine_market_receipt_photo.jpg", "task": "SPLIT_BILL", "people": 3},
+    {"id": "harbor_view_grill", "title": "Harbor View Grill receipt (photo)", "file": "harbor_view_grill_receipt_photo.jpg", "task": "SPLIT_BILL", "people": 4}
+  ]
+}
