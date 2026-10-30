@@ -41,7 +41,9 @@ from huggingface_hub import snapshot_download
 from safetensors import safe_open
 from safetensors.torch import save_file
 
-SRC = snapshot_download('Qwen/Qwen3-TTS-12Hz-0.6B-Base')
+# QWEN3_TTS_SNAPSHOT: local copy or your own fine-tune of the -Base model.
+SRC = os.environ.get('QWEN3_TTS_SNAPSHOT') or snapshot_download(
+    'Qwen/Qwen3-TTS-12Hz-0.6B-Base')
 DST = 'out/talker-llm'
 
 _CONFIG = {
