@@ -256,6 +256,14 @@
                     android:layout_marginBottom="12dp"
                     android:background="#E0E0E0" />
 
+                <TextView
+                    android:id="@+id/transcription_stats"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginBottom="8dp"
+                    android:textAppearance="?attr/textAppearanceBodySmall"
+                    android:visibility="gone" />
+
                 <androidx.core.widget.NestedScrollView
                     android:id="@+id/transcription_scroll_view"
                     android:layout_width="match_parent"

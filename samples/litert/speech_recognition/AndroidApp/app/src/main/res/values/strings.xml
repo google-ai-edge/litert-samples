@@ -61,4 +61,5 @@
     <string name="npu">NPU</string>
     <string name="tpu">TPU</string>
     <string name="model">Model</string>
+    <string name="transcription_stats">%1$.1f s of audio in %2$.2f s (%3$.0f× real time)</string>
 </resources>
