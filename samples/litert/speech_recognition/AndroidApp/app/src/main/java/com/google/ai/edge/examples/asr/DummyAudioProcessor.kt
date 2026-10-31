@@ -16,9 +16,11 @@
 
 package com.google.ai.edge.examples.asr
 
-/** Noop audio processor that returns the input as is. */
+/** Noop audio processor that returns a copy of the input. */
 class DummyAudioProcessor : AudioPreprocessor {
   override fun close() {}
 
-  override fun process(rawSpeech: FloatArray): FloatArray = rawSpeech
+  // A copy, not the array itself: an audio source refills the same array for its next chunk right
+  // after this call, which can happen before the recognizer reads this chunk.
+  override fun process(rawSpeech: FloatArray): FloatArray = rawSpeech.copyOf()
 }

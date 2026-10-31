@@ -12,6 +12,17 @@
     },
     "decodeStartTokenId": 8192
   },
+  "parakeet-ultra": {
+    "modelRemoteUrl": "https://huggingface.co/litert-community/parakeet-ultra/resolve/main/parakeet_ultra_encoder_<seconds>s_i8.tflite",
+    "gpuModelRemoteUrl": "https://huggingface.co/litert-community/parakeet-ultra/resolve/main/parakeet_ultra_encoder_<seconds>s_f16.tflite",
+    "melModelRemoteUrl": "https://huggingface.co/litert-community/parakeet-ultra/resolve/main/parakeet_ultra_mel_<seconds>s.tflite",
+    "decoderModelRemoteUrl": "https://huggingface.co/litert-community/parakeet-ultra/resolve/main/parakeet_ultra_decoder_i8.tflite",
+    "tokenizerUrl": "https://huggingface.co/litert-community/parakeet-ultra/resolve/main/tokenizer.json",
+    "windowSeconds": [10, 20, 30],
+    "inputMilliseconds": 29990,
+    "decodeStartTokenId": 8192,
+    "decodeStopTokenId": 3
+  },
   "parakeet-ctc-0.6b": {
     "modelRemoteUrl": "https://huggingface.co/litert-community/parakeet-ctc-0.6b/resolve/main/parakeet_ctc_0.6b_5s_i8.tflite",
     "npuModelRemoteUrlPattern": "https://huggingface.co/litert-community/parakeet-ctc-0.6b/resolve/main/parakeet_ctc_0.6b_5s_f32_<target>.tflite",

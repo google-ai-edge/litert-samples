@@ -22,6 +22,7 @@ import android.graphics.Color
 import android.media.MediaPlayer
 import android.net.Uri
 import android.os.Bundle
+import android.util.Log
 import android.text.SpannableStringBuilder
 import android.text.style.ForegroundColorSpan
 import android.view.View
@@ -268,7 +269,11 @@ class MainActivity : AppCompatActivity() {
               }
             }
           speechRecognizer =
-            LiteRtRunner(this@MainActivity, modelConfig, accelerator, decoderFactory)
+            if (modelConfig.windowSeconds.isNotEmpty()) {
+              BucketedTdtRunner(this@MainActivity, modelConfig, accelerator)
+            } else {
+              LiteRtRunner(this@MainActivity, modelConfig, accelerator, decoderFactory)
+            }
           modelInputInterval = modelConfig.inputMilliseconds.milliseconds
 
           // Update UI on the main thread
@@ -320,7 +325,9 @@ class MainActivity : AppCompatActivity() {
     }
 
     binding.contentMain.transcriptionText.text = ""
+    binding.contentMain.transcriptionStats.visibility = View.GONE
     setLongOperationState(inProgress = true, label = getString(R.string.transcribing))
+    val audioMilliseconds = mediaPlayer?.duration ?: 0
 
     lifecycleScope.launch(Dispatchers.IO) {
       if (speechRecognizer == null) {
@@ -331,10 +338,29 @@ class MainActivity : AppCompatActivity() {
         return@launch // Exit the coroutine early
       }
 
+      val startNanos = System.nanoTime()
       processFileAudio(uri)
+      val elapsedSeconds = (System.nanoTime() - startNanos) / 1e9
 
-      withContext(Dispatchers.Main) { setLongOperationState(inProgress = false) }
+      withContext(Dispatchers.Main) {
+        setLongOperationState(inProgress = false)
+        showTranscriptionStats(audioMilliseconds / 1000.0, elapsedSeconds)
+      }
     }
+  }
+
+  /** Shows how long the transcription of the audio file took, and the real-time factor. */
+  private fun showTranscriptionStats(audioSeconds: Double, elapsedSeconds: Double) {
+    val stats =
+      getString(
+        R.string.transcription_stats,
+        audioSeconds,
+        elapsedSeconds,
+        audioSeconds / elapsedSeconds,
+      )
+    Log.i(TAG, stats)
+    binding.contentMain.transcriptionStats.text = stats
+    binding.contentMain.transcriptionStats.visibility = View.VISIBLE
   }
 
   private fun setLongOperationState(inProgress: Boolean, label: String = "") {
@@ -572,6 +598,7 @@ class MainActivity : AppCompatActivity() {
   }
 
   private companion object {
+    const val TAG = "MainActivity"
     const val MODEL_METADATA_PATH = "model_metadata.json"
 
     const val SAMPLING_RATE = 16000
