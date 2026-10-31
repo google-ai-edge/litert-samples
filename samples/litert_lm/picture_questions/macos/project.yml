@@ -1,0 +1,42 @@
+name: PictureQuestions
+options:
+  bundleIdPrefix: com.google.ai.edge.examples
+  deploymentTarget:
+    macOS: "14.0"
+packages:
+  # The LiteRT-LM 0.19.0 runtime for macOS: the release's CLiteRTLM_mac.xcframework, pinned by URL and SHA-256 in
+  # LiteRTLMRuntime/Package.swift. Its one dylib has the WebGPU (Metal) GPU accelerator built in.
+  LiteRTLMRuntime:
+    path: LiteRTLMRuntime
+targets:
+  PictureQuestions:
+    type: application
+    platform: macOS
+    sources:
+      - Sources
+      - path: Resources/examples
+        type: folder
+        buildPhase: resources
+    dependencies:
+      - package: LiteRTLMRuntime
+        product: CLiteRTLM
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.google.ai.edge.examples.picturequestions
+        PRODUCT_NAME: PictureQuestions
+        MARKETING_VERSION: "1.0"
+        CURRENT_PROJECT_VERSION: "1"
+        SWIFT_VERSION: "5.0"
+        GENERATE_INFOPLIST_FILE: YES
+        INFOPLIST_KEY_CFBundleDisplayName: Picture Questions
+        INFOPLIST_KEY_LSApplicationCategoryType: public.app-category.developer-tools
+        # Apple Silicon only: the GPU path is Metal under WebGPU.
+        ARCHS: arm64
+        # Signed to run locally; no Apple developer account needed.
+        CODE_SIGN_STYLE: Manual
+        CODE_SIGN_IDENTITY: "-"
+        DEVELOPMENT_TEAM: ""
+        ENABLE_HARDENED_RUNTIME: NO
+        # Not sandboxed: the app opens a model file from anywhere and starts itself again as the engine process,
+        # which a sandbox would not let read that file.
+        ENABLE_APP_SANDBOX: NO
