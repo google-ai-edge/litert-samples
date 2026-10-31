@@ -1,0 +1,11 @@
+*.iml
+.gradle
+.kotlin
+/local.properties
+/.idea
+.DS_Store
+build/
+/captures
+local.properties
+# The model file is pushed to the phone with adb (README), never committed
+*.litertlm

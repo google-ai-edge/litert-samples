@@ -1,0 +1,27 @@
+{
+  "examples": [
+    {"id": "p01", "title": "Desk with a lamp", "file": "p01.png", "credit": "Breather breather, CC0 (Wikimedia Commons)",
+      "requests": [
+        {"id": "p01_between_lamp_books", "text": "Put the mug between the lamp and the books.", "spot_mask": "p01_between_lamp_books_spot.png"},
+        {"id": "p01_front_books", "text": "Put the mug in front of the books.", "spot_mask": "p01_front_books_spot.png"}
+      ]},
+    {"id": "p09", "title": "Nightstand and bed", "file": "p09.png", "credit": "Rhema Kallianpur rhemakallianpur, CC0 (Wikimedia Commons)",
+      "requests": [
+        {"id": "p09_on_bed", "text": "Put the book on the bed.", "spot_mask": "p09_on_bed_spot.png"}
+      ]},
+    {"id": "p06", "title": "Table with enamel cups", "file": "p06.png", "credit": "André Freitas andrekerygma, CC0 (Wikimedia Commons)",
+      "requests": [
+        {"id": "p06_right_shaker", "text": "Put the sugar bowl to the right of the glass shaker.", "spot_mask": "p06_right_shaker_spot.png"}
+      ]},
+    {"id": "p05", "title": "Round table by a window", "file": "p05.png", "credit": "Nirzar Pangarkar nirzar, CC0 (Wikimedia Commons)",
+      "requests": [
+        {"id": "p05_right_books", "text": "Put the vase to the right of the books.", "spot_mask": "p05_right_books_spot.png"},
+        {"id": "p05_on_chair", "text": "Put the bag on the chair on the right.", "spot_mask": "p05_on_chair_spot.png"}
+      ]},
+    {"id": "p07", "title": "Kitchen counter", "file": "p07.png", "credit": "Jeff Sheldon ugmonk, CC0 (Wikimedia Commons)",
+      "requests": [
+        {"id": "p07_on_counter", "text": "Put the cup on the counter.", "spot_mask": "p07_on_counter_spot.png"},
+        {"id": "p07_on_stove", "text": "Put the pan on the stove.", "spot_mask": "p07_on_stove_spot.png"}
+      ]}
+  ]
+}
