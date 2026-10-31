@@ -25,7 +25,7 @@ DST=/sdcard/Android/data/$PKG/files
 FILES=(
   lfm3-audio-2b_int4_b128_c2048_h30.litertlm
   lfm3_audio_depth_proj_r4b.tflite
-  lfm3_audio_depth_pass_r4b.tflite
+  lfm3_audio_depth_pass_r4b_int8.tflite
   lfm3_audio_frame_embed_f32.tflite
   lfm3_audio_codec_decoder_f12_r4b2.tflite
 )

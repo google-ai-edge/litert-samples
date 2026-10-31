@@ -38,7 +38,8 @@ import org.json.JSONObject
  *   lfm3-audio-2b_int4_b128_c2048_h30.litertlm   the bundle: the language model, its embedder, the audio encoder and
  *                                               the tokenizer (the same file LiteRT-LM runs for text answers)
  *   lfm3_audio_depth_proj_r4b.tflite            depth decoder, projection (once per speech frame)
- *   lfm3_audio_depth_pass_r4b.tflite            depth decoder, one maskgit pass (three per frame), CPU
+ *   lfm3_audio_depth_pass_r4b_int8.tflite       depth decoder, one maskgit pass (three per frame), CPU: int8
+ *                                               weights, float32 activations
  *   lfm3_audio_frame_embed_f32.tflite           speech frame -> the next LM input
  *   lfm3_audio_codec_decoder_f12_r4b2.tflite    codec decoder, 12 frames (0.96 s) per call
  *   lfm3_audio_depth_pass_r5b_aot.tflite        optional: the depth pass compiled for the Hexagon NPU of an SM8850
@@ -90,7 +91,7 @@ class Lfm3AudioEngine private constructor(
   companion object {
     const val TAG = "VoicemailSummary"
     const val DEPTH_PROJ = "lfm3_audio_depth_proj_r4b.tflite"
-    const val DEPTH_PASS = "lfm3_audio_depth_pass_r4b.tflite"
+    const val DEPTH_PASS = "lfm3_audio_depth_pass_r4b_int8.tflite"
     const val DEPTH_PASS_NPU_SM8850 = "lfm3_audio_depth_pass_r5b_aot.tflite"
     const val FRAME = "lfm3_audio_frame_embed_f32.tflite"
     const val CODEC = "lfm3_audio_codec_decoder_f12_r4b2.tflite"
@@ -241,7 +242,7 @@ class Lfm3AudioEngine private constructor(
         val td = System.nanoTime()
         val projFile = need(DEPTH_PROJ)
         val proj = Graph(projFile, "depth_proj", config.depthProj.cached(cacheDir, projFile, "depth_proj"), env).also { opened.add(it) }
-        // the NPU form is a compiled file of its own: when it cannot be created, the float pass on the CPU
+        // the NPU form is a compiled file of its own: when it cannot be created, the int8 pass on the CPU
         val pass = try {
           val f = need(config.depthPassFile)
           Graph(f, "depth_pass", config.depthPass.cached(cacheDir, f, "depth_pass"), env).also {
