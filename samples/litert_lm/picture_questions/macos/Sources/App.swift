@@ -20,7 +20,7 @@ struct PictureQuestionsApp: App {
   @StateObject private var model = AppModel()
 
   var body: some Scene {
-    // One window: every window would need its own engine of 26 to 46 GB of memory.
+    // One window: every window would need its own engine of 26 to 44 GB of memory.
     Window("Picture Questions", id: "main") {
       ContentView(model: model)
         .background(WindowConfigurator())

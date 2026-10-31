@@ -168,8 +168,9 @@ final class HostSession: @unchecked Sendable {
 
     // 3. The vision encoder. LiteRT-LM 0.19.0 loads it onto the GPU when the engine's first conversation is created
     //    (the reply-format probe here); then one small picture goes through it, so that the GPU programs it needs are
-    //    built now and not at the user's first question (measured: Muse-Glimmer-30B 12.7 s, Qwen2.5-VL-72B 32.7 s on
-    //    an M4 Max). Both count as the vision encoder's time.
+    //    built now and not at the user's first question (the first question's wait without this warm-up, LiteRT-LM's
+    //    Python API in a fresh process on an M4 Max: Muse-Glimmer-30B 12.7 s in an early run, Qwen2.5-VL-72B 8.4 s).
+    //    Both count as the vision encoder's time.
     if options.warmUp { events.send(EngineEvent(event: .warming)) }
     let visionStart = DispatchTime.now().uptimeNanoseconds
     format = Self.replyFormat(engine)

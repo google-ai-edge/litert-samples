@@ -19,15 +19,15 @@ A macOS app that answers questions about a picture with [Muse-Glimmer-30B](https
 | Model | File | Size | Memory the engine used in this app | License |
 |---|---|---|---|---|
 | [Muse-Glimmer-30B](https://huggingface.co/meta-models/Muse-Glimmer-30B) | [`Muse-Glimmer-30B_q4_ekv2048.litertlm`](https://huggingface.co/litert-community/Muse-Glimmer-30B-LiteRT) | 23.4 GB | 25.9 GB | Apache 2.0, and Meta's [Muse Glimmer Usage Policy](https://huggingface.co/meta-models/Muse-Glimmer-30B/blob/main/USAGE_POLICY.md) |
-| [Qwen2.5-VL-72B-Instruct](https://huggingface.co/Qwen/Qwen2.5-VL-72B-Instruct) | [`Qwen2.5-VL-72B-Instruct_q4_ekv2048.litertlm`](https://huggingface.co/litert-community/Qwen2.5-VL-72B-Instruct-LiteRT) | 44.8 GB | 45.6 GB | [Qwen license](https://huggingface.co/litert-community/Qwen2.5-VL-72B-Instruct-LiteRT/blob/main/LICENSE) (Built with Qwen) |
+| [Qwen2.5-VL-72B-Instruct](https://huggingface.co/Qwen/Qwen2.5-VL-72B-Instruct) | [`Qwen2.5-VL-72B-Instruct_q4_ekv2048.litertlm`](https://huggingface.co/litert-community/Qwen2.5-VL-72B-Instruct-LiteRT) | 42.7 GB | 43.7 GB | [Qwen license](https://huggingface.co/litert-community/Qwen2.5-VL-72B-Instruct-LiteRT/blob/main/LICENSE) (Built with Qwen) |
 
-Both files hold an int4 text decoder, an fp32 vision encoder, the tokenizer and the chat template; their context is 2,048 tokens (the picture takes 256 of them). Another `.litertlm` vision-language model opens too; the app then estimates its memory need from the file size.
+Both files hold an int4 text decoder, a vision encoder (fp32 in Muse-Glimmer-30B, int8 weights in the 72B), the tokenizer and the chat template; their context is 2,048 tokens (the picture takes 256 of them). Another `.litertlm` vision-language model opens too; the app then estimates its memory need from the file size.
 
 ## Requirements
 
 - A Mac with Apple silicon. Memory: the app refuses a model when the Mac's memory is below the engine's need plus 6 GB for macOS, so Muse-Glimmer-30B needs a Mac with 32 GB or more and Qwen2.5-VL-72B-Instruct one with 64 GB or more. Everything below was measured on a Mac Studio with an M4 Max and 128 GB.
 - Xcode and [XcodeGen](https://github.com/yonaskolb/XcodeGen) (`brew install xcodegen`). The app targets macOS 14 and later; it was built with Xcode 27.0 and XcodeGen 2.44.1 and run on macOS 27.0 only.
-- The `hf` command of [huggingface_hub](https://huggingface.co/docs/huggingface_hub/guides/cli) to download a model file, and room for it: 23.4 GB or 44.8 GB.
+- The `hf` command of [huggingface_hub](https://huggingface.co/docs/huggingface_hub/guides/cli) to download a model file, and room for it: 23.4 GB or 42.7 GB.
 
 ## Quickstart
 
@@ -46,7 +46,7 @@ Both files hold an int4 text decoder, an fp32 vision encoder, the tokenizer and 
    open build/Build/Products/Release/PictureQuestions.app
    ```
 
-3. Click **Open a .litertlm file…** and choose the file. The app starts the engine once per launch: it builds the decoder on the GPU, then loads the vision encoder and passes one gray picture through it, so that your first question does not wait for its GPU programs. The window says **Ready** when that is done: a median of 56 s for Muse-Glimmer-30B and 25 s for the 72B on the Mac below ([measured](#measured-in-this-app)).
+3. Click **Open a .litertlm file…** and choose the file. The app starts the engine once per launch: it builds the decoder on the GPU, then loads the vision encoder and passes one gray picture through it, so that your first question does not wait for its GPU programs. The window says **Ready** when that is done: 56 s for Muse-Glimmer-30B (median of 9 starts) and 62 s for the 72B (1 start) on the Mac below ([measured](#measured-in-this-app)).
 4. Click an example, or give it your own picture: **Open picture…**, drop a file on the left, or **Paste picture** (⇧⌘V) after copying a screenshot (⌃⇧⌘4). Type a question and press Return.
 5. Ask a follow-up about the same picture, or click **New conversation** to start over with the same picture.
 
@@ -56,15 +56,15 @@ From the app's own run records (`--run-out`) on the Mac Studio above (M4 Max, 12
 
 | | Muse-Glimmer-30B | Qwen2.5-VL-72B-Instruct |
 |---|---|---|
-| From opening the file to **Ready** | 56 s (21 s to 3 min 17 s; 9 starts) | 25 s (1 start) |
-| A new picture: the first text | 3.2 s (2.6 to 4.8 s; 7 pictures), the start of its reasoning | 5.5 s (1 picture) |
-| A new picture: the answer starts | 21.8 s (15.6 to 29.4 s), after its reasoning | 5.5 s, with the first text |
-| A follow-up: the first text | 0.42 s (0.41 to 0.55 s; 5 follow-ups) | 0.89 s (1 follow-up) |
-| Prefill | 149 tokens/s (94 to 154) | 58 tokens/s |
-| Decode | 15.8 tokens/s (6.8 to 18.3; 12 replies) | 8.4 tokens/s (8.2 to 8.6; 2 replies) |
-| Engine memory at its peak (as Activity Monitor counts it) | 25.9 GB | 45.6 GB |
+| From opening the file to **Ready** | 56 s (21 s to 3 min 17 s; 9 starts) | 62 s (1 start; engine 55 s, vision 7 s) |
+| A new picture: the first text | 3.2 s (2.6 to 4.8 s; 7 pictures), the start of its reasoning | 5.1 s (4.8 to 5.4 s; 2 pictures) |
+| A new picture: the answer starts | 21.8 s (15.6 to 29.4 s), after its reasoning | 5.1 s, with the first text |
+| A follow-up: the first text | 0.42 s (0.41 to 0.55 s; 5 follow-ups) | 0.91 s (2 follow-ups) |
+| Prefill | 149 tokens/s (94 to 154) | 62 tokens/s (59 to 65; 2 pictures) |
+| Decode | 15.8 tokens/s (6.8 to 18.3; 12 replies) | 8.5 tokens/s (8.4 to 8.5; 4 replies) |
+| Engine memory at its peak (as Activity Monitor counts it) | 25.9 GB | 43.7 GB |
 
-Medians, with the range and the count in parentheses. The times count from pressing Ask (or clicking an example) to the text on the screen; prefill and decode are LiteRT-LM's own counters for each reply.
+Medians, with the range and the count in parentheses. The times count from pressing Ask (or clicking an example) to the text on the screen; prefill and decode are LiteRT-LM's own counters for each reply. Ready for the 72B was 62 s in this start and 25 s in an earlier start with the previous version of its file (fp32 vision weights); in one session, LiteRT-LM's Python API built the engine of the previous file in 57.7 s and of this one in 59.7 s, so the start time is the run's, not the file's (the page cache before the 25 s start was not recorded).
 
 ## The examples and two smaller models
 
@@ -86,7 +86,7 @@ Ten pictures were drawn for this sample, each with a question of three or more s
 - LFM3-VL-2B: `LFM3-VL-2B_f16.litertlm` of [litert-community/LFM3-VL-2B-LiteRT](https://huggingface.co/litert-community/LFM3-VL-2B-LiteRT) on LiteRT-LM 0.19.0 (GPU), with its thinking off (`enable_thinking: false`, replies up to 512 tokens) and on (replies up to 1,536 tokens; "no answer" = all 1,536 went to its thinking).
 - [Qwen2.5-VL-3B-Instruct](https://huggingface.co/Qwen/Qwen2.5-VL-3B-Instruct) with Hugging Face Transformers, bf16.
 - Asked only to list the values in each picture, LFM3-VL-2B listed every value in all ten pictures (both ways) and Qwen2.5-VL-3B in nine: their mistakes are in the steps, not in the reading.
-- The two examples hold with the original weights too: Muse-Glimmer-30B in Hugging Face Transformers (bf16, greedy, the same picture and system message) answers both right, and for Qwen2.5-VL-72B-Instruct the original weights (Transformers, fp32) pick the same next token as the `.litertlm` file's answer at 98.6 % (timesheet) and 99.0 % (invoice) of its tokens.
+- The two examples hold with the original weights too: Muse-Glimmer-30B in Hugging Face Transformers (bf16, greedy, the same picture and system message) answers both right, and for Qwen2.5-VL-72B-Instruct the original weights (Transformers, fp32) pick the same next token as the `.litertlm` file's answer at 98.1 % (timesheet) and 99.0 % (invoice) of its tokens.
 
 ## When something goes wrong
 

@@ -22,7 +22,7 @@ struct KnownModel {
   var fileBytes: UInt64
   var huggingFace: String
   /// The most memory the engine process used in this app, rounded up to a whole GB (macOS footprint, the Memory
-  /// column of Activity Monitor; measured on an M4 Max: 25.9 GB and 45.6 GB).
+  /// column of Activity Monitor; measured on an M4 Max: 25.9 GB and 43.7 GB).
   var peakFootprintBytes: UInt64
   /// The most tokens one reply may have. The file's context is 2,048 tokens: a picture (256 tokens), the question
   /// and the reply share it.
@@ -34,8 +34,8 @@ struct KnownModel {
       huggingFace: "litert-community/Muse-Glimmer-30B-LiteRT", peakFootprintBytes: 26 * gib, maxOutputTokens: 1536),
     KnownModel(
       name: "Qwen2.5-VL-72B-Instruct", fileName: "Qwen2.5-VL-72B-Instruct_q4_ekv2048.litertlm",
-      fileBytes: 44_789_536_688, huggingFace: "litert-community/Qwen2.5-VL-72B-Instruct-LiteRT",
-      peakFootprintBytes: 46 * gib, maxOutputTokens: 1024),
+      fileBytes: 42_684_876_864, huggingFace: "litert-community/Qwen2.5-VL-72B-Instruct-LiteRT",
+      peakFootprintBytes: 44 * gib, maxOutputTokens: 1024),
   ]
 
   static func matching(bytes: UInt64) -> KnownModel? {

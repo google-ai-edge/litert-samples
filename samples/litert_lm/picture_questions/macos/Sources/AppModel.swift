@@ -262,7 +262,7 @@ final class AppModel: ObservableObject {
     file = ModelFile(url: url, size: size, knownName: known?.name)
     defaults.set(path, forKey: "lastModelPath")
 
-    // Checked before anything is loaded: the engine of a 45 GB file builds for minutes and then would not fit.
+    // Checked before anything is loaded: the engine of a 43 GB file builds for minutes and then would not fit.
     let need = MemoryNeed.engineBytes(fileBytes: size)
     let physical = SystemMemory.physicalBytes
     if physical < need + MemoryNeed.reserveBytes {
