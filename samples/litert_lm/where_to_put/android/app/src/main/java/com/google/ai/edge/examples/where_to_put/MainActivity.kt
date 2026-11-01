@@ -33,6 +33,7 @@ import android.text.TextUtils
 import android.text.TextWatcher
 import android.util.TypedValue
 import android.view.Gravity
+import android.view.MotionEvent
 import android.view.View
 import android.view.ViewGroup
 import android.view.WindowManager
@@ -128,6 +129,8 @@ class MainActivity : ComponentActivity() {
   /** Whether the keyboard is open, and where the page was when it opened (null: nowhere to go back to). */
   private var keyboardUp = false
   private var scrollBeforeKeyboard: Int? = null
+  /** Where the page was when a finger touched the request field (a tap on a half-shown field scrolls it into view). */
+  private var scrollBeforeTap: Int? = null
 
   /** Set while the measuring tool drives the screen (AutoRun.kt). */
   internal var autoRun: AutoRun? = null
@@ -574,12 +577,13 @@ class MainActivity : ComponentActivity() {
 
   /**
    * The keyboard scrolls the page to the request field (the page gets shorter); when it closes, the page goes back to
-   * where it was before it opened, so the heading it pushed off the top comes back.
+   * where it was before the finger touched the field, so the heading pushed off the top comes back.
    */
   private fun keyboardMoved(up: Boolean) {
-    if (up && !keyboardUp) scrollBeforeKeyboard = scroll.scrollY
+    if (up && !keyboardUp) scrollBeforeKeyboard = scrollBeforeTap ?: scroll.scrollY
     if (!up && keyboardUp) scrollBeforeKeyboard?.let { y -> scroll.post { scroll.smoothScrollTo(0, y) } }
     if (!up) scrollBeforeKeyboard = null
+    scrollBeforeTap = null
     keyboardUp = up
   }
 
@@ -635,9 +639,11 @@ class MainActivity : ComponentActivity() {
     val column = LinearLayout(this).apply {
       orientation = LinearLayout.VERTICAL
       setPadding(dp(16), dp(12), dp(16), dp(24))
-      // The page, not the request field, takes the first focus: a focused field is scrolled into view at the first
-      // layout, which pushed the heading off the top before anyone touched the screen.
+      // The page itself takes the first focus. On a phone driven by keys rather than touch the first focus went to the
+      // Show where button near the bottom, and the page scrolled down to it, cutting off the heading. No focus
+      // highlight: with keys the system would draw one over the whole page.
       isFocusableInTouchMode = true
+      defaultFocusHighlightEnabled = false
     }
     fun text(size: Float, bold: Boolean = false, color: Int = Color.rgb(30, 30, 30)) = TextView(this).apply {
       setTextSize(TypedValue.COMPLEX_UNIT_SP, size)
@@ -717,6 +723,11 @@ class MainActivity : ComponentActivity() {
         // A new request makes the old mark stale.
         override fun afterTextChanged(s: Editable?) { if (!settingRequest && !asking) clearAnswer() }
       })
+      // The page's place when the finger comes down, before the tap's focus scrolls a half-shown field into view.
+      setOnTouchListener { _, e ->
+        if (e.actionMasked == MotionEvent.ACTION_DOWN && !keyboardUp) scrollBeforeTap = scroll.scrollY
+        false
+      }
     }
     column.addView(requestField)
 
