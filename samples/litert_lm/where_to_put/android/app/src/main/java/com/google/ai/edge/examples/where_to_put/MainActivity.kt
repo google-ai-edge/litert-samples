@@ -40,6 +40,7 @@ import android.widget.AdapterView
 import android.widget.ArrayAdapter
 import android.widget.Button
 import android.widget.EditText
+import android.widget.FrameLayout
 import android.widget.LinearLayout
 import android.widget.ScrollView
 import android.widget.Spinner
@@ -715,12 +716,18 @@ class MainActivity : ComponentActivity() {
     column.addView(thoughtView)
 
     scroll = ScrollView(this).apply { addView(column) }
-    ViewCompat.setOnApplyWindowInsetsListener(scroll) { v, insets ->
-      val bars = insets.getInsets(WindowInsetsCompat.Type.systemBars() or WindowInsetsCompat.Type.ime())
-      v.setPadding(bars.left, bars.top, bars.right, bars.bottom)
-      insets
+    // The keyboard's height comes off a frame around the page instead of padding the page: a ScrollView that gets
+    // shorter scrolls the focused request field into view by itself, so the words being typed stay above the keyboard
+    // (with the keyboard as padding the field stayed under it).
+    val root = FrameLayout(this).apply { addView(scroll) }
+    ViewCompat.setOnApplyWindowInsetsListener(root) { v, insets ->
+      val bars = insets.getInsets(WindowInsetsCompat.Type.systemBars())
+      val ime = insets.getInsets(WindowInsetsCompat.Type.ime())
+      scroll.setPadding(bars.left, bars.top, bars.right, 0)
+      v.setPadding(0, 0, 0, maxOf(bars.bottom, ime.bottom))
+      WindowInsetsCompat.CONSUMED
     }
-    setContentView(scroll)
+    setContentView(root)
     refreshButton()
   }
 }
