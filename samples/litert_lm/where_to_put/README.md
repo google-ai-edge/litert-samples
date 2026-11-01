@@ -2,9 +2,9 @@
 
 This sample marks where to put something in a photo of a table, a desk or a shelf, on an Android phone with no network connection. You give it a photo and a request such as "Put the mug between the lamp and the books."; the model, [LiquidAI/LFM3-VL-2B](https://huggingface.co/LiquidAI/LFM3-VL-2B) (LFM Open License v1.0), points at the free spot for it with [LiteRT-LM](https://github.com/google-ai-edge/LiteRT-LM), and the app puts a drawing of the item there: one point in the picture, the kind of target a robot arm or an app that places things in a room needs.
 
-<img src="img/where_to_put.gif" alt="The app on a Galaxy S26 in airplane mode: the bundled photo of a kitchen counter, the suggestion Put the cup on the counter., Show where; the model's thinking streams under the photo while the wait plays at 4x, then a ring on the counter to the left of the wooden tray, a mug drops onto it, and the line Marked: x 120, y 720 (of 1000)" width="300">
+<img src="img/where_to_put.gif" alt="The app on a Galaxy S26 in airplane mode: a photo of a lamp and a bottle on a black nightstand by a bed, the typed request Put the mug to the left of the lamp., Show where; the model's thinking streams under the photo while the wait plays at 2x, then a ring on the nightstand to the left of the lamp's base, a mug drops onto it, and the line Marked: x 150, y 720 (of 1000)" width="300">
 
-On screen: a Galaxy S26 in airplane mode with the model loaded, starting from the bundled example "Kitchen counter" and its suggestion "Put the cup on the counter."; the wait for the answer plays at 4× (Show where to the ring: 25.5 s, most of it thinking), the rest at real speed.
+On screen: a Galaxy S26 in airplane mode with the model loaded, the picture of the bundled example "Nightstand and bed" opened as a file (bedside.png), and the request "Put the mug to the left of the lamp." typed in; the wait for the answer plays at 2× (Show where to the ring: 11.5 s, most of it thinking), the rest at real speed.
 
 Liquid AI's model card names this ability ("Spatial and embodied reasoning: the model finds objects and reasons about how they are placed relative to each other, a strong foundation for robotics applications") and reports 40.6 on RefSpatial-Bench without thinking and 49.8 with it.
 
@@ -42,7 +42,7 @@ The app keeps one engine loaded and gives every request a conversation of its ow
 
 In this sample's development, the `.litertlm` file below answered 30 placement requests on a Mac (LiteRT-LM 0.19.0, GPU, thinking on): 10 photos of desks, tables, a shelf, a kitchen counter and a bedside, three requests each, asking for a spot to the left or right of an object, between two objects, in front of or behind an object, or on a surface. The five example photos are five of the ten. For each request, the region where the point counts as right was drawn by hand before any model ran (see [The example pictures](#the-example-pictures)). 21 of the 30 points fell in their region.
 
-On a Pixel 11 Pro (Android 17, airplane mode), the measuring tool ran the requests chosen for the examples one after another on one engine. Of the ten first chosen, eight points fell in their regions and two did not; those two were taken out of the examples, and the remaining eight, run again, all fell in theirs, with the ring 28 s after the tap at the median (18 to 137 s): the model thinks before it answers, and its replies ran from about 260 to 2,200 tokens. With the APK built from this folder as it is now, 7 of the 8 fell in their regions ("Put the pan on the stove." did not), with the ring 30 s after the tap at the median (16 to 98 s). On a Galaxy S26 (Android 16), the request in the recording above put its point in its region, with the ring 25.5 s after the tap.
+On a Pixel 11 Pro (Android 17, airplane mode), the measuring tool ran the requests chosen for the examples one after another on one engine. Of the ten first chosen, eight points fell in their regions and two did not; those two were taken out of the examples, and the remaining eight, run again, all fell in theirs, with the ring 28 s after the tap at the median (18 to 137 s): the model thinks before it answers, and its replies ran from about 260 to 2,200 tokens. With the APK built from this folder as it is now, 7 of the 8 fell in their regions ("Put the pan on the stove." did not), with the ring 30 s after the tap at the median (16 to 98 s). On a Galaxy S26 (Android 16), the request in the recording above, typed in, put its point in the region drawn for "Put the glass to the left of the lamp." (one of the 30; the same spot, asked for a mug because the app has no drawing of a glass), with the ring 11.5 s after the tap.
 
 ## The model file
 
@@ -102,7 +102,7 @@ Each request's region (`<request id>_spot.png`, 1000 × 1000 over the whole phot
 ## Known limits
 
 - One picture per request, stretched to 512 × 512.
-- An answer takes tens of seconds on a phone, most of it thinking: on a Pixel 11 Pro, 16 to 137 s for the bundled requests in the runs above; on a Galaxy S26, 25.5 s for the request in the recording above.
+- An answer takes tens of seconds on a phone, most of it thinking: on a Pixel 11 Pro, 16 to 137 s for the bundled requests in the runs above; on a Galaxy S26, 11.5 s for the request in the recording above.
 - Tested on a Pixel 11 Pro (Android 17) and a Galaxy S26 (Android 16), with the text decoder and the vision encoder on the GPU.
 - The answer is one point. The model is not told the item's size, and the drawing's size is the app's guess, so check that the item fits where it is drawn.
 - With thinking on, the reply can fill the 4,096-token context before the model gives its point; the app then marks nothing (the answer was too long).
