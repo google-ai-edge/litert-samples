@@ -749,7 +749,12 @@ class MainActivity : ComponentActivity() {
     thoughtView = text(12f, color = Color.rgb(90, 90, 90))
     column.addView(thoughtView)
 
-    scroll = ScrollView(this).apply { addView(column) }
+    scroll = ScrollView(this).apply {
+      addView(column)
+      // With keys rather than touch the first focus can also land on the ScrollView itself, whose focus highlight
+      // greys out the whole page until the first touch.
+      defaultFocusHighlightEnabled = false
+    }
     // The bars' and the keyboard's space comes off a frame around the page instead of padding the page: nothing of the
     // page is drawn under the status bar, and a ScrollView that gets shorter scrolls the focused request field into view
     // by itself, so the words being typed stay above the keyboard (with the keyboard as padding the field stayed under
