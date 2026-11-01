@@ -18,7 +18,9 @@ package com.google.ai.edge.examples.where_to_put
 
 import android.app.ActivityManager
 import android.content.Context
+import android.graphics.Bitmap
 import android.graphics.BitmapFactory
+import android.graphics.Canvas
 import android.graphics.Color
 import android.os.Build
 import android.provider.Settings
@@ -37,8 +39,9 @@ import org.json.JSONObject
  * paths are in the app's external files dir. A plan item may pick a picture (`example` id, or `file` relative to the
  * files dir), set the request (`request_id` of a bundled request, which fills the field as its suggestion button
  * does, or `request` text), tap Take photo (`"action": "camera"`), and with `"press": true` tap Show where. `rest_ms`
- * waits after the item; `dump_input` keeps the picture the model was given (PNG) next to the report. For a bundled
- * request the report says whether the point fell in the region where the item can go (`in_spot`).
+ * waits after the item; `dump_input` keeps the picture the model was given (PNG) next to the report, and `dump_view`
+ * the photo view as shown, with the ring or the item's drawing. For a bundled request the report says whether the
+ * point fell in the region where the item can go (`in_spot`).
  */
 class AutoRun(private val activity: MainActivity, private val planPath: String, private val reportName: String) {
   private val settled = CompletableDeferred<Unit>()
@@ -115,6 +118,10 @@ class AutoRun(private val activity: MainActivity, private val planPath: String, 
             File(base, "reports/${reportName.removeSuffix(".json")}_${rec.getString("id")}.png").writeBytes(it)
           }
         }
+        if (o.optBoolean("dump_view")) {
+          val name = "${reportName.removeSuffix(".json")}_${rec.getString("id")}_view.png"
+          if (dumpView(File(base, "reports/$name"))) rec.put("view_png", name)
+        }
         rec.put("screen", JSONObject(activity.screenLines()))
         items.put(rec)
         write(reportFile, report)
@@ -146,6 +153,22 @@ class AutoRun(private val activity: MainActivity, private val planPath: String, 
     }
   }
 
+  /** Keeps the photo view as the screen shows it, once its item has landed (at most 3 s), as a PNG. */
+  private suspend fun dumpView(file: File): Boolean {
+    val view = activity.photoView
+    var waited = 0
+    while (!view.landed && waited < 3000) {
+      delay(50)
+      waited += 50
+    }
+    if (view.width == 0 || view.height == 0) return false
+    val bitmap = Bitmap.createBitmap(view.width, view.height, Bitmap.Config.ARGB_8888)
+    view.draw(Canvas(bitmap))
+    withContext(Dispatchers.IO) { file.outputStream().use { bitmap.compress(Bitmap.CompressFormat.PNG, 100, it) } }
+    bitmap.recycle()
+    return true
+  }
+
   private suspend fun write(file: File, json: JSONObject) = withContext(Dispatchers.IO) {
     val tmp = File(file.path + ".tmp")
     tmp.writeText(json.toString(1))
@@ -171,6 +194,8 @@ object Records {
     .put("point", r.spot?.let { JSONArray().put(it.x).put(it.y) } ?: JSONObject.NULL)
     .put("point_read_from", r.spot?.how ?: JSONObject.NULL)
     .put("marked", r.marked)
+    .put("item", r.item ?: JSONObject.NULL)
+    .put("item_width", r.itemWidth ?: JSONObject.NULL)
     .put("too_long", r.tooLong)
     .put("pieces", r.pieces)
     .put("max_output_tokens", r.maxOutputTokens)

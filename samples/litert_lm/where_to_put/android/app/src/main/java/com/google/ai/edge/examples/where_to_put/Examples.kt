@@ -22,8 +22,10 @@ import org.json.JSONObject
 /**
  * One suggested request for an example photo. [spotMask] (in the assets) is the region where the item can go: a
  * 1000 x 1000 picture over 0-1000 of the photo, white where the point counts as right. Only the measuring tool reads it.
+ * [itemWidth] is how wide the item looks in this photo, in thousandths of the photo's width (set by hand from a like
+ * object in the photo), for its drawing; null leaves the drawing's own width.
  */
-data class Request(val id: String, val text: String, val spotMask: String)
+data class Request(val id: String, val text: String, val spotMask: String, val itemWidth: Int?)
 
 /** One bundled example: a photo in the assets, its credit line, and the requests that go with it. */
 data class Example(val id: String, val title: String, val file: String, val credit: String, val requests: List<Request>)
@@ -42,7 +44,10 @@ object Examples {
         credit = o.getString("credit"),
         requests = (0 until rs.length()).map { j ->
           val r = rs.getJSONObject(j)
-          Request(r.getString("id"), r.getString("text"), "examples/" + r.getString("spot_mask"))
+          Request(
+            r.getString("id"), r.getString("text"), "examples/" + r.getString("spot_mask"),
+            r.optInt("item_width", 0).takeIf { it > 0 },
+          )
         },
       )
     }

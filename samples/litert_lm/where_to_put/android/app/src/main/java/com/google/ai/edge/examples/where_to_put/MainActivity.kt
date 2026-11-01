@@ -88,6 +88,9 @@ data class AnswerRecord(
   val markMs: Long?,
   val totalMs: Long,
   val error: String?,
+  /** The item drawn on the point (Items.kt) and its width in thousandths of the photo's width; null: a ring only. */
+  val item: String? = null,
+  val itemWidth: Int? = null,
 )
 
 class MainActivity : ComponentActivity() {
@@ -321,6 +324,12 @@ class MainActivity : ComponentActivity() {
     val p = current
     val request = requestField.text.toString().trim()
     val instruction = Pointing.instruction(request)
+    // The item the request names goes on the point as a drawing (a ring alone for an item with none), as wide as the
+    // bundled request says it looks in its photo, else at the drawing's own share of the photo's width.
+    val drawing = Items.forRequest(request)
+    val itemWidth = drawing?.let { d ->
+      currentExample?.requests?.firstOrNull { it.text == request }?.itemWidth ?: d.width
+    } ?: 0
     val cap = ModelEngine.maxOutputTokens
     val ready = ModelEngine.state is ModelEngine.State.Ready
     val error = when {
@@ -390,7 +399,7 @@ class MainActivity : ComponentActivity() {
           if (earlySpot == null && (!ModelEngine.THINKING || thought.isNotEmpty() || text.contains("</think>"))) {
             Pointing.firstPoint2d(Pointing.answerPart(text.toString()))?.takeIf { it.inPicture }?.let { s ->
               earlySpot = s
-              photo.setSpot(s)
+              photo.setSpot(s, drawing, itemWidth)
               markMs = now
               answerView.text = markedLine(s)
             }
@@ -448,7 +457,7 @@ class MainActivity : ComponentActivity() {
           else -> {
             // The mark is already on when the answer's point_2d came while it streamed (the same point: Pointing).
             if (s != earlySpot) {
-              photo.setSpot(s)
+              photo.setSpot(s, drawing, itemWidth)
               markMs = SystemClock.elapsedRealtime() - tap
             }
             answerView.text = markedLine(s)
@@ -479,6 +488,7 @@ class MainActivity : ComponentActivity() {
     val record = AnswerRecord(
       pic.name, request, instruction, ModelEngine.THINKING, text.toString(), thought.toString(), spot,
       markMs != null, tooLong, pieces, cap, firstMs, answerMs, markMs, totalMs, failure,
+      item = drawing?.name, itemWidth = drawing?.let { itemWidth },
     )
     withContext(Dispatchers.IO) { Records.save(applicationContext, record) }
     return record
@@ -507,6 +517,9 @@ class MainActivity : ComponentActivity() {
   }
 
   internal fun currentModelPng(): ByteArray? = current?.modelPng
+
+  /** The photo with its mark, for the measuring tool's view dump. */
+  internal val photoView: MarkedPhotoView get() = photo
 
   private fun num(v: Double): String = if (v == Math.floor(v)) v.toLong().toString() else String.format(Locale.US, "%.1f", v)
 
