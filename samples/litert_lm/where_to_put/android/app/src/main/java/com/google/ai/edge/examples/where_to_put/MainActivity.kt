@@ -46,6 +46,8 @@ import android.widget.ScrollView
 import android.widget.Spinner
 import android.widget.TextView
 import androidx.activity.ComponentActivity
+import androidx.activity.SystemBarStyle
+import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.core.content.ContextCompat
@@ -123,6 +125,9 @@ class MainActivity : ComponentActivity() {
   private var currentExampleId: String? = null
   /** True while the app itself sets the request field (a suggestion, the measuring tool). */
   private var settingRequest = false
+  /** Whether the keyboard is open, and where the page was when it opened (null: nowhere to go back to). */
+  private var keyboardUp = false
+  private var scrollBeforeKeyboard: Int? = null
 
   /** Set while the measuring tool drives the screen (AutoRun.kt). */
   internal var autoRun: AutoRun? = null
@@ -147,6 +152,9 @@ class MainActivity : ComponentActivity() {
 
   override fun onCreate(savedInstanceState: Bundle?) {
     super.onCreate(savedInstanceState)
+    // The page runs under transparent bars on every Android version, with dark status bar icons on the light page (the
+    // theme's are white: the clock was white on white).
+    enableEdgeToEdge(statusBarStyle = SystemBarStyle.light(Color.TRANSPARENT, Color.TRANSPARENT))
     buildScreen()
     handleIntent(intent, fromCreate = true)
     loadModel()
@@ -560,7 +568,19 @@ class MainActivity : ComponentActivity() {
 
   /** Scrolls the status lines and the photo (with its mark) into view: the answer is the mark, not the text below. */
   private fun revealPhoto() {
+    scrollBeforeKeyboard = null   // the photo stays in view when the keyboard closes afterwards
     scroll.post { scroll.smoothScrollTo(0, status.top) }
+  }
+
+  /**
+   * The keyboard scrolls the page to the request field (the page gets shorter); when it closes, the page goes back to
+   * where it was before it opened, so the heading it pushed off the top comes back.
+   */
+  private fun keyboardMoved(up: Boolean) {
+    if (up && !keyboardUp) scrollBeforeKeyboard = scroll.scrollY
+    if (!up && keyboardUp) scrollBeforeKeyboard?.let { y -> scroll.post { scroll.smoothScrollTo(0, y) } }
+    if (!up) scrollBeforeKeyboard = null
+    keyboardUp = up
   }
 
   private fun refreshButton() {
@@ -615,6 +635,9 @@ class MainActivity : ComponentActivity() {
     val column = LinearLayout(this).apply {
       orientation = LinearLayout.VERTICAL
       setPadding(dp(16), dp(12), dp(16), dp(24))
+      // The page, not the request field, takes the first focus: a focused field is scrolled into view at the first
+      // layout, which pushed the heading off the top before anyone touched the screen.
+      isFocusableInTouchMode = true
     }
     fun text(size: Float, bold: Boolean = false, color: Int = Color.rgb(30, 30, 30)) = TextView(this).apply {
       setTextSize(TypedValue.COMPLEX_UNIT_SP, size)
@@ -716,15 +739,16 @@ class MainActivity : ComponentActivity() {
     column.addView(thoughtView)
 
     scroll = ScrollView(this).apply { addView(column) }
-    // The keyboard's height comes off a frame around the page instead of padding the page: a ScrollView that gets
-    // shorter scrolls the focused request field into view by itself, so the words being typed stay above the keyboard
-    // (with the keyboard as padding the field stayed under it).
+    // The bars' and the keyboard's space comes off a frame around the page instead of padding the page: nothing of the
+    // page is drawn under the status bar, and a ScrollView that gets shorter scrolls the focused request field into view
+    // by itself, so the words being typed stay above the keyboard (with the keyboard as padding the field stayed under
+    // it).
     val root = FrameLayout(this).apply { addView(scroll) }
     ViewCompat.setOnApplyWindowInsetsListener(root) { v, insets ->
       val bars = insets.getInsets(WindowInsetsCompat.Type.systemBars())
       val ime = insets.getInsets(WindowInsetsCompat.Type.ime())
-      scroll.setPadding(bars.left, bars.top, bars.right, 0)
-      v.setPadding(0, 0, 0, maxOf(bars.bottom, ime.bottom))
+      v.setPadding(bars.left, bars.top, bars.right, maxOf(bars.bottom, ime.bottom))
+      keyboardMoved(insets.isVisible(WindowInsetsCompat.Type.ime()))
       WindowInsetsCompat.CONSUMED
     }
     setContentView(root)
