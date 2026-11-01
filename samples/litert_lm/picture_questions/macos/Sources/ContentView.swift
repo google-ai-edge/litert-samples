@@ -155,9 +155,14 @@ private struct PicturePane: View {
         }
         if model.isMuse {
           VStack(alignment: .leading, spacing: 6) {
+            // On a line of its own: as the picker's inline label it shared one row with the segments and took one
+            // or two lines depending on how that row was split, which moved everything below it.
+            Text("Reasoning strength")
+              .lineLimit(1)
             Picker("Reasoning strength", selection: $model.strength) {
               ForEach(ReasoningStrength.allCases) { Text($0.rawValue).tag($0) }
             }
+            .labelsHidden()
             .pickerStyle(.segmented)
             .disabled(model.phase == .answering)
             Text("How much Muse-Glimmer-30B reasons before it answers. Changing it starts a new conversation.")
@@ -220,23 +225,33 @@ private struct PicturePane: View {
           .textSelection(.enabled)
       }
     } else {
-      VStack(spacing: 10) {
-        Image(systemName: "photo.on.rectangle.angled")
-          .font(.system(size: 44))
-          .foregroundStyle(.secondary)
-        Text("Drop a picture here")
-          .font(.title3)
-        Text("A screenshot, a chart, a document or a photo. The model reads it at 448 × 448 pixels, so crop to the part you are asking about.")
-          .multilineTextAlignment(.center)
-          .foregroundStyle(.secondary)
-          .fixedSize(horizontal: false, vertical: true)
+      VStack(alignment: .leading, spacing: 6) {
+        VStack(spacing: 10) {
+          Image(systemName: "photo.on.rectangle.angled")
+            .font(.system(size: 44))
+            .foregroundStyle(.secondary)
+          Text("Drop a picture here")
+            .font(.title3)
+          Text("A screenshot, a chart, a document or a photo. The model reads it at 448 × 448 pixels, so crop to the part you are asking about.")
+            .multilineTextAlignment(.center)
+            .foregroundStyle(.secondary)
+            .fixedSize(horizontal: false, vertical: true)
+        }
+        .padding(20)
+        .frame(width: 388, height: 388)
+        .background(
+          RoundedRectangle(cornerRadius: 8)
+            .strokeBorder(dropTargeted ? Color.accentColor : .secondary.opacity(0.4), style: StrokeStyle(lineWidth: 2, dash: [6]))
+        )
+        // The room of the two lines under a picture (with a one-line note), kept empty, so that adding a picture
+        // does not move the buttons, the reasoning strength and the examples below.
+        Text("The model sees this 448 × 448 picture.")
+          .font(.callout)
+          .hidden()
+        Text("No picture")
+          .font(.caption)
+          .hidden()
       }
-      .padding(20)
-      .frame(width: 388, height: 388)
-      .background(
-        RoundedRectangle(cornerRadius: 8)
-          .strokeBorder(dropTargeted ? Color.accentColor : .secondary.opacity(0.4), style: StrokeStyle(lineWidth: 2, dash: [6]))
-      )
     }
   }
 }
