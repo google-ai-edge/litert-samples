@@ -1,0 +1,10 @@
+Qwen is licensed under the Qwen LICENSE AGREEMENT, Copyright (c) Alibaba Cloud. All Rights Reserved.
+
+qwen72_chat_template.jinja in this directory is changed from the chat template (chat_template.json) of
+Qwen/Qwen2.5-VL-72B-Instruct at revision 89c86200743eec961a297729e7990e8f2ddbc4c5: an image part renders
+<|vision_start|><image_soft_token><|vision_end|> where the source renders <|vision_start|><|image_pad|><|vision_end|>,
+and a comment at the top of the file says so. QWEN_LICENSE is a copy of the Qwen LICENSE AGREEMENT from that
+revision, unchanged.
+
+The other files in this directory are licensed under the Apache License, Version 2.0, the license of this
+repository. No model weights are in this directory.

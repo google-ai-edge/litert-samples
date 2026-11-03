@@ -346,6 +346,7 @@ Vision, audio, diffusion and encoder models produce one or more `.tflite` graphs
 | [`zipformer/zipformer_ctc/`](zipformer/zipformer_ctc/) | Zipformer CR-CTC speech recognition | `.tflite` |
 | [`sam2/sam2_hiera_tiny_video/`](sam2/sam2_hiera_tiny_video/) | SAM 2.1 video tracking authored directly with the LiteRT Tensor API (C++, no converter) | Tensor API |
 | [`llada/llada_8b/`](llada/llada_8b/) | LLaDA-8B diffusion-LM denoise step authored with the Tensor API | Tensor API |
+| [`qwen/qwen2_5_vl_72b/`](qwen/qwen2_5_vl_72b/) | Qwen2.5-VL-72B-Instruct to `.litertlm`: the 80-layer int4 text decoder written with the Tensor API one tensor at a time, and the vision tower re-authored for one 448 × 448 picture | Tensor API |
 | [`gemma/gemma3/`](gemma/gemma3/), [`gemma/gemma4/`](gemma/gemma4/) | Directories reserved for the Gemma recipes | LLM |
 
 ## 14. Going deeper
