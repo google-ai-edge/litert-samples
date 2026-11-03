@@ -1,0 +1,8 @@
+{
+ "note": "The example voicemails (voicemails/<file>, 16 kHz mono PCM16 WAV): English scripts written for this sample, fictional names and 555-01xx numbers (reserved for fiction), spoken by Kokoro-82M (hexgrad/Kokoro-82M, Apache-2.0). caller and callback are for the measuring tool's checks only; the screen does not show them.",
+ "items": [
+  {"id": "v1", "label": "Voicemail 1", "file": "voicemail_1.wav", "caller": "Emily Carter", "callback": "555-0147"},
+  {"id": "v2", "label": "Voicemail 2", "file": "voicemail_2.wav", "caller": "Daniel Foster", "callback": "555-0126"},
+  {"id": "v3", "label": "Voicemail 3", "file": "voicemail_3.wav", "caller": "Jennifer Brooks", "callback": "555-0183"}
+ ]
+}

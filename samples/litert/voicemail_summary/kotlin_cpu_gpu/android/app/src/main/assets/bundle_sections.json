@@ -1,0 +1,76 @@
+{
+ "note": "LFM3-Audio-2B .litertlm (int4 b128 LM, KV 2048, fp16-weight audio section): where its sections are; the app copies the three TFLite sections into files of their own (LiteRT's Kotlin API opens a model by path) and inflates the tokenizer (8-byte little-endian size + zlib)",
+ "bundle_bytes": 1531232624,
+ "bundle_sha256": "5168b79a795d1737e789f22a84f5830e808f45a3ba2d3a02099b4d291bda4f02",
+ "sections": {
+  "tokenizer": {
+   "begin": 49152,
+   "end": 2623427,
+   "sha256": "00b70753b3d704e0b4a50ad259049b5c3a21764bd0b956030b594640591c78df",
+   "format": "u64le_size+zlib"
+  },
+  "decoder": {
+   "begin": 2637824,
+   "end": 1034348192,
+   "sha256": "86120442f62def8bb160f30281589e0b3d0a00fc2a63eeee04e2811c14a1b376"
+  },
+  "embedder": {
+   "begin": 1034354688,
+   "end": 1298036896,
+   "sha256": "8210f7d8ba7e4ac7fe637e6bc67045d9698b41686b1bafbe5d9587a332a10f56"
+  },
+  "audio": {
+   "begin": 1298038784,
+   "end": 1531232624,
+   "sha256": "74d98e70d3467c22475a0319704e9ea0438cfc599a1f3035739cb2b3bccf1771"
+  }
+ },
+ "decoder_signatures": {
+  "note": "read from the PREFILL_DECODE section with ai-edge-litert 2.3.0",
+  "prefill": [
+   1024,
+   256,
+   64,
+   16,
+   4,
+   1
+  ],
+  "state": [
+   "kv_cache_c_0",
+   "kv_cache_c_1",
+   "kv_cache_c_11",
+   "kv_cache_c_13",
+   "kv_cache_c_15",
+   "kv_cache_c_17",
+   "kv_cache_c_19",
+   "kv_cache_c_21",
+   "kv_cache_c_23",
+   "kv_cache_c_3",
+   "kv_cache_c_5",
+   "kv_cache_c_7",
+   "kv_cache_c_9",
+   "kv_cache_k_10",
+   "kv_cache_k_12",
+   "kv_cache_k_14",
+   "kv_cache_k_16",
+   "kv_cache_k_18",
+   "kv_cache_k_2",
+   "kv_cache_k_20",
+   "kv_cache_k_22",
+   "kv_cache_k_4",
+   "kv_cache_k_6",
+   "kv_cache_k_8",
+   "kv_cache_v_10",
+   "kv_cache_v_12",
+   "kv_cache_v_14",
+   "kv_cache_v_16",
+   "kv_cache_v_18",
+   "kv_cache_v_2",
+   "kv_cache_v_20",
+   "kv_cache_v_22",
+   "kv_cache_v_4",
+   "kv_cache_v_6",
+   "kv_cache_v_8"
+  ]
+ }
+}
