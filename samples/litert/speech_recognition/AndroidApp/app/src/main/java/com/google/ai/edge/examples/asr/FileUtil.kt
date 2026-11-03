@@ -79,9 +79,15 @@ fun openOrDownloadFileInternal(
   if (remoteUrl.isNotEmpty()) {
     val connection = java.net.URL(remoteUrl).openConnection()
     connection.connect()
+    // Download to a temporary file and rename it when complete: an interrupted download must not
+    // leave a partial file that the next load takes for the whole model.
+    val partFile = java.io.File(localFile.path + ".part")
     connection.getInputStream().use { input ->
       localFile.parentFile?.mkdirs()
-      localFile.outputStream().use { output -> input.copyTo(output) }
+      partFile.outputStream().use { output -> input.copyTo(output) }
+    }
+    if (!partFile.renameTo(localFile)) {
+      throw java.io.IOException("Could not rename $partFile to $localFile")
     }
     return localFile.inputStream()
   }

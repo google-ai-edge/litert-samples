@@ -48,6 +48,10 @@ data class ModelConfig(
   val gpuEnforceFloat32: Boolean,
   val gpuShareConstantTensors: Boolean,
   val npuHighPerformance: Boolean,
+  val gpuModelRemoteUrl: String = "",
+  val melModelRemoteUrl: String = "",
+  val decoderModelRemoteUrl: String = "",
+  val windowSeconds: List<Int> = emptyList(),
 )
 
 @Serializable
@@ -63,6 +67,10 @@ private data class ModelConfigJson(
   val gpuEnforceFloat32: Boolean = true,
   val gpuShareConstantTensors: Boolean = true,
   val npuHighPerformance: Boolean = true,
+  val gpuModelRemoteUrl: String = "",
+  val melModelRemoteUrl: String = "",
+  val decoderModelRemoteUrl: String = "",
+  val windowSeconds: List<Int> = emptyList(),
 )
 
 /** Manager for model metadata. */
@@ -97,6 +105,10 @@ class ModelMetadataManager(jsonString: String) {
       gpuEnforceFloat32 = config.gpuEnforceFloat32,
       gpuShareConstantTensors = config.gpuShareConstantTensors,
       npuHighPerformance = config.npuHighPerformance,
+      gpuModelRemoteUrl = config.gpuModelRemoteUrl,
+      melModelRemoteUrl = config.melModelRemoteUrl,
+      decoderModelRemoteUrl = config.decoderModelRemoteUrl,
+      windowSeconds = config.windowSeconds,
     )
   }
 

@@ -13,6 +13,7 @@ open-weight ASR models. The table below outlines the supported backends for each
 | Model | CPU | GPU | TPU/NPU | Description |
 | :--: | :--: | :--: | :--: | :-- |
 | [**Parakeet TDT**](https://huggingface.co/nvidia/parakeet-tdt-0.6b-v3) | ✅ | ✅ | Pixel 10 | Nvidia's Transducer-Duration-Transducer model |
+| [**Parakeet Ultra**](https://huggingface.co/moondream/parakeet-ultra) | ✅ | ✅ | | Moondream's post-trained Parakeet TDT v3: same architecture and size, fewer errors |
 | [**Parakeet CTC**](https://huggingface.co/nvidia/parakeet-ctc-0.6b) | ✅ | ✅ | Galaxy S23/24 | Nvidia's Connectionist-Temporal-Classification model |
 | [**Parakeet TDT-CTC (ja)**](https://huggingface.co/nvidia/parakeet-tdt_ctc-0.6b-ja) | ✅ | ✅ | | Japanese ASR with punctuation (hybrid model, TDT branch) |
 | [**Moonshine**](https://huggingface.co/UsefulSensors/moonshine-tiny) | ✅ | ✅ | | A lightweight, low-latency autoregressive ASR model |
