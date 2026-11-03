@@ -1,0 +1,13 @@
+{
+  "note": "Bundled examples: the two synthetic images were drawn for this sample's checks (coloured shapes and the text EXIT 12, no third-party content). install_to_device.sh adds the NASA photos (public domain, credit NASA) to files/examples/.",
+  "examples": [
+    {"file": "syn_a.png", "where": "asset", "task": "matting", "query": "the green circle", "credit": "synthetic"},
+    {"file": "syn_a.png", "where": "asset", "task": "detection", "query": "red rectangle, blue circle, green circle", "credit": "synthetic"},
+    {"file": "syn_b.png", "where": "asset", "task": "count_point", "query": "red rectangles", "credit": "synthetic"},
+    {"file": "syn_b.png", "where": "asset", "task": "ocr_grounding", "query": "EXIT 12", "credit": "synthetic"},
+    {"file": "nasa_S67-34267.jpg", "where": "files", "task": "matting", "query": "the man on the left", "credit": "NASA (S67-34267, 1967)"},
+    {"file": "nasa_S67-34267.jpg", "where": "files", "task": "detection", "query": "person, hat", "credit": "NASA (S67-34267, 1967)"},
+    {"file": "nasa_KSC-20170424-PH_SWW01_0007.jpg", "where": "files", "task": "point", "query": "airplane, windsock", "credit": "NASA/Bill White (KSC-20170424-PH_SWW01_0007)"},
+    {"file": "nasa_KSC-08pd3809.jpg", "where": "files", "task": "ocr_grounding", "query": "OVERSIZE LOAD", "credit": "NASA/Kim Shiflett (KSC-08pd3809)"}
+  ]
+}

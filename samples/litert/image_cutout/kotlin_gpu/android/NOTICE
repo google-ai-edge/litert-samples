@@ -1,0 +1,45 @@
+WeVisOne Cut-out Android sample
+
+Model: WeVisOne-VL-2B by Tencent (https://huggingface.co/tencent/WeVisOne-VL-2B,
+revision 3dad9ce8bcb6fbe0aea945bf8860bd2cfc3663bf), licensed under Apache License 2.0;
+its LICENSE lists Qwen3-VL-2B-Instruct (Apache License 2.0) as a third-party component.
+The LiteRT graphs, the token embedding table and the tokenizer.json the app loads are
+converted or copied from that checkpoint, published in the cutout/ folder of
+https://huggingface.co/litert-community/WeVisOne-VL-2B and copied to the phone by
+install_to_device.sh; they are not part of this source tree.
+
+The prompts, the answer parsing and the matte steps are Kotlin ports of the authors'
+package (https://github.com/Tencent/WeVisOne-VL, commit
+40f735b8daed437ece982db9718e9c9856f52a79, Apache License 2.0,
+licenses/WeVisOne-VL-APACHE-2.0.txt): wevisone_vl/prompts.py build_prompt,
+wevisone_vl/engine.py SYSTEM_PROMPT, parse_seg_boxes and _masks_from_logits,
+wevisone_vl/visualization.py parse_predictions and COLORS, and the box encoding of
+wevisone_vl/mask_decoder.py (FourierPE1D, BoxFourierEncoder up to its MLP). Changes: the
+encoded box sizes are read from a table of the values torch computes
+(app/src/main/assets/box_log_table.bin), the 1024 x 1024 and 512 x 512 inputs come from a
+port of Pillow's resampler, and the vision tower, the language model and the matte decoder
+run as LiteRT graphs.
+
+app/src/main/java/com/google/ai/edge/examples/image_cutout/PilBicubic.kt follows the
+bicubic resampling of Pillow 12.2.0 (src/libImaging/Resample.c), Copyright (c) 1997-2011
+by Secret Labs AB, Copyright (c) 1995-2011 by Fredrik Lundh and contributors, Copyright (c)
+2010 by Jeffrey 'Alex' Clark and contributors, under the MIT-CMU License
+(licenses/Pillow-MIT-CMU.txt).
+
+The tokenizer follows the published tokenizer.json contract of Hugging Face tokenizers and
+transformers (Apache License 2.0; licenses/Tokenizers-APACHE-2.0.txt and
+licenses/Transformers-APACHE-2.0.txt): added-token extraction, NFC, the Split
+pre-tokenizer regex, the ByteLevel mapping and byte-level BPE.
+
+The example images app/src/main/assets/examples/syn_a.png and syn_b.png are synthetic
+(coloured shapes and the text "EXIT 12", drawn for this sample's checks).
+install_to_device.sh downloads three NASA photographs from images.nasa.gov (S67-34267;
+KSC-20170424-PH_SWW01_0007, photo NASA/Bill White; KSC-08pd3809, photo NASA/Kim
+Shiflett); NASA imagery is generally not protected by copyright in the United States (NASA
+media usage guidelines); credit NASA.
+app/src/test/resources/tok_rows_public.json holds the prompts and the reference model's
+answers (token ids and text) for the two synthetic images and four NASA images
+(S67-34267, KSC-20170424-PH_SWW01_0007, KSC-08pd3809, PIA12503); it holds no image data.
+
+Gradle wrapper files retain their upstream Apache License 2.0 headers.
+Component license texts and their sources are under licenses/.
