@@ -1,0 +1,360 @@
+{
+ "generator": "tools/make_picture_rows.py",
+ "pillow": "13.0.0",
+ "rows": [
+  {
+   "op": "resize",
+   "w": 37,
+   "h": 23,
+   "ow": 448,
+   "oh": 448,
+   "seed": 1,
+   "sha256": "497966e58a8c0df390dadc8e7f4d1946e2e8105707ce3b91bf19d4291c0aff05"
+  },
+  {
+   "op": "resize",
+   "w": 900,
+   "h": 900,
+   "ow": 448,
+   "oh": 448,
+   "seed": 2,
+   "sha256": "144661703390dbbb28aabd59d162c8dec40e7ab6169506f248f26938be4e4b25"
+  },
+  {
+   "op": "resize",
+   "w": 1200,
+   "h": 300,
+   "ow": 448,
+   "oh": 448,
+   "seed": 3,
+   "sha256": "cd02218bc63ca8c42e5676803851ed9dc23fbb111cc6c00a64d05fd945a62422"
+  },
+  {
+   "op": "resize",
+   "w": 300,
+   "h": 1300,
+   "ow": 448,
+   "oh": 448,
+   "seed": 4,
+   "sha256": "f074f51823302c342d2c7a43cfe250d9020be2f277fa4c3c504d705169bcd89b"
+  },
+  {
+   "op": "resize",
+   "w": 500,
+   "h": 1000,
+   "ow": 448,
+   "oh": 448,
+   "seed": 5,
+   "sha256": "08ff89bca2c351a3535d56ef1ea063000f9981c079db262799e9f4e8ca13efc2"
+  },
+  {
+   "op": "resize",
+   "w": 1000,
+   "h": 600,
+   "ow": 448,
+   "oh": 448,
+   "seed": 6,
+   "sha256": "8037f9333e654bdac3daacd1bc653b0fa4e856c5e7e6390e4d60710aeb2c203c"
+  },
+  {
+   "op": "resize",
+   "w": 600,
+   "h": 1050,
+   "ow": 448,
+   "oh": 448,
+   "seed": 7,
+   "sha256": "5c9061a9f9b95182ce8c0c8b6236eada3dfc949387b160932343ed8836f921b0"
+  },
+  {
+   "op": "resize",
+   "w": 61,
+   "h": 448,
+   "ow": 448,
+   "oh": 448,
+   "seed": 8,
+   "sha256": "29e6346bdd143d0b89f5eaeb46b8ca50c03ab4cb3d66ea6ab282bee26fb0a8a9"
+  },
+  {
+   "op": "pad_square",
+   "w": 600,
+   "h": 140,
+   "seed": 11,
+   "sha256": "ece8c9ee1a3b5e42bc7fd2a2cdd573e244feda55c1cff8b05043202e29067b2a"
+  },
+  {
+   "op": "pad_square",
+   "w": 300,
+   "h": 800,
+   "seed": 12,
+   "sha256": "29afba8d10c158f8978698446e393d4ba678c0ddea2b65d21512aa12db09f30b"
+  },
+  {
+   "op": "pad_square",
+   "w": 448,
+   "h": 448,
+   "seed": 13,
+   "sha256": "60cdbec892c2318b0836e397aa38bbe77efe5a4ccfd9f539e9f4997653feb78c"
+  },
+  {
+   "op": "pad_square",
+   "w": 449,
+   "h": 449,
+   "seed": 14,
+   "sha256": "178aa8e4ef2cfe542fdc8733165ac083d4a88478d3a38ad7c2d6e7a81d62ee31"
+  },
+  {
+   "op": "pad_square",
+   "w": 95,
+   "h": 31,
+   "seed": 15,
+   "sha256": "8fc6a208bf9865c1d7dbcc57caebde231b680904e088f62d528cbf5c8c964bb4"
+  },
+  {
+   "op": "prepare",
+   "w": 1240,
+   "h": 1754,
+   "seed": 21,
+   "slice_cols": 2,
+   "sha256": [
+    "cc574b859e33beb0f8a7efc021a0a16135a940b52df452c728193d538c72dbd7",
+    "b2af4c9db7ec09e20b563f80a55fc6e79c68e25dbb3b773a8ebdb365913f6139",
+    "e2c8164af4279c95c7d440427513c7a131676c5e75b9f6e4c722b086d9841157",
+    "9ce37a3850ba6a9bc015b099f04d0e0c4075484ccc359d5ae11bf6163d8f233b",
+    "db8b24b3c783325f8e842552845a61c7b85123a5839be000bc5e00c51416ff24",
+    "94e445c46a015fbb616aa819da6f36e9c9a2bbda0f14004f28a2efca9e2a2571",
+    "efb6fbed584d71a8ae4af243917e03786ee192992032958719724c0cf194c584",
+    "b54c8336daaa74cfe40731c8f1d170579cfd578a95ec78b3f96339d8f174c632",
+    "595ce34ea018fb40ee899a553e4744d0539d879dea6c2ef4071a2fba88fe3a96"
+   ]
+  },
+  {
+   "op": "prepare",
+   "w": 1600,
+   "h": 500,
+   "seed": 22,
+   "slice_cols": 3,
+   "sha256": [
+    "fc290ca22d50fb0b727d948be60938c63eabeac75ae7b0a412dcd06749e2023d",
+    "e7390b2bb97bd09a52464a82e9a390c73af00c8b623c046a8a341393e85f2939",
+    "7aa3e522653ca67d39a3c22a3cd37bbae8940cf84fa1b783dafe16885b162f3d",
+    "3c3a69c791d3f139eff6b34a04fc31560be6a6904b810b3ce03aad50c0de8fd5"
+   ]
+  },
+  {
+   "op": "prepare",
+   "w": 640,
+   "h": 640,
+   "seed": 23,
+   "slice_cols": 2,
+   "sha256": [
+    "990ee6f43a7d14cbb5b08a2853df734a598814445889e1b75bb1414b615f6ea2",
+    "899279d4901719c6305fe1e2582ae86ab594f4224ab50297980b08c624d89c7d",
+    "a9bf1db7893f011ecc9f132ef7136435446b2223b008671ab493a2eb4774fac6",
+    "247243c80342f9ece150616f5a08905c5376b06bc87b70e5e126f015ed2b5d22",
+    "baf3378957b2920914c9f871a8bc3193ccb98cc81785ca9004a022912cb75884"
+   ]
+  },
+  {
+   "op": "prepare",
+   "w": 700,
+   "h": 600,
+   "seed": 24,
+   "slice_cols": 2,
+   "sha256": [
+    "7d77a4db01a04d3b524292b97f283bca183ed3cb3bdef77711e0b7ecc3da6aff",
+    "a73998d5c2e7f98bfc9eecfa884da74357be966a8e8e35decf766c6c97fb99d8",
+    "c1dfb193f5c34af4083051c463909e885079abbed616b824aa6d4fb1378d2e76",
+    "f3b334774a23ce9c8f16eb09e11566507b9dc134b46e8c548bdf1c5cdfdc2390",
+    "2d029403714efae3af5fde8f1ae89b2de657d659b41d53577c43a50396f29b7b"
+   ]
+  },
+  {
+   "op": "grid",
+   "w": 448,
+   "h": 448,
+   "grid": null
+  },
+  {
+   "op": "grid",
+   "w": 449,
+   "h": 449,
+   "grid": [
+    2,
+    1
+   ]
+  },
+  {
+   "op": "grid",
+   "w": 640,
+   "h": 640,
+   "grid": [
+    2,
+    2
+   ]
+  },
+  {
+   "op": "grid",
+   "w": 1240,
+   "h": 1754,
+   "grid": [
+    4,
+    2
+   ]
+  },
+  {
+   "op": "grid",
+   "w": 1754,
+   "h": 1240,
+   "grid": [
+    2,
+    4
+   ]
+  },
+  {
+   "op": "grid",
+   "w": 1600,
+   "h": 500,
+   "grid": [
+    1,
+    3
+   ]
+  },
+  {
+   "op": "grid",
+   "w": 500,
+   "h": 1600,
+   "grid": [
+    3,
+    1
+   ]
+  },
+  {
+   "op": "grid",
+   "w": 3000,
+   "h": 4000,
+   "grid": [
+    3,
+    3
+   ]
+  },
+  {
+   "op": "grid",
+   "w": 4032,
+   "h": 3024,
+   "grid": [
+    3,
+    3
+   ]
+  },
+  {
+   "op": "grid",
+   "w": 1000,
+   "h": 100,
+   "grid": null
+  },
+  {
+   "op": "grid",
+   "w": 100,
+   "h": 1000,
+   "grid": null
+  },
+  {
+   "op": "grid",
+   "w": 896,
+   "h": 896,
+   "grid": [
+    2,
+    2
+   ]
+  },
+  {
+   "op": "grid",
+   "w": 897,
+   "h": 897,
+   "grid": [
+    2,
+    2
+   ]
+  },
+  {
+   "op": "orient",
+   "w": 5,
+   "h": 3,
+   "seed": 31,
+   "orientation": 1,
+   "out_w": 5,
+   "out_h": 3,
+   "sha256": "8a1020634191c27b63d3c2aa45b723f696ddf2743ca8996a33ed0e47ddd7fc07"
+  },
+  {
+   "op": "orient",
+   "w": 5,
+   "h": 3,
+   "seed": 31,
+   "orientation": 2,
+   "out_w": 5,
+   "out_h": 3,
+   "sha256": "8a1020634191c27b63d3c2aa45b723f696ddf2743ca8996a33ed0e47ddd7fc07"
+  },
+  {
+   "op": "orient",
+   "w": 5,
+   "h": 3,
+   "seed": 31,
+   "orientation": 3,
+   "out_w": 5,
+   "out_h": 3,
+   "sha256": "8a1020634191c27b63d3c2aa45b723f696ddf2743ca8996a33ed0e47ddd7fc07"
+  },
+  {
+   "op": "orient",
+   "w": 5,
+   "h": 3,
+   "seed": 31,
+   "orientation": 4,
+   "out_w": 5,
+   "out_h": 3,
+   "sha256": "8a1020634191c27b63d3c2aa45b723f696ddf2743ca8996a33ed0e47ddd7fc07"
+  },
+  {
+   "op": "orient",
+   "w": 5,
+   "h": 3,
+   "seed": 31,
+   "orientation": 5,
+   "out_w": 3,
+   "out_h": 5,
+   "sha256": "8a1020634191c27b63d3c2aa45b723f696ddf2743ca8996a33ed0e47ddd7fc07"
+  },
+  {
+   "op": "orient",
+   "w": 5,
+   "h": 3,
+   "seed": 31,
+   "orientation": 6,
+   "out_w": 3,
+   "out_h": 5,
+   "sha256": "8a1020634191c27b63d3c2aa45b723f696ddf2743ca8996a33ed0e47ddd7fc07"
+  },
+  {
+   "op": "orient",
+   "w": 5,
+   "h": 3,
+   "seed": 31,
+   "orientation": 7,
+   "out_w": 3,
+   "out_h": 5,
+   "sha256": "8a1020634191c27b63d3c2aa45b723f696ddf2743ca8996a33ed0e47ddd7fc07"
+  },
+  {
+   "op": "orient",
+   "w": 5,
+   "h": 3,
+   "seed": 31,
+   "orientation": 8,
+   "out_w": 3,
+   "out_h": 5,
+   "sha256": "8a1020634191c27b63d3c2aa45b723f696ddf2743ca8996a33ed0e47ddd7fc07"
+  }
+ ]
+}

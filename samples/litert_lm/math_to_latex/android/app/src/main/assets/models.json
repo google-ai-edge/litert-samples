@@ -1,0 +1,25 @@
+{
+  "schemaVersion": 1,
+  "models": [
+    {
+      "id": "minicpm-ocr",
+      "role": "Document OCR: formulas to LaTeX, text with inline formulas",
+      "model": "MiniCPM-OCR-1.0 (VL_int8: int8 text decoder, fp16 vision encoder)",
+      "runtime": "litert_lm",
+      "backend": "cpu",
+      "files": [
+        {
+          "name": "MiniCPM-OCR-1.0-VL_int8.litertlm",
+          "url": "https://huggingface.co/litert-community/MiniCPM-OCR-1.0/resolve/c818533aaf2264fd38cf5e494ff74e0ea8b1dc62/MiniCPM-OCR-1.0-VL_int8.litertlm",
+          "bytes": 1997636640,
+          "sha256": "f233e3b991b4b76abec8910295ddc0660c8f93df30708a6709f27dd770fe03cc"
+        }
+      ],
+      "license": {
+        "name": "Apache-2.0",
+        "url": "https://huggingface.co/litert-community/MiniCPM-OCR-1.0/blob/c818533aaf2264fd38cf5e494ff74e0ea8b1dc62/README.md"
+      },
+      "modelCard": "https://huggingface.co/litert-community/MiniCPM-OCR-1.0"
+    }
+  ]
+}
