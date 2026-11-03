@@ -1,0 +1,148 @@
+{
+ "pillow": "13.0.0",
+ "pad": [
+  {
+   "w": 576,
+   "h": 1029,
+   "sha256": "26459b9412db5c0e4a5cfd712941f0f761697c91a61ec7b366c67b3d5dc76084"
+  },
+  {
+   "w": 1800,
+   "h": 2808,
+   "sha256": "d144760d6f18bee5fd0686fdea4d0ab323e99d333bd007fb1da236886beb509b"
+  },
+  {
+   "w": 300,
+   "h": 200,
+   "sha256": "580ada5cbbe736909f92309bed60e83237dbd44beee3278e5ad58c12b7ed9071"
+  },
+  {
+   "w": 768,
+   "h": 1344,
+   "sha256": "f670c9cf61b073299f6e30251656ab9f4e078a82daa97867d68f1e4cdfe560d6"
+  },
+  {
+   "w": 1000,
+   "h": 1750,
+   "sha256": "9d1d4e449b4861161ecc863946a302707b1c3c9185b0887f385b6df541469a5a"
+  },
+  {
+   "w": 402,
+   "h": 700,
+   "sha256": "7e4a98ff98ae8192f4955f6bcef9a0e1527e36010b84b6d900194ce7ac276d01"
+  },
+  {
+   "w": 10,
+   "h": 4,
+   "sha256": "b1bbf9a25dde3bbb3b5b82906f0f3cdf11759c5f55a313132657da9753c2b597"
+  },
+  {
+   "w": 6,
+   "h": 3,
+   "sha256": "cb9f699fd040f67513c7e6e6e6668df2a3fe81b3d851cbb75bdf7f9c1ee16148"
+  },
+  {
+   "w": 13,
+   "h": 31,
+   "sha256": "2b9594192f82e79139820a9957330b547f7652813e07c2f6f99bc2ea3af255fd"
+  }
+ ],
+ "orient": [
+  {
+   "w": 5,
+   "h": 3,
+   "orientation": 2,
+   "out": [
+    5,
+    3
+   ],
+   "sha256": "cfc7b1adebe7e7de1fadbc047a2144eebbe247929bf0d46072130218a5a1dfdf"
+  },
+  {
+   "w": 5,
+   "h": 3,
+   "orientation": 3,
+   "out": [
+    5,
+    3
+   ],
+   "sha256": "cf79b7dab93e6621363be12dced2e9352089aefb008b203f6d1d046b062ee2fc"
+  },
+  {
+   "w": 5,
+   "h": 3,
+   "orientation": 4,
+   "out": [
+    5,
+    3
+   ],
+   "sha256": "249464eb03e07c009d098afa8a982d138e34b955f95e2bdde3a543f9c6cc514d"
+  },
+  {
+   "w": 5,
+   "h": 3,
+   "orientation": 5,
+   "out": [
+    3,
+    5
+   ],
+   "sha256": "c1ada83fd171c05c0deb9f2f074cbfa84fb839e0e7d17b9d9d6f50d427352f2f"
+  },
+  {
+   "w": 5,
+   "h": 3,
+   "orientation": 6,
+   "out": [
+    3,
+    5
+   ],
+   "sha256": "29a9b73e522141c447504d848012e8a1a33b6641ac819036db26b609c88128c5"
+  },
+  {
+   "w": 5,
+   "h": 3,
+   "orientation": 7,
+   "out": [
+    3,
+    5
+   ],
+   "sha256": "60a49d6db2a689cd8a980a2f1d57a15e014ffe3d5fa421841cfdb67c304fdf7d"
+  },
+  {
+   "w": 5,
+   "h": 3,
+   "orientation": 8,
+   "out": [
+    3,
+    5
+   ],
+   "sha256": "bef9a5f8f121484ab64ac3a36f5e54b1dd85859f0a2c58ff8d2e73f6d1f1f151"
+  }
+ ],
+ "kie_prompt": "Extract key information in the image\n\nPlease output the key information in JSON format according to the following schema:\n{\n    \"store_name\": \"\",\n    \"date\": \"\",\n    \"time\": \"\",\n    \"subtotal\": \"\",\n    \"tax\": \"\",\n    \"total\": \"\"\n}",
+ "kie_keys": [
+  "store_name",
+  "date",
+  "time",
+  "subtotal",
+  "tax",
+  "total"
+ ],
+ "kie_default_keys": [
+  "store_name",
+  "date",
+  "tax",
+  "total"
+ ],
+ "kie_default_prompt": "Extract key information in the image\n\nPlease output the key information in JSON format according to the following schema:\n{\n    \"store_name\": \"\",\n    \"date\": \"\",\n    \"tax\": \"\",\n    \"total\": \"\"\n}",
+ "kie_schema": {
+  "items": [
+   {
+    "name": "",
+    "price": ""
+   }
+  ],
+  "total": ""
+ },
+ "kie_schema_prompt": "Extract key information in the image\n\nPlease output the key information in JSON format according to the following schema:\n{\n    \"items\": [\n        {\n            \"name\": \"\",\n            \"price\": \"\"\n        }\n    ],\n    \"total\": \"\"\n}"
+}

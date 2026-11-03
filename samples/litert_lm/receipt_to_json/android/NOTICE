@@ -1,0 +1,31 @@
+Receipt to JSON Android sample
+
+Model: Xiaomi-OCR-0 by Xiaomi (https://huggingface.co/xiaomi-research/Xiaomi-OCR-0), licensed under
+Apache License 2.0. The app downloads its LiteRT-LM conversion, Xiaomi-OCR-0_int8.litertlm, from
+https://huggingface.co/litert-community/Xiaomi-OCR-0 (Apache License 2.0) on first use; the file is
+not part of this source tree.
+
+app/src/main/java/com/google/ai/edge/examples/receipt_to_json/PilBicubic.kt follows the bicubic
+resampling of Pillow 13.0.0 (src/libImaging/Resample.c), Copyright (c) 1997-2011 by Secret Labs AB,
+Copyright (c) 1995-2011 by Fredrik Lundh and contributors, Copyright (c) 2010 by Jeffrey 'Alex'
+Clark and contributors, under the MIT-CMU License (licenses/Pillow-MIT-CMU.txt). It is copied from
+the math to LaTeX sample proposed in google-ai-edge/litert-samples#502
+(samples/litert_lm/math_to_latex), which adapted the Pillow 12.2.0 port of the image cutout sample
+proposed in google-ai-edge/litert-samples#490 (samples/litert/image_cutout/kotlin_gpu).
+
+Pictures.kt follows the picture preparation of the model card's script, ocr_xiaomi.py
+(https://github.com/john-rocky/hf-to-litertlm/blob/main/xiaomiocr_work/ocr_xiaomi.py, Apache
+License 2.0), and Kie.kt writes that script's key-information-extraction prompt, which is the
+prompt of the model card (https://huggingface.co/xiaomi-research/Xiaomi-OCR-0, "Task prompts").
+
+OcrEngine.kt, Photo.kt, MemoryCheck.kt, AutoRun.kt, MainActivity.kt and the data package
+(data/ModelCatalog.kt, data/ModelStore.kt, data/DownloadSafety.kt) are adapted from the math to
+LaTeX sample (#502), whose data package comes from this repository's voice assistant sample
+(samples/litert_lm/voice_assistant).
+
+The example receipts app/src/main/assets/examples/* were written and drawn for this sample by
+tools/make_examples.py: invented stores, items and prices, in DejaVu Sans Mono and DejaVu Sans Bold
+(Bitstream Vera Fonts license, DejaVu changes in the public domain).
+
+Gradle wrapper files retain their upstream Apache License 2.0 headers.
+Component license texts and their sources are under licenses/.

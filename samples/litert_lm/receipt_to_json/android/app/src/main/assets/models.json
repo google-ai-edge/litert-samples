@@ -1,0 +1,25 @@
+{
+  "schemaVersion": 1,
+  "models": [
+    {
+      "id": "xiaomi-ocr",
+      "role": "Document OCR: named fields of a receipt as JSON",
+      "model": "Xiaomi-OCR-0 (int8: int8 text decoder, fp16 vision encoder)",
+      "runtime": "litert_lm",
+      "backend": "cpu",
+      "files": [
+        {
+          "name": "Xiaomi-OCR-0_int8.litertlm",
+          "url": "https://huggingface.co/litert-community/Xiaomi-OCR-0/resolve/9012fe326c2b3038f97623258486ffeb52513260/Xiaomi-OCR-0_int8.litertlm",
+          "bytes": 1314747056,
+          "sha256": "82880f7361b90f51a3fda9609878e24b4a00e95a058f8ff47391b90e5e95d9be"
+        }
+      ],
+      "license": {
+        "name": "Apache-2.0",
+        "url": "https://huggingface.co/litert-community/Xiaomi-OCR-0/blob/9012fe326c2b3038f97623258486ffeb52513260/README.md"
+      },
+      "modelCard": "https://huggingface.co/litert-community/Xiaomi-OCR-0"
+    }
+  ]
+}
