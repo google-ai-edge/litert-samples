@@ -27,7 +27,7 @@ import sys
 
 _DEFAULT_CUDA_COMPUTE_CAPABILITIES = '3.5,7.0'
 
-_SUPPORTED_ANDROID_NDK_VERSIONS = [19, 20, 21, 25]
+_SUPPORTED_ANDROID_NDK_VERSIONS = [19, 20, 21, 25, 26, 27, 28]
 
 _DEFAULT_PROMPT_ASK_ATTEMPTS = 10
 
@@ -153,21 +153,21 @@ def get_python_path(environ_cp, python_bin_path):
   if environ_cp.get('PYTHONPATH'):
     python_paths = environ_cp.get('PYTHONPATH').split(':')
   try:
-    stderr = open(os.devnull, 'wb')
-    library_paths = run_shell(
-        [
-            python_bin_path,
-            '-c',
-            'import site; print("\\n".join(site.getsitepackages()))',
-        ],
-        stderr=stderr,
-    ).split('\n')
+    with open(os.devnull, 'wb') as stderr:
+      library_paths = run_shell(
+          [
+              python_bin_path,
+              '-c',
+              'import site; print("\\n".join(site.getsitepackages()))',
+          ],
+          stderr=stderr,
+      ).split('\n')
   except subprocess.CalledProcessError:
     library_paths = [
         run_shell([
             python_bin_path,
             '-c',
-            'import sysconfig;print(sysconfig.get_path("purelib")',
+            'import sysconfig;print(sysconfig.get_path("purelib"))',
         ])
     ]
 
@@ -668,12 +668,14 @@ def create_android_ndk_rule(environ_cp):
   """Set ANDROID_NDK_HOME and write Android NDK WORKSPACE rule."""
   if is_windows() or is_cygwin():
     default_ndk_path = cygpath(
-        '%s/Android/Sdk/ndk-bundle' % environ_cp['APPDATA']
+        '%s/Android/Sdk/ndk-bundle' % environ_cp.get('APPDATA', '')
     )
   elif is_macos():
-    default_ndk_path = '%s/library/Android/Sdk/ndk-bundle' % environ_cp['HOME']
+    default_ndk_path = (
+        '%s/Library/Android/sdk/ndk-bundle' % environ_cp.get('HOME', '')
+    )
   else:
-    default_ndk_path = '%s/Android/Sdk/ndk-bundle' % environ_cp['HOME']
+    default_ndk_path = '%s/Android/Sdk/ndk-bundle' % environ_cp.get('HOME', '')
 
   def valid_ndk_path(path):
     return os.path.exists(path) and os.path.exists(
@@ -700,11 +702,11 @@ def create_android_ndk_rule(environ_cp):
 def create_android_sdk_rule(environ_cp):
   """Set Android variables and write Android SDK WORKSPACE rule."""
   if is_windows() or is_cygwin():
-    default_sdk_path = cygpath('%s/Android/Sdk' % environ_cp['APPDATA'])
+    default_sdk_path = cygpath('%s/Android/Sdk' % environ_cp.get('APPDATA', ''))
   elif is_macos():
-    default_sdk_path = '%s/library/Android/Sdk' % environ_cp['HOME']
+    default_sdk_path = '%s/Library/Android/sdk' % environ_cp.get('HOME', '')
   else:
-    default_sdk_path = '%s/Android/Sdk' % environ_cp['HOME']
+    default_sdk_path = '%s/Android/Sdk' % environ_cp.get('HOME', '')
 
   def valid_sdk_path(path):
     return (
@@ -805,11 +807,10 @@ def get_ndk_api_level(environ_cp, android_ndk_home_path):
   # Now grab the NDK API level to use. Note that this is different from the
   # SDK API level, as the NDK API level is effectively the *min* target SDK
   # version.
-  meta = open(os.path.join(android_ndk_home_path, 'meta/platforms.json'))
-  platforms = json.load(meta)
-  meta.close()
+  with open(os.path.join(android_ndk_home_path, 'meta/platforms.json')) as meta:
+    platforms = json.load(meta)
   aliases = platforms['aliases']
-  api_levels = sorted(list(set([aliases[i] for i in aliases])))
+  api_levels = sorted(list(set([str(aliases[i]) for i in aliases])))
 
   android_ndk_api_level = prompt_loop_or_load_from_env(
       environ_cp,
@@ -820,7 +821,7 @@ def get_ndk_api_level(environ_cp, android_ndk_home_path):
           '[Available levels: %s]'
       )
       % api_levels,
-      check_success=(lambda *_: True),
+      check_success=(lambda level: str(level) in api_levels),
       error_msg='Android-%s is not present in the NDK path.',
   )
 
@@ -960,19 +961,18 @@ def retrieve_clang_version(clang_executable):
   Returns:
     The clang version detected.
   """
-  stderr = open(os.devnull, 'wb')
-  curr_version = run_shell(
-      [clang_executable, '--version'], allow_non_zero=True, stderr=stderr
-  )
+  with open(os.devnull, 'wb') as stderr:
+    curr_version = run_shell(
+        [clang_executable, '--version'], allow_non_zero=True, stderr=stderr
+    )
 
   curr_version_split = curr_version.lower().split('clang version ')
   if len(curr_version_split) > 1:
     curr_version = curr_version_split[1].split()[0].split('git')
+    if len(curr_version) > 1:
+      print('WARNING: current clang installation is not a release version.\n')
+    curr_version = curr_version[0]
 
-  if len(curr_version) > 1:
-    print('WARNING: current clang installation is not a release version.\n')
-
-  curr_version = curr_version[0]
   curr_version_int = convert_version_to_int(curr_version)
   # Check if current clang version can be detected properly.
   if not curr_version_int:
@@ -990,7 +990,7 @@ def retrieve_clang_version(clang_executable):
 # offset of in the current version of ubp. See
 # https://github.com/protocolbuffers/upb/blob/9effcbcb27f0a665f9f345030188c0b291e32482/upb/upb.c#L183.
 def disable_clang_offsetof_extension(clang_version):
-  if int(clang_version.split('.')[0]) in (16, 17):
+  if clang_version and int(clang_version.split('.')[0]) in (16, 17):
     write_to_bazelrc('build --copt=-Wno-gnu-offsetof-extensions')
 
 
@@ -1248,11 +1248,14 @@ def configure_ios(environ_cp):
   for filepath in APPLE_BAZEL_FILES:
     existing_filepath = os.path.join(_TF_WORKSPACE_ROOT, filepath + '.apple')
     renamed_filepath = os.path.join(_TF_WORKSPACE_ROOT, filepath)
-    symlink_force(existing_filepath, renamed_filepath)
+    if os.path.exists(existing_filepath):
+      symlink_force(existing_filepath, renamed_filepath)
   for filepath in IOS_FILES:
+    full_filepath = os.path.join(_TF_WORKSPACE_ROOT, filepath)
     filename = os.path.basename(filepath)
     new_filepath = os.path.join(_TF_WORKSPACE_ROOT, filename)
-    symlink_force(filepath, new_filepath)
+    if os.path.exists(full_filepath):
+      symlink_force(filepath, new_filepath)
 
 
 def get_gcc_compiler(environ_cp):

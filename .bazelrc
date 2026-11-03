@@ -300,7 +300,7 @@ build:windows --copt=/experimental:c11atomics
 build:windows --conlyopt=/experimental:c11atomics
 build:windows --host_conlyopt=/experimental:c11atomics
 build:windows --per_file_copt=external/pthreadpool/.*@-std=c11
-build:windows --per_file_copt=external/pthreadpool/_*@/D_CRT_SECURE_NO_WARNINGS
+build:windows --per_file_copt=external/pthreadpool/.*@/D_CRT_SECURE_NO_WARNINGS
 
 # Force include MSVC compatibility header for litert files
 build:windows --per_file_copt=external/litert/.*@/FI"C:/BuildTools/LiteRT-LM/msvc_compat.h"

@@ -1,9 +1,0 @@
-# macOS-specific Apple toolchain settings.
-# These are scoped to build:macos so they only apply on macOS
-# (via --enable_platform_specific_config in .bazelrc).
-build:macos --incompatible_enable_apple_toolchain_resolution
-build:macos --apple_crosstool_top=@build_bazel_apple_support//crosstool:toolchain
-build:macos --crosstool_top=@build_bazel_apple_support//crosstool:toolchain
-build:macos --host_crosstool_top=@build_bazel_apple_support//crosstool:toolchain
-build:macos --action_env=DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer
-build:macos --action_env=SDKROOT=/Applications/Xcode.app/Contents/Developer/Platforms/iPhoneSimulator.platform/Developer/SDKs/iPhoneSimulator.sdk
