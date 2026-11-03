@@ -4,7 +4,7 @@
     <application
         android:label="LiteRT-LM skill"
         android:theme="@android:style/Theme.Material.Light.NoActionBar">
-        <!-- The two lines the skill's prerequisites give for the GPU backend. -->
+        <!-- The two lines step 1 of the skill gives for the GPU backend. -->
         <uses-native-library android:name="libvndksupport.so" android:required="false"/>
         <uses-native-library android:name="libOpenCL.so" android:required="false"/>
         <activity

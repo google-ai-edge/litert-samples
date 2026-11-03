@@ -1,6 +1,6 @@
 # Prompt evals for the litert-runtime and litert-lm skills
 
-Thirteen prompts, written the way a developer asks a coding agent, run in a fresh checkout of [android/architecture-templates](https://github.com/android/architecture-templates) (branch `base`, commit `5467a8dc`) once without the skills and once with [`litert-runtime`](../litert-runtime/SKILL.md) ([LiteRT](https://github.com/google-ai-edge/litert)) and [`litert-lm`](../litert-lm/SKILL.md) ([LiteRT-LM](https://github.com/google-ai-edge/LiteRT-LM)) in `.agents/skills/`. Each prompt says what the developer wants and names no API; nothing else is given to the agent: no rules file, no other skill, no earlier conversation. The prompts and what a correct answer contains are in [litert-runtime.md](litert-runtime.md) (seven) and [litert-lm.md](litert-lm.md) (six); every run's row is in [results-litert-runtime.md](results-litert-runtime.md) and [results-litert-lm.md](results-litert-lm.md).
+Thirteen prompts, written the way a developer asks a coding agent, run in a fresh checkout of [android/architecture-templates](https://github.com/android/architecture-templates) (branch `base`, commit `5467a8dc`) once without the skills and once with [`litert-runtime`](../android/litert-runtime/SKILL.md) ([LiteRT](https://github.com/google-ai-edge/litert)) and [`litert-lm`](../android/litert-lm/SKILL.md) ([LiteRT-LM](https://github.com/google-ai-edge/LiteRT-LM)) in `.agents/skills/`. Each prompt says what the developer wants and names no API; nothing else is given to the agent: no rules file, no other skill, no earlier conversation. The prompts and what a correct answer contains are in [litert-runtime.md](litert-runtime.md) (seven) and [litert-lm.md](litert-lm.md) (six); every run's row is in [results-litert-runtime.md](results-litert-runtime.md) and [results-litert-lm.md](results-litert-lm.md).
 
 ## Run
 
@@ -8,7 +8,7 @@ The Antigravity CLI (`agy`, 1.3.1) in print mode, from the project directory, on
 
 ```sh
 git clone --branch base https://github.com/android/architecture-templates.git project && cd project
-mkdir -p .agents/skills && cp -R <litert-samples>/skills/litert-runtime <litert-samples>/skills/litert-lm .agents/skills/
+mkdir -p .agents/skills && cp -R <litert-samples>/skills/android/litert-runtime <litert-samples>/skills/android/litert-lm .agents/skills/
 agy --print "$(cat prompt.txt)" --model gemini-3.8-flash-high --output-format stream-json --dangerously-skip-permissions --sandbox > run.jsonl
 ```
 
