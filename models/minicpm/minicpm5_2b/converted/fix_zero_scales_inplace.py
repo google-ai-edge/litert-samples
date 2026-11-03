@@ -38,10 +38,11 @@ from litert_lm_builder import peek_litertlm_file
 
 
 def tflite_sections(path):
-  d = tempfile.mkdtemp(prefix="zsi_")
-  with open(os.path.join(d, "peek.txt"), "w") as out:
-    peek_litertlm_file(path, d, out)
-  peek = open(os.path.join(d, "peek.txt")).read()
+  with tempfile.TemporaryDirectory(prefix="zsi_") as d:
+    with open(os.path.join(d, "peek.txt"), "w") as out:
+      peek_litertlm_file(path, d, out)
+    with open(os.path.join(d, "peek.txt")) as f:
+      peek = f.read()
   secs = []
   for m in re.finditer(r"Section (\d+):\n  Items:\n(.*?)\n  Begin Offset: (\d+)\n  End Offset:\s+(\d+)\n"
                        r"  Data Type:\s+(\S+)", peek, re.S):

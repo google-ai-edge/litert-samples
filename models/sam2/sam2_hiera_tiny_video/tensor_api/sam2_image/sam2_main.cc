@@ -230,6 +230,7 @@ auto CreatePostprocessRunner(::litert::Environment& env,
 }
 
 double Median(std::vector<double> v) {
+  if (v.empty()) return 0.0;
   std::sort(v.begin(), v.end());
   return v[v.size() / 2];
 }
