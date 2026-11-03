@@ -172,7 +172,7 @@ class MainViewModel(private val imageSegmentationHelper: ImageSegmentationHelper
     mediaUri.update { uri }
   }
 
-  /** Set Accelerator for ImageSegmentationHelper(CPU/NPU/GPU) */
+  /** Set Accelerator for ImageSegmentationHelper(CPU/GPU) */
   fun setAccelerator(accleratorEnum: ImageSegmentationHelper.AcceleratorEnum) {
     viewModelScope.launch { imageSegmentationHelper.initSegmenter(accleratorEnum) }
   }

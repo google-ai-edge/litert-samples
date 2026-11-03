@@ -28,10 +28,16 @@ Using LiteRT in Google Play services:
       CompiledModel.create(
         context.assets,
         "selfie_multiclass.tflite",
-        CompiledModel.Options(Accelerator.GPU),
+        CompiledModel.Options(Accelerator.GPU, Accelerator.CPU),
         environment,
       )
     ```
+
+    **Note:** listing `Accelerator.CPU` after `Accelerator.GPU` enables CPU
+    fallback: ops that the GPU doesn't support run on the CPU, and the rest of
+    the model still runs on the GPU. With `Accelerator.GPU` alone,
+    `CompiledModel.create` throws if any op in the model is not supported on the
+    GPU. We recommend always adding `Accelerator.CPU` when you request the GPU.
 
     See `ImageSegmentationHelper.kt`. The environment is created once and shared
     by every `CompiledModel`, and it is closed when the `ViewModel` is cleared.
@@ -70,6 +76,6 @@ the debug key; your own app must use its own release signing key.
 The model is downloaded into `app/src/main/assets` during the build (see
 `app/download_model.gradle`).
 
-The first time an app uses LiteRT in Google Play services, Google Play services
-may need to download the LiteRT module, so the first initialization can take
-longer, or fail if the device is offline. In that case the app shows an error.
+In some cases, Google Play services may need to download the LiteRT module the
+first time the app uses LiteRT, so the first initialization can take longer, or
+fail if the device is offline. In that case the app shows an error.
