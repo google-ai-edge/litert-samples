@@ -1,0 +1,14 @@
+[
+ {
+  "id": "timesheet",
+  "title": "Timesheet: the week's pay with overtime",
+  "picture": "timesheet.png",
+  "question": "How much should Dana be paid for this week?"
+ },
+ {
+  "id": "printjob",
+  "title": "Invoice: which amounts are wrong?",
+  "picture": "printjob.png",
+  "question": "Check this invoice. Which printed amounts are wrong, and what should the total due be?"
+ }
+]

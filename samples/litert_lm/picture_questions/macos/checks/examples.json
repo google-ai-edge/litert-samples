@@ -1,0 +1,26 @@
+{
+ "name": "every bundled example, its answer checked, then its follow-up question",
+ "quit_when_done": true,
+ "conversations": [
+  {
+   "example": "timesheet",
+   "expect": "(?s)(?=.*(?:1,?012))",
+   "turns": [
+    {
+     "text": "How much of that is overtime pay?",
+     "expect": "(?s)(?=.*(?:132))"
+    }
+   ]
+  },
+  {
+   "example": "printjob",
+   "expect": "(?s)(?=.*(?:flyers))(?=.*(?:323\\.40))",
+   "turns": [
+    {
+     "text": "How much more than the right total does the printed total ask for?",
+     "expect": "(?s)(?=.*(?:8\\.80))"
+    }
+   ]
+  }
+ ]
+}

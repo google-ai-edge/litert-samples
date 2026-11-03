@@ -1,0 +1,5 @@
+# Generated at build time; see README.md
+PictureQuestions.xcodeproj/
+build/
+LiteRTLMRuntime/.build/
+LiteRTLMRuntime/.swiftpm/
