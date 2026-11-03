@@ -42,10 +42,23 @@ import com.google.ai.edge.litert.TensorBuffer
 class CompiledModelRunner private constructor(private val model: CompiledModel) : AutoCloseable {
 
     /** Pre-allocated input buffers, index-aligned with the model's input tensors. */
-    val inputBuffers: List<TensorBuffer> = model.createInputBuffers()
+    val inputBuffers: List<TensorBuffer>
 
     /** Pre-allocated output buffers, index-aligned with the model's output tensors. */
-    val outputBuffers: List<TensorBuffer> = model.createOutputBuffers()
+    val outputBuffers: List<TensorBuffer>
+
+    init {
+        var inputs: List<TensorBuffer>? = null
+        try {
+            inputs = model.createInputBuffers()
+            inputBuffers = inputs
+            outputBuffers = model.createOutputBuffers()
+        } catch (failure: Throwable) {
+            inputs?.forEach { runCatching { it.close() } }
+            runCatching { model.close() }
+            throw failure
+        }
+    }
 
     companion object {
         /**
@@ -90,9 +103,14 @@ class CompiledModelRunner private constructor(private val model: CompiledModel) 
     /** Reads output tensor [index] back to the host. This is the call that waits for the GPU. */
     fun readOutput(index: Int): FloatArray = outputBuffers[index].readFloat()
 
+    @Volatile
+    private var closed = false
+
     override fun close() {
-        inputBuffers.forEach { it.close() }
-        outputBuffers.forEach { it.close() }
+        if (closed) return
+        closed = true
+        outputBuffers.forEach { runCatching { it.close() } }
+        inputBuffers.forEach { runCatching { it.close() } }
         model.close()
     }
 }

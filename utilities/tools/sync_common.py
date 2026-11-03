@@ -12,17 +12,17 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 # ==============================================================================
-"""Check or update vendored copies of common/kotlin utilities across modules.
+"""Check or update vendored copies of utilities/common/kotlin utilities across modules.
 
 Every module in this repo is an independent Gradle project, so shared Kotlin
 utilities are distributed as vendored copies (one physical file per module)
 instead of a shared Gradle module — a sample must stay standalone and fully
 readable on its own. This tool keeps those copies byte-identical to the
-canonical sources in common/kotlin/ (only the `package` line may differ).
+canonical sources in utilities/common/kotlin/ (only the `package` line may differ).
 
 Usage:
-    python tools/sync_common.py --check   # list IDENTICAL/DIVERGED copies; exit 1 on drift
-    python tools/sync_common.py --apply   # rewrite diverged copies from the canonical
+    python utilities/tools/sync_common.py --check   # list IDENTICAL/DIVERGED copies; exit 1 on drift
+    python utilities/tools/sync_common.py --apply   # rewrite diverged copies from the canonical
 """
 
 import argparse
@@ -33,9 +33,12 @@ REPO_ROOT = pathlib.Path(__file__).resolve().parent.parent.parent
 CANONICAL_DIR = REPO_ROOT / "utilities" / "common" / "kotlin"
 PACKAGE_PLACEHOLDER = "package __MODULE_PACKAGE__"
 
-# Copies that intentionally diverge from the canonical (see common/README.md).
+# Copies that intentionally diverge from the canonical (see utilities/common/README.md).
 # They are reported but do not fail --check and are never rewritten by --apply.
-KNOWN_DIVERGENCES: set[str] = set()
+KNOWN_DIVERGENCES: set[str] = {
+    "samples/litert_model_zoo/android/app/src/main/java/com/google/ai/edge/examples/litert_model_zoo/common/CompiledModelRunner.kt",
+    "samples/litert_model_zoo/android/app/src/main/java/com/google/ai/edge/examples/litert_model_zoo/common/RealtimeCameraPipeline.kt",
+}
 
 
 def normalized(lines: list[str]) -> list[str]:
@@ -63,7 +66,7 @@ def find_copies(name: str) -> list[pathlib.Path]:
 
 def package_line(path: pathlib.Path) -> str:
     """Return the copy's own `package` line (falls back to the placeholder)."""
-    for line in path.read_text().splitlines():
+    for line in path.read_text(encoding="utf-8").splitlines():
         if line.startswith("package "):
             return line
     return PACKAGE_PLACEHOLDER
@@ -83,21 +86,21 @@ def main() -> int:
 
     drifted = 0
     for canonical in canonical_files:
-        canonical_lines = normalized(canonical.read_text().splitlines())
+        canonical_lines = normalized(canonical.read_text(encoding="utf-8").splitlines())
         copies = find_copies(canonical.name)
         print(f"{canonical.name}: {len(copies)} copies")
         for copy in copies:
-            if normalized(copy.read_text().splitlines()) == canonical_lines:
+            if normalized(copy.read_text(encoding="utf-8").splitlines()) == canonical_lines:
                 continue
-            rel = copy.relative_to(REPO_ROOT)
-            if str(rel) in KNOWN_DIVERGENCES:
+            rel = copy.relative_to(REPO_ROOT).as_posix()
+            if rel in KNOWN_DIVERGENCES:
                 print(f"  KNOWN-DIVERGED (allowlisted) {rel}")
                 continue
             drifted += 1
             if args.apply:
-                body = canonical.read_text().replace(
+                body = canonical.read_text(encoding="utf-8").replace(
                     PACKAGE_PLACEHOLDER, package_line(copy), 1)
-                copy.write_text(body)
+                copy.write_text(body, encoding="utf-8")
                 print(f"  UPDATED  {rel}")
             else:
                 print(f"  DIVERGED {rel}")
