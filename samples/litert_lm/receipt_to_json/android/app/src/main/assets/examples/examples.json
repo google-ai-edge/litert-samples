@@ -1,0 +1,142 @@
+{
+ "keys": [
+  "store_name",
+  "date",
+  "tax",
+  "total"
+ ],
+ "examples": [
+  {
+   "file": "farm_stand_scan.png",
+   "fields": {
+    "store_name": "HILLTOP FARM STAND",
+    "date": "2025-09-14",
+    "tax": "1.84",
+    "total": "38.57"
+   },
+   "printed_date": "09/14/2025",
+   "sha256": "ff2b740d3e0b26f7aa8130ac5e5dc20f5be9d0395b7c675288e4cce56c47b5b9"
+  },
+  {
+   "file": "farm_stand_photo.jpg",
+   "fields": {
+    "store_name": "HILLTOP FARM STAND",
+    "date": "2025-09-14",
+    "tax": "1.84",
+    "total": "38.57"
+   },
+   "printed_date": "09/14/2025",
+   "sha256": "4759e97c14715e4e442548325b531e776bb045e5de9d348b30595a8feda84675"
+  },
+  {
+   "file": "bike_shop_scan.png",
+   "fields": {
+    "store_name": "BAYSIDE BIKE SHOP",
+    "date": "2025-10-18",
+    "tax": "10.76",
+    "total": "141.20"
+   },
+   "printed_date": "10/18/25",
+   "sha256": "9b090bf74082fcff197c37d795b301d1d8d908e287888a6e32141ab972631677"
+  },
+  {
+   "file": "bike_shop_photo.jpg",
+   "fields": {
+    "store_name": "BAYSIDE BIKE SHOP",
+    "date": "2025-10-18",
+    "tax": "10.76",
+    "total": "141.20"
+   },
+   "printed_date": "10/18/25",
+   "sha256": "29caa454b01bd32b289ecb7a3ee4331fe13341ea9a02a82749b32f91166cb930"
+  },
+  {
+   "file": "wok_kitchen_scan.png",
+   "fields": {
+    "store_name": "GOLDEN WOK KITCHEN",
+    "date": "2025-11-21",
+    "tax": "4.38",
+    "total": "54.48"
+   },
+   "printed_date": "11/21/2025",
+   "sha256": "cd7c42ba50a9f67fe025fdcb4512dd8b60f9d45fce031212156f81184d77484f"
+  },
+  {
+   "file": "wok_kitchen_photo.jpg",
+   "fields": {
+    "store_name": "GOLDEN WOK KITCHEN",
+    "date": "2025-11-21",
+    "tax": "4.38",
+    "total": "54.48"
+   },
+   "printed_date": "11/21/2025",
+   "sha256": "ac6968b6c8be753cbf96354ab8d75da9dee3872cbdc4b93a1cc6dcbbddc947c4"
+  },
+  {
+   "file": "hardware_scan.png",
+   "fields": {
+    "store_name": "MAPLEWOOD HARDWARE",
+    "date": "2025-10-16",
+    "tax": "3.46",
+    "total": "52.88"
+   },
+   "printed_date": "10/16/25",
+   "sha256": "fc0f40a09a4f538fbd51361d56e269cc75ca0592cc67b0b8f252db000cc7b669"
+  },
+  {
+   "file": "hardware_photo.jpg",
+   "fields": {
+    "store_name": "MAPLEWOOD HARDWARE",
+    "date": "2025-10-16",
+    "tax": "3.46",
+    "total": "52.88"
+   },
+   "printed_date": "10/16/25",
+   "sha256": "3cebd957ae4c64550ee021d1af35784ff2cf104ac82dd17bdb0c516b0a2527c2"
+  },
+  {
+   "file": "bakery_scan.png",
+   "fields": {
+    "store_name": "SILVER SPOON BAKERY",
+    "date": "2025-09-27",
+    "tax": "2.54",
+    "total": "44.94"
+   },
+   "printed_date": "09/27/2025",
+   "sha256": "ba9ba1d4786a88e4c2e48c4d4d000210270c4c189bff2fa44dbd07fb991ea681"
+  },
+  {
+   "file": "bakery_photo.jpg",
+   "fields": {
+    "store_name": "SILVER SPOON BAKERY",
+    "date": "2025-09-27",
+    "tax": "2.54",
+    "total": "44.94"
+   },
+   "printed_date": "09/27/2025",
+   "sha256": "1cd5fdd876cb17eb21fe59b70ca03c2432d9924bc0055616cefb8f78c74deed0"
+  },
+  {
+   "file": "pet_center_scan.png",
+   "fields": {
+    "store_name": "TALL PINES PET CENTER",
+    "date": "2025-11-19",
+    "tax": "9.97",
+    "total": "163.36"
+   },
+   "printed_date": "11/19/25",
+   "sha256": "2066f74c812a96318a5e179115b127f486235e1873e70a3f12356b151d332f19"
+  },
+  {
+   "file": "pet_center_photo.jpg",
+   "fields": {
+    "store_name": "TALL PINES PET CENTER",
+    "date": "2025-11-19",
+    "tax": "9.97",
+    "total": "163.36"
+   },
+   "printed_date": "11/19/25",
+   "sha256": "091d1bda7539817b980a5f470f71ebf4903c2b51cecdb2262e6685d16f9f09c0"
+  }
+ ]
+}
