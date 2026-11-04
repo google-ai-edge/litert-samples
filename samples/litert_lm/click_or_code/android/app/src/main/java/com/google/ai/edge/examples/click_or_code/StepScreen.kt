@@ -106,10 +106,17 @@ fun StepScreen(
       color = Color.White,
       modifier = Modifier.fillMaxSize().semantics { testTagsAsResourceId = true },
     ) {
+      val scroll = rememberScrollState()
+      // A command's block is taller than the room under Decide: its answer scrolls into view. A click's
+      // answer stays with the screenshot it marks.
+      val answer = ui.decision?.takeIf { it.done && !it.stopped && it.error == null }?.reply?.first
+      LaunchedEffect(answer) {
+        if (answer?.isCode == true) scroll.animateScrollTo(scroll.maxValue)
+      }
       Column(
         Modifier.fillMaxSize()
           .windowInsetsPadding(WindowInsets.safeDrawing)
-          .verticalScroll(rememberScrollState())
+          .verticalScroll(scroll)
           .padding(horizontal = 16.dp, vertical = 8.dp),
         verticalArrangement = Arrangement.spacedBy(10.dp),
       ) {
