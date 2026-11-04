@@ -1,10 +1,34 @@
 {
   "examples": [
     {
+      "id": "settings",
+      "name": "Settings",
+      "file": "settings.png",
+      "requests": ["Turn off Bluetooth."]
+    },
+    {
       "id": "files",
       "name": "File manager",
       "file": "files.png",
-      "requests": ["Open the photo of the sailboat.", "Rename every .JPG file in this folder to lowercase .jpg."]
+      "requests": ["Rename every .JPG file in this folder to lowercase .jpg.", "Open the photo of the sailboat."]
+    },
+    {
+      "id": "project",
+      "name": "Build folder",
+      "file": "project.png",
+      "requests": ["How many lines does error.log have?", "Open error.log."]
+    },
+    {
+      "id": "editor",
+      "name": "Image editor",
+      "file": "editor.png",
+      "requests": ["Click the blue square on the canvas."]
+    },
+    {
+      "id": "phone_settings",
+      "name": "Phone settings",
+      "file": "phone_settings.png",
+      "requests": ["Open the Battery settings."]
     }
   ]
 }

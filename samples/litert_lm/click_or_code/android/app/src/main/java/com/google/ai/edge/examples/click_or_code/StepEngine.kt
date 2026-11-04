@@ -156,8 +156,6 @@ class StepEngine(
         )
       e.initialize()
       engine = e
-      // The first Conversation on an Engine is the slow one: pay for it here, not on the first Decide.
-      e.createConversation(ConversationConfig(systemInstruction = Contents.of(systemPrompt))).close()
       engineMs = ms(System.nanoTime() - t0)
       Log.i(TAG, "ENGINE_READY engine_ms=$engineMs")
       if (!stepping.get()) _state.value = EngineState.Ready(engineMs)

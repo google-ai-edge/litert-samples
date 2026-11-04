@@ -219,8 +219,8 @@ def editor():
              f'<div class="th" data-box="thumb_{key}">{svg}</div><div>{name}</div></div>')
   tools = "".join(f'<div class="tool" data-box="tool_{t}"><svg width="32" height="32">{tool_svg(t)}</svg></div>' for t in
                   ("move", "rect", "ellipse", "crop", "brush", "eraser", "bucket", "gradient", "line", "text", "dropper", "zoom"))
-  canvas = ('<svg width="760" height="760"><rect width="760" height="760" fill="#f3e7c7"/><circle cx="240" cy="290" r="150" fill="#e0312d"/>'
-            '<rect x="400" y="230" width="240" height="240" fill="#2d6cdf"/><polygon points="370,720 560,440 730,720" fill="#3fa34d"/></svg>')
+  canvas = ('<svg width="760" height="760"><rect width="760" height="760" fill="#f3e7c7"/><circle data-box="shape_cir" cx="240" cy="290" r="150" fill="#e0312d"/>'
+            '<rect data-box="shape_sq" x="400" y="230" width="240" height="240" fill="#2d6cdf"/><polygon data-box="shape_tri" points="370,720 560,440 730,720" fill="#3fa34d"/></svg>')
   body = (f'<div class="tb2">{tools}</div><div class="canvas">{canvas}</div>'
           f'<div class="right"><h4>Layers</h4>{rows}<div class="small">Normal &nbsp; Opacity 100 %</div></div>')
   return desktop("/home/user/Projects/poster/poster.xcf - Image Editor", "File Edit Select View Image Layer Colors Tools Filters Windows Help", body, css)
@@ -493,9 +493,42 @@ def code():
   return desktop("report.py - ledger - Code", "File Edit Selection View Go Run Terminal Help", body, css)
 
 
-SCREENS = {"files": files, "sheet": sheet, "editor": editor, "settings": settings, "terminal": terminal, "phone_settings": phone_settings,
+def project():
+  css = """
+  .side{width:230px;background:#f2f2f2;border-right:1px solid #ddd;padding:14px 0;font-size:15px}
+  .side div{padding:9px 22px}.side .on{background:#d7e6f7}
+  .main{flex:1;display:flex;flex-direction:column}
+  .path{height:46px;flex:none;border-bottom:1px solid #ddd;display:flex;align-items:center;padding:0 16px;font-size:15px;gap:8px;background:#fafafa}
+  .path span{background:#e8e8e8;border-radius:5px;padding:5px 10px}
+  .head,.row{display:grid;grid-template-columns:1fr 150px 190px;padding:0 22px;align-items:center;font-size:16px}
+  .head{height:40px;flex:none;background:#f5f5f5;border-bottom:1px solid #ddd;color:#555;font-size:14px}
+  .row{height:52px;flex:none;border-bottom:1px solid #eee}
+  .name{display:flex;align-items:center;gap:12px}
+  .list{flex:1}
+  .status{height:30px;flex:none;border-top:1px solid #ddd;background:#f5f5f5;font-size:13px;line-height:30px;padding-left:14px}
+  """
+  def icon(c):
+    return (f'<svg width="26" height="32"><path d="M2 1 H17 L24 8 V31 H2 z" fill="{c}"/><path d="M17 1 V8 H24 z" fill="rgba(255,255,255,.6)"/></svg>')
+  items = [("app.js", "184 kB", "Oct 30", "#d9b23c"), ("app.js.map", "612 kB", "Oct 30", "#888888"), ("cache_0041.tmp", "2.1 MB", "Oct 29", "#b0b0b0"),
+           ("cache_0042.tmp", "1.8 MB", "Oct 29", "#b0b0b0"), ("cache_0043.tmp", "2.4 MB", "Oct 30", "#b0b0b0"), ("error.log", "38 kB", "Oct 30", "#e0443e"),
+           ("favicon.ico", "4 kB", "Oct 12", "#57a773"), ("index.html", "12 kB", "Oct 30", "#3f8ae0"), ("report.csv", "96 kB", "Oct 28", "#57a773"),
+           ("session.tmp", "220 kB", "Oct 30", "#b0b0b0"), ("style.css", "31 kB", "Oct 30", "#8e6bbf"), ("upload.tmp", "640 kB", "Oct 27", "#b0b0b0"),
+           ("vendor.js", "1.2 MB", "Oct 21", "#d9b23c")]
+  rows = ""
+  for n, size, date, c in items:
+    key = n.split(".")[0].replace("_", "")
+    rows += f'<div class="row" data-box="row_{key}"><div class="name">{icon(c)}<span>{n}</span></div><div>{size}</div><div>{date}</div></div>'
+  body = (f'<div class="side"><div>Home</div><div class="on">Projects</div><div>Documents</div><div>Downloads</div><div>Pictures</div><div>Trash</div></div>'
+          f'<div class="main"><div class="path"><span>home</span>/<span>user</span>/<span>Projects</span>/<span>site</span>/<span>build</span></div>'
+          f'<div class="head"><div>Name</div><div>Size</div><div>Modified</div></div><div class="list">{rows}</div>'
+          f'<div class="status">13 items, 8.6 MB &nbsp;&nbsp; /home/user/Projects/site/build</div></div>')
+  return desktop("build - Files", "", body, css)
+
+
+SCREENS = {"files": files,
+ "sheet": sheet, "editor": editor, "settings": settings, "terminal": terminal, "phone_settings": phone_settings,
            "phone_files": phone_files, "phone_home": phone_home, "mail": mail, "browser": browser, "dialog": dialog, "music": music,
-           "pdfview": pdfview, "notes": notes, "deck": deck, "downloads": downloads, "code": code}
+           "pdfview": pdfview, "notes": notes, "deck": deck, "downloads": downloads, "code": code, "project": project}
 BOX_JS = """<script>
 (function(){const o={};document.querySelectorAll('[data-box]').forEach(e=>{const r=e.getBoundingClientRect();
 o[e.dataset.box]=[Math.round(r.left),Math.round(r.top),Math.round(r.width),Math.round(r.height)];});
