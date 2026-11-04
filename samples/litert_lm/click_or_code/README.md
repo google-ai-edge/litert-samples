@@ -88,6 +88,8 @@ cd samples/litert_lm/click_or_code/android
 
 Open the app and tap **Download (3.2 GB) and load**. Then tap a bundled example or **Screenshot…**, type what you want done (or tap a suggested request), and tap **Decide**. **Stop** takes effect when the vision encoder has finished: tapped 10 s into a step, it took 13 to 26 s more on a Galaxy S26 and 72 s more on a Pixel 11 Pro.
 
+Stay in the app while the file downloads. On a Galaxy S26, pressing Home ended the download 5 to 6 s later: the screen then read `Software caused connection abort`, and **Try again** resumed from the same byte.
+
 ## Development
 
 **Side-load (development only).** A copy of the model file in the app's external files dir is hashed and, when its size and SHA-256 match `models.json`, imported instead of downloaded; the next **Download (3.2 GB) and load** logs `side-loaded <file> ... (sha256 verified)` under `adb logcat -s ClickOrCodeDownload`:
