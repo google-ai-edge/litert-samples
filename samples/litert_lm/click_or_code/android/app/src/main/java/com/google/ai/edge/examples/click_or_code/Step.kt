@@ -94,10 +94,10 @@ object Step {
 
   private val TOOL_CALL = Regex("<tool_call>\\s*(.*?)\\s*(?:</tool_call>|$)", RegexOption.DOT_MATCHES_ALL)
   private val ACTION = Regex("(?m)^\\s*Action:\\s*(.+)$")
-  private val COORD = Regex("\"coordinate\"\\s*:\\s*\\[\\s*(-?[\\d.]+)\\s*,\\s*(-?[\\d.]+)\\s*]")
+  private val COORD = Regex("\"coordinate\"\\s*:\\s*\\[\\s*(-?[\\d.]+)\\s*,\\s*(-?[\\d.]+)\\s*\\]")
   private val ACTION_ARG = Regex("\"action\"\\s*:\\s*\"(\\w+)\"")
   private val NAME = Regex("\"name\"\\s*:\\s*\"(\\w+)\"")
-  private val COMMAND = Regex("\"command\"\\s*:\\s*\"(.*)\"\\s*}\\s*}?\\s*$", RegexOption.DOT_MATCHES_ALL)
+  private val COMMAND = Regex("\"command\"\\s*:\\s*\"(.*)\"\\s*\\}\\s*\\}?\\s*$", RegexOption.DOT_MATCHES_ALL)
 
   /** The model can write a typographic quote where JSON needs a straight one. */
   private fun straighten(s: String) = s.replace('“', '"').replace('”', '"')

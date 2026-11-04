@@ -141,11 +141,10 @@ fun StepScreen(
         }
         ui.decision?.let { DecisionPanel(it, ui, onCopy) }
         Text(
-          "${Build.MODEL} · Mage-VL-Cowork · text GPU, vision CPU · LiteRT-LM " +
+          "Mage-VL-Cowork · text GPU, vision CPU · ${Build.MODEL} · LiteRT-LM " +
             BuildConfig.LITERTLM_VERSION,
           fontSize = 12.sp,
           color = Muted,
-          maxLines = 1,
           modifier = Modifier.testTag("device"),
         )
         Spacer(Modifier.height(16.dp))
