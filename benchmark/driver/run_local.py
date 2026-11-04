@@ -204,7 +204,7 @@ def main() -> int:
         print(show(collect))
         if not args.dry_run and subprocess.run(collect).returncode != 0:
             failures += 1
-    build = [python, str(HERE / "build_board.py"), *(["--data-dir", str(args.data_dir)] if args.data_dir != DEFAULT_DATA_DIR else [])]
+    build = [python, str(HERE / "build_board.py"), *extra]
     print(show(build))
     if not args.dry_run and subprocess.run(build).returncode != 0:
         failures += 1

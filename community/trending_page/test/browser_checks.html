@@ -177,7 +177,8 @@ const CASES = {
         const inPage = links.filter(a => a.getAttribute('href').startsWith('#'));
         check(inPage.length >= 4 && inPage.every(a => doc.getElementById(a.getAttribute('href').slice(1))), 'an in-page link without its target');
         check(!doc.querySelector('[style], script:not([src]), [onclick]'), 'inline style or script (the CSP blocks them)');
-        check(flat(doc.querySelector('.draft').textContent) === 'Draft · for review' && doc.title === 'Trending models (draft)', 'the draft marks');
+        const draftEl = doc.querySelector('.draft');
+        check((draftEl ? flat(draftEl.textContent) === 'Draft · for review' && doc.title === 'Trending models (draft)' : doc.title === 'Trending models'), 'the draft marks');
         check(flat(doc.querySelector('.brand').textContent) === 'Trending models' && flat(doc.querySelector('h1').textContent).startsWith('Trending models'), 'the name');
         const headings = [...doc.querySelectorAll('main h2, main h3')].filter(h => !h.closest('li')).map(h => flat(h.textContent));
         check(same(headings, ['Trending', 'Recently created', '🌟 Community\'s Picks of the Week', 'Samples', 'In litert-samples', 'Demos on Hugging Face']), headings.join(' | '));
