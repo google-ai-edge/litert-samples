@@ -1,0 +1,68 @@
+name: ClickOrCode
+options:
+  bundleIdPrefix: com.google.ai.edge.examples
+  deploymentTarget:
+    macOS: "14.0"
+packages:
+  # The LiteRT-LM 0.19.0 runtime for macOS: the release's CLiteRTLM_mac.xcframework, pinned by URL and SHA-256 in
+  # LiteRTLMRuntime/Package.swift. Its one dylib has the WebGPU (Metal) GPU accelerator built in.
+  LiteRTLMRuntime:
+    path: LiteRTLMRuntime
+targets:
+  ClickOrCode:
+    type: application
+    platform: macOS
+    sources:
+      - Sources
+      - path: Resources/models.json
+        buildPhase: resources
+      # The system prompt and the example screenshots are the Android app's files, not copies of them.
+      - path: ../android/app/src/main/assets/mage_hybrid_system_prompt.txt
+        buildPhase: resources
+      - path: ../android/app/src/main/assets/examples
+        type: folder
+        buildPhase: resources
+    dependencies:
+      - package: LiteRTLMRuntime
+        product: CLiteRTLM
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.google.ai.edge.examples.clickorcode
+        PRODUCT_NAME: ClickOrCode
+        MARKETING_VERSION: "1.0"
+        CURRENT_PROJECT_VERSION: "1"
+        SWIFT_VERSION: "5.0"
+        GENERATE_INFOPLIST_FILE: YES
+        INFOPLIST_KEY_CFBundleDisplayName: Click or Code
+        INFOPLIST_KEY_LSApplicationCategoryType: public.app-category.developer-tools
+        # Apple Silicon only: the GPU path is Metal under WebGPU.
+        ARCHS: arm64
+        # Signed to run locally; no Apple developer account needed.
+        CODE_SIGN_STYLE: Manual
+        CODE_SIGN_IDENTITY: "-"
+        DEVELOPMENT_TEAM: ""
+        ENABLE_HARDENED_RUNTIME: NO
+        # Not sandboxed: the app starts itself again as the engine process and starts /usr/sbin/screencapture.
+        ENABLE_APP_SANDBOX: NO
+    scheme:
+      testTargets:
+        - ClickOrCodeTests
+  ClickOrCodeTests:
+    type: bundle.unit-test
+    platform: macOS
+    sources:
+      - Tests
+      - Sources/Step.swift
+      - Sources/Pictures.swift
+      - path: ../android/app/src/test/resources/picture_rows.json
+        buildPhase: resources
+      - path: ../android/app/src/main/assets/mage_hybrid_system_prompt.txt
+        buildPhase: resources
+    settings:
+      base:
+        SWIFT_VERSION: "5.0"
+        GENERATE_INFOPLIST_FILE: YES
+        ARCHS: arm64
+        CODE_SIGN_STYLE: Manual
+        CODE_SIGN_IDENTITY: "-"
+        DEVELOPMENT_TEAM: ""
