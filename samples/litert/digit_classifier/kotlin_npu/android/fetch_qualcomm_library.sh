@@ -20,7 +20,7 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-DEFAULT_QAIRT_VERSION="2.44.0.260225"
+DEFAULT_QAIRT_VERSION="2.50.0.260828"
 DEFAULT_HEXAGON_VERSION="79"
 DEFAULT_DEST_DIR="${SCRIPT_DIR}/app/src/main/jniLibs/arm64-v8a"
 
@@ -115,6 +115,8 @@ if [[ -z "${QAIRT_DIR}" ]]; then
   unzip -q "${ARCHIVE_PATH}" \
     "qairt/${QAIRT_VERSION}/lib/aarch64-android/libQnnHtp.so" \
     "qairt/${QAIRT_VERSION}/lib/aarch64-android/libQnnSystem.so" \
+    "qairt/${QAIRT_VERSION}/lib/aarch64-android/libQnnIr.so" \
+    "qairt/${QAIRT_VERSION}/lib/aarch64-android/libQnnSaver.so" \
     "qairt/${QAIRT_VERSION}/lib/aarch64-android/libQnnHtpV${HEXAGON_VERSION}Stub.so" \
     "qairt/${QAIRT_VERSION}/lib/aarch64-android/libQnnHtpPrepare.so" \
     "qairt/${QAIRT_VERSION}/lib/hexagon-v${HEXAGON_VERSION}/unsigned/libQnnHtpV${HEXAGON_VERSION}Skel.so" \
@@ -145,9 +147,13 @@ for lib in "${REQUIRED_LIBS[@]}"; do
   cp -f "${lib}" "${DEST_DIR}/"
 done
 
-PREPARE_LIB="${QAIRT_DIR}/lib/aarch64-android/libQnnHtpPrepare.so"
-if [[ -f "${PREPARE_LIB}" ]]; then
-  cp -f "${PREPARE_LIB}" "${DEST_DIR}/"
-fi
+for opt_lib in \
+  "${QAIRT_DIR}/lib/aarch64-android/libQnnHtpPrepare.so" \
+  "${QAIRT_DIR}/lib/aarch64-android/libQnnIr.so" \
+  "${QAIRT_DIR}/lib/aarch64-android/libQnnSaver.so"; do
+  if [[ -f "${opt_lib}" ]]; then
+    cp -f "${opt_lib}" "${DEST_DIR}/"
+  fi
+done
 
 echo "Installed Qualcomm Hexagon v${HEXAGON_VERSION} QNN libraries into ${DEST_DIR}"
