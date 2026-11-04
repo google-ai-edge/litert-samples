@@ -21,7 +21,21 @@ JDK 17 and Android SDK platform 36 to build. The app builds for arm64-v8a on And
 
 ## What it decides, and what it does not
 
-⟨line table⟩
+The app shows the model's next step and runs nothing, which matters for reading its answers:
+
+- A command is often a look around first: `ls -la`, `find`, a short Python script that reads the file. The agent would read that output and go on at its next step.
+- The model chooses the screen more often than you might expect. When the target has to be found by sight ("Copy the file with the red icon to the Desktop.") or the request is an edit inside an open app ("Replace every 'colour' with 'color' in this file and save it."), it usually clicks. When the file is named on the screen and the question is about the file ("How many pages does this PDF have? Check the file itself."), it writes a command.
+
+Checked with this file in the app's form (text decoder on the GPU, vision encoder on the CPU, the two steps above) on a Mac, with screens and requests written for this sample and the expected answer written down before any reply was read:
+
+| Requests | Chose `computer_use` or `bash` as expected | Click inside the expected box | Call parses as JSON | Reply ended by itself |
+|---|---|---|---|---|
+| 11 kept out of every choice | 10 of 11 | 4 of 6 | 11 of 11 | 11 of 11 |
+| 12 first candidates | 11 of 12 | 4 of 6 | 12 of 12 | 12 of 12 |
+| 11 used to choose the form of the request | 8 of 11 | 4 of 6 | 11 of 11 | 11 of 11 |
+| 30, the first 12 and harder ones added later | 22 of 30 | 8 of 11 | 30 of 30 | 30 of 30 |
+
+On 7 of these requests the original weights (PyTorch, CPU) chose the same tool on every one, and their two clicks landed in the same boxes.
 
 ## Architecture
 
@@ -57,7 +71,7 @@ cd samples/litert_lm/click_or_code/android
 ./gradlew :app:installDebug
 ```
 
-Open the app and tap **Download (3.2 GB) and load**. Then tap a bundled example or **Screenshot…**, type what you want done (or tap a suggested request), and tap **Decide**.
+Open the app and tap **Download (3.2 GB) and load**. Then tap a bundled example or **Screenshot…**, type what you want done (or tap a suggested request), and tap **Decide**. **Stop** takes effect when the vision encoder has finished: 71.5 s on a Pixel 11 Pro.
 
 ## Development
 
