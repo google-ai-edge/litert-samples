@@ -11,8 +11,10 @@ OUT_DIR/<name>.boxes.json: every element with data-box="..." as [x, y, w, h] in 
 import argparse
 import json
 import os
+import shutil
 import subprocess
 import sys
+import tempfile
 
 from PIL import Image
 
@@ -51,7 +53,7 @@ def desktop(title, menu, body, extra_css=""):
   m = f'<div class="menu">{menu}</div>' if menu else ""
   return (f'<style>{extra_css}</style><div id="s"><div class="top"><span>Activities</span><span>Tue 14:05</span>'
           f'<span>EN &nbsp; 82 %</span></div><div class="dock">{dock}</div><div class="win"><div class="tb">{title}'
-          f'<div class="x"><b></b><b></b><b></b></div></div>{m}<div class="body">{body}</div></div></div>')
+          f'<div class="x"><b data-box="win_min"></b><b data-box="win_max"></b><b data-box="win_close"></b></div></div>{m}<div class="body">{body}</div></div></div>')
 
 
 # ---------------------------------------------------------------- pictures (thumbnails drawn as small scenes)
@@ -546,13 +548,16 @@ def render(name, html, out, fonts):
     f.write(doc)
   url = "file://" + os.path.abspath(path)
   png = os.path.join(out, name + ".png")
+  # A fresh profile each time: Chrome exits non-zero on a profile an earlier run left behind.
+  profile = tempfile.mkdtemp(prefix="scenes_chrome_")
   base = [CHROME, "--headless=new", "--no-sandbox", "--disable-gpu", "--hide-scrollbars", "--force-device-scale-factor=1",
           "--allow-file-access-from-files", f"--window-size={w},{h + 200}", "--virtual-time-budget=1500",
-          f"--user-data-dir={out}/.chrome"]
+          f"--user-data-dir={profile}"]
   subprocess.run(base + [f"--screenshot={png}", url], check=True, capture_output=True, timeout=120)
   im = Image.open(png).convert("RGB")
   im.crop((0, 0, w, h)).save(png, format="PNG", optimize=True)
   dom = subprocess.run(base + ["--dump-dom", url], check=True, capture_output=True, timeout=120).stdout.decode("utf-8")
+  shutil.rmtree(profile, ignore_errors=True)
   a = dom.index('id="__boxes"')
   a = dom.index(">", a) + 1
   b = dom.index("</pre>", a)
