@@ -268,7 +268,7 @@ private fun ScreenshotPanel(ui: UiState) {
         contentScale = ContentScale.FillBounds,
         modifier = Modifier.fillMaxSize(),
       )
-      val call = ui.decision?.takeIf { it.done }?.reply?.first
+      val call = ui.decision?.takeIf { it.done && !it.stopped }?.reply?.first
       val points = listOfNotNull(call?.coordinate, call?.start, call?.end)
       if (points.isNotEmpty() && call?.isCode != true) MarkOverlay(points, ui.decision?.text ?: "")
     }
@@ -379,9 +379,10 @@ private fun DecisionPanel(d: Decision, ui: UiState, onCopy: (String) -> Unit) {
     if (!d.done) {
       val phase =
         when {
-          d.firstTextMs == null -> "Reading the screen…"
-          call == null -> "Thinking…"
-          else -> "Writing the step…"
+          !d.hasText && d.inference == 2 -> "The model asked for a screenshot. Inference 2: reading the screen…"
+          !d.hasText -> "Inference 1: reading the screen…"
+          call == null -> "Inference ${d.inference}: thinking…"
+          else -> "Inference ${d.inference}: writing the step…"
         }
       Text(phase, fontSize = 15.sp, fontWeight = FontWeight.Medium, color = Ink, modifier = Modifier.testTag("phase"))
       if (d.text.isNotEmpty()) {
@@ -398,6 +399,7 @@ private fun DecisionPanel(d: Decision, ui: UiState, onCopy: (String) -> Unit) {
       when {
         d.error != null ->
           Text("Stopped: ${d.error}", color = Bad, fontSize = 14.sp, modifier = Modifier.testTag("error"))
+        d.stopped -> Text("Stopped.", color = Muted, fontSize = 14.sp, modifier = Modifier.testTag("stopped"))
         call == null ->
           Text(
             if (d.cut) "The reply reached the file's ${Step.FILE_TOKENS} tokens before it gave a step."
@@ -480,15 +482,22 @@ private fun Answer(call: ToolCall, d: Decision, onCopy: (String) -> Unit) {
 @Composable
 private fun StagesLine(d: Decision) {
   val total = d.totalMs?.let { "%.1f s".format(it / 1000.0) } ?: return
-  val parts =
-    listOfNotNull(
-      d.visionS?.let { "vision %.1f s".format(it) },
-      d.prefillS?.let { "prefill %.1f s".format(it) },
-      d.decodeS?.let { "decode %.1f s (%d tokens)".format(it, d.decodeTokens ?: 0) },
-    )
+  val head = "${d.runs.size} inference${if (d.runs.size == 1) "" else "s"} · $total in all"
+  val lines =
+    d.runs.mapIndexed { i, run ->
+      val parts =
+        listOfNotNull(
+          "%.1f s".format(run.totalS),
+          run.visionS?.let { "vision %.1f s".format(it) },
+          run.prefillS?.let { "prefill %.1f s".format(it) },
+          run.decodeS?.let { "decode %.1f s (%d tokens)".format(it, run.decodeTokens ?: 0) },
+        )
+      "${i + 1}: " + parts.joinToString(" · ")
+    }
   Text(
-    (listOf("$total in all") + parts).joinToString(" · "),
+    (listOf(head) + lines).joinToString("\n"),
     fontSize = 12.sp,
+    lineHeight = 16.sp,
     color = Muted,
     modifier = Modifier.testTag("stages"),
   )
@@ -497,7 +506,8 @@ private fun StagesLine(d: Decision) {
 /** The model's reasoning, folded. */
 @Composable
 private fun Thinking(d: Decision) {
-  if (d.reply.thinking.isEmpty()) return
+  val reasoning = d.runs.map { it.thinking }.ifEmpty { listOf(d.reply.thinking) }.filter { it.isNotEmpty() }.joinToString("\n\n")
+  if (reasoning.isEmpty()) return
   var open by remember(d.text) { mutableStateOf(false) }
   TextButton(onClick = { open = !open }, modifier = Modifier.testTag("thinking_toggle")) {
     Text(if (open) "Hide the reasoning" else "Show the reasoning", fontSize = 13.sp)
@@ -505,7 +515,7 @@ private fun Thinking(d: Decision) {
   if (open) {
     SelectionContainer {
       Text(
-        d.reply.thinking,
+        reasoning,
         fontSize = 13.sp,
         lineHeight = 18.sp,
         color = Ink,

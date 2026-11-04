@@ -7,16 +7,28 @@
       "requests": ["Turn off Bluetooth."]
     },
     {
+      "id": "pdfview",
+      "name": "PDF viewer",
+      "file": "pdfview.png",
+      "requests": ["How many pages does this PDF have? Check the file itself."]
+    },
+    {
       "id": "files",
       "name": "File manager",
       "file": "files.png",
       "requests": ["Rename every .JPG file in this folder to lowercase .jpg.", "Open the photo of the sailboat."]
     },
     {
+      "id": "sheet",
+      "name": "Spreadsheet",
+      "file": "sheet.png",
+      "requests": ["Merge cells A1:D1, set the title to 'Q4 Summary', and save the file."]
+    },
+    {
       "id": "project",
       "name": "Build folder",
       "file": "project.png",
-      "requests": ["How many lines does error.log have?", "Open error.log."]
+      "requests": ["Open error.log."]
     },
     {
       "id": "editor",

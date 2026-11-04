@@ -125,11 +125,24 @@ class StepTest {
   }
 
   @Test
-  fun screenshotStepReadsAsAStep() {
-    val r = Step.parse(Step.SCREENSHOT_STEP)
-    assertEquals("Take a screenshot of the current screen.", r.actionLine)
-    assertEquals("screenshot", r.first!!.action)
-    assertFalse(r.first!!.isCode)
+  fun stepTextIsTheAgentsFirstStep() {
+    assertEquals(
+      "\nPlease generate the next move according to the UI screenshot, instruction and previous " +
+        "actions.\n\nInstruction: Open it.\n\nPrevious actions:\nNone",
+      Step.stepText("  Open it. "),
+    )
+  }
+
+  @Test
+  fun onlyTheCallForAScreenshotAsksForTheSecondStep() {
+    fun reply(call: String) = Step.parse("Reasoning.\n</think>\n\nAction: Do it.\n\n<tool_call>\n$call\n</tool_call>")
+
+    assertTrue(Step.asksForScreenshot(reply("""{"name": "computer_use", "arguments": {"action": "screenshot"}}""")))
+    assertFalse(
+      Step.asksForScreenshot(reply("""{"name": "computer_use", "arguments": {"action": "click", "coordinate": [1, 2]}}"""))
+    )
+    assertFalse(Step.asksForScreenshot(reply("""{"name": "bash", "arguments": {"command": "ls"}}""")))
+    assertFalse(Step.asksForScreenshot(Step.parse("Reasoning, cut before a call")))
   }
 
   @Test

@@ -91,9 +91,9 @@ sealed class StepEvent {
 /**
  * Mage-VL-Cowork on LiteRT-LM: the text decoder on the GPU, the vision encoder on the CPU (on the
  * Galaxy S26 the file's vision encoder does not run on the GPU; on a Pixel 11 Pro the CPU is also
- * the measured form). One Engine for the app, one new Conversation per step, made with the step's
- * request: the decoder has no state that crosses conversations, so a step costs the same on a used
- * Engine. Everything native runs on one thread.
+ * the measured form). One Engine for the app, one new Conversation per inference: the decoder has no
+ * state that crosses conversations, so an inference costs the same on a used Engine. Everything
+ * native runs on one thread.
  */
 class StepEngine(
   private val modelFile: File,
@@ -114,6 +114,7 @@ class StepEngine(
   @Volatile private var inFlight: Conversation? = null
   @Volatile private var closed = false
   @Volatile private var unusable: String? = null
+  @Volatile private var stopAsked = false
 
   val state: StateFlow<EngineState> = _state.asStateFlow()
 
@@ -168,14 +169,16 @@ class StepEngine(
   }
 
   /**
-   * Asks for the next step for [request] on [picture] (PNG bytes, 1920 x 1088) and streams the reply.
-   * One step at a time. [renderPrompt] (debug) first emits the prompt as the chat template rendered
-   * it.
+   * One inference for [request] on [picture] (PNG bytes, 1920 x 1088): the agent's first step, or with
+   * [firstReply] (the first step's reply, a call for a screenshot) its second, the picture being the
+   * answer to that call. Streams the reply. One at a time. [renderPrompt] (debug) first emits the
+   * prompt as the chat template rendered it.
    */
   @OptIn(ExperimentalApi::class)
   fun step(
     picture: ByteArray,
     request: String,
+    firstReply: String?,
     maxOutputTokens: Int,
     renderPrompt: Boolean = false,
   ): Flow<StepEvent> = flow {
@@ -196,20 +199,28 @@ class StepEngine(
             ConversationConfig(
               systemInstruction = Contents.of(systemPrompt),
               initialMessages =
-                listOf(Message.user(Step.requestTurn(request)), Message.model(Step.SCREENSHOT_STEP)),
+                if (firstReply == null) {
+                  emptyList()
+                } else {
+                  listOf(Message.user(Step.requestTurn(request)), Message.model(firstReply))
+                },
             )
           )
         }
       val conversationMs = ms(System.nanoTime() - t1)
       live = conversation
       val message =
-        Message.user(
-          Contents.of(
-            Content.Text(Step.RESULT_BEFORE),
-            Content.ImageBytes(picture),
-            Content.Text(Step.RESULT_AFTER),
+        if (firstReply == null) {
+          Message.user(Contents.of(Content.ImageBytes(picture), Content.Text(Step.stepText(request))))
+        } else {
+          Message.user(
+            Contents.of(
+              Content.Text(Step.RESULT_BEFORE),
+              Content.ImageBytes(picture),
+              Content.Text(Step.RESULT_AFTER),
+            )
           )
-        )
+        }
       if (renderPrompt) {
         val rendered =
           withContext(native) {
@@ -246,16 +257,22 @@ class StepEngine(
           }
         }
       inFlight = conversation
-      try {
-        conversation.sendMessageAsync(
-          message,
-          callback,
-          emptyMap(),
-          maxOutputToken = maxOutputTokens,
-        )
-      } catch (t: Throwable) {
+      if (stopAsked) {
+        // Stop came before this inference started: nothing to send.
         done.complete(Unit)
-        throw t
+        events.close()
+      } else {
+        try {
+          conversation.sendMessageAsync(
+            message,
+            callback,
+            emptyMap(),
+            maxOutputToken = maxOutputTokens,
+          )
+        } catch (t: Throwable) {
+          done.complete(Unit)
+          throw t
+        }
       }
       try {
         for (e in events) emit(e)
@@ -302,8 +319,17 @@ class StepEngine(
       .onFailure { Log.w(TAG, "benchmark info: ${it.message}") }
       .getOrNull()
 
-  /** Stops the step in flight; its flow ends without an error, once the runtime stops. */
+  /** A new decision: a Stop from the last one no longer counts. */
+  fun clearStop() {
+    stopAsked = false
+  }
+
+  /**
+   * Stops the inference in flight and any that has not started; its flow ends without an error, once
+   * the runtime stops.
+   */
   fun cancel() {
+    stopAsked = true
     inFlight?.let { runCatching { it.cancelProcess() } }
   }
 

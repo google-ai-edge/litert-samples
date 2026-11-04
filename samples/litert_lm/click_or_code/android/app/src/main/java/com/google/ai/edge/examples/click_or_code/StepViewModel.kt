@@ -56,7 +56,17 @@ sealed class ModelState {
   data class Error(val message: String) : ModelState()
 }
 
-/** One step's reply, as the screen shows it. */
+/** One inference that has ended: its reasoning and the seconds of its stages. */
+data class Inference(
+  val thinking: String,
+  val totalS: Double,
+  val visionS: Double?,
+  val prefillS: Double?,
+  val decodeS: Double?,
+  val decodeTokens: Int?,
+)
+
+/** The reply of the inference on screen, and the inferences that have ended. */
 data class Decision(
   val text: String,
   val done: Boolean,
@@ -64,16 +74,17 @@ data class Decision(
   /** The screenshot's size, for the point's pixels. */
   val width: Int,
   val height: Int,
-  /** From the tap on Decide to the first piece of the reply, and to its end. */
-  val firstTextMs: Long? = null,
+  /** 1 or 2: the inference this reply is from. */
+  val inference: Int = 1,
+  /** A piece of this reply has arrived. */
+  val hasText: Boolean = false,
+  /** From the tap on Decide to the end of the last inference. */
   val totalMs: Long? = null,
-  /** The seconds of the stages, once the reply has ended. */
-  val visionS: Double? = null,
-  val prefillS: Double? = null,
-  val decodeS: Double? = null,
-  val decodeTokens: Int? = null,
+  val runs: List<Inference> = emptyList(),
   /** The reply stopped at the file's token limit, before its tool call ended. */
   val cut: Boolean = false,
+  /** Stop was tapped: what is on screen is not the model's answer. */
+  val stopped: Boolean = false,
   val error: String? = null,
 )
 
@@ -278,8 +289,9 @@ class StepViewModel(app: Application) : AndroidViewModel(app) {
   }
 
   /**
-   * One step; [record] (debug runs) gets the details. Returns the job, or null when nothing was
-   * started.
+   * The next step: the agent's first step and, when its reply calls for a screenshot, its second,
+   * with the same picture as the answer to that call. [record] (debug runs) gets the details. Returns
+   * the job, or null when nothing was started.
    */
   fun decideOnce(
     record: JSONObject?,
@@ -298,6 +310,7 @@ class StepViewModel(app: Application) : AndroidViewModel(app) {
     val width = rgb.width
     val height = rgb.height
     val tapped = System.nanoTime()
+    step.clearStop()
     val job =
       viewModelScope.launch {
         val empty = StepReply("", null, emptyList())
@@ -317,9 +330,8 @@ class StepViewModel(app: Application) : AndroidViewModel(app) {
           }
         }
         val text = StringBuilder()
-        var firstMs: Long? = null
-        var startedMs: Long? = null
-        var stages: Stages? = null
+        val runs = mutableListOf<Inference>()
+        val runRecords = org.json.JSONArray()
         val memBefore = MemoryCheck.memAvailableBytes()
         var memLow = memBefore
         var stopper: Job? = null
@@ -340,101 +352,141 @@ class StepViewModel(app: Application) : AndroidViewModel(app) {
                 step.cancel()
               }
             }
-          step.step(png, request, Step.MAX_OUTPUT_TOKENS, renderPrompt).collect { e ->
-            when (e) {
-              is StepEvent.Waiting -> {}
-              is StepEvent.Rendered -> record?.put("rendered_prompt", e.prompt)
-              is StepEvent.Started -> {
-                startedMs = (System.nanoTime() - tapped) / 1_000_000
-                record?.put("wait_ms", e.waitMs)
-                record?.put("engine_ms", e.engineMs)
-                record?.put("conversation_ms", e.conversationMs)
-              }
-              is StepEvent.Text -> {
-                if (firstMs == null) firstMs = (System.nanoTime() - tapped) / 1_000_000
-                text.append(e.text)
-                MemoryCheck.memAvailableBytes()?.let { m ->
-                  memLow = memLow?.let { minOf(it, m) } ?: m
-                }
-                _ui.update {
-                  it.copy(
-                    decision =
-                      Decision(
-                        text.toString(),
-                        done = false,
-                        reply = Step.parse(text.toString()),
-                        width = width,
-                        height = height,
-                        firstTextMs = firstMs,
-                      )
-                  )
-                }
-              }
-              is StepEvent.Finished -> stages = e.stages
+          var firstReply: String? = null
+          while (true) {
+            val number = runs.size + 1
+            val began = System.nanoTime()
+            var firstMs: Long? = null
+            var startedMs: Long? = null
+            var stages: Stages? = null
+            text.clear()
+            _ui.update {
+              it.copy(
+                decision =
+                  Decision("", done = false, reply = empty, width = width, height = height, inference = number, runs = runs.toList())
+              )
             }
-          }
-          val total = (System.nanoTime() - tapped) / 1_000_000
-          val answer = text.toString().trim()
-          val reply = Step.parse(answer)
-          val s = stages
-          // The first piece of the reply comes after the picture's encoder and the prefill.
-          val ttft = s?.timeToFirstTokenS
-          val visionS =
-            if (firstMs != null && startedMs != null && ttft != null) {
-              ((firstMs!! - startedMs!!) / 1000.0 - ttft).coerceAtLeast(0.0)
-            } else {
-              null
+            step.step(png, request, firstReply, Step.MAX_OUTPUT_TOKENS, renderPrompt).collect { e ->
+              when (e) {
+                is StepEvent.Waiting -> {}
+                is StepEvent.Rendered ->
+                  record?.put(if (number == 1) "rendered_prompt" else "rendered_prompt_$number", e.prompt)
+                is StepEvent.Started -> {
+                  startedMs = (System.nanoTime() - began) / 1_000_000
+                  if (number == 1) {
+                    record?.put("wait_ms", e.waitMs)
+                    record?.put("engine_ms", e.engineMs)
+                  }
+                  record?.put("conversation_ms", e.conversationMs)
+                }
+                is StepEvent.Text -> {
+                  if (firstMs == null) firstMs = (System.nanoTime() - began) / 1_000_000
+                  text.append(e.text)
+                  MemoryCheck.memAvailableBytes()?.let { m ->
+                    memLow = memLow?.let { minOf(it, m) } ?: m
+                  }
+                  _ui.update {
+                    it.copy(
+                      decision =
+                        Decision(
+                          text.toString(),
+                          done = false,
+                          reply = Step.parse(text.toString()),
+                          width = width,
+                          height = height,
+                          inference = number,
+                          hasText = true,
+                          runs = runs.toList(),
+                        )
+                    )
+                  }
+                }
+                is StepEvent.Finished -> stages = e.stages
+              }
             }
-          val prefillS = s?.let { if (it.prefillTokensPerS > 0) it.prefillTokens / it.prefillTokensPerS else null }
-          val decodeS = s?.let { if (it.decodeTokensPerS > 0) it.decodeTokens / it.decodeTokensPerS else null }
-          val cut =
-            !answer.contains("</tool_call>") &&
-              (s == null || s.prefillTokens + s.decodeTokens >= Step.FILE_TOKENS - 4)
-          _ui.update {
-            it.copy(
-              decision =
-                Decision(
-                  answer,
-                  done = true,
-                  reply = reply,
-                  width = width,
-                  height = height,
-                  firstTextMs = firstMs,
-                  totalMs = total,
-                  visionS = visionS,
-                  prefillS = prefillS,
-                  decodeS = decodeS,
-                  decodeTokens = s?.decodeTokens,
-                  cut = cut,
-                )
+            val totalS = (System.nanoTime() - began) / 1e9
+            val answer = text.toString().trim()
+            val reply = Step.parse(answer)
+            val s = stages
+            // The first piece of the reply comes after the picture's encoder and the prefill.
+            val ttft = s?.timeToFirstTokenS
+            val visionS =
+              if (firstMs != null && startedMs != null && ttft != null) {
+                ((firstMs!! - startedMs!!) / 1000.0 - ttft).coerceAtLeast(0.0)
+              } else {
+                null
+              }
+            val prefillS = s?.let { if (it.prefillTokensPerS > 0) it.prefillTokens / it.prefillTokensPerS else null }
+            val decodeS = s?.let { if (it.decodeTokensPerS > 0) it.decodeTokens / it.decodeTokensPerS else null }
+            runs += Inference(reply.thinking, totalS, visionS, prefillS, decodeS, s?.decodeTokens)
+            runRecords.put(
+              JSONObject()
+                .put("inference", number)
+                .put("total_s", totalS)
+                .put("first_text_ms", firstMs ?: JSONObject.NULL)
+                .put("vision_s", visionS ?: JSONObject.NULL)
+                .put("prefill_s", prefillS ?: JSONObject.NULL)
+                .put("decode_s", decodeS ?: JSONObject.NULL)
+                .put("prefill_tokens", s?.prefillTokens ?: JSONObject.NULL)
+                .put("decode_tokens", s?.decodeTokens ?: JSONObject.NULL)
+                .put("ttft_s", ttft ?: JSONObject.NULL)
+                .put("marks", JSONObject(s?.marks ?: emptyMap<String, Double>()))
+                .put("text", answer)
             )
+            Log.i(
+              TAG,
+              "INFERENCE $number total_s=$totalS first_text_ms=$firstMs vision_s=$visionS " +
+                "prefill=${s?.prefillTokens} decode=${s?.decodeTokens}",
+            )
+            val stopped = _ui.value.stopping
+            if (firstReply == null && !stopped && Step.asksForScreenshot(reply)) {
+              firstReply = answer
+              continue
+            }
+            val total = (System.nanoTime() - tapped) / 1_000_000
+            val cut =
+              !answer.contains("</tool_call>") &&
+                (s == null || s.prefillTokens + s.decodeTokens >= Step.FILE_TOKENS - 4)
+            _ui.update {
+              it.copy(
+                decision =
+                  Decision(
+                    answer,
+                    done = true,
+                    reply = reply,
+                    width = width,
+                    height = height,
+                    inference = number,
+                    hasText = answer.isNotEmpty(),
+                    totalMs = total,
+                    runs = runs.toList(),
+                    cut = cut,
+                    stopped = stopped,
+                  )
+              )
+            }
+            record?.put("n_inferences", number)
+            record?.put("total_ms", total)
+            record?.put("cut", cut)
+            record?.put("stopped", stopped)
+            val first = reply.first
+            record?.put("route", first?.name ?: JSONObject.NULL)
+            record?.put("action", first?.action ?: JSONObject.NULL)
+            record?.put("strict_json", first?.strictJson ?: JSONObject.NULL)
+            record?.put("action_line", reply.actionLine ?: JSONObject.NULL)
+            record?.put("command", first?.command ?: JSONObject.NULL)
+            first?.coordinate?.let { c ->
+              val p = Step.toPixels(c, width, height)
+              record?.put("point_norm", org.json.JSONArray(listOf(c.first, c.second)))
+              record?.put("point_px", org.json.JSONArray(listOf(p.first, p.second)))
+            }
+            Log.i(
+              TAG,
+              "STEP inferences=$number total_ms=$total route=${first?.name} action=${first?.action} " +
+                "point=${first?.coordinate} stopped=$stopped",
+            )
+            break
           }
-          record?.put("first_text_ms", firstMs ?: JSONObject.NULL)
-          record?.put("total_ms", total)
-          record?.put("vision_s", visionS ?: JSONObject.NULL)
-          record?.put("prefill_s", prefillS ?: JSONObject.NULL)
-          record?.put("decode_s", decodeS ?: JSONObject.NULL)
-          record?.put("prefill_tokens", s?.prefillTokens ?: JSONObject.NULL)
-          record?.put("decode_tokens", s?.decodeTokens ?: JSONObject.NULL)
-          record?.put("ttft_s", ttft ?: JSONObject.NULL)
-          record?.put("marks", JSONObject(s?.marks ?: emptyMap<String, Double>()))
-          record?.put("cut", cut)
-          val first = reply.first
-          record?.put("route", first?.name ?: JSONObject.NULL)
-          record?.put("action", first?.action ?: JSONObject.NULL)
-          record?.put("strict_json", first?.strictJson ?: JSONObject.NULL)
-          record?.put("action_line", reply.actionLine ?: JSONObject.NULL)
-          record?.put("command", first?.command ?: JSONObject.NULL)
-          first?.coordinate?.let { c ->
-            val p = Step.toPixels(c, width, height)
-            record?.put("point_norm", org.json.JSONArray(listOf(c.first, c.second)))
-            record?.put("point_px", org.json.JSONArray(listOf(p.first, p.second)))
-          }
-          Log.i(
-            TAG,
-            "STEP first_text_ms=$firstMs total_ms=$total route=${first?.name} " +
-              "action=${first?.action} vision_s=$visionS prefill=${s?.prefillTokens} decode=${s?.decodeTokens}",
-          )
         } catch (e: CancellationException) {
           throw e
         } catch (e: Exception) {
@@ -455,6 +507,8 @@ class StepViewModel(app: Application) : AndroidViewModel(app) {
                   reply = Step.parse(text.toString()),
                   width = width,
                   height = height,
+                  inference = runs.size + 1,
+                  runs = runs.toList(),
                   error = shown,
                 )
             )
@@ -467,6 +521,7 @@ class StepViewModel(app: Application) : AndroidViewModel(app) {
             record?.put("photo_sha256", photoSha)
             record?.put("screenshot_wh", org.json.JSONArray(listOf(width, height)))
             record?.put("text", text.toString())
+            record?.put("inferences", runRecords)
             record?.put("mem_available_before", memBefore ?: JSONObject.NULL)
             record?.put("mem_available_low", memLow ?: JSONObject.NULL)
             record?.put("mem_available_after", MemoryCheck.memAvailableBytes() ?: JSONObject.NULL)

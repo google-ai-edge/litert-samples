@@ -49,8 +49,12 @@ data class StepReply(
 }
 
 /**
- * The agent's step, as the model's own hybrid agent sends it (microsoft/Mage-VL-Cowork,
- * osworld_eval/mm_agents/mage_hybrid_agent.py), and the reading of its reply.
+ * The agent's steps, as the model's own hybrid agent sends them (microsoft/Mage-VL-Cowork,
+ * osworld_eval/mm_agents/mage_hybrid_agent.py), and the reading of a reply.
+ *
+ * The first inference is the agent's first step. Its reply is often a call for a screenshot; the app
+ * then answers that call with the same picture and asks again, the agent's second step. The two take
+ * separate Conversations: the file has room for one screenshot.
  */
 object Step {
   /** The tokens the file holds: the system prompt, the screenshot, the request and the reply. */
@@ -60,36 +64,33 @@ object Step {
   const val TOO_LONG_ERROR = "Prefill input length exceeds"
 
   /**
-   * The reply's cap: what is left of [FILE_TOKENS] after the 1,095 tokens of the system prompt, the
-   * 2,040 of the screenshot and at least 170 of the request, the screenshot step and the template's
-   * framing.
+   * The cap of one reply: what is left of [FILE_TOKENS] after the 1,095 tokens of the system prompt,
+   * the 2,040 of the screenshot and 170 of the request and the template's framing. A second inference
+   * also holds the first reply, so it can reach the end of the file first.
    */
   const val MAX_OUTPUT_TOKENS = FILE_TOKENS - 1095 - 2040 - 170
 
   /** SHA-256 of the system prompt in `assets/`, the verbatim MAGE_HYBRID_SYSTEM_PROMPT (4,230 bytes). */
   const val SYSTEM_SHA256 = "db6aefb8923bfae10d6548d1f968b0b08be02825a6b171643bec8731351ecb36"
 
-  /**
-   * The step that comes before the one the app asks for: the model asks for a screenshot. On a first
-   * step the model does that whatever the request, so the app starts at the second step of the
-   * agent's conversation, with the user's screenshot as the answer to this call. The sentence after
-   * `Action:` and the call are the model's own words on a first step.
-   */
-  const val SCREENSHOT_STEP =
-    "I’m at the first step, and I have not seen the screen yet. A screenshot will show me the " +
-      "current state before I do anything else.\n</think>\n\nAction: Take a screenshot of the " +
-      "current screen.\n\n<tool_call>\n{\"name\": \"computer_use\", \"arguments\": {\"action\": " +
-      "\"screenshot\"}}\n</tool_call>"
+  /** The agent's step text, after the screenshot in the first step's user turn. */
+  fun stepText(request: String): String =
+    "\nPlease generate the next move according to the UI screenshot, instruction and previous " +
+      "actions.\n\nInstruction: ${request.trim()}\n\nPrevious actions:\nNone"
 
-  /** The user turn before [SCREENSHOT_STEP]: the agent's step text with its screenshot collapsed. */
+  /** The first step's user turn in the second step's history: its screenshot collapsed. */
   fun requestTurn(request: String): String =
-    "[This screenshot has been collapsed.]\nPlease generate the next move according to the UI " +
-      "screenshot, instruction and previous actions.\n\nInstruction: ${request.trim()}\n\n" +
-      "Previous actions:\nNone"
+    "[This screenshot has been collapsed.]" + stepText(request)
 
-  /** Around the screenshot in the user turn after [SCREENSHOT_STEP]. */
+  /** Around the screenshot in the second step's user turn. */
   const val RESULT_BEFORE = "<tool_response>\n"
   const val RESULT_AFTER = "\n</tool_response>"
+
+  /** The reply is the agent's call for a screenshot: the app answers it with the same picture. */
+  fun asksForScreenshot(reply: StepReply): Boolean {
+    val call = reply.first ?: return false
+    return call.name == "computer_use" && call.action == "screenshot"
+  }
 
   private val TOOL_CALL = Regex("<tool_call>\\s*(.*?)\\s*(?:</tool_call>|$)", RegexOption.DOT_MATCHES_ALL)
   private val ACTION = Regex("(?m)^\\s*Action:\\s*(.+)$")
