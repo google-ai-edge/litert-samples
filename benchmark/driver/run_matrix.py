@@ -143,8 +143,8 @@ def main() -> int:
         collect = [python, str(HERE / "collect.py"), "<session dir from the CLI output>", "--model", m["repo"], "--file", m["file"],
                    "--runtime-version", "<pin from the CLI output>", *extra]
         print(show(bench))
-        print(show(collect))
         if args.dry_run:
+            print(show(collect))
             continue
         out, code = run_streaming(bench)
         if code != 0:
@@ -160,12 +160,16 @@ def main() -> int:
         if not pin:
             print(f"run_matrix.py: no benchmark_model pin in the CLI output; rows take runtime.version {version} from matrix.yaml", file=sys.stderr)
         collect[2] = session_dir
-        collect[collect.index("<pin from the CLI output>")] = str(version)
+        if version is not None:
+            collect[collect.index("<pin from the CLI output>")] = str(version)
+        else:
+            idx = collect.index("--runtime-version")
+            del collect[idx:idx + 2]
         print(show(collect))
         if subprocess.run(collect).returncode != 0:
             failures += 1
 
-    build = [python, str(HERE / "build_board.py"), *(["--data-dir", str(args.data_dir)] if args.data_dir != DEFAULT_DATA_DIR else [])]
+    build = [python, str(HERE / "build_board.py"), *extra]
     print(show(build))
     if not args.dry_run and subprocess.run(build).returncode != 0:
         failures += 1
