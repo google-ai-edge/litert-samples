@@ -1,0 +1,10 @@
+{
+  "examples": [
+    {
+      "id": "files",
+      "name": "File manager",
+      "file": "files.png",
+      "requests": ["Open the photo of the sailboat.", "Rename every .JPG file in this folder to lowercase .jpg."]
+    }
+  ]
+}

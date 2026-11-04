@@ -1,0 +1,27 @@
+Click or code Android sample
+
+Model: Mage-VL-Cowork by Microsoft (https://huggingface.co/microsoft/Mage-VL-Cowork), licensed under
+Apache License 2.0. The app downloads its LiteRT-LM conversion, Mage-VL-Cowork_vision-fp16.litertlm, from
+https://huggingface.co/litert-community/Mage-VL-Cowork (Apache License 2.0) on first use; the file
+is not part of this source tree.
+
+app/src/main/assets/mage_hybrid_system_prompt.txt is MAGE_HYBRID_SYSTEM_PROMPT from the model
+repository's osworld_eval/mm_agents/mage_hybrid_agent.py, unchanged (Apache License 2.0). Step.kt
+writes that agent's user text for a step and converts its points the way the agent does.
+
+app/src/main/java/com/google/ai/edge/examples/click_or_code/PilBicubic.kt follows the bicubic
+resampling of Pillow 13.0.0 (src/libImaging/Resample.c), Copyright (c) 1997-2011 by Secret Labs AB,
+Copyright (c) 1995-2011 by Fredrik Lundh and contributors, Copyright (c) 2010 by Jeffrey 'Alex'
+Clark and contributors, under the MIT-CMU License (licenses/Pillow-MIT-CMU.txt). It is copied from
+this repository's Receipt to JSON sample (samples/litert_lm/receipt_to_json).
+
+StepEngine.kt, Photo.kt, MemoryCheck.kt, AutoRun.kt, MainActivity.kt, Pictures.kt and the data
+package (data/ModelCatalog.kt, data/ModelStore.kt, data/DownloadSafety.kt) are adapted from the
+Receipt to JSON sample, whose data package comes from this repository's voice assistant sample
+(samples/litert_lm/voice_assistant).
+
+The example screenshots app/src/main/assets/examples/* were drawn for this sample by
+tools/make_scenes.py: invented files, numbers and names, in DejaVu Sans and DejaVu Sans Mono
+(Bitstream Vera Fonts license, DejaVu changes in the public domain). No third-party artwork.
+
+Gradle wrapper files retain their upstream Apache License 2.0 headers.
