@@ -18,8 +18,8 @@ set -euo pipefail
 
 cd "$(dirname "$0")"
 
-QUALCOMM_SDK="v2.42.0.251225"
-QNN_URL="https://softwarecenter.qualcomm.com/api/download/software/sdks/Qualcomm_AI_Runtime_Community/All/${QUALCOMM_SDK}/${QUALCOMM_SDK}.zip"
+QUALCOMM_SDK="2.50.0.260828"
+QNN_URL="https://softwarecenter.qualcomm.com/api/download/software/sdks/Qualcomm_AI_Runtime_Community/All/${QUALCOMM_SDK}/v${QUALCOMM_SDK}.zip"
 
 TMP_ZIP=$(mktemp)
 TMP_DIR=$(mktemp -d)
@@ -30,7 +30,7 @@ cleanup() {
 }
 trap cleanup EXIT
 
-echo "Downloading Qualcomm AI Runtime SDK (${QUALCOMM_SDK})..."
+echo "Downloading Qualcomm AI Runtime SDK (v${QUALCOMM_SDK})..."
 curl -L "${QNN_URL}" -o "${TMP_ZIP}"
 
 echo "Extracting Qualcomm libraries to ${DEST_DIR}..."
