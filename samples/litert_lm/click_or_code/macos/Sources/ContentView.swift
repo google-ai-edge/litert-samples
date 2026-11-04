@@ -314,6 +314,39 @@ private struct ScreenshotPanel: View {
   }
 }
 
+/// The screenshot around the point, at its own pixels: on a small icon the ring on the whole picture covers what it points at.
+private struct PointLens: View {
+  let picture: NSImage
+  /// The point as fractions of the picture.
+  let x: Double
+  let y: Double
+
+  var body: some View {
+    if let image = picture.cgImage(forProposedRect: nil, context: nil, hints: nil) {
+      let w = min(520, image.width)
+      let h = min(176, image.height)
+      let px = Int(x * Double(image.width))
+      let py = Int(y * Double(image.height))
+      let left = min(max(px - w / 2, 0), image.width - w)
+      let top = min(max(py - h / 2, 0), image.height - h)
+      if let crop = image.cropping(to: CGRect(x: left, y: top, width: w, height: h)) {
+        Image(decorative: crop, scale: 2)
+          .overlay(alignment: .topLeading) {
+            ZStack {
+              Circle().stroke(Color.white, lineWidth: 5)
+              Circle().stroke(mark, lineWidth: 2.5)
+            }
+            .frame(width: 44, height: 44)
+            .position(x: CGFloat(px - left) / 2, y: CGFloat(py - top) / 2)
+          }
+          .clipShape(RoundedRectangle(cornerRadius: 6))
+          .overlay(RoundedRectangle(cornerRadius: 6).strokeBorder(line, lineWidth: 1))
+          .accessibilityLabel("Close-up of the screenshot around the point")
+      }
+    }
+  }
+}
+
 /// A ring that closes on the point.
 private struct Ring: View {
   @State private var grow: CGFloat = 0
@@ -516,6 +549,9 @@ private struct Answer: View {
       Text(action)
         .font(.system(size: 15, weight: .medium))
         .fixedSize(horizontal: false, vertical: true)
+    }
+    if !call.isCode, let point = call.coordinate, let picture = model.picture {
+      PointLens(picture: picture.display, x: min(max(point.x, 0), 999) / 999, y: min(max(point.y, 0), 999) / 999)
     }
     if call.isCode, let command = call.command {
       Text(command)

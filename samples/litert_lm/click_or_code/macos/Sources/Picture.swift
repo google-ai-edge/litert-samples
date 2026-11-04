@@ -90,7 +90,8 @@ struct Picture {
   }
 
   /// The pixels as they are stored, alpha dropped and no color conversion, as Pillow reads them: the context has the
-  /// picture's own color space, so drawing into it changes no value.
+  /// picture's own color space, so drawing into it changes no value of an opaque pixel. A partly transparent pixel (the
+  /// rounded corners of a window capture, 340 of 1,085,056 pixels in a Finder window) comes out multiplied by its alpha.
   private static func storedRGB(_ image: CGImage) -> Rgb? {
     let w = image.width
     let h = image.height
