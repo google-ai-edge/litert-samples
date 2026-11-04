@@ -19,24 +19,38 @@ The app downloads the file on first use into its private storage and checks its 
 
 JDK 17 and Android SDK platform 36 to build. The app builds for arm64-v8a on Android 12+ (minSdk 31). The first start downloads 3.20 GB and needs twice that free in the app's storage. Before it loads the model, the app checks that about 6 GB of memory is free: over the steps below, free memory fell by at most 5.7 GB on a Galaxy S26 and 5.8 GB on a Pixel 11 Pro. Tested on those two phones.
 
+From a phone that had cooled down, a step with two inferences took 103 to 116 s on a Galaxy S26 and 240 s on a Pixel 11 Pro. A step with one inference took 69 to 74 s and 172 s. Steps one after another heat the phone: on the Galaxy S26 a step with two inferences reached 334 s after 17 minutes of steps.
+
 ## What it decides, and what it does not
 
 The app shows the model's next step and runs nothing, which matters for reading its answers:
 
 - A command is often a look around first: `ls -la`, `find`, a short Python script that reads the file. The agent would read that output and go on at its next step.
 - The model chooses the screen more often than you might expect. When the target has to be found by sight ("Copy the file with the red icon to the Desktop.") or the request is an edit inside an open app ("Replace every 'colour' with 'color' in this file and save it."), it usually clicks.
-- The choice can change with the wording and with the machine. "How many pages does this PDF have? Check the file itself." is a command on a Mac and on a Pixel 11 Pro and a click on a Galaxy S26. "Count the pages of this PDF from the file itself." is a command on a Mac and on the Galaxy S26 and a click with the original weights (PyTorch, CPU). "Turn off Bluetooth." and "Count the .JPG files in this folder, hidden ones included." came back the same on the Mac, on the Galaxy S26 and with the original weights.
 
-Checked with this file in the app's form (text decoder on the GPU, vision encoder on the CPU, the two steps above) on a Mac, with screens and requests written for this sample and the expected answer written down before any reply was read:
+The choice can change with the wording and with the machine. These are the same file and the same two steps, except the last column, which is the original weights in PyTorch on a CPU:
 
-| Requests | Chose `computer_use` or `bash` as expected | Click inside the expected box | Call parses as JSON | Reply ended by itself |
+| Request | Mac | Galaxy S26 | Pixel 11 Pro | Original weights |
 |---|---|---|---|---|
-| 11 kept out of every choice | 10 of 11 | 4 of 6 | 11 of 11 | 11 of 11 |
-| 12 first candidates | 11 of 12 | 4 of 6 | 12 of 12 | 12 of 12 |
-| 11 used to choose the form of the request | 8 of 11 | 4 of 6 | 11 of 11 | 11 of 11 |
-| 30, the first 12 and harder ones added later | 22 of 30 | 8 of 11 | 30 of 30 | 30 of 30 |
+| Turn off Bluetooth. | click | click | click | click |
+| Count the .JPG files in this folder, hidden ones included. | command | command | not run | command |
+| How many pages does this PDF have? Check the file itself. | command | click | command | command |
+| Check the file to find out how many pages this PDF has. | command | click | not run | not run |
+| Count the pages of this PDF from the file itself. | command | command | not run | click |
 
-On 7 of these requests the original weights (PyTorch, CPU) chose the same tool on every one, and their two clicks landed in the same boxes.
+Checked with this file in the app's form (text decoder on the GPU, vision encoder on the CPU, the two steps above), with screens and requests written for this sample and the expected answer written down before any reply was read:
+
+| Requests | Where | Chose `computer_use` or `bash` as expected | Click inside the expected box | Call parses as JSON | Reply ended by itself |
+|---|---|---|---|---|---|
+| 11 kept out of every choice | Galaxy S26, through this app | 10 of 11 | 4 of 6 | 11 of 11 | 11 of 11 |
+| The same 11 | Mac | 10 of 11 | 4 of 6 | 11 of 11 | 11 of 11 |
+| 12 first candidates | Mac | 11 of 12 | 4 of 6 | 12 of 12 | 12 of 12 |
+| 11 used to choose the form of the request | Mac | 8 of 11 | 4 of 6 | 11 of 11 | 11 of 11 |
+| 30, the first 12 and harder ones added later | Mac | 22 of 30 | 8 of 11 | 30 of 30 | 30 of 30 |
+
+On those 11 the Galaxy S26 and the Mac chose the same tool every time, and their clicks hit and missed the same boxes. Their commands can differ: for "List the slide titles of this deck from the file." the Mac's command reads the titles with `python-pptx`, and the phone's first looks for the file.
+
+On 7 of these requests the original weights (PyTorch, CPU) chose the same tool as the Mac on every one, and their two clicks landed in the same boxes.
 
 ## Architecture
 
@@ -72,7 +86,7 @@ cd samples/litert_lm/click_or_code/android
 ./gradlew :app:installDebug
 ```
 
-Open the app and tap **Download (3.2 GB) and load**. Then tap a bundled example or **Screenshot…**, type what you want done (or tap a suggested request), and tap **Decide**. **Stop** takes effect when the vision encoder has finished: tapped 10 s into a step, it took 12.8 s more on a Galaxy S26 and 71.5 s more on a Pixel 11 Pro.
+Open the app and tap **Download (3.2 GB) and load**. Then tap a bundled example or **Screenshot…**, type what you want done (or tap a suggested request), and tap **Decide**. **Stop** takes effect when the vision encoder has finished: tapped 10 s into a step, it took 13 to 26 s more on a Galaxy S26 and 72 s more on a Pixel 11 Pro.
 
 ## Development
 
