@@ -349,7 +349,7 @@ class StepViewModel(app: Application) : AndroidViewModel(app) {
             cancelAfterMs?.let { ms ->
               launch {
                 delay(ms)
-                step.cancel()
+                stop()
               }
             }
           var firstReply: String? = null
