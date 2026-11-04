@@ -154,6 +154,19 @@ class StepTest {
   }
 
   @Test
+  fun aPromptTooLongIsReadFromEitherMessage() {
+    assertTrue(
+      Step.isTooLong(
+        "Status Code: 3. Message: Input token ids are too long. " +
+          "Exceeding the maximum number of tokens allowed: 4375 >= 4096"
+      )
+    )
+    assertTrue(Step.isTooLong("Prefill input length exceeds the file's signatures"))
+    assertTrue(!Step.isTooLong("Status Code: 13. Message: something else"))
+    assertTrue(!Step.isTooLong(null))
+  }
+
+  @Test
   fun examplesAreBundled() {
     val json = javaClass.classLoader!!.getResource("examples/examples.json")!!.readText()
     val examples = Examples.parse(json)

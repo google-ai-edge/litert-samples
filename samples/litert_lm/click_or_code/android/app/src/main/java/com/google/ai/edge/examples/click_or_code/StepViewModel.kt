@@ -493,11 +493,12 @@ class StepViewModel(app: Application) : AndroidViewModel(app) {
           Log.e(TAG, "STEP_FAILED ${e.javaClass.simpleName}: ${e.message}")
           record?.put("error", "${e.javaClass.simpleName}: ${e.message}")
           val shown =
-            if (e.message?.contains(Step.TOO_LONG_ERROR) == true) {
+            if (Step.isTooLong(e.message)) {
               "The request is too long for the model file. Shorten it and decide again."
             } else {
               e.message ?: e.javaClass.simpleName
             }
+          record?.put("shown", shown)
           _ui.update {
             it.copy(
               decision =

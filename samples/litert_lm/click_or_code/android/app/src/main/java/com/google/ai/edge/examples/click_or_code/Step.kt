@@ -61,7 +61,10 @@ object Step {
   const val FILE_TOKENS = 4096
 
   /** What the runtime says when a prompt does not fit the file. */
-  const val TOO_LONG_ERROR = "Prefill input length exceeds"
+  private val TOO_LONG_ERRORS = listOf("Input token ids are too long", "Prefill input length exceeds")
+
+  fun isTooLong(message: String?): Boolean =
+    message != null && TOO_LONG_ERRORS.any { message.contains(it) }
 
   /**
    * The cap of one reply: what is left of [FILE_TOKENS] after the 1,095 tokens of the system prompt,
