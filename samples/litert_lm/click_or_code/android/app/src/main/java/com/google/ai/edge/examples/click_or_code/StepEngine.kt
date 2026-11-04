@@ -224,10 +224,9 @@ class StepEngine(
       if (renderPrompt) {
         val rendered =
           withContext(native) {
-            val preface = runCatching { conversation.renderPrefaceIntoString() }.getOrElse { "" }
-            preface +
-              runCatching { conversation.renderMessageIntoString(message, emptyMap()) }
-                .getOrElse { "render failed: ${it.javaClass.simpleName}: ${it.message}" }
+            // The whole prompt: the system prompt and the history are in this string too.
+            runCatching { conversation.renderMessageIntoString(message, emptyMap()) }
+              .getOrElse { "render failed: ${it.javaClass.simpleName}: ${it.message}" }
           }
         emit(StepEvent.Rendered(rendered))
       }

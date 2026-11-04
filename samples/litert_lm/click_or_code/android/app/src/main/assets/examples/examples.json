@@ -7,16 +7,16 @@
       "requests": ["Turn off Bluetooth."]
     },
     {
+      "id": "files",
+      "name": "File manager",
+      "file": "files.png",
+      "requests": ["Count the .JPG files in this folder, hidden ones included.", "Rename every .JPG file in this folder to lowercase .jpg.", "Open the photo of the sailboat."]
+    },
+    {
       "id": "pdfview",
       "name": "PDF viewer",
       "file": "pdfview.png",
       "requests": ["How many pages does this PDF have? Check the file itself."]
-    },
-    {
-      "id": "files",
-      "name": "File manager",
-      "file": "files.png",
-      "requests": ["Rename every .JPG file in this folder to lowercase .jpg.", "Open the photo of the sailboat."]
     },
     {
       "id": "sheet",

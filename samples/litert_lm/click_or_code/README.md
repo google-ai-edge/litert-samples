@@ -17,14 +17,15 @@ The app downloads the file on first use into its private storage and checks its 
 
 ## Requirements
 
-JDK 17 and Android SDK platform 36 to build. The app builds for arm64-v8a on Android 12+ (minSdk 31). The first start downloads 3.20 GB and needs twice that free in the app's storage. Before it loads the model, the app checks that about ⟨NEEDED⟩ GB of memory is free: ⟨how it was measured⟩. Tested on ⟨phones⟩.
+JDK 17 and Android SDK platform 36 to build. The app builds for arm64-v8a on Android 12+ (minSdk 31). The first start downloads 3.20 GB and needs twice that free in the app's storage. Before it loads the model, the app checks that about 6 GB of memory is free: over the steps below, free memory fell by at most 5.7 GB on a Galaxy S26 and 5.8 GB on a Pixel 11 Pro. Tested on those two phones.
 
 ## What it decides, and what it does not
 
 The app shows the model's next step and runs nothing, which matters for reading its answers:
 
 - A command is often a look around first: `ls -la`, `find`, a short Python script that reads the file. The agent would read that output and go on at its next step.
-- The model chooses the screen more often than you might expect. When the target has to be found by sight ("Copy the file with the red icon to the Desktop.") or the request is an edit inside an open app ("Replace every 'colour' with 'color' in this file and save it."), it usually clicks. When the file is named on the screen and the question is about the file ("How many pages does this PDF have? Check the file itself."), it writes a command.
+- The model chooses the screen more often than you might expect. When the target has to be found by sight ("Copy the file with the red icon to the Desktop.") or the request is an edit inside an open app ("Replace every 'colour' with 'color' in this file and save it."), it usually clicks.
+- The choice can change with the wording and with the machine. "How many pages does this PDF have? Check the file itself." is a command on a Mac and on a Pixel 11 Pro and a click on a Galaxy S26. "Count the pages of this PDF from the file itself." is a command on a Mac and on the Galaxy S26 and a click with the original weights (PyTorch, CPU). "Turn off Bluetooth." and "Count the .JPG files in this folder, hidden ones included." came back the same on the Mac, on the Galaxy S26 and with the original weights.
 
 Checked with this file in the app's form (text decoder on the GPU, vision encoder on the CPU, the two steps above) on a Mac, with screens and requests written for this sample and the expected answer written down before any reply was read:
 
@@ -71,7 +72,7 @@ cd samples/litert_lm/click_or_code/android
 ./gradlew :app:installDebug
 ```
 
-Open the app and tap **Download (3.2 GB) and load**. Then tap a bundled example or **Screenshot…**, type what you want done (or tap a suggested request), and tap **Decide**. **Stop** takes effect when the vision encoder has finished: 71.5 s on a Pixel 11 Pro.
+Open the app and tap **Download (3.2 GB) and load**. Then tap a bundled example or **Screenshot…**, type what you want done (or tap a suggested request), and tap **Decide**. **Stop** takes effect when the vision encoder has finished: tapped 10 s into a step, it took 12.8 s more on a Galaxy S26 and 71.5 s more on a Pixel 11 Pro.
 
 ## Development
 
