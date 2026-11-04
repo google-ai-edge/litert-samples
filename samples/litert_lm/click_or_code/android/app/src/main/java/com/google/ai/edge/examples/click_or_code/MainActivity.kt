@@ -130,6 +130,7 @@ class MainActivity : ComponentActivity() {
       return
     }
     vm.setPhoto(bytes, name)
+    vm.setRequest("")
   }
 
   private fun copy(text: String) {

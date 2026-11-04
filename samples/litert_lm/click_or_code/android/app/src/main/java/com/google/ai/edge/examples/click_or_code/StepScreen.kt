@@ -216,7 +216,7 @@ private fun ModelPanel(ui: UiState, onDownload: () -> Unit) {
     is ModelState.Error ->
       Column {
         Text(m.message, color = Bad, fontSize = 14.sp)
-        Button(onClick = onDownload) { Text("Try again") }
+        Button(onClick = onDownload, modifier = Modifier.testTag("download")) { Text("Try again") }
       }
     ModelState.Checking -> Text("Looking for the model file...", fontSize = 14.sp)
     ModelState.Ready ->
