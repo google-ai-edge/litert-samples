@@ -455,7 +455,11 @@ final class AppModel: ObservableObject {
         try Capture.ensureAllowed()
         NSApp.hide(nil)
         try? await Task.sleep(nanoseconds: 400_000_000)
-        defer { NSApp.unhide(nil) }
+        defer {
+          NSApp.unhide(nil)
+          // Hiding gave the focus to another app; without this the window comes back behind that app's windows.
+          NSApp.activate(ignoringOtherApps: true)
+        }
         let data = try await Capture.screen(to: captureFile())
         show(data: data, name: "This screen", chips: [])
       } catch {
