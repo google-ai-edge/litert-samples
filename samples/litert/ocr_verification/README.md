@@ -27,7 +27,7 @@ When the text of a receipt or invoice photo goes into an expense report, a perso
 
    `install_to_device.sh` reads `~/Downloads/MiniCPM-OCR-Decision-2B-LiteRT` unless you give it another directory. It checks every file's size before it copies anything and its SHA-256 on the phone after the copy. It copies with `run-as`, which needs the debug build. `MORE="decide_L512_f16sfc.tflite tower_N784_fp16fc.tflite"` (or any other decision file of up to 3,072 tokens or tower file of up to 3,136 patches from the repository, downloaded too) adds larger files: a line then takes the smallest file that holds it.
 
-3. Open **OCR Check**. The first start checks the files' SHA-256 and builds the graphs on the GPU (31 s on a Galaxy S26). Then take a photo (**Camera**), choose one (**Photos**), or open one of two example pages drawn for this sample (**Example**: a made-up invoice and a formula sheet). With **Check each line with MiniCPM-OCR-Jev** on (the default), the lines are scored one by one in a table. Each row shows the line cut from the photo (**Image**: what is printed), the text the recognizer read (**OCR read**) and the model's score with **Accept** or **Review** (**Jev score**). Above the table, the count of lines accepted and to review, and the median time a line took on the phone. With the switch off, every line is marked Accept as the recognizer read it: what the recognizer alone would pass. Move the slider to change the threshold (0.50 at start). To fix a line, tap its text, edit it (a row of keys above the keyboard adds symbols such as $, ½, ², ° and π) and tap **Score again**. While a line is edited, its row also shows the recognizer's own confidence (**OCR conf**), its time and its kind (**Text ▾**: tap it to set Formula or Table). **Show the photo** shows the page with a numbered box on each line.
+3. Open **OCR Check**. The first start checks the files' SHA-256 and builds the graphs on the GPU (32 s on a Galaxy S26). Then take a photo (**Camera**), choose one (**Photos**), or open one of two example pages drawn for this sample (**Example**: a made-up invoice and a formula sheet). With **Check each line with MiniCPM-OCR-Jev** on (the default), the lines are scored one by one in a table. Each row shows the line cut from the photo (**Image**: what is printed), the text the recognizer read (**OCR read**) and the model's score with **Accept** or **Review** (**Jev score**). Gray labels, **Image:** and **OCR read:**, mark the line's picture and its text. Above the table, the count of lines accepted and to review, and the median time a line took on the phone. With the switch off, every line is marked Accept as the recognizer read it: what the recognizer alone would pass. Move the slider to change the threshold (0.50 at start). To fix a line, tap its text, edit it (a row of keys above the keyboard adds symbols such as $, ½, ², ° and π) and tap **Score again**. While a line is edited, its row also shows the recognizer's own confidence (**OCR conf**), its time and its kind (**Text ▾**: tap it to set Formula or Table). **Show the photo** shows the page with a numbered box on each line.
 
 The app stops with a message, and loads nothing, when a model file is missing or its SHA-256 differs, and when the phone does not have the free memory the graphs need. A line whose pictures or text need a larger graph file than the installed ones is marked **not scored**, and its row says why.
 
@@ -37,16 +37,16 @@ On a Galaxy S26 (SM-S942Q, Android 16, LiteRT 2.3.0), a run on the invoice examp
 
 | Step, for one line | Time on the Galaxy S26 |
 |---|---:|
-| The line's text drawn into a picture (WebView) | 352–377 ms |
-| The inputs prepared (Kotlin: the crop, the pictures, the tokens, the embedding rows, the score) | 45–66 ms |
-| Picture tower on the region (GPU) | 227–235 ms |
-| Picture tower on the drawn text (GPU) | 199–209 ms |
-| Decision graph (GPU) | 397–401 ms |
-| **A line, as its row shows it** | **1.23–1.27 s** |
+| The line's text drawn into a picture (WebView) | 352–400 ms |
+| The inputs prepared (Kotlin: the crop, the pictures, the tokens, the embedding rows, the score) | 45–70 ms |
+| Picture tower on the region (GPU) | 231–238 ms |
+| Picture tower on the drawn text (GPU) | 200–233 ms |
+| Decision graph (GPU) | 393–404 ms |
+| **A line, as its row shows it** | **1.23–1.31 s** |
 
-The recognizer reads the page once, before the lines are scored: 84 ms for this page. The three graph calls of a line add up to 829–843 ms; the model card gives 861.6 ms for a text region of similar length on this phone's GPU, from a test app on LiteRT 2.2.0 with inputs written by a Mac. The first start took 31 s, 27.5 s of it building the graphs (the decision graph 17.9 s, the towers 5.0 s and 4.6 s).
+The recognizer reads the page once, before the lines are scored: 84 ms for this page. The three graph calls of a line add up to 829–865 ms; the model card gives 861.6 ms for a text region of similar length on this phone's GPU, from a test app on LiteRT 2.2.0 with inputs written by a Mac. The first start took 32 s, 28.1 s of it building the graphs (the decision graph 18.3 s, the towers 5.2 s and 4.6 s).
 
-Before it builds anything the app reads `MemAvailable` and needs the largest decision file, the two largest towers and 0.8 GiB: 4.6 GiB with the five files (the app's messages call 2^30 bytes a GB). After the first start, 1.7 GiB was available and the app's resident memory was 6.4 GiB.
+Before it builds anything the app reads `MemAvailable` and needs the largest decision file, the two largest towers and 0.8 GiB: 4.6 GiB with the five files (the app's messages call 2^30 bytes a GB). After the first start, 2.0 GiB was available and the app's resident memory was 6.6 GiB.
 
 ## How it runs
 
