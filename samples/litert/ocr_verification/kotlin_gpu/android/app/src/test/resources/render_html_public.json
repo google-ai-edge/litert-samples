@@ -1,0 +1,280 @@
+{
+ "generator": "OpenBMB/MiniCPM-OCR render_label.py (commit 8177040f) with Markdown 3.10.3: prepare_render_content, formula rows through prepare_formula_candidate",
+ "cases": [
+  {
+   "category": "TEXT",
+   "text": "Hello world",
+   "html": "<p>Hello world</p>"
+  },
+  {
+   "category": "TEXT",
+   "text": "line one\nline two",
+   "html": "<p>line one<br />\nline two</p>"
+  },
+  {
+   "category": "TEXT",
+   "text": "a < b & c > d",
+   "html": "<p>a &lt; b &amp; c &gt; d</p>"
+  },
+  {
+   "category": "TEXT",
+   "text": "x_1 and y_2",
+   "html": "<p>x_1 and y_2</p>"
+  },
+  {
+   "category": "TEXT",
+   "text": "*a* and **b**",
+   "html": "<p><em>a</em> and <strong>b</strong></p>"
+  },
+  {
+   "category": "TEXT",
+   "text": "1. item one\n2. item two",
+   "html": "<p>1. item one<br />\n2. item two</p>"
+  },
+  {
+   "category": "TEXT",
+   "text": "- dash item",
+   "html": "<ul>\n<li>dash item</li>\n</ul>"
+  },
+  {
+   "category": "TEXT",
+   "text": "# Title",
+   "html": "<h1>Title</h1>"
+  },
+  {
+   "category": "TEXT",
+   "text": "Price: $5 or $10",
+   "html": "<p>Price: $5 or $10</p>"
+  },
+  {
+   "category": "TEXT",
+   "text": "E = mc^2",
+   "html": "<p>E = mc^2</p>"
+  },
+  {
+   "category": "TEXT",
+   "text": "The $x^2$ term",
+   "html": "<p>The <span class=\"math-inline\">\\(x^2\\)</span> term</p>"
+  },
+  {
+   "category": "TEXT",
+   "text": "Use `code` here",
+   "html": "<p>Use <code>code</code> here</p>"
+  },
+  {
+   "category": "TEXT",
+   "text": "a\n\nb",
+   "html": "<p>a</p>\n<p>b</p>"
+  },
+  {
+   "category": "TEXT",
+   "text": "tab\there",
+   "html": "<p>tab here</p>"
+  },
+  {
+   "category": "TEXT",
+   "text": "5 > 3 and 2 < 4",
+   "html": "<p>5 &gt; 3 and 2 &lt; 4</p>"
+  },
+  {
+   "category": "TEXT",
+   "text": "A_B_C",
+   "html": "<p>A_B_C</p>"
+  },
+  {
+   "category": "TEXT",
+   "text": "under___score",
+   "html": "<p>under___score</p>"
+  },
+  {
+   "category": "TEXT",
+   "text": "He said \"hi\" & left.",
+   "html": "<p>He said \"hi\" &amp; left.</p>"
+  },
+  {
+   "category": "TEXT",
+   "text": "<b>bold</b> tag",
+   "html": "<p><b>bold</b> tag</p>"
+  },
+  {
+   "category": "TEXT",
+   "text": "back\\slash",
+   "html": "<p>back\\slash</p>"
+  },
+  {
+   "category": "TEXT",
+   "text": "x \\in S",
+   "html": "<p>x \\in S</p>"
+  },
+  {
+   "category": "TEXT",
+   "text": "v = \\sqrt{2gh}",
+   "html": "<p>v = \\sqrt{2gh}</p>"
+  },
+  {
+   "category": "TEXT",
+   "text": "Its speed is about 9.9 m/s.",
+   "html": "<p>Its speed is about 9.9 m/s.</p>"
+  },
+  {
+   "category": "TEXT",
+   "text": "It's 50% off (today only)!",
+   "html": "<p>It's 50% off (today only)!</p>"
+  },
+  {
+   "category": "TEXT",
+   "text": "a  b   c",
+   "html": "<p>a  b   c</p>"
+  },
+  {
+   "category": "TEXT",
+   "text": "  leading spaces",
+   "html": "<p>leading spaces</p>"
+  },
+  {
+   "category": "TEXT",
+   "text": "x2 + y2 = z2",
+   "html": "<p>x2 + y2 = z2</p>"
+  },
+  {
+   "category": "TEXT",
+   "text": "snake_case_name",
+   "html": "<p>snake_case_name</p>"
+  },
+  {
+   "category": "TEXT",
+   "text": "[link](http://x)",
+   "html": "<p><a href=\"http://x\">link</a></p>"
+  },
+  {
+   "category": "TEXT",
+   "text": "50°C",
+   "html": "<p>50°C</p>"
+  },
+  {
+   "category": "TEXT",
+   "text": "3 * 4 = 12",
+   "html": "<p>3 * 4 = 12</p>"
+  },
+  {
+   "category": "TEXT",
+   "text": "2*3*4",
+   "html": "<p>2<em>3</em>4</p>"
+  },
+  {
+   "category": "TEXT",
+   "text": "#hashtag",
+   "html": "<h1>hashtag</h1>"
+  },
+  {
+   "category": "TEXT",
+   "text": "C# and F#",
+   "html": "<p>C# and F#</p>"
+  },
+  {
+   "category": "TEXT",
+   "text": "The energy is $E = mc^2$, and the speed is $v = \\sqrt{2gh}$.",
+   "html": "<p>The energy is <span class=\"math-inline\">\\(E = mc^2\\)</span>, and the speed is <span class=\"math-inline\">\\(v = \\sqrt{2gh}\\)</span>.</p>"
+  },
+  {
+   "category": "TEXT",
+   "text": "Notes on energy",
+   "html": "<p>Notes on energy</p>"
+  },
+  {
+   "category": "TEXT",
+   "text": "A ball of mass m is dropped from a height h.",
+   "html": "<p>A ball of mass m is dropped from a height h.</p>"
+  },
+  {
+   "category": "TEXT",
+   "text": "\\[ a^2 + b^2 = c^2 \\]",
+   "html": "<p><span class=\"math-display\">$$a^2 + b^2 = c^2$$</span></p>"
+  },
+  {
+   "category": "TEXT",
+   "text": "Cost: $3.50 per item, $10 total",
+   "html": "<p>Cost: <span class=\"math-inline\">\\(3.50 per item,\\)</span>10 total</p>"
+  },
+  {
+   "category": "TEXT",
+   "text": "_emphasis_ and __strong__",
+   "html": "<p><em>emphasis</em> and <strong>strong</strong></p>"
+  },
+  {
+   "category": "TEXT",
+   "text": "Use 3. as a number",
+   "html": "<p>Use 3. as a number</p>"
+  },
+  {
+   "category": "TEXT",
+   "text": "word_with_underscores_ here",
+   "html": "<p>word_with_underscores_ here</p>"
+  },
+  {
+   "category": "TEXT",
+   "text": "*not closed",
+   "html": "<p>*not closed</p>"
+  },
+  {
+   "category": "TEXT",
+   "text": "Two lines\nof text\nhere",
+   "html": "<p>Two lines<br />\nof text<br />\nhere</p>"
+  },
+  {
+   "category": "TEXT",
+   "text": "&amp; entity",
+   "html": "<p>&amp; entity</p>"
+  },
+  {
+   "category": "TEXT",
+   "text": "Signal-to-noise > 10 dB",
+   "html": "<p>Signal-to-noise &gt; 10 dB</p>"
+  },
+  {
+   "category": "TEXT",
+   "text": "Line with \\$ escaped dollar",
+   "html": "<p>Line with \\$ escaped dollar</p>"
+  },
+  {
+   "category": "TEXT",
+   "text": "Mixed $a$ and $$b$$ math",
+   "html": "<p>Mixed <span class=\"math-inline\">\\(a\\)</span> and <span class=\"math-display\">$$b$$</span> math</p>"
+  },
+  {
+   "category": "FORMULA",
+   "text": "x^2 + y^2 = z^2",
+   "html": "<p><span class=\"math-display\">$$x^2 + y^2 = z^2$$</span></p>"
+  },
+  {
+   "category": "FORMULA",
+   "text": "E = mc^2",
+   "html": "<p><span class=\"math-display\">$$E = mc^2$$</span></p>"
+  },
+  {
+   "category": "FORMULA",
+   "text": "\\frac{1}{n(n+1)}",
+   "html": "<p><span class=\"math-display\">$$\\frac{1}{n(n+1)}$$</span></p>"
+  },
+  {
+   "category": "FORMULA",
+   "text": "$v = \\sqrt{2gh}$",
+   "html": "<p><span class=\"math-inline\">\\(v = \\sqrt{2gh}\\)</span></p>"
+  },
+  {
+   "category": "FORMULA",
+   "text": "\\[ f ^ {\\prime \\prime} (t) \\]",
+   "html": "<p><span class=\"math-display\">$$f ^ {\\prime \\prime} (t)$$</span></p>"
+  },
+  {
+   "category": "TABLE",
+   "text": "<table><tr><td>a</td><td>b</td></tr>\n<tr><td>1</td><td>2</td></tr></table>",
+   "html": "<table><tr><td>a</td><td>b</td></tr><tr><td>1</td><td>2</td></tr></table>"
+  },
+  {
+   "category": "TABLE",
+   "text": "<table><tr><td>$x^2$</td><td>30%</td></tr></table>",
+   "html": "<table><tr><td><span class=\"math-inline\">\\(x^2\\)</span></td><td>30%</td></tr></table>"
+  }
+ ]
+}

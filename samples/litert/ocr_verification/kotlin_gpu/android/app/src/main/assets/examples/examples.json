@@ -1,0 +1,16 @@
+{
+ "examples": [
+  {
+   "file": "lab_notebook.png",
+   "title": "Lab notebook (example page)"
+  },
+  {
+   "file": "homework.png",
+   "title": "Homework (example page)"
+  },
+  {
+   "file": "spec_sheet.png",
+   "title": "Spec sheet (example page)"
+  }
+ ]
+}
