@@ -19,6 +19,7 @@ package com.google.ai.edge.examples.ocr_verification
 import android.app.AlertDialog
 import android.content.Context
 import android.content.Intent
+import android.content.res.ColorStateList
 import android.graphics.Bitmap
 import android.graphics.Canvas
 import android.graphics.Color
@@ -27,6 +28,7 @@ import android.graphics.Rect
 import android.graphics.RectF
 import android.graphics.Typeface
 import android.graphics.drawable.GradientDrawable
+import android.graphics.drawable.RippleDrawable
 import android.net.Uri
 import android.os.Bundle
 import android.os.Handler
@@ -839,9 +841,25 @@ class MainActivity : ComponentActivity() {
 
   // ------------------------------------------------------------------ rows
 
+  /** A row's gray label: "Image:" beside the line's picture, "OCR read:" beside its text. */
+  private fun rowLabel(s: String) =
+    TextView(this).apply {
+      text = s
+      setTextSize(TypedValue.COMPLEX_UNIT_SP, 13f)
+      setTextColor(LABEL)
+      setPadding(0, dp(3f).toInt(), dp(4f).toInt(), dp(3f).toInt())
+      maxLines = 1
+    }
+
+  /** One width for both labels of a row (the wider one and its padding): the labels make a column. */
+  private val labelWidth: Int by lazy {
+    val paint = rowLabel(TEXT_LABEL).paint
+    kotlin.math.ceil(maxOf(paint.measureText(TEXT_LABEL), paint.measureText(IMAGE_LABEL)) + dp(4f)).toInt() + 1
+  }
+
   private fun addRowView(row: Row) {
     // a line of the table: the line's picture (cut from the photo: the region the model reads)
-    // above the text the recognizer read and the model's score
+    // above the text the recognizer read and the model's score, each beside its gray label
     val box =
       LinearLayout(this).apply {
         orientation = LinearLayout.VERTICAL
@@ -877,7 +895,16 @@ class MainActivity : ComponentActivity() {
     )
     picture.addView(image, LinearLayout.LayoutParams(-2, -2))
     row.frame = picture
-    box.addView(picture, LinearLayout.LayoutParams(-2, -2))
+    // the picture's label in the column of the text's label below it: the picture and the text start
+    // at the same place, and a line read right does not look like the same line shown twice
+    val pictureLine =
+      LinearLayout(this).apply {
+        orientation = LinearLayout.HORIZONTAL
+        gravity = Gravity.CENTER_VERTICAL
+      }
+    pictureLine.addView(rowLabel(IMAGE_LABEL), LinearLayout.LayoutParams(labelWidth, -2))
+    pictureLine.addView(picture, LinearLayout.LayoutParams(-2, -2))
+    box.addView(pictureLine)
     val line =
       LinearLayout(this).apply {
         orientation = LinearLayout.HORIZONTAL
@@ -908,15 +935,7 @@ class MainActivity : ComponentActivity() {
       }
     // what the row's text is, beside the field and not in it: the label is never part of the text
     // that is edited or scored (top-aligned, so its baseline is the first line's when the text wraps)
-    line.addView(
-      TextView(this).apply {
-        text = "OCR read:"
-        setTextSize(TypedValue.COMPLEX_UNIT_SP, 13f)
-        setTextColor(LABEL)
-        setPadding(0, dp(3f).toInt(), dp(4f).toInt(), dp(3f).toInt())
-      },
-      LinearLayout.LayoutParams(-2, -2).apply { gravity = Gravity.TOP },
-    )
+    line.addView(rowLabel(TEXT_LABEL), LinearLayout.LayoutParams(labelWidth, -2).apply { gravity = Gravity.TOP })
     line.addView(row.text, LinearLayout.LayoutParams(0, -2, 1f).apply { gravity = Gravity.TOP })
     row.pill = ScorePill(this)
     line.addView(row.pill, LinearLayout.LayoutParams(-2, -2).apply { leftMargin = dp(6f).toInt() })
@@ -928,6 +947,18 @@ class MainActivity : ComponentActivity() {
         minHeight = 0
         minimumHeight = 0
         setPadding(dp(10f).toInt(), dp(2f).toInt(), dp(10f).toInt(), dp(2f).toInt())
+        // a flat background without the default button's insets: the button is no taller than the line's text, so the
+        // rows below do not move down (under the keyboard) when it takes the score's place
+        background =
+          RippleDrawable(
+            ColorStateList.valueOf(Color.rgb(0xBD, 0xBD, 0xBD)),
+            GradientDrawable().apply {
+              setColor(Color.rgb(0xE0, 0xE0, 0xE0))
+              cornerRadius = dp(4f)
+            },
+            null,
+          )
+        stateListAnimator = null
         visibility = View.GONE
         setOnClickListener {
           if (!busy) {
@@ -942,7 +973,7 @@ class MainActivity : ComponentActivity() {
           }
         }
       }
-    line.addView(row.again, LinearLayout.LayoutParams(-2, dp(36f).toInt()).apply { leftMargin = dp(6f).toInt() })
+    line.addView(row.again, LinearLayout.LayoutParams(-2, -2).apply { leftMargin = dp(6f).toInt() })
     box.addView(line)
     // why the line was not scored
     row.note =
@@ -1006,8 +1037,8 @@ class MainActivity : ComponentActivity() {
   private fun sizeLinePictures() {
     val rects = rows.mapNotNull { (it.frame as LinearLayout).getChildAt(1).tag as? Rect }
     if (rects.isEmpty()) return
-    // the table's width less the frame and the number beside the picture
-    val avail = resources.displayMetrics.widthPixels - dp(26f) - dp(18f)
+    // the table's width less the label column, the frame and the number beside the picture
+    val avail = resources.displayMetrics.widthPixels - dp(26f) - dp(18f) - labelWidth
     val s = minOf(avail / rects.maxOf { it.width() }, dp(56f) / rects.maxOf { it.height() })
     for (row in rows) {
       val image = (row.frame as LinearLayout).getChildAt(1)
@@ -1283,6 +1314,9 @@ class MainActivity : ComponentActivity() {
     val REVIEW = Color.rgb(0xC2, 0x41, 0x0C)
     val SCORING = Color.rgb(0x1E, 0x5A, 0xA8)
     val LABEL = Color.rgb(0x75, 0x75, 0x75)
+    /** The gray labels of a row: beside the line's picture and beside the text the recognizer read. */
+    private const val IMAGE_LABEL = "Image:"
+    private const val TEXT_LABEL = "OCR read:"
     /** The empty part of a score bar. */
     val TRACK = Color.rgb(0xEC, 0xEC, 0xEC)
     /** The frame of a line's picture, and the rule between lines. */
