@@ -19,21 +19,29 @@ package com.google.ai.edge.examples.ocr_verification
 import android.app.AlertDialog
 import android.content.Context
 import android.content.Intent
+import android.content.res.ColorStateList
+import android.graphics.Bitmap
 import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.Paint
+import android.graphics.Rect
 import android.graphics.RectF
 import android.graphics.Typeface
 import android.graphics.drawable.GradientDrawable
+import android.graphics.drawable.RippleDrawable
 import android.net.Uri
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
 import android.text.Editable
+import android.text.SpannableStringBuilder
+import android.text.Spanned
 import android.text.TextWatcher
+import android.text.style.ForegroundColorSpan
 import android.util.Log
 import android.util.TypedValue
 import android.view.Gravity
+import android.view.MotionEvent
 import android.view.View
 import android.webkit.WebView
 import android.widget.Button
@@ -43,6 +51,7 @@ import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.ScrollView
 import android.widget.SeekBar
+import android.widget.Switch
 import android.widget.TextView
 import androidx.activity.ComponentActivity
 import androidx.activity.SystemBarStyle
@@ -61,8 +70,10 @@ import org.json.JSONObject
 /**
  * Photo -> text lines (ML Kit) -> for each line, the OCR text drawn as a picture (WebView) and
  * scored by MiniCPM-OCR-Jev on the GPU (LiteRT CompiledModel): a score from 0 to 1 that the text
- * matches the photo. Lines at or above the threshold are accepted, the rest go to review. Every
- * line's text can be edited and scored again.
+ * matches the photo. Lines at or above the threshold are accepted, the rest go to review. With the
+ * check off, every line is accepted as the recognizer read it. The lines are a table: the line's
+ * picture cut from the photo, the text the recognizer read, and the model's score. Every line's
+ * text can be edited there (with keys for symbols a phone keyboard hides) and scored again.
  */
 class MainActivity : ComponentActivity() {
   private val main = Handler(Looper.getMainLooper())
@@ -73,15 +84,33 @@ class MainActivity : ComponentActivity() {
   private var photo: Photo? = null
   private val rows = ArrayList<Row>()
   private var threshold = 0.5
+  /** Score each line with the model; off, every line the recognizer reads is accepted as it is. */
+  private var check = true
   private var busy = false
   private var runId = 0
   private val prefs by lazy { getSharedPreferences("ocr_check", Context.MODE_PRIVATE) }
 
   private lateinit var status: TextView
+  /** The count under the photo, in large type: lines accepted and lines to review. */
+  private lateinit var tally: TextView
   private lateinit var summary: TextView
   private lateinit var image: ImageView
   private lateinit var overlay: BoxOverlay
+  private lateinit var photoArea: FrameLayout
+  private lateinit var checkSwitch: Switch
+  private lateinit var buttonBar: View
+  private lateinit var thresholdRow: View
+  /** Shows or folds the photo once its lines are in the table. */
+  private lateinit var photoToggle: TextView
+  private var photoOpen = true
+  private lateinit var tableHeader: View
+  private lateinit var tableScroll: ScrollView
   private lateinit var list: LinearLayout
+  /** The keys for symbols, shown while a line's text is edited. */
+  private lateinit var symbols: View
+  /** The line whose text has the focus (being edited), and whether the keyboard is up. */
+  private var editing: Row? = null
+  private var keyboardUp = false
   private lateinit var thresholdLabel: TextView
   private lateinit var buttons: List<Button>
 
@@ -97,10 +126,15 @@ class MainActivity : ComponentActivity() {
     var buildMs = 0.0
     var running = false
     lateinit var text: EditText
-    lateinit var score: TextView
-    lateinit var mark: TextView
+    lateinit var pill: ScorePill
     lateinit var again: Button
-    lateinit var bar: ScoreBar
+    lateinit var frame: View
+    /** Shown while the line is edited: its kind, the recognizer's confidence and the time. */
+    lateinit var details: View
+    lateinit var info: TextView
+    /** Why the line was not scored. */
+    lateinit var note: TextView
+    lateinit var view: View
 
     /** The text or the category changed after the shown score. */
     val stale: Boolean
@@ -130,6 +164,7 @@ class MainActivity : ComponentActivity() {
       navigationBarStyle = SystemBarStyle.light(Color.TRANSPARENT, Color.TRANSPARENT),
     )
     super.onCreate(savedInstanceState)
+    check = prefs.getBoolean(PREF_CHECK, true)
     val root = FrameLayout(this).apply { setBackgroundColor(Color.WHITE) }
     setContentView(root)
     renderer = WebRenderer(this, root)
@@ -169,6 +204,12 @@ class MainActivity : ComponentActivity() {
     ViewCompat.setOnApplyWindowInsetsListener(outer) { v, insets ->
       val bars = insets.getInsets(WindowInsetsCompat.Type.systemBars() or WindowInsetsCompat.Type.ime())
       v.setPadding(bars.left, bars.top, bars.right, bars.bottom)
+      val up = insets.isVisible(WindowInsetsCompat.Type.ime())
+      if (up != keyboardUp) {
+        keyboardUp = up
+        // after this layout pass: the views above the table fold while a line is edited
+        v.post { refreshLines() }
+      }
       insets
     }
     val column =
@@ -212,12 +253,42 @@ class MainActivity : ComponentActivity() {
         button("Example") { chooseExample() },
       )
     column.addView(bar)
-    val photoArea = FrameLayout(this)
+    buttonBar = bar
+    checkSwitch =
+      Switch(this).apply {
+        text = "Check each line with MiniCPM-OCR-Jev"
+        setTextSize(TypedValue.COMPLEX_UNIT_SP, 14f)
+        setTextColor(Color.BLACK)
+        isChecked = check
+        setPadding(dp(4f).toInt(), dp(4f).toInt(), dp(4f).toInt(), dp(4f).toInt())
+        setOnCheckedChangeListener { _, on -> setCheck(on, scoreNow = true) }
+      }
+    column.addView(checkSwitch, LinearLayout.LayoutParams(-1, -2))
+    photoToggle =
+      TextView(this).apply {
+        setTextSize(TypedValue.COMPLEX_UNIT_SP, 13f)
+        setTextColor(Color.rgb(0x1E, 0x5A, 0xA8))
+        setPadding(0, dp(2f).toInt(), 0, dp(2f).toInt())
+        setOnClickListener {
+          photoOpen = !photoOpen
+          refreshLines()
+        }
+      }
+    column.addView(photoToggle)
+    photoArea = FrameLayout(this)
     image = ImageView(this).apply { scaleType = ImageView.ScaleType.FIT_CENTER }
     overlay = BoxOverlay(this)
     photoArea.addView(image, FrameLayout.LayoutParams(-1, -1))
     photoArea.addView(overlay, FrameLayout.LayoutParams(-1, -1))
-    column.addView(photoArea, LinearLayout.LayoutParams(-1, (resources.displayMetrics.heightPixels * 0.24f).toInt()))
+    column.addView(photoArea, LinearLayout.LayoutParams(-1, emptyPhotoHeight()))
+    tally =
+      TextView(this).apply {
+        setTextSize(TypedValue.COMPLEX_UNIT_SP, 24f)
+        setTypeface(typeface, Typeface.BOLD)
+        setPadding(0, dp(6f).toInt(), 0, 0)
+        visibility = View.GONE
+      }
+    column.addView(tally)
     summary =
       TextView(this).apply {
         setTextSize(TypedValue.COMPLEX_UNIT_SP, 13f)
@@ -255,15 +326,165 @@ class MainActivity : ComponentActivity() {
     thresholdRow.addView(thresholdLabel)
     thresholdRow.addView(seek, LinearLayout.LayoutParams(0, -2, 1f))
     column.addView(thresholdRow)
+    this.thresholdRow = thresholdRow
+    // the table of lines: its heading has the shape of a line (the picture above, the text and
+    // the score under it)
+    tableHeader =
+      LinearLayout(this).apply {
+        orientation = LinearLayout.VERTICAL
+        setPadding(0, dp(4f).toInt(), 0, dp(2f).toInt())
+        // the column names at the size of the line's text and in the text's own color, so they read
+        // at a glance which part is the photo, which the recognizer's text and which the model's score
+        fun heading(s: String, g: Int) =
+          TextView(this@MainActivity).apply {
+            text = s
+            setTextSize(TypedValue.COMPLEX_UNIT_SP, 15f)
+            setTypeface(typeface, Typeface.BOLD)
+            setTextColor(Color.BLACK)
+            gravity = g
+          }
+        addView(heading("Image", Gravity.START))
+        addView(
+          LinearLayout(this@MainActivity).apply {
+            orientation = LinearLayout.HORIZONTAL
+            addView(heading("OCR read", Gravity.START), LinearLayout.LayoutParams(0, -2, 1f))
+            addView(heading("Jev score", Gravity.END))
+          }
+        )
+      }
+    column.addView(tableHeader)
     list = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
-    val scroll =
+    tableScroll =
       ScrollView(this).apply {
         addView(list)
         defaultFocusHighlightEnabled = false
       }
-    column.addView(scroll, LinearLayout.LayoutParams(-1, 0, 1f))
+    column.addView(tableScroll, LinearLayout.LayoutParams(-1, 0, 1f))
+    symbols = symbolKeys()
+    column.addView(symbols)
     resetToStart()
     return outer
+  }
+
+  /**
+   * Keys for symbols that a phone keyboard keeps out of reach (fractions, superscripts, the degree
+   * sign, Greek letters): a key puts its symbol at the cursor of the line being edited, or in place
+   * of the selected text. The keys never take the focus, so the keyboard stays up.
+   */
+  private fun symbolKeys(): View {
+    val row = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
+    for (s in SYMBOLS) {
+      row.addView(
+        Button(this).apply {
+          text = s
+          isAllCaps = false
+          setTextSize(TypedValue.COMPLEX_UNIT_SP, 17f)
+          minWidth = 0
+          minimumWidth = 0
+          minHeight = 0
+          minimumHeight = 0
+          setPadding(0, dp(6f).toInt(), 0, dp(6f).toInt())
+          isFocusable = false
+          isFocusableInTouchMode = false
+          contentDescription = if (s == DELETE) "Delete the character before the cursor" else "Insert $s"
+          setOnClickListener { insertSymbol(s) }
+        },
+        LinearLayout.LayoutParams(0, -2, 1f),
+      )
+    }
+    return row.apply { visibility = View.GONE }
+  }
+
+  private fun insertSymbol(s: String) {
+    val field = editing?.text ?: return
+    val a = minOf(field.selectionStart, field.selectionEnd).coerceAtLeast(0)
+    val b = maxOf(field.selectionStart, field.selectionEnd).coerceAtLeast(0)
+    when {
+      s != DELETE -> field.text.replace(a, b, s)
+      b > a -> field.text.delete(a, b)
+      a > 0 -> field.text.delete(a - 1, a)
+    }
+  }
+
+  private fun hideKeyboard(field: View) {
+    val imm = getSystemService(Context.INPUT_METHOD_SERVICE) as android.view.inputmethod.InputMethodManager
+    imm.hideSoftInputFromWindow(field.windowToken, 0)
+    field.clearFocus()
+  }
+
+  /** The photo area's height before a photo is opened. */
+  private fun emptyPhotoHeight() = (resources.displayMetrics.heightPixels * 0.24f).toInt()
+
+  /** The photo area takes the photo's shape, up to about half of the screen. */
+  private fun fitPhotoArea(p: Photo?) {
+    val max = (resources.displayMetrics.heightPixels * 0.5f).toInt()
+    val width = if (photoArea.width > 0) photoArea.width else resources.displayMetrics.widthPixels - dp(24f).toInt()
+    val h = if (p == null) emptyPhotoHeight() else minOf(max, (width.toLong() * p.height / p.width).toInt() + dp(4f).toInt())
+    if (photoArea.layoutParams.height != h) {
+      photoArea.layoutParams = photoArea.layoutParams.apply { height = h }
+    }
+  }
+
+  /**
+   * What the screen shows around the table: the photo while its lines are read (then folded, a tap
+   * opens it again), the table once there are lines; while a line is edited with the keyboard up,
+   * the buttons, the switch, the photo and the threshold fold so that the line stays in view.
+   */
+  private fun refreshLines() {
+    val edit = editing != null && keyboardUp
+    val table = rows.isNotEmpty()
+    fun show(v: View, on: Boolean) {
+      val want = if (on) View.VISIBLE else View.GONE
+      if (v.visibility != want) v.visibility = want
+    }
+    show(buttonBar, !edit)
+    show(checkSwitch, !edit)
+    show(thresholdRow, !edit)
+    show(photoToggle, table && !edit)
+    photoToggle.text = if (photoOpen) "Hide the photo ▴" else "Show the photo ▾"
+    show(photoArea, (!table || photoOpen) && !edit)
+    show(tableHeader, table)
+    show(tableScroll, table)
+    show(symbols, editing != null)
+    editing?.let { r -> tableScroll.post { tableScroll.smoothScrollTo(0, r.view.top) } }
+  }
+
+  /** Scrolls the table to [row] (a tap on its box in the photo). */
+  private fun showLine(row: Row) {
+    tableScroll.post { tableScroll.smoothScrollTo(0, row.view.top) }
+  }
+
+  /**
+   * Turns the model's check on or off. Off, every line is accepted as the recognizer read it; on,
+   * with [scoreNow], the lines of the open photo that have no score yet are scored.
+   */
+  fun setCheck(on: Boolean, scoreNow: Boolean) {
+    if (busy && on != check) {
+      // the switch stays as it is while lines are read or scored (it is not greyed out: it shows
+      // whether the check is on)
+      setSwitch(check)
+      return
+    }
+    setSwitch(on)
+    check = on
+    prefs.edit().putBoolean(PREF_CHECK, on).apply()
+    val start = on && scoreNow && !busy && verifier != null && rows.any { it.prob == null && it.error == null }
+    if (start) {
+      // busy before the screen is refreshed, so the count goes straight from "accepted" to checking
+      setBusy(true)
+      setStatus("scoring")
+    }
+    refreshAll()
+    if (start) scoreRows(0, runId, null)
+  }
+
+  /** Sets the switch without calling its listener (which comes back to [setCheck]). */
+  private fun setSwitch(on: Boolean) {
+    if (checkSwitch.isChecked != on) {
+      checkSwitch.setOnCheckedChangeListener(null)
+      checkSwitch.isChecked = on
+      checkSwitch.setOnCheckedChangeListener { _, v -> setCheck(v, scoreNow = true) }
+    }
   }
 
   private fun setStatus(s: String) {
@@ -279,6 +500,8 @@ class MainActivity : ComponentActivity() {
     busy = b
     buttons.forEach { it.isEnabled = !b && verifier != null }
     rows.forEach { refreshRow(it) }
+    // the count and the line under it say "checking" while busy
+    if (!b) refreshAll()
   }
 
   /** The screen after opening the app: no photo, no result. */
@@ -289,6 +512,11 @@ class MainActivity : ComponentActivity() {
     list.removeAllViews()
     image.setImageDrawable(null)
     overlay.set(null, emptyList())
+    fitPhotoArea(null)
+    photoOpen = true
+    editing = null
+    refreshLines()
+    tally.visibility = View.GONE
     summary.setTextColor(Color.BLACK)
     summary.text = "Take or choose a photo of printed text: every line the text recognizer reads gets a score from 0 to 1 for its text."
     refreshAll()
@@ -420,6 +648,7 @@ class MainActivity : ComponentActivity() {
     photo = p
     val id = runId
     dumpDir = if (dump) File(filesDir, "check/run_${p.name.substringBeforeLast('.')}").apply { deleteRecursively() } else null
+    fitPhotoArea(p)
     image.setImageBitmap(p.bitmap)
     overlay.set(p, emptyList())
     summary.text = "Reading the text…"
@@ -443,13 +672,19 @@ class MainActivity : ComponentActivity() {
           record.put("ocr_ms", ocrMs).put("lines", lines.size)
           Log.i(TAG, "OCR ${lines.size} lines in %.0f ms (${p.width}x${p.height}, ${p.name})".format(ocrMs))
           lines.forEachIndexed { i, line -> Row(i, line).also { addRowView(it); rows.add(it) } }
+          sizeLinePictures()
           overlay.set(p, rows)
+          // the table takes the screen: each line's picture is cut from the photo
+          photoOpen = false
+          refreshLines()
           if (rows.isEmpty()) {
             summary.text = "No text found in this photo."
             finishRun(then)
-          } else {
+          } else if (check) {
             setStatus("scoring")
             scoreRows(0, id, then)
+          } else {
+            finishRun(then)
           }
         }
         .onFailure {
@@ -465,6 +700,10 @@ class MainActivity : ComponentActivity() {
       finishRun(then)
       return
     }
+    if (rows[i].prob != null || rows[i].error != null) {
+      scoreRows(i + 1, id, then)
+      return
+    }
     scoreRow(rows[i]) { scoreRows(i + 1, id, then) }
   }
 
@@ -472,14 +711,18 @@ class MainActivity : ComponentActivity() {
     setBusy(false)
     setStatus("ready")
     refreshAll()
-    record.put("finished_ms", System.currentTimeMillis())
+    record.put("finished_ms", System.currentTimeMillis()).put("check", check)
     val dir = File(filesDir, "runs").apply { mkdirs() }
     File(dir, "run_${record.getLong("started_ms")}.json").writeText(record.toString(1))
-    Log.i(
-      TAG,
-      "RUN done ${record.optString("photo")} ${rows.size} lines, accepted ${rows.count { (it.prob ?: -1.0) >= threshold }} at %.2f"
-        .format(threshold),
-    )
+    if (rows.isNotEmpty() && rows.none { it.prob != null || it.error != null }) {
+      Log.i(TAG, "RUN unchecked ${record.optString("photo")} ${rows.size} lines (the check is off)")
+    } else {
+      Log.i(
+        TAG,
+        "RUN done ${record.optString("photo")} ${rows.size} lines, accepted ${rows.count { (it.prob ?: -1.0) >= threshold }} at %.2f"
+          .format(threshold),
+      )
+    }
     then?.invoke()
   }
 
@@ -495,7 +738,7 @@ class MainActivity : ComponentActivity() {
     val text = row.text.text.toString()
     val category = row.category
     row.running = true
-    refreshRow(row)
+    refreshAll()
     val t0 = System.nanoTime()
     val (region, cropBox) = p.crop(row.line.box)
     val cropMs = (System.nanoTime() - t0) / 1e6
@@ -598,39 +841,83 @@ class MainActivity : ComponentActivity() {
 
   // ------------------------------------------------------------------ rows
 
+  /** A row's gray label: "Image:" beside the line's picture, "OCR read:" beside its text. */
+  private fun rowLabel(s: String) =
+    TextView(this).apply {
+      text = s
+      setTextSize(TypedValue.COMPLEX_UNIT_SP, 13f)
+      setTextColor(LABEL)
+      setPadding(0, dp(3f).toInt(), dp(4f).toInt(), dp(3f).toInt())
+      maxLines = 1
+    }
+
+  /** One width for both labels of a row (the wider one and its padding): the labels make a column. */
+  private val labelWidth: Int by lazy {
+    val paint = rowLabel(TEXT_LABEL).paint
+    kotlin.math.ceil(maxOf(paint.measureText(TEXT_LABEL), paint.measureText(IMAGE_LABEL)) + dp(4f)).toInt() + 1
+  }
+
   private fun addRowView(row: Row) {
-    // two compact lines per row, so that a page's rows and their marks fit on one screen
+    // a line of the table: the line's picture (cut from the photo: the region the model reads)
+    // above the text the recognizer read and the model's score, each beside its gray label
     val box =
       LinearLayout(this).apply {
         orientation = LinearLayout.VERTICAL
-        setPadding(0, dp(2f).toInt(), 0, dp(4f).toInt())
+        setPadding(0, dp(5f).toInt(), 0, 0)
       }
-    val top =
+    val picture =
+      LinearLayout(this).apply {
+        orientation = LinearLayout.HORIZONTAL
+        background =
+          GradientDrawable().apply {
+            setColor(Color.WHITE)
+            setStroke(dp(1f).toInt(), FRAME)
+          }
+        val pad = dp(1f).toInt()
+        setPadding(pad, pad, pad, pad)
+      }
+    val image = ImageView(this).apply { scaleType = ImageView.ScaleType.FIT_XY }
+    photo?.let { p ->
+      val r = p.crop(row.line.box).second
+      image.setImageBitmap(Bitmap.createBitmap(p.bitmap, r.left, r.top, r.width(), r.height()))
+      image.tag = r
+    }
+    // the line's number, small, in the frame's corner, beside the picture (never over its print)
+    picture.addView(
+      TextView(this).apply {
+        text = "${row.index + 1}"
+        setTextSize(TypedValue.COMPLEX_UNIT_SP, 10f)
+        setTextColor(Color.WHITE)
+        setPadding(dp(3f).toInt(), 0, dp(3f).toInt(), 0)
+        setBackgroundColor(Color.argb(160, 70, 70, 70))
+      },
+      LinearLayout.LayoutParams(-2, -2).apply { gravity = Gravity.TOP },
+    )
+    picture.addView(image, LinearLayout.LayoutParams(-2, -2))
+    row.frame = picture
+    // the picture's label in the column of the text's label below it: the picture and the text start
+    // at the same place, and a line read right does not look like the same line shown twice
+    val pictureLine =
       LinearLayout(this).apply {
         orientation = LinearLayout.HORIZONTAL
         gravity = Gravity.CENTER_VERTICAL
       }
-    top.addView(
-      TextView(this).apply {
-        text = "${row.index + 1}"
-        setTextSize(TypedValue.COMPLEX_UNIT_SP, 12f)
-        setTextColor(Color.WHITE)
-        gravity = Gravity.CENTER
-        background =
-          GradientDrawable().apply {
-            cornerRadius = dp(10f)
-            setColor(Color.DKGRAY)
-          }
-      },
-      LinearLayout.LayoutParams(dp(20f).toInt(), dp(20f).toInt()),
-    )
+    pictureLine.addView(rowLabel(IMAGE_LABEL), LinearLayout.LayoutParams(labelWidth, -2))
+    pictureLine.addView(picture, LinearLayout.LayoutParams(-2, -2))
+    box.addView(pictureLine)
+    val line =
+      LinearLayout(this).apply {
+        orientation = LinearLayout.HORIZONTAL
+        gravity = Gravity.CENTER_VERTICAL
+      }
     row.text =
       EditText(this).apply {
         setText(row.line.text)
         setTextSize(TypedValue.COMPLEX_UNIT_SP, 15f)
         setTextColor(Color.BLACK)
         isSingleLine = false
-        setPadding(dp(4f).toInt(), dp(4f).toInt(), dp(4f).toInt(), dp(6f).toInt())
+        background = null
+        setPadding(0, dp(3f).toInt(), dp(4f).toInt(), dp(3f).toInt())
         addTextChangedListener(
           object : TextWatcher {
             override fun beforeTextChanged(s: CharSequence?, a: Int, b: Int, c: Int) {}
@@ -640,30 +927,76 @@ class MainActivity : ComponentActivity() {
             override fun afterTextChanged(s: Editable?) = refreshRow(row)
           }
         )
+        setOnFocusChangeListener { _, has ->
+          if (has) editing = row else if (editing === row) editing = null
+          refreshRow(row)
+          refreshLines()
+        }
       }
-    top.addView(row.text, LinearLayout.LayoutParams(0, -2, 1f).apply { leftMargin = dp(6f).toInt() })
-    box.addView(top)
-    val bottom =
+    // what the row's text is, beside the field and not in it: the label is never part of the text
+    // that is edited or scored (top-aligned, so its baseline is the first line's when the text wraps)
+    line.addView(rowLabel(TEXT_LABEL), LinearLayout.LayoutParams(labelWidth, -2).apply { gravity = Gravity.TOP })
+    line.addView(row.text, LinearLayout.LayoutParams(0, -2, 1f).apply { gravity = Gravity.TOP })
+    row.pill = ScorePill(this)
+    line.addView(row.pill, LinearLayout.LayoutParams(-2, -2).apply { leftMargin = dp(6f).toInt() })
+    row.again =
+      Button(this).apply {
+        text = "Score again"
+        isAllCaps = false
+        setTextSize(TypedValue.COMPLEX_UNIT_SP, 13f)
+        minHeight = 0
+        minimumHeight = 0
+        setPadding(dp(10f).toInt(), dp(2f).toInt(), dp(10f).toInt(), dp(2f).toInt())
+        // a flat background without the default button's insets: the button is no taller than the line's text, so the
+        // rows below do not move down (under the keyboard) when it takes the score's place
+        background =
+          RippleDrawable(
+            ColorStateList.valueOf(Color.rgb(0xBD, 0xBD, 0xBD)),
+            GradientDrawable().apply {
+              setColor(Color.rgb(0xE0, 0xE0, 0xE0))
+              cornerRadius = dp(4f)
+            },
+            null,
+          )
+        stateListAnimator = null
+        visibility = View.GONE
+        setOnClickListener {
+          if (!busy) {
+            // the keyboard goes down and the screen comes back before the line is scored
+            hideKeyboard(row.text)
+            setBusy(true)
+            setStatus("scoring")
+            scoreRow(row) {
+              setBusy(false)
+              setStatus("ready")
+            }
+          }
+        }
+      }
+    line.addView(row.again, LinearLayout.LayoutParams(-2, -2).apply { leftMargin = dp(6f).toInt() })
+    box.addView(line)
+    // why the line was not scored
+    row.note =
+      TextView(this).apply {
+        setTextSize(TypedValue.COMPLEX_UNIT_SP, 12f)
+        setTextColor(REVIEW)
+        visibility = View.GONE
+      }
+    box.addView(row.note)
+    // while the line is edited: its kind (how its text is drawn: a tap opens the three kinds), the
+    // text recognizer's own confidence for the line and the line's time
+    val details =
       LinearLayout(this).apply {
         orientation = LinearLayout.HORIZONTAL
         gravity = Gravity.CENTER_VERTICAL
-        setPadding(dp(26f).toInt(), 0, 0, 0)
+        visibility = View.GONE
       }
-    // the text recognizer's own confidence for its line, next to the model's score
-    bottom.addView(
-      TextView(this).apply {
-        text = "OCR conf %.2f".format(row.line.confidence)
-        setTextSize(TypedValue.COMPLEX_UNIT_SP, 12f)
-        setTextColor(Color.GRAY)
-      }
-    )
-    // the kind of the line (how its text is drawn): a tap opens the three kinds
     val kind =
       TextView(this).apply {
         text = "${row.category.label} ▾"
         setTextSize(TypedValue.COMPLEX_UNIT_SP, 12f)
         setTextColor(Color.DKGRAY)
-        setPadding(dp(8f).toInt(), dp(4f).toInt(), dp(4f).toInt(), dp(4f).toInt())
+        setPadding(0, dp(4f).toInt(), dp(8f).toInt(), dp(4f).toInt())
       }
     kind.setOnClickListener {
       val menu = android.widget.PopupMenu(this, kind)
@@ -679,96 +1012,103 @@ class MainActivity : ComponentActivity() {
       }
       menu.show()
     }
-    bottom.addView(kind)
-    row.bar = ScoreBar(this)
-    bottom.addView(row.bar, LinearLayout.LayoutParams(dp(40f).toInt(), dp(8f).toInt()).apply { leftMargin = dp(2f).toInt() })
-    row.score =
+    details.addView(kind)
+    row.info =
       TextView(this).apply {
-        setTextSize(TypedValue.COMPLEX_UNIT_SP, 16f)
-        setTypeface(typeface, Typeface.BOLD)
-        setTextColor(Color.BLACK)
-        setPadding(dp(6f).toInt(), 0, dp(2f).toInt(), 0)
-      }
-    bottom.addView(row.score)
-    row.mark =
-      TextView(this).apply {
-        setTextSize(TypedValue.COMPLEX_UNIT_SP, 13f)
-        setPadding(dp(4f).toInt(), 0, dp(2f).toInt(), 0)
-      }
-    bottom.addView(row.mark, LinearLayout.LayoutParams(0, -2, 1f))
-    row.again =
-      Button(this).apply {
-        text = "Score again"
-        isAllCaps = false
         setTextSize(TypedValue.COMPLEX_UNIT_SP, 12f)
-        minHeight = 0
-        minimumHeight = 0
-        setPadding(dp(8f).toInt(), dp(2f).toInt(), dp(8f).toInt(), dp(2f).toInt())
-        visibility = View.GONE
-        setOnClickListener {
-          if (!busy) {
-            setBusy(true)
-            setStatus("scoring")
-            scoreRow(row) {
-              setBusy(false)
-              setStatus("ready")
-            }
-          }
-        }
+        setTextColor(Color.GRAY)
       }
-    bottom.addView(row.again, LinearLayout.LayoutParams(-2, dp(30f).toInt()))
-    box.addView(bottom)
+    details.addView(row.info)
+    row.details = details
+    box.addView(details)
+    box.addView(
+      View(this).apply { setBackgroundColor(RULE) },
+      LinearLayout.LayoutParams(-1, dp(1f).toInt()).apply { topMargin = dp(4f).toInt() },
+    )
     list.addView(box)
+    row.view = box
     refreshRow(row)
   }
 
+  /**
+   * One scale for every line's picture, so the print keeps one size down the table: the widest
+   * picture fills the table's width, and no picture is taller than 56 dp.
+   */
+  private fun sizeLinePictures() {
+    val rects = rows.mapNotNull { (it.frame as LinearLayout).getChildAt(1).tag as? Rect }
+    if (rects.isEmpty()) return
+    // the table's width less the label column, the frame and the number beside the picture
+    val avail = resources.displayMetrics.widthPixels - dp(26f) - dp(18f) - labelWidth
+    val s = minOf(avail / rects.maxOf { it.width() }, dp(56f) / rects.maxOf { it.height() })
+    for (row in rows) {
+      val image = (row.frame as LinearLayout).getChildAt(1)
+      val r = image.tag as? Rect ?: continue
+      image.layoutParams = image.layoutParams.apply {
+        width = (r.width() * s).toInt().coerceAtLeast(1)
+        height = (r.height() * s).toInt().coerceAtLeast(1)
+      }
+    }
+  }
+
   private fun refreshRow(row: Row) {
-    val p = row.prob
-    val accepted = p != null && p >= threshold
-    val stale = row.stale
-    row.score.text =
-      when {
-        row.running -> "…"
-        p == null -> ""
-        else -> "%.2f".format(p)
-      }
-    row.mark.text =
-      when {
-        row.running -> "scoring"
-        stale -> "edited"
-        row.error != null -> row.error
-        p == null -> ""
-        else -> {
-          val ms = row.ms?.let { " · %.0f ms".format(it) } ?: ""
-          val build = if (row.buildMs > 0) " (+%.1f s GPU build, once)".format(row.buildMs / 1000) else ""
-          (if (accepted) "Accept" else "Review") + ms + build
-        }
-      }
-    val color =
-      when {
-        row.running || stale || p == null -> Color.GRAY
-        accepted -> ACCEPT
-        else -> REVIEW
-      }
-    row.mark.setTextColor(if (row.error != null && !stale && !row.running) REVIEW else color)
-    row.score.setTextColor(if (stale) Color.GRAY else Color.BLACK)
-    row.bar.set(if (row.running) null else p, color)
-    row.again.visibility = if (stale && !row.running) View.VISIBLE else View.GONE
+    val st = state(row)
+    when (st) {
+      LineState.SCORING -> row.pill.set(null, "checking…", SCORING)
+      LineState.ACCEPT -> row.pill.set(row.prob, "Accept", ACCEPT)
+      LineState.REVIEW -> row.pill.set(row.prob, "Review", REVIEW)
+      LineState.UNCHECKED -> row.pill.set(null, "Accept", ACCEPT)
+      LineState.FAILED -> row.pill.set(null, "not scored", REVIEW)
+      LineState.WAITING, LineState.EDITED -> row.pill.set(null, null, Color.GRAY)
+    }
+    row.pill.visibility = if (st == LineState.EDITED) View.GONE else View.VISIBLE
+    row.again.visibility = if (st == LineState.EDITED) View.VISIBLE else View.GONE
     row.again.isEnabled = !busy
+    row.note.text = row.error ?: ""
+    row.note.visibility = if (st == LineState.FAILED) View.VISIBLE else View.GONE
+    // the picture being scored has a thick blue frame
+    (row.frame.background as GradientDrawable).setStroke(
+      dp(if (row.running) 3f else 1f).toInt(),
+      if (row.running) SCORING else FRAME,
+    )
+    row.details.visibility = if (editing === row) View.VISIBLE else View.GONE
+    row.info.text =
+      listOfNotNull(
+          "OCR conf %.2f".format(row.line.confidence),
+          row.ms?.let { "%.0f ms".format(it) },
+          if (row.buildMs > 0) "+%.1f s GPU build, once".format(row.buildMs / 1000) else null,
+        )
+        .joinToString(" · ")
     overlay.invalidate()
   }
 
   private fun refreshAll() {
     thresholdLabel.text = "Accept at ≥ %.2f ".format(threshold)
     rows.forEach { refreshRow(it) }
+    refreshLines()
     val scored = rows.filter { it.prob != null && !it.running }
+    val accepted = scored.count { it.prob!! >= threshold }
+    if (!check && rows.isNotEmpty() && !busy) {
+      showTally(rows.size, null)
+      summary.setTextColor(Color.DKGRAY)
+      summary.text = "The check is off: every line is accepted as read."
+      return
+    }
+    if (check && busy && rows.isNotEmpty()) {
+      // the count so far, one line at a time
+      showTally(accepted, scored.size - accepted)
+      val at = rows.indexOfFirst { it.running }
+      summary.setTextColor(Color.DKGRAY)
+      summary.text = if (at >= 0) "Checking line ${at + 1} of ${rows.size}" else "Checking the lines"
+      return
+    }
     if (scored.isEmpty() && rows.isNotEmpty() && !busy) {
+      tally.visibility = View.GONE
       summary.setTextColor(Color.BLACK)
       summary.text =
         if (rows.size == 1) "1 line, not scored (see the line)" else "${rows.size} lines, none scored (see each line)"
     }
     if (scored.isNotEmpty() && !busy) {
-      val accepted = scored.count { it.prob!! >= threshold }
+      showTally(accepted, scored.size - accepted)
       val times = scored.mapNotNull { it.ms }.sorted()
       val median =
         when {
@@ -776,50 +1116,118 @@ class MainActivity : ComponentActivity() {
           times.size % 2 == 1 -> times[times.size / 2]
           else -> (times[times.size / 2 - 1] + times[times.size / 2]) / 2
         }
-      summary.setTextColor(Color.BLACK)
+      val unscored = rows.size - scored.size
+      summary.setTextColor(Color.DKGRAY)
       summary.text =
-        "$accepted accepted, ${scored.size - accepted} to review" +
-          (median?.let { " · median %.0f ms a line".format(it) } ?: "")
+        listOfNotNull(
+            median?.let { "median %.0f ms a line".format(it) },
+            if (unscored > 0) "$unscored not scored (see the lines)" else null,
+          )
+          .joinToString(" · ")
     }
   }
 
-  /** A small bar of the score, filled from the left. */
-  private inner class ScoreBar(context: Context) : View(context) {
-    private var value: Double? = null
-    private var color = Color.GRAY
-    private val paint = Paint(Paint.ANTI_ALIAS_FLAG)
+  /** The count under the photo: lines accepted and, with the check on, lines to review. */
+  private fun showTally(accepted: Int, review: Int?) {
+    val s = SpannableStringBuilder()
+    s.append("$accepted accepted", ForegroundColorSpan(ACCEPT), Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+    if (review != null) {
+      s.append(" · ", ForegroundColorSpan(Color.GRAY), Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+      s.append("$review to review", ForegroundColorSpan(REVIEW), Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+    }
+    tally.text = s
+    tally.visibility = View.VISIBLE
+  }
 
-    fun set(v: Double?, c: Int) {
+  /**
+   * The model's score of a line: a bar as long as the score (the whole bar is 1) filled in the
+   * mark's color, with the score and the mark written on it (white on the filled part). Without a
+   * score, the whole pill is the mark's color with its word (Accept with the check off, checking…,
+   * not scored). Every line's pill has the same length, so the bars compare.
+   */
+  private inner class ScorePill(context: Context) : View(context) {
+    private var value: Double? = null
+    private var label: String? = null
+    private var color = Color.GRAY
+    private val fill = Paint(Paint.ANTI_ALIAS_FLAG)
+    private val words =
+      Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        textSize = dp(13f)
+        typeface = Typeface.DEFAULT_BOLD
+      }
+    private val outline =
+      Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        style = Paint.Style.STROKE
+        strokeWidth = dp(1.5f)
+      }
+    private val w = PILL_WORDS.maxOf { words.measureText(it) } + dp(14f)
+    private val h = words.textSize + dp(10f)
+
+    fun set(v: Double?, l: String?, c: Int) {
       value = v
+      label = l
       color = c
       invalidate()
     }
 
+    override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) =
+      setMeasuredDimension((w + dp(2f)).toInt(), (h + dp(2f)).toInt())
+
     override fun onDraw(canvas: Canvas) {
-      val r = height / 2f
-      paint.color = Color.rgb(228, 228, 228)
-      canvas.drawRoundRect(0f, 0f, width.toFloat(), height.toFloat(), r, r, paint)
-      val v = value ?: return
-      paint.color = color
-      canvas.drawRoundRect(0f, 0f, (width * v.toFloat()).coerceAtLeast(height.toFloat()), height.toFloat(), r, r, paint)
+      val l = label ?: return
+      val m = dp(1f)
+      val r = RectF(m, m, m + w, m + h)
+      val rad = h / 2
+      val s = value?.let { "%.2f %s".format(it, l) } ?: l
+      val end = r.left + w * (value?.toFloat()?.coerceIn(0f, 1f) ?: 1f)
+      val baseline = r.top + h / 2 + words.textSize * 0.36f
+      fill.color = TRACK
+      canvas.drawRoundRect(r, rad, rad, fill)
+      canvas.save()
+      canvas.clipRect(r.left, r.top, end, r.bottom)
+      fill.color = color
+      canvas.drawRoundRect(r, rad, rad, fill)
+      words.color = Color.WHITE
+      canvas.drawText(s, r.left + dp(7f), baseline, words)
+      canvas.restore()
+      canvas.save()
+      canvas.clipRect(end, r.top, r.right, r.bottom)
+      words.color = color
+      canvas.drawText(s, r.left + dp(7f), baseline, words)
+      canvas.restore()
+      outline.color = color
+      canvas.drawRoundRect(r, rad, rad, outline)
     }
   }
 
-  /** Line boxes over the photo, coloured by their mark. */
+  private enum class LineState { UNCHECKED, WAITING, SCORING, ACCEPT, REVIEW, FAILED, EDITED }
+
+  private fun state(row: Row): LineState =
+    when {
+      row.running -> LineState.SCORING
+      row.stale -> LineState.EDITED
+      !check -> LineState.UNCHECKED
+      row.error != null -> LineState.FAILED
+      row.prob == null -> LineState.WAITING
+      row.prob!! >= threshold -> LineState.ACCEPT
+      else -> LineState.REVIEW
+    }
+
+  /**
+   * The lines on the opened photo: a numbered box per line in the color of its mark (green Accept,
+   * red Review, blue while it is scored, pale while it waits). A tap on a box scrolls the table to
+   * that line.
+   */
   private inner class BoxOverlay(context: Context) : View(context) {
     private var p: Photo? = null
     private var shown: List<Row> = emptyList()
-    private val stroke =
-      Paint(Paint.ANTI_ALIAS_FLAG).apply {
-        style = Paint.Style.STROKE
-        strokeWidth = dp(2f)
-      }
-    private val label =
+    private val stroke = Paint(Paint.ANTI_ALIAS_FLAG).apply { style = Paint.Style.STROKE }
+    private val fill = Paint(Paint.ANTI_ALIAS_FLAG)
+    private val number =
       Paint(Paint.ANTI_ALIAS_FLAG).apply {
         textSize = dp(11f)
         color = Color.WHITE
       }
-    private val fill = Paint(Paint.ANTI_ALIAS_FLAG)
 
     fun set(photo: Photo?, rows: List<Row>) {
       p = photo
@@ -827,29 +1235,62 @@ class MainActivity : ComponentActivity() {
       invalidate()
     }
 
-    override fun onDraw(canvas: Canvas) {
-      val photo = p ?: return
+    private fun boxes(photo: Photo): List<RectF> {
       val s = minOf(width.toFloat() / photo.width, height.toFloat() / photo.height)
       val ox = (width - photo.width * s) / 2
       val oy = (height - photo.height * s) / 2
-      for (row in shown) {
-        val b = row.line.box
-        val prob = row.prob
-        val color =
-          when {
-            prob == null || row.stale -> Color.GRAY
-            prob >= threshold -> ACCEPT
-            else -> REVIEW
-          }
-        stroke.color = color
-        val r = RectF(ox + b.left * s, oy + b.top * s, ox + b.right * s, oy + b.bottom * s)
-        canvas.drawRect(r, stroke)
-        fill.color = color
-        val tag = "${row.index + 1}"
-        val w = label.measureText(tag) + dp(6f)
-        canvas.drawRect(r.left - w, r.top, r.left, r.top + dp(14f), fill)
-        canvas.drawText(tag, r.left - w + dp(3f), r.top + dp(11f), label)
+      return shown.map { row ->
+        val b: Rect = row.line.box
+        RectF(ox + b.left * s, oy + b.top * s, ox + b.right * s, oy + b.bottom * s)
       }
+    }
+
+    override fun onDraw(canvas: Canvas) {
+      val photo = p ?: return
+      val boxes = boxes(photo)
+      val scoring = shown.any { it.running }
+      for ((k, row) in shown.withIndex()) {
+        val r = boxes[k]
+        val st = state(row)
+        val color =
+          when (st) {
+            LineState.UNCHECKED, LineState.ACCEPT -> ACCEPT
+            LineState.REVIEW, LineState.FAILED -> REVIEW
+            LineState.SCORING -> SCORING
+            else -> Color.GRAY
+          }
+        val boxColor = if (scoring && st == LineState.WAITING) Color.argb(90, 128, 128, 128) else color
+        stroke.color = boxColor
+        stroke.strokeWidth = if (st == LineState.SCORING) dp(3f) else dp(1.5f)
+        canvas.drawRect(r, stroke)
+        fill.color = boxColor
+        val tag = "${row.index + 1}"
+        val tw = number.measureText(tag) + dp(6f)
+        canvas.drawRect(r.left - tw, r.top, r.left, r.top + dp(14f), fill)
+        canvas.drawText(tag, r.left - tw + dp(3f), r.top + dp(11f), number)
+      }
+    }
+
+    override fun onTouchEvent(e: MotionEvent): Boolean {
+      val photo = p ?: return false
+      if (shown.isEmpty()) return false
+      if (e.action != MotionEvent.ACTION_UP) return true
+      val boxes = boxes(photo)
+      val hit =
+        shown.indices.firstOrNull {
+          val b = boxes[it]
+          RectF(b.left - dp(18f), b.top - dp(6f), b.right + dp(6f), b.bottom + dp(6f)).contains(e.x, e.y)
+        }
+      if (hit != null) {
+        performClick()
+        showLine(shown[hit])
+      }
+      return true
+    }
+
+    override fun performClick(): Boolean {
+      super.performClick()
+      return true
     }
   }
 
@@ -868,7 +1309,26 @@ class MainActivity : ComponentActivity() {
     private const val RESERVE_BYTES = 800L * 1024 * 1024
     private const val INSTALL_HINT =
       "Copy the model files to the phone with install_to_device.sh (see the README), then open the app again."
+    private const val PREF_CHECK = "check"
     val ACCEPT = Color.rgb(0x1B, 0x7F, 0x3B)
     val REVIEW = Color.rgb(0xC2, 0x41, 0x0C)
+    val SCORING = Color.rgb(0x1E, 0x5A, 0xA8)
+    val LABEL = Color.rgb(0x75, 0x75, 0x75)
+    /** The gray labels of a row: beside the line's picture and beside the text the recognizer read. */
+    private const val IMAGE_LABEL = "Image:"
+    private const val TEXT_LABEL = "OCR read:"
+    /** The empty part of a score bar. */
+    val TRACK = Color.rgb(0xEC, 0xEC, 0xEC)
+    /** The frame of a line's picture, and the rule between lines. */
+    val FRAME = Color.rgb(0x9E, 0x9E, 0x9E)
+    val RULE = Color.rgb(0xE6, 0xE6, 0xE6)
+    /** The longest words a score pill holds. */
+    private val PILL_WORDS = listOf("0.00 Review", "0.00 Accept", "checking…", "not scored")
+    /**
+     * The symbol keys: the dollar sign, fractions, superscripts, the degree sign, Greek letters, the
+     * times sign, and a key that deletes the character before the cursor.
+     */
+    private val SYMBOLS = listOf("\$", "½", "¾", "²", "³", "°", "π", "θ", "×", DELETE)
+    private const val DELETE = "⌫"
   }
 }
