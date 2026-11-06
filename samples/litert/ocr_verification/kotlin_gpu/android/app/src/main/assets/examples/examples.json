@@ -1,16 +1,12 @@
 {
  "examples": [
   {
-   "file": "lab_notebook.png",
-   "title": "Lab notebook (example page)"
+   "file": "invoice.png",
+   "title": "Invoice (example page)"
   },
   {
-   "file": "homework.png",
-   "title": "Homework (example page)"
-  },
-  {
-   "file": "spec_sheet.png",
-   "title": "Spec sheet (example page)"
+   "file": "formula_sheet.png",
+   "title": "Formula sheet (example page)"
   }
  ]
 }
