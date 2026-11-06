@@ -1,9 +1,9 @@
 # TensorFlow Lite (Swift API) Image Segmentation - iOS
 
-An iOS application demonstrating real-time and static multi-class image segmentation using the **TensorFlow Lite Swift API** (`TensorFlowLite` module integrated into the `LiteRT` Swift Package release `2.3.0`). The app uses multi-threaded CPU execution powered by the built-in **XNNPACK delegate** (`Interpreter.Options.isXNNPackEnabled = true`, `threadCount = 4`).
+An iOS application demonstrating real-time and static multi-class image segmentation using the **TensorFlow Lite Swift API** (`TensorFlowLite` module of the `LiteRT` Swift Package, release `2.3.0`). The app uses multi-threaded CPU execution powered by the built-in **XNNPACK delegate** (`Interpreter.Options.isXNNPackEnabled = true`, `threadCount = 4`).
 
 > [!NOTE]
-> The LiteRT 2.3.0 Swift release package (`https://github.com/google-ai-edge/LiteRT` branch `release/2.3.0`) provides the core TensorFlow Lite C runtime (`TensorFlowLiteC`) optimized for CPU with XNNPACK. For native GPU acceleration on iOS, see the sibling [`swift_litert`](../swift_litert) sample utilizing LiteRT's native Swift API and Metal accelerator.
+> The LiteRT Swift package (`https://github.com/google-ai-edge/LiteRT-Swift`, version `2.3.0`) provides the core TensorFlow Lite C runtime (`TensorFlowLiteC`) optimized for CPU with XNNPACK. For native GPU acceleration on iOS, see the sibling [`swift_litert`](../swift_litert) sample utilizing LiteRT's native Swift API and Metal accelerator.
 
 ---
 
@@ -34,7 +34,7 @@ An iOS application demonstrating real-time and static multi-class image segmenta
 | **CameraManager** | `ImageSegmentation/CameraManager.swift` | Manages `AVFoundation` camera capture session and frame streams |
 | **ImagePicker** | `ImageSegmentation/ImagePicker.swift` | Wraps `PHPickerViewController` in `UIViewControllerRepresentable` for photo library access |
 | **ImageSegmentationApp** | `ImageSegmentation/ImageSegmentationApp.swift` | SwiftUI application entry point |
-| **LiteRT** (Swift Package) | `https://github.com/google-ai-edge/LiteRT` (`release/2.3.0`) | Provides the `TensorFlowLite` Swift module and `TensorFlowLiteC` precompiled runtime |
+| **LiteRT** (Swift Package) | `https://github.com/google-ai-edge/LiteRT-Swift` (`2.3.0`) | Provides the `TensorFlowLite` Swift module and `TensorFlowLiteC` precompiled runtime |
 
 ---
 
@@ -44,30 +44,29 @@ An iOS application demonstrating real-time and static multi-class image segmenta
 
 #### Option A: Using the Released LiteRT Swift Package (Default)
 
-The project is pre-configured to resolve the official LiteRT Swift release package via Swift Package Manager:
-* **Repository URL:** `https://github.com/google-ai-edge/LiteRT`
-* **Dependency Rule:** Branch `release/2.3.0` (or exact version `2.3.0`)
+The project is pre-configured to resolve the official LiteRT Swift package from the [LiteRT-Swift](https://github.com/google-ai-edge/LiteRT-Swift) repository, a small repository that holds only the Swift package and downloads the prebuilt frameworks of the matching [LiteRT release](https://github.com/google-ai-edge/LiteRT/releases):
+* **Repository URL:** `https://github.com/google-ai-edge/LiteRT-Swift`
+* **Dependency Rule:** Up to Next Major Version, minimum `2.3.0` (package versions follow the LiteRT releases)
 * **Product:** `TensorFlowLite`
 
 When you open `ImageSegmentation.xcodeproj` in Xcode or run `xcodebuild`, Swift Package Manager will automatically fetch and resolve the dependencies.
 
-> [!TIP]
-> **Git LFS Troubleshooting:** If Xcode reports an error during package checkout such as `smudge filter lfs failed` or `git-lfs: command not found`, run `git lfs uninstall` or build with `GIT_LFS_SKIP_SMUDGE=1`. The Swift package does not need Git LFS prebuilts. See the [LiteRT Swift Troubleshooting guide](https://github.com/google-ai-edge/LiteRT/tree/main/litert/swift#troubleshooting) for details.
-
 #### Option B: Building `TensorFlowLiteC` Locally from Source
 
-If you are developing LiteRT locally or testing from source:
+If you are developing LiteRT locally or testing from source, use the development `Package.swift` at the root of the [LiteRT](https://github.com/google-ai-edge/LiteRT) repository, which resolves the frameworks from a local `prebuilt/` directory:
 ```bash
 # Navigate to the LiteRT repository
 cd path/to/LiteRT
 
 # Build the TensorFlowLiteC runtime xcframework target
-bazel build -c opt --config=ios //litert/swift:TensorFlowLiteC
+bazel build -c opt --config=ios --copt=-fembed-bitcode=off //litert/swift:TensorFlowLiteC
 
 # Copy the compiled xcframework archive into LiteRT/prebuilt/ for the Swift Package
 mkdir -p prebuilt
 cp -f bazel-bin/litert/swift/TensorFlowLiteC.xcframework.zip prebuilt/
 ```
+The development manifest declares every archive of the package, so `prebuilt/` also needs the remaining ones (`CLiteRT`, `CLiteRT_mac`, `CLiteRT_static`, `LiteRtMetalAccelerator`). The [LiteRT Swift README](https://github.com/google-ai-edge/LiteRT/tree/main/litert/swift#populating-prebuilt) shows how to build them, or how to download all of them from a release instead.
+
 In Xcode, remove the remote package under **ImageSegmentation** > **Package Dependencies**, and add your local `LiteRT` directory via **File > Add Package Dependencies... > Add Local...**.
 
 ### 2. Download the Model File (if not already present)
