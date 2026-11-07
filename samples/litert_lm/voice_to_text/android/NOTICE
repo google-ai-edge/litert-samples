@@ -1,0 +1,13 @@
+Voice to Text Android sample
+
+Model: granite-speech-5.0-2b by IBM (https://huggingface.co/ibm-granite/granite-speech-5.0-2b), licensed
+under Apache License 2.0. The app downloads its LiteRT-LM conversion,
+granite-speech-5.0-2b_ekv2048.litertlm, from https://huggingface.co/litert-community/granite-speech-5.0-2b
+(Apache License 2.0) on first use; the file is not part of this source tree.
+
+The prompts in Prompts.kt are the English prompts of the source model card's table of prompts.
+
+The data package (data/ModelCatalog.kt, data/ModelStore.kt, data/DownloadSafety.kt) and MemoryCheck.kt
+are adapted from this repository's math_to_latex sample (samples/litert_lm/math_to_latex), whose data
+package comes from the voice assistant sample (samples/litert_lm/voice_assistant). The capture loop in
+Recorder.kt follows the voice assistant sample's loop/MicSource.kt.
