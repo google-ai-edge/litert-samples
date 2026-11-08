@@ -17,14 +17,18 @@
 package com.google.ai.edge.examples.asr
 
 import android.content.Context
+import android.os.Build
 import androidx.annotation.VisibleForTesting
 import com.google.ai.edge.litert.Accelerator
+import com.google.ai.edge.litert.BuiltinNpuAcceleratorProvider
 import com.google.ai.edge.litert.CompiledModel
 import com.google.ai.edge.litert.Environment
+import java.io.File
 
 /**
- * Runs a Parakeet TDT model exported as separate graphs, as in litert-community/parakeet-ultra: a
- * log-mel front end and an encoder for each window length (10, 20 and 30 s), and a one-step decoder
+ * Runs a Parakeet TDT model exported as separate graphs, as in litert-community/parakeet-ultra and
+ * litert-community/Phonon-2: a log-mel front end for each window length, an encoder for each window
+ * length (one file per length, or one file with one signature per length), and a one-step decoder
  * with `predict` and `joint` signatures. Greedy TDT decoding runs on the host.
  *
  * It takes raw 16 kHz audio (no AudioPreprocessor), runs the smallest loaded window length that
@@ -41,7 +45,13 @@ class BucketedTdtRunner(
    * addressed by name throughout: a signature's buffer list follows its subgraph's tensor order,
    * which is not the order of the names.
    */
-  private class Bucket(val numSamples: Int, val mel: CompiledModel, val encoder: CompiledModel) {
+  private class Bucket(
+    val mel: CompiledModel,
+    val encoder: CompiledModel,
+    val encoderSignature: String,
+  ) {
+    /** The mel graph's audio length: the most valid samples this window length holds. */
+    val numSamples = mel.getInputTensorType("audio", SERVING_SIGNATURE).numElements
     val melInputs =
       listOf("audio", "n_valid").associateWith { mel.createInputBuffer(it, SERVING_SIGNATURE) }
     val melOutputs =
@@ -50,68 +60,83 @@ class BucketedTdtRunner(
       }
     val encoderInputs =
       listOf("features", "mel_mask").associateWith {
-        encoder.createInputBuffer(it, SERVING_SIGNATURE)
+        encoder.createInputBuffer(it, encoderSignature)
       }
-    val encoderOutputs = mapOf("enc" to encoder.createOutputBuffer("enc", SERVING_SIGNATURE))
-
-    fun close() {
-      mel.close()
-      encoder.close()
-    }
+    val encoderOutputs = mapOf("enc" to encoder.createOutputBuffer("enc", encoderSignature))
   }
 
+  /** Every graph this runner loaded; one encoder may serve several window lengths. */
+  private val models = mutableListOf<CompiledModel>()
   private val buckets: List<Bucket>
   private val decoder: CompiledModel
 
   init {
-    // There is no NPU model yet: compiling the float16 encoder on the device takes more memory
-    // than a phone app gets.
     if (accelerator == Accelerator.NPU) {
-      throw UnsupportedOperationException("no NPU model yet, pick CPU or GPU")
+      // Only an encoder compiled ahead of time for the phone's chip runs on the NPU: compiling the
+      // float16 encoder on the device takes more memory than a phone app gets.
+      if (modelConfig.npuModelRemoteUrlPattern.isEmpty()) {
+        throw UnsupportedOperationException("no NPU model yet, pick CPU or GPU")
+      }
+      if (Build.SOC_MODEL !in modelConfig.npuSocModels) {
+        throw UnsupportedOperationException(
+          "the NPU model is compiled for ${modelConfig.npuSocModels.joinToString()} only, " +
+            "pick CPU or GPU"
+        )
+      }
+      // LiteRT looks for its NPU runtime in the app's native library folder. Without it (the
+      // default build, see app/build.gradle.kts) the NPU model still loads: LiteRT 2.3.0 only logs
+      // "No usable Dispatch runtime found".
+      val nativeLibraries = File(context.applicationInfo.nativeLibraryDir).list().orEmpty()
+      if (nativeLibraries.none { it.startsWith("libLiteRtDispatch_") }) {
+        throw UnsupportedOperationException(
+          "this build has no NPU libraries, see app/build.gradle.kts"
+        )
+      }
     }
-    val env = Environment.create()
+    val env =
+      if (accelerator == Accelerator.NPU) {
+        Environment.create(BuiltinNpuAcceleratorProvider(context))
+      } else {
+        Environment.create()
+      }
     val cpuOptions = CompiledModel.Options(setOf(Accelerator.CPU))
     val encoderUrlPattern =
-      if (accelerator == Accelerator.CPU) modelConfig.modelRemoteUrl
-      else modelConfig.gpuModelRemoteUrl
+      when (accelerator) {
+        Accelerator.GPU -> modelConfig.gpuModelRemoteUrl
+        Accelerator.NPU -> modelConfig.npuModelRemoteUrlPattern
+        else -> modelConfig.modelRemoteUrl
+      }
+    // One encoder file with a signature per window length, such as `enc10`, or one file per length.
+    val oneEncoderFile = modelConfig.encoderSignature.contains(SECONDS)
 
-    val loaded = mutableListOf<CompiledModel>()
     try {
       val folder = modelConfig.tokenizerPath.substringBeforeLast("/")
-      // On the GPU only the longest window's graphs load: the three float16 encoders together do
-      // not fit every phone's GPU. The shorter graphs only skip the work on padding.
+      // With one file per length, only the longest window's graphs load off the CPU: the three
+      // float16 encoders together do not fit every phone's GPU. One encoder file stores the weights
+      // once for all lengths. The shorter graphs only skip the work on padding.
       val windowSeconds =
-        if (accelerator == Accelerator.CPU) modelConfig.windowSeconds.sorted()
+        if (accelerator == Accelerator.CPU || oneEncoderFile) modelConfig.windowSeconds.sorted()
         else listOf(modelConfig.windowSeconds.max())
+      val encoderOptions = encoderOptions(accelerator, oneEncoderFile)
+      val sharedEncoder =
+        if (oneEncoderFile) {
+          loadModel(context, folder, encoderUrlPattern, "", encoderOptions, env)
+        } else {
+          null
+        }
       buckets =
         windowSeconds.map { seconds ->
-          val mel =
-            createModel(context, folder, modelConfig.melModelRemoteUrl, seconds, cpuOptions, env)
-          loaded.add(mel)
+          val name = windowName(seconds)
+          val mel = loadModel(context, folder, modelConfig.melModelRemoteUrl, name, cpuOptions, env)
           val encoder =
-            createModel(
-              context,
-              folder,
-              encoderUrlPattern,
-              seconds,
-              encoderOptions(accelerator),
-              env,
-            )
-          loaded.add(encoder)
-          Bucket(seconds * SAMPLING_RATE, mel, encoder)
+            sharedEncoder
+              ?: loadModel(context, folder, encoderUrlPattern, name, encoderOptions, env)
+          Bucket(mel, encoder, modelConfig.encoderSignature.replace(SECONDS, name))
         }
-      decoder =
-        createModel(
-          context,
-          folder,
-          modelConfig.decoderModelRemoteUrl,
-          seconds = 0,
-          cpuOptions,
-          env,
-        )
+      decoder = loadModel(context, folder, modelConfig.decoderModelRemoteUrl, "", cpuOptions, env)
     } catch (e: Exception) {
       // Do not leak the graphs that loaded before the failure.
-      loaded.forEach { it.close() }
+      models.forEach { it.close() }
       throw e
     }
   }
@@ -143,8 +168,7 @@ class BucketedTdtRunner(
   private val zeroStates = FloatArray(NUM_STATES) { 0.0f }
 
   override fun close() {
-    buckets.forEach { it.close() }
-    decoder.close()
+    models.forEach { it.close() }
   }
 
   override fun recognize(features: FloatArray): Sequence<Pair<Int, Int>> = sequence {
@@ -161,7 +185,7 @@ class BucketedTdtRunner(
       for ((name, buffer) in bucket.encoderInputs) {
         buffer.writeFloat(bucket.melOutputs.getValue(name).readFloat())
       }
-      bucket.encoder.run(bucket.encoderInputs, bucket.encoderOutputs, SERVING_SIGNATURE)
+      bucket.encoder.run(bucket.encoderInputs, bucket.encoderOutputs, bucket.encoderSignature)
 
       val encoded = bucket.encoderOutputs.getValue("enc").readFloat()
       val numValidFrames = bucket.melOutputs.getValue("frame_mask").readFloat().sum().toInt()
@@ -220,12 +244,30 @@ class BucketedTdtRunner(
     inputStatesBuffersIndex = 1 - inputStatesBuffersIndex
   }
 
+  /** Downloads the file of [remoteUrlPattern] for the window length [name] once, and loads it. */
+  private fun loadModel(
+    context: Context,
+    folder: String,
+    remoteUrlPattern: String,
+    name: String,
+    options: CompiledModel.Options,
+    env: Environment,
+  ): CompiledModel {
+    val remoteUrl = remoteUrlPattern.replace(SECONDS, name)
+    val localPath = "$folder/${remoteUrl.substringAfterLast("/")}"
+    openOrDownloadFile(context, localPath, remoteUrl).close()
+    return CompiledModel.create("${context.filesDir.path}/$localPath", options, env).also {
+      models.add(it)
+    }
+  }
+
   companion object {
+    /** The window length in a file name or a signature name, such as `<seconds>s.tflite`. */
+    private const val SECONDS = "<seconds>"
     private const val SERVING_SIGNATURE = "serving_default"
     private const val PREDICT_SIGNATURE = "predict"
     private const val JOINT_SIGNATURE = "joint"
 
-    private const val SAMPLING_RATE = 16000
     /** Audio samples per encoder frame: a mel hop of 160 samples, subsampled 8 times. */
     private const val SAMPLES_PER_FRAME = 160 * 8
     /** A window under two mel frames has no text. */
@@ -238,30 +280,33 @@ class BucketedTdtRunner(
     private const val MAX_TOKENS_PER_TIME_INDEX = 10
     private const val MAX_STEPS = 3750
 
-    private fun createModel(
-      context: Context,
-      folder: String,
-      remoteUrlPattern: String,
-      seconds: Int,
-      options: CompiledModel.Options,
-      env: Environment,
-    ): CompiledModel {
-      val remoteUrl = remoteUrlPattern.replace("<seconds>", seconds.toString())
-      val localPath = "$folder/${remoteUrl.substringAfterLast("/")}"
-      openOrDownloadFile(context, localPath, remoteUrl).close()
-      return CompiledModel.create("${context.filesDir.path}/$localPath", options, env)
-    }
-
-    private fun encoderOptions(accelerator: Accelerator): CompiledModel.Options {
+    private fun encoderOptions(
+      accelerator: Accelerator,
+      oneEncoderFile: Boolean,
+    ): CompiledModel.Options {
       val options = CompiledModel.Options(setOf(Accelerator.CPU, accelerator))
       if (accelerator == Accelerator.GPU) {
         // The float16 encoders rescale their LayerNorm inputs so that float16 arithmetic does
-        // not overflow.
+        // not overflow. The window lengths of one encoder file read the same weights.
         options.gpuOptions =
-          CompiledModel.GpuOptions(precision = CompiledModel.GpuOptions.Precision.FP16)
+          CompiledModel.GpuOptions(
+            precision = CompiledModel.GpuOptions.Precision.FP16,
+            constantTensorSharing = if (oneEncoderFile) true else null,
+          )
+      } else if (accelerator == Accelerator.NPU) {
+        // The burst mode, as in the model cards' NPU runs.
+        options.qualcommOptions =
+          CompiledModel.QualcommOptions(
+            htpPerformanceMode = CompiledModel.QualcommOptions.HtpPerformanceMode.BURST
+          )
       }
       return options
     }
+
+    /** Returns a window length as the model files name it: "10" for 10 s, "7.5" for 7.5 s. */
+    @VisibleForTesting
+    internal fun windowName(seconds: Float): String =
+      if (seconds % 1 == 0f) seconds.toInt().toString() else seconds.toString()
 
     /** Returns the number of samples up to the last non-zero one; the rest is padding. */
     @VisibleForTesting
