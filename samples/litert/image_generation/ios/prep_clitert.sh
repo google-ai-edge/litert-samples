@@ -7,11 +7,16 @@
 #   1. CLITERT_XCFRAMEWORK=<path to CLiteRT.xcframework> — copy it.
 #   2. LITERT_CHECKOUT=<path> with an existing bazel-built
 #      bazel-bin/litert/swift/CLiteRT.xcframework.zip — unzip it.
-#   3. Fresh: clone the LiteRT repo into ./litert-src and bazel-build the
-#      target (needs bazelisk + Xcode; ~10 min cold). Two stub BUILD files
-#      are created for internal-only deps absent in the OSS tree.
+#   3. Fresh: fetch the pinned LiteRT commit (LITERT_REF) into ./litert-src
+#      and bazel-build the target (needs bazelisk + Xcode; ~10 min cold). Two
+#      stub BUILD files are created for internal-only deps absent in the OSS
+#      tree.
 set -euo pipefail
 cd "$(dirname "$0")"
+
+# The LiteRT commit the app was last run with (iPhone 18 Pro). Override with
+# LITERT_REF=<commit> to try another one.
+LITERT_REF="${LITERT_REF:-bf49eb62406d15948261a840c9dcd8e4f13b478c}"
 
 if [ -d CLiteRT.xcframework ]; then
   echo "CLiteRT.xcframework already present"
@@ -29,8 +34,10 @@ ZIP="$CHECKOUT/bazel-bin/litert/swift/CLiteRT.xcframework.zip"
 
 if [ ! -f "$ZIP" ]; then
   if [ ! -d "$CHECKOUT" ]; then
-    echo "Cloning LiteRT into $CHECKOUT"
-    git clone --depth 1 https://github.com/google-ai-edge/LiteRT.git "$CHECKOUT"
+    echo "Fetching LiteRT $LITERT_REF into $CHECKOUT"
+    git init -q "$CHECKOUT"
+    git -C "$CHECKOUT" fetch --depth 1 https://github.com/google-ai-edge/LiteRT.git "$LITERT_REF"
+    git -C "$CHECKOUT" checkout -q FETCH_HEAD
   fi
   # Internal-only implicit deps of ios_framework, absent in the OSS tree.
   if [ ! -f "$CHECKOUT/devtools/compliance/licenses/BUILD" ]; then
