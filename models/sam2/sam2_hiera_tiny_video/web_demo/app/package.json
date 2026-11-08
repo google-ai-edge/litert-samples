@@ -22,7 +22,7 @@
     "@webgpu/types": "^0.1.74",
     "playwright-core": "^1.63.0",
     "typescript": "^7.0.2",
-    "vite": "^7.3.6",
+    "vite": "^7.3.7",
     "vitest": "^3.2.7"
   }
 }
