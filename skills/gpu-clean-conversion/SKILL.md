@@ -35,6 +35,15 @@ below. A pass with a CPU-fallback warning means some ops fell back to the
 CPU; treat them the same way if you need full residency. This exercises the
 host GPU, so step 5 on the actual device is still required.
 
+When no GPU runtime is at hand (a CI job, a laptop without the accelerator),
+a static pre-flight gives the first read: [edge-lint](https://github.com/john-rocky/edge-compat)
+parses the `.tflite` and reports, per op, what a measured compatibility matrix
+says for the target backend and runtime version — delegated, fallback,
+incorrect, or `unknown` (not yet measured, not "unsupported") — with the
+matrix's rewrite hint next to each finding. It needs no runtime or device and
+does not replace the compile-and-compare above; use it to route symptoms
+through the table below before a device is available.
+
 **3. Map each symptom to a rewrite.** The rewrites live in
 `utilities/litert_gpu_toolkit` — plain Python, no build step. Outside this
 repo, clone litert-samples and put `utilities/` on `PYTHONPATH`, or vendor

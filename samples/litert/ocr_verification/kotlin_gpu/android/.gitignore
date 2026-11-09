@@ -1,0 +1,8 @@
+.gradle/
+.kotlin/
+build/
+local.properties
+# The model files are copied to the phone by install_to_device.sh, never committed.
+*.tflite
+*.safetensors
+tokenizer.json

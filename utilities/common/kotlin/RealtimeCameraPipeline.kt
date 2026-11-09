@@ -135,7 +135,9 @@ class RealtimeCameraPipeline(
                 } catch (e: Throwable) {
                     Log.e(TAG, "Inference error: ${e.message}", e)
                 } finally {
-                    if (!bmp.isRecycled) freePool.offer(bmp)
+                    if (!bmp.isRecycled) {
+                        freePool.offer(bmp)
+                    }
                 }
             }
         }
@@ -205,7 +207,9 @@ class RealtimeCameraPipeline(
         if (!frameChannel.offer(bmp)) {
             freePool.offer(bmp)
         }
-        if (displaced != null) freePool.offer(displaced)
+        if (displaced != null) {
+            freePool.offer(displaced)
+        }
     }
 
     /**
@@ -215,7 +219,8 @@ class RealtimeCameraPipeline(
     private fun proxyToBitmapInto(proxy: ImageProxy, dst: Bitmap) {
         val plane = proxy.planes[0]
         val buf = plane.buffer
-        val sw = proxy.width + (plane.rowStride - plane.pixelStride * proxy.width) / plane.pixelStride
+        val sw =
+            proxy.width + (plane.rowStride - plane.pixelStride * proxy.width) / plane.pixelStride
 
         var src = srcBitmap
         if (src == null || src.width != sw || src.height != proxy.height) {
@@ -254,14 +259,40 @@ class RealtimeCameraPipeline(
         }
     }
 
+    /**
+     * Stops both threads and releases the bitmaps once they are done with them. The camera thread
+     * may still be drawing into a pool bitmap and the inference thread may still be inside
+     * [onFrame] when this is called from the UI thread, so the recycling waits for both executors
+     * to terminate on a short-lived helper thread instead of running here.
+     */
     override fun close() {
+        enabled = false
         inferenceRunning = false
         cameraExecutor.shutdown()
         inferenceExecutor.shutdown()
-        srcBitmap?.recycle(); srcBitmap = null
-        while (true) freePool.poll()?.recycle() ?: break
-        while (true) frameChannel.poll()?.recycle() ?: break
-        canvas1 = null; canvas1Bmp = null
-        canvas2 = null; canvas2Bmp = null
+        Thread({
+            val idle =
+                cameraExecutor.awaitTermination(5, TimeUnit.SECONDS) &&
+                    inferenceExecutor.awaitTermination(30, TimeUnit.SECONDS)
+            if (idle) {
+                srcBitmap?.recycle()
+                while (true) {
+                    freePool.poll()?.recycle() ?: break
+                }
+                while (true) {
+                    frameChannel.poll()?.recycle() ?: break
+                }
+            } else {
+                // A frame is still in flight somewhere; drop the references and let GC reclaim.
+                Log.w(TAG, "Executors still busy after close(); bitmaps left to GC")
+                freePool.clear()
+                frameChannel.clear()
+            }
+            srcBitmap = null
+            canvas1 = null
+            canvas1Bmp = null
+            canvas2 = null
+            canvas2Bmp = null
+        }, "$TAG-close").apply { isDaemon = true }.start()
     }
 }
