@@ -35,10 +35,7 @@ PACKAGE_PLACEHOLDER = "package __MODULE_PACKAGE__"
 
 # Copies that intentionally diverge from the canonical (see utilities/common/README.md).
 # They are reported but do not fail --check and are never rewritten by --apply.
-KNOWN_DIVERGENCES: set[str] = {
-    "samples/litert_model_zoo/android/app/src/main/java/com/google/ai/edge/examples/litert_model_zoo/common/CompiledModelRunner.kt",
-    "samples/litert_model_zoo/android/app/src/main/java/com/google/ai/edge/examples/litert_model_zoo/common/RealtimeCameraPipeline.kt",
-}
+KNOWN_DIVERGENCES: set[str] = set()
 
 
 def normalized(lines: list[str]) -> list[str]:

@@ -1,0 +1,46 @@
+{
+  "examples": [
+    {
+      "id": "settings",
+      "name": "Settings",
+      "file": "settings.png",
+      "requests": ["Turn off Bluetooth."]
+    },
+    {
+      "id": "files",
+      "name": "File manager",
+      "file": "files.png",
+      "requests": ["Count the .JPG files in this folder, hidden ones included.", "Rename every .JPG file in this folder to lowercase .jpg.", "Open the photo of the sailboat."]
+    },
+    {
+      "id": "pdfview",
+      "name": "PDF viewer",
+      "file": "pdfview.png",
+      "requests": ["How many pages does this PDF have? Check the file itself."]
+    },
+    {
+      "id": "sheet",
+      "name": "Spreadsheet",
+      "file": "sheet.png",
+      "requests": ["Merge cells A1:D1, set the title to 'Q4 Summary', and save the file."]
+    },
+    {
+      "id": "project",
+      "name": "Build folder",
+      "file": "project.png",
+      "requests": ["Open error.log."]
+    },
+    {
+      "id": "editor",
+      "name": "Image editor",
+      "file": "editor.png",
+      "requests": ["Click the blue square on the canvas."]
+    },
+    {
+      "id": "phone_settings",
+      "name": "Phone settings",
+      "file": "phone_settings.png",
+      "requests": ["Open the Battery settings."]
+    }
+  ]
+}

@@ -1,0 +1,44 @@
+OCR Check Android sample
+
+Model: MiniCPM-OCR-Jev by OpenBMB (https://huggingface.co/openbmb/MiniCPM-OCR-Jev, revision
+a0ed278eb6aa1f333a711665ab610055a4a816ab), licensed under Apache License 2.0, trained from
+Qwen/Qwen3.5-2B (Apache License 2.0). The LiteRT graphs, the tables and the tokenizer.json the app
+loads are converted or copied from that checkpoint, published in
+https://huggingface.co/litert-community/MiniCPM-OCR-Decision-2B-LiteRT and copied to the phone by
+install_to_device.sh; they are not part of this source tree.
+
+app/src/main/java/com/google/ai/edge/examples/ocr_verification/HostMath.kt and Verifier.kt port the
+Python host of litert-community/MiniCPM-OCR-Decision-2B-LiteRT (host/decide_host, revision
+672db2e312814fd9b56aa02d494755676140cfdb, Apache License 2.0), which follows the score path of
+scripts/minicpm-ocr-jev/eval/score.py of github.com/OpenBMB/MiniCPM-OCR (commit
+8177040f0d6c824ccf87bc18b938b6a0f91b6d0e, Apache License 2.0, licenses/MiniCPM-OCR-APACHE-2.0.txt):
+the prompt and its token checks; the picture preprocessing, position tables and rotary tables of
+Hugging Face transformers (Apache License 2.0, licenses/Transformers-APACHE-2.0.txt); and PyTorch's
+uint8 antialiased bicubic resize (BSD 3-Clause License, licenses/PyTorch-BSD-3-Clause.txt).
+
+app/src/main/java/com/google/ai/edge/examples/ocr_verification/RenderPage.kt ports the page of the
+source's renderer, scripts/minicpm-ocr-jev/renderer/render_module/render_label.py of
+github.com/OpenBMB/MiniCPM-OCR at the commit above (Apache License 2.0): the pass that protects the
+math spans, the HTML path for tables, the page's CSS and its layout scripts (the table layout script
+is copied as it is). Its Markdown step writes the HTML that Python-Markdown 3.10.3 writes for the
+syntax it covers (BSD 3-Clause License, licenses/Python-Markdown-BSD-3-Clause.txt). Changes: the
+page loads the bundled DejaVu Sans before the source's font list, and the WebView draws it in place
+of the source's Chromium.
+
+app/src/main/java/com/google/ai/edge/examples/ocr_verification/QwenBpeTokenizer.kt follows the
+published tokenizer.json contract of Hugging Face tokenizers and transformers (Apache License 2.0;
+licenses/Tokenizers-APACHE-2.0.txt and licenses/Transformers-APACHE-2.0.txt): added-token
+extraction, NFC, the Split pre-tokenizer regex, the ByteLevel mapping and byte-level BPE.
+
+app/src/main/assets/render/katex/ holds KaTeX 0.16.47 (katex.min.js, katex.min.css and its fonts),
+Copyright (c) 2013-2020 Khan Academy and other contributors, MIT License (licenses/KaTeX-MIT.txt).
+app/src/main/assets/render/fonts/ holds DejaVuSans.ttf and DejaVuSans-Bold.ttf of the DejaVu fonts
+2.37 (licenses/DejaVu-Fonts-LICENSE.txt).
+
+The text recognizer is ML Kit Text Recognition v2 (com.google.mlkit:text-recognition, the model
+bundled in the app), used under the ML Kit terms (https://developers.google.com/ml-kit/terms).
+
+The example pages app/src/main/assets/examples/*.png were drawn for this sample (English text
+written for it, set in DejaVu Serif). app/src/test/resources/render_html_public.json holds the HTML
+the source's renderer writes for test strings written for this sample. No picture or text of a
+benchmark is in this tree: the check mode reads pictures that a computer copies to the phone.

@@ -1,0 +1,8 @@
+{
+  "name": "The bundled examples",
+  "quit_when_done": true,
+  "steps": [
+    {"tag": "settings", "example": "settings", "request": "Turn off Bluetooth.", "expect_route": "computer_use", "expect_box": [1699, 298, 64, 32]},
+    {"tag": "files", "example": "files", "request": "Count the .JPG files in this folder, hidden ones included.", "expect_route": "bash", "expect_command": "Pictures/trip"}
+  ]
+}

@@ -1,0 +1,16 @@
+{
+  "name": "What the window says when something goes wrong",
+  "quit_when_done": true,
+  "steps": [
+    {"tag": "not-a-picture", "picture": "not_a_picture.png", "expect_picture_problem": "could not read .not_a_picture.png. as a picture"},
+    {"tag": "paste", "paste": "../../android/app/src/main/assets/examples/files.png", "expect_picture": "Pasted picture 1920 x 1080"},
+    {"tag": "first", "example": "settings", "expect_picture": "settings.png 1920 x 1080"},
+    {"tag": "empty-request", "request": "   ", "expect_message": "Type what you want done on this screen"},
+    {"tag": "too-long", "request": "Please read this sentence again. ", "repeat_request": 700, "expect_error": "too long for the model file"},
+    {"tag": "stop", "request": "Turn off Bluetooth.", "stop_after_seconds": 1, "expect_stopped": true},
+    {"tag": "after-stop", "request": "Turn off Bluetooth.", "expect_route": "computer_use", "expect_box": [1699, 298, 64, 32]},
+    {"tag": "killed", "request": "Turn off Bluetooth.", "kill_engine_after_chunks": 20, "expect_error": "engine stopped before the step was finished"},
+    {"tag": "restart", "restart_engine": true},
+    {"tag": "after-restart", "request": "Turn off Bluetooth.", "expect_route": "computer_use", "expect_box": [1699, 298, 64, 32]}
+  ]
+}

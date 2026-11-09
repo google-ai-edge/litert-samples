@@ -65,7 +65,7 @@ DELEGATE_RE = re.compile(
 )
 GPU_API_RE = re.compile(r"Initializing (\w+)-based API from graph")
 XNNPACK_RE = re.compile(r"Created TensorFlow Lite XNNPACK delegate for CPU")
-LOADING_RE = re.compile(r"Loading model from: \S*/([^/\s]+)$")
+LOADING_RE = re.compile(r"Loading model from: (?:\S*/)?([^/\s]+)$")
 TIMING_RE = re.compile(
     r"count=(\d+) first=(\d+) curr=\d+ min=(\d+) max=(\d+) avg=([\d.]+) std=([\d.]+)"
     r" p5=(\d+) median=(\d+) p95=(\d+)"
@@ -126,9 +126,13 @@ def parse_text_proto(text: str) -> dict:
         line = raw.strip()
         if not line:
             continue
-        if line.endswith("{"):
+        if line.endswith("{}"):
+            key = line[:-2].strip().rstrip(":").strip()
+            stack[-1].setdefault(key, {})
+        elif line.endswith("{"):
+            key = line[:-1].strip().rstrip(":").strip()
             child: dict = {}
-            stack[-1][line[:-1].strip()] = child
+            stack[-1][key] = child
             stack.append(child)
         elif line == "}":
             stack.pop()
@@ -141,7 +145,10 @@ def parse_text_proto(text: str) -> dict:
                 try:
                     stack[-1][key.strip()] = int(value)
                 except ValueError:
-                    stack[-1][key.strip()] = float(value)
+                    try:
+                        stack[-1][key.strip()] = float(value)
+                    except ValueError:
+                        stack[-1][key.strip()] = value
     return root
 
 
