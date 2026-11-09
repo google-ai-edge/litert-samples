@@ -155,7 +155,7 @@
 			);
 			mainGroup = A1B2C3D4E5F6789012340002 /* MainGroup */;
 			packageReferences = (
-				A1B2C3D4E5F6789012340701 /* XCRemoteSwiftPackageReference "LiteRT" */,
+				A1B2C3D4E5F6789012340701 /* XCRemoteSwiftPackageReference "LiteRT-Swift" */,
 			);
 			productRefGroup = A1B2C3D4E5F6789012340003 /* Products */;
 			projectDirPath = "";
@@ -381,12 +381,12 @@
 /* End XCConfigurationList section */
 
 /* Begin XCRemoteSwiftPackageReference section */
-		A1B2C3D4E5F6789012340701 /* XCRemoteSwiftPackageReference "LiteRT" */ = {
+		A1B2C3D4E5F6789012340701 /* XCRemoteSwiftPackageReference "LiteRT-Swift" */ = {
 			isa = XCRemoteSwiftPackageReference;
-			repositoryURL = "https://github.com/google-ai-edge/LiteRT";
+			repositoryURL = "https://github.com/google-ai-edge/LiteRT-Swift";
 			requirement = {
-				branch = "release/2.3.0";
-				kind = branch;
+				kind = upToNextMajorVersion;
+				minimumVersion = 2.3.0;
 			};
 		};
 /* End XCRemoteSwiftPackageReference section */
@@ -394,12 +394,12 @@
 /* Begin XCSwiftPackageProductDependency section */
 		A1B2C3D4E5F6789012340601 /* LiteRT */ = {
 			isa = XCSwiftPackageProductDependency;
-			package = A1B2C3D4E5F6789012340701 /* XCRemoteSwiftPackageReference "LiteRT" */;
+			package = A1B2C3D4E5F6789012340701 /* XCRemoteSwiftPackageReference "LiteRT-Swift" */;
 			productName = LiteRT;
 		};
 		A1B2C3D4E5F6789012340602 /* LiteRtMetalAccelerator */ = {
 			isa = XCSwiftPackageProductDependency;
-			package = A1B2C3D4E5F6789012340701 /* XCRemoteSwiftPackageReference "LiteRT" */;
+			package = A1B2C3D4E5F6789012340701 /* XCRemoteSwiftPackageReference "LiteRT-Swift" */;
 			productName = LiteRtMetalAccelerator;
 		};
 /* End XCSwiftPackageProductDependency section */
