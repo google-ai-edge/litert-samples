@@ -153,6 +153,9 @@ build:android --dynamic_mode=off
 # TODO(belitskiy): Remove once on Clang 20.
 build:android --define=xnn_enable_avxvnniint8=false
 build:android --define=xnn_enable_arm_sve2=false
+# NDK r27's Clang lacks <arm_sme.h> required by XNNPACK's SME ACLE C microkernels;
+# KleidiAI assembly SME2 kernels remain enabled without this.
+build:android --define=xnn_enable_arm_sme_acle=false
 
 # Sets the default Apple platform to macOS.
 build:macos --apple_platform_type=macos
