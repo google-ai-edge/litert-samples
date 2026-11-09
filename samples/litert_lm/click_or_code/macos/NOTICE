@@ -1,0 +1,19 @@
+Click or code macOS sample
+
+Model: Mage-VL-Cowork by Microsoft (https://huggingface.co/microsoft/Mage-VL-Cowork), licensed under
+Apache License 2.0. The app downloads its LiteRT-LM conversion, Mage-VL-Cowork.litertlm, from
+https://huggingface.co/litert-community/Mage-VL-Cowork (Apache License 2.0) on first use; the file
+is not part of this source tree.
+
+The system prompt and the example screenshots are the Android app's files, built into this app by
+reference (see ../android/NOTICE): ../android/app/src/main/assets/mage_hybrid_system_prompt.txt and
+../android/app/src/main/assets/examples/*.
+
+Sources/Pictures.swift follows the bicubic resampling of Pillow 13.0.0 (src/libImaging/Resample.c),
+Copyright (c) 1997-2011 by Secret Labs AB, Copyright (c) 1995-2011 by Fredrik Lundh and contributors,
+Copyright (c) 2010 by Jeffrey 'Alex' Clark and contributors, under the MIT-CMU License
+(../android/licenses/Pillow-MIT-CMU.txt), as ../android's PilBicubic.kt does.
+
+Sources/EngineClient.swift, Sources/SystemMemory.swift and the structure of Sources/EngineHost.swift,
+Sources/LiteRTLM.swift and Sources/Autoplay.swift are adapted from this repository's Picture Questions
+sample (samples/litert_lm/picture_questions/macos).

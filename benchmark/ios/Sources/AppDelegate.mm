@@ -34,10 +34,12 @@ NSArray<NSString*>* BenchmarkFlags() {
   if (flags.count == 0) {
     NSData* data =
         [NSData dataWithContentsOfFile:LiteRtBenchmarkDocumentsPath(@"benchmark_params.json")];
-    NSDictionary* params =
-        data ? [NSJSONSerialization JSONObjectWithData:data options:0 error:nil] : nil;
-    for (NSString* key in params) {
-      [flags addObject:[NSString stringWithFormat:@"--%@=%@", key, [params[key] description]]];
+    id parsed = data ? [NSJSONSerialization JSONObjectWithData:data options:0 error:nil] : nil;
+    if ([parsed isKindOfClass:[NSDictionary class]]) {
+      NSDictionary* params = (NSDictionary*)parsed;
+      for (NSString* key in params) {
+        [flags addObject:[NSString stringWithFormat:@"--%@=%@", key, [params[key] description]]];
+      }
     }
   }
   return flags;
@@ -75,6 +77,9 @@ bool LaunchedWithFlags() {
     return YES;
   }
   [files removeItemAtPath:LiteRtBenchmarkDocumentsPath(@"benchmark.done") error:nil];
+  [files removeItemAtPath:LiteRtBenchmarkDocumentsPath(@"results.pb") error:nil];
+  [files removeItemAtPath:LiteRtBenchmarkDocumentsPath(@"runtime_info.pb") error:nil];
+  [files removeItemAtPath:LiteRtBenchmarkDocumentsPath(@"benchmark.log") error:nil];
   dispatch_async(dispatch_get_global_queue(QOS_CLASS_USER_INITIATED, 0), ^{
     const int status = LiteRtBenchmarkRun(flags, @"benchmark.log");
     // The driver polls for this file, then pulls benchmark.log and results.pb.

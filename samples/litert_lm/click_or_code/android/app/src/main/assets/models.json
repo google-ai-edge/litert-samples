@@ -1,0 +1,25 @@
+{
+  "schemaVersion": 1,
+  "models": [
+    {
+      "id": "mage-vl-cowork",
+      "role": "Computer-use agent: the next step for a screenshot and a request",
+      "model": "Mage-VL-Cowork (int4 text decoder with fp16 GPU activations, fp16 vision encoder for the CPU)",
+      "runtime": "litert_lm",
+      "backend": "gpu",
+      "files": [
+        {
+          "name": "Mage-VL-Cowork_vision-fp16.litertlm",
+          "url": "https://huggingface.co/litert-community/Mage-VL-Cowork/resolve/main/Mage-VL-Cowork_vision-fp16.litertlm",
+          "bytes": 3199591888,
+          "sha256": "1e977695d8f46222653233143e95431ccf6e46bfabe2c77073abf2e8ba75c5df"
+        }
+      ],
+      "license": {
+        "name": "Apache-2.0",
+        "url": "https://huggingface.co/litert-community/Mage-VL-Cowork/blob/main/README.md"
+      },
+      "modelCard": "https://huggingface.co/litert-community/Mage-VL-Cowork"
+    }
+  ]
+}
