@@ -160,7 +160,6 @@ class Lfm3OmniEngine private constructor(
     const val FRAME = "LFM3-Omni-2B_frame_embed_f32.tflite"
     const val CODEC = "LFM3-Omni-2B_codec_decoder_f12_f32.tflite"
     const val SAMPLE_RATE = 24000
-    private val SECTIONS = listOf("decoder", "embedder", "audio", "vision_encoder", "vision_adapter")
 
     /**
      * Free memory each loading stage needs (bytes), checked before the stage with [RESERVE] on top; the largest stage
@@ -184,11 +183,38 @@ class Lfm3OmniEngine private constructor(
 
     fun find(context: Context, name: String): File? = modelDirs(context).map { File(it, name) }.firstOrNull { it.isFile }
 
-    fun findBundle(context: Context, sections: JSONObject): File? = modelDirs(context).flatMap { d ->
-      d.listFiles()?.filter { it.isFile && it.name.endsWith(".litertlm") } ?: emptyList()
-    }.firstOrNull { it.length() == sections.getLong("bundle_bytes") }
+    /** The graphs the app copies out of the bundle: its name for each, and the model type its section has. */
+    private val GRAPHS = linkedMapOf(
+      "decoder" to "tf_lite_prefill_decode",
+      "embedder" to "tf_lite_embedder",
+      "audio" to "tf_lite_audio_encoder_hw",
+      "vision_encoder" to "tf_lite_vision_encoder",
+      "vision_adapter" to "tf_lite_vision_adapter",
+    )
 
-    private fun sections(context: Context) = JSONObject(context.assets.open("bundle_sections.json").bufferedReader().readText())
+    private fun LitertlmHeader.graph(type: String) =
+      sections.firstOrNull { it.type == LitertlmHeader.TFLITE_MODEL && it.modelType == type }
+
+    private fun LitertlmHeader.weights(type: String) =
+      sections.firstOrNull { it.type == LitertlmHeader.TFLITE_WEIGHTS && it.modelType == type }
+
+    private fun LitertlmHeader.tokenizer() = sections.firstOrNull { it.type == LitertlmHeader.HF_TOKENIZER_ZLIB }
+
+    /** The bundle on this phone and its header: a whole .litertlm file whose header lists every section the app reads,
+     *  with its weights inside each graph or in TFLiteWeights sections. */
+    fun findBundle(context: Context): Pair<File, LitertlmHeader>? = modelDirs(context).flatMap { d ->
+      d.listFiles()?.filter { it.isFile && it.name.endsWith(".litertlm") } ?: emptyList()
+    }.firstNotNullOfOrNull { f ->
+      LitertlmHeader.read(f)
+        ?.takeIf { h -> h.fileBytes == f.length() && h.tokenizer() != null && GRAPHS.values.all { h.graph(it) != null } }
+        ?.let { f to it }
+    }
+
+    /** Each section's published SHA-256s, in both forms of the bundle, and the decoder's signatures. */
+    private fun bundleFacts(context: Context) = JSONObject(context.assets.open("bundle_sections.json").bufferedReader().readText())
+
+    /** The name a graph gives its weights (its external buffer group): LiteRT opens a file of that name in the graph's folder. */
+    private const val WEIGHTS_FILE = "tflite_weights"
 
     /** The graph files of a depth decoder form. */
     fun depthFiles(form: String): List<String> = when (form) {
@@ -230,11 +256,10 @@ class Lfm3OmniEngine private constructor(
     /** What is missing before [open] can run (with the default depth form), as one sentence; null when every required
      *  file is there. */
     fun missing(context: Context): String? {
-      val sections = sections(context)
       val names = (depthFiles(DEFAULT_DEPTH_FORM) + listOf(FRAME, CODEC)).filter { find(context, it) == null }
-      val bundle = findBundle(context, sections)
+      val bundle = findBundle(context)
       if (names.isEmpty() && bundle != null) return null
-      val list = (if (bundle == null) listOf("the .litertlm bundle (${sections.getLong("bundle_bytes")} bytes)") else emptyList()) + names
+      val list = (if (bundle == null) listOf("the .litertlm bundle") else emptyList()) + names
       val dir = context.getExternalFilesDir(null)?.absolutePath ?: context.filesDir.absolutePath
       return "The model files are not on this phone yet. Missing: ${list.joinToString(", ")}. " +
         "Push them into $dir with install_to_device.sh (README.md), then reopen the app."
@@ -253,7 +278,7 @@ class Lfm3OmniEngine private constructor(
     private fun gb(b: Long) = "%.1f GB".format(b / 1e9)
 
     /**
-     * Opens everything: the bundle's sections copied out once (to files/lfm3_sections/<sha256 prefix>/, checked by
+     * Opens everything: the bundle's sections copied out once (to files/lfm3_sections/<file size>-<file time>/, checked by
      * size and the TFLite magic, and by SHA-256 the first time), the tokenizer inflated from the bundle, the graphs
      * compiled, each stage after a memory check. [log] receives one line per step.
      */
@@ -262,8 +287,7 @@ class Lfm3OmniEngine private constructor(
       val stages = JSONObject()
       load.put("stages", stages)
       val t0 = System.nanoTime()
-      val sections = sections(context)
-      val bundle = findBundle(context, sections) ?: throw IllegalStateException(missing(context) ?: "no bundle")
+      val (bundle, header) = findBundle(context) ?: throw IllegalStateException(missing(context) ?: "no bundle")
       missing(context)?.let { throw IllegalStateException(it) }
       fun gate(stage: String, first: Boolean = false) {
         val need = (if (first) STAGE_NEED.values.max() else STAGE_NEED.getValue(stage)) + RESERVE
@@ -277,31 +301,45 @@ class Lfm3OmniEngine private constructor(
       fun after(stage: String) = stages.put("after_$stage", JSONObject().put("available", availableMemory(context)).put("rss", rss()))
       gate("language model", first = true)
       load.put("bundle", bundle.absolutePath)
-      val secs = sections.getJSONObject("sections")
-      val outDir = File(context.filesDir, "lfm3_sections/" + sections.getString("bundle_sha256").take(16)).apply { mkdirs() }
+      load.put("weights_in_sections", header.weightsInSections)
+      val facts = bundleFacts(context)
+      val published = facts.getJSONObject("section_sha256")
+      val sectionsDir = File(context.filesDir, "lfm3_sections")
+      val outDir = File(sectionsDir, "${bundle.length()}-${bundle.lastModified()}").apply { mkdirs() }
+      // The copies of another file would only take up room.
+      sectionsDir.listFiles()?.filter { it != outDir }?.forEach { it.deleteRecursively() }
       val extracted = HashMap<String, File>()
-      for (name in SECTIONS) {
-        val s = secs.getJSONObject(name)
-        val f = File(outDir, "$name.tflite")
-        val ok = File(outDir, "$name.verified")
-        val size = s.getLong("end") - s.getLong("begin")
+      fun copyOut(name: String, s: LitertlmHeader.Section, f: File, graph: Boolean) {
+        val ok = File(f.parentFile, "${f.nameWithoutExtension}.verified")
+        val size = s.end - s.begin
         if (!(f.length() == size && ok.isFile)) {
           log("Preparing the model, once: copying the $name section out of ${bundle.name} (${size / 1_000_000} MB)")
           val tc = System.nanoTime()
-          val sha = copyRange(bundle, s.getLong("begin"), size, f)
-          load.put("${name}_copy_ms", (System.nanoTime() - tc) / 1e6)
-          check(sha == s.getString("sha256")) { "$name section: sha256 $sha != ${s.getString("sha256")}" }
+          val sha = copyRange(bundle, s.begin, size, f, graph)
+          load.put("${name.replace(' ', '_')}_copy_ms", (System.nanoTime() - tc) / 1e6)
+          val known = published.optJSONArray(name)
+          check(known != null && (0 until known.length()).any { known.getString(it) == sha }) {
+            "$name section: sha256 $sha is not one of the published files'"
+          }
           ok.writeText(sha)
         }
+      }
+      for ((name, type) in GRAPHS) {
+        val s = checkNotNull(header.graph(type))
+        // Every weights file has the same name, so a graph with one gets a folder of its own.
+        val weights = header.weights(type)
+        val dir = if (weights == null) outDir else File(outDir, name).apply { mkdirs() }
+        val f = File(dir, "$name.tflite")
+        copyOut(name, s, f, graph = true)
+        if (weights != null) copyOut("$name weights", weights, File(dir, WEIGHTS_FILE), graph = false)
         extracted[name] = f
       }
       log("Reading the tokenizer")
       val tt = System.nanoTime()
-      val tok = secs.getJSONObject("tokenizer")
+      val tok = checkNotNull(header.tokenizer())
       val tokenizer = RandomAccessFile(bundle, "r").use { raf ->
-        val begin = tok.getLong("begin")
-        val bytes = ByteArray((tok.getLong("end") - begin).toInt())
-        raf.seek(begin)
+        val bytes = ByteArray((tok.end - tok.begin).toInt())
+        raf.seek(tok.begin)
         raf.readFully(bytes)
         val reader = InputStreamReader(InflaterInputStream(bytes.inputStream(8, bytes.size - 8), Inflater()), Charsets.UTF_8)
         Lfm3Tokenizer.load(reader.buffered(1 shl 16))
@@ -318,7 +356,7 @@ class Lfm3OmniEngine private constructor(
       try {
         log("Loading the language model")
         val tl = System.nanoTime()
-        val sig = sections.optJSONObject("decoder_signatures")
+        val sig = facts.optJSONObject("decoder_signatures")
         val decoderFile = extracted.getValue("decoder")
         val embedderFile = extracted.getValue("embedder")
         val lm = LmRunner(decoderFile, embedderFile, config.lm.cached(cacheDir, decoderFile, "decoder").options(),
@@ -414,8 +452,8 @@ class Lfm3OmniEngine private constructor(
       }
     }
 
-    /** Copies [size] bytes from [src] at [begin] into [dst]; returns their SHA-256 (hex). */
-    private fun copyRange(src: File, begin: Long, size: Long, dst: File): String {
+    /** Copies [size] bytes from [src] at [begin] into [dst]; returns their SHA-256 (hex). A [graph] must be a TFLite flatbuffer. */
+    private fun copyRange(src: File, begin: Long, size: Long, dst: File, graph: Boolean): String {
       val md = MessageDigest.getInstance("SHA-256")
       val tmp = File(dst.path + ".part")
       RandomAccessFile(src, "r").use { raf ->
@@ -432,9 +470,11 @@ class Lfm3OmniEngine private constructor(
           }
         }
       }
-      val magic = ByteArray(4)
-      RandomAccessFile(tmp, "r").use { it.seek(4); it.readFully(magic) }
-      check(String(magic, Charsets.US_ASCII) == "TFL3") { "${dst.name}: not a TFLite flatbuffer" }
+      if (graph) {
+        val magic = ByteArray(4)
+        RandomAccessFile(tmp, "r").use { it.seek(4); it.readFully(magic) }
+        check(String(magic, Charsets.US_ASCII) == "TFL3") { "${dst.name}: not a TFLite flatbuffer" }
+      }
       check(tmp.renameTo(dst)) { "rename ${tmp.name}" }
       return md.digest().joinToString("") { "%02x".format(it) }
     }

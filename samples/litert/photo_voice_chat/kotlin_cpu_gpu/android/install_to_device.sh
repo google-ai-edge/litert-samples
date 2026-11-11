@@ -47,4 +47,4 @@ for f in "${FILES[@]}"; do
   else echo "missing $f in $SRC (or $SRC/speech)"; exit 1
   fi
 done
-echo "done; open the app (the first start copies five sections out of the bundle once, then says Ready)"
+echo "done; open the app (the first start copies sections out of the bundle once, then says Ready)"

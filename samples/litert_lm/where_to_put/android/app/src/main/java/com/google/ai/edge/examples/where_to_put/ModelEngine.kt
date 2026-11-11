@@ -45,7 +45,7 @@ data class Delta(val text: String, val thought: String)
  */
 object ModelEngine {
   const val FILE_NAME = "LFM3-VL-2B_int4_ctx4096.litertlm"
-  const val FILE_BYTES = 2_071_611_643L
+  const val FILE_BYTES = 2_071_674_880L
 
   /**
    * Thinking. On: the model first writes its reasoning (hundreds of tokens, in the bundle's "thought" channel), then
@@ -107,9 +107,18 @@ object ModelEngine {
         retry = true,
       )
     }
-    if (file.length() != FILE_BYTES) {
+    // The file's own header says how long a whole copy is, whichever form the file has: its weights
+    // inside the graphs, or in TFLiteWeights sections.
+    val wholeBytes = LitertlmHeader.read(file)?.fileBytes
+    if (wholeBytes == null) {
       return unavailable(
-        "$FILE_NAME is ${file.length()} bytes, but the published file has $FILE_BYTES bytes. " +
+        "$FILE_NAME does not begin the way a .litertlm file does. The copy may be incomplete: push it again.",
+        retry = true,
+      )
+    }
+    if (file.length() != wholeBytes) {
+      return unavailable(
+        "$FILE_NAME is ${file.length()} bytes, but its header lists $wholeBytes bytes. " +
           "The copy may be incomplete: push it again.",
         retry = true,
       )

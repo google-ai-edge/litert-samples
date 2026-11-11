@@ -675,7 +675,7 @@ class MainActivity : Activity() {
   companion object {
     const val DEFAULT_MODEL = "LFM3-1.7B_mixed_int4_ekv2048.litertlm"
     private val RUN_NAME = java.time.format.DateTimeFormatter.ofPattern("yyyyMMdd-HHmmss")
-    const val LITERT_LM_VERSION = "0.18.1"
+    const val LITERT_LM_VERSION = "0.19.0"
     private val GREY = 0xFF5F6368.toInt()
     private val BLUE = 0xFF1A73E8.toInt()
     private val GREEN = 0xFF188038.toInt()

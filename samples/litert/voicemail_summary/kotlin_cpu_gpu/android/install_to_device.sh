@@ -47,4 +47,4 @@ for f in "${FILES[@]}"; do
   push "$f"
 done
 for f in "${OPTIONAL[@]}"; do [ -f "$SRC/$f" ] && push "$f"; done
-echo "done; open the app (the first start copies three sections out of the bundle once, then says Ready)"
+echo "done; open the app (the first start copies sections out of the bundle once, then says Ready)"

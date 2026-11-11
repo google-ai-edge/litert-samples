@@ -36,26 +36,29 @@ The app keeps one engine loaded and gives every request a conversation of its ow
 | `Items.kt` | the item drawings and which one a request names |
 | `Picture.kt` | reading a picture: EXIF orientation, the 512 × 512 input, damaged or incomplete files |
 | `Examples.kt` | the bundled examples and their requests (`assets/examples.json`) |
+| `LitertlmHeader.kt` | what a `.litertlm` file's header lists |
 | `AutoRun.kt` | the measuring tool (below) |
 
 ## How well it places
 
-In this sample's development, the `.litertlm` file below answered 30 placement requests on a Mac (LiteRT-LM 0.19.0, GPU, thinking on): 10 photos of desks, tables, a shelf, a kitchen counter and a bedside, three requests each, asking for a spot to the left or right of an object, between two objects, in front of or behind an object, or on a surface. The five example photos are five of the ten. For each request, the region where the point counts as right was drawn by hand before any model ran (see [The example pictures](#the-example-pictures)). 21 of the 30 points fell in their region.
+In this sample's development, the earlier form of the `.litertlm` file below (its weights inside the graphs) answered 30 placement requests on a Mac (LiteRT-LM 0.19.0, GPU, thinking on): 10 photos of desks, tables, a shelf, a kitchen counter and a bedside, three requests each, asking for a spot to the left or right of an object, between two objects, in front of or behind an object, or on a surface. The five example photos are five of the ten. For each request, the region where the point counts as right was drawn by hand before any model ran (see [The example pictures](#the-example-pictures)). 21 of the 30 points fell in their region.
 
-On a Pixel 11 Pro (Android 17, airplane mode), the measuring tool ran the requests chosen for the examples one after another on one engine. Of the ten first chosen, eight points fell in their regions and two did not; those two were taken out of the examples, and the remaining eight, run again, all fell in theirs, with the ring 28 s after the tap at the median (18 to 137 s): the model thinks before it answers, and its replies ran from about 260 to 2,200 tokens. With the APK built from this folder as it is now, 7 of the 8 fell in their regions ("Put the pan on the stove." did not), with the ring 30 s after the tap at the median (16 to 98 s). On a Galaxy S26 (Android 16), the request in the recording above, typed in, put its point in the region drawn for "Put the glass to the left of the lamp." (one of the 30; the same spot, asked for a mug because the app has no drawing of a glass), with the ring 11.5 s after the tap.
+On a Pixel 11 Pro (Android 17, airplane mode), the measuring tool ran the requests chosen for the examples one after another on one engine. Of the ten first chosen, eight points fell in their regions and two did not; those two were taken out of the examples, and the remaining eight, run again, all fell in theirs, with the ring 28 s after the tap at the median (18 to 137 s): the model thinks before it answers, and its replies ran from about 260 to 2,200 tokens. With the earlier form of the file, 7 of the 8 fell in their regions ("Put the pan on the stove." did not; the ring 30 s after the tap at the median, 16 to 98 s); with the file below, all 8 did (the ring 30 s after the tap at the median, 18 to 143 s). On a Galaxy S26 (Android 16), the request in the recording above, typed in, put its point in the region drawn for "Put the glass to the left of the lamp." (one of the 30; the same spot, asked for a mug because the app has no drawing of a glass), with the ring 11.5 s after the tap.
 
 ## The model file
 
 | File | Bytes | SHA-256 |
 |---|---|---|
-| `LFM3-VL-2B_int4_ctx4096.litertlm` | 2,071,611,643 | `64d89b858df4cea27fea4ebcb3bc468e0bc6af2c2cc87db69ac9776332c451e4` |
+| `LFM3-VL-2B_int4_ctx4096.litertlm` | 2,071,674,880 | `fc1a6c38f4084d501f9a05f14c7576ef22378c0d3bf7b8ff72e9e67694cdd0b3` |
 
 The file holds the text decoder with int4 weights in blocks of 32 and an int8 output projection, the token embedding table in int8, the vision encoder with fp32 weights and its adapter with fp16 weights, with a 4,096-token context ([litert-community/LFM3-VL-2B-LiteRT](https://huggingface.co/litert-community/LFM3-VL-2B-LiteRT)):
 
 ```bash
 pip install -U huggingface_hub
-hf download litert-community/LFM3-VL-2B-LiteRT --include "LFM3-VL-2B_int4_ctx4096.litertlm" --local-dir lfm3_vl
+hf download litert-community/LFM3-VL-2B-LiteRT --revision da14b7b0d9c3b2846928815fb23e42c312de90f7 --include "LFM3-VL-2B_int4_ctx4096.litertlm" --local-dir lfm3_vl
 ```
+
+The app runs either form of this file: the one above, with its weights in `TFLiteWeights` sections, or the earlier one, with its weights inside the graphs (`--revision f547c061f063788155b9f95a19959293f558418b`, 2,071,611,643 bytes, SHA-256 `64d89b85…`). On a Pixel 11 Pro and on a Galaxy S26, the app loaded each form, and the two forms put one typed request at the same point.
 
 ## Build and install
 
@@ -72,7 +75,7 @@ Open the app once: it creates its files folder (`/sdcard/Android/data/com.google
 ./install_to_device.sh <path to lfm3_vl>
 ```
 
-`install_to_device.sh` copies the file with `adb push` and checks its size on the phone. Open the app again: it loads the model on the GPU (12.4 s on a Pixel 11 Pro, 7.2 s on a Galaxy S26), and the status line then says ready. Before loading, the app stops with a message when the file is missing or incomplete, or when less than 6.0 GB of memory is available (on a Pixel 11 Pro the app took 6.0 GB while it answered, most of it GPU memory).
+`install_to_device.sh` copies the file with `adb push` and checks its size on the phone. Open the app again: it loads the model on the GPU (12.5 s on a Pixel 11 Pro, 6.7 s on a Galaxy S26), and the status line then says ready. Before loading, the app stops with a message when the file is missing or incomplete (its own header says how long a whole copy is), or when less than 6.0 GB of memory is available (on a Pixel 11 Pro the app took 6.0 GB while it answered, most of it GPU memory).
 
 ## The measuring tool
 
@@ -102,7 +105,7 @@ Each request's region (`<request id>_spot.png`, 1000 × 1000 over the whole phot
 ## Known limits
 
 - One picture per request, stretched to 512 × 512.
-- An answer takes tens of seconds on a phone, most of it thinking: on a Pixel 11 Pro, 16 to 137 s for the bundled requests in the runs above; on a Galaxy S26, 11.5 s for the request in the recording above.
+- An answer takes tens of seconds on a phone, most of it thinking: on a Pixel 11 Pro, 16 to 143 s for the bundled requests in the runs above; on a Galaxy S26, 11.5 s for the request in the recording above.
 - Tested on a Pixel 11 Pro (Android 17) and a Galaxy S26 (Android 16), with the text decoder and the vision encoder on the GPU.
 - The answer is one point. The model is not told the item's size, and the drawing's size is the app's guess, so check that the item fits where it is drawn.
 - With thinking on, the reply can fill the 4,096-token context before the model gives its point; the app then marks nothing (the answer was too long).

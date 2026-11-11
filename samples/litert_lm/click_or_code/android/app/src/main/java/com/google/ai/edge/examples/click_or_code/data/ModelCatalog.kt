@@ -19,10 +19,31 @@
 
 package com.google.ai.edge.examples.click_or_code.data
 
+import java.io.File
 import java.net.URI
 import org.json.JSONObject
 
-data class ModelFile(val name: String, val url: String, val bytes: Long, val sha256: String)
+/** The byte size and SHA-256 of one published form of a model file. */
+data class FileForm(val bytes: Long, val sha256: String)
+
+/**
+ * A model file: the form at [url], whether that form's weights are in TFLiteWeights sections, and
+ * the other form of the same file, which the app also runs.
+ */
+data class ModelFile(
+  val name: String,
+  val url: String,
+  val bytes: Long,
+  val sha256: String,
+  val weightsInSections: Boolean = true,
+  val otherForm: FileForm? = null,
+) {
+  /** What [file] must match: the form its own header says it is; [url]'s when it has no header. */
+  fun expectedFor(file: File): FileForm {
+    val inSections = LitertlmHeader.read(file)?.weightsInSections ?: weightsInSections
+    return otherForm?.takeIf { inSections != weightsInSections } ?: FileForm(bytes, sha256)
+  }
+}
 
 data class ModelLicense(val name: String, val url: String)
 
@@ -82,6 +103,10 @@ data class ModelCatalog(val schemaVersion: Int, val models: List<ModelEntry>) {
                 file.getString("url"),
                 file.getLong("bytes"),
                 file.getString("sha256"),
+                file.getBoolean("weightsInSections"),
+                file.optJSONObject("otherForm")?.let {
+                  FileForm(it.getLong("bytes"), it.getString("sha256"))
+                },
               )
             }
           val license =
@@ -154,6 +179,10 @@ data class ModelCatalog(val schemaVersion: Int, val models: List<ModelEntry>) {
         }
         require(file.bytes > 0) { "Missing verified byte size" }
         require(hash.matches(file.sha256)) { "Invalid SHA-256" }
+        file.otherForm?.let { other ->
+          require(other.bytes > 0) { "Missing verified byte size" }
+          require(hash.matches(other.sha256)) { "Invalid SHA-256" }
+        }
       }
       require(entry.canDownload) { "Every model file needs its byte size" }
     }
