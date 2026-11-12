@@ -91,6 +91,8 @@ class LongContextController extends ChangeNotifier {
     try {
       _slot = await pool.acquire(spec.backend, maxTokens: spec.maxTokens, modelPath: modelPath);
       if (_disposed) return;
+      // A start after a failure may find the earlier turn still open.
+      await _closeTurn();
       _turn = await _slot!.openTurn(maxOutputTokens: spec.maxOutputTokens);
       if (_disposed) return await _closeTurn();
       transcriptTokens = await _turn!.countTokens(transcript.asPromptText);

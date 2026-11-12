@@ -58,6 +58,9 @@ class VisionPilot extends ChangeNotifier {
   final Decider _steer;
   final GlobalKey sceneKey;
 
+  /// Where the eyes' model runs.
+  PreferredBackend? get backend => _model.activeBackend;
+
   /// Loads [modelPath] on [backend] and a decider per question: a bundled
   /// `assets/eyes/deciders/<model>/<question>.json` fitted on this model and
   /// backend (Google's and the fine-tuned NPU files), else one fitted on the

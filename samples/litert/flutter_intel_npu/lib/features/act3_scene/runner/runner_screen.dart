@@ -535,15 +535,25 @@ class _RunnerScreenState extends State<RunnerScreen> {
                 ),
               ),
               if (_eyes != null && widget.config.act3.eyesOverlay) Positioned.fill(child: EyesOverlay(eyes: _eyes!, game: _game)),
-              if (_eyesLoading || _eyesError != null)
+              // Who drives Dash, whenever the eyes are configured.
+              if (_eyesLoading || _eyesError != null || _eyes != null)
                 Positioned(
                   left: 0,
                   right: 0,
-                  top: 170,
+                  top: 166,
                   child: Center(
-                    child: Text(
-                      _eyesError == null ? 'eyes loading…' : 'eyes failed: $_eyesError',
-                      style: const TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.w600, shadows: [Shadow(blurRadius: 6)]),
+                    child: ListenableBuilder(
+                      listenable: Listenable.merge([_game, ?_eyes]),
+                      builder: (context, _) => _DriverBadge(
+                        text: _eyesError != null
+                            ? 'Autopilot · eyes failed: $_eyesError'
+                            : _eyes == null
+                                ? 'Autopilot · EmbeddingGemma 2 loading…'
+                                : _game.pilot.manual
+                                    ? 'Presenter driving'
+                                    : 'Driven by EmbeddingGemma 2 · ${backendLabel(_eyes!.backend)}',
+                        live: _eyes != null && !_game.pilot.manual,
+                      ),
                     ),
                   ),
                 ),
@@ -799,3 +809,25 @@ class _Controls extends StatelessWidget {
   }
 }
 
+/// Who drives Dash: the eyes, the autopilot while they load, or the
+/// presenter.
+class _DriverBadge extends StatelessWidget {
+  const _DriverBadge({required this.text, required this.live});
+
+  final String text;
+  final bool live;
+
+  @override
+  Widget build(BuildContext context) {
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: live ? const Color(0xE61A73E8) : const Color(0xCC303030),
+        borderRadius: BorderRadius.circular(20),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 7),
+        child: Text(text, style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.w600)),
+      ),
+    );
+  }
+}

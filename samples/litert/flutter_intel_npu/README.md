@@ -182,8 +182,8 @@ answer, so the boxes are what is turned into vectors at that moment, and counts 
   in `assets/eyes/deciders/`, fitted on thousands of frames (keep the files' names: a decider is bound to its
   model file). With any other model or backend it fits them from the ten examples per answer in `assets/eyes/`
   (about 5 s on the NPU, 30 s on a CPU) and keeps them in the temp folder, so later starts load them.
-- **Start.** The act starts on the autopilot and the eyes take Dash over once their model is loaded: about
-  1.5 s for Google's NPU file, 10 to 18 s for the fine-tuned one, whose NPU blob carries no weights of its own.
+- **Start.** The eyes' model loads while the act starts (about a second for either NPU file); until then the
+  autopilot drives. A badge over the scene says who drives Dash: the eyes, the autopilot, or the presenter.
 - **Speed.** A look (the near strip and the middle, two embeddings) takes about 130 ms on the Panther Lake NPU,
   and Dash keeps up. On a CPU a look takes about 0.7 s, in which Dash runs 7 to 10 m: the act runs, but he jumps
   late or not at all.

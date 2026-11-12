@@ -77,7 +77,7 @@ class EyesOverlay extends StatelessWidget {
                 Positioned(
                   left: 0,
                   right: 0,
-                  top: 170,
+                  top: 212,
                   child: Center(
                     child: Text('stumbles ${game.stumbles}',
                         style: const TextStyle(color: Colors.white, fontSize: 24, fontWeight: FontWeight.w700, shadows: [Shadow(blurRadius: 6)])),
