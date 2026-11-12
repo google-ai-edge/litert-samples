@@ -104,20 +104,8 @@ class DemoConfig {
     if (npuModel.isEmpty) npuModel = k.str('ACT3_NPU_MODEL_PATH', const String.fromEnvironment('ACT3_NPU_MODEL_PATH'));
     if (npuModel.isNotEmpty && !File(npuModel).existsSync()) k.errors.add('NPU_MODEL_PATH: no file at $npuModel');
     final recordPath = k.str('ACT3_RECORD', const String.fromEnvironment('ACT3_RECORD'));
-    final harvestDir = k.str('ACT3_HARVEST', const String.fromEnvironment('ACT3_HARVEST'));
     final eyesModel = k.str('ACT3_EYES_MODEL', const String.fromEnvironment('ACT3_EYES_MODEL'));
     if (eyesModel.isNotEmpty && !File(eyesModel).existsSync()) k.errors.add('ACT3_EYES_MODEL: no file at $eyesModel');
-    final eyesDeciders = <String, String>{
-      for (final (q, path) in [
-        ('zones', k.str('ACT3_EYES_ZONES', const String.fromEnvironment('ACT3_EYES_ZONES'))),
-        ('near', k.str('ACT3_EYES_NEAR', const String.fromEnvironment('ACT3_EYES_NEAR'))),
-        ('steer', k.str('ACT3_EYES_STEER', const String.fromEnvironment('ACT3_EYES_STEER'))),
-      ])
-        if (path.isNotEmpty) q: path,
-    };
-    for (final MapEntry(:key, :value) in eyesDeciders.entries) {
-      if (!File(value).existsSync()) k.errors.add('ACT3_EYES_${key.toUpperCase()}: no file at $value');
-    }
     final dayStart = k.str('ACT3_TIME_OF_DAY', const String.fromEnvironment('ACT3_TIME_OF_DAY', defaultValue: 'day'));
     final act3 = Act3Spec(
       npuModelPath: npuModel.isNotEmpty ? npuModel : null,
@@ -140,13 +128,8 @@ class DemoConfig {
       recordPath: recordPath.isEmpty ? null : recordPath,
       recordFps: k.integer('ACT3_RECORD_FPS', const int.fromEnvironment('ACT3_RECORD_FPS', defaultValue: 30)),
       recordScale: k.number('ACT3_RECORD_SCALE', const String.fromEnvironment('ACT3_RECORD_SCALE', defaultValue: '1.0')),
-      harvestDir: harvestDir.isEmpty ? null : harvestDir,
-      seed: k.integer('ACT3_SEED', const int.fromEnvironment('ACT3_SEED', defaultValue: 1337)),
-      teacherShare: k.number('ACT3_TEACHER_SHARE', const String.fromEnvironment('ACT3_TEACHER_SHARE', defaultValue: '0')),
-      harvestInterval: k.number('ACT3_HARVEST_INTERVAL', const String.fromEnvironment('ACT3_HARVEST_INTERVAL', defaultValue: '0.3')),
       eyesModelPath: eyesModel.isEmpty ? null : eyesModel,
       eyesBackend: k.backend('ACT3_EYES_BACKEND', k.str('ACT3_EYES_BACKEND', const String.fromEnvironment('ACT3_EYES_BACKEND', defaultValue: 'npu'))),
-      eyesDeciderPaths: eyesDeciders,
       eyesOverlay: k.boolean('ACT3_EYES_OVERLAY', const bool.fromEnvironment('ACT3_EYES_OVERLAY', defaultValue: true)),
       startZ: k.number('ACT3_START_Z', const String.fromEnvironment('ACT3_START_Z', defaultValue: '4')),
       details: k.boolean('ACT3_DETAILS', const bool.fromEnvironment('ACT3_DETAILS', defaultValue: true)),
@@ -384,13 +367,8 @@ class Act3Spec {
     required this.recordPath,
     required this.recordFps,
     required this.recordScale,
-    this.harvestDir,
-    this.harvestInterval = 0.3,
-    this.teacherShare = 0,
-    this.seed = 1337,
     this.eyesModelPath,
     this.eyesBackend = PreferredBackend.npu,
-    this.eyesDeciderPaths = const {},
     this.eyesOverlay = true,
   });
 
@@ -402,31 +380,9 @@ class Act3Spec {
   /// bundle must be built for it.
   final PreferredBackend eyesBackend;
 
-  /// Deciders saved with `toArtifact()` on this model and backend, per
-  /// question (`ACT3_EYES_ZONES`, `ACT3_EYES_NEAR`, `ACT3_EYES_STEER`). A
-  /// question without one is fitted at start from `assets/eyes/`.
-  final Map<String, String> eyesDeciderPaths;
-
   /// Draw what the eyes look at and what they saw (`ACT3_EYES_OVERLAY`,
   /// default true); off for a plain video.
   final bool eyesOverlay;
-
-  /// Write the scene every `ACT3_HARVEST_INTERVAL` seconds to this directory
-  /// (`ACT3_HARVEST`): PNGs plus `frames.jsonl` with the camera, the trail
-  /// and the obstacles in front of it, from which a frame's parts are
-  /// labelled afterwards. Training data for the eyes; the app never reads it.
-  final String? harvestDir;
-
-  /// Seconds between harvested frames (`ACT3_HARVEST_INTERVAL`, default 0.3).
-  final double harvestInterval;
-
-  /// With the eyes driving, the share of obstacles the scripted pilot takes
-  /// (`ACT3_TEACHER_SHARE`, 0..1, default 0).
-  final double teacherShare;
-
-  /// The runner world's seed (`ACT3_SEED`, default 1337): another seed is
-  /// another trail, terrain and set of obstacles.
-  final int seed;
 
   /// Record the act to this .mp4 (frames read back in-app, piped to ffmpeg).
   /// For showing, not measuring: the read-back costs GPU time.

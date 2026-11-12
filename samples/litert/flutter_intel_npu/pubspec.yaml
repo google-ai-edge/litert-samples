@@ -58,9 +58,10 @@ flutter:
   assets:
     - assets/prompts/
     - assets/agent/example/
-    # Act 3's eyes: deciders fitted on the published NPU fine-tune, and the
-    # example crops any other model's deciders are fitted from at start.
-    - assets/eyes/deciders/
+    # Act 3's eyes: deciders fitted on Google's and the fine-tuned NPU files,
+    # and the example crops any other model's deciders are fitted from.
+    - assets/eyes/deciders/google-npu/
+    - assets/eyes/deciders/dash-eyes-npu/
     - assets/eyes/zones/trail/
     - assets/eyes/zones/grass/
     - assets/eyes/zones/rock/

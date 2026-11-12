@@ -58,50 +58,69 @@ class VisionPilot extends ChangeNotifier {
   final Decider _steer;
   final GlobalKey sceneKey;
 
-  /// Loads [modelPath] on [backend] and a decider per question, from the
-  /// first of: the file [artifacts] names for it; the bundled
-  /// `assets/eyes/deciders/<question>.json`, when it was fitted on this model
-  /// and backend; the bundled examples, fitted now. Both files are what
-  /// `toArtifact()` writes.
+  /// Loads [modelPath] on [backend] and a decider per question: a bundled
+  /// `assets/eyes/deciders/<model>/<question>.json` fitted on this model and
+  /// backend (Google's and the fine-tuned NPU files), else one fitted on the
+  /// examples in `assets/eyes/`. A fitted decider is kept in the temp folder
+  /// (what `toArtifact()` writes) and loaded on the next start; one fitted on
+  /// another model, backend or set of examples is fitted again.
   static Future<VisionPilot> load({
     required String modelPath,
     required PreferredBackend backend,
     required GlobalKey sceneKey,
-    Map<String, String> artifacts = const {},
     void Function(String line)? log,
   }) async {
+    final w = Stopwatch()..start();
     await FlutterEdgeAi.installEmbedder().modelFromFile(modelPath).install();
+    final installed = w.elapsedMilliseconds;
     final model = await FlutterEdgeAi.getActiveEmbedder(preferredBackend: backend, supportImage: true);
+    log?.call('ACT3_EYES_MODEL ${model.activeBackend?.name}: install $installed ms, load ${w.elapsedMilliseconds - installed} ms');
     final manifest = await AssetManifest.loadFromAssetBundle(rootBundle);
-    Future<Decider> decider(String question) async {
-      final artifact = artifacts[question];
-      if (artifact != null) {
-        return model.loadDecider(jsonDecode(File(artifact).readAsStringSync()) as Map<String, Object?>);
+    final file = File(modelPath);
+    final cacheDir = Directory('${Directory.systemTemp.path}/intel_npu_demo_eyes')..createSync(recursive: true);
+    // A decider fitted on another model or backend, or a damaged file, is
+    // passed over.
+    Future<Decider?> load(String json) async {
+      try {
+        return await model.loadDecider(jsonDecode(json) as Map<String, Object?>);
+      } on DeciderSpaceMismatchException {
+        return null;
+      } on FormatException {
+        return null;
       }
-      final bundled = 'assets/eyes/deciders/$question.json';
-      if (manifest.listAssets().contains(bundled)) {
-        try {
-          final d = await model.loadDecider(jsonDecode(await rootBundle.loadString(bundled)) as Map<String, Object?>);
+    }
+
+    Future<Decider> decider(String question) async {
+      for (final bundled in manifest.listAssets().where((a) => a.startsWith('assets/eyes/deciders/') && a.endsWith('/$question.json'))) {
+        final d = await load(await rootBundle.loadString(bundled));
+        if (d != null) {
           log?.call('ACT3_EYES_LOADED $question from $bundled');
           return d;
-        } on DeciderSpaceMismatchException catch (e) {
-          // Fitted on another model or backend: say so, and fit from the
-          // examples instead.
-          log?.call('ACT3_EYES_BUNDLED_SKIPPED $question: ${e.toString().split('\n').first}');
         }
       }
       final (_, answers) = questions[question]!;
-      final w = Stopwatch()..start();
       final options = <DeciderOption>[];
+      var bytes = 0;
       for (final answer in answers) {
         final prefix = 'assets/eyes/$question/$answer/';
         final files = manifest.listAssets().where((a) => a.startsWith(prefix)).toList()..sort();
         if (files.isEmpty) throw StateError('no examples under $prefix');
-        options.add(DeciderOption(answer, examples: [
-          for (final f in files) EmbeddingInput.image((await rootBundle.load(f)).buffer.asUint8List()),
-        ]));
+        final images = [for (final f in files) (await rootBundle.load(f)).buffer.asUint8List()];
+        bytes += images.fold(0, (n, i) => n + i.length);
+        options.add(DeciderOption(answer, examples: [for (final i in images) EmbeddingInput.image(i)]));
       }
+      final name = file.uri.pathSegments.last;
+      final cache = File('${cacheDir.path}/$question-${backend.name}-$name-${file.lengthSync()}-$bytes.json');
+      if (cache.existsSync()) {
+        final d = await load(cache.readAsStringSync());
+        if (d != null) {
+          log?.call('ACT3_EYES_LOADED $question from ${cache.path}');
+          return d;
+        }
+      }
+      final w = Stopwatch()..start();
       final d = await model.createDecider(options: options);
+      cache.writeAsStringSync(jsonEncode(d.toArtifact()));
       log?.call('ACT3_EYES_FITTED $question from ${options.fold(0, (n, o) => n + o.examples.length)} examples in ${w.elapsedMilliseconds} ms');
       return d;
     }

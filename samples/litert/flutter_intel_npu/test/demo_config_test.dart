@@ -137,26 +137,15 @@ void main() {
       });
     });
 
-    test('Act 3: the eyes and their training data', () {
+    test('Act 3: the eyes', () {
       final file = _anyFile('eyes.litertlm');
-      expect(parse({}).act3.eyesModelPath, isNull);
-      final ok = parse({
-        'ACT3_EYES_MODEL': file,
-        'ACT3_EYES_BACKEND': 'cpu',
-        'ACT3_EYES_STEER': file,
-        'ACT3_EYES_OVERLAY': false,
-        'ACT3_SEED': 4242,
-        'ACT3_HARVEST': '/tmp/frames',
-        'ACT3_HARVEST_INTERVAL': 0.1,
-        'ACT3_TEACHER_SHARE': 0.2,
-      });
+      final none = parse({});
+      expect((none.act3.eyesModelPath, none.act3.eyesBackend, none.act3.eyesOverlay), (null, PreferredBackend.npu, true));
+      final ok = parse({'ACT3_EYES_MODEL': file, 'ACT3_EYES_BACKEND': 'cpu', 'ACT3_EYES_OVERLAY': false});
       expect(ok.errors, isEmpty);
-      expect((ok.act3.eyesModelPath, ok.act3.eyesBackend), (file, PreferredBackend.cpu));
-      expect(ok.act3.eyesDeciderPaths, {'steer': file});
-      expect((ok.act3.eyesOverlay, ok.act3.seed, ok.act3.harvestDir, ok.act3.harvestInterval, ok.act3.teacherShare),
-          (false, 4242, '/tmp/frames', 0.1, 0.2));
-      final bad = parse({'ACT3_EYES_MODEL': '/nonexistent/e.litertlm', 'ACT3_EYES_ZONES': '/nonexistent/z.json', 'ACT3_EYES_BACKEND': 'tpu'});
-      expect(bad.errors.map((e) => e.split(':').first).toSet(), {'ACT3_EYES_MODEL', 'ACT3_EYES_ZONES', 'ACT3_EYES_BACKEND'});
+      expect((ok.act3.eyesModelPath, ok.act3.eyesBackend, ok.act3.eyesOverlay), (file, PreferredBackend.cpu, false));
+      final bad = parse({'ACT3_EYES_MODEL': '/nonexistent/e.litertlm', 'ACT3_EYES_BACKEND': 'tpu'});
+      expect(bad.errors.map((e) => e.split(':').first).toSet(), {'ACT3_EYES_MODEL', 'ACT3_EYES_BACKEND'});
     });
 
     test('a run that exits by itself is headless', () {
