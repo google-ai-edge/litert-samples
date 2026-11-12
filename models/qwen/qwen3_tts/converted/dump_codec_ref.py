@@ -30,7 +30,8 @@ from qwen_tts.inference.qwen3_tts_tokenizer import Qwen3TTSTokenizer
 def main() -> None:
     """Dumps codec decoder output on fixed random codes to ref/."""
     torch.manual_seed(42)
-    src = snapshot_download('Qwen/Qwen3-TTS-12Hz-0.6B-Base')
+    src = os.environ.get('QWEN3_TTS_SNAPSHOT') or snapshot_download(
+        'Qwen/Qwen3-TTS-12Hz-0.6B-Base')
     tokenizer = Qwen3TTSTokenizer.from_pretrained(
         f'{src}/speech_tokenizer', dtype=torch.float32, device_map='cpu')
     decoder = tokenizer.model.decoder
