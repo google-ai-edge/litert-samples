@@ -137,6 +137,17 @@ void main() {
       });
     });
 
+    test('Act 3: the eyes', () {
+      final file = _anyFile('eyes.litertlm');
+      final none = parse({});
+      expect((none.act3.eyesModelPath, none.act3.eyesBackend, none.act3.eyesOverlay), (null, PreferredBackend.npu, true));
+      final ok = parse({'ACT3_EYES_MODEL': file, 'ACT3_EYES_BACKEND': 'cpu', 'ACT3_EYES_OVERLAY': false});
+      expect(ok.errors, isEmpty);
+      expect((ok.act3.eyesModelPath, ok.act3.eyesBackend, ok.act3.eyesOverlay), (file, PreferredBackend.cpu, false));
+      final bad = parse({'ACT3_EYES_MODEL': '/nonexistent/e.litertlm', 'ACT3_EYES_BACKEND': 'tpu'});
+      expect(bad.errors.map((e) => e.split(':').first).toSet(), {'ACT3_EYES_MODEL', 'ACT3_EYES_BACKEND'});
+    });
+
     test('a run that exits by itself is headless', () {
       expect(parse({'AUTORUN_EXIT': true}).headless, isTrue);
       expect(parse({}).headless, isFalse);

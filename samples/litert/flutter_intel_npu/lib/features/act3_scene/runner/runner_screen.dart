@@ -31,7 +31,9 @@ import '../../../core/narration/scene_narrator.dart';
 import '../../../core/power/power_source.dart';
 import '../../../core/scene/scene_events.dart';
 import '../../../core/telemetry/frame_time_probe.dart';
+import 'eyes_overlay.dart';
 import 'frame_recorder.dart';
+import 'vision_pilot.dart';
 import 'load_calibrator.dart';
 import 'runner_game.dart';
 import 'stage_hud.dart';
@@ -59,6 +61,10 @@ class _RunnerScreenState extends State<RunnerScreen> {
   );
   late final FrameTimeProbe _probe = FrameTimeProbe(targetFps: _budget.fps);
   final GlobalKey _captureKey = GlobalKey();
+  final GlobalKey _sceneKey = GlobalKey();
+  VisionPilot? _eyes;
+  bool _eyesLoading = false;
+  String? _eyesError;
   final FocusNode _focus = FocusNode();
 
   late final RunnerGame _game = RunnerGame(
@@ -112,6 +118,29 @@ class _RunnerScreenState extends State<RunnerScreen> {
   }
 
   Future<void> _init() async {
+    final opened = Stopwatch()..start();
+    // The eyes' model loads in the background: the act starts on the
+    // autopilot and the eyes take Dash over when they are ready.
+    final eyesModel = widget.config.act3.eyesModelPath;
+    if (eyesModel != null) {
+      _eyesLoading = true;
+      VisionPilot.load(modelPath: eyesModel, backend: widget.config.act3.eyesBackend, log: _log, sceneKey: _sceneKey).then(
+        (eyes) async {
+          if (!mounted) return eyes.stop();
+          setState(() {
+            _eyes = eyes;
+            _eyesLoading = false;
+          });
+          _game.eyes = () => eyes.intent(_game);
+          unawaited(eyes.run(_game, _log));
+          _log('ACT3_EYES_READY ${opened.elapsedMilliseconds} ms after the act opened');
+        },
+        onError: (Object e) {
+          _log('ACT3_EYES_FAILED $e');
+          if (mounted) setState(() => _eyesError = '$e'.split('\n').first);
+        },
+      );
+    }
     try {
       await Scene.initializeStaticResources();
       await _game.build();
@@ -496,12 +525,38 @@ class _RunnerScreenState extends State<RunnerScreen> {
           child: Stack(
             children: [
               Positioned.fill(
-                child: SceneView(
-                  _game.scene,
-                  cameraBuilder: _camera,
-                  onTick: (elapsed, dt) => _game.tick(dt),
+                child: RepaintBoundary(
+                  key: _sceneKey,
+                  child: SceneView(
+                    _game.scene,
+                    cameraBuilder: _camera,
+                    onTick: (elapsed, dt) => _game.tick(dt),
+                  ),
                 ),
               ),
+              if (_eyes != null && widget.config.act3.eyesOverlay) Positioned.fill(child: EyesOverlay(eyes: _eyes!, game: _game)),
+              // Who drives Dash, whenever the eyes are configured.
+              if (_eyesLoading || _eyesError != null || _eyes != null)
+                Positioned(
+                  left: 0,
+                  right: 0,
+                  top: 166,
+                  child: Center(
+                    child: ListenableBuilder(
+                      listenable: Listenable.merge([_game, ?_eyes]),
+                      builder: (context, _) => _DriverBadge(
+                        text: _eyesError != null
+                            ? 'Autopilot · eyes failed: $_eyesError'
+                            : _eyes == null
+                                ? 'Autopilot · EmbeddingGemma 2 loading…'
+                                : _game.pilot.manual
+                                    ? 'Presenter driving'
+                                    : 'Driven by EmbeddingGemma 2 · ${backendLabel(_eyes!.backend)}',
+                        live: _eyes != null && !_game.pilot.manual,
+                      ),
+                    ),
+                  ),
+                ),
               Positioned(
                 top: 12,
                 left: 12,
@@ -578,6 +633,7 @@ class _RunnerScreenState extends State<RunnerScreen> {
   void dispose() {
     // Leaving the act mid-recording still finishes the file.
     unawaited(_stopRecording());
+    unawaited(_eyes?.stop());
     _sampler?.cancel();
     _narrator.dispose();
     _probe.dispose();
@@ -753,3 +809,25 @@ class _Controls extends StatelessWidget {
   }
 }
 
+/// Who drives Dash: the eyes, the autopilot while they load, or the
+/// presenter.
+class _DriverBadge extends StatelessWidget {
+  const _DriverBadge({required this.text, required this.live});
+
+  final String text;
+  final bool live;
+
+  @override
+  Widget build(BuildContext context) {
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: live ? const Color(0xE61A73E8) : const Color(0xCC303030),
+        borderRadius: BorderRadius.circular(20),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 7),
+        child: Text(text, style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.w600)),
+      ),
+    );
+  }
+}

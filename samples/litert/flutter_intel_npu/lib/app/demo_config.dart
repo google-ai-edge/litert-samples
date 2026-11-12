@@ -104,6 +104,8 @@ class DemoConfig {
     if (npuModel.isEmpty) npuModel = k.str('ACT3_NPU_MODEL_PATH', const String.fromEnvironment('ACT3_NPU_MODEL_PATH'));
     if (npuModel.isNotEmpty && !File(npuModel).existsSync()) k.errors.add('NPU_MODEL_PATH: no file at $npuModel');
     final recordPath = k.str('ACT3_RECORD', const String.fromEnvironment('ACT3_RECORD'));
+    final eyesModel = k.str('ACT3_EYES_MODEL', const String.fromEnvironment('ACT3_EYES_MODEL'));
+    if (eyesModel.isNotEmpty && !File(eyesModel).existsSync()) k.errors.add('ACT3_EYES_MODEL: no file at $eyesModel');
     final dayStart = k.str('ACT3_TIME_OF_DAY', const String.fromEnvironment('ACT3_TIME_OF_DAY', defaultValue: 'day'));
     final act3 = Act3Spec(
       npuModelPath: npuModel.isNotEmpty ? npuModel : null,
@@ -126,6 +128,9 @@ class DemoConfig {
       recordPath: recordPath.isEmpty ? null : recordPath,
       recordFps: k.integer('ACT3_RECORD_FPS', const int.fromEnvironment('ACT3_RECORD_FPS', defaultValue: 30)),
       recordScale: k.number('ACT3_RECORD_SCALE', const String.fromEnvironment('ACT3_RECORD_SCALE', defaultValue: '1.0')),
+      eyesModelPath: eyesModel.isEmpty ? null : eyesModel,
+      eyesBackend: k.backend('ACT3_EYES_BACKEND', k.str('ACT3_EYES_BACKEND', const String.fromEnvironment('ACT3_EYES_BACKEND', defaultValue: 'npu'))),
+      eyesOverlay: k.boolean('ACT3_EYES_OVERLAY', const bool.fromEnvironment('ACT3_EYES_OVERLAY', defaultValue: true)),
       startZ: k.number('ACT3_START_Z', const String.fromEnvironment('ACT3_START_Z', defaultValue: '4')),
       details: k.boolean('ACT3_DETAILS', const bool.fromEnvironment('ACT3_DETAILS', defaultValue: true)),
       dayStart: DayPhase.values.asNameMap()[dayStart] ??
@@ -362,7 +367,22 @@ class Act3Spec {
     required this.recordPath,
     required this.recordFps,
     required this.recordScale,
+    this.eyesModelPath,
+    this.eyesBackend = PreferredBackend.npu,
+    this.eyesOverlay = true,
   });
+
+  /// Dash driven from the screen by EmbeddingGemma 2 (`ACT3_EYES_MODEL`, a
+  /// 440m text and vision bundle): see `VisionPilot`.
+  final String? eyesModelPath;
+
+  /// Where the eyes' model runs (`ACT3_EYES_BACKEND`, default npu); the
+  /// bundle must be built for it.
+  final PreferredBackend eyesBackend;
+
+  /// Draw what the eyes look at and what they saw (`ACT3_EYES_OVERLAY`,
+  /// default true); off for a plain video.
+  final bool eyesOverlay;
 
   /// Record the act to this .mp4 (frames read back in-app, piped to ffmpeg).
   /// For showing, not measuring: the read-back costs GPU time.
