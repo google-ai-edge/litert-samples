@@ -31,7 +31,10 @@ import '../../../core/narration/scene_narrator.dart';
 import '../../../core/power/power_source.dart';
 import '../../../core/scene/scene_events.dart';
 import '../../../core/telemetry/frame_time_probe.dart';
+import 'frame_harvest.dart';
+import 'eyes_overlay.dart';
 import 'frame_recorder.dart';
+import 'vision_pilot.dart';
 import 'load_calibrator.dart';
 import 'runner_game.dart';
 import 'stage_hud.dart';
@@ -59,6 +62,10 @@ class _RunnerScreenState extends State<RunnerScreen> {
   );
   late final FrameTimeProbe _probe = FrameTimeProbe(targetFps: _budget.fps);
   final GlobalKey _captureKey = GlobalKey();
+  final GlobalKey _sceneKey = GlobalKey();
+  FrameHarvest? _harvest;
+  PerspectiveCamera? _lastCamera;
+  VisionPilot? _eyes;
   final FocusNode _focus = FocusNode();
 
   late final RunnerGame _game = RunnerGame(
@@ -74,6 +81,7 @@ class _RunnerScreenState extends State<RunnerScreen> {
     dayCycleSeconds: widget.config.act3.dayCycleSeconds,
     dayStart: widget.config.act3.dayStart,
     startZ: widget.config.act3.startZ,
+    seed: widget.config.act3.seed,
   );
 
   late final SceneNarrator _narrator = SceneNarrator(
@@ -135,6 +143,28 @@ class _RunnerScreenState extends State<RunnerScreen> {
           ..start(_captureKey);
         _log('ACT3_RECORD $record @ ${widget.config.act3.recordFps} fps');
       }
+      final eyesModel = widget.config.act3.eyesModelPath;
+      if (eyesModel != null) {
+        final w = Stopwatch()..start();
+        final eyes = await VisionPilot.load(
+          modelPath: eyesModel,
+          backend: widget.config.act3.eyesBackend,
+          artifacts: widget.config.act3.eyesDeciderPaths,
+          log: _log,
+          sceneKey: _sceneKey,
+        );
+        if (!mounted) return;
+        setState(() => _eyes = eyes);
+        _game.eyes = () => eyes.intent(_game);
+        _game.teacherShare = widget.config.act3.teacherShare;
+        unawaited(eyes.run(_game, _log));
+        _log('ACT3_EYES_READY in ${w.elapsedMilliseconds} ms');
+      }
+      final harvest = widget.config.act3.harvestDir;
+      if (harvest != null) {
+        _harvest = FrameHarvest(dir: harvest, sceneKey: _sceneKey, interval: widget.config.act3.harvestInterval);
+        _log('ACT3_HARVEST $harvest');
+      }
       _sampler = Timer.periodic(const Duration(milliseconds: 100), (_) => _sample());
       // The scene has to sit on the frame budget before anything is measured
       // or shown: with headroom, moving the model to the GPU costs nothing
@@ -160,6 +190,7 @@ class _RunnerScreenState extends State<RunnerScreen> {
         if (!mounted) return;
         await _captureFrame();
         await _stopRecording();
+        await _closeHarvest();
         _emitResults();
       }
     } catch (e, st) {
@@ -357,6 +388,14 @@ class _RunnerScreenState extends State<RunnerScreen> {
 
   FrameRecorder? _recorder;
 
+  Future<void> _closeHarvest() async {
+    final h = _harvest;
+    if (h == null) return;
+    _harvest = null;
+    await h.close();
+    _log('ACT3_HARVESTED ${h.frames} frames in ${h.dir}');
+  }
+
   Future<void> _stopRecording() async {
     final r = _recorder;
     if (r == null) return;
@@ -412,7 +451,7 @@ class _RunnerScreenState extends State<RunnerScreen> {
     final pos = _camPos! + right * t.x + up * t.y + fwd * t.z;
     final target = _camTarget! + right * (t.x + r.y * reach) + up * (t.y + r.x * reach) + fwd * t.z;
     final tilted = up * math.cos(r.z) + right * math.sin(r.z);
-    return PerspectiveCamera(position: pos, target: target, up: tilted);
+    return _lastCamera = PerspectiveCamera(position: pos, target: target, up: tilted);
   }
 
   void _onKey(KeyEvent event) {
@@ -496,12 +535,19 @@ class _RunnerScreenState extends State<RunnerScreen> {
           child: Stack(
             children: [
               Positioned.fill(
-                child: SceneView(
-                  _game.scene,
-                  cameraBuilder: _camera,
-                  onTick: (elapsed, dt) => _game.tick(dt),
+                child: RepaintBoundary(
+                  key: _sceneKey,
+                  child: SceneView(
+                    _game.scene,
+                    cameraBuilder: _camera,
+                    onTick: (elapsed, dt) {
+                      _game.tick(dt);
+                      _harvest?.observe(_game, _lastCamera);
+                    },
+                  ),
                 ),
               ),
+              if (_eyes != null && widget.config.act3.eyesOverlay) Positioned.fill(child: EyesOverlay(eyes: _eyes!, game: _game)),
               Positioned(
                 top: 12,
                 left: 12,
@@ -578,6 +624,8 @@ class _RunnerScreenState extends State<RunnerScreen> {
   void dispose() {
     // Leaving the act mid-recording still finishes the file.
     unawaited(_stopRecording());
+    unawaited(_closeHarvest());
+    unawaited(_eyes?.stop());
     _sampler?.cancel();
     _narrator.dispose();
     _probe.dispose();

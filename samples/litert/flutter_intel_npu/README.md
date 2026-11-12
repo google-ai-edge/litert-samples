@@ -20,7 +20,8 @@ the model file is there, the app needs no network. Each act shows one side of th
   forests, rivers, a day that turns to night — while the model commentates the run live, as subtitles. The scene
   calibrates itself to the edge of the frame budget, and two meters show the cost: FRAME BUDGET (how much of a frame
   the scene uses) and MODEL SPEED (how much of its own solo speed the model still gets). Put the commentator on the
-  GPU and one of them drops; put it on the NPU and neither does.
+  GPU and one of them drops; put it on the NPU and neither does. With `ACT3_EYES_MODEL` set, Dash also
+  [drives himself](#dash-drives-himself): EmbeddingGemma 2 looks at the screen on the NPU and presses the keys.
 - **Act 4 — Meeting agent.** The model reads the transcript of any meeting (a plain text file) and does the
   follow-up with six tools (tasks, email, drafts for approval, meetings, documents, questions), through the
   plugin's native tool calling. The tools only record the call. Nothing about the meeting
@@ -139,7 +140,7 @@ take a second or two.
   | Key | |
   |---|---|
   | `1` `2` `3` / `0` | commentator on the CPU / GPU / NPU / off |
-  | `A` `D`, arrows | steer Dash (the autopilot takes over again when you let go) |
+  | `A` `D`, arrows | steer Dash (the autopilot, or the eyes, take over again when you let go) |
   | `Space`, `W` | jump |
   | `P` | pause |
   | `N` | fast-forward to the next part of the day |
@@ -151,6 +152,63 @@ take a second or two.
   needed for the act to show anything: a scene with headroom loses no frames when the model takes the GPU, and a
   model compared with its own best reading under load always looks 100 % fast. The budget is `ACT3_TARGET_FPS`
   (60), or the display's refresh rate when the display cannot show more than that.
+
+## Dash drives himself
+
+With `ACT3_EYES_MODEL` set, the autopilot hands Dash to EmbeddingGemma 2, the 440M text and vision embedding
+model, and it drives from the screen alone. Several times a second it reads fixed parts of the frame in front of
+Dash, turns each into a vector, and a decider per question names what the part shows:
+
+| Question | Part of the frame | Answers |
+|---|---|---|
+| zones | the middle of the band ahead | trail, grass, rock, jump (a log or a stream) |
+| near | the strip just over Dash | jump, run |
+| steer | the whole band ahead, read while a rock is in front | left, right, straight |
+
+A reflex turns the answers into the keys: two `jump` looks in a row jump, a rock in front sends Dash to the
+side `steer` names. Nothing reads the game's world: no obstacle positions, no distances, only pixels and Dash's
+own place on the trail. The overlay (`ACT3_EYES_OVERLAY`, on by default) draws the parts being read and each
+answer, so the boxes are what is turned into vectors at that moment, and counts Dash's stumbles.
+
+- **The model.** Any EmbeddingGemma 2 440m `.litertlm` that runs on `ACT3_EYES_BACKEND` (`npu` by default): an NPU
+  build on the NPU. The one to use is fine-tuned on this game's frames,
+  [sasha-denisov/dash-infinite-run](https://huggingface.co/sasha-denisov/dash-infinite-run):
+  `eg2-440m-steer-ft3ep_Intel_PTL.litertlm` for the Panther Lake NPU (keep the file name: the bundled deciders
+  are bound to it), `eg2-440m-dash-eyes.litertlm` for a CPU or a GPU. Google's own is in
+  [litert-community/embeddinggemma-2-text-vision-440m-litert-lm](https://huggingface.co/litert-community/embeddinggemma-2-text-vision-440m-litert-lm),
+  `…_Intel_PTL.litertlm` for the NPU. The app gives images 70 vision tokens, the budget all of them were tuned and
+  measured at.
+- **The deciders** come, per question, from the file `ACT3_EYES_ZONES`, `ACT3_EYES_NEAR` or `ACT3_EYES_STEER`
+  names (what `Decider.toArtifact()` writes, fitted on the same model and backend), else from
+  `assets/eyes/deciders/<question>.json`, fitted on thousands of frames with the Panther Lake file above on the
+  NPU, when that is the model and the backend, else they are fitted at start from the ten examples per answer in
+  `assets/eyes/`: about 5 s on the NPU, 30 s on a CPU.
+- **Speed.** A look (the near strip and the middle, two embeddings) takes about 130 ms on the Panther Lake NPU,
+  and Dash keeps up. On a CPU a look takes about 0.7 s, in which Dash runs 7 to 10 m: the act runs, but he jumps
+  late or not at all.
+
+Stumbles in five minutes on the Panther Lake laptop's NPU, in daylight: on a stretch of trail no frame was
+trained on (`ACT3_START_Z=7000`), on another one further on (`ACT3_START_Z=25000`), and in another world
+(`ACT3_SEED=4242`):
+
+| Who drives | 7 km | 25 km | Seed 4242 |
+|---|---|---|---|
+| The autopilot (`ACT3_PILOT_MISS_RATE=0`) | 14 | 20 | 10 |
+| Google's EmbeddingGemma 2, deciders fitted on thousands of frames | 64 | 67 | 54 |
+| The fine-tune, the bundled deciders | 39–47 (five runs) | 46 | 38 |
+| The fine-tune, deciders fitted from the ten examples per answer | 51 | | |
+
+The fine-tune stumbles about a third less than Google's model, on roads it never saw as on the one it was
+tested on; most of what is left are logs jumped too early or too late.
+
+**How the eyes were trained.** `ACT3_HARVEST=<dir>` writes a frame every `ACT3_HARVEST_INTERVAL` seconds with
+what the camera saw: the camera, the trail's edges and the obstacles ahead. Each part of a frame is labelled from
+that afterwards (what lies in it, whether the autopilot would jump now, which way it would go round a rock), and
+the labels are the autopilot's, never shown to the eyes. With `ACT3_EYES_MODEL` and `ACT3_TEACHER_SHARE=0.2` the
+eyes drive while the frames are collected and the autopilot takes a fifth of the obstacles, so the frames include
+the places the eyes get themselves into. The fine-tunes train the text tower on the three questions, one head
+each, and leave the vision tower as Google's; the CPU and GPU files were made with
+[LiteTune](https://github.com/DenisovAV/litetune), whose recipe came from the NPU one.
 
 ## What it measured
 
@@ -218,6 +276,11 @@ exit code 2 in a headless run.
 | `ACT3_DETAILS` | true | false starts on the stage view: meters and subtitles only |
 | `ACT3_START_Z` | 4 | where on the trail Dash starts, in metres |
 | `ACT3_SCENE` | `runner` | `arena` is the earlier physics scene |
+| `ACT3_SEED` | 1337 | the runner world's seed: another seed is another trail, terrain and set of obstacles |
+| `ACT3_EYES_MODEL`, `ACT3_EYES_BACKEND` | —, `npu` | [Dash drives himself](#dash-drives-himself): the EmbeddingGemma 2 440m bundle and where it runs |
+| `ACT3_EYES_ZONES`, `ACT3_EYES_NEAR`, `ACT3_EYES_STEER` | the bundled deciders, else fitted from `assets/eyes/` | decider files for the eyes' questions |
+| `ACT3_EYES_OVERLAY` | true | draw the parts the eyes read and their answers |
+| `ACT3_HARVEST`, `ACT3_HARVEST_INTERVAL`, `ACT3_TEACHER_SHARE` | —, 0.3, 0 | training frames for the eyes; with the eyes driving, the autopilot's share of obstacles |
 | `POWER_FILE`, `POWER_MODE` | see below, `auto` | Windows power and load; `auto`, `watts` or `utilization` |
 | `ACT4_MODELS` | — | Act 4's menu, a JSON array: `[{"name", "path", "backend", "maxTokens", "think"}]` |
 | `ACT4_MODEL`, `ACT4_THINK` | 0, the entry's `think` | the preselected entry, and thinking for it |
@@ -270,7 +333,8 @@ Watts read zero while Memory Integrity (VBS) is on; the loads are always there, 
 The code is Apache-2.0, like the rest of this repository ([LICENSE](../../../LICENSE)). `assets/models/dash.glb` is the Dash model from
 [bdero/flutter_scene](https://github.com/bdero/flutter_scene), MIT ([assets/models/NOTICE.md](assets/models/NOTICE.md)).
 The meeting transcripts in `assets/prompts/` and the Act 4 example in `assets/agent/example/` (its people, company
-and mail domain included) are synthetic, written for this demo. The models are not part of this
+and mail domain included) are synthetic, written for this demo; the images in `assets/eyes/` are crops of frames
+this app rendered. The models are not part of this
 repository. Gemma 4 E2B and 12B, and the LiteRT-LM conversions used here, are Apache-2.0
 ([Gemma 4 licence](https://ai.google.dev/gemma/docs/gemma_4_license)); the Hugging Face repositories are not gated. The LiteRT-LM runtime (Apache-2.0) and, on
 Windows, Intel's OpenVINO NPU runtime are downloaded by `flutter_edge_ai_litertlm` at build time.

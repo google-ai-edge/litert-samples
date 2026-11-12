@@ -562,7 +562,13 @@ class RunnerGame extends ChangeNotifier {
     elapsed += step;
 
     final next = nextObstacle();
-    final intent = pilot.update(
+    if (next?.id != _teacherFor) {
+      _teacherFor = next?.id;
+      teacherDriving = eyes != null && next != null && _teacherRng.nextDouble() < teacherShare;
+    }
+    // The pilot runs every frame, also under the eyes: it times out the
+    // presenter's hold, and the eyes take over again when it ends.
+    final scripted = pilot.update(
       dt: step,
       z: z,
       lateral: lateral,
@@ -571,6 +577,7 @@ class RunnerGame extends ChangeNotifier {
       airborne: airborne,
       next: next,
     );
+    final intent = eyes != null && !pilot.manual && !teacherDriving ? eyes!() : scripted;
 
     if (pilot.manual != _presenterWasDriving) {
       _presenterWasDriving = pilot.manual;
@@ -685,6 +692,26 @@ class RunnerGame extends ChangeNotifier {
     pivot.rotation = vm.Quaternion.axisAngle(vm.Vector3(0, 1, 0), trail.headingAt(z) + math.pi);
     pivot.scale = vm.Vector3.all(dashScale);
   }
+
+  /// Every obstacle between [behind] metres back and [within] ahead, dealt
+  /// with or not (for `ACT3_HARVEST`, which writes what the camera can see).
+  List<Obstacle> obstaclesAround({double behind = 1, double within = 25}) => [
+        for (final chunk in _chunks.values)
+          for (final o in chunk.spec.obstacles)
+            if (o.z > z - behind && o.z <= z + within) o,
+      ];
+
+  /// Drives instead of [pilot] when set (the vision pilot); the presenter's
+  /// keys still win.
+  PilotIntent Function()? eyes;
+
+  /// With [eyes], the share of obstacles the scripted pilot takes instead
+  /// (`ACT3_TEACHER_SHARE`): while collecting frames from the eyes' own runs,
+  /// so they also come out of the spots the eyes get stuck in.
+  double teacherShare = 0;
+  final math.Random _teacherRng = math.Random(11);
+  int? _teacherFor;
+  bool teacherDriving = false;
 
   /// The next obstacle Dash has not dealt with yet.
   Obstacle? nextObstacle({double within = 40}) {
