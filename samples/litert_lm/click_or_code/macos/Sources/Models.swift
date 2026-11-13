@@ -21,7 +21,24 @@ struct ModelEntry {
   var url: URL
   var bytes: UInt64
   var sha256: String
+  /// Whether the form at `url` has its weights in TFLiteWeights sections.
+  var weightsInSections: Bool
+  /// The other form of the same file, which the app also runs.
+  var otherForm: Form?
   var card: URL?
+
+  /// The byte size and SHA-256 of one published form of the file.
+  struct Form: Decodable {
+    var bytes: UInt64
+    var sha256: String
+  }
+
+  /// What the file at `path` must match: the form its own header says it is; the one at `url` when it has no header.
+  func expected(for path: URL) -> Form {
+    let inSections = LitertlmHeader.read(path)?.weightsInSections ?? weightsInSections
+    if inSections != weightsInSections, let otherForm { return otherForm }
+    return Form(bytes: bytes, sha256: sha256)
+  }
 
   /// `path`: another catalog of the same form (`-modelsJson`), to try a download that goes wrong.
   static func load(path: String? = nil) -> ModelEntry? {
@@ -30,7 +47,9 @@ struct ModelEntry {
       let catalog = try? JSONDecoder().decode(Catalog.self, from: data),
       let model = catalog.models.first, let file = model.files.first, let fileURL = URL(string: file.url)
     else { return nil }
-    return ModelEntry(name: file.name, url: fileURL, bytes: file.bytes, sha256: file.sha256, card: URL(string: model.modelCard))
+    return ModelEntry(
+      name: file.name, url: fileURL, bytes: file.bytes, sha256: file.sha256, weightsInSections: file.weightsInSections,
+      otherForm: file.otherForm, card: URL(string: model.modelCard))
   }
 
   private struct Catalog: Decodable {
@@ -43,6 +62,8 @@ struct ModelEntry {
       var url: String
       var bytes: UInt64
       var sha256: String
+      var weightsInSections: Bool
+      var otherForm: Form?
     }
     var models: [Model]
   }
@@ -100,7 +121,7 @@ final class ModelStore: NSObject, @unchecked Sendable, URLSessionDataDelegate {
   }
 
   /// A committed file was hashed before it was renamed into place, so a start only checks its size.
-  var hasFile: Bool { Self.size(of: target) == entry.bytes }
+  var hasFile: Bool { Self.size(of: target) == entry.expected(for: target).bytes }
   var partialBytes: UInt64 { Self.size(of: part) ?? 0 }
 
   static func size(of url: URL) -> UInt64? {
@@ -242,13 +263,14 @@ final class ModelStore: NSObject, @unchecked Sendable, URLSessionDataDelegate {
     try FileManager.default.copyItem(at: url.resolvingSymlinksInPath(), to: target)
   }
 
-  /// Checks a file's size, then its SHA-256.
+  /// Checks a file's size, then its SHA-256, against the form its own header says it is.
   static func verify(_ url: URL, entry: ModelEntry) async throws {
     let name = url.lastPathComponent
     let size = Self.size(of: url) ?? 0
-    guard size == entry.bytes else { throw Failure.size(name, entry.bytes, size) }
+    let expected = entry.expected(for: url)
+    guard size == expected.bytes else { throw Failure.size(name, expected.bytes, size) }
     let sha = try await Task.detached(priority: .userInitiated) { try sha256(of: url) }.value
-    guard sha == entry.sha256 else { throw Failure.sha(name, entry.sha256, sha) }
+    guard sha == expected.sha256 else { throw Failure.sha(name, expected.sha256, sha) }
   }
 
   static func sha256(of url: URL) throws -> String {

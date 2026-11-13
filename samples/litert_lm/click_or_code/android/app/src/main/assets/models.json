@@ -10,9 +10,14 @@
       "files": [
         {
           "name": "Mage-VL-Cowork_vision-fp16.litertlm",
-          "url": "https://huggingface.co/litert-community/Mage-VL-Cowork/resolve/main/Mage-VL-Cowork_vision-fp16.litertlm",
-          "bytes": 3199591888,
-          "sha256": "1e977695d8f46222653233143e95431ccf6e46bfabe2c77073abf2e8ba75c5df"
+          "url": "https://huggingface.co/litert-community/Mage-VL-Cowork/resolve/4baae1c45c55cb211bd2eaa922712f7695d7013b/Mage-VL-Cowork_vision-fp16.litertlm",
+          "bytes": 3194929152,
+          "sha256": "9bbb1fdf50d9aba64b8e28dec66499ebdeb9f8898ac62524c9351da974ce5aba",
+          "weightsInSections": true,
+          "otherForm": {
+            "bytes": 3199591888,
+            "sha256": "1e977695d8f46222653233143e95431ccf6e46bfabe2c77073abf2e8ba75c5df"
+          }
         }
       ],
       "license": {
