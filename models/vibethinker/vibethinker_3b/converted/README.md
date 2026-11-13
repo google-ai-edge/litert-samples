@@ -1,83 +1,150 @@
 # VibeThinker-3B Conversion
 
-Model recipes, instructions, scripts, and utilities for converting WeiboAI VibeThinker-3B to LiteRT-LM.
+Model recipes, instructions, scripts, and utilities for converting VibeThinker-3B to LiteRT-LM.
 
-These scripts convert [WeiboAI/VibeThinker-3B](https://huggingface.co/WeiboAI/VibeThinker-3B) (dense `Qwen2ForCausalLM`, 3.09B parameters, MIT) into a `.litertlm` bundle for the [LiteRT-LM](https://github.com/google-ai-edge/LiteRT-LM) runtime, and verify the result with a quality gate and a math gate. The published artifact is `model.litertlm` (2.06 GB) at [litert-community/VibeThinker-3B](https://huggingface.co/litert-community/VibeThinker-3B).
+These scripts rebuild `model.litertlm` of [litert-community/VibeThinker-3B](https://huggingface.co/litert-community/VibeThinker-3B) from the [WeiboAI/VibeThinker-3B](https://huggingface.co/WeiboAI/VibeThinker-3B) checkpoint, with litert-torch's stock exporter and one `ModelExtension` plugin. The file was checked on a Mac with an M4 Max and on a Galaxy S26. To build it, run `python build_vibethinker_3b.py --out out_int4` in the environment below. On litert-torch 0.10.0, the latest release, the build stops before the export and says why.
 
-VibeThinker is a **math/reasoning model**: it works a problem through an inline chain of thought, then states the answer (`\boxed{}` / `####`). Architecturally it is a 36-layer Qwen2 (hidden 2048, GQA 16:2, vocab 151936, tied embeddings), handled by the plain litert-torch HF export path with no re-authoring. What this conversion documents is a **stop-token gap** the vendor config leaves open under ChatML, and a **block-size finding**: the int4 block size that is a free speed knob on general-purpose models is not free on a model whose job is exact arithmetic.
+VibeThinker-3B is a math and reasoning finetune in a stock `Qwen2ForCausalLM`: 36 layers, hidden 2,048, 16 query and 2 key-value heads, a 151,936-token vocabulary tied to the output layer, 3.09 B parameters, MIT. It works a problem through inside `<think>` … `</think>` and then answers.
 
 ## Build
 
-| recipe | quantization | file | use |
-|---|---|---|---|
-| `int4` | blockwise-**32** OCTAV int4 weights, int8 embedding (externalized) | 2.06 GB | the only build — block-128 collapses this model (below) |
+| file | weights | prefill signature | KV cache | size |
+|---|---|---|---|---|
+| `model.litertlm` | int4 blockwise-32 (OCTAV) on every weight, the embedding int8 per channel in its own section (`recipe_int4.json`) | 128 tokens | 4,096 | 2.06 GB |
 
 ## Environment
 
 ```bash
-pip install litert-torch==0.9.3 litert-converter==0.3.1 ai-edge-quantizer==0.8.0 \
-    litert-lm-builder==0.16.0 transformers==5.14.1
-pip install litert-lm   # verification CLI (>= 0.16.0)
+pip install litert-torch-nightly==0.11.0.dev20261111 torch==2.14.0 transformers==5.20.2 \
+    litert-lm-builder==0.19.1 litert-lm==0.19.1 litert-lm-api==0.19.1 \
+    litert-converter==0.6.0.dev20261110 litert-quantizer-nightly==0.12.0.dev20261111 \
+    ai-edge-litert-nightly==2.4.0.dev20261110 protobuf==7.36.2 numpy==2.5.4
 ```
+
+Python 3.12. The extension needs litert-torch's main branch: a `.py` file in `extension_modules` came with commit 864a966 of 2026-10-28 and `ModelExtension.get_export_defaults` with 764beb0 of 2026-11-03, and no release has them yet. litert-lm 0.19.1 runs the checks.
 
 ## Run
 
 ```bash
-python build_vibethinker_3b.py --out out_int4                                # ~2.06 GB bundle
-python verify_vibethinker_3b.py out_int4/*.litertlm --backend cpu            # 8-question gate
-python verify_vibethinker_3b.py out_int4/*.litertlm --check-metadata         # both stop ids, no start_token, sections
-python verify_vibethinker_3b.py out_int4/*.litertlm --math --backend gpu     # 6 word problems, chain of thought
+python vibethinker_extension_test.py               # the extension's tests, CPU, no weights
+python build_vibethinker_3b.py --out out_int4      # the file, a few minutes on an M4 Max
+python verify_vibethinker_3b.py out_int4/model.litertlm --backend cpu
+python verify_vibethinker_3b.py out_int4/model.litertlm --backend gpu
+python verify_vibethinker_3b.py out_int4/model.litertlm --check-metadata
+python verify_vibethinker_3b.py out_int4/model.litertlm --math --backend gpu
+python verify_vibethinker_3b.py out_int4/model.litertlm --sections published.litertlm
 ```
 
-## Stop tokens: the vendor config declares one, ChatML needs two
+The same export from the command line, with a local copy of the checkpoint in `$SRC`:
 
-VibeThinker's `generation_config.json` lists a single EOS, `<|endoftext|>` (151643). Under ChatML the model ends its turn with `<|im_end|>` (151645). The bundle builder derives the id-level stop set from `generation_config`, so a naive export gives the runtime no id stop for `<|im_end|>` and the model can finish its answer and keep going. `build_vibethinker_3b.py` adds 151645 to `eos_token_id` after the model loads; the published bundle carries both ids and `--check-metadata` asserts it. The tokenizer has no BOS, so there is no `start_token`.
+```bash
+litert-torch export_hf --model=$SRC --output_dir=out_cli --extension_modules=vibethinker_extension.py
+```
 
-The bundle's template is bare ChatML. Upstream's Qwen2 template also inserts `You are a helpful assistant.` as a default system turn; the bundle drops that line, and every number below was measured without it. To bake it in, fold the system turn into the user prefix as the Qwen2.5-Coder recipe in this repository does.
+## The extension
 
-## Block size: 32, not 128
+`vibethinker_extension.py` is an out-of-tree `ModelExtension`. It holds every export argument and metadata field the published file needs, so litert-torch stays unchanged and nothing edits the file after the export. It registers for `model_type` `qwen2`, replaces litert-torch's built-in Qwen2 extension for the export it is passed to, patches no module and overrides two hooks:
 
-GSM8K, n=100, greedy, 0-shot CoT, **2048-token budget** (a reasoning model needs the room — at a short budget the chain of thought is cut off before the answer, and int4, whose chains run slightly longer, looks falsely degraded), identical prompt and extraction for every row:
+| hook | what it sets | why |
+|---|---|---|
+| `get_export_defaults` | `quantization_recipe` = `recipe_int4.json` | the published file's weights |
+| | `externalize_embedder=True` | one copy of the tied 151,936 × 2,048 table, in its own section, for every signature |
+| | `prefill_lengths=[128]`, `cache_length=4096`, `llm_metadata_max_num_tokens_override=None` | the published signature and context; `max_num_tokens` is the cache length |
+| | `use_jinja_template=False` | per-role templates, with the Jinja template from the hook |
+| | `apply_gpu_composites=False`, `use_rope_composite=False`, `externalize_weights=False` | the published graph, without composite operators |
+| `build_llm_metadata` | stops: the text `<\|im_end\|>\n`, `<\|endoftext\|>` (151643), `<\|im_end\|>` (151645) | the generation config declares only 151643, while the model ends a ChatML turn with 151645 |
+| | the published Jinja template | ChatML with the vendor's default system turn, for content given as a string or as text parts |
+| | the thought channel `<think>` … `</think>` | the runtime returns the thought apart from the answer |
 
-| build | GSM8K |
-|---|---|
-| bf16 (HF reference) | 97.0% |
-| int4 blockwise-**32** OCTAV, int8 embedding | **90.0%** (−7 pt) |
-| int4 blockwise-128 OCTAV, int8 embedding | 64.0% (−33 pt) |
+Arguments passed to `export()` still win, and the defaults refuse another checkpoint's `config.json` and the `npu` target.
 
-Block-128 has a quarter of the dequant scales and is the faster GPU build on general-purpose 4B reasoning models, where it measures at parity with block-32 or better. On this model it collapses. The difference is the task: exact arithmetic is precision-sensitive in a way open-ended reasoning is not, and the coarser grid loses it. Only block-32 is offered here; treat block size as a per-model measurement, not a default.
+The Jinja template is the published file's, kept in the extension with its sha256 as `BUNDLE_TEMPLATE`. `build_llm_metadata` runs once the graphs are converted. It first renders four conversations, one and three turns with and without a system turn, through this template and the checkpoint's own. If any differ, or the checkpoint's turn-end ids or EOS ids change, the export stops there with `ValueError`, and `build_vibethinker_3b.py` leaves no file.
 
-## Prefill signatures and memory
+## Without the extension
 
-The published bundle carries a single 128-token prefill signature and a 4096-token KV cache. Keep the context at 4096 or above: the model spends 300–600 words per answer before it is done. `externalize_embedder=True` splits the tied 151936×2048 vocab table into its own section (0.29 GiB), keeping the main weights section at 1.62 GiB — under the iOS ~2 GiB single-section mmap ceiling.
+`python build_vibethinker_3b.py --dry-run --no-extension` prints the stock plan: `dynamic_wi8_afp32` weights with the embedding in the graph, prefill signatures of 128 and 1,024 tokens over a 32,771-token cache, GPU composite operators, and LiteRT-LM's canonical Qwen2.5 metadata. At LiteRT-LM commit 61fd138 that metadata has no thought channel and the start token `<|endoftext|>`, which this tokenizer never adds, stops on the text `<|im_end|>` alone and has no default system turn.
+
+Without the hook, the exporter's own metadata stops on the id 151643 alone and has no Jinja template or thought channel.
+
+## After the export
+
+The Hub's `main` took two more steps after `087512d2`, the revision this recipe rebuilds. On 2026-10-05, revision `61cbe45e`, hf-to-litertlm's [`tools/gpu_graph`](https://github.com/john-rocky/hf-to-litertlm/tree/main/tools/gpu_graph) moved the KV-cache update and the attention into the runtime's GPU composite operators and added a 16-token prefill signature. On 2026-10-30, revision `1fa937cc` took the copy from the repo's `web` branch, whose weights [`tools/externalize`](https://github.com/john-rocky/hf-to-litertlm/tree/main/tools/externalize) had put in `TFLiteWeights` sections, and its commit notes that Android GPU then needs LiteRT-LM 0.19.0 or later. Both steps run on a finished file, so neither is in this recipe.
 
 ## Verification results
 
-Gates on the published bundle (`verify_vibethinker_3b.py`, litert-lm 0.16.0, Mac M4 Max), scored on the answer after the think block:
+Measured on 2026-11-12 on a Mac with an M4 Max in the environment above, and on a Galaxy S26. "This recipe" is a file built by `build_vibethinker_3b.py` from the checkpoint at revision `77bd2cce`. "Published" is `model.litertlm` at revision `087512d2`, the last one before the GPU graph rewrite, its sha256 checked against the Hub.
 
-- **8-question gate: CPU 8/8, GPU 7/8**, non-degenerate (the GPU miss is the rhyme completion, answered "white"; every answer took 50–100 words including its reasoning).
-- **Math gate: 6/6** on GPU — six GSM8K-shaped word problems, 294–582 words per answer, every final number correct.
-- `--check-metadata` 7/7.
+- **`vibethinker_extension_test.py`**: 18/18 on CPU.
+- **Build**: 2,057,106,352 B, the published file's size, in a few minutes, with a peak of 40 GB of memory. litert-lm-builder 0.19.1 writes container version 1.9.0, the published file has 1.6.0.
+- **Command line**: `litert-torch export_hf` with the extension gave every section byte-equal to the file of `build_vibethinker_3b.py`, the stop order included. The two files differ only in the header's uuid and creation time.
+- **Checks** through the litert-lm 0.19.1 command-line tool, greedy, `--cache no`, 4 CPU threads, each reply scored on the answer after the thought:
 
-Rebuilt from scratch with these scripts on the pinned stack: 2,057,073,584 bytes against the published 2,057,106,352 (a 32 KB metadata difference — the published file was built on an earlier litert-torch), 7/7 on `--check-metadata` with both stop ids present, and the same 7/8 on the GPU gate with the same eight answers.
+| check | this recipe | published |
+|---|---|---|
+| 8 questions, CPU | 8/8 | 8/8 |
+| 8 questions, GPU | 8/8 | 8/8 |
+| `--check-metadata` | 9/9 | 9/9 |
+| `--math`, GPU | 6/6 | 6/6 |
 
-Mac (M4 Max, `litert-lm benchmark`, `-p 256 -d 256 --runs 3`, max-num-tokens 4096, quiet machine, litert-lm 0.15.0):
+  The tool printed each thought apart from the answer, as `[thought] … [/thought]`. With the thought, no reply is byte-identical to the published file's. The answer after the thought is identical in five of eight on the CPU and four on the GPU, and worded differently in the rest. One GPU reply of this recipe's file, 8 × 7, reasons again after the thought and writes another `</think>` before "56".
 
-| backend | prefill tok/s | decode tok/s | TTFT |
-|---|---|---|---|
-| GPU (Metal) | 1386 | 94.1 | 0.20 s |
-| CPU | 139 | 28.4 | 2.15 s |
+- **Galaxy S26**, through LiteRT-LM v0.19.1's `litert_lm_advanced_main` for Android, greedy, one process per question: this recipe's file answered the 8 questions 8/8 on the CPU and 8/8 on the GPU. The answer after the thought is the same text as on the Mac in seven of eight on the CPU and four on the GPU. The published file was not run on the phone.
 
-On device:
+- **`--sections`** against the published file:
 
-- **Pixel 8a** (Tensor G3, Mali-G715, 8 GB), GPU (OpenCL), `litert_lm_main` v0.16.0 driven directly: **full delegation** — 1603/1603 nodes in the 128-token prefill graph, 1452/1452 in decode, zero rejected ops. On an arithmetic prompt ("What is 17 + 25? Answer with just the number.") it reasons briefly and answers `42`: prefill 17.3 tok/s, decode 8.11 tok/s, TTFT 1.51 s. CPU (XNNPACK): prefill 1.62 tok/s, decode 4.10 tok/s, TTFT 10.7 s. Engine init 20–50 s on this phone.
-- **iPhone 17 Pro** (Metal): loads and generates correct answers (the 1.62 GiB main section is under the iOS limit); no on-device timing was taken.
+| section | this recipe | published | difference |
+|---|---:|---:|---|
+| `LlmMetadataProto` | 1,718 B | 1,701 B | a pad token |
+| `ExecutorMetadataProto` | 4,894 B | none | new |
+| `HF_Tokenizer_Zlib` | 2,142,143 B | 2,142,143 B | none, byte-equal |
+| `TFLiteModel`, prefill and decode | 1,740,093,856 B | 1,740,096,624 B | the int4 weights, one reshape |
+| `TFLiteModel`, embedder | 314,815,408 B | 314,815,408 B | none, byte-equal |
 
-This is a math-specialised model, and it shows on a phone: on the runtime's default factual prompt (the tallest building) it reasoned at length and settled on a wrong answer — identically in shape on GPU and CPU, with different hallucinated content, which is how you tell it is the model's domain rather than the backend. Ask it arithmetic.
+The stops, the Jinja template and the thought channel are the published file's, the stops in the same order. The published file's graphs were built with litert-torch 0.9.3 or earlier. Each other difference has a measured cause:
+
+- The pad token is the tokenizer's `<|endoftext|>`, which litert-torch writes since commit 77e1fea of 2026-08-28, first released in 0.10.0.
+- The executor section holds `max_history_size: 4096` and the 36 layers' key and value caches by name. litert-torch writes it since 17a3069 of 2026-07-31, first released in 0.9.4. An extension can replace the function that builds it, not drop the section.
+- With the quantizer in the environment above, the int4 weights differ from the published file's, because litert-quantizer-nightly 0.12.0.dev20261105 changed how OCTAV picks its clipping range. The tensors checked, quantized again from the checkpoint with ai-edge-quantizer 0.8.0, give the published file's int4 values and scales.
+- The prefill signature has one reshape fewer before the rotary angles: transformers 5.20.2 multiplies the positions by the inverse frequencies, where the earlier recipe's 5.14.1 takes a matrix product with an inner size of 1. Through the same converter, the two forms give the two files' operators and bit-equal angles.
+- The section is 2,768 B smaller: the reshape and the rotary tensors' names. The weights take the same bytes.
+
+<details>
+<summary>The int4 difference, measured</summary>
+
+- In the prefill and decode graphs all 253 int4 weights differ, in about 2.3 % of their values, never by more than one step, and in 99 % of their fp16 block scales. No value differs in a block whose scale is equal.
+- OCTAV weighs the rounding noise of a 4-bit step at `4.0 ** (-bits) / exponent_divisor`, 1/768, in ai-edge-quantizer 0.8.0, and at `1.0 / (4.0 * exponent_divisor * half_range_steps**2)`, 1/588, from litert-quantizer-nightly 0.12.0.dev20261105 on, the first nightly with it. For symmetric int4 this is the one computational change in OCTAV's code between ai-edge-quantizer 0.8.0 and litert-quantizer-nightly 0.12.0.dev20261111.
+- Three tensors were quantized again from the checkpoint: layer 0's `q_proj`, layer 17's `down_proj` and layer 35's `k_proj`. ai-edge-quantizer 0.8.0 gives the published file's int4 values and scales, litert-quantizer-nightly 0.12.0.dev20261111 gives this recipe's, and with the two noise weights swapped each gives the other file's.
+
+</details>
+
+The first published file, revision `65383ca9`, has the same graphs, tokenizer and stops, byte for byte, and no Jinja template or thought channel. Revision `1fa937cc`, now on `main`, has the published file's metadata and tokenizer, byte for byte, and the rewritten GPU graph with the weights in their own sections.
+
+### Failure paths
+
+- litert-torch 0.10.0, the latest release: `build_vibethinker_3b.py` stops before the export.
+
+  ```
+  litert-torch 0.10.0 cannot load vibethinker_extension.py: the recipe needs a .py file in extension_modules (litert-torch 864a966, 2026-10-28) and ModelExtension.get_export_defaults (764beb0, 2026-11-03), which no release carries yet. Install the version in the README.
+  ```
+
+- A checkpoint whose template has another default system prompt: the graphs are converted, then the export stops with this, and the script leaves no file.
+
+  ```
+  ValueError: vibethinker_extension: the chat template renders '<|im_start|>system\nYou are VibeThinker, a math assistant.<|im_end|>\n<|im_start|>user\nx<|im_end|>\n<|im_start|>assistant\n' for one user turn, without the default system turn '<|im_start|>system\nYou are a helpful assistant.<|im_end|>\n'; the source template changed
+  ```
+- Without the extension: see [Without the extension](#without-the-extension).
+
+### What is not measured
+
+- Positions past 2,048 on a phone GPU. litert-torch turned its rope composite on by default because with plain operators, which this recipe keeps from the published file, ML Drift's fp16 GPU path cannot hold such a position exactly (0567035).
+- Speed. The model card's numbers are the published file's.
 
 ## Files
 
 | File | What |
 |---|---|
-| `build_vibethinker_3b.py` | HF checkpoint → `.litertlm`: bare-ChatML export with the `<|im_end|>` stop added, blockwise-32 OCTAV int4 + int8 externalized embedding, single 128 prefill signature, 4096 context. |
-| `verify_vibethinker_3b.py` | 8-question quality gate via the `litert-lm` CLI (scored after the think block); `--check-metadata` asserts both stop ids, no `start_token`, template shape, section sizes; `--math` runs six word problems and checks the final number. |
+| `vibethinker_extension.py` | The out-of-tree `ModelExtension`: `get_export_defaults` (the export arguments) and `build_llm_metadata` (the source check, the stops, the Jinja template, the thought channel). |
+| `vibethinker_extension_test.py` | `ModelExtensionTestMixin` contract tests and 13 cases, among them a `torch.export` of a random 2-layer Qwen2, the plan with and without the extension, and source and template changes that stop the export. CPU, no weights. |
+| `recipe_int4.json` | The quantization recipe. |
+| `build_vibethinker_3b.py` | HF checkpoint → the `.litertlm` file, one stock `export()` call with the extension; `--dry-run` prints the plan. |
+| `verify_vibethinker_3b.py` | The 8-question check through the `litert-lm` command-line tool, scored on the answer after the thought; `--check-metadata`; `--math`, six word problems; `--sections`, a section-by-section comparison with another file. |

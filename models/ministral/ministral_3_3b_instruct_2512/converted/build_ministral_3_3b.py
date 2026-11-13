@@ -12,138 +12,122 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""mistralai/Ministral-3-3B-Instruct-2512 (text decoder) -> .litertlm.
+"""Ministral-3-3B-Instruct-2512 (BF16) -> its q4_block32_ekv4096 .litertlm.
 
-Converts the Ministral-3 text decoder (extracted from the multimodal
-checkpoint by extract_text_decoder.py) into a LiteRT-LM bundle through
-litert-torch's plain HF export path: blockwise-32 OCTAV int4 weights with the
-tied vocab embedding kept at int8 and split into its own section (~2.34 GB).
-`Ministral3ForCausalLM` (26 layers, hidden 3072, GQA 32:8, YaRN RoPE) needs
-no re-authoring.
-
-Three model-specific facts are baked in:
-
-  * Template. Ministral speaks Mistral's `[INST] ... [/INST]` format with
-    `</s>` as its end-of-turn token; the tekken tokenizer has NO `<|im_end|>`.
-    Exported under a ChatML template the int4 model never reaches a registered
-    stop token and runs on past the correct answer with `<|im_start|>` spam;
-    under its native template it stops cleanly. This script forces the plain
-    Mistral template (upstream's full jinja cannot run in the runtime's
-    minimal jinja engine, so the structured [INST] prefixes are extracted).
-
-  * start_token. The tokenizer declares bos `<s>` and eos `</s>` — different
-    tokens — so the `start_token { token_str: "<s>" }` the builder writes is
-    the Mistral convention, not the granite-4.1-3b trap (which needs
-    bos == eos, or add_bos_token: False). It is kept.
-    `verify_ministral_3_3b.py --bos-ab` shows the bf16 model answers with the
-    leading <s>.
-
-  * Section size. Without externalize_embedder the 3B's weights are one
-    ~2.55 GiB TFLite section, above the iOS ~2 GiB single-section mmap ceiling
-    (engine creation fails: "Failed to map section: Cannot allocate memory").
-    Externalizing the tied embedding drops the main section to ~1.8 GiB, and
-    the bundle loads on iPhone.
+Converts the text decoder of mistralai/Ministral-3-3B-Instruct-2512-BF16 into
+the file published at litert-community/Ministral-3-3B-Instruct-2512 through
+litert-torch's stock HF exporter: one `export()` call with
+`ministral3_extension.py`, an out-of-tree `ModelExtension`, in
+`extension_modules`. The extension reads the decoder straight from the
+multimodal checkpoint (no extracted copy), and gives the export arguments
+(int4 weights by recipe_int4.json, one 128-token prefill, a 4,096-token
+cache, the embedding table in its own section), the tokenizer section and the
+LlmMetadata; this script holds the checkpoint's revision and the output name.
+The script stops before the export on a litert-torch that cannot load an
+extension file.
 
 Usage:
-  python extract_text_decoder.py --out ministral3_text     # once, ~7 GB download
-  python build_ministral_3_3b.py --model ministral3_text --out out_int4
+  python build_ministral_3_3b.py --out out_int4
+  python build_ministral_3_3b.py --dry-run                 # resolved arguments
+  python build_ministral_3_3b.py --dry-run --no-extension  # the stock ones
 """
 
 import argparse
-import copy
 import os
+import shutil
+import time
+from pathlib import Path
 
-# Mistral's plain chat format. Byte-identical to upstream's rendering of
-# system / user / assistant turns; what it drops is upstream's tool-calling
-# and default-system logic, which the structured template cannot carry.
-MISTRAL_TEMPLATE = r"""{%- for message in messages -%}
-{%- if message['role'] == 'system' -%}
-{{- '[SYSTEM_PROMPT]' + message['content'] + '[/SYSTEM_PROMPT]' -}}
-{%- elif message['role'] == 'user' -%}
-{{- '[INST]' + message['content'] + '[/INST]' -}}
-{%- elif message['role'] == 'assistant' -%}
-{{- message['content'] + '</s>' -}}
-{%- endif -%}
-{%- endfor -%}"""
+MODEL_ID = "mistralai/Ministral-3-3B-Instruct-2512-BF16"
+REVISION = "b6d637bef2393152b3da2b2fde72eecdee30557e"
+# model-*.safetensors: the HF shards; consolidated.safetensors, a second copy
+# of the same weights in Mistral's own layout, is not needed.
+SOURCE_FILES = ["*.json", "model-*.safetensors", "chat_template.jinja"]
+HERE = Path(__file__).resolve().parent
+EXTENSION = HERE / "ministral3_extension.py"
+OUTPUT_NAME = "Ministral-3-3B-Instruct-2512_q4_block32_ekv4096.litertlm"
 
 
-def patch_tokenizer():
-  """Forces the plain Mistral template on every tokenizer the exporter loads."""
+def check_toolchain():
+  """Stops early on a litert-torch that cannot load an extension file."""
+  try:
+    from litert_torch.generative.export_hf.model_ext import extension
+  except ImportError:
+    extension = None
+  if not (hasattr(extension, "load_extension_file")
+          and hasattr(extension, "ExportDefaults")):
+    from importlib import metadata
+
+    installed = "not installed"
+    for dist in ("litert-torch-nightly", "litert-torch"):
+      try:
+        installed = f"{dist} {metadata.version(dist)}"
+        break
+      except metadata.PackageNotFoundError:
+        pass
+    raise SystemExit(
+        f"{installed}: "
+        "this litert-torch cannot load ministral3_extension.py: it has no "
+        "out-of-tree extension files (`extension_modules` with a .py path) or "
+        "no extension export defaults. No release carries them yet (0.10.0 "
+        "does not); install the nightly in the README.")
   import transformers
 
-  orig_from_pretrained = transformers.AutoTokenizer.from_pretrained
-
-  def patched_from_pretrained(*args, **kwargs):
-    tok = orig_from_pretrained(*args, **kwargs)
-    tok.chat_template = MISTRAL_TEMPLATE
-    # bos <s> != eos </s>: the start_token the builder writes from bos_token is
-    # legitimate for this model and is deliberately left in place.
-    assert tok.bos_token == "<s>" and tok.eos_token == "</s>", (
-        f"unexpected bos/eos {tok.bos_token!r}/{tok.eos_token!r} — re-check "
-        "the start_token story before exporting")
-    return tok
-
-  transformers.AutoTokenizer.from_pretrained = patched_from_pretrained
-
-
-def register_int4_recipe():
-  """blockwise-32 OCTAV int4 weights + int8 tied embedding (131072x3072).
-
-  Measured GSM8K 85.0% against a bf16 89.0% (n=100); a channelwise min-max
-  int4 of the same model passed the sanity gate but was not at parity — the
-  blockwise-32 + OCTAV grid is what preserves the accuracy.
-  """
-  import ai_edge_quantizer.recipe as recipe_lib
-
-  int4_rule = copy.deepcopy(recipe_lib.dynamic_wi4_afp32()[0])
-  int4_rule["algorithm_key"] = recipe_lib.AlgorithmName.OCTAV
-  int4_rule["op_config"]["weight_tensor_config"]["granularity"] = "BLOCKWISE_32"
-
-  emb_rule = copy.deepcopy(recipe_lib.dynamic_wi4_afp32()[0])
-  emb_rule["operation"] = "EMBEDDING_LOOKUP"
-  emb_rule["op_config"]["weight_tensor_config"]["num_bits"] = 8
-
-  recipe_lib.MINISTRAL3_INT4 = lambda: [int4_rule, emb_rule]
-  return "MINISTRAL3_INT4"
+  print(f"toolchain: transformers {transformers.__version__}, litert-torch "
+        "with out-of-tree extension files")
 
 
 def main():
+  """Exports the file, or prints the export arguments with --dry-run."""
   ap = argparse.ArgumentParser(description=__doc__.split("\n")[0])
-  ap.add_argument("--model", default="ministral3_text",
-                  help="the standalone text decoder written by "
-                       "extract_text_decoder.py (NOT the multimodal HF repo)")
+  ap.add_argument("--model", default=MODEL_ID,
+                  help="HF model id (fetched at the pinned revision) or a "
+                       "local copy of that revision")
   ap.add_argument("--out", default="out_int4", help="output dir")
-  ap.add_argument("--cache", type=int, default=4096, help="KV cache length")
-  ap.add_argument("--prefill", default="128",
-                  help="comma-separated prefill signature ladder. The published "
-                       "bundle carries the single 128 signature; see README.md "
-                       "for the ladder trade-off.")
+  ap.add_argument("--dry-run", action="store_true",
+                  help="print the resolved export arguments and stop")
+  ap.add_argument("--no-extension", action="store_true",
+                  help="without ministral3_extension.py (study only)")
   args = ap.parse_args()
 
-  if not os.path.exists(os.path.join(args.model, "config.json")):
-    raise SystemExit(f"{args.model}/config.json not found — run "
-                     "extract_text_decoder.py first (the multimodal repo "
-                     "cannot be exported directly).")
-
-  patch_tokenizer()
-  quant = register_int4_recipe()
-
+  check_toolchain()
   from litert_torch.generative.export_hf.export import export
 
-  export(
-      model=args.model,
-      output_dir=args.out,
-      prefill_lengths=[int(x) for x in args.prefill.split(",") if x.strip()],
-      cache_length=args.cache,
-      quantization_recipe=quant,
-      # False -> structured [INST] prompt templates in the bundle, not raw jinja.
-      use_jinja_template=False,
-      # Required for iPhone: keeps the main weights section under the iOS
-      # ~2 GiB single-section mmap ceiling (see module doc).
-      externalize_embedder=True,
-      trust_remote_code=True,
-  )
-  print("EXPORT_DONE")
+  extension_modules = None if args.no_extension else str(EXTENSION)
+  src = Path(args.model)
+  if not src.exists():
+    from huggingface_hub import snapshot_download
+
+    patterns = ["*.json"] if args.dry_run else SOURCE_FILES
+    src = Path(snapshot_download(args.model, revision=REVISION,
+                                 allow_patterns=patterns))
+  if args.dry_run:
+    plan = export(model=str(src), dry_run=True,
+                  extension_modules=extension_modules)
+    print(f"task {plan.task}")
+    for key, value in sorted(plan.export_kwargs.items()):
+      print(f"  {key} = {value!r}")
+    return
+
+  out = Path(args.out)
+  out.mkdir(parents=True, exist_ok=True)
+  work = out / "ministral3.work"
+  shutil.rmtree(work, ignore_errors=True)
+  t0 = time.time()
+  try:
+    export(model=str(src), output_dir=str(work),
+           extension_modules=extension_modules)
+  except BaseException:
+    shutil.rmtree(work, ignore_errors=True)  # A failed export leaves nothing.
+    raise
+  bundle = work / "model.litertlm"
+  if not bundle.exists():
+    raise SystemExit("the export finished without model.litertlm")
+  final = out / OUTPUT_NAME
+  bundle.replace(final)
+  shutil.rmtree(work)
+  print(f"EXPORT_DONE {final} ({os.path.getsize(final):,} B, "
+        f"{time.time() - t0:.0f} s)")
 
 
 if __name__ == "__main__":
