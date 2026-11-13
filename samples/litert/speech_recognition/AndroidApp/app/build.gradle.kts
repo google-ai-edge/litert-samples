@@ -89,6 +89,11 @@ dependencies {
   implementation(libs.androidx.navigation.ui.ktx)
   implementation("com.google.ai.edge.litert:litert:2.3.0")
   implementation("com.google.ai.edge.litert:litert-gpu:2.3.0")
+  // NPU of the SM8850 (Galaxy S26) for phonon-2 and phonon-2.5-english, whose encoders are compiled
+  // ahead of time with Qualcomm AI Runtime 2.50: uncomment both lines, instead of the Qualcomm
+  // runtime modules above.
+  // implementation("com.google.ai.edge.litert:litert-npu-runtime-qualcomm:2.3.0")
+  // implementation("com.qualcomm.qti:qnn-runtime:2.50.0")
   implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.7.3")
   implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.7.3")
   implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.8.0")
