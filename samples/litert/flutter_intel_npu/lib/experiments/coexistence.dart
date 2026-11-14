@@ -86,7 +86,7 @@ Future<void> _run() async {
   }
 
   Future<Map<String, Object?>> generate(String backend) async {
-    final session = await models[backend]!.createSession(temperature: 0.8, topK: 1, topP: 0.95, randomSeed: 1);
+    final session = await models[backend]!.openSession(temperature: 0.8, topK: 1, topP: 0.95, randomSeed: 1);
     final buf = StringBuffer();
     var chunks = 0;
     final SessionMetrics m;

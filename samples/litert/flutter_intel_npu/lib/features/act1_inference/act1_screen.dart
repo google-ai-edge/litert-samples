@@ -86,7 +86,7 @@ class _Act1ScreenState extends State<Act1Screen> with SingleTickerProviderStateM
 
   Future<void> _install() async {
     if (widget.config.modelPath.isEmpty) {
-      setState(() => _installError = 'MODEL_PATH is not set: point it at gemma-4-E2B-it.litertlm (see README).');
+      setState(() => _installError = 'MODEL_PATH is not set: point it at gemma-4-12B-it.litertlm (see README).');
       _print('BENCH_ERROR MODEL_PATH is not set');
       if (widget.config.autorunExit) exit(2);
       return;

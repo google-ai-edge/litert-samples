@@ -26,21 +26,24 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
-  flutter_edge_ai: ^2.5.4
+  flutter_edge_ai: ^2.6.0
   # 1.17.0: OpenVINO 2026.4.1 on Windows, which Gemma 4 12B on the Panther
   # Lake NPU needs. 1.18.0: LiteRtLmEngine(thinkingTokenBudget:), without
   # which the Intel 26B on the NPU thinks until the output cap (Act 4).
   # 1.19.0: Gemma 4 12B on an Intel GPU answers prompts under 512 tokens;
-  # needs macOS 14.
-  flutter_edge_ai_litertlm: ^1.19.0
+  # needs macOS 14. 1.20.0: LiteRT-LM 0.19; the native load runs off the UI
+  # isolate, so loading a model no longer stalls the scene. 1.20.1: tool
+  # calls on the NPU again, and Intel's public 12B and 26B NPU builds load
+  # and run.
+  flutter_edge_ai_litertlm: ^1.20.1
   scrollable_positioned_list: ^0.3.8
   # Act 4: open a meeting transcript (the system file dialog).
   file_selector: ^1.0.3
-  cupertino_icons: ^1.0.8
-  flutter_scene: ^0.23.0
-  vector_math: ^2.4.2
+  cupertino_icons: ^2.0.0
+  flutter_scene: ^0.24.3
+  vector_math: ^2.4.4
   hooks: ^2.2.0
-  flutter_scene_rapier: ^0.5.1
+  flutter_scene_rapier: ^0.5.2
 
 dev_dependencies:
   flutter_test:
@@ -58,5 +61,18 @@ flutter:
   assets:
     - assets/prompts/
     - assets/agent/example/
+    # Act 3's eyes: deciders fitted on Google's and the fine-tuned NPU files,
+    # and the example crops any other model's deciders are fitted from.
+    - assets/eyes/deciders/google-npu/
+    - assets/eyes/deciders/dash-eyes-npu/
+    - assets/eyes/zones/trail/
+    - assets/eyes/zones/grass/
+    - assets/eyes/zones/rock/
+    - assets/eyes/zones/jump/
+    - assets/eyes/near/jump/
+    - assets/eyes/near/run/
+    - assets/eyes/steer/left/
+    - assets/eyes/steer/right/
+    - assets/eyes/steer/straight/
     - assets/models/
     - flutter_scene_generated/

@@ -104,6 +104,8 @@ class DemoConfig {
     if (npuModel.isEmpty) npuModel = k.str('ACT3_NPU_MODEL_PATH', const String.fromEnvironment('ACT3_NPU_MODEL_PATH'));
     if (npuModel.isNotEmpty && !File(npuModel).existsSync()) k.errors.add('NPU_MODEL_PATH: no file at $npuModel');
     final recordPath = k.str('ACT3_RECORD', const String.fromEnvironment('ACT3_RECORD'));
+    final eyesModel = k.str('ACT3_EYES_MODEL', const String.fromEnvironment('ACT3_EYES_MODEL'));
+    if (eyesModel.isNotEmpty && !File(eyesModel).existsSync()) k.errors.add('ACT3_EYES_MODEL: no file at $eyesModel');
     final dayStart = k.str('ACT3_TIME_OF_DAY', const String.fromEnvironment('ACT3_TIME_OF_DAY', defaultValue: 'day'));
     final act3 = Act3Spec(
       npuModelPath: npuModel.isNotEmpty ? npuModel : null,
@@ -126,6 +128,9 @@ class DemoConfig {
       recordPath: recordPath.isEmpty ? null : recordPath,
       recordFps: k.integer('ACT3_RECORD_FPS', const int.fromEnvironment('ACT3_RECORD_FPS', defaultValue: 30)),
       recordScale: k.number('ACT3_RECORD_SCALE', const String.fromEnvironment('ACT3_RECORD_SCALE', defaultValue: '1.0')),
+      eyesModelPath: eyesModel.isEmpty ? null : eyesModel,
+      eyesBackend: k.backend('ACT3_EYES_BACKEND', k.str('ACT3_EYES_BACKEND', const String.fromEnvironment('ACT3_EYES_BACKEND', defaultValue: 'npu'))),
+      eyesOverlay: k.boolean('ACT3_EYES_OVERLAY', const bool.fromEnvironment('ACT3_EYES_OVERLAY', defaultValue: true)),
       startZ: k.number('ACT3_START_Z', const String.fromEnvironment('ACT3_START_Z', defaultValue: '4')),
       details: k.boolean('ACT3_DETAILS', const bool.fromEnvironment('ACT3_DETAILS', defaultValue: true)),
       dayStart: DayPhase.values.asNameMap()[dayStart] ??
@@ -324,9 +329,9 @@ class Act2Spec {
   /// is available on this machine).
   String modelPathOr(String fallback) => _modelPath.isNotEmpty ? _modelPath : fallback;
 
-  /// The contrast engine is a small model, not a second copy of the main
-  /// one: a second 12B engine would load its ~6 GB of weights again just to
-  /// fail. Falls back to the Act 1/3 model (E2B).
+  /// The contrast engine is a small model (E2B, the mobile one), not a second
+  /// copy of the main one: a second 12B engine would load its ~7 GB of
+  /// weights again just to fail. Falls back to the Act 1/3 model.
   String contrastModelPathOr(String fallback) => _contrastModelPath.isNotEmpty ? _contrastModelPath : fallback;
 
   /// `[mm:ss] Speaker: text` lines. Null → bundled sample transcript.
@@ -362,7 +367,22 @@ class Act3Spec {
     required this.recordPath,
     required this.recordFps,
     required this.recordScale,
+    this.eyesModelPath,
+    this.eyesBackend = PreferredBackend.npu,
+    this.eyesOverlay = true,
   });
+
+  /// Dash driven from the screen by EmbeddingGemma 2 (`ACT3_EYES_MODEL`, a
+  /// 440m text and vision bundle): see `VisionPilot`.
+  final String? eyesModelPath;
+
+  /// Where the eyes' model runs (`ACT3_EYES_BACKEND`, default npu); the
+  /// bundle must be built for it.
+  final PreferredBackend eyesBackend;
+
+  /// Draw what the eyes look at and what they saw (`ACT3_EYES_OVERLAY`,
+  /// default true); off for a plain video.
+  final bool eyesOverlay;
 
   /// Record the act to this .mp4 (frames read back in-app, piped to ffmpeg).
   /// For showing, not measuring: the read-back costs GPU time.
@@ -420,8 +440,8 @@ class Act3Spec {
   /// run has nothing for the narrator to talk about.
   final double pilotMissRate;
 
-  /// NPU-compiled bundle for the narrator's NPU row (an NPU build of Gemma 4
-  /// E2B on Lunar Lake). Null = same file as the other backends.
+  /// NPU-compiled bundle for the narrator's NPU row (Intel's Panther Lake
+  /// build of Gemma 4 12B). Null = same file as the other backends.
   final String? npuModelPath;
 
   final int bodyCount;
