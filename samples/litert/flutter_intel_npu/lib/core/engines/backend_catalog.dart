@@ -50,17 +50,17 @@ class BackendCatalog {
         );
       case PreferredBackend.npu:
         if (Platform.isWindows) {
-          // Requires Intel Lunar Lake / Panther Lake; the runtime decides.
+          // Requires an Intel Core Ultra NPU; the runtime decides.
           return BackendStatus(
             backend: backend,
             availability: BackendAvailability.available,
-            reason: 'Intel Lunar/Panther Lake only - check activeBackend',
+            reason: 'Intel Core Ultra NPU only - check activeBackend',
           );
         }
         return BackendStatus(
           backend: backend,
           availability: BackendAvailability.unavailable,
-          reason: 'Windows + Intel Lunar/Panther Lake only',
+          reason: 'Windows + Intel Core Ultra NPU only',
         );
     }
   }

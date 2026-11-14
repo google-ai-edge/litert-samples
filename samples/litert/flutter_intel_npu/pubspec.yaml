@@ -32,8 +32,10 @@ dependencies:
   # which the Intel 26B on the NPU thinks until the output cap (Act 4).
   # 1.19.0: Gemma 4 12B on an Intel GPU answers prompts under 512 tokens;
   # needs macOS 14. 1.20.0: LiteRT-LM 0.19; the native load runs off the UI
-  # isolate, so loading a model no longer stalls the scene.
-  flutter_edge_ai_litertlm: ^1.20.0
+  # isolate, so loading a model no longer stalls the scene. 1.20.1: tool
+  # calls on the NPU again, and Intel's public 12B and 26B NPU builds load
+  # and run.
+  flutter_edge_ai_litertlm: ^1.20.1
   scrollable_positioned_list: ^0.3.8
   # Act 4: open a meeting transcript (the system file dialog).
   file_selector: ^1.0.3

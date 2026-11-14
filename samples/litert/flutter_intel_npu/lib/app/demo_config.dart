@@ -329,9 +329,9 @@ class Act2Spec {
   /// is available on this machine).
   String modelPathOr(String fallback) => _modelPath.isNotEmpty ? _modelPath : fallback;
 
-  /// The contrast engine is a small model, not a second copy of the main
-  /// one: a second 12B engine would load its ~6 GB of weights again just to
-  /// fail. Falls back to the Act 1/3 model (E2B).
+  /// The contrast engine is a small model (E2B, the mobile one), not a second
+  /// copy of the main one: a second 12B engine would load its ~7 GB of
+  /// weights again just to fail. Falls back to the Act 1/3 model.
   String contrastModelPathOr(String fallback) => _contrastModelPath.isNotEmpty ? _contrastModelPath : fallback;
 
   /// `[mm:ss] Speaker: text` lines. Null → bundled sample transcript.
@@ -440,8 +440,8 @@ class Act3Spec {
   /// run has nothing for the narrator to talk about.
   final double pilotMissRate;
 
-  /// NPU-compiled bundle for the narrator's NPU row (an NPU build of Gemma 4
-  /// E2B on Lunar Lake). Null = same file as the other backends.
+  /// NPU-compiled bundle for the narrator's NPU row (Intel's Panther Lake
+  /// build of Gemma 4 12B). Null = same file as the other backends.
   final String? npuModelPath;
 
   final int bodyCount;

@@ -5,7 +5,7 @@ PODS:
     - FlutterMacOS
   - flutter_edge_ai (2.6.0):
     - FlutterMacOS
-  - flutter_edge_ai_litertlm (1.20.0):
+  - flutter_edge_ai_litertlm (1.20.1):
     - FlutterMacOS
   - FlutterMacOS (1.0.0)
   - large_file_handler (0.5.0):
@@ -43,7 +43,7 @@ SPEC CHECKSUMS:
   connectivity_plus: 4adf20a405e25b42b9c9f87feff8f4b6fde18a4e
   file_selector_macos: 3af0fddc391c32a6a3956a7d3898ca3a86057a4f
   flutter_edge_ai: cf660f484ecc75e41a865b20a39ac926bac9e9cb
-  flutter_edge_ai_litertlm: 29f8a6a15223dd9e03c4963d48a248d6715ef553
+  flutter_edge_ai_litertlm: e0c3354596f02ff8150484da87d6e5f697193940
   FlutterMacOS: c232990155153907050900a2e175c7773903ba4e
   large_file_handler: b337fef756ae925be9c28112a81c7c4275d91c45
   shared_preferences_foundation: a7c3904f2dedb3701dd1903cb152ef5e7df92422
