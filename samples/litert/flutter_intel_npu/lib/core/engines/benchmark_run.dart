@@ -83,7 +83,7 @@ class BenchmarkRun {
   final String responsePreview;
   final String? error;
 
-  /// Why a backend was skipped (e.g. "Windows + Intel Lunar/Panther Lake only").
+  /// Why a backend was skipped (e.g. "Windows + Intel Core Ultra NPU only").
   final String? reason;
 
   /// Power / utilisation averaged over the measured generation (null = no sidecar).

@@ -18,7 +18,7 @@ import 'engine_slot.dart';
 
 /// `resident`: every backend stays loaded, switching is instant. Each engine
 /// is its own `FlutterEdgeAi.openModel` model ([LiteRtLmEngineSlot]);
-/// validated on macOS (CPU + GPU) and Windows on Lunar Lake (CPU + GPU + NPU).
+/// validated on macOS (CPU + GPU) and Windows on Panther Lake (CPU + GPU + NPU).
 ///
 /// `sequential`: one engine at a time; switching costs a reload (2–10 s cold).
 enum EnginePolicy { resident, sequential }

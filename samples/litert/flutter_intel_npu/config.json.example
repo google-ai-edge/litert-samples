@@ -1,6 +1,11 @@
 {
-  "MODEL_PATH": "/absolute/path/to/gemma-4-E2B-it.litertlm",
-  "NPU_MODEL_PATH": "",
+  "MODEL_PATH": "/absolute/path/to/gemma-4-12B-it.litertlm",
+  "NPU_MODEL_PATH": "/absolute/path/to/gemma4-12B-it-Intel_PTL_NPU.litertlm",
   "MAX_TOKENS": 4096,
-  "BACKENDS": "cpu,gpu,npu"
+  "BACKENDS": "cpu,gpu,npu",
+  "ACT2_BACKEND": "npu",
+  "ACT2_MODEL_PATH": "/absolute/path/to/gemma4-12B-it-Intel_PTL_NPU.litertlm",
+  "ACT2_MAX_TOKENS": 32768,
+  "ACT2_CONTRAST_MODEL_PATH": "/absolute/path/to/gemma-4-E2B-it_intel_PTL.litertlm",
+  "ACT4_MODELS": "[{\"name\": \"26B A4B, Intel PTL NPU\", \"path\": \"/absolute/path/to/gemma4-26B-A4B-it-Intel_PTL_NPU.litertlm\", \"backend\": \"npu\", \"maxTokens\": 32768, \"think\": true}]"
 }
