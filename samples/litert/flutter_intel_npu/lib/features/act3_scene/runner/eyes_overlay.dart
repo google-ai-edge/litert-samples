@@ -83,8 +83,6 @@ class EyesOverlay extends StatelessWidget {
                         style: const TextStyle(color: Colors.white, fontSize: 24, fontWeight: FontWeight.w700, shadows: [Shadow(blurRadius: 6)])),
                   ),
                 ),
-                for (final id in ['L', 'R'])
-                  if (seen[id] != null) part(id, _words[seen[id]] ?? seen[id], tone(seen[id])),
                 part('C', _words[c] ?? c, tone(c), loud: c == 'rock' || c == 'jump'),
                 part('N', n == 'jump' ? 'JUMP' : null, n == 'jump' ? Colors.orange : Colors.white38, loud: n == 'jump'),
                 if (s == 'left' || s == 'right')

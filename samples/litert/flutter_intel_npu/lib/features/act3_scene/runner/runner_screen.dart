@@ -126,7 +126,7 @@ class _RunnerScreenState extends State<RunnerScreen> {
       _eyesLoading = true;
       VisionPilot.load(modelPath: eyesModel, backend: widget.config.act3.eyesBackend, log: _log, sceneKey: _sceneKey).then(
         (eyes) async {
-          if (!mounted) return eyes.stop();
+          if (!mounted) return eyes.stop().catchError((Object e) => _log('ACT3_EYES_STOP_FAILED $e'));
           setState(() {
             _eyes = eyes;
             _eyesLoading = false;
@@ -135,9 +135,9 @@ class _RunnerScreenState extends State<RunnerScreen> {
           unawaited(eyes.run(_game, _log));
           _log('ACT3_EYES_READY ${opened.elapsedMilliseconds} ms after the act opened');
         },
-        onError: (Object e) {
-          _log('ACT3_EYES_FAILED $e');
-          if (mounted) setState(() => _eyesError = '$e'.split('\n').first);
+        onError: (Object e, StackTrace st) {
+          _log('ACT3_EYES_FAILED $e\n$st');
+          if (mounted) setState(() => _eyesError = '$e');
         },
       );
     }
@@ -408,6 +408,13 @@ class _RunnerScreenState extends State<RunnerScreen> {
       'baselines': _series.bestTps.map((k, v) => MapEntry(k, {'tok_s': double.parse(v.toStringAsFixed(1)), 'measured': _series.isMeasured(k)})),
       'frame': _probe.toJson(),
       'narrator': _narrator.toJson(),
+      'eyes': widget.config.act3.eyesModelPath == null
+          ? null
+          : {
+              'backend': _eyes?.backend?.name,
+              'looks': _eyes?.looks,
+              'error': _eyesError ?? _eyes?.error?.toString(),
+            },
       'phases': _phases,
     });
     // ignore: avoid_print
@@ -545,14 +552,16 @@ class _RunnerScreenState extends State<RunnerScreen> {
                     child: ListenableBuilder(
                       listenable: Listenable.merge([_game, ?_eyes]),
                       builder: (context, _) => _DriverBadge(
-                        text: _eyesError != null
-                            ? 'Autopilot · eyes failed: $_eyesError'
-                            : _eyes == null
-                                ? 'Autopilot · EmbeddingGemma 2 loading…'
-                                : _game.pilot.manual
-                                    ? 'Presenter driving'
-                                    : 'Driven by EmbeddingGemma 2 · ${backendLabel(_eyes!.backend)}',
-                        live: _eyes != null && !_game.pilot.manual,
+                        text: _game.pilot.manual
+                            ? 'Presenter driving'
+                            : _eyesError != null
+                                ? 'Autopilot · the eyes did not load'
+                                : _eyes == null
+                                    ? 'Autopilot · EmbeddingGemma 2 loading…'
+                                    : _eyes!.error != null
+                                        ? 'Autopilot · the eyes stopped'
+                                        : 'Driven by EmbeddingGemma 2 · ${backendLabel(_eyes!.backend)}',
+                        live: _eyes != null && _eyes!.error == null && !_game.pilot.manual,
                       ),
                     ),
                   ),
@@ -633,7 +642,7 @@ class _RunnerScreenState extends State<RunnerScreen> {
   void dispose() {
     // Leaving the act mid-recording still finishes the file.
     unawaited(_stopRecording());
-    unawaited(_eyes?.stop());
+    unawaited(_eyes?.stop().catchError((Object e) => _log('ACT3_EYES_STOP_FAILED $e')));
     _sampler?.cancel();
     _narrator.dispose();
     _probe.dispose();
@@ -809,8 +818,8 @@ class _Controls extends StatelessWidget {
   }
 }
 
-/// Who drives Dash: the eyes, the autopilot while they load, or the
-/// presenter.
+/// Who drives Dash: the presenter, the autopilot (while the eyes load, or
+/// when they did not load or stopped; the log says why), or the eyes.
 class _DriverBadge extends StatelessWidget {
   const _DriverBadge({required this.text, required this.live});
 

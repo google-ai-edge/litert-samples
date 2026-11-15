@@ -582,7 +582,11 @@ class RunnerGame extends ChangeNotifier {
         kind: pilot.manual ? 'takeover' : 'autopilot',
         subject: pilot.manual ? 'presenter' : 'autopilot',
         object: 'dash',
-        detail: pilot.manual ? 'the presenter grabbed the controls' : 'the autopilot is back in charge',
+        detail: pilot.manual
+            ? 'the presenter grabbed the controls'
+            : eyes != null
+                ? 'the eyes are back in charge'
+                : 'the autopilot is back in charge',
       ));
     }
 

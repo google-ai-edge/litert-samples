@@ -155,7 +155,7 @@ take a second or two.
 
 ## Dash drives himself
 
-With `ACT3_EYES_MODEL` set, the autopilot hands Dash to EmbeddingGemma 2, the 440M text and vision embedding
+With `ACT3_EYES_MODEL` set, the autopilot hands Dash to EmbeddingGemma 2, the 440m text and vision embedding
 model, and it drives from the screen alone. Several times a second it reads fixed parts of the frame in front of
 Dash, turns each into a vector, and a decider per question names what the part shows:
 
@@ -166,8 +166,8 @@ Dash, turns each into a vector, and a decider per question names what the part s
 | steer | the whole band ahead, read while a rock is in front | left, right, straight |
 
 A reflex turns the answers into the keys: two `jump` looks in a row jump, a rock in front sends Dash to the
-side `steer` names. Nothing reads the game's world: no obstacle positions, no distances, only pixels and Dash's
-own place on the trail. The overlay (`ACT3_EYES_OVERLAY`, on by default) draws the parts being read and each
+side `steer` names. Nothing reads the obstacles: no positions, no distances. Besides the pixels the eyes know
+only Dash's own place across the trail, the trail's width and whether he is in the air. The overlay (`ACT3_EYES_OVERLAY`, on by default) draws the parts being read and each
 answer, so the boxes are what is turned into vectors at that moment, and counts Dash's stumbles.
 
 - **The model.** Any EmbeddingGemma 2 440m `.litertlm` that runs on `ACT3_EYES_BACKEND` (`npu` by default): an NPU
@@ -177,13 +177,16 @@ answer, so the boxes are what is turned into vectors at that moment, and counts 
   GPU. Google's own is in
   [litert-community/embeddinggemma-2-text-vision-440m-litert-lm](https://huggingface.co/litert-community/embeddinggemma-2-text-vision-440m-litert-lm),
   `…_Intel_PTL.litertlm` for the NPU. The app gives images 70 vision tokens, the budget all of them were tuned and
-  measured at.
+  measured at. An NPU build runs only on the NPU, so on a Mac set `ACT3_EYES_BACKEND` to `gpu` or `cpu` with
+  `eg2-440m-dash-eyes.litertlm`.
 - **The deciders.** For the two Panther Lake files on the NPU, the fine-tune and Google's, the app loads the ones
-  in `assets/eyes/deciders/`, fitted on thousands of frames (keep the files' names: a decider is bound to its
-  model file). With any other model or backend it fits them from the ten examples per answer in `assets/eyes/`
+  in `assets/eyes/deciders/`, fitted on thousands of frames (a decider is bound to its model file's name and size, so
+  keep the files as downloaded). With any other model, file or backend it fits them from the ten examples per answer in `assets/eyes/`
   (about 5 s on the NPU, 30 s on a CPU) and keeps them in the temp folder, so later starts load them.
 - **Start.** The eyes' model loads while the act starts (about a second for either NPU file); until then the
   autopilot drives. A badge over the scene says who drives Dash: the eyes, the autopilot, or the presenter.
+  While the presenter drives the eyes rest, and they start afresh once the presenter lets go. If the eyes do
+  not load, or five looks in a row fail, the badge says so and the autopilot drives; the log says why.
 - **Speed.** A look (the near strip and the middle, two embeddings) takes about 130 ms on the Panther Lake NPU,
   and Dash keeps up. On a CPU a look takes about 0.7 s, in which Dash runs 7 to 10 m: the act runs, but he jumps
   late or not at all.
@@ -325,8 +328,9 @@ The code is Apache-2.0, like the rest of this repository ([LICENSE](../../../LIC
 The meeting transcripts in `assets/prompts/` and the Act 4 example in `assets/agent/example/` (its people, company
 and mail domain included) are synthetic, written for this demo; the images in `assets/eyes/` are crops of frames
 this app rendered. The models are not part of this
-repository. Gemma 4 E2B and 12B, and the LiteRT-LM conversions used here, are Apache-2.0
-([Gemma 4 licence](https://ai.google.dev/gemma/docs/gemma_4_license)); the Hugging Face repositories are not gated. The LiteRT-LM runtime (Apache-2.0) and, on
+repository. Gemma 4 E2B and 12B, EmbeddingGemma 2, and the LiteRT-LM conversions used here, are Apache-2.0
+([Gemma 4 licence](https://ai.google.dev/gemma/docs/gemma_4_license)); the fine-tuned eyes carry the licence on their
+model card. The Hugging Face repositories are not gated. The LiteRT-LM runtime (Apache-2.0) and, on
 Windows, Intel's OpenVINO NPU runtime are downloaded by `flutter_edge_ai_litertlm` at build time.
 
 ## Tests
