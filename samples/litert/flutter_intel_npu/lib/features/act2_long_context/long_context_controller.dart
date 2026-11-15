@@ -147,9 +147,16 @@ class LongContextController extends ChangeNotifier {
   }
 
   /// Same source into an engine whose window is too small: expected to fail
-  /// with the runtime's own "Input token ids are too long" error.
+  /// with the runtime's own "Input token ids are too long" error. Any other
+  /// error is a failure, and says so.
   Future<void> runContrast() async {
     if (contrastRunning) return;
+    if (contrastModelPath == modelPath) {
+      contrastResult = 'Not run: ACT2_CONTRAST_MODEL_PATH names no small model, and the long-context model compared '
+          'with itself shows nothing. Set it to Gemma 4 E2B.';
+      notifyListeners();
+      return;
+    }
     contrastRunning = true;
     contrastResult = null;
     notifyListeners();
@@ -162,8 +169,10 @@ class LongContextController extends ChangeNotifier {
         buf.write(chunk);
       }
       contrastResult = 'Unexpectedly fitted: "${buf.toString().trim()}"';
-    } catch (e) {
+    } on ContextLimitException catch (e) {
       contrastResult = e.toString().split('\n').first;
+    } catch (e) {
+      contrastResult = 'Failed: ${e.toString().split('\n').first}';
     } finally {
       await t?.close();
       // The contrast engine is done for good; keep its memory for the act.
@@ -236,7 +245,7 @@ class LongContextController extends ChangeNotifier {
   void dispose() {
     _disposed = true;
     // The warm context dies with the turn, so a later visit prefills again
-    // anyway; keeping the 12B resident would only hold ~6 GB through Act 3.
+    // anyway; keeping this engine resident would only hold ~7 GB through Act 3.
     unawaited(_closeTurn().then((_) => pool.release(spec.backend, maxTokens: spec.maxTokens, modelPath: modelPath)));
     super.dispose();
   }

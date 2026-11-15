@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter_edge_ai/flutter_edge_ai.dart';
@@ -151,6 +152,15 @@ void main() {
     test('a run that exits by itself is headless', () {
       expect(parse({'AUTORUN_EXIT': true}).headless, isTrue);
       expect(parse({}).headless, isFalse);
+    });
+
+    test('config.json.example parses, and only its placeholder paths are missing', () {
+      final example = jsonDecode(File('config.json.example').readAsStringSync()) as Map<String, Object?>;
+      final c = parse(example);
+      expect(c.errors.where((e) => !e.contains('no file at /absolute/path/to/')), isEmpty);
+      expect(c.act2.backend, PreferredBackend.npu);
+      expect(c.act2.contrastModelPathOr(''), endsWith('gemma-4-E2B-it_intel_PTL.litertlm'));
+      expect(c.act4.models.single.backend, PreferredBackend.npu);
     });
   });
 }

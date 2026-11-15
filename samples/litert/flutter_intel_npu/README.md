@@ -1,4 +1,4 @@
-# Intel NPU demo: Gemma on the NPU of a Core Ultra laptop
+# Gemma on the NPU of an Intel Core Ultra laptop
 
 A Flutter desktop app in four acts about the NPU of an Intel Core Ultra Series 3 laptop (Panther Lake): what it
 brings to desktop-grade on-device language models, Gemma 4 12B and 26B A4B, next to the CPU and the GPU. Everything
@@ -15,7 +15,7 @@ runs on the machine; once the model files are there, the app needs no network. E
   NPU once, before anyone asks anything; every question then reuses the warm context and answers with the
   timestamp and the quoted line, which the transcript viewer jumps to. Gemma 4 E2B, the mobile model, gets the
   same transcript in its 4K window and fails with the runtime's own "too long" error.
-- **Act 3 — The NPU's own argument: parallel work.** Dash runs an endless generated landscape on the GPU — terrain,
+- **Act 3 — Parallel work, the NPU's own argument.** Dash runs an endless generated landscape on the GPU — terrain,
   forests, rivers, a day that turns to night — while the 12B commentates the run live, as subtitles. The scene
   calibrates itself to the edge of the frame budget, and two meters show the cost: FRAME BUDGET (how much of a frame
   the scene uses) and MODEL SPEED (how much of its own solo speed the model still gets). Put the commentator on the
@@ -29,12 +29,12 @@ runs on the machine; once the model files are there, the app needs no network. E
   only where everyone is free, every action on the list, nothing done twice) are checked against a workspace file:
   the people, the company's mail domain, the calendars and the shared documents.
 
-| Act 1: the race replay | Act 3: the runner and its commentator |
+| The race replay in Act 1 | The runner and its commentator in Act 3 |
 |---|---|
-| ![Act 1 on a Mac: the GPU lane has finished first while the CPU lane is still writing](docs/screenshots/act1-race.jpg) | ![Act 3 at sunset: the frame budget and model speed meters above the scene, the commentary as a subtitle](docs/screenshots/act3-runner.jpg) |
+| ![Act 1 on Panther Lake: Gemma 4 12B on the CPU, the GPU and the NPU, replayed as a race](docs/screenshots/act1-race.jpg) | ![Act 3 on Panther Lake with the 12B commentating on the GPU: the frame over its budget, the model at half its speed](docs/screenshots/act3-runner.jpg) |
 
-Both screenshots are from a Mac, where there is no NPU lane; on a Panther Lake laptop Act 1 has a third lane, and
-the Act 3 commentator can move to the NPU.
+Both screenshots are from the Panther Lake laptop. In the second the commentator runs on the GPU, next to the
+scene, and both lose; on the NPU neither does (see [What it measured](#what-it-measured)).
 
 The app runs on macOS too (CPU and GPU only), which is where most of it was developed. It is built on
 [`flutter_edge_ai`](https://pub.dev/packages/flutter_edge_ai) and its LiteRT-LM engine
@@ -84,8 +84,8 @@ cp config.json.example config.json     # then point the paths at your models
 ```
 
 The example is for a Panther Lake laptop. On a Mac, leave `NPU_MODEL_PATH` empty, set `ACT2_BACKEND` to `gpu`
-with `ACT2_MODEL_PATH` at `gemma-4-12B-it.litertlm` and `ACT2_CONTRAST_MODEL_PATH` at `gemma-4-E2B-it.litertlm`, and
-list the 12B on the GPU in `ACT4_MODELS`.
+with `ACT2_MODEL_PATH` at `gemma-4-12B-it.litertlm`, `ACT2_MAX_TOKENS` at 16384 and `ACT2_CONTRAST_MODEL_PATH` at
+`gemma-4-E2B-it.litertlm`, and list the 12B on the GPU in `ACT4_MODELS`.
 
 Download the models from the links above (no login needed), for example with the Hugging Face CLI:
 
@@ -94,10 +94,12 @@ hf download litert-community/gemma-4-12B-it-litert-lm gemma-4-12B-it.litertlm --
 hf download litert-community/gemma-4-12B-it-litert-lm gemma4-12B-it-Intel_PTL_NPU.litertlm --local-dir ~/models
 hf download litert-community/gemma-4-26B-A4B-it-litert-lm gemma4-26B-A4B-it-Intel_PTL_NPU.litertlm --local-dir ~/models   # Act 4
 hf download litert-community/gemma-4-E2B-it-litert-lm gemma-4-E2B-it_intel_PTL.litertlm --local-dir ~/models   # Act 2's mobile model
+hf download litert-community/gemma-4-E2B-it-litert-lm gemma-4-E2B-it.litertlm --local-dir ~/models   # the same, on a Mac
 ```
 
-`config.json` is gitignored. Every setting has a default except `MODEL_PATH`: without it the scene still runs, and
-every model row says what is missing.
+`config.json` is gitignored. Every setting has a default except `MODEL_PATH` (and, with Act 2 on the NPU,
+`ACT2_MODEL_PATH`): without it the scene still runs, and every model row says what is missing. Act 2's
+short-window model has to be set too, or the act refuses to compare the 12B with itself.
 
 ## Run
 
@@ -133,8 +135,7 @@ take a second or two.
   something costs nothing. *Rules kept* stays open until the first action, because a model that does nothing
   keeps every rule. Thinking is capped at 2048 tokens a turn (`LiteRtLmEngine(thinkingTokenBudget:)`):
   uncapped, the 26B on the NPU thinks until the output limit and never calls a tool. Listing and acting are
-  one request, not two: on the NPU a second message after a tool loop fails (the executor rolls back one token at
-  most).
+  one request, not two: the model takes the two steps as separate turns anyway.
 
   The workspace is `ACT4_WORKSPACE`, else `<transcript name>.workspace.json` or `workspace.json` beside the
   transcript, else none: the agent then knows only the meeting, and the rules that need a domain or a calendar are
@@ -276,10 +277,10 @@ exit code 2 in a headless run.
 | `ACT` | 0 | open an act directly (0 = home) |
 | `ACT2_MODEL_PATH` | `MODEL_PATH`; required when `ACT2_BACKEND` is npu | the long-context model (the 12B) |
 | `ACT2_BACKEND`, `ACT2_MAX_TOKENS` | gpu, 16384 | |
-| `ACT2_CONTRAST_MODEL_PATH`, `ACT2_CONTRAST_MAX_TOKENS` | `MODEL_PATH` (`NPU_MODEL_PATH` when `ACT2_BACKEND` is npu), 4096 | the engine that must not fit the transcript: the mobile model, E2B, rather than a second copy of the 12B |
+| `ACT2_CONTRAST_MODEL_PATH`, `ACT2_CONTRAST_MAX_TOKENS` | —, 4096 | the engine that must not fit the transcript: the mobile model, E2B. Unset or the same file as the Act 2 model, the act says so instead of comparing |
 | `ACT2_TRANSCRIPT` | the bundled meeting | a `[mm:ss] Speaker: text` file |
 | `ACT2_QUESTION`, `ACT2_MAX_OUTPUT_TOKENS` | —, 300 | ask unattended |
-| `NPU_MODEL_PATH` | `MODEL_PATH` | the model for the NPU in every act: an NPU build. `ACT3_NPU_MODEL_PATH` still works |
+| `NPU_MODEL_PATH` | `MODEL_PATH` | the NPU build for Acts 1 and 3 (Act 2 and Act 4 name their own). `ACT3_NPU_MODEL_PATH` still works |
 | `ACT3_TARGET_FPS` | 60 | frame budget; 0 = the display's refresh rate |
 | `ACT3_CALIBRATE`, `ACT3_BASELINE` | true, true | the load ladder and the solo-speed pass |
 | `ACT3_VIEW_CHUNKS`, `ACT3_PROP_DENSITY`, `ACT3_RENDER_SCALE`, `ACT3_SHADOWS`, `ACT3_POST` | 7, 1.0, 1.0, true, true | load dials (the calibrator sets the first three) |

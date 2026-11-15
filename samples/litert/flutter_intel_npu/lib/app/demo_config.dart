@@ -197,16 +197,16 @@ class DemoConfig {
   /// Empty when unset: the scene still runs, every model row says so.
   final String modelPath;
 
-  /// The model for the NPU in every act (`NPU_MODEL_PATH`): an NPU-compiled
-  /// build. The standard file does not load on the NPU (the engine has no
+  /// The model for the NPU in Acts 1 and 3 (`NPU_MODEL_PATH`): an
+  /// NPU-compiled build. The standard file does not load on the NPU (the engine has no
   /// fallback), so without this the NPU row fails. Null = [modelPath].
   final String? npuModelPath;
 
   String modelPathFor(PreferredBackend b) =>
       b == PreferredBackend.npu && npuModelPath != null ? npuModelPath! : modelPath;
 
-  /// Context window for every backend. NOTE: on NPU this must equal the
-  /// `cache_length` the bundle was compiled for (not clamped there).
+  /// Context window for every backend. On the NPU at most the length the
+  /// bundle was compiled for; the runtime lowers a larger value to it.
   final int maxTokens;
 
   /// Backends to sweep, in order. Runs are always sequential.
@@ -325,13 +325,13 @@ class Act2Spec {
 
   final int maxOutputTokens;
 
-  /// Falls back to the Act 1/3 model when unset (e.g. before the 12B bundle
-  /// is available on this machine).
+  /// Falls back to the Act 1/3 model when unset.
   String modelPathOr(String fallback) => _modelPath.isNotEmpty ? _modelPath : fallback;
 
   /// The contrast engine is a small model (E2B, the mobile one), not a second
   /// copy of the main one: a second 12B engine would load its ~7 GB of
-  /// weights again just to fail. Falls back to the Act 1/3 model.
+  /// weights again and prove nothing. Falls back to the Act 1/3 model, which
+  /// the act then refuses to compare with itself.
   String contrastModelPathOr(String fallback) => _contrastModelPath.isNotEmpty ? _contrastModelPath : fallback;
 
   /// `[mm:ss] Speaker: text` lines. Null → bundled sample transcript.
