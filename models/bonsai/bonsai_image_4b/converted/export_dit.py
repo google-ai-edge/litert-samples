@@ -32,9 +32,14 @@ m = Flux2Transformer2DModel.from_pretrained(f"{SNAP}/transformer", torch_dtype=t
 C, JD, AX = m.config.in_channels, m.config.joint_attention_dim, len(m.config.axes_dims_rope)
 print(f"params {sum(p.numel() for p in m.parameters())/1e9:.3f} B", flush=True)
 
+GRID = int(IMG ** 0.5)
+hh, ww = torch.meshgrid(torch.arange(GRID), torch.arange(GRID), indexing="ij")
+img_ids = torch.stack([torch.zeros_like(hh), hh, ww, torch.zeros_like(hh)], -1).reshape(IMG, AX).float()
+txt_ids = torch.stack([torch.zeros(TXT)] * 3 + [torch.arange(TXT)], -1).float()
+
 g = torch.Generator().manual_seed(0)
 args = (torch.randn(B, IMG, C, generator=g), torch.randn(B, TXT, JD, generator=g),
-        torch.tensor([1.0]), torch.zeros(IMG, AX), torch.zeros(TXT, AX))
+        torch.tensor([1.0]), img_ids, txt_ids)
 wrapped = DiT(m).eval()
 
 with torch.no_grad():

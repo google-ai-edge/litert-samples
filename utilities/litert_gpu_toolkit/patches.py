@@ -382,14 +382,21 @@ def patch_swish(model: nn.Module) -> int:
 
 # ─── einops.rearrange replacement ─────────────────────────────────────────────
 
+_original_einops_rearrange = None
+
+
 def patch_einops() -> None:
     """Replace einops.rearrange with manual reshape/permute implementations.
     Covers the 3 patterns used in BiRefNet/ISNet decoders.
     """
+    global _original_einops_rearrange
     try:
         import einops
     except ImportError:
         return
+
+    if _original_einops_rearrange is None:
+        _original_einops_rearrange = einops.rearrange
 
     def manual_rearrange(x, pattern, **kwargs):
         hg = kwargs.get('hg', 2)
@@ -406,11 +413,24 @@ def patch_einops() -> None:
             BHW, C, h, w = x.shape
             B = BHW // (hg * wg)
             return x.view(B, hg, wg, C, h, w).permute(0, 3, 1, 4, 2, 5).contiguous().view(B, C, hg * h, wg * w)
+        elif _original_einops_rearrange is not None:
+            return _original_einops_rearrange(x, pattern, **kwargs)
         else:
             raise ValueError(f"Unsupported einops pattern: {pattern}")
 
     einops.rearrange = manual_rearrange
     log.info("Patched einops.rearrange → manual reshape/permute")
+
+
+def restore_einops() -> None:
+    """Restore original einops.rearrange if it was patched."""
+    if _original_einops_rearrange is None:
+        return
+    try:
+        import einops
+        einops.rearrange = _original_einops_rearrange
+    except ImportError:
+        pass
 
 
 # ─── Master apply ────────────────────────────────────────────────────────────
@@ -455,6 +475,9 @@ def restore_grid_sample():
 
 
 # ─── SafeLayerNorm — fp16-overflow-safe channel reduction ─────────────────────
+
+_original_layernorm_forward = nn.LayerNorm.forward
+
 
 def patch_safe_layernorm(scale: str = "adaptive_v2", fixed_s: float = 128.0) -> None:
     """Override nn.LayerNorm.forward with a down-scaled, numerically-exact reduction.
@@ -507,6 +530,11 @@ def patch_safe_layernorm(scale: str = "adaptive_v2", fixed_s: float = 128.0) -> 
 
     nn.LayerNorm.forward = safe_ln_forward
     log.info(f"Patched nn.LayerNorm → SafeLayerNorm (scale={scale})")
+
+
+def restore_safe_layernorm():
+    """Restore original nn.LayerNorm.forward."""
+    nn.LayerNorm.forward = _original_layernorm_forward
 
 
 # ─── ConvTranspose → zero-stuff conv (TRANSPOSE_CONV rejected on device) ──────
@@ -630,13 +658,15 @@ def patch_conv_transpose(model: nn.Module, dummy_input) -> int:
                     captured[layer_name] = inputs[0].shape
                 return hook
             hooks.append(module.register_forward_pre_hook(make_hook(name)))
-    with torch.no_grad():
-        if isinstance(dummy_input, (tuple, list)):
-            model(*dummy_input)
-        else:
-            model(dummy_input)
-    for hook in hooks:
-        hook.remove()
+    try:
+        with torch.no_grad():
+            if isinstance(dummy_input, (tuple, list)):
+                model(*dummy_input)
+            else:
+                model(dummy_input)
+    finally:
+        for hook in hooks:
+            hook.remove()
 
     count = 0
     for name, module in list(model.named_modules()):
@@ -863,3 +893,13 @@ def apply_all_patches(model: nn.Module, dummy_input=None) -> dict:
     summary['normalize'] = True
     summary['einops'] = True
     return summary
+
+
+def restore_all_patches() -> None:
+    """Restore all global monkey-patches on torch.nn.functional, nn.LayerNorm, and einops."""
+    restore_gelu()
+    restore_interpolate()
+    restore_normalize()
+    restore_grid_sample()
+    restore_einops()
+    restore_safe_layernorm()

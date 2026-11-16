@@ -1,0 +1,6 @@
+# Generated at build time; see the README
+ClickOrCode.xcodeproj/
+build/
+LiteRTLMRuntime/.build/
+LiteRTLMRuntime/.swiftpm/
+*.litertlm

@@ -1,0 +1,117 @@
+{
+ "pillow": "13.0.0",
+ "stretch": [
+  {
+   "w": 1920,
+   "h": 1080,
+   "sha256": "04b64000c852cd0f44cb992cae0c46bf119647ada0f7d109000227ff74269a51"
+  },
+  {
+   "w": 1080,
+   "h": 2400,
+   "sha256": "496292ba3b0429a925dcd509ee07533d80795245bcb502e9186f82e929f62417"
+  },
+  {
+   "w": 2560,
+   "h": 1440,
+   "sha256": "4305aae4e48a4d15d2d6e8fe3d073b05f1dcaacf30c383d6ca7db1f7ad1795ff"
+  },
+  {
+   "w": 1920,
+   "h": 1088,
+   "sha256": "3e18fd0fb78f357968fff5639f0db3c53a92736df7f554aeb7e422cad5655582"
+  },
+  {
+   "w": 800,
+   "h": 600,
+   "sha256": "d9887b6fab3ba5894c760e76e7e50e474edc0f48c4ffb1fb22be006b3f48f830"
+  },
+  {
+   "w": 390,
+   "h": 844,
+   "sha256": "3e852969b57d83559ecbe7e6140f58212db9c76bb3ad51a25860ad483d2a4e9d"
+  },
+  {
+   "w": 13,
+   "h": 31,
+   "sha256": "a2f2fd7d93f9cc4e3416d1f823296e0728fd4b968f17b23c26894422ebecf424"
+  },
+  {
+   "w": 6,
+   "h": 3,
+   "sha256": "d8b996fbcac481d9636947e3d971674f370284a987247176370f8292c7e0187b"
+  }
+ ],
+ "orient": [
+  {
+   "w": 5,
+   "h": 3,
+   "orientation": 2,
+   "out": [
+    5,
+    3
+   ],
+   "sha256": "cfc7b1adebe7e7de1fadbc047a2144eebbe247929bf0d46072130218a5a1dfdf"
+  },
+  {
+   "w": 5,
+   "h": 3,
+   "orientation": 3,
+   "out": [
+    5,
+    3
+   ],
+   "sha256": "cf79b7dab93e6621363be12dced2e9352089aefb008b203f6d1d046b062ee2fc"
+  },
+  {
+   "w": 5,
+   "h": 3,
+   "orientation": 4,
+   "out": [
+    5,
+    3
+   ],
+   "sha256": "249464eb03e07c009d098afa8a982d138e34b955f95e2bdde3a543f9c6cc514d"
+  },
+  {
+   "w": 5,
+   "h": 3,
+   "orientation": 5,
+   "out": [
+    3,
+    5
+   ],
+   "sha256": "c1ada83fd171c05c0deb9f2f074cbfa84fb839e0e7d17b9d9d6f50d427352f2f"
+  },
+  {
+   "w": 5,
+   "h": 3,
+   "orientation": 6,
+   "out": [
+    3,
+    5
+   ],
+   "sha256": "29a9b73e522141c447504d848012e8a1a33b6641ac819036db26b609c88128c5"
+  },
+  {
+   "w": 5,
+   "h": 3,
+   "orientation": 7,
+   "out": [
+    3,
+    5
+   ],
+   "sha256": "60a49d6db2a689cd8a980a2f1d57a15e014ffe3d5fa421841cfdb67c304fdf7d"
+  },
+  {
+   "w": 5,
+   "h": 3,
+   "orientation": 8,
+   "out": [
+    3,
+    5
+   ],
+   "sha256": "bef9a5f8f121484ab64ac3a36f5e54b1dd85859f0a2c58ff8d2e73f6d1f1f151"
+  }
+ ]
+}

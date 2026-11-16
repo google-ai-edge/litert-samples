@@ -100,8 +100,9 @@ def _resolve_inputs(signature_key, input_details, inputs, rng, distribution,
     names it covers.
     """
     if inputs:
-        chosen = inputs.get(signature_key, inputs)
-        if all(name in chosen for name in input_details):
+        sig_inputs = inputs.get(signature_key)
+        chosen = sig_inputs if isinstance(sig_inputs, dict) else inputs
+        if isinstance(chosen, dict) and all(name in chosen for name in input_details):
             return {name: np.asarray(chosen[name]) for name in input_details}
     return _random_inputs(input_details, rng, distribution, int_high)
 
@@ -153,9 +154,16 @@ class _CaptureStderr:
 
     def __enter__(self):
         self.tmp = tempfile.TemporaryFile(mode="w+b")
-        sys.stderr.flush()
-        self.saved = os.dup(2)
-        os.dup2(self.tmp.fileno(), 2)
+        self.saved = None
+        try:
+            sys.stderr.flush()
+            self.saved = os.dup(2)
+            os.dup2(self.tmp.fileno(), 2)
+        except Exception:
+            if self.saved is not None:
+                os.close(self.saved)
+            self.tmp.close()
+            raise
         return self
 
     def _read(self) -> str:
@@ -171,11 +179,15 @@ class _CaptureStderr:
         return b"".join(chunks).decode(errors="replace")
 
     def __exit__(self, *exc):
-        sys.stderr.flush()
-        os.dup2(self.saved, 2)
-        os.close(self.saved)
-        self.text = self._read()
-        self.tmp.close()
+        try:
+            sys.stderr.flush()
+            if self.saved is not None:
+                os.dup2(self.saved, 2)
+                os.close(self.saved)
+                self.saved = None
+            self.text = self._read()
+        finally:
+            self.tmp.close()
         # Replay so the runtime's log stays visible when it was wanted.
         if log.isEnabledFor(logging.DEBUG):
             sys.stderr.write(self.text)
@@ -183,7 +195,8 @@ class _CaptureStderr:
 
     def reasons(self) -> list:
         seen = []
-        for m in _RUNTIME_REASON.finditer(self._read()):
+        content = self.text if hasattr(self, "text") else self._read()
+        for m in _RUNTIME_REASON.finditer(content):
             line = m.group(0).strip()
             if line not in seen:
                 seen.append(line)

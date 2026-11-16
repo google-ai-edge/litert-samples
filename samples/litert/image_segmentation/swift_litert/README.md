@@ -29,8 +29,8 @@ The app uses a SwiftUI interface paired with a pure Swift implementation (`LiteR
 | **CameraManager** | `CameraManager.swift` | Manages AVFoundation camera capture session and frame streams |
 | **ImagePicker** | `ImagePicker.swift` | Wraps PHPickerViewController in UIViewControllerRepresentable for photo library access |
 | **ImageSegmentationApp** | `ImageSegmentationApp.swift` | Swift application entry point |
-| **LiteRT** (Swift Package Product) | `https://github.com/google-ai-edge/LiteRT` (`release/2.3.0`) | LiteRT Swift bindings and precompiled C framework |
-| **LiteRtMetalAccelerator** (Swift Package Product) | `https://github.com/google-ai-edge/LiteRT` (`release/2.3.0`) | Standalone Metal GPU accelerator framework embedded into `ImageSegmentation.app/Frameworks/` |
+| **LiteRT** (Swift Package Product) | `https://github.com/google-ai-edge/LiteRT-Swift` (`2.3.0`) | LiteRT Swift bindings and precompiled C framework |
+| **LiteRtMetalAccelerator** (Swift Package Product) | `https://github.com/google-ai-edge/LiteRT-Swift` (`2.3.0`) | Standalone Metal GPU accelerator framework embedded into `ImageSegmentation.app/Frameworks/` |
 
 ---
 
@@ -47,32 +47,30 @@ The app depends on the `LiteRT` and `LiteRtMetalAccelerator` Swift Package produ
 
 #### Option A: Using the Released LiteRT Swift Package (Default)
 
-The project is pre-configured to resolve the official LiteRT Swift release package:
-* **Repository URL:** `https://github.com/google-ai-edge/LiteRT`
-* **Dependency Rule:** Branch `release/2.3.0` (or exact version `2.3.0`)
+The project is pre-configured to resolve the official LiteRT Swift package from the [LiteRT-Swift](https://github.com/google-ai-edge/LiteRT-Swift) repository, a small repository that holds only the Swift package and downloads the prebuilt frameworks of the matching [LiteRT release](https://github.com/google-ai-edge/LiteRT/releases):
+* **Repository URL:** `https://github.com/google-ai-edge/LiteRT-Swift`
+* **Dependency Rule:** Up to Next Major Version, minimum `2.3.0` (package versions follow the LiteRT releases)
 * **Products:** `LiteRT`, `LiteRtMetalAccelerator`
 
 When you open `ImageSegmentation.xcodeproj` in Xcode or run `xcodebuild`, Swift Package Manager will automatically fetch and resolve the dependencies.
 
-> [!TIP]
-> **Git LFS Troubleshooting:** If Xcode reports an error during package checkout such as `smudge filter lfs failed` or `git-lfs: command not found`, run `git lfs uninstall` or build with `GIT_LFS_SKIP_SMUDGE=1`. The Swift package does not need Git LFS prebuilts. See the [LiteRT Swift Troubleshooting guide](https://github.com/google-ai-edge/LiteRT/tree/main/litert/swift#troubleshooting) for details.
-
 #### Option B: Building and Using Local Packages from Source
 
-If you are developing LiteRT locally or testing from source:
+If you are developing LiteRT locally or testing from source, use the development `Package.swift` at the root of the [LiteRT](https://github.com/google-ai-edge/LiteRT) repository, which resolves the frameworks from a local `prebuilt/` directory:
 1. Navigate to your local `LiteRT` checkout and build the `.xcframework` archives:
 ```bash
 # Navigate to the LiteRT repository
 cd path/to/LiteRT
 
 # Build the CLiteRT and standalone LiteRtMetalAccelerator xcframework targets for iOS
-bazel build -c opt //litert/swift:CLiteRT //litert/swift:LiteRtMetalAccelerator
+bazel build -c opt --config=ios --copt=-fembed-bitcode=off //litert/swift:CLiteRT //litert/swift:LiteRtMetalAccelerator
 
 # Copy the compiled xcframework archives into LiteRT/prebuilt/ for the Swift Package
 mkdir -p prebuilt
 cp -f bazel-bin/litert/swift/CLiteRT.xcframework.zip prebuilt/
 cp -f bazel-bin/litert/swift/LiteRtMetalAccelerator.xcframework.zip prebuilt/
 ```
+   The development manifest declares every archive of the package, so `prebuilt/` also needs the remaining ones (`CLiteRT_mac`, `CLiteRT_static`, `TensorFlowLiteC`). The [LiteRT Swift README](https://github.com/google-ai-edge/LiteRT/tree/main/litert/swift#populating-prebuilt) shows how to build them, or how to download all of them from a release instead.
 2. In Xcode, navigate to **ImageSegmentation** > **Package Dependencies**, remove the remote package, and add your local `LiteRT` directory via **File > Add Package Dependencies... > Add Local...**.
 
 ### 3. Download the Model File

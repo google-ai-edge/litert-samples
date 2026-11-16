@@ -87,7 +87,7 @@ export function sizeOf(name, source) {
     }
     return null;
 }
-export const bucketOf = size => (size == null ? SIZE_NONE.id : SIZE_BUCKETS.find(b => size <= b.max).id);
+export const bucketOf = size => (size == null || !Number.isFinite(size) || size < 0 ? SIZE_NONE.id : SIZE_BUCKETS.find(b => size <= b.max).id);
 
 // The `Link: <url>; rel="next"` header the Hub sends when a listing has another page.
 export function nextLink(header) {

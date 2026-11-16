@@ -150,7 +150,8 @@ def _load_weights() -> dict[str, torch.Tensor]:
         Dict of fp32 layer/norm weights plus 'heads' [15, 2048, 1024];
         also writes out/mtp/mtp_embeddings.npy [15, 2048, 1024].
     """
-    src = snapshot_download('Qwen/Qwen3-TTS-12Hz-0.6B-Base')
+    src = os.environ.get('QWEN3_TTS_SNAPSHOT') or snapshot_download(
+        'Qwen/Qwen3-TTS-12Hz-0.6B-Base')
     reader = safe_open(f'{src}/model.safetensors', framework='pt')
     prefix = 'talker.code_predictor.'
     weights = {}

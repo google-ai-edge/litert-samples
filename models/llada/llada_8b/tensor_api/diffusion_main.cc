@@ -45,7 +45,8 @@
 #include "tensor/runners/litert/litert_dynamic_runner.h"
 #include "tensor/tensor.h"
 
-ABSL_FLAG(int, layers, 4, "Backbone layers (28 = full 0.6B shape)");
+ABSL_FLAG(int, layers, 0,
+          "Backbone layers (0 = preset default: 32 for --llada, 4 otherwise)");
 ABSL_FLAG(bool, llada, false,
           "Use the LLaDA-8B-Base shape (d_model 4096, MHA 32/32, head 128, "
           "ffn 12288, rope 5e5, eps 1e-5, no QK norm, vocab 126464)");
@@ -155,12 +156,17 @@ absl::Status RunDiffusion() {
                                             : "")
               << ")" << std::endl;
   }
-  config.n_layers = absl::GetFlag(FLAGS_layers);
+  if (int l = absl::GetFlag(FLAGS_layers); l > 0) {
+    config.n_layers = l;
+  }
   config.seq_len = absl::GetFlag(FLAGS_seq_len);
   config.unmask_k = absl::GetFlag(FLAGS_unmask_k);
   if (int v = absl::GetFlag(FLAGS_vocab); v > 0) {
     config.vocab = v;
     config.mask_id = v - 1;
+  }
+  if (config.vocab <= 1) {
+    return absl::InvalidArgumentError("--vocab must be > 1");
   }
   const int prompt_len = absl::GetFlag(FLAGS_prompt_len);
   const int warmup = absl::GetFlag(FLAGS_warmup);
@@ -265,6 +271,10 @@ absl::Status RunDiffusion() {
     effective_prompt_len = static_cast<int>(parsed.size());
     std::copy(parsed.begin(), parsed.end(), ids.begin());
   } else {
+    if (prompt_len < 0 || prompt_len >= config.seq_len) {
+      return absl::InvalidArgumentError(
+          "--prompt_len must be >= 0 and < --seq_len");
+    }
     unsigned state = 7u;
     for (int i = 0; i < prompt_len; ++i) {
       state = state * 1664525u + 1013904223u;

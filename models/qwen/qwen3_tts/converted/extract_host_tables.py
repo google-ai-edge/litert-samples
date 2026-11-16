@@ -36,7 +36,8 @@ OUT = 'out/host'
 def main() -> None:
     """Saves the codec/text embedding and text projection tables."""
     os.makedirs(OUT, exist_ok=True)
-    src = snapshot_download('Qwen/Qwen3-TTS-12Hz-0.6B-Base')
+    src = os.environ.get('QWEN3_TTS_SNAPSHOT') or snapshot_download(
+        'Qwen/Qwen3-TTS-12Hz-0.6B-Base')
     reader = safe_open(f'{src}/model.safetensors', framework='pt')
 
     def get(key: str) -> np.ndarray:
