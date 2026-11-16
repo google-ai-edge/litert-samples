@@ -43,7 +43,7 @@ typedef DetectorVerification = ({
   VerifyReference reference,
 });
 
-/// The real runtime: `flutter_litert` 3.9.3.
+/// The real runtime: `flutter_litert` 4.1.1.
 final class LiteRtDetectorRuntime implements DetectorRuntime {
   const LiteRtDetectorRuntime();
 

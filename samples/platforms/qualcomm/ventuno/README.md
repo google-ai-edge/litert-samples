@@ -39,7 +39,7 @@ assistant. Everything runs on the board.
 dpkg --print-architecture                 # must print arm64
 sudo apt update
 sudo apt install --allow-downgrades libasound2t64/noble-updates libasound2-dev/noble-updates
-sudo apt install -y git curl unzip xz-utils patch clang cmake ninja-build pkg-config lld \
+sudo apt install -y git curl unzip xz-utils clang cmake ninja-build pkg-config lld \
   libgtk-3-dev liblzma-dev libstdc++-12-dev libgstreamer1.0-dev libgstreamer-plugins-base1.0-dev \
   libasound2-dev libturbojpeg python3-venv \
   libvulkan1 vulkan-tools pulseaudio-utils gstreamer1.0-plugins-base gstreamer1.0-plugins-good \
@@ -67,7 +67,6 @@ flutter --version                         # the first run downloads the Dart SDK
 ```sh
 git clone --depth 1 https://github.com/google-ai-edge/litert-samples.git ~/litert-samples
 cd ~/litert-samples/samples/litert/flutter
-tool/flutter_litert/vendor.sh
 ```
 
 ## 3. The built-in models
@@ -148,7 +147,6 @@ speaker; over SSH, install `xvfb` and put `xvfb-run -a` in front. In the app: **
 | The card does not offer the NPU: no `/dev/fastrpc-cdsp` | The kernel exposes no compute DSP: use the board's own Ubuntu image |
 | GPU and CPU are greyed out for `…_Qualcomm_QCS8275.litertlm` | It is compiled for the NPU and runs only there: for the CPU or the GPU use `gemma-4-E2B-it.litertlm` |
 | The build stops reading the QAIRT zip | No network to Qualcomm's download: download the QAIRT SDK zip once and set `qualcomm_npu_qairt_zip: /path/to/the.zip` next to `qualcomm_npu: true` in `pubspec.yaml` |
-| `flutter pub get` cannot find `third_party/flutter_litert` | Run `tool/flutter_litert/vendor.sh` (step 2) |
 | `No file or variants found for asset: assets/models/…` | Run `tool/fetch_models.sh` (step 3) |
 | `flutter build linux` fails linking `libFLAC` / `libvorbis` | Build with `NO_XIPH_LIBS=1` (step 4) |
 | After a failed build, `file INSTALL cannot copy file … to "/usr/local/…": Permission denied` | CMake kept a default install prefix from the failed run: `rm -r build/linux` and build again |

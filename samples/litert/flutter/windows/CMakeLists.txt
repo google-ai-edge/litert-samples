@@ -67,6 +67,11 @@ add_subdirectory(${FLUTTER_MANAGED_DIR})
 add_subdirectory("runner")
 
 
+# flutter_litert bundles no CompiledModel runtime (libLiteRt, its GPU
+# accelerator): the LiteRT-LM native bundle installs files of the same names
+# over them, and the detector runs on that copy.
+set(FLUTTER_LITERT_BUNDLE_DESKTOP_RUNTIME OFF)
+
 # Generated plugin build rules, which manage building the plugins and adding
 # them to the application.
 include(flutter/generated_plugins.cmake)

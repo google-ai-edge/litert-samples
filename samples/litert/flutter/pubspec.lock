@@ -406,10 +406,11 @@ packages:
   flutter_litert:
     dependency: "direct main"
     description:
-      path: "third_party/flutter_litert"
-      relative: true
-    source: path
-    version: "3.9.3"
+      name: flutter_litert
+      sha256: "0a47f5e2070c923550648fd92340b058b8e418e8590863e94d0686c2525a37c1"
+      url: "https://pub.dev"
+    source: hosted
+    version: "4.1.1"
   flutter_local_notifications:
     dependency: transitive
     description:

@@ -81,8 +81,5 @@ app.*.map.json
 .fvm/
 
 
-# flutter_litert + patch, recreated by tool/flutter_litert/vendor.sh
-/third_party/flutter_litert/
-
 # LLVM coverage output of flutter_tester runs
 *.profraw
