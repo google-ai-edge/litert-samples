@@ -150,9 +150,19 @@ class Weights {
       ABSL_CHECK(absl::SimpleAtoi(f[6], &e.scale_count));
       ABSL_CHECK(absl::SimpleAtoi(f[7], &e.block));
       ABSL_CHECK_LE(e.off + e.bytes, size_) << f[0];
+      ABSL_CHECK_LE(e.scale_off + e.scale_count * sizeof(float), size_) << f[0];
       entries_[f[0]] = e;
     }
   }
+
+  ~Weights() {
+    if (base_ != nullptr && size_ > 0) {
+      munmap(const_cast<std::byte*>(base_), size_);
+    }
+  }
+
+  Weights(const Weights&) = delete;
+  Weights& operator=(const Weights&) = delete;
 
   const T& Get(const std::string& name) {
     auto it = cache_.find(name);
@@ -229,6 +239,8 @@ struct Signature {
 };
 
 Signature Build(const Config& c, Weights& w, int seq, int cache, bool decode) {
+  ABSL_CHECK_GT(c.kv_heads, 0);
+  ABSL_CHECK_EQ(c.heads % c.kv_heads, 0);
   const int D = c.hidden, H = c.heads, KV = c.kv_heads, hd = c.head_dim, g = H / KV;
   T emb({.name = "embeddings", .type = Type::kFP32, .shape = {1, seq, D}});
   T pos({.name = "input_pos", .type = Type::kI32, .shape = {seq}});

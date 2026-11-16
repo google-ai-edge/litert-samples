@@ -63,8 +63,9 @@ def corr(a, b) -> float:
 def main() -> None:
     """Exports the codec decoder to .tflite and checks reference parity."""
     os.makedirs(OUT, exist_ok=True)
-    src = snapshot_download('Qwen/Qwen3-TTS-12Hz-0.6B-Base',
-                            allow_patterns=['speech_tokenizer/*'])
+    src = os.environ.get('QWEN3_TTS_SNAPSHOT') or snapshot_download(
+        'Qwen/Qwen3-TTS-12Hz-0.6B-Base',
+        allow_patterns=['speech_tokenizer/*'])
     src = f'{src}/speech_tokenizer'
     config = Qwen3TTSTokenizerV2Config.from_pretrained(src)
     model = Qwen3TTSTokenizerV2Model.from_pretrained(

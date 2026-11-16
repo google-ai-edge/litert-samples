@@ -46,6 +46,8 @@ absl::StatusOr<HostConsts> HostConsts::Load(const std::string& path) {
   }
   const uint8_t* base =
       st.mmaped ? st.databuffer_addr : st.storage.data();
+  const size_t buf_size =
+      st.mmaped ? st.databuffer_size : st.storage.size();
   auto get = [&](const std::string& key, size_t n,
                  std::vector<float>& out) -> absl::Status {
     safetensors::tensor_t t;
@@ -58,8 +60,14 @@ absl::StatusOr<HostConsts> HostConsts::Load(const std::string& path) {
           absl::StrCat("host consts: ", key, " must be fp32 with ", n,
                        " elements"));
     }
+    const size_t byte_len = n * sizeof(float);
+    if (t.data_offsets[0] > buf_size ||
+        byte_len > buf_size - t.data_offsets[0]) {
+      return absl::InvalidArgumentError(
+          absl::StrCat("host consts: ", key, " data_offsets out of bounds"));
+    }
     out.resize(n);
-    std::memcpy(out.data(), base + t.data_offsets[0], n * sizeof(float));
+    std::memcpy(out.data(), base + t.data_offsets[0], byte_len);
     return absl::OkStatus();
   };
   HostConsts c;
@@ -93,10 +101,11 @@ std::vector<float> PointsSparse(const HostConsts& c,
     const float xn = 2.0f * ((clicks[p].x + 0.5f) / image_size) - 1.0f;
     const float yn = 2.0f * ((clicks[p].y + 0.5f) / image_size) - 1.0f;
     const int label = clicks[p].label;
-    const std::vector<float>& emb = label == 1   ? c.point_embed1
-                                    : label == 2 ? c.point_embed2
-                                    : label == 3 ? c.point_embed3
-                                                 : c.point_embed0;
+    const std::vector<float>& emb =
+        label == 1 ? c.point_embed1
+        : (label == 2 && c.point_embed2.size() >= kHidden) ? c.point_embed2
+        : (label == 3 && c.point_embed3.size() >= kHidden) ? c.point_embed3
+                                                           : c.point_embed0;
     float* o = out.data() + p * kHidden;
     for (int i = 0; i < 128; ++i) {
       const float proj = kTwoPi * (xn * c.gaussian[i] + yn * c.gaussian[128 + i]);

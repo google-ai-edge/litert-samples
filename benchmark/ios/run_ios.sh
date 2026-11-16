@@ -43,7 +43,7 @@ fi
 xcrun devicectl device copy to --device "$DEVICE" --source "$MODEL" --destination "Documents/$(basename "$MODEL")" \
   --domain-type appDataContainer --domain-identifier "$BUNDLE_ID"
 xcrun devicectl device process launch --device "$DEVICE" --terminate-existing --console "$BUNDLE_ID" \
-  "--graph=$(basename "$MODEL")" --result_file_path=results.pb "$@" | tee "$JOB/console.log" || true
+  "--graph=$(basename "$MODEL")" --result_file_path=results.pb --model_runtime_info_output_file=runtime_info.pb "$@" | tee "$JOB/console.log" || true
 # The app writes Documents/benchmark.done (exit status) when the run ends; poll for it, then pull the files.
 done=0
 for _ in $(seq 1 $((WAIT_SECS / 5))); do
@@ -54,9 +54,14 @@ done
 if [ "$done" -ne 1 ]; then echo "no benchmark.done after ${WAIT_SECS}s; the run may still be going" >&2; exit 2; fi
 xcrun devicectl device copy from --device "$DEVICE" --source Documents/benchmark.log --destination "$JOB/stdout.txt" \
   --domain-type appDataContainer --domain-identifier "$BUNDLE_ID" >/dev/null || true
-xcrun devicectl device copy from --device "$DEVICE" --source Documents/results.pb --destination "$JOB/results.pb" \
-  --domain-type appDataContainer --domain-identifier "$BUNDLE_ID" >/dev/null || true
-echo "status: $(cat "$JOB/benchmark.done" 2>/dev/null || echo unknown)"
+STATUS="$(tr -d '[:space:]' < "$JOB/benchmark.done" 2>/dev/null || echo unknown)"
+if [ "$STATUS" = "0" ]; then
+  xcrun devicectl device copy from --device "$DEVICE" --source Documents/results.pb --destination "$JOB/results.pb" \
+    --domain-type appDataContainer --domain-identifier "$BUNDLE_ID" >/dev/null || true
+  xcrun devicectl device copy from --device "$DEVICE" --source Documents/runtime_info.pb --destination "$JOB/runtime_info.pb" \
+    --domain-type appDataContainer --domain-identifier "$BUNDLE_ID" >/dev/null 2>&1 || true
+fi
+echo "status: $STATUS"
 grep -E 'Inference \(avg\)|Model initialization|Overall footprint' "$JOB/stdout.txt" || true
 echo "session: $SESSION_DIR"
 echo "job: $JOB"

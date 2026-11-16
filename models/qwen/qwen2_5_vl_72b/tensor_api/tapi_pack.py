@@ -145,20 +145,21 @@ def main():
 
         for name, kind in names:
             w = get(name)
+            canon = ("model." + name[len(p):]) if name.startswith(p) else name
             if kind == "fp32" or w.ndim == 1:
                 d0, dn = put(w.astype(np.float32))
-                rows.append((name, "fp32", w.shape, d0, dn, 0, 0, 0))
+                rows.append((canon, "fp32", w.shape, d0, dn, 0, 0, 0))
             elif kind == "int4":
                 packed, scale = quant_bw4(w, a.block, stats)
                 d0, dn = put(packed)
                 s0, sn = put(scale)
-                rows.append((name, "bw4", w.shape, d0, dn, s0, scale.size, a.block))
+                rows.append((canon, "bw4", w.shape, d0, dn, s0, scale.size, a.block))
             elif kind == "int8":
                 q, scale = quant_pc8(w)
                 d0, dn = put(q)
                 s0, sn = put(scale)
-                rows.append((name, "pc8", w.shape, d0, dn, s0, scale.size, 0))
-            print(f"{name} {kind} {list(w.shape)}", flush=True)
+                rows.append((canon, "pc8", w.shape, d0, dn, s0, scale.size, 0))
+            print(f"{canon} {kind} {list(w.shape)}", flush=True)
     with open(os.path.join(a.out, "index.tsv"), "w") as f:
         for r in rows:
             f.write("\t".join([r[0], r[1], ",".join(str(x) for x in r[2])] + [str(x) for x in r[3:]]) + "\n")

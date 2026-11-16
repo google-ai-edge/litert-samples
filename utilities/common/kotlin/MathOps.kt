@@ -31,27 +31,38 @@ object MathOps {
 
     /** In-place, max-subtracted softmax over [logits]. Returns the same array. */
     fun softmaxInPlace(logits: FloatArray): FloatArray {
+        if (logits.isEmpty()) return logits
         var maxLogit = Float.NEGATIVE_INFINITY
         for (v in logits) {
             maxLogit = max(maxLogit, v)
+        }
+        if (!maxLogit.isFinite()) {
+            val uniform = 1f / logits.size
+            for (i in logits.indices) {
+                logits[i] = uniform
+            }
+            return logits
         }
         var sum = 0f
         for (i in logits.indices) {
             logits[i] = exp(logits[i] - maxLogit)
             sum += logits[i]
         }
-        for (i in logits.indices) {
-            logits[i] /= sum
+        if (sum > 0f) {
+            for (i in logits.indices) {
+                logits[i] /= sum
+            }
         }
         return logits
     }
 
     /** Index of the largest value, or -1 for an empty array. */
     fun argmax(values: FloatArray): Int {
-        var best = -1
-        var bestValue = Float.NEGATIVE_INFINITY
-        for (i in values.indices) {
-            if (values[i] > bestValue) {
+        if (values.isEmpty()) return -1
+        var best = 0
+        var bestValue = values[0]
+        for (i in 1 until values.size) {
+            if (values[i] > bestValue || bestValue.isNaN()) {
                 bestValue = values[i]
                 best = i
             }
@@ -67,8 +78,8 @@ object MathOps {
         val interWidth = max(0f, min(ax2, bx2) - max(ax1, bx1))
         val interHeight = max(0f, min(ay2, by2) - max(ay1, by1))
         val inter = interWidth * interHeight
-        val areaA = (ax2 - ax1) * (ay2 - ay1)
-        val areaB = (bx2 - bx1) * (by2 - by1)
+        val areaA = max(0f, ax2 - ax1) * max(0f, ay2 - ay1)
+        val areaB = max(0f, bx2 - bx1) * max(0f, by2 - by1)
         return inter / (areaA + areaB - inter + IOU_EPS)
     }
 

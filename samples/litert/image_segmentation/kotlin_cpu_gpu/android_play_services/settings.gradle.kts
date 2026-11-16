@@ -29,7 +29,10 @@ pluginManagement {
 }
 
 dependencyResolutionManagement {
-  repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS)
+  // The repositories below are the ones the app uses. PREFER_SETTINGS (instead of
+  // FAIL_ON_PROJECT_REPOS) keeps the build working when a build tool adds a repository to the
+  // projects, e.g. a CI system that builds the sample against a local copy of the SDK.
+  repositoriesMode.set(RepositoriesMode.PREFER_SETTINGS)
   repositories {
     google()
     mavenCentral()

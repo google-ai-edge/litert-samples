@@ -86,6 +86,7 @@ class ImageTensor(
             Fit.STRETCH -> {
                 val scaleX = width.toFloat() / bitmap.width
                 val scaleY = height.toFloat() / bitmap.height
+                canvas.drawColor(padColor)
                 matrix.setScale(scaleX, scaleY)
                 mapping = Mapping(scaleX, scaleY, 0f, 0f)
             }
