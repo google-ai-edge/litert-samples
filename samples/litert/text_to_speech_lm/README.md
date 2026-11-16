@@ -25,17 +25,24 @@ The first run downloads 1.9 GB of model files from [litert-community/Qwen3-TTS-1
 - `--greedy`: deterministic decoding. With `--talker fp32 --greedy` the pipeline reproduces the PyTorch reference implementation **token-for-token** (waveform correlation 1.0) — this is the correctness gate used during conversion.
 - `--talker int4` (default): the blockwise-int4 talker (256 MB vs 1.8 GB fp32). Its sampled output differs from fp32 but transcribes identically under an ASR round-trip check.
 
-## Android app (`kotlin_cpu/android`)
+## Android app (`kotlin_cpu/android` and `kotlin_npu/android`)
 
-A Kotlin port of the same host loop (Compiled Model API, CPU): byte-level BPE tokenizer (verified against reference token ids by a startup self-test, including Japanese input), memory-mapped fp16 embedding tables, the talker/MTP/codec loop with ping-pong KV-cache buffers (no per-step cache copies), and AudioTrack playback.
+A Kotlin port of the same host loop (Compiled Model API): byte-level BPE tokenizer (verified against reference token ids by a startup self-test, including Japanese input), memory-mapped fp16 embedding tables, the talker/MTP/codec loop with ping-pong KV-cache buffers (no per-step cache copies), and AudioTrack playback. `kotlin_npu/android` adds `CPU`, `GPU`, and Qualcomm `NPU` (`BuiltinNpuAcceleratorProvider` / `Accelerator.NPU`) selection directly in the UI.
 
 ```bash
+# CPU build:
 cd kotlin_cpu/android
 ./gradlew :app:installDebug        # or open in Android Studio
 ./install_to_device.sh             # downloads 1.9 GB from Hugging Face, adb-pushes it
+
+# Or NPU + GPU + CPU build (with optional QNN HTP libraries):
+cd kotlin_npu/android
+./fetch_qualcomm_library.sh
+./gradlew :app:installDebug -Pnpu.libs="$(pwd)/qnn_libs"
+./install_to_device.sh
 ```
 
-Launch the app, type text, pick a language, tap Speak.
+Launch the app, select an accelerator (`CPU`, `GPU`, or `NPU`), type text, pick a language, tap Speak.
 
 ## Performance
 
