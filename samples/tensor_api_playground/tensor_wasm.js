@@ -594,7 +594,8 @@ export function wrapLiteRTModule(module) {
               if (sigArgs[i] && sigArgs[i].storage === 'webgpu') {
                 const internalInput = compiledRunner.getInput(sigName, inputNames[i]);
                 const pointerId = internalInput.getWebGpuBuffer();
-                
+                if (internalInput.delete) internalInput.delete();
+
                 // Register the mapping inside the placeholder's Map
                 sigArgs[i]._aliasedBuffers.set(compiledRunner.getId(), pointerId);
                 

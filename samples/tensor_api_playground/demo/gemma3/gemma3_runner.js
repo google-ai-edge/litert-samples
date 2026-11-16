@@ -400,6 +400,10 @@ export class Gemma3Runner {
     // Parallel prefill: process all prompt tokens at once!
     const tokenVec = [];
     const seqLen = tokens.size ? tokens.size() : tokens.length;
+    if (seqLen === 0) {
+      console.warn('[Prefill] Empty token sequence; skipping prefill.');
+      return null;
+    }
     for (let i = 0; i < seqLen; ++i) {
       tokenVec.push(tokens.get ? tokens.get(i) : tokens[i]);
     }
@@ -549,6 +553,10 @@ export class Gemma3Runner {
       onToken(tokenStr);
       
       if (currentToken === 1 || currentToken === 105 || currentToken === 106) break;
+      if (this.cacheLen >= this.maxSeqLen) {
+        console.warn(`[Decode] KV cache full (${this.cacheLen}/${this.maxSeqLen}), stopping decode.`);
+        break;
+      }
       
       const tokenVec = [currentToken];
       const tokenEmbedding = embeddingLookupCpuFP32(tokenVec, this.embedTokensWeightsFP32, this.config.vocab_size, this.config.emb_dim);
