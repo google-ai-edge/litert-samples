@@ -75,8 +75,9 @@ export class SafetensorsLoader {
   }
 
   static getTensorData(header, dataBuffer, dataOffset, name) {
+    if (name === '__metadata__') return null;
     const info = header[name];
-    if (!info) return null;
+    if (!info || !Array.isArray(info.data_offsets) || !Array.isArray(info.shape)) return null;
     
     const [start, end] = info.data_offsets;
     const absoluteStart = dataOffset + start;
@@ -120,8 +121,9 @@ export class SafetensorsLoader {
    * @return {!Object|null} The created LiteRT Tensor, or null if not found.
    */
   static async getTensor(litert, header, dataBuffer, dataOffset, name) {
+    if (name === '__metadata__') return null;
     const info = header[name];
-    if (!info) return null;
+    if (!info || !Array.isArray(info.data_offsets) || !Array.isArray(info.shape)) return null;
     
     const [start, end] = info.data_offsets;
     const absoluteStart = dataOffset + start;
@@ -181,21 +183,7 @@ export class SafetensorsLoader {
       
     } else if (type === 'FP32' && !convertFromBF16) {
       const srcArray = new Float32Array(dataBuffer.buffer, absoluteStart, s);
-      
-      if (name.endsWith('.weight') && (name.includes('norm') || name.includes('layernorm'))) {
-        console.warn(`[Safetensors] ADDED 1.0 to norm weight: ${name}`);
-        console.warn(`WASM ${name} weights (first 5, BEFORE +1.0):`, srcArray.subarray(0, 5));
-        const modified = new Float32Array(srcArray);
-        for (let k = 0; k < s; ++k) {
-          modified[k] += 1.0;
-        }
-        console.warn(`WASM ${name} weights (first 5, WITH +1.0):`, modified.subarray(0, 5));
-        await tensor['setData'](modified);
-      } else {
-
-
-        await tensor['setData'](srcArray);
-      }
+      await tensor['setData'](srcArray);
     }
  else if (type === 'FP32' && convertFromBF16) {
 

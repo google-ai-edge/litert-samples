@@ -79,6 +79,7 @@ class LiteRTRunner {
     if (Array.isArray(data)) {
       const tensor = this.getInput(name);
       const type = tensor.getType();
+      if (tensor.delete) tensor.delete();
       const typeVal = type.value !== undefined ? type.value : type;
       let typedArray;
       switch (typeVal) {
@@ -144,6 +145,7 @@ class LiteRtMultiSignatureRunner {
     if (Array.isArray(data)) {
       const tensor = this.getInput(signatureName, name);
       const type = tensor.getType();
+      if (tensor.delete) tensor.delete();
       const typeVal = type.value !== undefined ? type.value : type;
       let typedArray;
       switch (typeVal) {
@@ -424,6 +426,7 @@ export function wrapLiteRTModule(module) {
           if (args[i] && args[i].storage === 'webgpu') {
             const internalInput = compiledRunner.getInput(inputNames[i]);
             const pointerId = internalInput.getWebGpuBuffer();
+            if (internalInput.delete) internalInput.delete();
             
             // Register the mapping inside the placeholder's Map
             args[i]._aliasedBuffers.set(compiledRunner.getId(), pointerId);
@@ -456,7 +459,9 @@ export function wrapLiteRTModule(module) {
     jittedFn.getInputName = (index) => `jit_input_${index}`;
     jittedFn.compile = async function(...sampleArgs) {
       if (compiledRunner) return;
-      await jittedFn(...sampleArgs);
+      const out = await jittedFn(...sampleArgs);
+      if (Array.isArray(out)) out.forEach(t => t && t.delete && t.delete());
+      else if (out && out.delete) out.delete();
     };
 
     return jittedFn;
@@ -589,7 +594,8 @@ export function wrapLiteRTModule(module) {
               if (sigArgs[i] && sigArgs[i].storage === 'webgpu') {
                 const internalInput = compiledRunner.getInput(sigName, inputNames[i]);
                 const pointerId = internalInput.getWebGpuBuffer();
-                
+                if (internalInput.delete) internalInput.delete();
+
                 // Register the mapping inside the placeholder's Map
                 sigArgs[i]._aliasedBuffers.set(compiledRunner.getId(), pointerId);
                 

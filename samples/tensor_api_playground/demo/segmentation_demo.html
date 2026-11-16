@@ -104,7 +104,9 @@
       await preprocess.compile(rawImage, scaleTensor, offsetTensor);
 
       infoDiv.textContent = "Compiling post-processing pipeline...";
-      await postprocess.compile(coreRunner.getOutput(0), colors);
+      const warmupOutput = coreRunner.getOutput(0);
+      await postprocess.compile(warmupOutput, colors);
+      if (warmupOutput && warmupOutput.delete) warmupOutput.delete();
 
       // 6. Extract the persistent WebGPU input buffer using the elegant placeholder API
       const dstBufferPre = rawImage.getWebGpuBuffer();
@@ -241,6 +243,10 @@
 
 
           const gpuBuffer = postOutputTensor.getWebGpuBuffer();
+          if (preOutputTensor && preOutputTensor.delete) preOutputTensor.delete();
+          if (coreInputTensor && coreInputTensor.delete) coreInputTensor.delete();
+          if (coreOutputTensor && coreOutputTensor.delete) coreOutputTensor.delete();
+          if (postOutputTensor && postOutputTensor.delete) postOutputTensor.delete();
 
           const textureView = gpu_context.getCurrentTexture().createView();
 

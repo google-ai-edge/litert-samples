@@ -249,11 +249,17 @@ async function compileAndWarm(acc) {
     const gray = new Float32Array(3 * SIZE * SIZE).fill(0.5);
     const start = performance.now();
     await infer(gray);
+    if (prevModel && prevModel !== model && typeof prevModel.delete === 'function') {
+      prevModel.delete();
+    }
     const warmSeconds = (performance.now() - start) / 1000;
     envEl.textContent = `${MODEL_NAME} ${acc === 'webgpu' ? 'fp16' : 'fp32'} · ${envLabel()} · warm-up ${warmSeconds.toFixed(1)} s`;
     envEl.style.display = 'block';
     backendEl.textContent = `${envLabel()} · your device`;
   } catch (err) {
+    if (model && model !== prevModel && typeof model.delete === 'function') {
+      model.delete();
+    }
     accelerator = prevAccelerator;
     model = prevModel;
     for (const b of backendButtons) {
@@ -463,6 +469,7 @@ function buildCloud(points, mask, rgba, valid) {
     ys.push(y);
     zs.push(z);
   }
+  if (keptPositions.length === 0) throw new Error('no confident points within depth range in this photo');
 
   // Robust screen-plane framing from medians (ignores the smeared
   // silhouette rim and stray points). The orbit pivots on this center so the

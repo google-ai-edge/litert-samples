@@ -166,7 +166,7 @@ logTensor(runner.getOutput("out"), "Addition Result");
 
   <script src="tensor_wasm_internal.js"></script>
   <script type="module">
-    import { createLiteRT } from '../tensor_wasm.js';
+    import { createLiteRT } from './tensor_wasm.js';
 
     let litert = null;
     const initStatus = document.getElementById('initStatus');
