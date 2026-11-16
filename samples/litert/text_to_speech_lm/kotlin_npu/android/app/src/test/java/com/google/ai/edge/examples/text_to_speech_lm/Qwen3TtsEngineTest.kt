@@ -43,4 +43,25 @@ class Qwen3TtsEngineTest {
     assertTrue(Qwen3TtsEngine.LANGUAGE_IDS.containsKey("english"))
     assertEquals(2050, Qwen3TtsEngine.LANGUAGE_IDS["english"])
   }
+
+  @Test
+  fun effectiveDelegate_routesNpuAndGpuSafely() {
+    val npu = Qwen3TtsEngine.AcceleratorEnum.NPU
+    val gpu = Qwen3TtsEngine.AcceleratorEnum.GPU
+    val cpu = Qwen3TtsEngine.AcceleratorEnum.CPU
+
+    assertEquals(cpu, Qwen3TtsEngine.effectiveDelegate("talker_int4.tflite", npu))
+    assertEquals(cpu, Qwen3TtsEngine.effectiveDelegate("talker_int4.tflite", gpu))
+    assertEquals(cpu, Qwen3TtsEngine.effectiveDelegate("mtp_folded_int8.tflite", npu))
+    assertEquals(cpu, Qwen3TtsEngine.effectiveDelegate("mtp_folded_int8.tflite", gpu))
+    assertEquals(cpu, Qwen3TtsEngine.effectiveDelegate("mtp_fp32.tflite", npu))
+
+    assertEquals(npu, Qwen3TtsEngine.effectiveDelegate("codec_partA.tflite", npu))
+    assertEquals(gpu, Qwen3TtsEngine.effectiveDelegate("codec_partA.tflite", gpu))
+
+    assertEquals(cpu, Qwen3TtsEngine.effectiveDelegate("codec_partB.tflite", npu))
+    assertEquals(gpu, Qwen3TtsEngine.effectiveDelegate("codec_partB.tflite", gpu))
+    assertEquals(cpu, Qwen3TtsEngine.effectiveDelegate("codec_decoder_fp32.tflite", npu))
+    assertEquals(gpu, Qwen3TtsEngine.effectiveDelegate("codec_decoder_fp32.tflite", gpu))
+  }
 }

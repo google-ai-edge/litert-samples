@@ -102,6 +102,31 @@ class Qwen3TtsEngine(
             }
         }
 
+        /**
+         * Returns the effective accelerator for [modelName] given [requested] mode.
+         *
+         * Only compatible subgraphs stay off-CPU so switching to NPU or GPU never
+         * triggers QNN JIT OOM crashes, OpenCL segfaults, or broken MTP convergence:
+         * - `talker_int4.tflite` (blockwise-32 int4) is unsupported by QNN and segfaults in LITERT_CL.
+         * - `mtp_folded_int8.tflite` / `mtp_fp32.tflite` fragment across NPU/GPU (31/182 partitions,
+         *   1.2 GB cache / 1.7 GB dmabuf on NPU and broken EOS convergence), so MTP runs on CPU.
+         * - `codec_partB.tflite` / `codec_decoder_fp32.tflite` are large FP32 ConvNets whose QNN JIT
+         *   compilation exhausts RAM/swap (`SIGABRT` / `lmkd`); they run on GPU or CPU XNNPACK FP16.
+         * - `codec_partA.tflite` delegates cleanly on NPU (606/610 ops) and GPU.
+         */
+        fun effectiveDelegate(
+            modelName: String,
+            requested: AcceleratorEnum,
+        ): AcceleratorEnum = when (modelName) {
+            "talker_int4.tflite",
+            "mtp_folded_int8.tflite",
+            "mtp_fp32.tflite" -> AcceleratorEnum.CPU
+            "codec_partB.tflite",
+            "codec_decoder_fp32.tflite" ->
+                if (requested == AcceleratorEnum.NPU) AcceleratorEnum.CPU else requested
+            else -> requested
+        }
+
         fun createEnvironment(context: Context, delegate: AcceleratorEnum): Environment {
             val appContext = context.applicationContext
             if (delegate != AcceleratorEnum.NPU) {
@@ -141,11 +166,13 @@ class Qwen3TtsEngine(
     private fun load(name: String, threads: Int, xnnPackFlags: Int? = null): CompiledModel {
         val f = File(dir, name)
         check(f.exists()) { "Model not found: $name — run install_to_device.sh" }
-        when (delegate) {
+        val target = effectiveDelegate(name, delegate)
+        Log.i(TAG, "load $name -> $target (requested $delegate)")
+        when (target) {
             AcceleratorEnum.NPU -> {
                 try {
                     val npuOptions =
-                        CompiledModel.Options(Accelerator.NPU).apply {
+                        CompiledModel.Options(Accelerator.NPU, Accelerator.CPU).apply {
                             qualcommOptions =
                                 CompiledModel.QualcommOptions(
                                     htpPerformanceMode =
@@ -159,7 +186,7 @@ class Qwen3TtsEngine(
             }
             AcceleratorEnum.GPU -> {
                 try {
-                    val gpuOptions = CompiledModel.Options(Accelerator.GPU)
+                    val gpuOptions = CompiledModel.Options(Accelerator.GPU, Accelerator.CPU)
                     return CompiledModel.create(f.absolutePath, gpuOptions, env)
                 } catch (e: Exception) {
                     Log.w(TAG, "GPU refused $name, falling back to CPU", e)
