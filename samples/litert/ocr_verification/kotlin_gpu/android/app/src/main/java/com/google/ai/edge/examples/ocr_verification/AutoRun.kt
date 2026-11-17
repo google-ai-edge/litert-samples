@@ -45,12 +45,15 @@ import org.json.JSONObject
  *   (raw little-endian arrays) and both scores under `files/check/<case>/out/`.
  *
  * With `dump`, an example or photo run also writes each line's region, render, text and graph
- * inputs under `files/check/run_<photo>/line<k>/`. Every run writes its numbers to `files/runs/`
- * and to the log (tag `OcrCheck`).
+ * inputs under `files/check/run_<photo>/line<k>/`. `--ez check false` turns the model's check off
+ * before the run (every line is accepted as the recognizer read it) and `--ez check true` turns it
+ * on; the switch keeps the setting. Every run writes its numbers to `files/runs/` and to the log
+ * (tag `OcrCheck`).
  */
 object AutoRun {
   const val EXTRA = "run"
   const val EXTRA_DUMP = "dump"
+  const val EXTRA_CHECK = "check"
 
   fun wants(intent: Intent?): Boolean = intent?.getStringExtra(EXTRA) != null
 
@@ -66,9 +69,12 @@ object AutoRun {
   fun start(activity: MainActivity, intent: Intent) {
     val what = intent.getStringExtra(EXTRA) ?: return
     val dump = intent.getBooleanExtra(EXTRA_DUMP, false)
+    val check = if (intent.hasExtra(EXTRA_CHECK)) intent.getBooleanExtra(EXTRA_CHECK, true) else null
     // a re-created activity (rotation, process kept) must not run it again
     intent.removeExtra(EXTRA)
-    Log.i(MainActivity.TAG, "AUTORUN $what dump=$dump")
+    intent.removeExtra(EXTRA_CHECK)
+    Log.i(MainActivity.TAG, "AUTORUN $what dump=$dump check=$check")
+    check?.let { activity.setCheck(it, scoreNow = false) }
     val done: () -> Unit = { Log.i(MainActivity.TAG, "AUTORUN done $what") }
     when {
       what == "start" -> {
