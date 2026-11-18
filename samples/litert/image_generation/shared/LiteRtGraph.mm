@@ -42,6 +42,11 @@
 #include <CLiteRT/litert_tensor_buffer.h>
 #include <CLiteRT/litert_tensor_buffer_requirements.h>
 #include <CLiteRT/litert_tensor_buffer_types.h>
+#include <CLiteRT/litert_cpu_options.h>
+// The CPU accelerator looks its options up by a name that differs across
+// LiteRT versions, so take it from the runtime ("cpu_options" at the LiteRT
+// commit prep_clitert.sh pins).
+#define BONSAI_CPU_OPTIONS_ID LrtGetCpuOptionsIdentifier()
 #else
 #include "litert/c/litert_common.h"
 #include "litert/c/litert_any.h"
@@ -55,6 +60,9 @@
 #include "litert/c/litert_tensor_buffer.h"
 #include "litert/c/litert_tensor_buffer_requirements.h"
 #include "litert/c/litert_tensor_buffer_types.h"
+// The ai-edge-litert 2.1.6 runtime exports no Lrt*Options helpers; its CPU
+// accelerator reads the options under "xnnpack".
+#define BONSAI_CPU_OPTIONS_ID "xnnpack"
 #endif
 
 static NSError *MakeError(NSString *what, LiteRtStatus status) {
@@ -139,9 +147,10 @@ static size_t LayoutBytes(const LiteRtLayout &layout, size_t elemSize) {
               _options, useGpu ? (kLiteRtHwAcceleratorGpu | kLiteRtHwAcceleratorCpu)
                                : kLiteRtHwAcceleratorCpu),
           @"SetHardwareAccelerators");
-  // The prebuilt runtime does not export the Lrt*Options helpers; the
-  // accelerators parse the opaque payload as TOML (precision 2 = fp32).
-  const char *ident = useGpu ? "gpu_options" : "xnnpack";
+  // The accelerators parse the opaque payload as TOML (precision 2 = fp32).
+  // A CPU payload under a name the runtime does not read is dropped without
+  // an error, so the thread count would not apply.
+  const char *ident = useGpu ? "gpu_options" : BONSAI_CPU_OPTIONS_ID;
   std::string toml = useGpu ? "precision = 2\n"
                             : "num_threads = " + std::to_string(threads) + "\n";
   LiteRtOpaqueOptions opaque = nullptr;

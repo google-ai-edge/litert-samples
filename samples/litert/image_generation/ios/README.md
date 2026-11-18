@@ -41,7 +41,7 @@ No LiteRT code is committed in this sample: the app links the official `CLiteRT.
 ## How It Works
 
 - **Tokenization**: the graph input is `[<|im_start|>]` + BPE(`"user\n"` + prompt) + a fixed assistant suffix — structurally identical to `transformers.apply_chat_template(..., enable_thinking=False)`. The `"user\n"` prefix must be BPE'd together with the prompt: a prompt starting with whitespace merges tokens across that boundary.
-- **Threads via the `"xnnpack"` opaque option**: the CompiledModel CPU accelerator applies XNNPACK itself (unlike the bare classic C API, whose reference-kernel fallback is ~100× slower and numerically wrong on blockwise int4); the thread count is passed as a TOML opaque option (`num_threads = 6`).
+- **Threads via the CPU accelerator's opaque option**: the CompiledModel CPU accelerator applies XNNPACK itself (unlike the bare classic C API, whose reference-kernel fallback is ~100× slower and numerically wrong on blockwise int4); the thread count is passed as a TOML opaque option (`num_threads = 6`) under the name the runtime reports, `LrtGetCpuOptionsIdentifier()` (`"cpu_options"` at the LiteRT commit `prep_clitert.sh` pins). The runtime drops an option under a name it does not read without an error, and XNNPACK then runs on one thread.
 - **Host math**: the FlowMatch-Euler update, the empirical-mu sigma schedule, and the BatchNorm-affine + 2×2 unpatchify were ported from the Python sample ([`models/bonsai/bonsai_image_4b`](../../../../models/bonsai/bonsai_image_4b)) and verified against recorded pipeline fixtures (Euler+unpatchify max error 9.5e-7).
 - **Model file names**: resolved from `pipeline_meta.json` with a `_fixed` fallback.
 
@@ -59,5 +59,5 @@ Conversion recipe: [`models/bonsai/bonsai_image_4b/converted`](../../../../model
 
 | Environment | DiT step | total (4 steps, 512×512) |
 |---|---|---|
-| iPhone 17 Pro (CPU/XNNPACK, 6 threads) | 13 s | ~64 s, ~2.9 GiB peak |
+| iPhone 18 Pro (CPU/XNNPACK, 6 threads) | 10.2–10.6 s | ~48 s, ~2.9 GiB peak |
 | iOS Simulator on Apple silicon | 6.6 s | ~36 s |
