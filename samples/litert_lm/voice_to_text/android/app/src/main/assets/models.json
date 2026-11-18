@@ -1,0 +1,25 @@
+{
+  "schemaVersion": 1,
+  "models": [
+    {
+      "id": "granite-speech",
+      "role": "Speech to text in English, French, German, Spanish, Portuguese and Japanese, and speech translation into English",
+      "model": "granite-speech-5.0-2b (_ekv2048: int8 language model, float16 audio encoder, both on the GPU)",
+      "runtime": "litert_lm",
+      "backend": "gpu",
+      "files": [
+        {
+          "name": "granite-speech-5.0-2b_ekv2048.litertlm",
+          "url": "https://huggingface.co/litert-community/granite-speech-5.0-2b/resolve/53f901f06adfaa8ae2fde47d8ce479e33ce3fb8d/granite-speech-5.0-2b_ekv2048.litertlm",
+          "bytes": 2824395760,
+          "sha256": "bf8eb5a8075b4fd3cdb1109a9edf0c247ff2bfb52b95699c31626aae80f3a642"
+        }
+      ],
+      "license": {
+        "name": "Apache-2.0",
+        "url": "https://huggingface.co/litert-community/granite-speech-5.0-2b/blob/53f901f06adfaa8ae2fde47d8ce479e33ce3fb8d/README.md"
+      },
+      "modelCard": "https://huggingface.co/litert-community/granite-speech-5.0-2b"
+    }
+  ]
+}
