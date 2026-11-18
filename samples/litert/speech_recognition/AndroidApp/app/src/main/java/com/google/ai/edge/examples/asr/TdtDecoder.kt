@@ -63,32 +63,147 @@ class TdtDecoder(private val compiledModel: CompiledModel, private val modelConf
     compiledModel.getInputTensorType(inputBufferName(2), DECODE_SIGNATURE).numElements
 
   override fun decode(encodeOutputBuffers: List<TensorBuffer>): Sequence<Pair<Int, Int>> =
-    sequence {
-      // Clear the states as initial states are all zeros.
-      val zeroStates = FloatArray(numOfStates) { 0.0f }
-      statesBuffers[inputStatesBuffersIndex].forEach { it.writeFloat(zeroStates) }
+    decode(encodeOutputBuffers, SpeechRecognizer.ALL_SAMPLES)
 
+  override fun decode(
+    encodeOutputBuffers: List<TensorBuffer>,
+    numOfValidSamples: Int,
+  ): Sequence<Pair<Int, Int>> = sequence {
+    // Clear the states as initial states are all zeros.
+    val zeroStates = FloatArray(numOfStates) { 0.0f }
+    statesBuffers[inputStatesBuffersIndex].forEach { it.writeFloat(zeroStates) }
+
+    // Stop past the encoder frames of the audio, not at the end of the zeros padding the window.
+    val hopLength = modelConfig.logMelSpectro?.hopLength
+    val timeLimit =
+      if (hopLength != null) getTimeLimit(numOfValidSamples, hopLength, maxTimeIndex)
+      else maxTimeIndex
+
+    yieldAll(
+      greedyDecode(
+        network(encodeOutputBuffers),
+        maxTimeIndex,
+        timeLimit,
+        numOfTokenIds,
+        numOfLogitsPerToken,
+        blankTokenId,
+        modelConfig.decodeStartTokenId,
+        hasDecode1,
+      )
+    )
+  }
+
+  /** The decode and decode_1 signatures, run on the encoder output of one window. */
+  private fun network(encodeOutputBuffers: List<TensorBuffer>) =
+    object : Network {
+      override fun run(signature: String, tokenIds: IntArray): FloatArray {
+        val isDecode1 = signature == DECODE_1_SIGNATURE
+        val tokenIdsBuffer = if (isDecode1) inputBuffersOfDecode1!![1] else inputBuffers[1]
+        val logitsBuffer = if (isDecode1) outputBuffersOfDecode1!![0] else outputBuffers[0]
+        tokenIdsBuffer.writeInt(tokenIds)
+
+        compiledModel.run(
+          getInputBuffers(encodeOutputBuffers, tokenIdsBuffer),
+          getOutputBuffers(logitsBuffer),
+          signature,
+        )
+
+        return logitsBuffer.readFloat()
+      }
+
+      override fun adoptStates() {
+        // Swap the input and output state buffers.
+        inputStatesBuffersIndex = 1 - inputStatesBuffersIndex
+      }
+    }
+
+  private fun getInputBuffers(
+    encodeOutputBuffers: List<TensorBuffer>,
+    tokenIdsBuffer: TensorBuffer,
+  ) =
+    buildList<TensorBuffer> {
+      // Avoid copy. Build a list of TensorBuffers directly from the encoder output buffers.
+      addAll(encodeOutputBuffers)
+      add(tokenIdsBuffer)
+      addAll(statesBuffers[inputStatesBuffersIndex])
+    }
+
+  private fun getOutputBuffers(logitsBuffer: TensorBuffer) =
+    listOf(logitsBuffer) + statesBuffers[1 - inputStatesBuffersIndex]
+
+  /** The decode and decode_1 signatures as [greedyDecode] runs them. */
+  @VisibleForTesting
+  internal interface Network {
+    /** Runs [signature] on [tokenIds] and returns its logits for every time index and token. */
+    fun run(signature: String, tokenIds: IntArray): FloatArray
+
+    /** Makes the LSTM states the last [run] wrote the input states of the next [run]. */
+    fun adoptStates()
+  }
+
+  companion object {
+    private const val DECODE_SIGNATURE = LiteRtRunner.DECODE_SIGNATURE
+    @VisibleForTesting internal const val DECODE_1_SIGNATURE = "decode_1"
+
+    // Hardcoded because CompileModel doesn't expose shape info.
+    private const val NUM_FEATURES = 1024
+    @VisibleForTesting internal const val NUM_DURATIONS = 5
+
+    /**
+     * Non-blank tokens decoded at one time index before moving to the next one, as
+     * max_symbols_per_step (10 by default) in NeMo's greedy TDT decoding.
+     */
+    @VisibleForTesting internal const val MAX_SYMBOLS_PER_STEP = 10
+
+    /** The encoder subsamples the feature frames by 8 (FastConformer). */
+    private const val SUBSAMPLING_FACTOR = 8
+
+    /** Time indices decoded past the last one the audio of a window reaches. */
+    private const val TIME_LIMIT_MARGIN = 4
+
+    private fun inputBufferName(index: Int) = LiteRtRunner.inputBufferName(index)
+
+    private fun outputBufferName(index: Int) = LiteRtRunner.outputBufferName(index)
+
+    /**
+     * Returns the time index the decoding of a window stops before when only its first
+     * [numOfValidSamples] samples carry audio: [TIME_LIMIT_MARGIN] past the encoder frames of their
+     * feature frames, at most [maxTimeIndex].
+     */
+    @VisibleForTesting
+    internal fun getTimeLimit(numOfValidSamples: Int, hopLength: Int, maxTimeIndex: Int): Int {
+      val numOfValidFrames = numOfValidSamples / hopLength
+      val numOfValidTimeIndices = (numOfValidFrames + SUBSAMPLING_FACTOR - 1) / SUBSAMPLING_FACTOR
+      return minOf(maxTimeIndex, numOfValidTimeIndices + TIME_LIMIT_MARGIN)
+    }
+
+    /**
+     * Greedy TDT decoding of one window: yields (token ID, time index) for every non-blank token
+     * before [timeLimit], then (END_OF_SEQUENCE, [maxTimeIndex]).
+     */
+    @VisibleForTesting
+    internal fun greedyDecode(
+      network: Network,
+      maxTimeIndex: Int,
+      timeLimit: Int,
+      numOfTokenIds: Int,
+      numOfLogitsPerToken: Int,
+      blankTokenId: Int,
+      decodeStartTokenId: Int,
+      hasDecode1: Boolean,
+    ): Sequence<Pair<Int, Int>> = sequence {
       // Start inference with decode signature for better quality in sequence start as stateless
       // decoding can keep context better than decode_1, stateful decoding.
       var inferenceSignature = DECODE_SIGNATURE
       var numOfInferenceTokenIds = numOfTokenIds
-      var inferenceTokenIdsBuffer = inputBuffers[1]
       var inferenceTokenIds = IntArray(numOfTokenIds) { 0 }
-      inferenceTokenIds[0] = modelConfig.decodeStartTokenId
-      var inferenceLogitsBuffer = outputBuffers[0]
+      inferenceTokenIds[0] = decodeStartTokenId
 
       var tokenIndex: Int = 0
       var timeIndex: Int = 0
-      while (timeIndex < maxTimeIndex) {
-        inferenceTokenIdsBuffer.writeInt(inferenceTokenIds)
-
-        compiledModel.run(
-          getInputBuffers(encodeOutputBuffers, inferenceTokenIdsBuffer),
-          getOutputBuffers(inferenceLogitsBuffer),
-          inferenceSignature,
-        )
-
-        val logits = inferenceLogitsBuffer.readFloat()
+      var numOfSymbolsAtTimeIndex = 0
+      while (timeIndex < timeLimit) {
+        val logits = network.run(inferenceSignature, inferenceTokenIds)
         val startIndexInCurrentTimeIndex = timeIndex * numOfInferenceTokenIds * numOfLogitsPerToken
         // Do argmax among the logits of the current token.
         val startIndexOfTokenId = startIndexInCurrentTimeIndex + tokenIndex * numOfLogitsPerToken
@@ -109,9 +224,7 @@ class TdtDecoder(private val compiledModel: CompiledModel, private val modelConf
             } else if (hasDecode1) { // Switch to decode_1 for stateful decoding.
               inferenceSignature = DECODE_1_SIGNATURE
               numOfInferenceTokenIds = 1
-              inferenceTokenIdsBuffer = inputBuffersOfDecode1!![1]
               inferenceTokenIds = IntArray(1) { 0 }
-              inferenceLogitsBuffer = outputBuffersOfDecode1!![0]
               tokenIndex = 0
             } else { // Stateless decoding reached the max token size.
               break
@@ -124,43 +237,28 @@ class TdtDecoder(private val compiledModel: CompiledModel, private val modelConf
           ((endIndexOfTokenId until endIndexOfDuration).maxByOrNull { logits[it] }
             ?: endIndexOfTokenId) - endIndexOfTokenId
         timeIndex += if (duration == 0 && tokenId == blankTokenId) 1 else duration
+        if (tokenId != blankTokenId && duration == 0) {
+          // A non-blank token with duration 0 keeps the time index, and the model can predict one
+          // again and again: move to the next time index after MAX_SYMBOLS_PER_STEP of them.
+          numOfSymbolsAtTimeIndex++
+          if (numOfSymbolsAtTimeIndex == MAX_SYMBOLS_PER_STEP) {
+            timeIndex++
+            numOfSymbolsAtTimeIndex = 0
+          }
+        } else {
+          numOfSymbolsAtTimeIndex = 0
+        }
 
         if (numOfInferenceTokenIds == 1 && tokenId != blankTokenId) {
-          // Stateful RNN decoder: adopt the new LSTM states by swapping the
-          // input and output state buffers — but only on a non-blank emission.
+          // Stateful RNN decoder: adopt the new LSTM states — but only on a non-blank emission.
           // In RNN-T greedy decoding the prediction network advances only when
           // a token is emitted; adopting the state on blank steps re-consumes
           // the last token once per blank and degrades the transcript.
-          inputStatesBuffersIndex = 1 - inputStatesBuffersIndex
+          network.adoptStates()
         }
       }
 
       yield(Pair(SpeechRecognizer.END_OF_SEQUENCE, maxTimeIndex))
     }
-
-  private fun getInputBuffers(
-    encodeOutputBuffers: List<TensorBuffer>,
-    tokenIdsBuffer: TensorBuffer,
-  ) =
-    buildList<TensorBuffer> {
-      // Avoid copy. Build a list of TensorBuffers directly from the encoder output buffers.
-      addAll(encodeOutputBuffers)
-      add(tokenIdsBuffer)
-      addAll(statesBuffers[inputStatesBuffersIndex])
-    }
-
-  private fun getOutputBuffers(logitsBuffer: TensorBuffer) =
-    listOf(logitsBuffer) + statesBuffers[1 - inputStatesBuffersIndex]
-
-  private companion object {
-    const val DECODE_SIGNATURE = LiteRtRunner.DECODE_SIGNATURE
-    const val DECODE_1_SIGNATURE = "decode_1"
-
-    const val NUM_FEATURES = 1024 // Hardcoded because CompileModel doesn't expose shape info.
-    const val NUM_DURATIONS = 5
-
-    private fun inputBufferName(index: Int) = LiteRtRunner.inputBufferName(index)
-
-    private fun outputBufferName(index: Int) = LiteRtRunner.outputBufferName(index)
   }
 }
