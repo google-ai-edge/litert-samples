@@ -51,7 +51,9 @@ data class ModelConfig(
   val gpuModelRemoteUrl: String = "",
   val melModelRemoteUrl: String = "",
   val decoderModelRemoteUrl: String = "",
-  val windowSeconds: List<Int> = emptyList(),
+  val windowSeconds: List<Float> = emptyList(),
+  val encoderSignature: String = "serving_default",
+  val npuSocModels: List<String> = emptyList(),
 )
 
 @Serializable
@@ -70,7 +72,9 @@ private data class ModelConfigJson(
   val gpuModelRemoteUrl: String = "",
   val melModelRemoteUrl: String = "",
   val decoderModelRemoteUrl: String = "",
-  val windowSeconds: List<Int> = emptyList(),
+  val windowSeconds: List<Float> = emptyList(),
+  val encoderSignature: String = "serving_default",
+  val npuSocModels: List<String> = emptyList(),
 )
 
 /** Manager for model metadata. */
@@ -109,6 +113,8 @@ class ModelMetadataManager(jsonString: String) {
       melModelRemoteUrl = config.melModelRemoteUrl,
       decoderModelRemoteUrl = config.decoderModelRemoteUrl,
       windowSeconds = config.windowSeconds,
+      encoderSignature = config.encoderSignature,
+      npuSocModels = config.npuSocModels,
     )
   }
 
