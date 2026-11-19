@@ -21,6 +21,8 @@ struct KnownModel {
   var fileName: String
   var fileBytes: UInt64
   var huggingFace: String
+  /// The commit of the Hugging Face repository that holds this file.
+  var revision: String
   /// The most memory the engine process used in this app, rounded up to a whole GB (macOS footprint, the Memory
   /// column of Activity Monitor; measured on an M4 Max: 25.9 GB and 43.7 GB).
   var peakFootprintBytes: UInt64
@@ -31,15 +33,18 @@ struct KnownModel {
   static let all = [
     KnownModel(
       name: "Muse-Glimmer-30B", fileName: "Muse-Glimmer-30B_q4_ekv2048.litertlm", fileBytes: 23_393_996_524,
-      huggingFace: "litert-community/Muse-Glimmer-30B-LiteRT", peakFootprintBytes: 26 * gib, maxOutputTokens: 1536),
+      huggingFace: "litert-community/Muse-Glimmer-30B-LiteRT", revision: "ac27a1cb22d44e912d4868029a6aebf3bb77c1bc",
+      peakFootprintBytes: 26 * gib, maxOutputTokens: 1536),
     KnownModel(
       name: "Qwen2.5-VL-72B-Instruct", fileName: "Qwen2.5-VL-72B-Instruct_q4_ekv2048.litertlm",
       fileBytes: 42_684_876_864, huggingFace: "litert-community/Qwen2.5-VL-72B-Instruct-LiteRT",
-      peakFootprintBytes: 44 * gib, maxOutputTokens: 1024),
+      revision: "1b7c0abfa5f069e09d4a14c995e9289a4ff56ace", peakFootprintBytes: 44 * gib, maxOutputTokens: 1024),
   ]
 
+  /// The model a file of this size holds. The published files' two forms (weights inside the graphs, or in
+  /// TFLiteWeights sections) differ by at most 0.15% in size, and the two models above by far more.
   static func matching(bytes: UInt64) -> KnownModel? {
-    all.first { $0.fileBytes == bytes }
+    all.first { max(bytes, $0.fileBytes) - min(bytes, $0.fileBytes) < $0.fileBytes / 100 }
   }
 }
 

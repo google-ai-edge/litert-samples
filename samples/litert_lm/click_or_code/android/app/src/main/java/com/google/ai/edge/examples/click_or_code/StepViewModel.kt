@@ -168,8 +168,10 @@ class StepViewModel(app: Application) : AndroidViewModel(app) {
           loaded.skipped.forEach { Log.w(TAG, "side-load skipped: $it") }
           if (store.inspect(entry).status != DownloadStatus.READY) {
             val free = StatFs(app.filesDir.path).availableBytes
-            val missing = entry.totalBytes - store.inspect(entry).receivedBytes
-            if (!DownloadSafety.hasSpace(missing, free)) {
+            val received = store.inspect(entry).receivedBytes
+            // download() discards a longer partial file; a whole one goes straight to the check.
+            val missing = entry.totalBytes - (if (received > entry.totalBytes) 0L else received)
+            if (missing > 0 && !DownloadSafety.hasSpace(missing, free)) {
               _ui.update {
                 it.copy(
                   model =

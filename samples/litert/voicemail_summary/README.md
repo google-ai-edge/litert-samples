@@ -24,7 +24,7 @@ The prompts are the model card's. An answer is made in one of two ways (`Answer.
 The speech path is a host loop around LiteRT graphs:
 
 1. **Audio encoder**: 16 kHz audio, up to 30 s, becomes the language model's input rows at the `<|audio|>` positions (the bundle's audio section, on the GPU).
-2. **Language model**: the decoder and its token embedder, read from the sections of the `.litertlm` bundle (the file LiteRT-LM runs for text answers). The app copies the three sections it needs into files of their own once, because LiteRT's Kotlin API opens a model by path. Each step returns the last hidden state and, before a text slot, the text logits; a speech step runs the bundle's `prefill_1` signature, which is `decode` without its tied text head. On the CPU the KV and conv state live in one set of buffers that each call updates in place.
+2. **Language model**: the decoder and its token embedder, read from the sections of the `.litertlm` bundle (the file LiteRT-LM runs for text answers). The app copies the sections it needs into files of their own once, because LiteRT's Kotlin API opens a model by path; a graph's weights section goes into a file beside the graph. Each step returns the last hidden state and, before a text slot, the text logits; a speech step runs the bundle's `prefill_1` signature, which is `decode` without its tied text head. On the CPU the KV and conv state live in one set of buffers that each call updates in place.
 3. **Depth decoder**: the hidden state of a speech step goes through `depth_proj` once and `depth_pass` three times; each pass reveals four of the twelve codebooks (MaskGIT order, schedule 4 + 4 + 4). With the NPU build on an SM8850 phone (Galaxy S26) the pass runs on the Hexagon NPU from an ahead-of-time compiled graph; otherwise on the CPU.
 4. **Frame embedding**: the twelve codes of a frame become the next input of the language model (the sum of their codebook embeddings).
 5. **Codec decoder**: every twelve frames (0.96 s) become 24 kHz audio on a thread of its own while the model writes the next frames; the app overlap-adds the decoder's windowed frames and plays them as they come.
@@ -41,6 +41,7 @@ Everything between the graphs is Kotlin: the byte-level BPE tokenizer (inflated 
 | `Parts.kt` | depth decoder, frame embedding, codec decoder + overlap-add, audio encoder |
 | `Lfm3Tokenizer.kt` | `tokenizer.json` (byte-level BPE, the file's split regex, `ignore_merges`) and the chat prompt |
 | `Lfm3AudioEngine.kt` | the files, the bundle's sections, the graphs, their accelerators and the memory check before each stage |
+| `LitertlmHeader.kt` | what a `.litertlm` file's header lists |
 | `AudioIO.kt` | reading, checking (length, silence, the 30 s cut), recording and playing audio |
 | `Callback.kt` | the phone number in an answer, and the measuring tool's checks (English and Spanish number words) |
 | `Voicemails.kt` | the example voicemails in the assets |
@@ -50,20 +51,20 @@ Everything between the graphs is Kotlin: the byte-level BPE tokenizer (inflated 
 
 | File | Bytes | SHA-256 |
 |---|---|---|
-| `lfm3-audio-2b_int4_b128_c2048_h30.litertlm` | 1,531,232,624 | `5168b79a795d1737e789f22a84f5830e808f45a3ba2d3a02099b4d291bda4f02` |
+| `lfm3-audio-2b_int4_b128_c2048_h30.litertlm` | 1,531,297,792 | `f28ec04c3a39e2450e5061961da490e104788b94924297ee66129242b459667c` |
 | `lfm3_audio_depth_proj_r4b.tflite` | 100,713,664 | `66789aa754112d69fcc7bb857d317466af52af8b1686c1b327fa9fa11217476d` |
 | `lfm3_audio_depth_pass_r4b_int8.tflite` | 84,562,624 | `b2489155633c78cd9c9630f439e9b3cc4cfa96df9364c5315a8a08a010ea1947` |
 | `lfm3_audio_frame_embed_f32.tflite` | 198,281,752 | `d042be62b439630e55feed86bc9ae630db70674ba924d4752c4d5dfc3a44472d` |
 | `lfm3_audio_codec_decoder_f12_r4b2.tflite` | 152,498,860 | `9dbbbcf870c1be4e166b77c1948ca4e34e8e069780236c15066f1d3c8ed52cbd` |
 | `lfm3_audio_depth_pass_r5b_aot.tflite` (optional, Galaxy S26 NPU build) | 169,584,336 | `e3bdb0ed185190ba7b0881af250e585385e04360c6a614e712801287a8f1bfd4` |
 
-The bundle holds the int4 (blockwise 128) language model with a 2,048-token context, its int8 embedder, the audio encoder with fp16 linear weights and the repo's `tokenizer.json`. The depth decoder's pass has int8 weights and float32 activations, and the other three graphs are fp32; the optional sixth file is the depth pass compiled ahead of time for the SM8850's Hexagon NPU. The suffixes in the file names are build labels; the app reads these names as they are.
+The bundle holds the int4 (blockwise 128) language model with a 2,048-token context, its int8 embedder, the audio encoder with fp16 linear weights and the repo's `tokenizer.json`. The language model's and the embedder's weights are in sections of their own. The app reads where each section is from the file's own header, so it runs either form of the bundle: this one, or the earlier one, which keeps them inside the graphs (`--revision 11dc7f8bd957a28f9cb652d456e24f3e644ac5ce`, 1,531,232,624 bytes, SHA-256 `5168b79a…`). The depth decoder's pass has int8 weights and float32 activations, and the other three graphs are fp32; the optional sixth file is the depth pass compiled ahead of time for the SM8850's Hexagon NPU. The suffixes in the file names are build labels; the app reads these names as they are.
 
 The files are on Hugging Face at [litert-community/LFM3-Audio-2B-LiteRT](https://huggingface.co/litert-community/LFM3-Audio-2B-LiteRT) (2.2 GB):
 
 ```bash
 pip install -U huggingface_hub
-hf download litert-community/LFM3-Audio-2B-LiteRT --include "*.litertlm" --include "*.tflite" --exclude "lfm3_audio_depth_pass_r4b.tflite" --local-dir lfm3_audio
+hf download litert-community/LFM3-Audio-2B-LiteRT --revision 13ea1ec06a704ac0af62b42d6ae69e05107b83f8 --include "*.litertlm" --include "*.tflite" --exclude "lfm3_audio_depth_pass_r4b.tflite" --local-dir lfm3_audio
 ```
 
 (One `--include` per pattern: the form of `hf` 1.x and later. The `--exclude` skips the repository's float32 depth pass, which this app does not read.)
@@ -78,7 +79,7 @@ cd kotlin_cpu_gpu/android
 ./install_to_device.sh <path to lfm3_audio>
 ```
 
-`install_to_device.sh` pushes the files into the app's external files dir (`/sdcard/Android/data/com.google.ai.edge.examples.voicemail_summary/files`) with `adb push`. Open the app: the first start copies three of the bundle's sections into files of their own (1.0 s on a Galaxy S26; the whole start took 5.5 s), then says Ready. Without the files, the app names the missing ones and Summarize stays off.
+`install_to_device.sh` pushes the files into the app's external files dir (`/sdcard/Android/data/com.google.ai.edge.examples.voicemail_summary/files`) with `adb push`. Open the app: the first start copies the bundle's sections it needs into files of their own (1.0 to 1.1 s on a Galaxy S26, and 5.9 s for the whole start, in two first starts), then says Ready. Without the files, the app names the missing ones and Summarize stays off.
 
 Accelerators: the language model, the depth projection and the frame embedding run on the CPU (4 threads), the codec decoder and the audio encoder on the GPU in fp32 (each falls back to the CPU if its GPU path cannot be created). Before each loading stage the app checks the phone's free memory and stops with a message instead of starting a stage that does not fit.
 
@@ -104,7 +105,7 @@ Galaxy S26 (SM8850, Android 16), airplane mode, the NPU build, Answer in = Spani
 | Caller's name and the number in the text | yes | yes | yes |
 | The number heard in the speech (Whisper base, Spanish) | yes | yes | yes |
 
-The first sound comes about 5 s after the tap (5.1 s on average): a Spanish answer is written as text first (3.3 to 3.9 s on the CPU), then spoken (about 1.4 s more to the first audio). An English answer is interleaved and starts sooner: 2.1 to 2.5 s in three development runs on the same phone. Loading takes 3.6 s (5.5 s on the first start, which copies the bundle's sections out once), and the app then holds 3.1 to 3.2 GB of memory. The default build (no NPU libraries) runs the depth decoder's pass on the CPU, from the int8 file.
+The first sound comes about 5 s after the tap (5.1 s on average): a Spanish answer is written as text first (3.3 to 3.9 s on the CPU), then spoken (about 1.4 s more to the first audio). An English answer is interleaved and starts sooner: 2.1 to 2.5 s in three development runs on the same phone. Loading takes 3.6 s (5.5 s on the first start, which copies the bundle's sections out once), and the app then holds 3.1 to 3.2 GB of memory. The default build (no NPU libraries) runs the depth decoder's pass on the CPU, from the int8 file. These runs used the earlier form of the bundle; with the default build on a Galaxy S26, the two forms gave word-for-word the same English and Spanish answers to the first voicemail.
 
 ## The measuring tool
 
