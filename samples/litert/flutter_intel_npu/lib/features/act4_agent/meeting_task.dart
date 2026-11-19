@@ -21,9 +21,8 @@ import 'workspace.dart';
 /// first lists the follow-ups it finds in the transcript (that list is the
 /// checklist), then carries them out, naming the item each action is for.
 ///
-/// One request, not two: on the NPU a second message after a tool loop
-/// fails (the executor rolls back one token at most), and the model takes the
-/// two steps as separate turns anyway.
+/// One request, not two: the model takes the two steps as separate turns
+/// anyway.
 ///
 /// Nothing here knows the meeting: the transcript is the input, and the
 /// workspace says who is who, which mail is internal and what the calendars

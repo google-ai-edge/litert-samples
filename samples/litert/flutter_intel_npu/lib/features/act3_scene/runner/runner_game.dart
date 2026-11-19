@@ -562,7 +562,9 @@ class RunnerGame extends ChangeNotifier {
     elapsed += step;
 
     final next = nextObstacle();
-    final intent = pilot.update(
+    // The pilot runs every frame, also under the eyes: it times out the
+    // presenter's hold, and the eyes take over again when it ends.
+    final scripted = pilot.update(
       dt: step,
       z: z,
       lateral: lateral,
@@ -571,6 +573,7 @@ class RunnerGame extends ChangeNotifier {
       airborne: airborne,
       next: next,
     );
+    final intent = eyes != null && !pilot.manual ? eyes!() : scripted;
 
     if (pilot.manual != _presenterWasDriving) {
       _presenterWasDriving = pilot.manual;
@@ -579,7 +582,11 @@ class RunnerGame extends ChangeNotifier {
         kind: pilot.manual ? 'takeover' : 'autopilot',
         subject: pilot.manual ? 'presenter' : 'autopilot',
         object: 'dash',
-        detail: pilot.manual ? 'the presenter grabbed the controls' : 'the autopilot is back in charge',
+        detail: pilot.manual
+            ? 'the presenter grabbed the controls'
+            : eyes != null
+                ? 'the eyes are back in charge'
+                : 'the autopilot is back in charge',
       ));
     }
 
@@ -685,6 +692,10 @@ class RunnerGame extends ChangeNotifier {
     pivot.rotation = vm.Quaternion.axisAngle(vm.Vector3(0, 1, 0), trail.headingAt(z) + math.pi);
     pivot.scale = vm.Vector3.all(dashScale);
   }
+
+  /// Drives instead of [pilot] when set (the vision pilot); the presenter's
+  /// keys still win.
+  PilotIntent Function()? eyes;
 
   /// The next obstacle Dash has not dealt with yet.
   Obstacle? nextObstacle({double within = 40}) {

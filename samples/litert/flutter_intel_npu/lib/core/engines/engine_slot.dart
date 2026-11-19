@@ -116,9 +116,9 @@ class LiteRtLmEngineSlot implements EngineSlot {
     if (model == null) throw StateError('EngineSlot(${backend.name}) is not loaded');
     // Explicit, so every backend samples alike rather than by the bundle's
     // own defaults. topP 0.95 and seed 1 are what LiteRT-LM 0.17 used unset.
-    // createSession (not openSession) keeps one native conversation, so the
-    // KV cache of earlier turns is reused.
-    final session = await model.createSession(
+    // Each turn is a session of its own: its native conversation keeps the
+    // KV cache of the turn's earlier messages until the caller closes it.
+    final session = await model.openSession(
       temperature: temperature,
       topK: topK,
       topP: 0.95,
@@ -140,7 +140,7 @@ class LiteRtLmEngineSlot implements EngineSlot {
   }) {
     final model = _model;
     if (model == null) throw StateError('EngineSlot(${backend.name}) is not loaded');
-    return model.createChat(
+    return model.openChat(
       temperature: temperature,
       topK: topK,
       topP: 0.95,

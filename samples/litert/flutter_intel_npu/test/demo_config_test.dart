@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter_edge_ai/flutter_edge_ai.dart';
@@ -137,9 +138,29 @@ void main() {
       });
     });
 
+    test('Act 3: the eyes', () {
+      final file = _anyFile('eyes.litertlm');
+      final none = parse({});
+      expect((none.act3.eyesModelPath, none.act3.eyesBackend, none.act3.eyesOverlay), (null, PreferredBackend.npu, true));
+      final ok = parse({'ACT3_EYES_MODEL': file, 'ACT3_EYES_BACKEND': 'cpu', 'ACT3_EYES_OVERLAY': false});
+      expect(ok.errors, isEmpty);
+      expect((ok.act3.eyesModelPath, ok.act3.eyesBackend, ok.act3.eyesOverlay), (file, PreferredBackend.cpu, false));
+      final bad = parse({'ACT3_EYES_MODEL': '/nonexistent/e.litertlm', 'ACT3_EYES_BACKEND': 'tpu'});
+      expect(bad.errors.map((e) => e.split(':').first).toSet(), {'ACT3_EYES_MODEL', 'ACT3_EYES_BACKEND'});
+    });
+
     test('a run that exits by itself is headless', () {
       expect(parse({'AUTORUN_EXIT': true}).headless, isTrue);
       expect(parse({}).headless, isFalse);
+    });
+
+    test('config.json.example parses, and only its placeholder paths are missing', () {
+      final example = jsonDecode(File('config.json.example').readAsStringSync()) as Map<String, Object?>;
+      final c = parse(example);
+      expect(c.errors.where((e) => !e.contains('no file at /absolute/path/to/')), isEmpty);
+      expect(c.act2.backend, PreferredBackend.npu);
+      expect(c.act2.contrastModelPathOr(''), endsWith('gemma-4-E2B-it_intel_PTL.litertlm'));
+      expect(c.act4.models.single.backend, PreferredBackend.npu);
     });
   });
 }

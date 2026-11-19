@@ -39,6 +39,8 @@ Future<void> main() async {
         nativeLogLevel: Platform.environment['LITERT_VERBOSE'] == '1' ? LiteRtLmLogLevel.verbose : null,
       ),
     ],
+    // Act 3's vision pilot (ACT3_EYES_*): image crops at 70 soft tokens.
+    embeddingBackends: const [LiteRtEmbeddingBackend(visionTokensPerImage: 70)],
   );
   // Every model here is opened with openModel; none is the active one. Older
   // versions of this app made MODEL_PATH active, and the plugin restores that
