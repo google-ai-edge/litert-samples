@@ -1,0 +1,64 @@
+# Copyright 2026 The Google AI Edge Authors. All Rights Reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#       http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+name: LiteRTLMChat
+options:
+  bundleIdPrefix: com.google.ai.edge.examples
+  deploymentTarget:
+    iOS: "17.0"
+packages:
+  # The LiteRT-LM Swift package at the v0.19.1 release. Its Package.swift downloads the release's
+  # CLiteRTLM.xcframework (Metal GPU backend included) and checks its SHA-256.
+  LiteRTLM:
+    url: https://github.com/google-ai-edge/LiteRT-LM
+    exactVersion: 0.19.1
+targets:
+  LiteRTLMChat:
+    type: application
+    platform: iOS
+    sources:
+      - path: Sources
+      - path: Resources/example.png
+        buildPhase: resources
+    dependencies:
+      - package: LiteRTLM
+        product: LiteRTLM
+    info:
+      path: Info.plist
+      properties:
+        CFBundleDisplayName: LiteRT-LM Chat
+        # The Documents folder shows in Finder and in the Files app: the model files go there.
+        UIFileSharingEnabled: true
+        LSSupportsOpeningDocumentsInPlace: true
+        UILaunchScreen: {}
+        UIApplicationSceneManifest:
+          UIApplicationSupportsMultipleScenes: false
+        UISupportedInterfaceOrientations:
+          - UIInterfaceOrientationPortrait
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.google.ai.edge.examples.litertlmchat
+        MARKETING_VERSION: "1.0"
+        CURRENT_PROJECT_VERSION: "1"
+        SWIFT_VERSION: "5.0"
+        TARGETED_DEVICE_FAMILY: "1"
+        CODE_SIGN_STYLE: Automatic
+        # Increased Memory Limit and Extended Virtual Addressing: iOS lets the app use more memory.
+        # Set here rather than with XcodeGen's `entitlements:` key, which would rewrite the file.
+        CODE_SIGN_ENTITLEMENTS: LiteRTLMChat.entitlements
+schemes:
+  LiteRTLMChat:
+    build:
+      targets:
+        LiteRTLMChat: all
