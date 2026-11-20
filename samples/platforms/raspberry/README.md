@@ -30,7 +30,7 @@ The app offers no NPU on the Pi.
 ```sh
 dpkg --print-architecture                 # must print arm64
 sudo apt update && sudo apt full-upgrade -y
-sudo apt install -y git curl unzip xz-utils patch clang cmake ninja-build pkg-config lld \
+sudo apt install -y git curl unzip xz-utils clang cmake ninja-build pkg-config lld \
   libgtk-3-dev liblzma-dev libstdc++-12-dev libgstreamer1.0-dev libgstreamer-plugins-base1.0-dev \
   libasound2-dev libturbojpeg0 python3-venv \
   libvulkan1 mesa-vulkan-drivers vulkan-tools \
@@ -57,7 +57,6 @@ flutter --version                         # the first run downloads the Dart SDK
 ```sh
 git clone --depth 1 https://github.com/google-ai-edge/litert-samples.git ~/litert-samples
 cd ~/litert-samples/samples/litert/flutter
-tool/flutter_litert/vendor.sh
 ```
 
 ## 3. The built-in models
@@ -136,9 +135,9 @@ leaves the four CPU cores to Gemma. **This device** and the diagnostics overlay 
 |---|---|
 | Flutter or the build fails on a 32-bit system (`dpkg --print-architecture` prints `armhf`) | Install Raspberry Pi OS (64-bit): the app needs arm64 |
 | `version 'GLIBC_2.34' not found` or `'GLIBCXX_3.4.30' not found` | Raspberry Pi OS older than Bookworm: install Bookworm or newer |
-| `flutter pub get` cannot find `third_party/flutter_litert` | Run `tool/flutter_litert/vendor.sh` (step 2) |
 | `No file or variants found for asset: assets/models/…` | Run `tool/fetch_models.sh` (step 3) |
 | `flutter build linux` fails linking `libFLAC` / `libvorbis` | Build with `NO_XIPH_LIBS=1` (step 4) |
+| The build prints `CMake Warning … flutter_litert: no native runtime is available for linux-arm64` | Nothing to fix: the detector runs on the LiteRT runtime of the LiteRT-LM bundle, and its load check uses LiteRT's CPU path in place of the TFLite interpreter |
 | After a failed build, `file INSTALL cannot copy file … to "/usr/local/…": Permission denied` | CMake kept a default install prefix from the failed run: `rm -r build/linux` and build again |
 | The build stops with `Killed` | Out of memory: close other apps, or add swap: `sudo fallocate -l 4G /swapfile && sudo chmod 600 /swapfile && sudo mkswap /swapfile && sudo swapon /swapfile` |
 | `package.sh: … exists; move it away first` | `rm -r build/dist/litert_edge_demos-v*`, then run it again |

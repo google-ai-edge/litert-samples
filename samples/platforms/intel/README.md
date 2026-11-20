@@ -78,7 +78,6 @@ Clone to `C:\litert-samples`: from a deeper folder, such as your user folder, th
 ```sh
 git clone --depth 1 https://github.com/google-ai-edge/litert-samples.git /c/litert-samples
 cd /c/litert-samples/samples/litert/flutter
-tool/flutter_litert/vendor.sh
 ```
 
 ## 3. The built-in models
@@ -154,7 +153,6 @@ Choose your file, then **Use this model**:
 | The build fails in `flutter_local_notifications_windows`: `Cannot open include file: 'atlbase.h'` | Add ATL: **Visual Studio Installer** › Build Tools › **Modify** › **Individual components**, search for "ATL", tick **C++ ATL for x64/x86 (Latest MSVC)** |
 | The build fails in `flutter_inappwebview_windows` with `NUGET-NOTFOUND` | Install NuGet (step 1) and open a new terminal |
 | `fetch_models.sh` finds no Python | Install Python (step 1); the Microsoft Store `python3` shortcut does not count |
-| `flutter pub get` cannot find `third_party/flutter_litert` | Run `tool/flutter_litert/vendor.sh` (step 2) |
 | `No file or variants found for asset: assets/models/…` | Run `tool/fetch_models.sh` (step 3) |
 | `package.ps1: … exists; move it away first` | Delete `build\dist\litert_edge_demos-v*`, then run it again |
 | The chat model fails on the NPU with `Failed to create engine on npu` | The file is for the other processor family: take the file from the table under [Which PCs](#which-pcs) |

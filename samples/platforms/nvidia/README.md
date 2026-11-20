@@ -37,7 +37,7 @@ The app offers no NPU on a Jetson.
 cat /etc/nv_tegra_release                 # R36 or newer = JetPack 6 or newer (required)
 dpkg --print-architecture                 # must print arm64
 sudo apt update
-sudo apt install -y git curl unzip xz-utils patch clang cmake ninja-build pkg-config lld \
+sudo apt install -y git curl unzip xz-utils clang cmake ninja-build pkg-config lld \
   libgtk-3-dev liblzma-dev libstdc++-12-dev libgstreamer1.0-dev libgstreamer-plugins-base1.0-dev \
   libasound2-dev libturbojpeg libunwind-dev python3-venv \
   libvulkan1 vulkan-tools pulseaudio-utils gstreamer1.0-plugins-base gstreamer1.0-plugins-good
@@ -74,7 +74,6 @@ flutter --version                         # the first run downloads the Dart SDK
 ```sh
 git clone --depth 1 https://github.com/google-ai-edge/litert-samples.git ~/litert-samples
 cd ~/litert-samples/samples/litert/flutter
-tool/flutter_litert/vendor.sh
 ```
 
 ## 3. The built-in models
@@ -148,9 +147,9 @@ On **Set up models**, the **Chat model** card lists the files in `~/litert-demos
 | Symptom | Fix |
 |---|---|
 | `version 'GLIBC_2.34' not found` or `'GLIBCXX_3.4.30' not found` | JetPack 5 or older: flash JetPack 6 |
-| `flutter pub get` cannot find `third_party/flutter_litert` | Run `tool/flutter_litert/vendor.sh` (step 2) |
 | `No file or variants found for asset: assets/models/…` | Run `tool/fetch_models.sh` (step 3) |
 | `flutter build linux` fails linking `libFLAC` / `libvorbis` | Build with `NO_XIPH_LIBS=1` (step 4) |
+| The build prints `CMake Warning … flutter_litert: no native runtime is available for linux-arm64` | Nothing to fix: the detector runs on the LiteRT runtime of the LiteRT-LM bundle, and its load check uses LiteRT's CPU path in place of the TFLite interpreter |
 | `Package 'libunwind', required by 'gstreamer-1.0', not found` | `sudo apt install libunwind-dev` (step 1), `rm -r build/linux`, build again |
 | After a failed build, `file INSTALL cannot copy file … to "/usr/local/…": Permission denied` | CMake kept a default install prefix from the failed run: `rm -r build/linux` and build again |
 | The build stops with `Killed` | Out of memory: close other apps, or add swap (`sudo fallocate -l 4G /swapfile && sudo chmod 600 /swapfile && sudo mkswap /swapfile && sudo swapon /swapfile`) |

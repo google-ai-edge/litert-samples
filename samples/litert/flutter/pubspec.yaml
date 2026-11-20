@@ -43,7 +43,7 @@ dependencies:
   flutter_edge_ai_rag: ^1.1.2
   flutter_edge_ai_speech: ^0.5.10
   flutter_edge_ai_sqlite: ^2.1.1
-  flutter_litert: ^3.9.3
+  flutter_litert: ^4.1.1
   flutter_soloud: ^4.1.7
   image_picker: ^1.2.3
   # The built-in models on Android: a streaming copy out of the APK
@@ -78,14 +78,6 @@ dev_dependencies:
   # The settings test swaps in the in-memory SharedPreferencesAsync
   # platform; already resolved transitively.
   shared_preferences_platform_interface: ^2.4.2
-
-dependency_overrides:
-  # flutter_litert 3.9.3 + tool/flutter_litert/flutter_litert-3.9.3.patch, made
-  # by tool/flutter_litert/vendor.sh (run it once per checkout, before pub get).
-  # Without it the detector crashes on Linux: there it runs on the LiteRT-LM
-  # native bundle's newer libLiteRt.so.
-  flutter_litert:
-    path: third_party/flutter_litert
 
 flutter:
   uses-material-design: true
