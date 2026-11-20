@@ -136,7 +136,8 @@ the detector with `tool/prune_yolo26n_head.py`.
     LiteRT-LM bundle loads it with `RTLD_GLOBAL` on Linux, so the process has one LiteRT. The runner's `CMakeLists.txt`
     sets `FLUTTER_LITERT_BUNDLE_DESKTOP_RUNTIME` to `OFF` (flutter_litert 4.1.0 and newer): `flutter_litert` then
     downloads and bundles no runtime of its own and binds to LiteRT-LM's copy, whose LiteRT 2.x C API it uses. Its
-    TensorFlow Lite interpreter and custom-ops libraries are still bundled.
+    custom-ops library is still bundled, and on x86_64 its TensorFlow Lite interpreter library too (on Linux arm64 the
+    detector's load check uses LiteRT's CPU path instead).
   - Self-test step 5 checks coexistence: the detector's output is bit-identical before and after the chat model ran.
 
 ## Voice chat pipeline

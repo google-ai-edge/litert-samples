@@ -149,6 +149,7 @@ speaker; over SSH, install `xvfb` and put `xvfb-run -a` in front. In the app: **
 | The build stops reading the QAIRT zip | No network to Qualcomm's download: download the QAIRT SDK zip once and set `qualcomm_npu_qairt_zip: /path/to/the.zip` next to `qualcomm_npu: true` in `pubspec.yaml` |
 | `No file or variants found for asset: assets/models/…` | Run `tool/fetch_models.sh` (step 3) |
 | `flutter build linux` fails linking `libFLAC` / `libvorbis` | Build with `NO_XIPH_LIBS=1` (step 4) |
+| The build prints `CMake Warning … flutter_litert: no native runtime is available for linux-arm64` | Nothing to fix: the detector runs on the LiteRT runtime of the LiteRT-LM bundle, and its load check uses LiteRT's CPU path in place of the TFLite interpreter |
 | After a failed build, `file INSTALL cannot copy file … to "/usr/local/…": Permission denied` | CMake kept a default install prefix from the failed run: `rm -r build/linux` and build again |
 | `package.sh: … exists; move it away first` | `rm -r build/dist/litert_edge_demos-v*`, then run it again |
 | `pactl did not run: install pulseaudio-utils` | `sudo apt install pulseaudio-utils` |

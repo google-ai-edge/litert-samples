@@ -137,6 +137,7 @@ leaves the four CPU cores to Gemma. **This device** and the diagnostics overlay 
 | `version 'GLIBC_2.34' not found` or `'GLIBCXX_3.4.30' not found` | Raspberry Pi OS older than Bookworm: install Bookworm or newer |
 | `No file or variants found for asset: assets/models/…` | Run `tool/fetch_models.sh` (step 3) |
 | `flutter build linux` fails linking `libFLAC` / `libvorbis` | Build with `NO_XIPH_LIBS=1` (step 4) |
+| The build prints `CMake Warning … flutter_litert: no native runtime is available for linux-arm64` | Nothing to fix: the detector runs on the LiteRT runtime of the LiteRT-LM bundle, and its load check uses LiteRT's CPU path in place of the TFLite interpreter |
 | After a failed build, `file INSTALL cannot copy file … to "/usr/local/…": Permission denied` | CMake kept a default install prefix from the failed run: `rm -r build/linux` and build again |
 | The build stops with `Killed` | Out of memory: close other apps, or add swap: `sudo fallocate -l 4G /swapfile && sudo chmod 600 /swapfile && sudo mkswap /swapfile && sudo swapon /swapfile` |
 | `package.sh: … exists; move it away first` | `rm -r build/dist/litert_edge_demos-v*`, then run it again |
