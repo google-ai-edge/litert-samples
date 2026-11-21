@@ -1,0 +1,65 @@
+// Copyright 2026 The ODML Authors.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+syntax = "proto3";
+
+package prototypes.litert_models.z_image_turbo;
+
+option java_multiple_files = true;
+
+// Architecture-specific parameters for Tongyi-MAI/Z-Image-Turbo
+// (6B S3-DiT + Qwen3-4B text encoder + AutoencoderKL), packed into
+// `litert.lm.proto.ImageGenModelType.custom_model`.
+message ZImageTurbo {
+  // Padded token sequence length for the Qwen3 text encoder (default 64).
+  optional int32 seq_len = 1;
+  // Output image width and height in pixels (square, default 256).
+  optional int32 img_size = 2;
+  // Number of latent channels before patchification (default 16).
+  optional int32 in_channels = 3;
+  // Spatial patch size used by the S3-DiT patch embedder (default 2).
+  optional int32 patch_size = 4;
+  // Hidden dimension of the S3-DiT transformer blocks (default 3840).
+  optional int32 dim = 5;
+  // Hidden dimension of the Qwen3 text encoder penultimate layer
+  // (default 2560).
+  optional int32 prompt_dim = 6;
+  // Default number of FlowMatch Euler denoising steps (default 8).
+  optional int32 default_steps = 7;
+  // VAE latent scaling factor (default 0.3611).
+  optional float vae_scaling_factor = 8;
+  // VAE latent shift factor (default 0.1159).
+  optional float vae_shift_factor = 9;
+  // Field 10 (`t_scale`) is baked into the exported `x_embedder` graph
+  // (`t * 1000.0`) rather than applied at runtime.
+  reserved 10;
+  reserved "t_scale";
+  // Per-axis 3D rotary position embedding dimensions `(d_t, d_h, d_w)`
+  // (default [32, 48, 48]).
+  repeated int32 axes_dims = 11;
+  // Base frequency theta for 3D axial RoPE (default 256.0).
+  optional float rope_theta = 12;
+  // FlowMatch Euler static timestep shift (default 3.0).
+  optional float shift = 13;
+  // Whether to use resolution-dependent dynamic shifting (default false).
+  optional bool use_dynamic_shifting = 14;
+  // Optional pad token ID used to right-pad `input_ids` (default 151643).
+  optional int32 pad_token_id = 15;
+  // Optional prefix token IDs prepended before the tokenized prompt
+  // (default [151644]).
+  repeated int32 prefix_token_ids = 16;
+  // Optional suffix token IDs appended after the tokenized prompt
+  // (default [151645, 198, 151644, 77091, 198]).
+  repeated int32 suffix_token_ids = 17;
+}

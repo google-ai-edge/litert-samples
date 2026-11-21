@@ -1,0 +1,51 @@
+// Copyright 2026 The ODML Authors.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+syntax = "proto3";
+
+package prototypes.litert_models.omnigen2;
+
+option java_multiple_files = true;
+
+// Architecture-specific parameters for OmniGen2 (`OmniGen2/OmniGen2`:
+// Qwen2.5-VL-3B-Instruct text encoder, 32-layer OmniGen2Transformer2DModel
+// sharded DiT with 3D Omni-RoPE, and 16-channel AutoencoderKL VAE).
+message OmniGen2 {
+  // Padded text sequence length expected by text encoder and DiT shards.
+  optional int32 seq_len = 1;
+  // Target square output image width and height in pixels (multiple of 16).
+  optional int32 img_size = 2;
+  // Number of VAE latent channels (default 16).
+  optional int32 in_channels = 3;
+  // Spatial patchify factor (default 2).
+  optional int32 patch_size = 4;
+  // OmniGen2Transformer2DModel hidden dimension (default 2520).
+  optional int32 hidden_size = 5;
+  // Qwen2.5-VL text encoder hidden dimension (default 2048).
+  optional int32 prompt_dim = 6;
+  // Default number of FlowMatch Euler denoising steps (default 28).
+  optional int32 default_steps = 7;
+  // AutoencoderKL latent scaling factor (default 0.3611).
+  optional float vae_scaling_factor = 8;
+  // AutoencoderKL latent shift factor (default 0.1159).
+  optional float vae_shift_factor = 9;
+  // Sinusoidal timestep projection scale factor (default 1000.0).
+  optional float timestep_scale = 10;
+  // 3D (id, h, w) Omni-RoPE axis dimensions (default [40, 40, 40]).
+  repeated int32 axes_dim_rope = 11;
+  // Whether resolution-dependent dynamic time shifting is enabled.
+  optional bool dynamic_time_shift = 12;
+  // Classifier-Free Guidance scale for text conditioning (default 4.0).
+  optional float text_guidance_scale = 13;
+}

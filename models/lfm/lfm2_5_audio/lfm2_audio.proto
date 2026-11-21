@@ -1,0 +1,50 @@
+// Copyright 2026 The ODML Authors.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+syntax = "proto3";
+
+package prototypes.litert_models.lfm2_audio;
+
+option java_multiple_files = true;
+
+// Architecture-specific parameters for LiquidAI/LFM2.5-Audio-1.5B:
+// FastConformer audio encoder, LFM2 LLM backbone, 8-codebook RQ-Transformer
+// Depthformer speech decoder, and LFM2-based neural audio detokenizer.
+message Lfm2Audio {
+  // LFM2 LLM backbone hidden dimension (default 2048).
+  optional int32 llm_hidden_size = 1;
+  // LFM2 LLM backbone vocabulary size (default 65536).
+  optional int32 llm_vocab_size = 2;
+  // Depthformer speech decoder hidden dimension (default 1024).
+  optional int32 tts_hidden_size = 3;
+  // Number of discrete audio tokens in audio vocabulary (default 2049).
+  optional int32 tts_vocab_size = 4;
+  // Number of residual vector quantization codebooks (default 8).
+  optional int32 tts_num_codebooks = 5;
+  // Number of mel spectrogram frequency bins for the audio encoder
+  // (default 128).
+  optional int32 audio_mel_bins = 6;
+  // Subsampling factor of the FastConformer audio encoder (default 8).
+  optional int32 audio_subsampling_factor = 7;
+  // Whether to synthesize speech output by default.
+  optional bool generate_audio = 8;
+  // Maximum number of LLM tokens to generate per turn (default 512).
+  optional int32 max_new_tokens = 9;
+  // Maximum number of audio frames to generate per turn (default 1024).
+  optional int32 max_tts_tokens = 10;
+  // Default speaker or voice identifier.
+  optional string voice = 11;
+  // Default language code in BCP-47 format (e.g., "en-US").
+  optional string language = 12;
+}
