@@ -28,6 +28,11 @@ Welcome to **`litert-samples`** — the central developer hub for
 
 Whether you want to **try a model in your browser in 30 seconds**, **drop a pre-converted model from [Hugging Face `litert-community`](https://huggingface.co/litert-community) into a mobile/desktop/web app**, or **convert, quantize, verify, and benchmark a new checkpoint on CPU, GPU, and NPU**, this repository takes you from first run to production deployment.
 
+> [!TIP]
+> **🏆 Featured Community Showcase — [Google Gemma Hardware Hackathon (AGI House)](community/gemma-hardware-hackathon/)**
+>
+> Explore **29 verified on-device projects** built with **LiteRT** and **LiteRT-LM** across Android/iOS phones, Raspberry Pi, NVIDIA Jetson, and robots — featuring the **Best Use of LiteRT** award winners (**Sherpa Survival**, **DJemma**, and **Wonder Agent**). 👉 **[Browse the hackathon showcase, repos & demos →](community/gemma-hardware-hackathon/)**
+
 ---
 
 ## 🔥 What's New
@@ -303,7 +308,8 @@ litert-samples/
 │   ├── developer_device_platform/  # Colab notebooks for benchmarking on Google Cloud DDP real phones
 │   ├── ios/                        # Xcode / XCTest benchmark framework for local & DDP iPhones
 │   └── driver/                     # Matrix runners and result collectors for building leaderboard rows
-├── community/                      # 🤗 Source apps for Hugging Face litert-community Spaces
+├── community/                      # 🤗 Community showcases & Hugging Face litert-community Spaces
+│   ├── gemma-hardware-hackathon/   # Google Gemma Hardware Hackathon (AGI House) LiteRT & LiteRT-LM showcase
 │   ├── models_page/                # Powers huggingface.co/spaces/litert-community/find-your-models
 │   └── trending_page/              # Powers huggingface.co/spaces/litert-community/trending-models
 └── utilities/                      # 🛠️ Shared libraries & conversion toolkits
