@@ -1542,8 +1542,8 @@ TEST(Lfm2AudioGenerationStageTest,
   // left/right ISTFT overlap frame), and verify that chunked detokenization
   // with `vocoder_chunk_frames = 24` produces bit-for-bit identical output to
   // one-shot detokenization (`vocoder_chunk_frames = 40`) on 32 audio frames.
-  constexpr int kNumAudioFrames = 32;
-  constexpr int kSamplesPerFrame = 4;
+  static constexpr int kNumAudioFrames = 32;
+  static constexpr int kSamplesPerFrame = 4;
 
   auto run_with_chunk_frames =
       [&](int chunk_frames,
