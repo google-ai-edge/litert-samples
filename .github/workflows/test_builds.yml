@@ -171,6 +171,7 @@ jobs:
   build-and-test-omni:
     name: "Build-and-Test-Omni-Linux"
     runs-on: ubuntu-24.04
+    timeout-minutes: 90
     permissions:
       contents: read
     steps:

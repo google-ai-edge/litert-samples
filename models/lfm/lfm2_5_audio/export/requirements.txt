@@ -18,9 +18,9 @@
 #
 # NOTE: Stable `litert-torch==0.10.0` / `litert-lm-builder==0.19.2` lack the
 # `export_hf` `ModelExtension` hooks and `core.quantization` module required by
-# this exporter. Use `litert-torch-nightly` (verified at `0.11.0.dev20261121`),
-# which automatically pulls a matching `litert-lm-builder-nightly` (verified at
-# `0.20.0.dev20261122`).
+# this exporter. Use `litert-torch-nightly` (verified at `0.11.0.dev20261124`),
+# which automatically pulls matching `litert-lm-builder-nightly`
+# (`0.21.0.dev20261123`) and `ai-edge-litert-nightly` (`2.5.0.dev20261123`).
 #
 # Before running `export_main` or `test_lfm2_audio`, also generate Python
 # protobuf bindings from the repository root:

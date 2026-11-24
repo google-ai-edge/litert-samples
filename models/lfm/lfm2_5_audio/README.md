@@ -150,7 +150,9 @@ bazel run --config=omni -c opt \
 
 ### Speech → Text (ASR)
 
-Pass a 16 kHz mono 16-bit PCM WAV file via `--audio_path`:
+Pass a 16 kHz mono 16-bit PCM WAV file via `--audio_path` with
+`--system_prompt="Perform ASR."` (otherwise `--generate_audio=false` defaults to
+`"Respond with text."`):
 
 ```bash
 bazel run --config=omni -c opt \
@@ -158,6 +160,7 @@ bazel run --config=omni -c opt \
   --model_path=/tmp/lfm2_5_audio_out/model.litertlm \
   --model_name=lfm2.5-audio-1.5b \
   --audio_path=/tmp/input_16k.wav \
+  --system_prompt="Perform ASR." \
   --generate_audio=false \
   --max_new_tokens=256 \
   --temperature=0.0 \
