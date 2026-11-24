@@ -39,8 +39,8 @@ import torch
 from torch import nn
 import transformers
 
-from models.lfm.lfm2_5_audio import lfm2_audio_pb2
 from models.lfm.lfm2_5_audio.export import modules
+from models.lfm.lfm2_5_audio.runner import lfm2_audio_pb2
 from litert_lm_builder.runtime.proto import any2any_metadata_pb2
 
 LFM2_AUDIO_EXTRA_KWARGS = (

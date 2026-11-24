@@ -14,11 +14,10 @@ an end-to-end **Any-to-Any** speech and text model supporting:
     transcript and 24 kHz WAV response.
 
 > **Naming note:** The directory is organized under `lfm/lfm2_5_audio/` while
-> internal source filenames (`lfm2_audio.*`), build targets (`:lfm2_audio`,
-> `:lfm2_audio_runner`), and the protobuf package
-> (`prototypes.litert_models.lfm2_audio.Lfm2Audio`) retain `lfm2_audio` to
-> preserve revision history and `google.protobuf.Any` wire compatibility with
-> existing `.litertlm` bundles.
+> source filenames (`lfm2_audio.*`), build targets (`runner:lfm2_audio`,
+> `runner:lfm2_audio_runner`), and the protobuf message
+> (`litert.lm.proto.Lfm2Audio`) retain `lfm2_audio` / `Lfm2Audio` to preserve
+> revision history.
 
 ## Architecture & `.litertlm` Bundle Sections
 
@@ -29,7 +28,7 @@ tokenizer, and `6` TFLite submodels):
 
 | Section / Key | Bundle Section Type | Description |
 | :--- | :--- | :--- |
-| `Any2AnyMetadataProto` | Metadata protobuf | `Any2AnyMetadata` with `prototypes.litert_models.lfm2_audio.Lfm2Audio` packed into `any2any_model_type.custom_model` (field `100`). |
+| `Any2AnyMetadataProto` | Metadata protobuf | `Any2AnyMetadata` with `litert.lm.proto.Lfm2Audio` packed into `any2any_model_type.custom_model` (field `100`). |
 | `HF_Tokenizer_Zlib` | Tokenizer | Compressed Hugging Face `tokenizer.json` (65,536 tokens). |
 | `audio_encoder` | `tf_lite_audio_encoder` | FastConformer audio encoder (128-bin NeMo log-mel input at 16 kHz, 8× subsampling). |
 | `text_embedder` | `tf_lite_text_embedder` | Token embedding lookup table (`hidden_size = 2048`). |
@@ -53,41 +52,53 @@ tokenizer, and `6` TFLite submodels):
 ## Directory Layout
 
 ```text
-lfm/lfm2_5_audio/
-├── BUILD                       # Proto, per-stage cc_library, runner, and cc_test targets
-├── README.md                   # This file
-├── lfm2_audio.proto            # Lfm2Audio protobuf schema (custom_model = 100)
-├── lfm2_audio_model_config.h   # Model dimensions, special tokens, and defaults
-├── io_types.h                  # Shared inter-stage I/O structs
-├── stage_utils.{h,cc}          # Tensor validation helpers
-├── input_fan_out_stage.{h,cc}  # Coalesces audio/text inputs and sequences metadata
-├── audio_stage.{h,cc}          # NeMo log-mel frontend + FastConformer audio encoder
-├── text_stage.{h,cc}           # Control-token escaping + text token embedding
-├── frontend_stage.{h,cc}       # Prompt framing and multimodal embedding assembly
-├── generation_stage.{h,cc}     # Interleaved/sequential decode, Depthformer, detokenizer
-├── lfm2_audio_factory.{h,cc}   # ModelResources loading and stage wiring
-├── lfm2_audio.cc               # Metadata unpack, session lease, OmniRegistry registration
-├── lfm2_audio_test_utils.{h,cc} # Synthetic .litertlm and WAV builders for hermetic tests
-├── lfm2_audio_test.cc          # Unit & OmniEngine/OmniRegistry integration tests
-├── lfm2_audio_runner_test.cc   # In-process runner and posix_spawn CLI binary tests
+models/lfm/lfm2_5_audio/
+├── README.md                          # This file
+├── runner/
+│   ├── BUILD                          # Proto, per-stage cc_library, runner, and cc_test targets
+│   ├── lfm2_audio.proto               # Lfm2Audio protobuf schema (custom_model = 100)
+│   ├── lfm2_audio_model_config.h      # Model dimensions, special tokens, and defaults
+│   ├── io_types.h                     # Shared inter-stage I/O structs
+│   ├── input_fan_out_stage.{h,cc}     # Coalesces audio/text inputs and sequences metadata
+│   ├── audio_stage.{h,cc}             # NeMo log-mel frontend + FastConformer audio encoder
+│   ├── text_stage.{h,cc}              # Control-token escaping + text token embedding
+│   ├── frontend_stage.{h,cc}          # Prompt framing and multimodal embedding assembly
+│   ├── generation_stage.{h,cc}        # Interleaved/sequential decode, Depthformer, detokenizer
+│   ├── lfm2_audio_factory.{h,cc}      # ModelResources loading and stage wiring
+│   ├── lfm2_audio.cc                  # Metadata unpack, session lease, OmniRegistry registration
+│   ├── lfm2_audio_test_utils.{h,cc}   # Synthetic .litertlm and WAV builders for hermetic tests
+│   ├── lfm2_audio_test.cc             # Unit & OmniEngine/OmniRegistry integration tests
+│   └── lfm2_audio_runner_test.cc      # In-process runner and posix_spawn CLI binary tests
 └── export/
-    ├── BUILD                   # Exporter library, CLI binary, and tests (tagged nomacos)
-    ├── modules.py              # Exportable PyTorch submodule wrappers
-    ├── lfm2_audio.py           # Submodel conversion, checkpoint check, metadata packing
-    ├── extension.py            # ModelExtension registration for export_hf
-    ├── export_main.py          # Thin Fire CLI entrypoint
-    ├── test_lfm2_audio.py      # Config, key verification, and export parity tests
-    └── export_and_run_test.py  # Cross-language export_main -> lfm2_audio_runner E2E test
+    ├── requirements.txt               # Standalone pip/venv dependencies (litert-torch-nightly)
+    ├── modules.py                     # Exportable PyTorch submodule wrappers
+    ├── lfm2_audio.py                  # Submodel conversion, checkpoint check, metadata packing
+    ├── extension.py                   # ModelExtension registration for export_hf
+    ├── export_main.py                 # Thin Fire CLI entrypoint
+    ├── test_lfm2_audio.py             # Config, key verification, and export parity tests
+    └── export_and_run_test.py         # Cross-language E2E test (requires Bazel runfiles; see below)
 ```
 
 ## Export
 
 Export `LiquidAI/LFM2.5-Audio-1.5B` (or a local Hugging Face checkpoint
-directory) into a single `.litertlm` bundle:
+directory) into a single `.litertlm` bundle.
+
+Create a virtual environment, install `export/requirements.txt` (requires
+`litert-torch-nightly`, which automatically pulls a matching
+`litert-lm-builder-nightly`; stable `litert-torch==0.10.0` /
+`litert-lm-builder==0.19.2` lack `ModelExtension` and `core.quantization`),
+generate the `lfm2_audio_pb2.py` protobuf bindings from the repository root, and
+run the exporter module:
 
 ```bash
-HF_HOME=/tmp/hf_cache bazel run -c opt \
-  //models/lfm/lfm2_5_audio/export:export_main -- \
+python3 -m venv .venv
+source .venv/bin/activate
+pip install -r models/lfm/lfm2_5_audio/export/requirements.txt
+
+protoc --python_out=. models/lfm/lfm2_5_audio/runner/lfm2_audio.proto
+
+HF_HOME=/tmp/hf_cache python3 -m models.lfm.lfm2_5_audio.export.export_main \
   --model=LiquidAI/LFM2.5-Audio-1.5B \
   --output_dir=/tmp/lfm2_5_audio_out \
   --task=auto \
@@ -127,8 +138,8 @@ Registered `--model_name` values: `lfm2.5-audio-1.5b` (canonical),
 ### Text → Text + Speech (Interleaved)
 
 ```bash
-bazel run -c opt \
-  //models/lfm/lfm2_5_audio:lfm2_audio_runner -- \
+bazel run --config=omni -c opt \
+  //models/lfm/lfm2_5_audio/runner:lfm2_audio_runner -- \
   --model_path=/tmp/lfm2_5_audio_out/model.litertlm \
   --model_name=lfm2.5-audio-1.5b \
   --text="What is the capital of France?" \
@@ -142,8 +153,8 @@ bazel run -c opt \
 Pass a 16 kHz mono 16-bit PCM WAV file via `--audio_path`:
 
 ```bash
-bazel run -c opt \
-  //models/lfm/lfm2_5_audio:lfm2_audio_runner -- \
+bazel run --config=omni -c opt \
+  //models/lfm/lfm2_5_audio/runner:lfm2_audio_runner -- \
   --model_path=/tmp/lfm2_5_audio_out/model.litertlm \
   --model_name=lfm2.5-audio-1.5b \
   --audio_path=/tmp/input_16k.wav \
@@ -156,8 +167,8 @@ bazel run -c opt \
 ### Text → Text Only
 
 ```bash
-bazel run -c opt \
-  //models/lfm/lfm2_5_audio:lfm2_audio_runner -- \
+bazel run --config=omni -c opt \
+  //models/lfm/lfm2_5_audio/runner:lfm2_audio_runner -- \
   --model_path=/tmp/lfm2_5_audio_out/model.litertlm \
   --model_name=lfm2.5-audio-1.5b \
   --text="Summarize the history of acoustics in two sentences." \
@@ -174,8 +185,16 @@ disable on-disk backend caching).
 
 ```bash
 # C++ runtime, factory, and binary runner tests (synthetic weights)
-bazel test //models/lfm/lfm2_5_audio:all
+bazel test --config=omni //models/lfm/lfm2_5_audio/runner:all
 
-# Python exporter unit tests and cross-language E2E test (Linux)
-bazel test //models/lfm/lfm2_5_audio/export:all
+# Python exporter unit tests (inside the venv with requirements.txt installed
+# and lfm2_audio_pb2.py generated via protoc)
+python3 -m models.lfm.lfm2_5_audio.export.test_lfm2_audio
 ```
+
+> **Note:** `export/export_and_run_test.py` looks up compiled `export_main` and
+> `lfm2_audio_runner` binaries via Bazel runfiles (`TEST_SRCDIR`) and is not
+> runnable directly under the standalone `pip`/`venv` workflow yet. For manual
+> end-to-end verification, run `export_main` in the `venv` and invoke
+> `bazel run --config=omni //models/lfm/lfm2_5_audio/runner:lfm2_audio_runner`
+> on the resulting `.litertlm` bundle.

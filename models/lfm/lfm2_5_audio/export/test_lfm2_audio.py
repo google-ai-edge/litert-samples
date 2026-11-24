@@ -31,11 +31,11 @@ import safetensors.torch
 import torch
 import transformers
 
-from models.lfm.lfm2_5_audio import lfm2_audio_pb2
 from models.lfm.lfm2_5_audio.export import export_main
 from models.lfm.lfm2_5_audio.export import extension as lfm2_audio_ext
 from models.lfm.lfm2_5_audio.export import lfm2_audio
 from models.lfm.lfm2_5_audio.export import modules
+from models.lfm.lfm2_5_audio.runner import lfm2_audio_pb2
 from ai_edge_litert.compiled_model import CompiledModel
 from litert_lm_builder import litertlm_peek
 from litert_lm_builder.runtime.proto import any2any_metadata_pb2
@@ -1204,7 +1204,7 @@ class Lfm2AudioTest(absltest.TestCase):
       self.assertIn("Data Type:    Any2AnyMetadataProto", peek_text)
       self.assertIn("custom_model {", peek_text)
       self.assertIn(
-          "type.googleapis.com/prototypes.litert_models.lfm2_audio.Lfm2Audio",
+          "type.googleapis.com/litert.lm.proto.Lfm2Audio",
           peek_text,
       )
       pbtext_path = os.path.join(dump_dir, "Any2AnyMetadataProto.pbtext")

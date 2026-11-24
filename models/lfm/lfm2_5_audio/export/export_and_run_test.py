@@ -29,7 +29,7 @@ import torch
 
 def _runfiles_path(rel_path: str) -> str:
   """Resolves a workspace-relative data dependency path inside TEST_SRCDIR."""
-  srcdir = os.environ.get("TEST_SRCDIR") or absltest.get_default_test_srcdir()
+  srcdir = os.environ.get("TEST_SRCDIR") or absltest.TEST_SRCDIR.value
   return os.path.join(srcdir, os.environ.get("TEST_WORKSPACE", "litert"), rel_path)
 
 
@@ -494,7 +494,8 @@ class ExportAndRunEndToEndTest(absltest.TestCase):
         "models/lfm/lfm2_5_audio/export/export_main"
     )
     self.runner_bin = _runfiles_path(
-        "models/lfm/lfm2_5_audio/lfm2_audio_runner"
+        "models/lfm/lfm2_5_audio/runner/"
+        "lfm2_audio_runner"
     )
     self.assertTrue(
         os.path.exists(self.export_main_bin),
