@@ -26,6 +26,10 @@ http_archive(
         "printf 'load(\"@rules_license//rules:license.bzl\", \"license\")\\n\\npackage(default_visibility = [\"//visibility:public\"])\\n\\nlicense(\\n    name = \"license\",\\n    package_name = \"litert\",\\n)\\n' > third_party/odml/BUILD",
         # Drop internal-only hooks dep (code is compiled out in OSS).
         "sed '\\%^ *\"//litert/vendors/google_tensor/hooks\",%d' litert/vendors/google_tensor/dispatch/BUILD > litert/vendors/google_tensor/dispatch/BUILD.tmp && mv litert/vendors/google_tensor/dispatch/BUILD.tmp litert/vendors/google_tensor/dispatch/BUILD",
+        # @dawn//:webgpu_dawn in LiteRT's dawn.BUILD is headers-only; wire LiteRT-LM's prebuilt Dawn shared library.
+        "sed 's|\":dawn_native\",|\":dawn_native\", \"@litert_lm//runtime/components:webgpu_dawn_shared_lib\",|g' third_party/dawn/dawn.BUILD > third_party/dawn/dawn.BUILD.tmp && mv third_party/dawn/dawn.BUILD.tmp third_party/dawn/dawn.BUILD",
+        # Qualify return types that shadow method names so GCC 13+ does not fail with -Wchanges-meaning.
+        "sed -e 's|Weights Weights() const {|litert::Weights Weights() const {|g' -e 's|Expected<Subgraph> MainSubgraph() const {|Expected<litert::Subgraph> MainSubgraph() const {|g' -e 's|Expected<class Subgraph> Subgraph(|Expected<litert::Subgraph> Subgraph(|g' litert/cc/internal/litert_extended_model.h > litert/cc/internal/litert_extended_model.h.tmp && mv litert/cc/internal/litert_extended_model.h.tmp litert/cc/internal/litert_extended_model.h",
     ],
 )
 
@@ -359,22 +363,37 @@ http_archive(
     url = "https://github.com/bazelbuild/rules_kotlin/releases/download/v2.3.20/rules_kotlin-v2.3.20.tar.gz",
 )
 
-# Sentencepiece
+# LiteRT-LM (provides @litert_lm//omni and runtime helpers for Omni models)
+# Pinned GitHub archive includes Git LFS prebuilt shared libraries directly.
+LITERT_LM_COMMIT = "a2e93653c7f4831c8b3eb5fe740f1ae8781eba93"
+
+LITERT_LM_SHA256 = "e004f17fa72965d3a1d66ec61cf543c0dc7aa51a4c12cd99e2750538db074871"
+
+http_archive(
+    name = "litert_lm",
+    repo_mapping = {
+        "@litert": "@litert_archive",
+    },
+    sha256 = LITERT_LM_SHA256,
+    strip_prefix = "LiteRT-LM-" + LITERT_LM_COMMIT,
+    url = "https://github.com/google-ai-edge/LiteRT-LM/archive/" + LITERT_LM_COMMIT + ".tar.gz",
+)
+
+# Sentencepiece (v0.2.2 + LiteRT-LM patch for @litert_lm compatibility)
 http_archive(
     name = "sentencepiece",
-    build_file = "@litert_archive//:BUILD.sentencepiece",
+    build_file = "@litert_lm//third_party/sentencepiece:sentencepiece.BUILD",
     patch_cmds = [
-        # Empty config.h seems enough.
-        "touch config.h",
-        # Replace third_party/absl/ with absl/ in *.h and *.cc files.
-        "sed -i -e 's|#include \"third_party/absl/|#include \"absl/|g' *.h *.cc",
-        # Replace third_party/darts_clone/ with include/ in *.h and *.cc files.
-        "sed -i -e 's|#include \"third_party/darts_clone/|#include \"include/|g' *.h *.cc",
+        "printf '#ifndef CONFIG_H_\\n#define CONFIG_H_\\n#define VERSION \"0.2.2\"\\n#define PACKAGE \"sentencepiece\"\\n#define PACKAGE_STRING \"sentencepiece\"\\n#define INSTALL_DATADIR \"\"\\n#endif\\n' > config.h",
+        "mv src/* .",
+        # Rewrite vendored include prefixes using POSIX-safe redirect (works on GNU and BSD/macOS sed).
+        "for f in *.h *.cc; do sed -e 's|#include \"third_party/absl/|#include \"absl/|g' -e 's|#include \"third_party/protobuf-lite/google/protobuf/|#include \"google/protobuf/|g' -e 's|#include \"third_party/protobuf/|#include \"google/protobuf/|g' \"$f\" > \"$f.tmp\" && mv \"$f.tmp\" \"$f\"; done",
+        "rm -rf third_party/protobuf-lite third_party/protobuf third_party/absl third_party/abseil-cpp",
     ],
-    patches = ["@litert_archive//:PATCH.sentencepiece"],
-    sha256 = "9970f0a0afee1648890293321665e5b2efa04eaec9f1671fcf8048f456f5bb86",
-    strip_prefix = "sentencepiece-0.2.0/src",
-    url = "https://github.com/google/sentencepiece/archive/refs/tags/v0.2.0.tar.gz",
+    patches = ["@litert_lm//third_party/sentencepiece:sentencepiece.patch"],
+    sha256 = "92381f713e094a15a1ccff1ac4a5315a4c4b82a99ac1332d6ac53c9dc8e1bcf1",
+    strip_prefix = "sentencepiece-0.2.2",
+    url = "https://github.com/google/sentencepiece/archive/refs/tags/v0.2.2.tar.gz",
 )
 
 # tomlplusplus
@@ -446,9 +465,9 @@ load("@litert_archive//third_party/google_tensor:workspace.bzl", "google_tensor"
 google_tensor()
 
 # ML Drift ----------------------------------------------------------------------------------
-ML_DRIFT_COMMIT = "1b18771f44c0be3d972847b31a80f6dc3d6964b5"
+ML_DRIFT_COMMIT = "e9229fa80c4a99f1855721aec8282f7f4ce86fe4"
 
-ML_DRIFT_SHA256 = "0a7384901754a4ee84220561bcf5447fde4363cbc8a42c94743f183d178feb30"
+ML_DRIFT_SHA256 = "d485e49eb785ce5c0ee2589e3f5aa1a133c5bb9caa0ca88d8a266e96791eac69"
 
 http_archive(
     name = "ml_drift",
@@ -459,6 +478,7 @@ http_archive(
     repo_mapping = {
         "@fp16": "@FP16",
         "@com_github_google_re2": "@com_googlesource_code_re2",
+        "@litert": "@litert_archive",
     },
     sha256 = ML_DRIFT_SHA256,
     strip_prefix = "ml-drift-" + ML_DRIFT_COMMIT,
@@ -532,3 +552,140 @@ maybe(
     android_sdk_repository,
     name = "androidsdk",
 )
+
+# LiteRT-LM transitive dependencies ----------------------------------------------------------
+http_archive(
+    name = "minizip",
+    add_prefix = "minizip",
+    build_file = "@litert_lm//third_party/minizip:minizip.BUILD",
+    sha256 = "9a93b2b7dfdac77ceba5a558a580e74667dd6fede4585b91eefb60f03b72df23",
+    strip_prefix = "zlib-1.3.1/contrib/minizip",
+    urls = [
+        "https://storage.googleapis.com/mirror.tensorflow.org/zlib.net/fossils/zlib-1.3.1.tar.gz",
+        "https://mirror.bazel.build/zlib.net/fossils/zlib-1.3.1.tar.gz",
+        "https://zlib.net/fossils/zlib-1.3.1.tar.gz",
+    ],
+)
+
+http_archive(
+    name = "tokenizers_cpp",
+    build_file = "@litert_lm//third_party/tokenizers_cpp:tokenizers_cpp.BUILD",
+    sha256 = "3e0b9ec325a326b0a2cef5cf164ee94a74ac372c5881ae5af634036db0441823",
+    strip_prefix = "tokenizers-cpp-0.1.1",
+    url = "https://github.com/mlc-ai/tokenizers-cpp/archive/refs/tags/v0.1.1.tar.gz",
+)
+
+http_archive(
+    name = "absl_py",
+    sha256 = "8a3d0830e4eb4f66c4fa907c06edf6ce1c719ced811a12e26d9d3162f8471758",
+    strip_prefix = "abseil-py-2.1.0",
+    urls = [
+        "https://storage.googleapis.com/mirror.tensorflow.org/github.com/abseil/abseil-py/archive/refs/tags/v2.1.0.tar.gz",
+        "https://mirror.bazel.build/github.com/abseil/abseil-py/archive/refs/tags/v2.1.0.tar.gz",
+        "https://github.com/abseil/abseil-py/archive/refs/tags/v2.1.0.tar.gz",
+    ],
+)
+
+http_archive(
+    name = "nlohmann_json",
+    sha256 = "34660b5e9a407195d55e8da705ed26cc6d175ce5a6b1fb957e701fb4d5b04022",
+    strip_prefix = "json-3.12.0",
+    url = "https://github.com/nlohmann/json/archive/refs/tags/v3.12.0.zip",
+)
+
+http_archive(
+    name = "miniaudio",
+    build_file = "@litert_lm//third_party/miniaudio:miniaudio.BUILD",
+    sha256 = "bcb07bfb27e6fa94d34da73ba2d5642d4940b208ec2a660dbf4e52e6b7cd492f",
+    strip_prefix = "miniaudio-0.11.22",
+    url = "https://github.com/mackron/miniaudio/archive/refs/tags/0.11.22.tar.gz",
+)
+
+http_archive(
+    name = "stb",
+    build_file = "@litert_lm//third_party/stb:stb.BUILD",
+    sha256 = "119b9f3cca3e50225dc946ed1acd1b7a160943bc8bf549760109cea4e4e7c836",
+    strip_prefix = "stb-f58f558c120e9b32c217290b80bad1a0729fbb2c",
+    url = "https://github.com/nothings/stb/archive/f58f558c120e9b32c217290b80bad1a0729fbb2c.zip",
+)
+
+http_archive(
+    name = "highway",
+    sha256 = "07b3c1ba2c1096878a85a31a5b9b3757427af963b1141ca904db2f9f4afe0bc2",
+    strip_prefix = "highway-1.3.0",
+    url = "https://github.com/google/highway/archive/refs/tags/1.3.0.tar.gz",
+)
+
+# Rust (for HuggingFace tokenizers via @litert_lm)
+http_archive(
+    name = "rules_rust",
+    patches = ["@litert_lm//third_party/rules_rust:rules_rust.patch"],
+    sha256 = "53c1bac7ec48f7ce48c4c1c6aa006f27515add2aeb05725937224e6e00ec7cea",
+    url = "https://github.com/bazelbuild/rules_rust/releases/download/0.61.0/rules_rust-0.61.0.tar.gz",
+)
+
+load("@rules_rust//rust:repositories.bzl", "rules_rust_dependencies", "rust_register_toolchains")
+
+rules_rust_dependencies()
+
+rust_register_toolchains(edition = "2021")
+
+load("@rules_rust//crate_universe:repositories.bzl", "crate_universe_dependencies")
+
+crate_universe_dependencies()
+
+load("@rules_rust//crate_universe:defs.bzl", "crate", "crates_repository")
+load("@rules_rust//rust/platform:triple_mappings.bzl", "SUPPORTED_PLATFORM_TRIPLES")
+
+crates_repository(
+    name = "crate_index",
+    annotations = {
+        "llguidance": [
+            crate.annotation(
+                additive_build_file = "@litert_lm//:BUILD.llguidance",
+                gen_build_script = False,
+                patches = [
+                    "@litert_lm//:PATCH.llguidance_regexvec",
+                    "@litert_lm//:PATCH.llguidance_numeric",
+                    "@litert_lm//:PATCH.llguidance_grammar",
+                    "@litert_lm//:PATCH.llguidance_perf",
+                ],
+            ),
+        ],
+        "toktrie": [
+            crate.annotation(
+                patches = ["@litert_lm//:PATCH.toktrie"],
+            ),
+        ],
+    },
+    cargo_lockfile = "@litert_lm//:Cargo.lock",
+    manifests = [
+        "@litert_lm//:Cargo.toml",
+    ],
+    supported_platform_triples = SUPPORTED_PLATFORM_TRIPLES + [
+        "x86_64-linux-android",
+    ],
+)
+
+load("@crate_index//:defs.bzl", "crate_repositories")
+
+crate_repositories()
+
+http_archive(
+    name = "cxxbridge_cmd",
+    build_file = "@litert_lm//cxxbridge_cmd:BUILD.cxxbridge_cmd.bazel",
+    integrity = "sha256-pf/3kWu94FwtuZRp8J3PryA78lsJbMv052GgR5JBLhA=",
+    strip_prefix = "cxxbridge-cmd-1.0.149",
+    type = "tar.gz",
+    url = "https://static.crates.io/crates/cxxbridge-cmd/cxxbridge-cmd-1.0.149.crate",
+)
+
+crates_repository(
+    name = "cxxbridge_cmd_deps",
+    cargo_lockfile = "@litert_lm//cxxbridge_cmd:Cargo.lock",
+    manifests = ["@cxxbridge_cmd//:Cargo.toml"],
+)
+
+load("@cxxbridge_cmd_deps//:defs.bzl", cxxbridge_cmd_deps = "crate_repositories")
+
+cxxbridge_cmd_deps()

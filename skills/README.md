@@ -13,6 +13,7 @@ Each skill is a self-contained `SKILL.md` playbook covering one stage of taking 
 * [`benchmark-on-ddp/`](benchmark-on-ddp/) — Measure a LiteRT `.tflite` model with `benchmark_model` on Developer Device Platform (DDP) lab phones through `litert benchmark --ddp`, or on the Mac you run it from, and turn the session into rows of the performance leaderboard under `benchmark/leaderboard`: one matrix entry per model, one session per accelerator, collect, rebuild the board, commit the data.
 * [`compiled-model-app-scaffolding/`](compiled-model-app-scaffolding/) — Build an Android app (Kotlin, Compose) around a verified LiteRT model using the CompiledModel API: app architecture, inference-layer lifecycle rules, model delivery, and UI traps.
 * [`litert-compiled-model-migration/`](litert-compiled-model-migration/) — Rapidly migrate an existing Android application from legacy TensorFlow Lite (TFLite) to the LiteRT CompiledModel API (2.3.0): dependency swap (the TensorFlow Lite Support Library moves to LiteRT Support), `CompiledModel` rewrite with buffer reuse, optional NPU JIT acceleration, and an instrumented-test gate.
+* [`omni/`](omni/) — Bring up a new LiteRT Omni multimodal model (Any-to-Any, ASR, TTS, or Text-to-Image) under `models/` with an out-of-tree `runner/` Bazel C++ pipeline (`--config=omni`), custom protobuf metadata schema, and standalone `export/` `ModelExtension` exporter without modifying upstream LiteRT-LM or `litert-torch`.
 
 ## Android skills (for app developers' agents)
 

@@ -121,3 +121,11 @@ lint/generated/
 lint/outputs/
 lint/tmp/
 # lint/reports/
+
+# Bazel output symlinks
+/bazel-*
+
+# Python virtual environments and generated protobuf bindings
+.venv/
+models/**/*_pb2.py
+**/__pycache__/

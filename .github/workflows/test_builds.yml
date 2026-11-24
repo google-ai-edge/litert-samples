@@ -167,3 +167,35 @@ jobs:
             ~/.cache/bazel-linux
             ~/.cache/bazel-android
           key: ${{ steps.cache-keys.outputs.CACHE_KEY }}
+
+  build-and-test-omni:
+    name: "Build-and-Test-Omni-Linux"
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Free unused runner disk space
+        run: |
+          # Keep runner disk footprint comfortably under budget without installing Android NDK.
+          sudo rm -rf /usr/local/lib/android /usr/share/dotnet /opt/ghc || true
+          df -h
+
+      - name: Set up Python
+        uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: '3.11'
+
+      - name: Set up Bazel
+        uses: bazel-contrib/setup-bazel@c5acdfb288317d0b5c0bbd7a396a3dc868bb0f86 # 0.19.0
+        with:
+          bazel-version: '7.6.1'
+
+      - name: Test LiteRT Omni Linux Targets
+        run: |
+          unset ANDROID_HOME ANDROID_NDK ANDROID_NDK_HOME ANDROID_NDK_ROOT ANDROID_SDK_ROOT
+          bazel test --config=omni --test_output=errors //models/lfm/lfm2_5_audio/runner:all
