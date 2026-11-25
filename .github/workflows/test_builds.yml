@@ -213,7 +213,9 @@ jobs:
         run: |
           unset ANDROID_HOME ANDROID_NDK ANDROID_NDK_HOME ANDROID_NDK_ROOT ANDROID_SDK_ROOT
           mkdir -p "$HOME/.cache/bazel-omni"
-          bazel test --config=omni --disk_cache="$HOME/.cache/bazel-omni" --test_output=errors //models/lfm/lfm2_5_audio/runner:all
+          bazel test --config=omni --disk_cache="$HOME/.cache/bazel-omni" --test_output=errors \
+            //models/lfm/lfm2_5_audio/runner:all \
+            //models/tongyi/z_image_turbo/runner:all
 
       - name: Save Bazel disk cache
         uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
