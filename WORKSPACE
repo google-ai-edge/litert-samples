@@ -371,6 +371,9 @@ LITERT_LM_SHA256 = "e004f17fa72965d3a1d66ec61cf543c0dc7aa51a4c12cd99e2750538db07
 
 http_archive(
     name = "litert_lm",
+    patch_args = ["-p1"],
+    # Temporary GCC -O2 UB fix for GetCacheModel; drop on the next @litert_lm pin bump.
+    patches = ["//third_party/litert_lm:fix_get_cache_model_dangling_init_list.patch"],
     repo_mapping = {
         "@litert": "@litert_archive",
     },
