@@ -453,6 +453,16 @@ build:elinux_armhf --cpu=armhf
 build:elinux_armhf --platforms=@org_tensorflow//tensorflow/tools/toolchains/linux:linux_armhf
 build:elinux_armhf --copt -mfp16-format=ieee
 
+# LiteRT Omni (@litert_lm) build configuration.
+# Uses the host C++ toolchain (required for C++20 headers such as <version> and
+# Cargo build scripts in @rules_rust / onig_sys, matching upstream LiteRT-LM).
+# --per_file_copt runs after --enable_platform_specific_config's -std=c++17 so
+# existing non-omni targets and C sources remain unchanged.
+build:omni --@rules_ml_toolchain//common:enable_hermetic_cc=False
+build:omni --repo_env=USE_HERMETIC_CC_TOOLCHAIN=0
+build:omni --per_file_copt=.*\\.(cc|cpp|cxx|mm)$@-std=c++20
+build:omni --host_per_file_copt=.*\\.(cc|cpp|cxx|mm)$@-std=c++20
+
 # Config-specific options should come above this line.
 
 # Load rc file written by ./configure.
