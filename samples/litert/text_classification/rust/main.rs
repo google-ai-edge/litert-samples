@@ -348,8 +348,101 @@ fn split_words(text: &str) -> Vec<(String, Range<usize>)> {
     result
 }
 
+/// Encodes `item` with `tokenizer` without adding special tokens and returns its token IDs as
+/// `i32`s.
+///
+/// # Panics
+///
+/// Panics if the tokenizer fails to encode `item` or if any token ID overflows `i32`.
+fn encode_pieces(tokenizer: &Tokenizer, item: &str) -> Vec<i32> {
+    tokenizer
+        .encode(item, false)
+        .expect("Failed to encode piece")
+        .get_ids()
+        .iter()
+        .map(|&id| i32::try_from(id).expect("token ID should fit in i32"))
+        .collect()
+}
+
+/// Constructs the `GLiNER2` schema prompt and word token sequence for `text` and `labels`,
+/// returning zero-padded [`GraphInputs`] ready for [`SignatureRunner`] execution.
+///
+/// # Panics
+///
+/// Panics if `labels` is empty, exceeds [`MAX_LABELS`], if the encoded schema prompt alone
+/// reaches [`SEQ_LEN`], or if any sequence index overflows `i32`.
+fn build_inputs(tokenizer: &Tokenizer, text: &str, labels: &[&str]) -> GraphInputs {
+    assert!(!labels.is_empty(), "at least one label is required");
+    assert!(labels.len() <= MAX_LABELS, "labels exceed MAX_LABELS={MAX_LABELS}");
+
+    let mut ids: Vec<i32> = Vec::new();
+    let mut prompt_position: i32 = 0;
+    let mut label_positions: Vec<i32> = Vec::with_capacity(labels.len());
+
+    let mut schema: Vec<&str> = vec!["(", P_TOKEN, "entities", "("];
+    for &label in labels {
+        schema.push(E_TOKEN);
+        schema.push(label);
+    }
+    schema.extend_from_slice(&[")", ")", SEP_TEXT]);
+
+    for (i, item) in schema.iter().enumerate() {
+        let pos = i32::try_from(ids.len()).expect("sequence length should fit in i32");
+        if i == 1 {
+            prompt_position = pos;
+        } else if *item == E_TOKEN && i >= 4 {
+            label_positions.push(pos);
+        }
+        ids.extend(encode_pieces(tokenizer, item));
+    }
+
+    assert!(
+        ids.len() < SEQ_LEN,
+        "label prompt alone needs {} subwords; SEQ_LEN={SEQ_LEN}",
+        ids.len()
+    );
+
+    let mut word_positions: Vec<i32> = Vec::new();
+    let mut word_spans: Vec<Range<usize>> = Vec::new();
+    for (word, span) in split_words(text) {
+        let word_ids = encode_pieces(tokenizer, &word);
+        if word_ids.is_empty() {
+            continue;
+        }
+        if word_positions.len() >= MAX_WORDS || ids.len() + word_ids.len() > SEQ_LEN {
+            break;
+        }
+        word_positions.push(i32::try_from(ids.len()).expect("sequence length should fit in i32"));
+        word_spans.push(span);
+        ids.extend(word_ids);
+    }
+
+    let num_real_tokens = ids.len();
+    let mut input_ids = vec![0i32; SEQ_LEN];
+    input_ids[..num_real_tokens].copy_from_slice(&ids);
+
+    let mut attention_mask = vec![0i32; SEQ_LEN];
+    attention_mask[..num_real_tokens].fill(1);
+
+    let mut padded_word_positions = vec![0i32; MAX_WORDS];
+    padded_word_positions[..word_positions.len()].copy_from_slice(&word_positions);
+
+    let mut padded_label_positions = vec![0i32; MAX_LABELS];
+    padded_label_positions[..label_positions.len()].copy_from_slice(&label_positions);
+
+    GraphInputs {
+        input_ids,
+        attention_mask,
+        word_positions: padded_word_positions,
+        label_positions: padded_label_positions,
+        prompt_position: [prompt_position],
+        labels: labels.iter().map(|&s| s.to_string()).collect(),
+        word_spans,
+    }
+}
+
 /// Decodes [`DetectedEntity`] spans from `count_logits` and `span_scores` above `threshold`,
-/// applying greedy non-maximum suppression per label over overlapping character spans.
+/// applying greedy non-maximum suppression per label over overlapping byte spans.
 ///
 /// `count_logits` (`argmax > 0`) acts as a binary entity-presence gate matching the exported
 /// single-step count embedding in `convert.py`, while individual spans are filtered by `threshold`
@@ -396,13 +489,13 @@ fn decode_entities(
                 }
                 let score = span_scores[(k * MAX_WORDS + start) * MAX_WIDTH + width];
                 if score >= threshold {
-                    let char_start = inputs.word_spans[start].start;
-                    let char_end = inputs.word_spans[end].end;
-                    if !text[char_start..char_end].trim().is_empty() {
+                    let byte_start = inputs.word_spans[start].start;
+                    let byte_end = inputs.word_spans[end].end;
+                    if !text[byte_start..byte_end].trim().is_empty() {
                         candidates.push(CandidateSpan {
                             confidence: score,
-                            start: char_start,
-                            end: char_end,
+                            start: byte_start,
+                            end: byte_end,
                         });
                     }
                 }
@@ -479,100 +572,6 @@ impl TextClassificationModel {
         Ok(())
     }
 
-    /// Encodes `item` with the subword tokenizer without adding special tokens and returns its
-    /// token IDs as `i32`s.
-    ///
-    /// # Panics
-    ///
-    /// Panics if the tokenizer fails to encode `item` or if any token ID overflows `i32`.
-    fn encode_pieces(&self, item: &str) -> Vec<i32> {
-        self.tokenizer
-            .encode(item, false)
-            .expect("Failed to encode piece")
-            .get_ids()
-            .iter()
-            .map(|&id| i32::try_from(id).expect("token ID should fit in i32"))
-            .collect()
-    }
-
-    /// Constructs the `GLiNER2` schema prompt and word token sequence for `text` and `labels`,
-    /// returning zero-padded [`GraphInputs`] ready for [`SignatureRunner`] execution.
-    ///
-    /// # Panics
-    ///
-    /// Panics if `labels` is empty, exceeds [`MAX_LABELS`], if the encoded schema prompt alone
-    /// reaches [`SEQ_LEN`], or if any sequence index overflows `i32`.
-    fn build_inputs(&self, text: &str, labels: &[&str]) -> GraphInputs {
-        assert!(!labels.is_empty(), "at least one label is required");
-        assert!(labels.len() <= MAX_LABELS, "labels exceed MAX_LABELS={MAX_LABELS}");
-
-        let mut ids: Vec<i32> = Vec::new();
-        let mut prompt_position: i32 = 0;
-        let mut label_positions: Vec<i32> = Vec::with_capacity(labels.len());
-
-        let mut schema: Vec<&str> = vec!["(", P_TOKEN, "entities", "("];
-        for &label in labels {
-            schema.push(E_TOKEN);
-            schema.push(label);
-        }
-        schema.extend_from_slice(&[")", ")", SEP_TEXT]);
-
-        for (i, item) in schema.iter().enumerate() {
-            let pos = i32::try_from(ids.len()).expect("sequence length should fit in i32");
-            if i == 1 {
-                prompt_position = pos;
-            } else if *item == E_TOKEN && i >= 4 {
-                label_positions.push(pos);
-            }
-            ids.extend(self.encode_pieces(item));
-        }
-
-        assert!(
-            ids.len() < SEQ_LEN,
-            "label prompt alone needs {} subwords; SEQ_LEN={SEQ_LEN}",
-            ids.len()
-        );
-
-        let mut word_positions: Vec<i32> = Vec::new();
-        let mut word_spans: Vec<Range<usize>> = Vec::new();
-        for (word, span) in split_words(text) {
-            let word_ids = self.encode_pieces(&word);
-            if word_ids.is_empty() {
-                continue;
-            }
-            if word_positions.len() >= MAX_WORDS || ids.len() + word_ids.len() > SEQ_LEN {
-                break;
-            }
-            word_positions
-                .push(i32::try_from(ids.len()).expect("sequence length should fit in i32"));
-            word_spans.push(span);
-            ids.extend(word_ids);
-        }
-
-        let num_real_tokens = ids.len();
-        let mut input_ids = vec![0i32; SEQ_LEN];
-        input_ids[..num_real_tokens].copy_from_slice(&ids);
-
-        let mut attention_mask = vec![0i32; SEQ_LEN];
-        attention_mask[..num_real_tokens].fill(1);
-
-        let mut padded_word_positions = vec![0i32; MAX_WORDS];
-        padded_word_positions[..word_positions.len()].copy_from_slice(&word_positions);
-
-        let mut padded_label_positions = vec![0i32; MAX_LABELS];
-        padded_label_positions[..label_positions.len()].copy_from_slice(&label_positions);
-
-        GraphInputs {
-            input_ids,
-            attention_mask,
-            word_positions: padded_word_positions,
-            label_positions: padded_label_positions,
-            prompt_position: [prompt_position],
-            labels: labels.iter().map(|&s| s.to_string()).collect(),
-            word_spans,
-        }
-    }
-
     /// Tokenizes `input_text`, executes the `GLiNER2` model, prints the inference duration to
     /// stdout, and returns all detected PII entities.
     ///
@@ -581,7 +580,7 @@ impl TextClassificationModel {
     /// Returns an [`Error`] if binding input tensors, executing the signature runner, or copying
     /// output tensors fails.
     fn run(&mut self, input_text: &str) -> Result<Vec<DetectedEntity>, Error> {
-        let inputs = self.build_inputs(input_text, &PII_LABELS);
+        let inputs = build_inputs(&self.tokenizer, input_text, &PII_LABELS);
 
         self.runner
             .set_input("input_ids", &inputs.input_ids)?
@@ -794,7 +793,7 @@ mod tests {
         // high score.
         span_scores[(0 * MAX_WORDS + 2) * MAX_WIDTH + 2] = 0.99;
 
-        // Label 1 ("first_name"): overlapping character span in a different label is kept.
+        // Label 1 ("first_name"): overlapping byte span in a different label is kept.
         span_scores[(1 * MAX_WORDS + 0) * MAX_WIDTH + 0] = 0.90;
         span_scores[(1 * MAX_WORDS + 1) * MAX_WIDTH + 0] = 0.75;
 
@@ -825,5 +824,128 @@ mod tests {
                 },
             ]
         );
+    }
+
+    fn synthetic_tokenizer() -> Tokenizer {
+        Tokenizer::from_bytes(
+            br###"{
+                "version": "1.0",
+                "truncation": null,
+                "padding": null,
+                "added_tokens": [
+                    {"id": 1, "content": "[P]", "single_word": false, "lstrip": false, "rstrip": false, "normalized": false, "special": true},
+                    {"id": 2, "content": "[E]", "single_word": false, "lstrip": false, "rstrip": false, "normalized": false, "special": true},
+                    {"id": 3, "content": "[SEP_TEXT]", "single_word": false, "lstrip": false, "rstrip": false, "normalized": false, "special": true}
+                ],
+                "normalizer": null,
+                "pre_tokenizer": {"type": "WhitespaceSplit"},
+                "post_processor": null,
+                "decoder": null,
+                "model": {
+                    "type": "WordPiece",
+                    "unk_token": "[UNK]",
+                    "continuing_subword_prefix": "##",
+                    "max_input_chars_per_word": 100,
+                    "vocab": {
+                        "[PAD]": 0,
+                        "[P]": 1,
+                        "[E]": 2,
+                        "[SEP_TEXT]": 3,
+                        "[UNK]": 4,
+                        "(": 5,
+                        ")": 6,
+                        "entities": 7,
+                        "person": 8,
+                        "phone": 9,
+                        "##_number": 10,
+                        "jane": 11,
+                        "doe": 12,
+                        "sub": 13,
+                        "##word": 14,
+                        "a": 15,
+                        "##b": 16,
+                        "##c": 17
+                    }
+                }
+            }"###,
+        )
+        .expect("synthetic tokenizer JSON should parse")
+    }
+
+    #[gtest]
+    fn build_inputs_lays_out_schema_markers_word_positions_and_zero_padding() {
+        let tokenizer = synthetic_tokenizer();
+        let text = "Jane subword Doe";
+        let inputs = build_inputs(&tokenizer, text, &["phone_number", "person"]);
+
+        // Schema: ( [P] entities ( [E] phone ##_number [E] person ) ) [SEP_TEXT]
+        // Text:   jane sub ##word doe
+        let expected_ids = vec![5, 1, 7, 5, 2, 9, 10, 2, 8, 6, 6, 3, 11, 13, 14, 12];
+        let real_len = expected_ids.len();
+
+        expect_eq!(inputs.input_ids.len(), SEQ_LEN);
+        expect_eq!(inputs.input_ids[..real_len], expected_ids);
+        expect_that!(inputs.input_ids[real_len..], each(eq(&0)));
+
+        expect_eq!(inputs.attention_mask.len(), SEQ_LEN);
+        expect_that!(inputs.attention_mask[..real_len], each(eq(&1)));
+        expect_that!(inputs.attention_mask[real_len..], each(eq(&0)));
+
+        expect_eq!(inputs.prompt_position, [1]);
+
+        expect_eq!(inputs.label_positions.len(), MAX_LABELS);
+        expect_eq!(inputs.label_positions[..2], [4, 7]);
+        expect_that!(inputs.label_positions[2..], each(eq(&0)));
+
+        expect_eq!(inputs.word_positions.len(), MAX_WORDS);
+        expect_eq!(inputs.word_positions[..3], [12, 13, 15]);
+        expect_that!(inputs.word_positions[3..], each(eq(&0)));
+
+        expect_eq!(inputs.labels, vec!["phone_number", "person"]);
+        expect_eq!(inputs.word_spans, vec![0..4, 5..12, 13..16]);
+    }
+
+    #[gtest]
+    fn build_inputs_truncates_at_max_words() {
+        let tokenizer = synthetic_tokenizer();
+        let text = "jane ".repeat(MAX_WORDS + 20);
+        let inputs = build_inputs(&tokenizer, &text, &["person"]);
+
+        // Schema for one 1-subword label: ( [P] entities ( [E] person ) ) [SEP_TEXT] => 9 tokens.
+        let schema_len = 9;
+        let expected_real_len = schema_len + MAX_WORDS;
+
+        expect_eq!(inputs.word_spans.len(), MAX_WORDS);
+        expect_eq!(inputs.word_positions[0], i32::try_from(schema_len).unwrap());
+        expect_eq!(
+            inputs.word_positions[MAX_WORDS - 1],
+            i32::try_from(schema_len + MAX_WORDS - 1).unwrap()
+        );
+        expect_that!(inputs.attention_mask[..expected_real_len], each(eq(&1)));
+        expect_that!(inputs.attention_mask[expected_real_len..], each(eq(&0)));
+        expect_that!(inputs.input_ids[expected_real_len..], each(eq(&0)));
+    }
+
+    #[gtest]
+    fn build_inputs_truncates_at_seq_len_without_splitting_multi_subword_word() {
+        let tokenizer = synthetic_tokenizer();
+        // Each "abc" encodes to 3 subwords ([15, 16, 17]). With 9 schema tokens, 503 subwords
+        // remain, fitting 167 whole words (501 subwords -> 510 total) before hitting SEQ_LEN=512.
+        let text = "abc ".repeat(MAX_WORDS);
+        let inputs = build_inputs(&tokenizer, &text, &["person"]);
+
+        let schema_len = 9;
+        let expected_words = (SEQ_LEN - schema_len) / 3;
+        let expected_real_len = schema_len + expected_words * 3;
+
+        expect_eq!(inputs.word_spans.len(), expected_words);
+        expect_eq!(
+            inputs.word_positions[expected_words - 1],
+            i32::try_from(schema_len + (expected_words - 1) * 3).unwrap()
+        );
+        expect_that!(inputs.word_positions[expected_words..], each(eq(&0)));
+        expect_that!(inputs.attention_mask[..expected_real_len], each(eq(&1)));
+        expect_that!(inputs.attention_mask[expected_real_len..], each(eq(&0)));
+        expect_that!(inputs.input_ids[expected_real_len..], each(eq(&0)));
     }
 }

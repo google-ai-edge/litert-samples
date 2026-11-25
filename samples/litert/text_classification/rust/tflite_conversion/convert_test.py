@@ -12,23 +12,19 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Unit tests for EntityExtractionGraph and helpers in convert.py.
-
-Run from this directory (in the conversion virtualenv):
-  python -m unittest convert_test
-"""
+"""Unit tests for EntityExtractionGraph and helpers in convert.py."""
 
 from __future__ import annotations
 
 import pathlib
 import sys
-import tempfile
 import types
-import unittest
 from unittest import mock
 
 import torch
 from torch import nn
+
+from google3.testing.pybase import googletest
 
 # Provide lightweight module stubs for standalone OSS CLI packages that are not
 # invoked when testing the PyTorch graph definition.
@@ -42,7 +38,9 @@ for _mod_name in (
 ):
   sys.modules.setdefault(_mod_name, mock.MagicMock())
 
-import convert  # pylint: disable=g-import-not-at-top,wrong-import-position
+# pylint: disable=g-import-not-at-top
+from google3.third_party.odml.litert.litert.samples.text_classifier.tflite_conversion import convert
+# pylint: enable=g-import-not-at-top
 
 _EXTRA_TOKENIZER_FILES = (
     "tokenizer_config.json",
@@ -121,7 +119,7 @@ def _save_fake_pretrained_tokenizer(target_dir: pathlib.Path) -> None:
     (target_dir / extra).write_text("extra", encoding="utf-8")
 
 
-class ConvertTest(unittest.TestCase):
+class ConvertTest(googletest.TestCase):
 
   def test_gather_selects_expected_sequence_positions(self):
     seq = torch.arange(24, dtype=torch.float32).reshape(1, 6, 4)
@@ -181,76 +179,73 @@ class ConvertTest(unittest.TestCase):
     torch.testing.assert_close(last_word_scores[1], last_word_scores[2])
 
   def test_export_tokenizer_writes_tokenizer_and_removes_extras(self):
-    with tempfile.TemporaryDirectory() as tmp:
-      out_dir = pathlib.Path(tmp)
+    out_dir = pathlib.Path(self.create_tempdir().full_path)
 
-      fake_model = mock.MagicMock()
-      fake_model.processor.tokenizer.save_pretrained.side_effect = (
-          _save_fake_pretrained_tokenizer
-      )
-      fake_model.encoder.get_input_embeddings.return_value.num_embeddings = 100
+    fake_model = mock.MagicMock()
+    fake_model.processor.tokenizer.save_pretrained.side_effect = (
+        _save_fake_pretrained_tokenizer
+    )
+    fake_model.encoder.get_input_embeddings.return_value.num_embeddings = 100
 
-      with mock.patch.object(
-          convert.tokenizers.Tokenizer, "from_file"
-      ) as mock_from_file:
-        mock_from_file.return_value.get_vocab_size.return_value = 100
-        convert.export_tokenizer(fake_model, out_dir)
+    with mock.patch.object(
+        convert.tokenizers.Tokenizer, "from_file"
+    ) as mock_from_file:
+      mock_from_file.return_value.get_vocab_size.return_value = 100
+      convert.export_tokenizer(fake_model, out_dir)
 
-      self.assertTrue((out_dir / "tokenizer.json").exists())
-      for extra in _EXTRA_TOKENIZER_FILES:
-        self.assertFalse((out_dir / extra).exists())
+    self.assertTrue((out_dir / "tokenizer.json").exists())
+    for extra in _EXTRA_TOKENIZER_FILES:
+      self.assertFalse((out_dir / extra).exists())
 
   def test_export_tokenizer_raises_when_vocab_exceeds_embeddings(self):
-    with tempfile.TemporaryDirectory() as tmp:
-      out_dir = pathlib.Path(tmp)
-      fake_model = mock.MagicMock()
-      fake_model.encoder.get_input_embeddings.return_value.num_embeddings = 50
+    out_dir = pathlib.Path(self.create_tempdir().full_path)
+    fake_model = mock.MagicMock()
+    fake_model.encoder.get_input_embeddings.return_value.num_embeddings = 50
 
-      with mock.patch.object(
-          convert.tokenizers.Tokenizer, "from_file"
-      ) as mock_from_file:
-        mock_from_file.return_value.get_vocab_size.return_value = 55
-        with self.assertRaisesRegex(
-            RuntimeError, "Tokenizer has 55 IDs, but encoder only has 50"
-        ):
-          convert.export_tokenizer(fake_model, out_dir)
+    with mock.patch.object(
+        convert.tokenizers.Tokenizer, "from_file"
+    ) as mock_from_file:
+      mock_from_file.return_value.get_vocab_size.return_value = 55
+      with self.assertRaisesRegex(
+          RuntimeError, "Tokenizer has 55 IDs, but encoder only has 50"
+      ):
+        convert.export_tokenizer(fake_model, out_dir)
 
   def test_convert_to_tflite_and_quantize_int8(self):
-    with tempfile.TemporaryDirectory() as tmp:
-      out_dir = pathlib.Path(tmp)
-      float_path = out_dir / "model.tflite"
-      int8_path = out_dir / "model_int8.tflite"
-      graph = nn.Identity()
-      sample_kwargs = {"x": torch.zeros((1, 4), dtype=torch.int32)}
+    out_dir = pathlib.Path(self.create_tempdir().full_path)
+    float_path = out_dir / "model.tflite"
+    int8_path = out_dir / "model_int8.tflite"
+    graph = nn.Identity()
+    sample_kwargs = {"x": torch.zeros((1, 4), dtype=torch.int32)}
 
-      with mock.patch.object(convert.litert_torch, "convert") as mock_convert:
-        mock_convert.return_value.export.side_effect = (
-            lambda path: pathlib.Path(path).write_bytes(b"float32")
-        )
-        convert.convert_to_tflite(graph, sample_kwargs, float_path)
-        mock_convert.assert_called_once_with(graph, sample_kwargs=sample_kwargs)
-        self.assertTrue(float_path.exists())
+    with mock.patch.object(convert.litert_torch, "convert") as mock_convert:
+      mock_convert.return_value.export.side_effect = (
+          lambda path: pathlib.Path(path).write_bytes(b"float32")
+      )
+      convert.convert_to_tflite(graph, sample_kwargs, float_path)
+      mock_convert.assert_called_once_with(graph, sample_kwargs=sample_kwargs)
+      self.assertTrue(float_path.exists())
 
-      with (
-          mock.patch.object(
-              convert.quantizer, "Quantizer"
-          ) as mock_quantizer_cls,
-          mock.patch.object(
-              convert.recipe, "dynamic_wi8_afp32"
-          ) as mock_recipe_fn,
-      ):
-        mock_export = (
-            mock_quantizer_cls.return_value.quantize.return_value.export_model
-        )
-        mock_export.side_effect = (
-            lambda path, overwrite: pathlib.Path(path).write_bytes(b"int8")
-        )
-        convert.quantize_int8(float_path, int8_path)
-        mock_quantizer_cls.assert_called_once_with(
-            str(float_path), mock_recipe_fn.return_value
-        )
-        mock_export.assert_called_once_with(str(int8_path), overwrite=True)
-        self.assertTrue(int8_path.exists())
+    with (
+        mock.patch.object(
+            convert.quantizer, "Quantizer"
+        ) as mock_quantizer_cls,
+        mock.patch.object(
+            convert.recipe, "dynamic_wi8_afp32"
+        ) as mock_recipe_fn,
+    ):
+      mock_export = (
+          mock_quantizer_cls.return_value.quantize.return_value.export_model
+      )
+      mock_export.side_effect = (
+          lambda path, overwrite: pathlib.Path(path).write_bytes(b"int8")
+      )
+      convert.quantize_int8(float_path, int8_path)
+      mock_quantizer_cls.assert_called_once_with(
+          str(float_path), mock_recipe_fn.return_value
+      )
+      mock_export.assert_called_once_with(str(int8_path), overwrite=True)
+      self.assertTrue(int8_path.exists())
 
   def test_parse_args_defaults_and_overrides(self):
     defaults = convert.parse_args([])
@@ -278,4 +273,4 @@ class ConvertTest(unittest.TestCase):
 
 
 if __name__ == "__main__":
-  unittest.main()
+  googletest.main()

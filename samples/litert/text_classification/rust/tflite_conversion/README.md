@@ -7,11 +7,15 @@ supporting 42 PII entity labels across 7 languages) into a `.tflite` model and
 `tokenizer.json` for use with the Rust `text_classifier` binary
 (`../main.rs`).
 
-> **Note**: Run this script inside an isolated local Python virtual environment.
+> **Note**: This script is intended to be run in a local Python virtual
+> environment outside the Bazel build graph.
 
 ## 1. Prerequisites
 
-Install [`uv`](https://docs.astral.sh/uv/) (or Python 3.12 `venv` + `pip`).
+Install [`uv`](https://docs.astral.sh/uv/) (`uv` is required because
+`--override overrides.txt` relaxes `xdsl`'s `typing-extensions<4.13` pin to
+satisfy `gliner2`'s `pydantic` dependency, which standard `pip` does not
+support).
 
 Create a Python 3.12 virtual environment and install the CPU-only dependencies
 (on Linux/Windows, install the pinned CPU-only `torch` wheel first to avoid
@@ -91,7 +95,7 @@ All inputs and outputs use static shapes (`batch = 1`):
 
 Once `out/gliner2_pii_int8.tflite` (or `out/gliner2_pii.tflite`) and
 `out/tokenizer.json` are generated, run the Rust example from the parent
-`samples/litert/text_classification/rust/` directory with Cargo:
+`text_classifier/` directory with Cargo:
 
 ```bash
 cd ..
@@ -101,5 +105,11 @@ cargo run --release -- \
   --classify-text="Hi, I'm Jean Dupont, email jean.dupont@acme.fr, call +33 6 12 34 56 78."
 ```
 
-See the [parent README](../README.md) for prerequisites, full CLI options, and
-example output.
+Or with Bazel:
+
+```bash
+bazel run //third_party/odml/litert/litert/samples/text_classifier:text_classifier -- \
+  --model-path=/path/to/out/gliner2_pii_int8.tflite \
+  --tokenizer-path=/path/to/out/tokenizer.json \
+  --classify-text="Hi, I'm Jean Dupont, email jean.dupont@acme.fr, call +33 6 12 34 56 78."
+```
