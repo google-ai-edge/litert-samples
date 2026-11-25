@@ -1,0 +1,60 @@
+Fix dangling std::initializer_list UB in GetCacheModel under GCC -O2.
+
+GetCacheModel initialized a std::initializer_list<absl::string_view> from a
+conditional expression of two temporary std::initializer_list objects. GCC does
+not extend the backing arrays' lifetimes through the ternary
+(-Wdangling-pointer) and eliminates their stores under -O2, causing
+absl::ConsumeSuffix to read uninitialized stack memory. Replace the ternary
+with static constexpr arrays selected via if/else and drop the unused
+<initializer_list> include.
+
+Drop this patch on the next @litert_lm pin bump once upstream includes the fix.
+
+--- a/runtime/executor/executor_settings_base.cc
++++ b/runtime/executor/executor_settings_base.cc
+@@ -17,4 +17,3 @@
+-#include <initializer_list>
+ #include <iostream>
+ #include <memory>
+ #include <optional>
+@@ -84,19 +83,27 @@
+ // Returns std::nullopt if the name isn't a known model.
+ std::optional<CacheModel> GetCacheModel(absl::string_view suffix,
+                                         CacheFileKind kind) {
+-  const std::initializer_list<absl::string_view> backend_suffixes =
+-      kind == CacheFileKind::kWeight
+-          ? std::initializer_list<
+-                absl::string_view>{ExecutorSettingsBase::kXnnpackCacheSuffix,
+-                                   ExecutorSettingsBase::
+-                                       kMlDriftWeightCacheSuffix,
+-                                   ExecutorSettingsBase::
+-                                       kDefaultWeightCacheSuffix}
+-          : std::initializer_list<absl::string_view>{
+-                ExecutorSettingsBase::kMlDriftCacheSuffix,
+-                ExecutorSettingsBase::kDefaultProgramCacheSuffix};
+-  for (absl::string_view backend_suffix : backend_suffixes) {
+-    if (absl::ConsumeSuffix(&suffix, backend_suffix)) break;
++  static constexpr absl::string_view kWeightBackendSuffixes[] = {
++      ExecutorSettingsBase::kXnnpackCacheSuffix,
++      ExecutorSettingsBase::kMlDriftWeightCacheSuffix,
++      ExecutorSettingsBase::kDefaultWeightCacheSuffix,
++  };
++  static constexpr absl::string_view kProgramBackendSuffixes[] = {
++      ExecutorSettingsBase::kMlDriftCacheSuffix,
++      ExecutorSettingsBase::kDefaultProgramCacheSuffix,
++  };
++  if (kind == CacheFileKind::kWeight) {
++    for (absl::string_view backend_suffix : kWeightBackendSuffixes) {
++      if (absl::ConsumeSuffix(&suffix, backend_suffix)) {
++        break;
++      }
++    }
++  } else {
++    for (absl::string_view backend_suffix : kProgramBackendSuffixes) {
++      if (absl::ConsumeSuffix(&suffix, backend_suffix)) {
++        break;
++      }
++    }
+   }
+   for (CacheModel model : kAllCacheModels) {
+     if (suffix == ExecutorSettingsBase::GetCacheModelName(model)) {
