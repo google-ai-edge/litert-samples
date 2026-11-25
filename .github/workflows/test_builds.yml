@@ -215,6 +215,7 @@ jobs:
           mkdir -p "$HOME/.cache/bazel-omni"
           bazel test --config=omni --disk_cache="$HOME/.cache/bazel-omni" --test_output=errors \
             //models/lfm/lfm2_5_audio/runner:all \
+            //models/tongyi/z_image_turbo/runner:all \
             //models/deepseek/janus_pro/runner:all
 
       - name: Save Bazel disk cache
