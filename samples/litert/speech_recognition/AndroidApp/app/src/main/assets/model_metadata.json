@@ -23,6 +23,34 @@
     "decodeStartTokenId": 8192,
     "decodeStopTokenId": 3
   },
+  "phonon-2": {
+    "modelRemoteUrl": "https://huggingface.co/litert-community/Phonon-2/resolve/main/phonon2_encoder_all_i8.tflite",
+    "gpuModelRemoteUrl": "https://huggingface.co/litert-community/Phonon-2/resolve/main/phonon2_encoder_all_f16.tflite",
+    "npuModelRemoteUrlPattern": "https://huggingface.co/litert-community/Phonon-2/resolve/main/phonon2_encoder_all_f16_sm8850.tflite",
+    "npuSocModels": ["SM8850"],
+    "encoderSignature": "enc<seconds>",
+    "melModelRemoteUrl": "https://huggingface.co/litert-community/Phonon-2/resolve/main/phonon2_mel_<seconds>s.tflite",
+    "decoderModelRemoteUrl": "https://huggingface.co/litert-community/Phonon-2/resolve/main/phonon2_decoder_i8.tflite",
+    "tokenizerUrl": "https://huggingface.co/litert-community/Phonon-2/resolve/main/tokenizer.json",
+    "windowSeconds": [5, 7.5, 10, 15, 20, 25, 30],
+    "inputMilliseconds": 29990,
+    "decodeStartTokenId": 8192,
+    "decodeStopTokenId": 3
+  },
+  "phonon-2.5-english": {
+    "modelRemoteUrl": "https://huggingface.co/litert-community/Phonon-2.5-English/resolve/main/phonon25en_encoder_i8.tflite",
+    "gpuModelRemoteUrl": "https://huggingface.co/litert-community/Phonon-2.5-English/resolve/main/phonon25en_encoder_f16.tflite",
+    "npuModelRemoteUrlPattern": "https://huggingface.co/litert-community/Phonon-2.5-English/resolve/main/phonon25en_encoder_f16_sm8850.tflite",
+    "npuSocModels": ["SM8850"],
+    "encoderSignature": "enc<seconds>",
+    "melModelRemoteUrl": "https://huggingface.co/litert-community/Phonon-2.5-English/resolve/main/phonon25en_mel_<seconds>s.tflite",
+    "decoderModelRemoteUrl": "https://huggingface.co/litert-community/Phonon-2.5-English/resolve/main/phonon25en_decoder_i8.tflite",
+    "tokenizerUrl": "https://huggingface.co/litert-community/Phonon-2.5-English/resolve/main/tokenizer.json",
+    "windowSeconds": [5, 7.5, 10, 15, 20, 25, 30],
+    "inputMilliseconds": 29990,
+    "decodeStartTokenId": 8192,
+    "decodeStopTokenId": 3
+  },
   "parakeet-ctc-0.6b": {
     "modelRemoteUrl": "https://huggingface.co/litert-community/parakeet-ctc-0.6b/resolve/main/parakeet_ctc_0.6b_5s_i8.tflite",
     "npuModelRemoteUrlPattern": "https://huggingface.co/litert-community/parakeet-ctc-0.6b/resolve/main/parakeet_ctc_0.6b_5s_f32_<target>.tflite",

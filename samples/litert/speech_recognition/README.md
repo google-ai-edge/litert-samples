@@ -14,6 +14,8 @@ open-weight ASR models. The table below outlines the supported backends for each
 | :--: | :--: | :--: | :--: | :-- |
 | [**Parakeet TDT**](https://huggingface.co/nvidia/parakeet-tdt-0.6b-v3) | ✅ | ✅ | Pixel 10 | Nvidia's Transducer-Duration-Transducer model |
 | [**Parakeet Ultra**](https://huggingface.co/moondream/parakeet-ultra) | ✅ | ✅ | | Moondream's post-trained Parakeet TDT v3: same architecture and size, fewer errors |
+| [**Phonon-2**](https://huggingface.co/FermionResearch/Phonon-2) | ✅ | ✅ | Galaxy S26 | Fermion Research's English model in Parakeet TDT v3's architecture |
+| [**Phonon-2.5 English**](https://huggingface.co/FermionResearch/Phonon-2.5-English) | ✅ | ✅ | Galaxy S26 | Fermion Research's English model in Parakeet TDT v3's architecture, better than Phonon-2 on all seven English sets of its card |
 | [**Parakeet CTC**](https://huggingface.co/nvidia/parakeet-ctc-0.6b) | ✅ | ✅ | Galaxy S23/24 | Nvidia's Connectionist-Temporal-Classification model |
 | [**Parakeet TDT-CTC (ja)**](https://huggingface.co/nvidia/parakeet-tdt_ctc-0.6b-ja) | ✅ | ✅ | | Japanese ASR with punctuation (hybrid model, TDT branch) |
 | [**Moonshine**](https://huggingface.co/UsefulSensors/moonshine-tiny) | ✅ | ✅ | | A lightweight, low-latency autoregressive ASR model |
@@ -47,6 +49,12 @@ Notes:
 *   NPU runtime libs are commented out in
     [AndroidApp/app/build.gradle.kts](AndroidApp/app/build.gradle.kts#L51).
     Uncomment one of them to enable TPU/NPU support.
+*   Phonon-2 and Phonon-2.5 English run on the NPU of the Galaxy S26 (SM8850)
+    with encoders compiled ahead of time for that chip. For them, uncomment
+    the two NPU lines in the `dependencies` of
+    [AndroidApp/app/build.gradle.kts](AndroidApp/app/build.gradle.kts): LiteRT's
+    Qualcomm dispatch library and Qualcomm's QNN runtime 2.50, the version the
+    encoders were compiled with.
 
 ### 2. convert
 

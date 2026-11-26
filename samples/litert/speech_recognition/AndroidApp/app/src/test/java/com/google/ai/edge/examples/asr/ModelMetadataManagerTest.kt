@@ -79,6 +79,42 @@ class ModelMetadataManagerTest {
     assertEquals(3, moonshineConfig.decodeSkipUntilTokenId)
   }
 
+  @Test
+  fun testParseBucketedMetadata() {
+    val jsonString =
+      """
+      {
+        "one-file-encoder": {
+          "modelRemoteUrl": "https://example.com/encoder_i8.tflite",
+          "npuModelRemoteUrlPattern": "https://example.com/encoder_f16_sm8850.tflite",
+          "npuSocModels": ["SM8850"],
+          "encoderSignature": "enc<seconds>",
+          "melModelRemoteUrl": "https://example.com/mel_<seconds>s.tflite",
+          "windowSeconds": [5, 7.5, 30]
+        },
+        "file-per-window": {
+          "modelRemoteUrl": "https://example.com/encoder_<seconds>s_i8.tflite",
+          "windowSeconds": [10, 20, 30]
+        }
+      }
+    """
+    val manager = ModelMetadataManager(jsonString)
+
+    val oneFile = manager.getModelConfig("one-file-encoder")
+    assertEquals(listOf(5f, 7.5f, 30f), oneFile.windowSeconds)
+    assertEquals("enc<seconds>", oneFile.encoderSignature)
+    assertEquals(listOf("SM8850"), oneFile.npuSocModels)
+    assertEquals(
+      listOf("5", "7.5", "30"),
+      oneFile.windowSeconds.map { BucketedTdtRunner.windowName(it) },
+    )
+
+    val perWindow = manager.getModelConfig("file-per-window")
+    assertEquals(listOf(10f, 20f, 30f), perWindow.windowSeconds)
+    assertEquals("serving_default", perWindow.encoderSignature)
+    assertEquals(emptyList<String>(), perWindow.npuSocModels)
+  }
+
   @Test(expected = NoSuchElementException::class)
   fun testGetModelConfigMissingModel() {
     val jsonString =
