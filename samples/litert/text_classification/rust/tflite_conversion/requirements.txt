@@ -1,0 +1,23 @@
+# Copyright 2026 Google LLC.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#      http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+# Install the pinned CPU-only PyTorch wheel first (on Linux/Windows) to avoid
+# pulling multi-GB CUDA wheels without mixing package indexes:
+#   uv pip install torch==2.13.0 --index-url https://download.pytorch.org/whl/cpu
+#   uv pip install -r requirements.txt --override overrides.txt
+gliner2[local]==2.0.0
+litert-torch==0.9.4
+ai-edge-quantizer==0.9.0
+tokenizers==0.22.2
+torch==2.13.0
