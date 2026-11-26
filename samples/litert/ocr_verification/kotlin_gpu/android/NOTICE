@@ -39,6 +39,6 @@ The text recognizer is ML Kit Text Recognition v2 (com.google.mlkit:text-recogni
 bundled in the app), used under the ML Kit terms (https://developers.google.com/ml-kit/terms).
 
 The example pages app/src/main/assets/examples/*.png were drawn for this sample (English text
-written for it, set in DejaVu Serif). app/src/test/resources/render_html_public.json holds the HTML
+written for it: the invoice set in DejaVu Sans Condensed with a made-up shop, items and prices, scaled down to a quarter and back up like a low-resolution scan; the formula sheet set in DejaVu Serif). app/src/test/resources/render_html_public.json holds the HTML
 the source's renderer writes for test strings written for this sample. No picture or text of a
 benchmark is in this tree: the check mode reads pictures that a computer copies to the phone.
