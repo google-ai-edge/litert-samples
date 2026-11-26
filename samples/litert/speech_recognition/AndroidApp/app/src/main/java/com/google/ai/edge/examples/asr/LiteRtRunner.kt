@@ -47,6 +47,16 @@ class LiteRtRunner(
      * @return The list of token IDs and their timestamps (if available) as a sequence.
      */
     fun decode(encodeOutputBuffers: List<TensorBuffer>): Sequence<Pair<Int, Int>>
+
+    /**
+     * Same as [decode], for the encoder output of an audio chunk in which only the first
+     * [numOfValidSamples] samples carry audio (see [SpeechRecognizer.recognize]). A decoder that
+     * cannot use the number ignores it.
+     */
+    fun decode(
+      encodeOutputBuffers: List<TensorBuffer>,
+      numOfValidSamples: Int,
+    ): Sequence<Pair<Int, Int>> = decode(encodeOutputBuffers)
   }
 
   private val compiledModel: CompiledModel =
@@ -107,13 +117,16 @@ class LiteRtRunner(
     compiledModel.close()
   }
 
-  override fun recognize(features: FloatArray): Sequence<Pair<Int, Int>> {
+  override fun recognize(features: FloatArray): Sequence<Pair<Int, Int>> =
+    recognize(features, SpeechRecognizer.ALL_SAMPLES)
+
+  override fun recognize(features: FloatArray, numOfValidSamples: Int): Sequence<Pair<Int, Int>> {
     val paddedFeatures = padOrTruncateFeatures(features, expectedNumOfFloats)
     inputBuffers[0].writeFloat(paddedFeatures)
 
     compiledModel.run(inputBuffers, outputBuffers)
 
-    return decoder.decode(outputBuffers)
+    return decoder.decode(outputBuffers, numOfValidSamples)
   }
 
   /** Helper class for decoding the ASR encoder output by looping over the decoder inputs. */
