@@ -28,7 +28,7 @@ const kAppVersion = '1.0.0+1';
 const kPackageVersions = {
   'flutter_edge_ai': '2.5.1',
   'flutter_edge_ai_litertlm': '1.17.0',
-  'flutter_litert': '3.9.3',
+  'flutter_litert': '4.1.1',
 };
 
 /// Set by the flutter tool for every build (`flutter_command.dart`

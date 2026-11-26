@@ -127,7 +127,7 @@ macOS (Apple silicon) and Linux desktops run from this folder directly ([Run](#r
 On Linux, install the build and runtime packages first:
 
 ```sh
-sudo apt install git curl unzip xz-utils patch python3-venv clang cmake ninja-build pkg-config lld \
+sudo apt install git curl unzip xz-utils python3-venv clang cmake ninja-build pkg-config lld \
   libgtk-3-dev liblzma-dev libstdc++-12-dev libgstreamer1.0-dev libgstreamer-plugins-base1.0-dev \
   libasound2-dev libturbojpeg pulseaudio-utils gstreamer1.0-plugins-base gstreamer1.0-plugins-good \
   libvulkan1 vulkan-tools
@@ -139,14 +139,10 @@ needs its Vulkan driver: `mesa-vulkan-drivers` for a Mesa GPU, NVIDIA's own driv
 ## Set up (once per checkout)
 
 ```sh
-tool/flutter_litert/vendor.sh        # flutter_litert 3.9.3 + a small patch into third_party/ (gitignored)
 tool/fetch_models.sh                 # the built-in models into assets/models/, each one verified
 flutter pub get
 ```
 
-- **`vendor.sh`.** On Linux and Windows, `flutter_litert` must run on the same LiteRT library as LiteRT-LM (one
-  LiteRT per process). The patch makes it do that, and changes nothing on the other platforms. `pubspec.yaml` points
-  `dependency_overrides` at the patched copy, so `flutter pub get` fails until this has run.
 - **`fetch_models.sh`.** The models built into the app are not in git. [`tool/models.lock`](tool/models.lock) pins
   every file (repository, commit, path, size and SHA-256); the script resumes interrupted downloads, skips files it
   has already verified, and `--check` verifies without the network. Until it has run, every `flutter build`, `run`

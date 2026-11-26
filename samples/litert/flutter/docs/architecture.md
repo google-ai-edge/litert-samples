@@ -132,11 +132,12 @@ the detector with `tool/prune_yolo26n_head.py`.
   - Android: LiteRT-LM links LiteRT into its own library; `flutter_litert` loads its separate `libLiteRt.so`.
   - iOS and macOS: each copy is its own image with two-level symbol binding, and each ships a Metal accelerator under
     its own name (LiteRT-LM's is `LiteRtLmMetalAccelerator`), so both GPU paths work side by side.
-  - Linux: both packages would install a `libLiteRt.so` of the same name into the bundle's lib folder, and the
-    LiteRT-LM bundle loads it with `RTLD_GLOBAL`, so the process has one LiteRT. `tool/flutter_litert/vendor.sh` applies
-    `tool/flutter_litert/flutter_litert-3.9.3.patch` into the gitignored `third_party/flutter_litert`
-    (`dependency_overrides`): on Linux `flutter_litert` then bundles none and binds to LiteRT-LM's copy, choosing the
-    model-loading signature from the loaded library. Unpatched, the detector crashes the process there.
+  - Linux and Windows: both packages would install a LiteRT library of the same name next to the app, and the
+    LiteRT-LM bundle loads it with `RTLD_GLOBAL` on Linux, so the process has one LiteRT. The runner's `CMakeLists.txt`
+    sets `FLUTTER_LITERT_BUNDLE_DESKTOP_RUNTIME` to `OFF` (flutter_litert 4.1.0 and newer): `flutter_litert` then
+    downloads and bundles no runtime of its own and binds to LiteRT-LM's copy, whose LiteRT 2.x C API it uses. Its
+    custom-ops library is still bundled, and on x86_64 its TensorFlow Lite interpreter library too (on Linux arm64 the
+    detector's load check uses LiteRT's CPU path instead).
   - Self-test step 5 checks coexistence: the detector's output is bit-identical before and after the chat model ran.
 
 ## Voice chat pipeline

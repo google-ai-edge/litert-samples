@@ -19,7 +19,7 @@ the GPU, the CPU, or a Qualcomm NPU.
 | | |
 |---|---|
 | Phone | Android 11 (API 30) or newer, 64-bit (arm64-v8a), **8 GB of RAM or more recommended**. About 5 GB free: the app (an APK of about 0.9 GB, most of it the built-in models), those models unpacked once (about 0.7 GB), the chat model (2.6 or 3.0 GB) and the caches the models write at their first load |
-| Computer | macOS (Apple silicon) or Linux with Flutter 3.47.3, Android SDK 36, JDK 17 or newer (Android Studio's bundled JDK works) and Python 3.10–3.14. Run `flutter doctor --android-licenses` once: the first build installs NDK 28.2.13676358 and CMake. Set up the sample once: [Set up](../../litert/flutter/README.md#set-up-once-per-checkout) in the sample's README (`vendor.sh`, `fetch_models.sh`, `flutter pub get`) |
+| Computer | macOS (Apple silicon) or Linux with Flutter 3.47.3, Android SDK 36, JDK 17 or newer (Android Studio's bundled JDK works) and Python 3.10–3.14. Run `flutter doctor --android-licenses` once: the first build installs NDK 28.2.13676358 and CMake. Set up the sample once: [Set up](../../litert/flutter/README.md#set-up-once-per-checkout) in the sample's README (`fetch_models.sh`, `flutter pub get`) |
 | Connection | USB debugging on the phone, and `adb` on the computer (it comes with the Android SDK platform tools) |
 | Chat model | A `.litertlm` file. From [litert-community/gemma-4-E2B-it-litert-lm](https://huggingface.co/litert-community/gemma-4-E2B-it-litert-lm) (no login needed): `gemma-4-E2B-it.litertlm` (2.6 GB) runs on the GPU or CPU of any recent phone; on a Snapdragon 8 Elite (SM8750) phone, `gemma-4-E2B-it_qualcomm_sm8750.litertlm` (3.0 GB) runs on the NPU. If you were given another build, it is used the same way. |
 
