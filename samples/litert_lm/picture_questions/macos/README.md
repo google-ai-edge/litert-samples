@@ -31,11 +31,13 @@ Both files hold an int4 text decoder, a vision encoder (fp32 in Muse-Glimmer-30B
 
 ## Quickstart
 
-1. Download a model file (Muse-Glimmer-30B here; for the 72B use `litert-community/Qwen2.5-VL-72B-Instruct-LiteRT Qwen2.5-VL-72B-Instruct_q4_ekv2048.litertlm`):
+1. Download a model file (Muse-Glimmer-30B here; for the 72B use `litert-community/Qwen2.5-VL-72B-Instruct-LiteRT Qwen2.5-VL-72B-Instruct_q4_ekv2048.litertlm --revision 1b7c0abfa5f069e09d4a14c995e9289a4ff56ace`):
 
    ```bash
-   hf download litert-community/Muse-Glimmer-30B-LiteRT Muse-Glimmer-30B_q4_ekv2048.litertlm --local-dir ~/models
+   hf download litert-community/Muse-Glimmer-30B-LiteRT Muse-Glimmer-30B_q4_ekv2048.litertlm --revision ac27a1cb22d44e912d4868029a6aebf3bb77c1bc --local-dir ~/models
    ```
+
+   LiteRT-LM reads a file's own header, so a file with its weights inside the graphs (these two) and one with its weights in `TFLiteWeights` sections both open, and the app knows these two models by their size, within 1%. These two models have no file with `TFLiteWeights` sections yet, so that case was not run; the app opened both forms of LFM3-VL-2B's and Mage-VL-Cowork's files and answered a question with each.
 
 2. Build the app. The first build downloads the LiteRT-LM runtime (the release's `CLiteRTLM_mac.xcframework.zip`, 47 MB) and checks its SHA-256:
 

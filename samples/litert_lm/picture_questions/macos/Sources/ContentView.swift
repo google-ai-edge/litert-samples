@@ -463,7 +463,7 @@ private struct StatusCard: View {
           Text("\(known.name) (\(Format.gb(known.fileBytes)), uses about \(Format.memory(known.peakFootprintBytes)) of memory):")
             .font(.callout)
             .foregroundStyle(.secondary)
-          Text("hf download \(known.huggingFace) \(known.fileName) --local-dir ~/models")
+          Text("hf download \(known.huggingFace) \(known.fileName) --revision \(known.revision) --local-dir ~/models")
             .font(.system(.callout, design: .monospaced))
             .textSelection(.enabled)
             .padding(8)

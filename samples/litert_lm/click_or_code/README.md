@@ -13,13 +13,13 @@ The sections below describe the Android app. The macOS app, on a screenshot of y
 
 | Hugging Face repo | File | Size | License |
 |---|---|---|---|
-| [litert-community/Mage-VL-Cowork](https://huggingface.co/litert-community/Mage-VL-Cowork) | `Mage-VL-Cowork_vision-fp16.litertlm` (int4 text decoder with fp16 activations on the GPU and a 4,096-token context, fp16 vision encoder) | 3.20 GB | Apache-2.0 |
+| [litert-community/Mage-VL-Cowork](https://huggingface.co/litert-community/Mage-VL-Cowork) | `Mage-VL-Cowork_vision-fp16.litertlm` (int4 text decoder with fp16 activations on the GPU and a 4,096-token context, fp16 vision encoder) | 3.19 GB | Apache-2.0 |
 
-The app downloads the file on first use into its private storage and checks its size and SHA-256 against [`app/src/main/assets/models.json`](android/app/src/main/assets/models.json). The model file is not in the APK. The bundle is a conversion of [microsoft/Mage-VL-Cowork](https://huggingface.co/microsoft/Mage-VL-Cowork); its card says what changed.
+The app downloads the file on first use into its private storage and checks its size and SHA-256 against [`app/src/main/assets/models.json`](android/app/src/main/assets/models.json). The model file is not in the APK. `models.json` lists both forms of the file, with its weights in `TFLiteWeights` sections (the one the app downloads) and with its weights inside the graphs; the app reads the file's own header to tell which form it has and checks it against that form's size and SHA-256, so a file of either form runs. The bundle is a conversion of [microsoft/Mage-VL-Cowork](https://huggingface.co/microsoft/Mage-VL-Cowork); its card says what changed. The answers, times and memory figures in this README were measured with the earlier form of this file and of the macOS app's file (their weights inside the graphs); with either form of each file, the Android app on a Galaxy S26 and the macOS app each loaded the model and decided one bundled example, and the two forms gave the same point.
 
 ## Requirements
 
-JDK 17 and Android SDK platform 36 to build. The app builds for arm64-v8a on Android 12+ (minSdk 31). The first start downloads 3.20 GB and needs twice that free in the app's storage. Before it loads the model, the app checks that about 6 GB of memory is free: over the steps below, free memory fell by at most 5.7 GB on a Galaxy S26 and 5.8 GB on a Pixel 11 Pro. Tested on those two phones.
+JDK 17 and Android SDK platform 36 to build. The app builds for arm64-v8a on Android 12+ (minSdk 31). The first start downloads 3.19 GB and needs twice that free in the app's storage. Before it loads the model, the app checks that about 6 GB of memory is free: over the steps below, free memory fell by at most 5.7 GB on a Galaxy S26 and 5.8 GB on a Pixel 11 Pro. Tested on those two phones.
 
 From a phone that had cooled down, a step with two inferences took 103 to 116 s on a Galaxy S26 and 240 s on a Pixel 11 Pro. A step with one inference took 69 to 74 s and 172 s. Steps one after another heat the phone: on the Galaxy S26 a step with two inferences reached 334 s after 17 minutes of steps.
 
@@ -79,7 +79,7 @@ one Engine for the app; one Conversation per inference
 | `Examples.kt` | The bundled screenshots and their example requests (`assets/examples/`) |
 | `StepViewModel.kt`, `StepScreen.kt` | The screen: the screenshot with its ring, the request, Decide, the answer, the seconds of each inference and its stages |
 | `AutoRun.kt` | Debug builds: a plan of steps through Decide's code, one result line each |
-| `data/` | The reader of `models.json`, the free-space rule and the download store (resume, SHA-256, HTTPS only), from [`voice_assistant`](../voice_assistant/) |
+| `data/` | The reader of `models.json` and of a `.litertlm` file's header, the free-space rule and the download store (resume, SHA-256, HTTPS only), from [`voice_assistant`](../voice_assistant/) |
 
 ## Quickstart
 
@@ -94,7 +94,7 @@ Stay in the app while the file downloads. On a Galaxy S26, pressing Home ended t
 
 ## Development
 
-**Side-load (development only).** A copy of the model file in the app's external files dir is hashed and, when its size and SHA-256 match `models.json`, imported instead of downloaded; the next **Download (3.2 GB) and load** logs `side-loaded <file> ... (sha256 verified)` under `adb logcat -s ClickOrCodeDownload`:
+**Side-load (development only).** A copy of the model file, in either form, in the app's external files dir is hashed and, when its size and SHA-256 match `models.json`, imported instead of downloaded; the next **Download (3.2 GB) and load** logs `side-loaded <file> ... (sha256 verified)` under `adb logcat -s ClickOrCodeDownload`:
 
 ```sh
 P=com.google.ai.edge.examples.click_or_code
@@ -114,7 +114,7 @@ The app in [`macos/`](macos/) works on your own Mac's screen. Capture the screen
 
 It sends the same requests as the Android app: the same system prompt file, the same two steps, the same 1920 × 1088 stretch. It calls LiteRT-LM's C API (the `CLiteRTLM_mac.xcframework` of the v0.19.0 release, pinned by URL and SHA-256 in `macos/LiteRTLMRuntime/Package.swift`). The text decoder and the vision encoder both run on the GPU (WebGPU over Metal).
 
-The model file is not the Android app's. It is [`Mage-VL-Cowork.litertlm`](https://huggingface.co/litert-community/Mage-VL-Cowork) (3.80 GB, Apache-2.0), with its vision encoder on the GPU. The app downloads it on first use into `~/Library/Application Support/ClickOrCode/models`, goes on from the same byte after a stopped download, and checks its size and SHA-256 against [`macos/Resources/models.json`](macos/Resources/models.json).
+The model file is not the Android app's. It is [`Mage-VL-Cowork.litertlm`](https://huggingface.co/litert-community/Mage-VL-Cowork) (3.80 GB, Apache-2.0), with its vision encoder on the GPU. The app downloads it on first use into `~/Library/Application Support/ClickOrCode/models`, goes on from the same byte after a stopped download, and checks its size and SHA-256 against [`macos/Resources/models.json`](macos/Resources/models.json), for the form its own header says it is. As on Android, a file of either form runs.
 
 ### Requirements
 
@@ -197,7 +197,7 @@ Each case below was made to happen on the Mac. The app stayed up and said so:
 | A Mac with too little memory (tried with `-assumePhysicalMemoryGB 8`) | **Not enough memory**, before anything is loaded: "The engine used up to 7.0 GB of memory in this app, and macOS needs about 6.0 GB besides. This Mac has 8 GB. Nothing was loaded." |
 | A download that stops | The reason ("The request timed out." on the real file) and **Try again**, or after a cancel **Go on with the download (3.7 GB of 3.8 GB is here)**. Both go on from the same byte, and the finished file's SHA-256 matched |
 | A download with the wrong content (tried with small test catalogs) | "“small.litertlm” has SHA-256 …, not …. Nothing was loaded.", the same for a wrong size. The download also stops on HTTP 404, on a redirect that is not HTTPS, on a body longer than the file, and when there is not enough free space |
-| **Use a copy on this Mac…** with another file | "“readme_full.bin” is 46356 bytes and this app's file is 3803948496 bytes. Nothing was loaded." |
+| **Use a copy on this Mac…** with another file | "“readme_full.bin” is 46356 bytes and this app's file is 3799285760 bytes. Nothing was loaded." |
 | A file with the right hash that LiteRT-LM cannot read | "Not a model this app can run", with LiteRT-LM's error |
 
 ### The recorder
@@ -221,7 +221,7 @@ build/Build/Products/Release/ClickOrCode.app/Contents/MacOS/ClickOrCode \
 | `Sources/EngineHost.swift`, `Sources/EngineClient.swift`, `Sources/Protocol.swift` | The engine process and the window's side of it, in JSON lines. An engine that dies ends that process, not the app |
 | `Sources/Step.swift` | The agent's two steps as text and the reading of a reply: `Step.kt` in Swift |
 | `Sources/Pictures.swift`, `Sources/Picture.swift` | The 1920 × 1088 stretch (Pillow 13.0.0's bicubic resize), the EXIF turn, the screenshots |
-| `Sources/Models.swift`, `Sources/SystemMemory.swift` | The reader of `models.json`, the download (resume, HTTPS only, size, SHA-256), the memory check |
+| `Sources/Models.swift`, `Sources/LitertlmHeader.swift`, `Sources/SystemMemory.swift` | The reader of `models.json` and of a `.litertlm` file's header, the download (resume, HTTPS only, size, SHA-256), the memory check |
 | `Sources/AppModel.swift`, `Sources/ContentView.swift`, `Sources/Examples.swift` | The window's state and actions, its views, the bundled examples |
 | `Sources/Autoplay.swift`, `checks/` | The recorder and its scripts |
 | `Tests/StepTests.swift` | 15 unit tests: the reading of a reply and the stretch, against the Pillow rows the Android tests use |

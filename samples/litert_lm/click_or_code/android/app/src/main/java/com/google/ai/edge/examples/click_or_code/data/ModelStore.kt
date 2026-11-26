@@ -101,8 +101,8 @@ class ModelStore(
   /**
    * Development only: a copy of a model file in [source] (the app's external files dir, where `adb
    * push` can put it) is hashed and, when it matches the catalog, copied into place instead of
-   * downloaded. The copy in [source] is left as it is. A copy at the catalog size that cannot be
-   * read or does not match is skipped, with the reason.
+   * downloaded. The copy in [source] is left as it is. A copy at the catalog size of its form that
+   * cannot be read or does not match is skipped, with the reason.
    */
   suspend fun sideLoad(entry: ModelEntry, source: File?): SideLoad =
     withContext(ioDispatcher) {
@@ -116,7 +116,7 @@ class ModelStore(
         currentCoroutineContext().ensureActive()
         val target = File(dir, modelFile.name)
         val copy = File(source, modelFile.name)
-        if (!isCommitted(target, modelFile) && copy.isFile && copy.length() == modelFile.bytes) {
+        if (!isCommitted(target, modelFile) && isCommitted(copy, modelFile)) {
           if (!copy.canRead()) {
             val why = "${modelFile.name}: not readable by the app"
             eventLogger("side-load $why, skipped")
@@ -331,12 +331,12 @@ class ModelStore(
 
   companion object {
     /**
-     * True for a file that [download] or [sideLoad] committed: present at its catalog size. The
-     * content was verified once, before the atomic rename; the app's private storage is the only
-     * writer afterwards.
+     * True for a file that [download] or [sideLoad] committed: present at the catalog size of its
+     * form. The content was verified once, before the atomic rename; the app's private storage is
+     * the only writer afterwards.
      */
     fun isCommitted(file: File, expected: ModelFile): Boolean =
-      file.isFile && file.length() == expected.bytes
+      file.isFile && file.length() == expected.expectedFor(file).bytes
 
     /** Byte size and SHA-256 of [file] against the catalog; run once per downloaded file. */
     fun verify(file: File, expected: ModelFile): Boolean {
@@ -354,7 +354,8 @@ class ModelStore(
           digest.update(buffer, 0, n)
         }
       }
-      return digest.digest().joinToString("") { "%02x".format(it) } == expected.sha256
+      return digest.digest().joinToString("") { "%02x".format(it) } ==
+        expected.expectedFor(file).sha256
     }
   }
 }

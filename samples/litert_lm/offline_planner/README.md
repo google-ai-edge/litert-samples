@@ -8,7 +8,7 @@ This Android sample turns one typed sentence into actions on the app's own calen
 
 In the recording: the request typed into the field and Ask and Run tapped from adb (`input text`, `input tap`), on a Galaxy S26 in airplane mode with the model loaded; the three actions were on screen 4.6 s after the tap. The recording plays at real speed, with its last frame held for 1.5 s.
 
-The model runs with [LiteRT-LM](https://github.com/google-ai-edge/LiteRT-LM)'s Kotlin API (0.18.1). LFM3-1.7B writes tool calls in its own XML format, which LiteRT-LM returns as text for this model; the app parses them (`ToolCalls.kt`), and an app can do the same for another model whose tool-call format the runtime does not parse.
+The model runs with [LiteRT-LM](https://github.com/google-ai-edge/LiteRT-LM)'s Kotlin API (0.19.0). LFM3-1.7B writes tool calls in its own XML format, which LiteRT-LM returns as text for this model; the app parses them (`ToolCalls.kt`), and an app can do the same for another model whose tool-call format the runtime does not parse.
 
 ## What you can give it
 
@@ -38,12 +38,14 @@ Ask sends the request. The proposed actions appear one by one as the model write
 
 | File | Bytes | SHA-256 |
 |---|---|---|
-| `LFM3-1.7B_mixed_int4_ekv2048.litertlm` | 1,441,620,928 | `0400d8ffdb00e4bbe1209120e2c7baf05322a8c900839b0a94cc28f599011196` |
+| `LFM3-1.7B_mixed_int4_ekv2048.litertlm` | 1,441,677,312 | `309897ee0d757f68bb9026c2a18c0379bbfad7d7c4161b556b484ed129d0ade3` |
 
 ```bash
 pip install -U huggingface_hub
-hf download litert-community/LFM3-1.7B-LiteRT --include "LFM3-1.7B_mixed_int4_ekv2048.litertlm" --local-dir lfm3
+hf download litert-community/LFM3-1.7B-LiteRT --revision 6a059efd4759f6c06f88e03586d86ed914f988f2 --include "LFM3-1.7B_mixed_int4_ekv2048.litertlm" --local-dir lfm3
 ```
+
+LiteRT-LM reads the file's own header, so the app runs either form of this file: the one above, with its weights in a `TFLiteWeights` section, or the earlier one, with its weights inside the graph (`--revision 3d9ed9597b3aa2f806c3b9403155e4da7d01e639`, 1,441,620,928 bytes, SHA-256 `0400d8ff…`). On a Pixel 8a, the two forms gave the same calls and answers to nine requests.
 
 ## Build and install
 
@@ -63,19 +65,19 @@ Galaxy S26 (SM-S942Q, Android 16), airplane mode. The measuring tool ran the fiv
 
 | Request | Calls (the same in both runs) | Run 1: on screen (s) | Run 2: on screen (s) |
 |---|---|---|---|
-| Put lunch with Ken tomorrow at 12:30 on my calendar and let him know. | `create_event` (Lunch with Ken, Sat 31 Oct 12:30), `draft_message` (Ken Walker) | 3.67 | 3.50 |
-| Move my dentist appointment to Wednesday at 4 pm. | `move_event` (Dentist, Wed 4 Nov 16:00) | 2.96 | 2.59 |
-| Schedule a project meeting on Monday at 3 pm and tell Maya and Leo about it. | `create_event` (Project Meeting, Mon 2 Nov 15:00), `draft_message` (Maya Patel), `draft_message` (Leo Martin) | 6.31 | 5.66 |
-| Add a call with Dana on Tuesday at half past nine in the morning. | `create_event` (Call with Dana, Tue 3 Nov 09:30) | 3.71 | 3.46 |
-| How many minutes are in two and a half hours? | none; the answer says 150 minutes | 3.41 | 3.33 |
-| Mean | | 4.01 | 3.71 |
+| Put lunch with Ken tomorrow at 12:30 on my calendar and let him know. | `create_event` (Lunch with Ken, Sat 31 Oct 12:30), `draft_message` (Ken Walker) | 3.43 | 3.37 |
+| Move my dentist appointment to Wednesday at 4 pm. | `move_event` (Dentist, Wed 4 Nov 16:00) | 2.47 | 2.34 |
+| Schedule a project meeting on Monday at 3 pm and tell Maya and Leo about it. | `create_event` (Project Meeting, Mon 2 Nov 15:00), `draft_message` (Maya Patel), `draft_message` (Leo Martin) | 4.92 | 5.45 |
+| Add a call with Dana on Tuesday at half past nine in the morning. | `create_event` (Call with Dana, Tue 3 Nov 09:30) | 2.51 | 2.37 |
+| How many minutes are in two and a half hours? | none; the answer says 150 minutes | 2.19 | 2.00 |
+| Mean | | 3.11 | 3.11 |
 
-Run 1 started on a warm phone (Android's thermal status 1, rising to 2 during the second request); run 2 came after a 5-minute rest and one more request (thermal status 0, rising to 1 during the first request). The target set before the runs was a mean of at most 4.0 s, with one re-run allowed: run 1 missed it by 0.01 s, the re-run met it. The first proposed action came 2.4 to 3.7 s after the tap, and the others followed as the model wrote them.
+Android's thermal status stayed 0 through both runs, and run 2 came after a 5-minute rest. The first proposed action came 2.2 to 2.9 s after the tap, and the others followed as the model wrote them.
 
 - The calls were right in both runs: the tools, their order, the people, the dates and the times, and no call the request did not ask for.
-- Preparing a fresh Engine after a reply took 3.8 to 6.9 s on the Galaxy S26; the first load after an install, which builds the GPU programs once, took 7.1 to 7.4 s.
-- On a Pixel 8a (GPU) the nine development requests took 8.4 to 15.7 s to show all their calls, and a fresh Engine took 12 to 13 s; in later runs on the same phone a fresh Engine took 5 to 7 s. The first load after an install took 26 to 61 s in five installs on the Pixel 8a.
-- The same request can come out differently on different phones: of four ways to ask for the flight example, "to 9 pm" and "to 21:30" gave the right new time on the Galaxy S26 and "back two hours" did not; on the Pixel 8a only "back two hours" did, and "to 9:30 pm" failed on both (same model file, same prompt).
+- Preparing a fresh Engine after a reply took 3.3 to 7.2 s on the Galaxy S26; the first load after an install, which builds the GPU programs once, took 6.5 s.
+- On a Pixel 8a (GPU) the nine development requests took 7.2 to 14.6 s to show all their calls, and a fresh Engine took 4.9 to 11.0 s; in another run of the same requests, in which the app was stopped a second or two into its first load after the install, each fresh Engine took 20 to 43 s. The first load after an install took 29 s on the Pixel 8a.
+- The wording of a request matters: of four ways to ask for the flight example, in a check with the app's clock set to 15:00, "to 9 pm" and "to 21:30" gave the right new time on the Galaxy S26 and on the Pixel 8a, and "to 9:30 pm" and "back two hours" did not. With the clock set to 09:00, in the nine development requests on the Pixel 8a, "to 9 pm" left the dinner at 19:00 in each of three runs.
 
 Every step above ran once as written: the download on a Mac (its SHA-256 matched the table), then `./gradlew :app:installDebug` and `install_to_device.sh` onto a Pixel 8a (Android 16) with no copy of the app. Then every feature ran once on that phone in airplane mode: an example picked from the list, Ask, **Model output**, Run, adding and removing a contact and an event, **Reset the example data**, each check's refusal (through `inject_reply`), a request longer than the context and a file that is not a model. The phone's keyboard was Japanese and put full-width digits into the date and time fields; the app read them.
 
@@ -96,8 +98,8 @@ The JVM tests (`./gradlew :app:testDebugUnitTest`) cover the parser of the XML c
 
 ## Known limits
 
-- Check the actions before Run. In the development runs the model wrote "quarter to six in the evening" as 18:00, and when asked to move the 19:00 dinner it sometimes wrote a new time close to the old one (see Performance).
-- Each request is a new conversation on a new Engine: the app does not remember earlier requests, and after each reply it takes a while to prepare the next Engine (5 to 13 s on a Pixel 8a; the Galaxy S26 time is under Performance).
+- Check the actions before Run. In the development runs the model wrote "quarter to six in the evening" as 18:00, and when asked to move the 19:00 dinner it sometimes wrote a new time close to the old one (see Performance). A reply can also run into the limit of 256 output tokens: on a Pixel 8a, the reply to "Put lunch with Ken tomorrow at 12:30 on my calendar and let him know." reached it inside its second call, and the app showed the first action and "Could not read the reply as tool calls: The reply ends inside a tool call. The model's text is below."
+- Each request is a new conversation on a new Engine: the app does not remember earlier requests, and after each reply it takes a while to prepare the next Engine (5 to 11 s on a Pixel 8a, and 20 to 43 s in the other run under Performance; the Galaxy S26 time is there too).
 - The model's context is 2,048 tokens, so the calendar in the prompt stops at 12 events. A request that does not fit fails and the app shows why. In the test a 2,737-word request got: "Input token ids are too long. Exceeding the maximum number of tokens allowed: 4348 >= 2048".
 - GPU only: the app has no CPU switch on the screen (the measuring tool's `--es backend cpu` extra exists; not tested). Tested in English.
 
