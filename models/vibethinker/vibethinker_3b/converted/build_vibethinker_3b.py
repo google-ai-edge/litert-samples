@@ -12,150 +12,114 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""WeiboAI/VibeThinker-3B (dense Qwen2ForCausalLM, math/reasoning) -> .litertlm.
+"""WeiboAI/VibeThinker-3B -> model.litertlm.
 
-Converts the Hugging Face checkpoint into a LiteRT-LM bundle through
-litert-torch's plain HF export path: blockwise-32 OCTAV int4 weights with the
-tied vocab embedding kept at int8 and split into its own section (~2.06 GB).
-Standard Qwen2 architecture — nothing to re-author.
-
-Two model-specific facts are baked in:
-
-  * Stop tokens. VibeThinker's generation_config declares only <|endoftext|>
-    (151643) as EOS, but under ChatML the model ends its turn with <|im_end|>
-    (151645). The bundle builder derives the stop set from generation_config,
-    so without a fix the runtime has no id-level stop for <|im_end|> and can
-    keep generating past the answer. This script adds 151645 to the model's
-    eos_token_id before the metadata is built (the published bundle carries
-    both ids).
-
-  * Block size. This is a precision-sensitive math model: block-32 int4 holds
-    GSM8K at 90.0% (bf16 97.0%), while the coarser block-128 int4 collapses
-    to 64.0% (n=100, greedy, 2048-token budget). Only block-32 is offered.
-    General-purpose 4B reasoning models show the opposite (block-128 is fine
-    and faster); exact arithmetic needs the finer grid.
+One call of litert-torch's stock HF exporter with vibethinker_extension.py
+(an out-of-tree `ModelExtension`) in `extension_modules`. The extension holds
+the export arguments and the metadata; this script fetches the checkpoint at
+the pinned revision and exports it under the name of the published file at
+litert-community/VibeThinker-3B. No change to litert-torch, no edit of the
+bundle after the export.
 
 Usage:
-  python build_vibethinker_3b.py --out out_int4
+  python build_vibethinker_3b.py --out out_int4                # 2.06 GB file
+  python build_vibethinker_3b.py --dry-run                     # the export plan
+  python build_vibethinker_3b.py --dry-run --no-extension      # the stock plan
 """
 
 import argparse
-import copy
+import os
+import shutil
+import time
+from pathlib import Path
 
-# Bare ChatML — the published bundle's template. Upstream's Qwen2 template
-# also inserts "You are a helpful assistant." as a default system turn; the
-# bundle drops that line (measured with it dropped: GSM8K 90.0%, 8Q 8/8). To
-# bake it in, put the system turn into the user prefix as the Qwen2.5-Coder
-# recipe in this repo does.
-CHATML_TEMPLATE = r"""{%- for message in messages -%}
-{{- '<|im_start|>' + message['role'] + '\n' + message['content'] + '<|im_end|>' + '\n' -}}
-{%- endfor -%}
-{%- if add_generation_prompt -%}
-{{- '<|im_start|>assistant\n' -}}
-{%- endif -%}"""
-
-IM_END = 151645        # <|im_end|>
-END_OF_TEXT = 151643   # <|endoftext|>
-
-
-def patch_tokenizer():
-  """Forces the bare ChatML template on every tokenizer the exporter loads."""
-  import transformers
-
-  orig_from_pretrained = transformers.AutoTokenizer.from_pretrained
-
-  def patched_from_pretrained(*args, **kwargs):
-    tok = orig_from_pretrained(*args, **kwargs)
-    tok.chat_template = CHATML_TEMPLATE
-    # No bos_token on this tokenizer -> no start_token in the bundle.
-    assert not tok.bos_token, "unexpected bos_token — re-check the start_token story"
-    return tok
-
-  transformers.AutoTokenizer.from_pretrained = patched_from_pretrained
+MODEL_ID = "WeiboAI/VibeThinker-3B"
+REVISION = "77bd2cced09193c8b9a59a32bd8577bbd1f3e01c"
+SOURCE_FILES = [
+    "config.json", "generation_config.json", "model.safetensors.index.json",
+    "model-00001-of-00002.safetensors", "model-00002-of-00002.safetensors",
+    "tokenizer.json", "tokenizer_config.json", "vocab.json", "merges.txt",
+    "added_tokens.json", "special_tokens_map.json",
+]
+FILE_NAME = "model.litertlm"
+EXTENSION = Path(__file__).resolve().parent / "vibethinker_extension.py"
 
 
-def patch_stop_tokens():
-  """Adds <|im_end|> to generation_config.eos_token_id after the model loads.
+def check_toolchain():
+  """Stops early on a litert-torch without the out-of-tree extension path."""
+  from importlib import metadata
 
-  The bundle builder reads `model.generation_config.eos_token_id` (int or
-  list) into the LlmMetadata stop set. VibeThinker ships eos_token_id=151643
-  only; the ChatML turn terminator is 151645.
-  """
-  import transformers
-
-  orig_from_pretrained = transformers.AutoModelForCausalLM.from_pretrained
-
-  def patched_from_pretrained(*args, **kwargs):
-    model = orig_from_pretrained(*args, **kwargs)
-    eos = model.generation_config.eos_token_id
-    eos = [eos] if isinstance(eos, int) else list(eos or [])
-    if IM_END not in eos:
-      eos.append(IM_END)
-    if END_OF_TEXT not in eos:
-      eos.append(END_OF_TEXT)
-    model.generation_config.eos_token_id = eos
-    print(f"stop-token fix: generation_config.eos_token_id = {eos}")
-    return model
-
-  transformers.AutoModelForCausalLM.from_pretrained = patched_from_pretrained
-
-
-def register_int4_recipe():
-  """blockwise-32 OCTAV int4 weights + int8 tied embedding (151936x2048).
-
-  Block-32 only, on purpose: block-128 collapsed this model's GSM8K from 90.0%
-  to 64.0% (see module doc / README.md).
-  """
-  import ai_edge_quantizer.recipe as recipe_lib
-
-  int4_rule = copy.deepcopy(recipe_lib.dynamic_wi4_afp32()[0])
-  int4_rule["algorithm_key"] = recipe_lib.AlgorithmName.OCTAV
-  int4_rule["op_config"]["weight_tensor_config"]["granularity"] = "BLOCKWISE_32"
-
-  emb_rule = copy.deepcopy(recipe_lib.dynamic_wi4_afp32()[0])
-  emb_rule["operation"] = "EMBEDDING_LOOKUP"
-  emb_rule["op_config"]["weight_tensor_config"]["num_bits"] = 8
-
-  recipe_lib.VIBETHINKER_INT4 = lambda: [int4_rule, emb_rule]
-  return "VIBETHINKER_INT4"
+  version = "(not installed)"
+  for dist in ("litert-torch", "litert-torch-nightly"):
+    try:
+      version = f"{dist} {metadata.version(dist)}"
+      break
+    except metadata.PackageNotFoundError:
+      pass
+  try:
+    from litert_torch.generative.export_hf.model_ext import extension
+  except ImportError as e:
+    extension = None
+    version += f" ({e})"
+  if not (hasattr(extension, "load_extension_file")
+          and hasattr(getattr(extension, "ModelExtension", None),
+                      "get_export_defaults")):
+    raise SystemExit(
+        f"{version} cannot load vibethinker_extension.py: the recipe needs a "
+        ".py file in extension_modules (litert-torch 864a966, 2026-10-28) and "
+        "ModelExtension.get_export_defaults (764beb0, 2026-11-03), which no "
+        "release carries yet. Install the version in the README.")
 
 
 def main():
+  """Parses the arguments, then prints the plan or writes the file."""
   ap = argparse.ArgumentParser(description=__doc__.split("\n")[0])
-  ap.add_argument("--model", default="WeiboAI/VibeThinker-3B",
-                  help="HF model id or a local checkout of it")
+  ap.add_argument("--model", default=MODEL_ID,
+                  help="HF model id (fetched at the pinned revision) or a "
+                       "local copy of that revision")
   ap.add_argument("--out", default="out_int4", help="output dir")
-  ap.add_argument("--cache", type=int, default=4096,
-                  help="KV cache length. Keep >= 4096: the model reasons at "
-                       "length before its \\boxed{} answer.")
-  ap.add_argument("--prefill", default="128",
-                  help="comma-separated prefill signature ladder. The published "
-                       "bundle carries the single 128 signature; see README.md "
-                       "for the ladder trade-off.")
+  ap.add_argument("--dry-run", action="store_true",
+                  help="print the export plan: each argument and its source")
+  ap.add_argument("--no-extension", action="store_true",
+                  help="with --dry-run: the plan of the stock exporter alone")
   args = ap.parse_args()
+  if args.no_extension and not args.dry_run:
+    ap.error("--no-extension is for --dry-run")
 
-  patch_tokenizer()
-  patch_stop_tokens()
-  quant = register_int4_recipe()
+  check_toolchain()
+  src = Path(args.model)
+  if not src.exists():
+    from huggingface_hub import snapshot_download
+
+    src = Path(snapshot_download(args.model, revision=REVISION,
+                                 allow_patterns=SOURCE_FILES))
 
   from litert_torch.generative.export_hf.export import export
 
-  export(
-      model=args.model,
-      output_dir=args.out,
-      prefill_lengths=[int(x) for x in args.prefill.split(",") if x.strip()],
-      cache_length=args.cache,
-      quantization_recipe=quant,
-      # False -> structured per-role prompt templates in the bundle, not raw
-      # jinja (the runtime's minimal jinja engine cannot run upstream's
-      # tool-calling template).
-      use_jinja_template=False,
-      # Tied embedding into its own section: main weights section 1.62 GiB,
-      # under the iOS ~2 GiB single-section mmap ceiling. No effect on parity.
-      externalize_embedder=True,
-      trust_remote_code=True,
-  )
-  print("EXPORT_DONE")
+  if args.dry_run:
+    print(export(model=str(src), dry_run=True,
+                 extension_modules=None if args.no_extension
+                 else str(EXTENSION)))
+    return
+  out = Path(args.out)
+  out.mkdir(parents=True, exist_ok=True)
+  work = out / "work"
+  shutil.rmtree(work, ignore_errors=True)
+  t0 = time.time()
+  try:
+    export(model=str(src), output_dir=str(work),
+           extension_modules=str(EXTENSION))
+  except BaseException:
+    shutil.rmtree(work, ignore_errors=True)  # a failed export leaves nothing
+    raise
+  bundle = work / "model.litertlm"
+  if not bundle.exists():
+    raise SystemExit("the export finished without model.litertlm")
+  final = out / FILE_NAME
+  bundle.replace(final)
+  shutil.rmtree(work)
+  print(f"EXPORT_DONE {final} ({os.path.getsize(final):,} B, "
+        f"{time.time() - t0:.0f} s)")
 
 
 if __name__ == "__main__":

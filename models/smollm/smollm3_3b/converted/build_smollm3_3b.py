@@ -12,123 +12,118 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""HuggingFaceTB/SmolLM3-3B (dense SmolLM3ForCausalLM) -> .litertlm.
+"""HuggingFaceTB/SmolLM3-3B -> SmolLM3-3B_q4_block32_ekv4096.litertlm.
 
-Converts the Hugging Face checkpoint into a LiteRT-LM bundle through
-litert-torch's plain HF export path: blockwise-32 OCTAV int4 weights with the
-tied vocab embedding kept at int8 and split into its own bundle section
-(~2.0 GB). SmolLM3's NoPE schedule (rotary disabled on every 4th layer,
-`no_rope_layer_interval=4`) lowers to generic ops — no re-authoring.
-
-The one thing to know before running this: SmolLM3's official chat template
-carries its reasoning-mode system prompt (`Reasoning Mode: /think` plus a long
-instruction block) inside an `if messages[0]['role'] != 'system'` branch. The
-exporter extracts STRUCTURED per-role prefixes/suffixes from the template by
-rendering sample conversations that always start with a system turn, so that
-branch never fires and nothing conditional survives into the bundle. The
-bundle is therefore bare ChatML (`<|im_start|>role\n ... <|im_end|>\n`), and
-SmolLM3 answers in direct mode by default (it closes `<think></think>` at
-once). A caller who wants the reasoning mode supplies SmolLM3's /think system
-prompt as a system message — the system-role prefix is in the bundle. See
-README.md and `verify_smollm3_3b.py --think-ab`.
+Converts the Hugging Face checkpoint into the file published at
+litert-community/SmolLM3-3B through litert-torch's stock HF exporter: one
+`export()` call with `smollm3_extension.py`, an out-of-tree `ModelExtension`,
+in `extension_modules`. The export arguments (int4 weights by
+recipe_int4.json, one 128-token prefill, a 4,096-token cache, the
+embedding table in its own section), the tokenizer section and the LlmMetadata
+all come from the extension; this script holds the checkpoint's revision and
+the output name. The script stops before the export on a litert-torch that
+cannot load an extension file.
 
 Usage:
   python build_smollm3_3b.py --out out_int4
+  python build_smollm3_3b.py --dry-run                 # the resolved arguments
+  python build_smollm3_3b.py --dry-run --no-extension  # the stock ones
 """
 
 import argparse
-import copy
+import os
+import shutil
+import time
+from pathlib import Path
 
-# Bare ChatML — what the exporter can carry, and what the published bundle
-# uses. Byte-identical to the upstream template's per-role markers; what it
-# drops is upstream's conditional system block (date, reasoning mode,
-# instructions), which cannot ride the structured template (see module doc).
-CHATML_TEMPLATE = r"""{%- for message in messages -%}
-{{- '<|im_start|>' + message['role'] + '\n' + message['content'] + '<|im_end|>' + '\n' -}}
-{%- endfor -%}
-{%- if add_generation_prompt -%}
-{{- '<|im_start|>assistant\n' -}}
-{%- endif -%}"""
+MODEL_ID = "HuggingFaceTB/SmolLM3-3B"
+REVISION = "a07cc9a04f16550a088caea529712d1d335b0ac1"
+SOURCE_FILES = ["*.json", "*.safetensors", "chat_template.jinja"]
+HERE = Path(__file__).resolve().parent
+EXTENSION = HERE / "smollm3_extension.py"
+OUTPUT_NAME = "SmolLM3-3B_q4_block32_ekv4096.litertlm"
 
 
-def patch_tokenizer():
-  """Forces the bare ChatML template on every tokenizer the exporter loads."""
+def check_toolchain():
+  """Stops early on a litert-torch that cannot load an extension file."""
+  try:
+    from litert_torch.generative.export_hf.model_ext import extension
+  except ImportError:
+    extension = None
+  if not (hasattr(extension, "load_extension_file")
+          and hasattr(extension, "ExportDefaults")):
+    from importlib import metadata
+
+    installed = "not installed"
+    for dist in ("litert-torch-nightly", "litert-torch"):
+      try:
+        installed = f"{dist} {metadata.version(dist)}"
+        break
+      except metadata.PackageNotFoundError:
+        pass
+    raise SystemExit(
+        f"{installed}: "
+        "this litert-torch cannot load smollm3_extension.py: it has no "
+        "out-of-tree extension files (`extension_modules` with a .py path) or "
+        "no extension export defaults. No release carries them yet (0.10.0 "
+        "does not); install the nightly in the README.")
   import transformers
 
-  orig_from_pretrained = transformers.AutoTokenizer.from_pretrained
-
-  def patched_from_pretrained(*args, **kwargs):
-    tok = orig_from_pretrained(*args, **kwargs)
-    tok.chat_template = CHATML_TEMPLATE
-    # SmolLM3 has no bos_token, so the bundle carries no start_token and the
-    # runtime prepends nothing. (Checkpoints that DO declare one while saying
-    # add_bos_token: False need it cleared here — see the granite-4.1-3b recipe.)
-    assert not tok.bos_token, "unexpected bos_token — re-check the start_token story"
-    return tok
-
-  transformers.AutoTokenizer.from_pretrained = patched_from_pretrained
-
-
-def register_int4_recipe():
-  """Registers the int4 recipe under a name the exporter can look up.
-
-  blockwise-32 OCTAV int4 for the weights (data-free optimal clipping;
-  channelwise min-max int4 degrades LLMs measurably more) with the tied
-  128256x2048 vocab embedding kept at int8 (EMBEDDING_LOOKUP is where naive
-  int4 hurts most). This is the recipe that measured GSM8K 81.0% against a
-  bf16 81.0% (n=100) — see README.md.
-  """
-  import ai_edge_quantizer.recipe as recipe_lib
-
-  int4_rule = copy.deepcopy(recipe_lib.dynamic_wi4_afp32()[0])
-  int4_rule["algorithm_key"] = recipe_lib.AlgorithmName.OCTAV
-  int4_rule["op_config"]["weight_tensor_config"]["granularity"] = "BLOCKWISE_32"
-
-  emb_rule = copy.deepcopy(recipe_lib.dynamic_wi4_afp32()[0])
-  emb_rule["operation"] = "EMBEDDING_LOOKUP"
-  emb_rule["op_config"]["weight_tensor_config"]["num_bits"] = 8
-
-  recipe_lib.SMOLLM3_INT4 = lambda: [int4_rule, emb_rule]
-  return "SMOLLM3_INT4"
+  print(f"toolchain: transformers {transformers.__version__}, litert-torch "
+        "with out-of-tree extension files")
 
 
 def main():
+  """Exports the file, or prints the export arguments with --dry-run."""
   ap = argparse.ArgumentParser(description=__doc__.split("\n")[0])
-  ap.add_argument("--model", default="HuggingFaceTB/SmolLM3-3B",
-                  help="HF model id or a local checkout of it")
+  ap.add_argument("--model", default=MODEL_ID,
+                  help="HF model id (fetched at the pinned revision) or a "
+                       "local copy of that revision")
   ap.add_argument("--out", default="out_int4", help="output dir")
-  ap.add_argument("--cache", type=int, default=4096, help="KV cache length")
-  ap.add_argument("--prefill", default="128",
-                  help="comma-separated prefill signature ladder. The published "
-                       "bundle carries the single 128 signature (smallest "
-                       "engine-init memory; long prompts are prefilled in "
-                       "128-token chunks). '1024,256,64,16,4,1' trades init "
-                       "memory for TTFT on long prompts — see README.md.")
+  ap.add_argument("--dry-run", action="store_true",
+                  help="print the resolved export arguments and stop")
+  ap.add_argument("--no-extension", action="store_true",
+                  help="without smollm3_extension.py (study only)")
   args = ap.parse_args()
 
-  patch_tokenizer()
-  quant = register_int4_recipe()
-
+  check_toolchain()
   from litert_torch.generative.export_hf.export import export
 
-  export(
-      model=args.model,
-      output_dir=args.out,
-      prefill_lengths=[int(x) for x in args.prefill.split(",") if x.strip()],
-      cache_length=args.cache,
-      quantization_recipe=quant,
-      # False -> the exporter extracts structured prompt templates from the
-      # (bare ChatML) chat template instead of embedding raw jinja in the
-      # bundle. The runtime's minimal jinja engine cannot run upstream's
-      # template (strftime_now, tool blocks), so this is not optional.
-      use_jinja_template=False,
-      # Splits the tied vocab embedding into its own bundle section, keeping the
-      # main weights section (1.61 GiB) under the iOS ~2 GiB single-section
-      # mmap ceiling. No effect on weights or parity.
-      externalize_embedder=True,
-      trust_remote_code=True,
-  )
-  print("EXPORT_DONE")
+  extension_modules = None if args.no_extension else str(EXTENSION)
+  src = Path(args.model)
+  if not src.exists():
+    from huggingface_hub import snapshot_download
+
+    patterns = ["*.json"] if args.dry_run else SOURCE_FILES
+    src = Path(snapshot_download(args.model, revision=REVISION,
+                                 allow_patterns=patterns))
+  if args.dry_run:
+    plan = export(model=str(src), dry_run=True,
+                  extension_modules=extension_modules)
+    print(f"task {plan.task}")
+    for key, value in sorted(plan.export_kwargs.items()):
+      print(f"  {key} = {value!r}")
+    return
+
+  out = Path(args.out)
+  out.mkdir(parents=True, exist_ok=True)
+  work = out / "smollm3.work"
+  shutil.rmtree(work, ignore_errors=True)
+  t0 = time.time()
+  try:
+    export(model=str(src), output_dir=str(work),
+           extension_modules=extension_modules)
+  except BaseException:
+    shutil.rmtree(work, ignore_errors=True)  # A failed export leaves nothing.
+    raise
+  bundle = work / "model.litertlm"
+  if not bundle.exists():
+    raise SystemExit("the export finished without model.litertlm")
+  final = out / OUTPUT_NAME
+  bundle.replace(final)
+  shutil.rmtree(work)
+  print(f"EXPORT_DONE {final} ({os.path.getsize(final):,} B, "
+        f"{time.time() - t0:.0f} s)")
 
 
 if __name__ == "__main__":
